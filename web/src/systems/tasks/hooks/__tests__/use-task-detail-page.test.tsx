@@ -297,7 +297,6 @@ describe("useTaskDetailPage", () => {
     vi.mocked(fanOutTaskRuns).mockRejectedValue(runtimeError);
     const request = {
       designations: [{ brief: "Investigate checkout" }],
-      network_participation: { mode: "local" as const },
     };
 
     const { result } = renderHook(() => useTaskDetailPage("task_001"), {
@@ -319,7 +318,6 @@ describe("useTaskDetailPage", () => {
     } as never);
     const request = {
       designations: [{ brief: "Investigate checkout" }],
-      network_participation: { mode: "local" as const },
     };
     const { result } = renderHook(() => useTaskDetailPage("task_001"), {
       wrapper: createWrapper(),

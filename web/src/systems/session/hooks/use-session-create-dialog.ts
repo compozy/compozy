@@ -2,11 +2,6 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
 
-import {
-  networkParticipationDraftFromValues,
-  type NetworkParticipationDraft,
-} from "@/lib/network-participation";
-
 import type { SessionCreateDialogDraft } from "../lib/session-create-draft";
 import { restorePendingTerminalQuoteAfterFailedCreate } from "../lib/session-terminal-quote";
 import { resolveSessionCreateDestination } from "../lib/session-create-destination";
@@ -61,8 +56,6 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onModeChange: (mode: EntityMode) => void;
   onAgentChange: (agentName: string) => void;
   onSessionNameChange: (next: string) => void;
-  onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
-  networkParticipation: NetworkParticipationDraft;
   submit: () => void;
 }
 
@@ -158,11 +151,6 @@ export function useSessionCreateDialogViewModel(
     environmentListingError: environment.listingError,
     isAwaitingEnvironment: pendingSubmit !== null,
     ...actions,
-    networkParticipation: networkParticipationDraftFromValues(
-      draft.networkParticipationMode,
-      draft.networkChannelId,
-      draft.networkChannelStrategy
-    ),
     submit,
   };
 }

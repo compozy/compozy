@@ -21,11 +21,12 @@ import (
 	"testing"
 	"time"
 
+	shellquote "github.com/kballard/go-shellquote"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -33,7 +34,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"github.com/kballard/go-shellquote"
 )
 
 const (
@@ -561,16 +561,11 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		}
 
 		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-		sandboxRegistry, err := local.NewRegistry(local.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-		if err != nil {
-			t.Fatalf("local.NewRegistry() error = %v", err)
-		}
 		manager, err := NewManager(
 			WithHomePaths(homePaths),
 			WithWorkspaceResolver(resolver),
 			WithDriver(NewACPDriverAdapter(driver)),
 			WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-			WithSandboxRegistry(sandboxRegistry),
 		)
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)

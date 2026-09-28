@@ -22,7 +22,6 @@ export interface RuntimeConfigInput {
   modelsDevEnabled?: boolean;
   memoryEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
-  networkEnabled?: boolean;
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
@@ -76,9 +75,6 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     ...(input.memoryEnabled === undefined
       ? []
       : ["[memory]", `enabled = ${input.memoryEnabled ? "true" : "false"}`, ""]),
-    ...(input.networkEnabled === undefined
-      ? []
-      : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),
     ...(input.extensionsAllowUnverified === undefined
       ? []
       : [

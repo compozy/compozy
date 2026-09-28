@@ -125,19 +125,19 @@ func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 				}
 				now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 				return &session.Info{
-					ID:                   "sess-1",
-					ProfileID:            store.DefaultProfileID,
-					Name:                 "worker",
-					AgentName:            "coder",
-					Provider:             "test-provider",
-					Model:                "test-model",
-					WorkspaceID:          "ws-1",
-					Workspace:            "/workspace",
-					NetworkParticipation: udsTestLiveParticipation("ws-1", "coord"),
-					Type:                 session.SessionTypeUser,
-					State:                session.StateActive,
-					CreatedAt:            now,
-					UpdatedAt:            now,
+					ID:          "sess-1",
+					ProfileID:   store.DefaultProfileID,
+					Name:        "worker",
+					AgentName:   "coder",
+					Provider:    "test-provider",
+					Model:       "test-model",
+					WorkspaceID: "ws-1",
+					Workspace:   "/workspace",
+
+					Type:      session.SessionTypeUser,
+					State:     session.StateActive,
+					CreatedAt: now,
+					UpdatedAt: now,
 				}, nil
 			},
 		}
@@ -244,7 +244,7 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 			stubObserver{},
 			nil,
 			tasks,
-			nil,
+
 			workspaces,
 			nil,
 			newTestHomePaths(t),
@@ -283,31 +283,6 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 		}
 		if len(policyRequests) != 1 || policyRequests[0].Seam != workspaceaccess.SeamIdentity {
 			t.Fatalf("task policy requests = %#v, want identity seam", policyRequests)
-		}
-
-		coordinationReq := httptest.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			"/api/workspaces/"+targetWorkspaceID+"/network-coordination",
-			http.NoBody,
-		)
-		coordinationReq.Header.Set(agentidentity.HeaderSessionID, "sess-approve-reads")
-		coordinationReq.Header.Set(agentidentity.HeaderAgent, "coder")
-		coordinationRecorder := httptest.NewRecorder()
-		engine.ServeHTTP(coordinationRecorder, coordinationReq)
-		if coordinationRecorder.Code != http.StatusForbidden {
-			t.Fatalf(
-				"coordination status = %d, want %d; body=%s",
-				coordinationRecorder.Code,
-				http.StatusForbidden,
-				coordinationRecorder.Body.String(),
-			)
-		}
-		if !strings.Contains(coordinationRecorder.Body.String(), workspaceaccess.DenialHint) {
-			t.Fatalf("coordination body = %s, want denial hint", coordinationRecorder.Body.String())
-		}
-		if len(policyRequests) != 2 || policyRequests[1].Seam != workspaceaccess.SeamCoordination {
-			t.Fatalf("coordination policy requests = %#v, want coordination seam", policyRequests)
 		}
 	})
 }

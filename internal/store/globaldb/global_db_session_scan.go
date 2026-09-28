@@ -23,10 +23,6 @@ type sessionInfoRow struct {
 	selectedReasoning      string
 	selectedSpeed          string
 	selectedACPOptionsJSON string
-	networkSpecJSON        string
-	networkMode            string
-	networkChannel         sql.NullString
-	networkSource          string
 	sessionType            string
 	parentSessionID        sql.NullString
 	rootSessionID          sql.NullString
@@ -63,14 +59,6 @@ type sessionInfoRow struct {
 	soulSnapshotID         sql.NullString
 	soulDigest             string
 	parentSoulDigest       string
-	envID                  string
-	envBackend             string
-	envProfile             string
-	envInstance            string
-	envState               string
-	envProviderStateJSON   string
-	envLastSyncAt          sql.NullString
-	envLastSyncError       string
 	createdAtRaw           string
 	updatedAtRaw           string
 }
@@ -99,17 +87,6 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if err := applySessionRuntimeScan(&session, &row); err != nil {
 		return store.SessionInfo{}, err
 	}
-	networkSpec, err := decodeParticipationSnapshot(
-		session.WorkspaceID,
-		row.networkSpecJSON,
-		row.networkMode,
-		row.networkChannel,
-		row.networkSource,
-	)
-	if err != nil {
-		return store.SessionInfo{}, err
-	}
-	session.SetNetworkSpec(networkSpec)
 	if worktreeID := store.NullString(row.worktreeID); worktreeID != nil {
 		session.WorktreeID = *worktreeID
 	}
@@ -232,20 +209,6 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		return err
 	}
 	session.Liveness = liveness
-	sandbox, err := scanSessionSandbox(
-		row.envID,
-		row.envBackend,
-		row.envProfile,
-		row.envInstance,
-		row.envState,
-		row.envProviderStateJSON,
-		row.envLastSyncAt,
-		row.envLastSyncError,
-	)
-	if err != nil {
-		return err
-	}
-	session.Sandbox = sandbox
 	var attachExpiresAt *time.Time
 	if row.attachExpiresAt.Valid && strings.TrimSpace(row.attachExpiresAt.String) != "" {
 		parsed, parseErr := store.ParseTimestamp(row.attachExpiresAt.String)
@@ -302,10 +265,6 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.RuntimeSelectionRevision,
 		&row.session.WorkspaceID,
 		&row.worktreeID,
-		&row.networkSpecJSON,
-		&row.networkMode,
-		&row.networkChannel,
-		&row.networkSource,
 		&row.sessionType,
 		&row.parentSessionID,
 		&row.rootSessionID,
@@ -343,65 +302,11 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,
-		&row.envID,
-		&row.envBackend,
-		&row.envProfile,
-		&row.envInstance,
-		&row.envState,
-		&row.envProviderStateJSON,
-		&row.envLastSyncAt,
-		&row.envLastSyncError,
 		&row.createdAtRaw, &row.updatedAtRaw,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
 	}
 	return row, nil
-}
-
-func scanSessionSandbox(
-	sandboxID string,
-	backend string,
-	profile string,
-	instanceID string,
-	state string,
-	providerStateJSON string,
-	lastSyncAt sql.NullString,
-	lastSyncError string,
-) (*store.SessionSandboxMeta, error) {
-	sandboxID = strings.TrimSpace(sandboxID)
-	backend = strings.TrimSpace(backend)
-	profile = strings.TrimSpace(profile)
-	instanceID = strings.TrimSpace(instanceID)
-	state = strings.TrimSpace(state)
-	providerStateJSON = strings.TrimSpace(providerStateJSON)
-	if sandboxID == "" &&
-		backend == "" &&
-		profile == "" &&
-		instanceID == "" &&
-		state == "" &&
-		providerStateJSON == "" {
-		return nil, nil
-	}
-
-	meta := &store.SessionSandboxMeta{
-		SandboxID:  sandboxID,
-		Backend:    backend,
-		Profile:    profile,
-		InstanceID: instanceID,
-		State:      state,
-	}
-	if providerStateJSON != "" {
-		meta.ProviderState = []byte(providerStateJSON)
-	}
-	if lastSyncAt.Valid && strings.TrimSpace(lastSyncAt.String) != "" {
-		parsed, err := store.ParseTimestamp(lastSyncAt.String)
-		if err != nil {
-			return nil, fmt.Errorf("store: parse session sandbox last sync at: %w", err)
-		}
-		meta.LastSyncAt = &parsed
-	}
-	meta.LastSyncError = strings.TrimSpace(lastSyncError)
-	return meta, nil
 }
 
 func scanSessionLineage(

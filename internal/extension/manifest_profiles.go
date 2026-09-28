@@ -14,7 +14,6 @@ type ManifestProfile struct {
 type ManifestProfileDefaults struct {
 	Agent    string `toml:"agent,omitempty"    json:"agent,omitempty"`
 	Provider string `toml:"provider,omitempty" json:"provider,omitempty"`
-	Sandbox  string `toml:"sandbox,omitempty"  json:"sandbox,omitempty"`
 }
 
 // ManifestProfileCredential is one vault-backed setup requirement.

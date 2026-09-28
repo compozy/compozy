@@ -1,4 +1,4 @@
-// Conversation and run surfaces: markdown, chat, tool calls, network wire rows.
+// Conversation and run surfaces: markdown, chat, tool calls.
 export {
   Markdown,
   STREAMDOWN_SAFE_CONFIG,

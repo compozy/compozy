@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func summaryFromTaskRecord(record Task) Summary {
@@ -191,29 +189,28 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		return nil
 	}
 	summary := &RunSummary{
-		ID:                           current.ID,
-		TaskID:                       current.TaskID,
-		Status:                       current.Status,
-		Attempt:                      int(current.Attempt),
-		RecoveryCount:                int(current.RecoveryCount),
-		PreviousRunID:                current.PreviousRunID,
-		FailureKind:                  current.FailureKind,
-		MaxAttempts:                  maxAttempts,
-		SessionID:                    current.SessionID,
-		WorktreeID:                   current.WorktreeIDValue(),
-		ResolvedWorktreeMode:         current.ResolvedWorktreeModeValue(),
-		ResolvedWorktreeRef:          current.ResolvedWorktreeRefValue(),
-		ClaimedBy:                    cloneActorIdentity(current.ClaimedBy),
-		ClaimTokenHash:               current.ClaimTokenHash,
-		LeaseUntil:                   current.LeaseUntil,
-		HeartbeatAt:                  current.HeartbeatAt,
-		ResolvedNetworkParticipation: participation.CloneSpec(current.NetworkSpecSnapshot()),
-		DesignationGroupID:           current.DesignationGroupID,
-		QueuedAt:                     current.QueuedAt,
-		ClaimedAt:                    current.ClaimedAt,
-		StartedAt:                    current.StartedAt,
-		EndedAt:                      current.EndedAt,
-		Error:                        current.Error,
+		ID:                   current.ID,
+		TaskID:               current.TaskID,
+		Status:               current.Status,
+		Attempt:              int(current.Attempt),
+		RecoveryCount:        int(current.RecoveryCount),
+		PreviousRunID:        current.PreviousRunID,
+		FailureKind:          current.FailureKind,
+		MaxAttempts:          maxAttempts,
+		SessionID:            current.SessionID,
+		WorktreeID:           current.WorktreeIDValue(),
+		ResolvedWorktreeMode: current.ResolvedWorktreeModeValue(),
+		ResolvedWorktreeRef:  current.ResolvedWorktreeRefValue(),
+		ClaimedBy:            cloneActorIdentity(current.ClaimedBy),
+		ClaimTokenHash:       current.ClaimTokenHash,
+		LeaseUntil:           current.LeaseUntil,
+		HeartbeatAt:          current.HeartbeatAt,
+		DesignationGroupID:   current.DesignationGroupID,
+		QueuedAt:             current.QueuedAt,
+		ClaimedAt:            current.ClaimedAt,
+		StartedAt:            current.StartedAt,
+		EndedAt:              current.EndedAt,
+		Error:                current.Error,
 	}
 	ApplyRunDesignationSummary(summary, *current)
 	return summary

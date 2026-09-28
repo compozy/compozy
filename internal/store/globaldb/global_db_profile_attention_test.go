@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -132,7 +132,7 @@ func insertAttentionTestWorkspace(t *testing.T, db *GlobalDB, id string, name st
 // Owner: SQLite notification repository. Canonical suite: profile attention persistence.
 func TestAttentionAcknowledgements(t *testing.T) {
 	t.Parallel()
-	scope := notifications.AttentionScope{
+	scope := attention.Scope{
 		ProfileID:  store.DefaultProfileID,
 		ActorKind:  "human",
 		ActorID:    "operator",
@@ -142,7 +142,7 @@ func TestAttentionAcknowledgements(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		db := openAttentionTestDB(t)
-		var repository notifications.AttentionStore = db
+		var repository attention.Store = db
 		ids := make([]string, 251)
 		for i := range ids {
 			ids[i] = fmt.Sprintf("occurrence-%03d", i)
@@ -207,7 +207,7 @@ func TestAttentionAcknowledgements(t *testing.T) {
 			if err := err; err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			for _, change := range []notifications.AttentionScope{
+			for _, change := range []attention.Scope{
 				{ProfileID: "01K34OTHERPROFILE000000000", ActorKind: scope.ActorKind, ActorID: scope.ActorID, Population: scope.Population},
 				{ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: "other", Population: scope.Population},
 				{ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID, Population: "home-other-workspace"},
@@ -219,7 +219,7 @@ func TestAttentionAcknowledgements(t *testing.T) {
 					"",
 				); !errors.Is(
 					err,
-					notifications.ErrAttentionSnapshotUnavailable,
+					attention.ErrSnapshotUnavailable,
 				) {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -231,7 +231,7 @@ func TestAttentionAcknowledgements(t *testing.T) {
 				"outside",
 			); !errors.Is(
 				err,
-				notifications.ErrAttentionSnapshotUnavailable,
+				attention.ErrSnapshotUnavailable,
 			) {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -304,8 +304,8 @@ func TestAttentionAcknowledgements(t *testing.T) {
 			}
 			now = now.Add(attentionSnapshotLifetime + time.Second)
 			err = db.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, "")
-			if !(errors.Is(err, notifications.ErrAttentionSnapshotUnavailable)) {
-				t.Fatal("expected true: errors.Is(err, notifications.ErrAttentionSnapshotUnavailable)")
+			if !(errors.Is(err, attention.ErrSnapshotUnavailable)) {
+				t.Fatal("expected true: errors.Is(err, attention.ErrSnapshotUnavailable)")
 			}
 		},
 	)

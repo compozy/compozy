@@ -39,7 +39,7 @@ export const WithHintInSection: Story = {
   args: {
     hint: "Platform and scope are set at creation — the update contract omits them.",
     rows: [
-      { label: "Reference", mono: true, value: "vault:bridges/slack-bot-token" },
+      { label: "Reference", mono: true, value: "vault:extensions/slack-bot-token" },
       { label: "Kind", value: "token" },
     ],
   },

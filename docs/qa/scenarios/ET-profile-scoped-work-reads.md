@@ -5,7 +5,7 @@ title: Keep ordinary work reads inside the resolved profile
 persona: Ada
 journey: J-scope-work-by-profile
 expected: CLI, HTTP, UDS, and native reads only return work owned by the resolved or session-bound profile, and a foreign-profile detail read returns not found.
-entry_points: root --profile; compozy session|task|automation|bridge|network; HTTP/UDS work routes; compozy__session_list
+entry_points: root --profile; compozy session|task|automation; HTTP/UDS work routes; compozy__session_list
 qa_status: untested
 bug_ids:
 fix_status:
@@ -13,15 +13,14 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-profile-aggregate-owner-labels; ET-profile-deep-link-owner; ET-profile-stream-isolation; NB-cross-profile-conversation
+overlaps: ET-profile-aggregate-owner-labels; ET-profile-deep-link-owner; ET-profile-stream-isolation
 ---
 
 Flagged by Profiles task 06. The final QA tasks own the real-user walk, evidence, and verdict.
 
 Walk:
 
-1. Create equivalent work under two profiles, including sessions, tasks, automation records, bridge
-   records, and network conversations.
+1. Create equivalent work under two profiles, including sessions, tasks, and automation records.
 2. Read each surface through CLI, HTTP, and UDS under one profile and prove foreign rows are absent.
 3. Read from a managed session and prove native results follow the session's immutable profile.
 4. Request a known foreign item through a scoped detail route and verify the not-found contract.
@@ -41,3 +40,5 @@ default-Profile requests return 404. The run remains readable after reload. Reop
 All Profiles and confirming cancellation sends `profile=marketing` and reaches the canceled state.
 The paired CLI journey `TestDaemonE2ELoopRunReadCLIJourneys` also passes with race detection.
 This verifies the Loop regression; the broader non-Loop scenario above retains its own QA status.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

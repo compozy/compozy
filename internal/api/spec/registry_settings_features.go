@@ -8,8 +8,6 @@ func registrySettingsFeatureOperations() []OperationSpec {
 		updateSettingsMemoryOperationSpec(),
 		getSettingsRolesOperationSpec(),
 		updateSettingsRolesOperationSpec(),
-		getSettingsNetworkOperationSpec(),
-		updateSettingsNetworkOperationSpec(),
 		getSettingsWindowManagerOperationSpec(),
 		updateSettingsWindowManagerOperationSpec(),
 		getSettingsCmdPaletteOperationSpec(),
@@ -95,38 +93,7 @@ func updateSettingsMemoryOperationSpec() OperationSpec {
 		},
 	}
 }
-func getSettingsNetworkOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPISettingsNetworkPath,
-		OperationID: "getSettingsNetwork",
-		Summary:     "Read the network settings section",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsNetworkResponse{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func updateSettingsNetworkOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPatch,
-		Path:        specAPISettingsNetworkPath,
-		OperationID: "updateSettingsNetwork",
-		Summary:     "Update the network settings section",
-		Tags:        []string{specSettingsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.UpdateSettingsNetworkRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
-			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
+
 func getSettingsObservabilityOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,

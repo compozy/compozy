@@ -8,7 +8,6 @@ import {
   settingsPersonaOptions,
   settingsHooksExtensionsOptions,
   settingsMemoryOptions,
-  settingsNetworkOptions,
   settingsObservabilityOptions,
   settingsRolesOptions,
   settingsRolesStatusOptions,
@@ -57,10 +56,6 @@ export function useSettingsSkills(filter: SettingsSkillsFilter = {}) {
 
 export function useSettingsAutomation() {
   return useQuery(settingsAutomationOptions());
-}
-
-export function useSettingsNetwork() {
-  return useQuery(settingsNetworkOptions());
 }
 
 export function useSettingsAttention(filter: SettingsAttentionFilter) {

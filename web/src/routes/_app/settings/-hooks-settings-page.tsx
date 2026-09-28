@@ -1,7 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
 import { useSettingsHooksPage } from "@/systems/settings/hooks/use-settings-hooks-page";
-import { NotificationPresetsPanel } from "@/systems/notifications";
 import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
 import { Button, Spinner } from "@compozy/ui";
 
@@ -58,17 +57,6 @@ export function HooksSettingsPage() {
         hooks={page.hooks}
         onToggle={page.toggleHookEnabled}
         pendingHookName={page.pendingHookName}
-      />
-      <NotificationPresetsPanel
-        canMutate={page.canMutateHooks}
-        error={page.notificationPresetsError ?? page.notificationPresetActionError}
-        isLoading={page.notificationPresetsLoading}
-        onCreate={page.createNotificationPreset}
-        onDelete={page.deleteNotificationPreset}
-        onToggle={page.toggleNotificationPreset}
-        pendingName={page.pendingNotificationPresetName}
-        profile={page.notificationPresetProfile}
-        presets={page.notificationPresets}
       />
     </SettingsPageFrame>
   );

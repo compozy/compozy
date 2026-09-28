@@ -1,13 +1,11 @@
 import { useAgents } from "@/systems/agent";
 import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
-import { useBridges } from "@/systems/bridges";
 import { useLoops } from "@/systems/loops";
 import { useTasks } from "@/systems/tasks";
 import { useWorktrees } from "@/systems/workspace";
 
 import {
   agentRoute,
-  bridgeRoute,
   jobRoute,
   loopRoute,
   paletteTaskFilters,
@@ -46,7 +44,6 @@ export function useOsPaletteEntitySections(
     useLoopSection(context, catalogs),
     useJobSection(context),
     useTriggerSection(context),
-    useBridgeSection(context),
   ];
 }
 
@@ -245,36 +242,5 @@ function useTriggerSection(context: OsPaletteDomainContext) {
     context.query,
     context.signals,
     { limit: context.domainLimit, catalogTotal: triggers.total }
-  );
-}
-
-function useBridgeSection(context: OsPaletteDomainContext) {
-  const enabled = paletteDomainEnabled(context, "Bridges");
-  const bridges = useBridges(
-    context.scope === "workspace" && context.workspaceId
-      ? { scope: "workspace", workspace_id: context.workspaceId }
-      : { scope: "all" },
-    { enabled }
-  );
-  usePaletteInfiniteCatalog(bridges, enabled);
-  if (context.signals === null) return EMPTY_SECTION("Bridges");
-  return section(
-    "Bridges",
-    bridges.bridges.map(bridge =>
-      rowSeed("Bridges", {
-        key: `bridge:${bridge.id}`,
-        label: bridge.display_name,
-        detail: bridge.platform,
-        workspaceLabel: workspaceLabel(context.scope, bridge.workspace_id, context.workspaceNames),
-        app: "bridges",
-        route: bridgeRoute(bridge.id),
-        ...(bridge.workspace_id ? { workspaceId: bridge.workspace_id } : {}),
-      })
-    ),
-    bridges,
-    enabled,
-    context.query,
-    context.signals,
-    { limit: context.domainLimit, catalogTotal: bridges.total }
   );
 }

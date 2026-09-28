@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -13,7 +12,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -42,8 +40,6 @@ const (
 	hostAPIAutomationTriggersGetPath    = "automation/triggers/get"
 	hostAPIAutomationTriggersRunsPath   = "automation/triggers/runs"
 	hostAPIAutomationTriggersUpdatePath = "automation/triggers/update"
-	hostAPIBridgesInstancesGetPath      = "bridges/instances/get"
-	hostAPIBridgesMessagesIngestPath    = "bridges/messages/ingest"
 	hostAPIKindKey                      = "kind"
 	hostAPILimitKey                     = "limit"
 	hostAPIMemoryStorePath              = "memory/store"
@@ -51,8 +47,6 @@ const (
 	hostAPIObserveHealthPath            = "observe/health"
 	hostAPIResourceKey                  = "resource"
 	hostAPIResourcesGetPath             = "resources/get"
-	hostAPISandboxInfoPath              = "sandbox/info"
-	hostAPISandboxListPath              = "sandbox/list"
 	hostAPIScopeKey                     = "scope"
 	hostAPISessionIDKey                 = "session_id"
 	hostAPISessionsInputsCancelPath     = "sessions/inputs/cancel"
@@ -78,25 +72,22 @@ const (
 	// HostAPIMethodNotFoundCode is the JSON-RPC method-not-found code for unknown Host API methods.
 	HostAPIMethodNotFoundCode = -32601
 
-	defaultHostAPIRateLimit             = 10
-	defaultHostAPIBurst                 = 20
-	defaultHostAPIDefaultLimit          = 100
-	defaultHostAPIRecallLimit           = 10
-	defaultHostAPIBridgeIngestDedupTTL  = 24 * time.Hour
-	defaultHostAPIBridgeCleanupInterval = time.Hour
-	maxMemoryDescriptionLength          = 160
-	tagCommentPrefix                    = "<!-- compozy-tags:"
-	hostAPIUnknownExtensionName         = "unknown"
-	hostAPISandboxStateSynced           = "synced"
-	hostAPISandboxStatePending          = "pending"
+	defaultHostAPIRateLimit     = 10
+	defaultHostAPIBurst         = 20
+	defaultHostAPIDefaultLimit  = 100
+	defaultHostAPIRecallLimit   = 10
+	maxMemoryDescriptionLength  = 160
+	tagCommentPrefix            = "<!-- compozy-tags:"
+	hostAPIUnknownExtensionName = "unknown"
 )
 
 type hostAPIContextKey string
 
+const hostAPIDefaultProfileID = store.DefaultProfileID
+
 const hostAPIExtensionNameContextKey hostAPIContextKey = "extension.host_api.extension_name"
 const hostAPIInstanceKeyContextKey hostAPIContextKey = "extension.host_api.instance_key"
 const hostAPICapabilityGrantIDContextKey hostAPIContextKey = "extension.host_api.capability_grant_id"
-const hostAPIBridgeRuntimeContextKey hostAPIContextKey = "extension.host_api.bridge_runtime"
 const hostAPIResourceSessionContextKey hostAPIContextKey = "extension.host_api.resource_session"
 
 // HostAPIOption customizes a HostAPIHandler.
@@ -115,9 +106,6 @@ type HostAPIHandler struct {
 	automation       HostAPIAutomationManager
 	tasks            hostAPITaskManager
 	taskFilters      HostAPITaskCatalogFilterMapper
-	network          hostAPINetworkService
-	networkStore     store.NetworkConversationStore
-	networkUsage     store.NetworkUsageStore
 	memory           *memory.Store
 	memoryForProfile memory.RecallStoreResolver
 	observer         hostAPIObserver
@@ -125,9 +113,6 @@ type HostAPIHandler struct {
 	modelCatalog     hostAPIModelCatalogService
 	workspaces       workspacepkg.RuntimeResolver
 	profiles         hostAPIProfileReader
-	bridges          hostAPIBridgeRegistry
-	dedupStore       hostAPIBridgeDedupStore
-	deliveryBroker   hostAPIDeliveryBroker
 	resourceStore    resources.RawStore
 	resourceCodecs   *resources.CodecRegistry
 	soulAuthoring    hostAPISoulAuthoringService
@@ -150,12 +135,6 @@ type HostAPIHandler struct {
 	rateBurst        int
 	clarify          *hostAPIClarifyRuntime
 
-	bridgeIngestDedupTTL  time.Duration
-	bridgeCleanupInterval time.Duration
-	bridgeLocks           *hostAPIKeyLocker
-	bridgeCleanupMu       sync.Mutex
-	bridgeLastCleanup     time.Time
-
 	methods map[string]hostAPIMethodFunc
 }
 
@@ -168,7 +147,6 @@ type hostAPISessionManager interface {
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	Stop(ctx context.Context, id string) error
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
-	ExecSandbox(ctx context.Context, req session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
 type hostAPIProfileReader interface {
@@ -213,25 +191,6 @@ type hostAPIPendingInputSessionManager interface {
 		opts session.PromotePendingInputOpts,
 	) (session.SendPromptResult, error)
 	CancelQueuedPrompt(ctx context.Context, id string, queueEntryID string) (session.SendPromptResult, error)
-}
-
-type hostAPIBridgePromptSessionManager interface {
-	PromptWithOpts(
-		ctx context.Context,
-		id string,
-		opts session.PromptOpts,
-	) (<-chan acp.AgentEvent, error)
-}
-
-type hostAPIPromptingSessionManager interface {
-	IsPrompting(id string) bool
-}
-
-type hostAPINetworkService interface {
-	Send(ctx context.Context, req network.SendRequest) (string, error)
-	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
-	ListChannels(ctx context.Context, workspaceID string) ([]network.ChannelInfo, error)
-	Status(ctx context.Context) (*network.Status, error)
 }
 
 type hostAPIObserver interface {

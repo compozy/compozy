@@ -86,11 +86,6 @@ type AutomationRuntimeProvider interface {
 	AutomationRuntimeStatus(ctx context.Context) (AutomationRuntimeStatus, error)
 }
 
-// NetworkRuntimeProvider returns network runtime metadata.
-type NetworkRuntimeProvider interface {
-	NetworkRuntimeStatus(ctx context.Context) (NetworkRuntimeStatus, error)
-}
-
 // ObservabilityRuntimeProvider returns observability runtime metadata.
 type ObservabilityRuntimeProvider interface {
 	ObservabilityRuntimeStatus(ctx context.Context) (ObservabilityRuntimeStatus, error)
@@ -196,7 +191,6 @@ type Dependencies struct {
 	MemoryRuntime               MemoryRuntimeProvider
 	SkillsRuntime               SkillsRuntime
 	AutomationRuntime           AutomationRuntimeProvider
-	NetworkRuntime              NetworkRuntimeProvider
 	ObservabilityRuntime        ObservabilityRuntimeProvider
 	Extensions                  ExtensionStatusProvider
 	TransportParity             TransportParityProvider
@@ -229,7 +223,6 @@ type service struct {
 	memoryRuntime               MemoryRuntimeProvider
 	skillsRuntime               SkillsRuntime
 	automationRuntime           AutomationRuntimeProvider
-	networkRuntime              NetworkRuntimeProvider
 	observabilityRuntime        ObservabilityRuntimeProvider
 	extensions                  ExtensionStatusProvider
 	transportParity             TransportParityProvider
@@ -296,7 +289,6 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		memoryRuntime:               deps.MemoryRuntime,
 		skillsRuntime:               deps.SkillsRuntime,
 		automationRuntime:           deps.AutomationRuntime,
-		networkRuntime:              deps.NetworkRuntime,
 		observabilityRuntime:        deps.ObservabilityRuntime,
 		extensions:                  deps.Extensions,
 		transportParity:             deps.TransportParity,

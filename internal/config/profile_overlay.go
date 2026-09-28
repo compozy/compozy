@@ -11,7 +11,7 @@ const profileConfigKeyDeniedCode = "profile_config_key_denied"
 
 var profileOverlayDeniedRoots = []string{
 	"http", "daemon", "log", "database", GatewayDirName, toolSurfaceShellKey, toolSurfaceMarketplaceKey,
-	"observability", "network", "sandboxes",
+	"observability",
 }
 
 var profileOverlayDeniedPaths = [][]string{

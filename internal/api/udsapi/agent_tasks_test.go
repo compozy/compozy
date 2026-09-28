@@ -16,7 +16,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *testing.T) {
+func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsLease(t *testing.T) {
 	t.Parallel()
 
 	rawToken := "compozy_claim_TESTTOKEN123"
@@ -45,17 +45,6 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 				Run:        run,
 				ClaimToken: rawToken,
 				LeaseUntil: leaseUntil,
-				CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
-					ID:                  "builders",
-					DisplayName:         "Builders",
-					Purpose:             "coordinated execution",
-					WorkspaceID:         "ws-1",
-					TaskID:              "task-1",
-					RunID:               "run-1",
-					WorkflowID:          "wf-1",
-					AllowedMessageKinds: []string{"status", "result"},
-					LastActivityAt:      leaseUntil.Add(-time.Minute),
-				},
 			}, nil
 		},
 	})
@@ -94,32 +83,15 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 
 	var response contract.AgentTaskClaimResponse
 	decodeJSONResponse(t, recorder, &response)
-	if response.Claim.Lease.ClaimTokenHash != claimHash ||
-		response.Claim.Lease.ResolvedNetworkParticipation == nil ||
-		response.Claim.Lease.ResolvedNetworkParticipation.ChannelID != "builders" ||
-		response.Claim.CoordinationChannel == nil ||
-		response.Claim.CoordinationChannel.DisplayName != "Builders" ||
-		response.Claim.Run.CoordinationChannel == nil {
-		t.Fatalf("claim response = %#v, want hash and coordination metadata", response.Claim)
+	if response.Claim.Lease.ClaimTokenHash != claimHash {
+		t.Fatalf("claim response = %#v, want claim token hash", response.Claim)
 	}
-	if seenCriteria.RunID != "run-1" ||
-		seenCriteria.WorkspaceID != "ws-1" ||
-		seenCriteria.ClaimerSessionID != "sess-agent" ||
-		seenCriteria.AgentName != "coder" ||
-		seenCriteria.ParticipationChannel != "" ||
-		seenCriteria.PriorityMin != 2 ||
-		seenCriteria.LeaseDuration != 120*time.Second {
+	if seenCriteria.RunID != "run-1" || seenCriteria.WorkspaceID != "ws-1" ||
+		seenCriteria.ClaimerSessionID != "sess-agent" || seenCriteria.AgentName != "coder" ||
+		seenCriteria.PriorityMin != 2 || seenCriteria.LeaseDuration != 120*time.Second {
 		t.Fatalf("criteria = %#v, want exact run plus caller workspace/session/agent and flags", seenCriteria)
 	}
-	wantParticipation := udsTestLiveParticipation("ws-1", "builders")
-	if seenCriteria.CallerNetworkParticipation == nil ||
-		*seenCriteria.CallerNetworkParticipation != wantParticipation {
-		t.Fatalf(
-			"criteria.CallerNetworkParticipation = %#v, want %#v",
-			seenCriteria.CallerNetworkParticipation,
-			wantParticipation,
-		)
-	}
+
 	if !containsString(seenCriteria.RequiredCapabilities, "manual") ||
 		!containsString(seenCriteria.RequiredCapabilities, "go") {
 		t.Fatalf(
@@ -365,16 +337,9 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			}
 			var response contract.AgentTaskLeaseResponse
 			decodeJSONResponse(t, recorder, &response)
-			if response.Lease.RunID != "run-1" ||
-				response.Lease.Status != tt.status ||
-				response.Lease.SessionID != "sess-agent" ||
-				response.Lease.ResolvedNetworkParticipation == nil ||
-				response.Lease.ResolvedNetworkParticipation.ChannelID != "builders" {
-				t.Fatalf(
-					"lease = %#v, want run-1 status %s session sess-agent channel builders",
-					response.Lease,
-					tt.status,
-				)
+			if response.Lease.RunID != "run-1" || response.Lease.Status != tt.status ||
+				response.Lease.SessionID != "sess-agent" {
+				t.Fatalf("lease = %#v, want run-1 status %s session sess-agent", response.Lease, tt.status)
 			}
 		})
 	}
@@ -616,7 +581,7 @@ func newAgentTaskHandlers(t *testing.T, tasks *stubTaskManager) *Handlers {
 		stubObserver{},
 		nil,
 		tasks,
-		nil,
+
 		stubWorkspaceService{},
 		nil,
 		newTestHomePaths(t),
@@ -650,7 +615,6 @@ func agentTaskRun(status taskpkg.RunStatus) taskpkg.Run {
 		ClaimedAt:  now,
 		LeaseUntil: now.Add(5 * time.Minute),
 	}
-	run.SetNetworkState(udsTestLiveParticipation("ws-1", "builders"), "", "", "")
 	return run
 }
 

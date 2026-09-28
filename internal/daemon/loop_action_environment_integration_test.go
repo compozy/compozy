@@ -84,12 +84,12 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 
 		resolvedConfig := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
 		resolvedConfig.Defaults.Provider = "mock"
-		resolvedConfig.Defaults.Sandbox = "evidence-lab"
+
 		resolvedConfig.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
-		resolvedConfig.Sandboxes["evidence-lab"] = compozyconfig.SandboxProfile{Backend: "local"}
+
 		resolved := workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
-				ID: workspaceID, RootDir: repository, SandboxRef: "evidence-lab",
+				ID: workspaceID, RootDir: repository,
 			},
 			WorkspaceID: workspaceID,
 			ProfileID:   store.DefaultProfileID,

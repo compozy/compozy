@@ -55,12 +55,6 @@ func NewTerminalRunHistoryImport(run Run, actor ActorContext) (TerminalRunHistor
 			run.Status,
 		)
 	}
-	if !run.IsTaskAnchored() {
-		return TerminalRunHistoryImport{}, fmt.Errorf(
-			"%w: history import requires a task-anchored run",
-			ErrValidation,
-		)
-	}
 	if run.EndedAt.IsZero() {
 		return TerminalRunHistoryImport{}, fmt.Errorf("%w: history import requires ended_at", ErrValidation)
 	}
@@ -88,10 +82,6 @@ func cloneImportedRun(run Run) Run {
 	if run.ClaimedBy != nil {
 		claimedBy := *run.ClaimedBy
 		cloned.ClaimedBy = &claimedBy
-	}
-	if run.RunNetworkState != nil {
-		networkState := *run.RunNetworkState
-		cloned.RunNetworkState = &networkState
 	}
 	if run.RunWorktreeState != nil {
 		worktreeState := *run.RunWorktreeState

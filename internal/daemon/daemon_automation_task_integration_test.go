@@ -14,7 +14,7 @@ import (
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -168,18 +168,6 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	live := participation.ModeLive
-	named := participation.StrategyNamed
-	channelID := "ops-automation"
-	if _, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
-		Channel:      channelID,
-		WorkspaceID:  harness.WorkspaceID,
-		Purpose:      "Automation task coordination",
-		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
-		AgentNames:   []string{automationTaskFixtureAgentName},
-	}); err != nil {
-		t.Fatalf("CreateNetworkChannel(%q) error = %v", channelID, err)
-	}
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Jobs: []compozycontract.CreateJobRequest{{
@@ -194,11 +182,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 			Task: &automationpkg.JobTaskConfig{
 				Title:       "Investigate deploy drift",
 				Description: "Review the latest deployment discrepancy.",
-				NetworkParticipation: &participation.Request{
-					Mode:            &live,
-					ChannelStrategy: &named,
-					ChannelID:       &channelID,
-				},
+
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "job:triage-deploy",
@@ -238,12 +222,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if got, want := taskDetail.Task.Status, taskpkg.TaskStatusReady; got != want {
 		t.Fatalf("taskDetail.Task.Status = %q, want %q before task runtime start", got, want)
 	}
-	if got := resolvedParticipationChannelID(taskDetail.Task.ResolvedNetworkParticipation); got != "" {
-		t.Fatalf(
-			"taskDetail.Task.ResolvedNetworkParticipation.ChannelID = %q, want empty task ingress policy",
-			got,
-		)
-	}
+
 	if taskDetail.Task.Owner == nil || taskDetail.Task.Owner.Kind != taskpkg.OwnerKindAutomation {
 		t.Fatalf("taskDetail.Task.Owner = %#v, want automation ownership", taskDetail.Task.Owner)
 	}
@@ -280,15 +259,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if got, want := delegatedTaskRun.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("delegatedTaskRun.IdempotencyKey = %q, want %q", got, want)
 	}
-	if got, want := resolvedParticipationChannelID(
-		delegatedTaskRun.ResolvedNetworkParticipation,
-	), channelID; got != want {
-		t.Fatalf(
-			"delegatedTaskRun.ResolvedNetworkParticipation.ChannelID = %q, want resolved %q",
-			got,
-			want,
-		)
-	}
+
 	if got := delegatedTaskRun.SessionID; got != "" {
 		t.Fatalf("delegatedTaskRun.SessionID = %q, want empty before start", got)
 	}
@@ -466,9 +437,7 @@ func registerAutomationPromptArtifacts(
 		if err := harness.CaptureSessionEvents(ctx, runs[0].SessionID); err != nil {
 			t.Logf("CaptureSessionEvents(%q) error = %v", runs[0].SessionID, err)
 		}
-		if err := harness.CaptureSessionSandbox(ctx, runs[0].SessionID); err != nil {
-			t.Logf("CaptureSessionSandbox(%q) error = %v", runs[0].SessionID, err)
-		}
+
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 			t.Logf("CaptureMockAgentDiagnostics() error = %v", err)
 		}
@@ -498,17 +467,7 @@ func registerAutomationTaskArtifacts(
 		if err := harness.CaptureTaskRuns(ctx, taskID, nil); err != nil {
 			t.Logf("CaptureTaskRuns(task=%q) error = %v", taskID, err)
 		}
-		if strings.TrimSpace(sessionID) != "" {
-			if err := harness.CaptureSessionTranscript(ctx, sessionID); err != nil {
-				t.Logf("CaptureSessionTranscript(%q) error = %v", sessionID, err)
-			}
-			if err := harness.CaptureSessionEvents(ctx, sessionID); err != nil {
-				t.Logf("CaptureSessionEvents(%q) error = %v", sessionID, err)
-			}
-			if err := harness.CaptureSessionSandbox(ctx, sessionID); err != nil {
-				t.Logf("CaptureSessionSandbox(%q) error = %v", sessionID, err)
-			}
-		}
+
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 			t.Logf("CaptureMockAgentDiagnostics() error = %v", err)
 		}

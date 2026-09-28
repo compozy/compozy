@@ -45,10 +45,10 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 			DeadEntityKey: store.DeadEntityKey{
 				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceA,
-				Kind:        store.DeadEntityKindBridge,
-				EntityID:    "telegram",
+				Kind:        store.DeadEntityKindExtension,
+				EntityID:    "adapter",
 			},
-			Reason:   "bridge credentials rejected",
+			Reason:   "extension credentials rejected",
 			MarkedAt: firstMarkedAt.Add(2 * time.Minute),
 		})
 
@@ -88,7 +88,7 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		if len(listedA) != 2 {
 			t.Fatalf("ListDeadEntities(workspace A) = %#v, want two rows", listedA)
 		}
-		if listedA[0].EntityID != "github" || listedA[1].EntityID != "telegram" {
+		if listedA[0].EntityID != "github" || listedA[1].EntityID != "adapter" {
 			t.Fatalf("ListDeadEntities(workspace A) order = %#v, want newest first", listedA)
 		}
 		listedB, err := globalDB.ListDeadEntities(

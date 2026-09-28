@@ -24,7 +24,7 @@ const meta: Meta<typeof SettingsEditorDialog> = {
     docs: {
       description: {
         component:
-          "`SettingsEditorDialog` pins the shared modal shell — ruled `EntityDialogHeader`, host size token, feedback strip, and `EntityDialogFooter` with its consequence hint — so vault and sandbox inherit chrome without per-page header forks. These stories exercise the *shell*; the real bodies live in `VaultEditor`, `MCPServerEditor`, and `ProviderDetailDialog`. Bodies here use the same `FormSection` + `ModalSettingsFieldRow` grammar production uses — never the settings-page row grammar, which belongs to routes.",
+          "`SettingsEditorDialog` pins the shared modal shell — ruled `EntityDialogHeader`, host size token, feedback strip, and `EntityDialogFooter` with its consequence hint — so vault and provider editors inherit chrome without per-page header forks. These stories exercise the *shell*; the real bodies live in `VaultEditor`, `MCPServerEditor`, and `ProviderDetailDialog`. Bodies here use the same `FormSection` + `ModalSettingsFieldRow` grammar production uses — never the settings-page row grammar, which belongs to routes.",
       },
     },
   },
@@ -142,7 +142,7 @@ export const CompactHost: Story = {
       eyebrow="System · Vault"
       hint={
         <>
-          Bind it from providers, bridges, or sandboxes as{" "}
+          Bind it from providers or extensions as{" "}
           <b className="font-medium text-muted">vault:&lt;reference&gt;</b>.
         </>
       }
@@ -157,7 +157,7 @@ export const CompactHost: Story = {
       title="Add vault secret"
     >
       <FormSection
-        help="Providers, bridges, and sandboxes bind this value by its reference."
+        help="Providers and extensions bind this value by its reference."
         title="The reference"
       >
         <Field>

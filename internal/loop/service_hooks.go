@@ -7,7 +7,6 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -79,12 +78,9 @@ func serviceLoopContext(run Run, actor task.ActorContext) hookspkg.LoopContext {
 		WorkspaceID:     string(run.WorkspaceID),
 		LoopName:        run.LoopName,
 		Generation:      run.Generation,
-		ResolvedNetworkParticipation: participation.CloneSpec(
-			run.NetworkSpecSnapshot(),
-		),
-		ActorKind:  string(actor.Actor.Kind.Normalize()),
-		ActorID:    actor.Actor.Ref,
-		OriginKind: string(actor.Origin.Kind.Normalize()),
-		OriginRef:  actor.Origin.Ref,
+		ActorKind:       string(actor.Actor.Kind.Normalize()),
+		ActorID:         actor.Actor.Ref,
+		OriginKind:      string(actor.Origin.Kind.Normalize()),
+		OriginRef:       actor.Origin.Ref,
 	}
 }

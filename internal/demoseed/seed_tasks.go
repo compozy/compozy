@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/task"
@@ -130,10 +129,9 @@ func historicalTaskRun(workspaceID string, story taskStory, run taskRunStory) ta
 		ID: run.ID, ProfileID: store.DefaultProfileID,
 		TaskID: story.ID, WorkspaceID: workspaceID, Attempt: max(1, run.Attempt),
 		RunKind: task.RunKindWorker, Status: run.Status,
-		Origin:          task.Origin{Kind: task.OriginKindWeb, Ref: originWebRef},
-		IdempotencyKey:  "northstar/" + run.ID,
-		RunNetworkState: &task.RunNetworkState{NetworkSpec: participation.LocalSpec()},
-		QueuedAt:        run.StartedAt.Add(-time.Minute), ClaimedAt: run.StartedAt.Add(-30 * time.Second),
+		Origin:         task.Origin{Kind: task.OriginKindWeb, Ref: originWebRef},
+		IdempotencyKey: "northstar/" + run.ID,
+		QueuedAt:       run.StartedAt.Add(-time.Minute), ClaimedAt: run.StartedAt.Add(-30 * time.Second),
 		StartedAt: run.StartedAt, EndedAt: run.EndedAt, TokensUsed: run.TokensUsed,
 		Error: run.Error,
 	}

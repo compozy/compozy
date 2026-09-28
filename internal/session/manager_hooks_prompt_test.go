@@ -9,52 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestPromptNetworkUsesNetworkInputClass(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldUseNetworkInputClass", func(t *testing.T) {
-		dispatcher := &spyHookDispatcher{}
-		var (
-			inputPayload     hookspkg.InputPreSubmitPayload
-			turnStartPayload hookspkg.TurnStartPayload
-		)
-		dispatcher.dispatchInputPreSubmitFn = func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
-			inputPayload = payload
-			return payload, nil
-		}
-		dispatcher.dispatchTurnStartFn = func(_ context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
-			turnStartPayload = payload
-			return payload, nil
-		}
-
-		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
-		session := createLiveNetworkSession(t, h)
-		t.Cleanup(func() {
-			reportSessionStop(t, h, session.ID)
-		})
-
-		eventsCh, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network message")
-		if err != nil {
-			t.Fatalf("PromptNetwork() error = %v", err)
-		}
-		_ = collectEvents(t, eventsCh)
-
-		if inputPayload.InputClass != hookInputClassNetworkMessage {
-			t.Fatalf(
-				"input.pre_submit input class = %q, want %q",
-				inputPayload.InputClass,
-				hookInputClassNetworkMessage,
-			)
-		}
-		if turnStartPayload.InputClass != hookInputClassNetworkMessage {
-			t.Fatalf("turn.start input class = %q, want %q", turnStartPayload.InputClass, hookInputClassNetworkMessage)
-		}
-		if turnStartPayload.UserMessage != "network message" {
-			t.Fatalf("turn.start user message = %q, want %q", turnStartPayload.UserMessage, "network message")
-		}
-	})
-}
-
 func TestNewPromptTurnDispatchStateNormalizesInputClass(t *testing.T) {
 	t.Parallel()
 

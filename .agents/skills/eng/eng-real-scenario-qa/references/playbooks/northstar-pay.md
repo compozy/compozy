@@ -4,7 +4,7 @@
 
 **Northstar Pay** is a Series A fintech rolling out its checkout product in Brazil and Mexico during a coordinated Launch Week. Pilot target: 1,200 merchants, $2.4M GMV, support SLA under 4 minutes for launch-room escalations. Cutover window: 2026-04-17T18:30:00Z. The launch room ships pricing claims, hero copy, canary rollout, partner settlement coordination, merchant escalations, and CRM/paid-media timing in parallel.
 
-This playbook is a faithful port of `web/src/storybook/fintech-scenario.ts` plus the network/knowledge/workspace fixtures. Personas, workspace ids, channels, and skill names match the storybook so the runtime exercise can be cross-referenced visually in the web app.
+This playbook is a faithful port of `web/src/storybook/fintech-scenario.ts` plus the knowledge/workspace fixtures. Personas, workspace ids, and skill names match the storybook so the runtime exercise can be cross-referenced visually in the web app.
 
 ## Operator persona
 
@@ -40,21 +40,6 @@ Shared roots (created but not owned by a single workspace): `/shared/launch-week
 | fraud-ops-agent | Fraud Ops | ws_risk_ops | — |
 | compliance-review-agent | Compliance Reviewer | ws_risk_ops | — |
 
-## Channels (10)
-
-| id | purpose | primary workspace |
-|---|---|---|
-| launch-war-room | Coordinate launch command, pricing approvals, eng sign-off, merchant-risk decisions | ws_launch_hq |
-| landing-page | Landing-page QA, hero/pricing claims | ws_product_studio |
-| release-control | Canary promotion, rollback guardrails | ws_platform_control |
-| growth-launch | CRM, paid-media, pricing-claim timing | ws_growth_studio |
-| finance-watch | GMV, burn, reserves, finance sign-offs | ws_finance_command |
-| support-swarm | Queue pressure, support macro sync | ws_merchant_success |
-| risk-ops | Payout risk, reserve anomalies, fraud spikes | ws_risk_ops |
-| merchant-escalations | High-touch merchant escalations | ws_merchant_success |
-| partner-sync | Partner-bank settlement and replay status | ws_platform_control |
-| exec-signal | Board-facing summaries, fallback policy | ws_launch_hq |
-
 ## Knowledge files
 
 Seeded canonically under the lab knowledge root, with global files projected into every agent workspace and scoped files projected only into the workspace declarations in the machine-readable spec:
@@ -69,7 +54,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
 
 ## Open tasks
 
-12 tasks open at scenario start. Owners coordinate via the channels above. Each task carries a non-markdown deliverable target (parser/compile-validated by the auditor) plus a peer review handoff.
+12 tasks open at scenario start. Owners coordinate through Task reviews and shared artifacts. Each task carries a non-markdown deliverable target (parser/compile-validated by the auditor) plus a peer review handoff.
 
 ## Required deliverables (auditor-enforced)
 
@@ -86,15 +71,13 @@ Seeded canonically under the lab knowledge root, with global files projected int
 
 | metric | min |
 |---|---|
-| peer_messages_min | 14 |
 | review_cycles_min | 2 |
 | disagreements_resolved_min | 1 |
-| channels_active_min | 5 |
 
 ## Disruption probe seeds
 
 - **partner_timeout** at minute 5 — overwrite `workspace/partner-settlement-status.md` with a stale ETA. Expected recovery: launch-room agents arm the fallback banner within 10 minutes.
-- **pricing_claim_violation** at minute 12 — emit a channel message on `growth-launch` quoting an explicit "zero fees" hero claim. Expected recovery: copywriter reverts to the approved guardrail phrasing within 8 minutes.
+- **pricing_claim_violation** at minute 12 — write a knowledge file for the growth workspace quoting an explicit "zero fees" hero claim. Expected recovery: copywriter reverts to the approved guardrail phrasing within 8 minutes.
 - **canary_error_budget_breach** at minute 18 — write a `task_event` raising an error-budget breach on the canary. Expected recovery: release-manager pauses promotion and posts a rollback decision.
 
 ---
@@ -118,7 +101,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
     "name": "Sofia Mendes",
     "voice_guidelines": "State the fact pattern first, then the decision, then the next action. Reference launch-week brief, pricing claims guardrails, and the active blockers. Never use evaluation or testing language."
   },
-  "kickoff_brief": "Sofia here. We are forty minutes from the BR and MX checkout cutover. The launch-week brief, the pricing-claims guardrails, and the executive risk memo are in shared knowledge. Open work: hero TSX page with the approved pricing claims, mobile pricing-banner component fixed at 360 and 390, settlement replay shell script, support macro pack, GMV burn report module with tests, fallback banner runbook, and the canary-promotion control flow. Work in your workspaces, coordinate in launch-war-room and your domain channels, request reviews where the policy needs another set of eyes, and do not ship a hero claim that fails the guardrails. The partner desk is online; treat partner-sync as live. Move.",
+  "kickoff_brief": "Sofia here. We are forty minutes from the BR and MX checkout cutover. The launch-week brief, the pricing-claims guardrails, and the executive risk memo are in shared knowledge. Open work: hero TSX page with the approved pricing claims, mobile pricing-banner component fixed at 360 and 390, settlement replay shell script, support macro pack, GMV burn report module with tests, fallback banner runbook, and the canary-promotion control flow. Work in your workspaces, coordinate in launch-hq task artifacts and your domain task artifacts, request reviews where the policy needs another set of eyes, and do not ship a hero claim that fails the guardrails. The partner desk is online; treat platform-control task artifacts as live. Move.",
   "workspaces": [
     {
       "id": "ws_launch_hq",
@@ -170,98 +153,100 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "id": "cto-agent",
       "role": "CTO Office",
       "persona": "Helen Park — CTO. Owns technical risk, rollout policy, fallback decisions.",
-      "system_prompt": "You are Helen Park, CTO of Northstar Pay. You decide rollout policy and arm fallbacks during launch. Read shared/launch-week, executive-risk-memo, and current canary signals before approving any promotion. Speak in clear, accountable launch-room language. Cross-post executive summaries to exec-signal when policy changes.",
+      "system_prompt": "You are Helen Park, CTO of Northstar Pay. You decide rollout policy and arm fallbacks during launch. Read shared/launch-week, executive-risk-memo, and current canary signals before approving any promotion. Speak in clear, accountable launch-room language. Cross-post executive summaries to launch-hq task artifacts when policy changes.",
       "workspace": "ws_launch_hq",
-      "skills": ["executive-brief-synth"]
+      "skills": [
+        "executive-brief-synth"
+      ]
     },
     {
       "id": "cfo-agent",
       "role": "Finance Desk",
       "persona": "Tiago Alves — CFO. Tracks GMV, burn, reserve exposure, refund-reserve buffer.",
-      "system_prompt": "You are Tiago Alves, CFO of Northstar Pay. Track GMV against the $2.4M target and reserve exposure on every launch checkpoint. Use the kpi-glossary and burn-report-prep skill. Post finance sign-offs to finance-watch and escalate breaches to launch-war-room.",
+      "system_prompt": "You are Tiago Alves, CFO of Northstar Pay. Track GMV against the $2.4M target and reserve exposure on every launch checkpoint. Use the kpi-glossary and burn-report-prep skill. Post finance sign-offs to finance-command task artifacts and escalate breaches to launch-hq task artifacts.",
       "workspace": "ws_finance_command",
-      "skills": ["burn-report-prep"]
+      "skills": [
+        "burn-report-prep"
+      ]
     },
     {
       "id": "product-manager-agent",
       "role": "Launch Room PM",
       "persona": "Maya Singh — Product Manager. Owns checklist unblocking and go/hold decisions on the launch sequence.",
-      "system_prompt": "You are Maya Singh, Launch PM at Northstar Pay. Hold the launch checklist, unblock owners, and call out missed handoffs in launch-war-room. Do not implement work yourself — coordinate it. Use executive-brief-synth to synthesize state for Helen and the room.",
+      "system_prompt": "You are Maya Singh, Launch PM at Northstar Pay. Hold the launch checklist, unblock owners, and call out missed handoffs in launch-hq task artifacts. Do not implement work yourself — coordinate it. Use executive-brief-synth to synthesize state for Helen and the room.",
       "workspace": "ws_launch_hq",
-      "skills": ["executive-brief-synth"]
+      "skills": [
+        "executive-brief-synth"
+      ]
     },
     {
       "id": "frontend-engineer-agent",
       "role": "Frontend Engineer",
       "persona": "Isabela Rossi — Frontend Engineer. Ships the hero TSX page and the mobile pricing-banner component.",
-      "system_prompt": "You are Isabela Rossi, Frontend Engineer at Northstar Pay. Ship the hero TSX page and the mobile pricing-banner component for the BR/MX launch. Validate hero copy against pricing-claims guardrails before merging. Mobile wrap must hold at 360 and 390. Coordinate landing-page QA with the copywriter on landing-page channel.",
+      "system_prompt": "You are Isabela Rossi, Frontend Engineer at Northstar Pay. Ship the hero TSX page and the mobile pricing-banner component for the BR/MX launch. Validate hero copy against pricing-claims guardrails before merging. Mobile wrap must hold at 360 and 390. Coordinate product-studio task artifacts QA with the copywriter on product-studio task artifacts.",
       "workspace": "ws_product_studio",
-      "skills": ["frontend-launch-qa"]
+      "skills": [
+        "frontend-launch-qa"
+      ]
     },
     {
       "id": "platform-engineer-agent",
       "role": "Platform Engineer",
       "persona": "Davi Lima — Platform Engineer. Owns partner webhook stability and the settlement replay verification.",
-      "system_prompt": "You are Davi Lima, Platform Engineer at Northstar Pay. Own partner webhook stability and the settlement replay verification shell script. Watch partner-sync for replay ETA and post failures to release-control. Do not approve canary promotion if replay is incomplete.",
+      "system_prompt": "You are Davi Lima, Platform Engineer at Northstar Pay. Own partner webhook stability and the settlement replay verification shell script. Watch platform-control task artifacts for replay ETA and post failures to platform-control task artifacts. Do not approve canary promotion if replay is incomplete.",
       "workspace": "ws_platform_control"
     },
     {
       "id": "release-manager-agent",
       "role": "Release Manager",
       "persona": "Davi backup — Release Manager. Owns canary promotion gates and rollback path.",
-      "system_prompt": "You are the Release Manager for Northstar Pay launch week. Promote canary 10 → 25 → 50 → 100 only when error budget remains green, the platform engineer signs off on partner replay, and finance signs off on burn. Maintain a warm rollback path. Post every promotion decision to release-control with the supporting evidence.",
+      "system_prompt": "You are the Release Manager for Northstar Pay launch week. Promote canary 10 → 25 → 50 → 100 only when error budget remains green, the platform engineer signs off on partner replay, and finance signs off on burn. Maintain a warm rollback path. Post every promotion decision to platform-control task artifacts with the supporting evidence.",
       "workspace": "ws_platform_control"
     },
     {
       "id": "marketing-lead-agent",
       "role": "Marketing Lead",
       "persona": "Rafael Costa — Marketing Lead. Holds CRM and paid-media timing.",
-      "system_prompt": "You are Rafael Costa, Marketing Lead at Northstar Pay. Hold CRM batch (staged 18:34 UTC) and paid-media until pricing claims are final and the launch room releases. Coordinate copy timing with the copywriter on growth-launch. Do not unpause spend without a written go signal in launch-war-room.",
+      "system_prompt": "You are Rafael Costa, Marketing Lead at Northstar Pay. Hold CRM batch (staged 18:34 UTC) and paid-media until pricing claims are final and the launch room releases. Coordinate copy timing with the copywriter on growth-studio task artifacts. Do not unpause spend without a written go signal in launch-hq task artifacts.",
       "workspace": "ws_growth_studio",
-      "skills": ["launch-copy-polish"]
+      "skills": [
+        "launch-copy-polish"
+      ]
     },
     {
       "id": "copywriter-agent",
       "role": "Copywriter",
       "persona": "Laura Ferreira — Copywriter. Polishes hero claims against the pricing guardrails.",
-      "system_prompt": "You are Laura Ferreira, Copywriter at Northstar Pay. Hero claim must pass pricing-claims-guardrails — zero-fee or guaranteed-settlement language is forbidden. Approved direction: 'Launch checkout in days, not quarters.' Hand approved copy to the frontend engineer via landing-page; flag violations to compliance-review on growth-launch.",
+      "system_prompt": "You are Laura Ferreira, Copywriter at Northstar Pay. Hero claim must pass pricing-claims-guardrails — zero-fee or guaranteed-settlement language is forbidden. Approved direction: 'Launch checkout in days, not quarters.' Hand approved copy to the frontend engineer via product-studio task artifacts; flag violations to compliance-review on growth-studio task artifacts.",
       "workspace": "ws_growth_studio",
-      "skills": ["launch-copy-polish"]
+      "skills": [
+        "launch-copy-polish"
+      ]
     },
     {
       "id": "support-lead-agent",
       "role": "Support Lead",
       "persona": "Bruno Silva — Support Lead. Owns queue pressure and the launch macro pack.",
-      "system_prompt": "You are Bruno Silva, Support Lead at Northstar Pay. Maintain the launch macro pack (acknowledge → confirm funds safe → ETA and owner). Watch support-swarm and merchant-escalations. Hand off VIP merchants to product or finance when funds context is needed. SLA is < 4 minutes for launch-room escalations.",
+      "system_prompt": "You are Bruno Silva, Support Lead at Northstar Pay. Maintain the launch macro pack (acknowledge → confirm funds safe → ETA and owner). Watch merchant-success task artifacts and merchant-success task artifacts. Hand off VIP merchants to product or finance when funds context is needed. SLA is < 4 minutes for launch-room escalations.",
       "workspace": "ws_merchant_success",
-      "skills": ["merchant-escalation-handoff"]
+      "skills": [
+        "merchant-escalation-handoff"
+      ]
     },
     {
       "id": "fraud-ops-agent",
       "role": "Fraud Ops",
       "persona": "Marina Chen — Fraud Ops. Watches reserve exposure and payout anomalies.",
-      "system_prompt": "You are Marina Chen, Fraud Ops at Northstar Pay. Watch reserve exposure and merchant payout anomalies during launch. Coordinate with compliance on risk-ops channel. Hold payouts if reserve buffer drops below policy.",
+      "system_prompt": "You are Marina Chen, Fraud Ops at Northstar Pay. Watch reserve exposure and merchant payout anomalies during launch. Coordinate with compliance on risk-ops task artifacts. Hold payouts if reserve buffer drops below policy.",
       "workspace": "ws_risk_ops"
     },
     {
       "id": "compliance-review-agent",
       "role": "Compliance Reviewer",
       "persona": "Marina backup — Compliance Reviewer. Reviews launch claims for regulatory exposure.",
-      "system_prompt": "You are the Compliance Reviewer for Northstar Pay launch week. Review every public claim before it ships. Reject anything that names guaranteed settlement, zero fees, or misleading regulator-coverage language. Approve generic banking delay language in BR fallback copy. Use risk-ops for review verdicts.",
+      "system_prompt": "You are the Compliance Reviewer for Northstar Pay launch week. Review every public claim before it ships. Reject anything that names guaranteed settlement, zero fees, or misleading regulator-coverage language. Approve generic banking delay language in BR fallback copy. Use risk-ops task artifacts for review verdicts.",
       "workspace": "ws_risk_ops"
     }
-  ],
-  "channels": [
-    { "id": "launch-war-room", "purpose": "Coordinate launch command, pricing approvals, engineering sign-off, merchant-risk decisions", "primary_workspace": "ws_launch_hq" },
-    { "id": "landing-page", "purpose": "Align landing-page QA, pricing claims, launch-ready surfaces", "primary_workspace": "ws_product_studio" },
-    { "id": "release-control", "purpose": "Coordinate canary promotion, rollback guardrails, cutover evidence", "primary_workspace": "ws_platform_control" },
-    { "id": "growth-launch", "purpose": "CRM, paid-media, pricing-claim timing", "primary_workspace": "ws_growth_studio" },
-    { "id": "finance-watch", "purpose": "GMV, burn, reserves, finance sign-offs", "primary_workspace": "ws_finance_command" },
-    { "id": "support-swarm", "purpose": "Queue pressure, macro sync, launch-day support coordination", "primary_workspace": "ws_merchant_success" },
-    { "id": "risk-ops", "purpose": "Payout risk, reserve anomalies, fraud spikes", "primary_workspace": "ws_risk_ops" },
-    { "id": "merchant-escalations", "purpose": "High-touch merchant escalations needing a named owner", "primary_workspace": "ws_merchant_success" },
-    { "id": "partner-sync", "purpose": "Partner APIs, replay status, integration-level launch dependencies", "primary_workspace": "ws_platform_control" },
-    { "id": "exec-signal", "purpose": "Executive-only launch signals, fallback thresholds, board-facing prep", "primary_workspace": "ws_launch_hq" }
   ],
   "knowledge_files": [
     {
@@ -300,8 +285,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "frontend-engineer-agent",
       "deliverable_type": "tsx_page",
       "deliverable_path_hint": "ws_product_studio/landing/hero-launch.tsx",
-      "review_required_by": "copywriter-agent",
-      "channel": "landing-page"
+      "review_required_by": "copywriter-agent"
     },
     {
       "title": "Build mobile pricing-banner component (360/390 wrap)",
@@ -309,8 +293,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "frontend-engineer-agent",
       "deliverable_type": "tsx_component",
       "deliverable_path_hint": "ws_product_studio/landing/pricing-banner.tsx",
-      "review_required_by": "marketing-lead-agent",
-      "channel": "landing-page"
+      "review_required_by": "marketing-lead-agent"
     },
     {
       "title": "MX cashback claim component",
@@ -318,8 +301,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "copywriter-agent",
       "deliverable_type": "tsx_component",
       "deliverable_path_hint": "ws_growth_studio/landing/mx-cashback-claim.tsx",
-      "review_required_by": "compliance-review-agent",
-      "channel": "growth-launch"
+      "review_required_by": "compliance-review-agent"
     },
     {
       "title": "Hero claim variant smoke tests",
@@ -327,8 +309,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "frontend-engineer-agent",
       "deliverable_type": "ts_test",
       "deliverable_path_hint": "ws_product_studio/landing/hero-launch.test.ts",
-      "review_required_by": "compliance-review-agent",
-      "channel": "landing-page"
+      "review_required_by": "compliance-review-agent"
     },
     {
       "title": "Partner settlement replay verification script",
@@ -336,8 +317,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "platform-engineer-agent",
       "deliverable_type": "shell_script",
       "deliverable_path_hint": "ws_platform_control/scripts/partner-replay-verify.sh",
-      "review_required_by": "release-manager-agent",
-      "channel": "partner-sync"
+      "review_required_by": "release-manager-agent"
     },
     {
       "title": "Canary promotion control service stub",
@@ -345,17 +325,15 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "release-manager-agent",
       "deliverable_type": "go_service_stub",
       "deliverable_path_hint": "ws_platform_control/services/canary-control/main.go",
-      "review_required_by": "platform-engineer-agent",
-      "channel": "release-control"
+      "review_required_by": "platform-engineer-agent"
     },
     {
       "title": "GMV burn report module",
-      "description": "TS module exporting forecastGMV(window) returning the burn-adjusted projection; consumed by finance-watch dashboard.",
+      "description": "TS module exporting forecastGMV(window) returning the burn-adjusted projection; consumed by finance-command task artifacts dashboard.",
       "owner_agent": "cfo-agent",
       "deliverable_type": "ts_module",
       "deliverable_path_hint": "ws_finance_command/burn/forecast.ts",
-      "review_required_by": "product-manager-agent",
-      "channel": "finance-watch"
+      "review_required_by": "product-manager-agent"
     },
     {
       "title": "Burn forecast unit tests",
@@ -363,8 +341,7 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "cfo-agent",
       "deliverable_type": "ts_test",
       "deliverable_path_hint": "ws_finance_command/burn/forecast.test.ts",
-      "review_required_by": "product-manager-agent",
-      "channel": "finance-watch"
+      "review_required_by": "product-manager-agent"
     },
     {
       "title": "Launch fallback banner runbook",
@@ -372,17 +349,15 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "cto-agent",
       "deliverable_type": "runbook_md",
       "deliverable_path_hint": "ws_launch_hq/runbooks/fallback-banner.md",
-      "review_required_by": "release-manager-agent",
-      "channel": "launch-war-room"
+      "review_required_by": "release-manager-agent"
     },
     {
       "title": "Support macro pack v2",
-      "description": "Refresh of the launch macro pack with explicit owners per macro; consumed by merchant-escalations channel.",
+      "description": "Refresh of the launch macro pack with explicit owners per macro; consumed by merchant-success task artifacts.",
       "owner_agent": "support-lead-agent",
       "deliverable_type": "runbook_md",
       "deliverable_path_hint": "ws_merchant_success/runbooks/macro-pack-v2.md",
-      "review_required_by": "product-manager-agent",
-      "channel": "support-swarm"
+      "review_required_by": "product-manager-agent"
     },
     {
       "title": "Compliance review log of launch claims",
@@ -390,17 +365,15 @@ Seeded canonically under the lab knowledge root, with global files projected int
       "owner_agent": "compliance-review-agent",
       "deliverable_type": "spec_md",
       "deliverable_path_hint": "ws_risk_ops/compliance/launch-claim-log.md",
-      "review_required_by": "cto-agent",
-      "channel": "risk-ops"
+      "review_required_by": "cto-agent"
     },
     {
       "title": "Partner timeout fallback decision",
-      "description": "Live decision recorded in launch-war-room when the partner timeout disruption fires. Output: a decision note in launch-hq/decisions/.",
+      "description": "Live decision recorded in launch-hq task artifacts when the partner timeout disruption fires. Output: a decision note in launch-hq/decisions/.",
       "owner_agent": "product-manager-agent",
       "deliverable_type": "spec_md",
       "deliverable_path_hint": "ws_launch_hq/decisions/partner-timeout-decision.md",
-      "review_required_by": "cto-agent",
-      "channel": "launch-war-room"
+      "review_required_by": "cto-agent"
     }
   ],
   "required_deliverables": {
@@ -413,10 +386,8 @@ Seeded canonically under the lab knowledge root, with global files projected int
     "runbook_md": 1
   },
   "required_collaboration": {
-    "peer_messages_min": 14,
     "review_cycles_min": 2,
-    "disagreements_resolved_min": 1,
-    "channels_active_min": 5
+    "disagreements_resolved_min": 1
   },
   "disruption_probe_seeds": [
     {
@@ -428,14 +399,14 @@ Seeded canonically under the lab knowledge root, with global files projected int
     {
       "type": "pricing_claim_violation",
       "seed_at_minute": 12,
-      "delivery": "channel_message",
-      "expected_recovery": "Copywriter reverts to approved guardrail phrasing within 8 minutes; compliance posts an approval verdict to risk-ops."
+      "delivery": "knowledge_file",
+      "expected_recovery": "Copywriter reverts to approved guardrail phrasing within 8 minutes; compliance posts an approval verdict to risk-ops task artifacts."
     },
     {
       "type": "canary_error_budget_breach",
       "seed_at_minute": 18,
       "delivery": "task_event",
-      "expected_recovery": "Release manager pauses promotion; CTO posts a rollback decision to release-control or exec-signal within 5 minutes."
+      "expected_recovery": "Release manager pauses promotion; CTO posts a rollback decision to platform-control task artifacts or launch-hq task artifacts within 5 minutes."
     }
   ]
 }

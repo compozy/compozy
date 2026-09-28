@@ -218,8 +218,7 @@ type profileCountsResult struct {
 
 var ownedWorkTables = []string{
 	"sessions", "tasks", "loop_runs", "automation_jobs", "automation_triggers",
-	"automation_suggestions", "bridge_instances", "worktrees", "network_channels",
-	"network_direct_rooms", "network_threads", "network_work", "notification_cursors",
+	"automation_suggestions", "worktrees", "notification_cursors",
 	"tool_approval_grants", "dead_entities", "token_usage_daily",
 }
 

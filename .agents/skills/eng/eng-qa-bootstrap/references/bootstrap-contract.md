@@ -63,8 +63,8 @@ The bootstrap helper writes two canonical artifacts under:
 ## QA evidence contract files
 
 - `scenario-contract.json` defines the release-grade minimums that downstream QA must satisfy before a `PASS` claim.
-- An explicit `targeted` profile requires only its declared `--required-surface` values; it does not invent agent, channel, Task, artifact-reuse, disruption, or provider minimums for a bounded non-agent journey.
-- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, channels, task tree, provider plan, cross-surface targets, disruption probes, and artifacts. When `--playbook` was passed, the charter is materialized from the playbook spec and includes `playbook_ref`, `required_deliverables`, and `required_collaboration`.
+- An explicit `targeted` profile requires only its declared `--required-surface` values; it does not invent agent, Task, artifact-reuse, disruption, or provider minimums for a bounded non-agent journey.
+- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, task tree, provider plan, cross-surface targets, disruption probes, and artifacts. When `--playbook` was passed, the charter is materialized from the playbook spec and includes `playbook_ref`, `required_deliverables`, and `required_collaboration`.
 - `journey-log.jsonl` is append-only structured evidence. Each meaningful CLI/API/Web/runtime/provider action must add one row.
 - `provider-attempt.json` records live provider-backed proof or the exact blocked boundary. A blocked provider boundary supports a `BLOCKED` result, not a live-provider `PASS`.
 - The auditor writes `qa-audit-report.json` and `qa-audit-report.md`; exit code `2` is a blocking QA failure.
@@ -75,7 +75,7 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 
 - `.compozy/playbook.json` — the resolved playbook spec (the canonical structured JSON parsed from `references/playbooks/<ref>.md`).
 - `.compozy/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
-- `.compozy/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
+- `.compozy/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, playbook_ref.
 - `.compozy/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
 - `project/` — the only root registered with Compozy for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
 - `project/workspaces/<workspace-name>/README.md` — per-workspace stub README.

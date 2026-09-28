@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-session-never-starts.dom.txt; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-108e1613c829/runtime/sessions/ws_06366aad69887872/sess-fbc0f0f9edf012ea/ledger.jsonl; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-synthetic-turn-fixed-agent-mode-blocked.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-repeated-synthetic-turns.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/compozy71-faithful-child-b-one-run.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/task-list.json;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/growth-task-runs-http.json
 last_report: docs/qa/reports/2026-08-06-loop-agent-ownership.md
-overlaps: TA-024;TA-025;TA-026;TA-parent-rollup-completion
+overlaps: TA-024; TA-025; TA-026; TA-parent-rollup-completion
 ---
 
 The task-role prompt must be actively dispatched; storing it only as `creation_profile.prompt_overlay` does not activate the worker. Verify one-turn idempotency and typed failure recovery as well as the happy path.

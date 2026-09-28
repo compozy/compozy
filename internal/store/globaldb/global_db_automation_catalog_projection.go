@@ -14,14 +14,14 @@ import (
 const automationJobRichSelectSQL = `SELECT
 	id, scope, name, agent_name, workspace_id, prompt, schedule, task,
 	enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 	FROM automation_jobs`
 
 const automationTriggerRichSelectSQL = `SELECT
 	id, scope, name, agent_name, workspace_id, prompt, event, filter,
 	enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
 	webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
-	loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
+	loop_inputs, loop_input_mapping, created_at, updated_at
 	FROM automation_triggers`
 
 func upsertAutomationJobCatalog(ctx context.Context, exec globalSQLExecutor, job automation.Job) error {

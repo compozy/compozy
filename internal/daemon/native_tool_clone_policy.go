@@ -8,8 +8,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/compozy/internal/network"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -20,19 +18,6 @@ func cloneStringPtr(value *string) *string {
 	}
 	cloned := strings.TrimSpace(*value)
 	return &cloned
-}
-
-func cloneTrimmedStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			cloned = append(cloned, trimmed)
-		}
-	}
-	return cloned
 }
 
 func cloneIntPtr(value *int) *int {
@@ -90,17 +75,6 @@ func cloneJSON(raw json.RawMessage) json.RawMessage {
 		return nil
 	}
 	return append(json.RawMessage(nil), raw...)
-}
-
-func cloneExtensionMap(src network.ExtensionMap) network.ExtensionMap {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(network.ExtensionMap, len(src))
-	for key, value := range src {
-		dst[key] = cloneJSON(value)
-	}
-	return dst
 }
 
 func nativeToolPolicyInputs(cfg *compozyconfig.Config) (toolspkg.PolicyInputs, error) {

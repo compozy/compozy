@@ -12,7 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -516,44 +516,28 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
-		wantParticipation := participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     "ws-1",
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "builders",
-			Source:          participation.SourceExplicitRequest,
-			Bounds: participation.Bounds{
-				MaxWakes:         4,
-				MaxWakeWallTime:  "30s",
-				MaxTotalWallTime: "2m",
-				MaxInputTokens:   4096,
-				MaxOutputTokens:  4096,
-				MaxWakeDepth:     4,
-				CoalesceWindow:   "250ms",
-			},
-		}
+
 		info := &session.Info{
-			ID:                   "sess-1",
-			ProfileID:            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-			Name:                 "worker",
-			AgentName:            "coder",
-			Provider:             "provider",
-			Model:                "gpt-5.4",
-			WorkspaceID:          "ws-1",
-			Workspace:            "/workspace",
-			NetworkParticipation: wantParticipation,
-			Type:                 session.SessionTypeUser,
-			State:                session.StateActive,
-			SoulSnapshotID:       "soul-1",
-			SoulDigest:           "digest-1",
-			ParentSoulDigest:     "digest-parent",
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:          "sess-1",
+			ProfileID:   "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+			Name:        "worker",
+			AgentName:   "coder",
+			Provider:    "provider",
+			Model:       "gpt-5.4",
+			WorkspaceID: "ws-1",
+			Workspace:   "/workspace",
+
+			Type:             session.SessionTypeUser,
+			State:            session.StateActive,
+			SoulSnapshotID:   "soul-1",
+			SoulDigest:       "digest-1",
+			ParentSoulDigest: "digest-parent",
+			CreatedAt:        now,
+			UpdatedAt:        now,
 		}
 
 		got := SessionSnapshotFromInfo(info)
-		info.NetworkParticipation.ChannelID = "mutated-after-conversion"
+
 		if got.ID != info.ID ||
 			got.ProfileID != info.ProfileID ||
 			got.Name != info.Name ||
@@ -562,7 +546,6 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 			got.Model != info.Model ||
 			got.WorkspaceID != info.WorkspaceID ||
 			got.WorkspacePath != info.Workspace ||
-			got.NetworkSpecSnapshot() != wantParticipation ||
 			got.Type != info.Type ||
 			got.State != info.State ||
 			got.SoulSnapshotID != info.SoulSnapshotID ||

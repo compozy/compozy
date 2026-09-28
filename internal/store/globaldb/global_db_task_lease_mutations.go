@@ -46,18 +46,6 @@ func (g *TaskRunRepo) heartbeatRunLeaseWithExecutor(
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
-	if updated.IsNetworkWake() {
-		wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
-		if err := appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
-			workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
-			ownerKey: ownerKey, targetSessionID: targetSessionID,
-			eventType: networkWakeEventHeartbeat, state: updated.Status.String(),
-			claimTokenHash: updated.ClaimTokenHash, actor: heartbeat.Actor.Actor, at: heartbeat.Now,
-		}); err != nil {
-			return taskpkg.Run{}, err
-		}
-		return updated, nil
-	}
 	if err := g.appendLoopTokenTickForHeartbeat(ctx, exec, updated, heartbeat.TokensUsed); err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -79,25 +67,12 @@ func (g *TaskRunRepo) releaseRunLeaseWithExecutor(
 	if err := requeueLeasedRun(ctx, exec, current.ID); err != nil {
 		return taskpkg.Run{}, err
 	}
-	if current.IsTaskAnchored() {
-		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-			return taskpkg.Run{}, err
-		}
+	if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+		return taskpkg.Run{}, err
 	}
 	updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 	if err != nil {
 		return taskpkg.Run{}, err
-	}
-	if updated.IsNetworkWake() {
-		wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
-		if err := appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
-			workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
-			ownerKey: ownerKey, targetSessionID: targetSessionID,
-			eventType: networkWakeEventReleased, state: updated.Status.String(),
-			reason: release.Reason, actor: release.Actor.Actor, at: release.Now,
-		}); err != nil {
-			return taskpkg.Run{}, err
-		}
 	}
 	return updated, nil
 }
@@ -152,36 +127,7 @@ func (g *TaskRunRepo) failRunLeaseMutationWithExecutor(
 	if err != nil {
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}
-	if current.IsNetworkWake() {
-		return taskpkg.FailedRunLeaseMutation{}, fmt.Errorf(
-			"%w: network_wake runs must be failed through network settlement",
-			taskpkg.ErrValidation,
-		)
-	}
 	return g.failCurrentRunLeaseWithExecutor(ctx, exec, current, normalized)
-}
-
-func (g *TaskRunRepo) failRunLeaseWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	failure taskpkg.LeaseFailure,
-) (taskpkg.Run, error) {
-	normalized, err := failure.Normalize(g.now())
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	if err := normalized.Actor.Validate(); err != nil {
-		return taskpkg.Run{}, err
-	}
-	current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	mutation, err := g.failCurrentRunLeaseWithExecutor(ctx, exec, current, normalized)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	return mutation.Run, nil
 }
 
 func (g *TaskRunRepo) failCurrentRunLeaseWithExecutor(
@@ -226,30 +172,27 @@ func (g *TaskRunRepo) failCurrentRunLeaseWithExecutor(
 		)
 	}
 	var coordinatorTransitions []taskpkg.StatusTransition
-	if current.IsTaskAnchored() {
-		coordinatorTransitions, err = g.tasks.settleCoordinatorFailureLoopWithExecutor(
-			ctx,
-			exec,
-			current,
-			normalized,
-		)
-		if err != nil {
-			return taskpkg.FailedRunLeaseMutation{}, err
-		}
-		if err := recordLoopNodeTerminalWithExecutor(
-			ctx,
-			exec,
-			current,
-			"failure",
-			loopFailureOutputRef(normalized.Failure),
-			nil,
-			normalized.Now,
-		); err != nil {
-			return taskpkg.FailedRunLeaseMutation{}, err
-		}
-		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-			return taskpkg.FailedRunLeaseMutation{}, err
-		}
+	coordinatorTransitions, err = g.tasks.settleCoordinatorFailureLoopWithExecutor(
+		ctx,
+		exec,
+		current,
+		normalized,
+	)
+	if err != nil {
+		return taskpkg.FailedRunLeaseMutation{}, err
+	}
+	if err := recordLoopNodeTerminalWithExecutor(
+		ctx,
+		exec,
+		current,
+		"failure",
+		loopFailureOutputRef(normalized.Failure),
+		normalized.Now,
+	); err != nil {
+		return taskpkg.FailedRunLeaseMutation{}, err
+	}
+	if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+		return taskpkg.FailedRunLeaseMutation{}, err
 	}
 
 	updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)

@@ -31,7 +31,7 @@ type Registry interface {
 	ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
 	WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error
 	ListPermissionLog(ctx context.Context, query store.PermissionLogQuery) ([]store.PermissionLogEntry, error)
-	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+
 	ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error)
 	CountDependencies(ctx context.Context, taskID string) (int, error)
 	ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error)
@@ -133,8 +133,6 @@ type Observer struct {
 	logger              *slog.Logger
 	versionSource       VersionSource
 	sessions            map[string]observedSession
-	bridgeSource        BridgeSource
-	bridgeState         map[string]observedBridgeState
 	hookCatalogSource   HookCatalogSource
 	openHookStore       HookStoreOpener
 	taskHealthConfig    TaskHealthConfig
@@ -318,7 +316,6 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 		logger:        slog.Default(),
 		versionSource: version.Current,
 		sessions:      make(map[string]observedSession),
-		bridgeState:   make(map[string]observedBridgeState),
 		taskHealthConfig: TaskHealthConfig{
 			ClaimedStuckAfter:  5 * time.Minute,
 			StartingStuckAfter: 5 * time.Minute,
@@ -349,9 +346,6 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	}
 	if observer.sessions == nil {
 		observer.sessions = make(map[string]observedSession)
-	}
-	if observer.bridgeState == nil {
-		observer.bridgeState = make(map[string]observedBridgeState)
 	}
 	if observer.resolveProviderAuth == nil {
 		observer.resolveProviderAuth = defaultProviderAuthModeResolver(

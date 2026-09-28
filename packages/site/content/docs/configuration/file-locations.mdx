@@ -24,7 +24,6 @@ directories. The user home defaults to `~/.compozy` and can be changed with `COM
 | `$COMPOZY_HOME/daemon.lock`                                                        | Global                  | Daemon lock file.                                                                                  |
 | `$COMPOZY_HOME/daemon.json`                                                        | Global                  | Daemon discovery metadata.                                                                         |
 | `$COMPOZY_HOME/logs/compozy.log`                                                   | Global                  | Structured daemon log file.                                                                        |
-| `$COMPOZY_HOME/logs/network.audit`                                                 | Global                  | Append-only network audit file.                                                                    |
 | `$COMPOZY_HOME/gateway/credentials/`                                               | Client-local gateway    | Private credential files for named remote connection profiles.                                     |
 | `$COMPOZY_HOME/support-bundles/`                                                   | Global                  | Daemon-created support bundle archives and operation downloads.                                    |
 | `$COMPOZY_HOME/providers/<provider>/`                                              | Provider                | Isolated provider home when `home_policy` is set.                                                  |
@@ -78,7 +77,7 @@ matches the active profile; unmatched directories stay dormant.
 | `$COMPOZY_HOME/profiles/<name>/memory/` | yes for `default`      | Profile memory directory. Can be overridden by `[memory].global_dir`.         |
 | `$COMPOZY_HOME/providers/`              | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
 | `$COMPOZY_HOME/sessions/`               | yes                    | Parent directory for per-session state.                                       |
-| `$COMPOZY_HOME/logs/`                   | yes                    | Parent directory for daemon logs and network audit output.                    |
+| `$COMPOZY_HOME/logs/`                   | yes                    | Parent directory for daemon logs.                                             |
 | `$COMPOZY_HOME/gateway/`                | yes                    | Client-local gateway state.                                                   |
 | `$COMPOZY_HOME/gateway/credentials/`    | yes                    | Private remote connection credential files.                                   |
 | `$COMPOZY_HOME/extensions/`             | no                     | Managed installed extension root. Created when installing managed extensions. |
@@ -110,15 +109,14 @@ folders are how a division of contexts travels with a checkout.
 
 ## Global Runtime Files
 
-| Path                               | Format             | Description                                                                                                                                                                                                         |
-| ---------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/compozy.db`         | SQLite             | Global catalog database for sessions, workspace registrations, observability summaries, extension records, automation state, and network records. SQLite may create `compozy.db-wal` and `compozy.db-shm` sidecars. |
-| `$COMPOZY_HOME/daemon.sock`        | Unix domain socket | Default CLI and UDS API socket. `[daemon].socket` can point elsewhere.                                                                                                                                              |
-| `$COMPOZY_HOME/daemon.lock`        | Lock file          | Daemon process lock.                                                                                                                                                                                                |
-| `$COMPOZY_HOME/daemon.json`        | JSON               | Discovery file containing daemon PID, HTTP port, start time, and optional network diagnostics.                                                                                                                      |
-| `$COMPOZY_HOME/logs/compozy.log`   | log file           | Structured daemon log file path from the home layout.                                                                                                                                                               |
-| `$COMPOZY_HOME/logs/network.audit` | log file           | Append-only network audit file.                                                                                                                                                                                     |
-| `$COMPOZY_HOME/support-bundles/`   | directory          | Redacted support bundle archives created through `compozy support bundle` or `POST /api/support/bundles`.                                                                                                           |
+| Path                             | Format             | Description                                                                                                                                                                                        |
+| -------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/compozy.db`       | SQLite             | Global catalog database for sessions, workspace registrations, observability summaries, extension records, and automation state. SQLite may create `compozy.db-wal` and `compozy.db-shm` sidecars. |
+| `$COMPOZY_HOME/daemon.sock`      | Unix domain socket | Default CLI and UDS API socket. `[daemon].socket` can point elsewhere.                                                                                                                             |
+| `$COMPOZY_HOME/daemon.lock`      | Lock file          | Daemon process lock.                                                                                                                                                                               |
+| `$COMPOZY_HOME/daemon.json`      | JSON               | Discovery file containing daemon PID, HTTP port, and start time.                                                                                                                                   |
+| `$COMPOZY_HOME/logs/compozy.log` | log file           | Structured daemon log file path from the home layout.                                                                                                                                              |
+| `$COMPOZY_HOME/support-bundles/` | directory          | Redacted support bundle archives created through `compozy support bundle` or `POST /api/support/bundles`.                                                                                          |
 
 ## Provider Home Files
 

@@ -74,17 +74,7 @@
             </div>
           </section>
 
-          <section class="path-card" data-od-id="path-protocol">
-            <p class="path-card__eyebrow">Protocol implementers</p>
-            <h3 class="path-card__title">Implement compozy-network/v0</h3>
-            <p class="path-card__desc">The wire format for agent-to-agent coordination: envelopes, message kinds, delivery, and receipts — implementable without adopting Compozy internals.</p>
-            <div class="path-card__links">
-              <a class="is-cta" href="#"><i data-lucide="network" class="ic"></i>Read the compozy-network/v0 spec</a>
-              <a href="#"><i data-lucide="mail" class="ic"></i>Envelope</a>
-              <a href="#"><i data-lucide="list" class="ic"></i>Message kinds</a>
-              <a href="#"><i data-lucide="badge-check" class="ic"></i>Conformance</a>
-            </div>
-          </section>
+
 
           <section class="path-card" data-od-id="path-evaluate">
             <p class="path-card__eyebrow">Evaluators</p>
@@ -99,7 +89,7 @@
         </div>
 
         <h2 id="one-system">One system, not a stack of tools</h2>
-        <p>Everything in these docs shares one daemon-owned state: a task can start a session, permissions bound it, memory follows the workspace, and another agent can continue the work without rebuilding context by hand. <strong>Compozy Network</strong> — peer discovery, typed envelopes, receipts — is a subsystem of that same runtime, documented under its own group below with the protocol spec nested for implementers.</p>
+        <p>Everything in these docs shares one daemon-owned state: a task can start a session, permissions bound it, memory follows the workspace, and another agent can continue the work without rebuilding context by hand.</p>
         <div class="doc-pre">
           <div class="doc-pre__head"><svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>shell<button class="act-btn" type="button" data-copy="compozy daemon start"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
           <pre><span class="tok-c"># no Docker, no Postgres — one local binary</span>
@@ -107,14 +97,14 @@ compozy daemon start</pre>
         </div>
 
         <h2 id="how-organized">How the docs are organized</h2>
-        <p>One sidebar, eight groups, ordered by journey: start, do, understand, automate, coordinate, extend, operate, look up. Task-oriented content sits above concepts; the generated references collapse to two rows until you need them.</p>
+        <p>One sidebar, seven groups, ordered by journey: start, do, understand, automate, extend, operate, look up. Task-oriented content sits above concepts; the generated references collapse to two rows until you need them.</p>
 
         <div class="group-index" data-od-id="group-index">
           <div class="group-row"><span class="group-row__name">Start here</span><p class="group-row__body"><a href="#">Getting started</a> and <a href="#">migration</a> — install, run the quick start, meet your first agent.</p></div>
           <div class="group-row"><span class="group-row__name">Guides &amp; examples</span><p class="group-row__body">Task-first material: <a href="#">guides</a> for a job to be done, <a href="site-example-page.html">examples</a> you can run as shipped, and <a href="#">use cases</a> that show whole journeys.</p></div>
-          <div class="group-row"><span class="group-row__name">Core concepts</span><p class="group-row__body">The state model behind the work: <a href="#">sessions</a>, <a href="#">agents</a>, <a href="#">autonomy</a>, <a href="#">memory</a>, <a href="#">workspaces</a>, and <a href="#">sandbox</a>.</p></div>
-          <div class="group-row"><span class="group-row__name">Automation</span><p class="group-row__body">Work that runs without you: <a href="#">jobs, triggers, and webhooks</a>, goal-seeking <a href="#">Loops</a>, and chat <a href="#">bridges</a>.</p></div>
-          <div class="group-row"><span class="group-row__name">Compozy Network</span><p class="group-row__body"><a href="#">Using the network from Compozy</a>, with the <a href="#">compozy-network/v0 protocol spec</a> nested one level deeper for implementers.</p></div>
+          <div class="group-row"><span class="group-row__name">Core concepts</span><p class="group-row__body">The state model behind the work: <a href="#">sessions</a>, <a href="#">agents</a>, <a href="#">autonomy</a>, <a href="#">memory</a>, and <a href="#">workspaces</a>.</p></div>
+          <div class="group-row"><span class="group-row__name">Automation</span><p class="group-row__body">Work that runs without you: <a href="#">jobs, triggers, and webhooks</a> and goal-seeking <a href="#">Loops</a>.</p></div>
+
           <div class="group-row"><span class="group-row__name">Extensibility</span><p class="group-row__body">How the system grows: the <a href="site-marketplace.html">marketplace</a>, <a href="#">skills</a>, <a href="#">tools</a>, <a href="#">resources</a>, <a href="#">extensions</a>, and <a href="#">hooks</a>.</p></div>
           <div class="group-row"><span class="group-row__name">Operations</span><p class="group-row__body">Running the daemon well: <a href="#">operations</a> and every <a href="#">configuration</a> surface, from <code>config.toml</code> to file locations.</p></div>
           <div class="group-row"><span class="group-row__name">Reference</span><p class="group-row__body">Generated from the runtime, never paraphrased: the <a href="#">CLI reference</a> and the <a href="#">API reference</a>.</p></div>

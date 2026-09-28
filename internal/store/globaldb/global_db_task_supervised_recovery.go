@@ -160,7 +160,6 @@ func (s *taskMutationTxStore) insertSupervisedContinuation(
 	continuation.QueuedAt, continuation.TokensUsed = mutation.At, 0
 	continuation.Error, continuation.FailureKind = "", ""
 	continuation.RunResultState = nil
-	continuation.SetNetworkState(source.NetworkSpecSnapshot(), "", "", "")
 	if source.IsLoopWorker() {
 		continuation.Metadata, err = loopTaskRecoveryMetadata(source.Metadata, nil, metadata)
 		if err != nil {

@@ -10,8 +10,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/compozy/compozy/internal/sandbox"
-
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -64,8 +62,8 @@ type Driver struct {
 	promptDrainWait      time.Duration
 	permissionWait       time.Duration
 	processRecordTimeout time.Duration
-	launcher             sandbox.Launcher
-	toolHost             sandbox.ToolHost
+	launcher             Launcher
+	toolHost             ToolHost
 	processRegistry      *toolruntime.Registry
 	terminals            TerminalHost
 	providerPreStarter   ProviderPreStarter
@@ -106,15 +104,15 @@ func WithPermissionTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithLauncher overrides the sandbox launcher used by default for new ACP sessions.
-func WithLauncher(launcher sandbox.Launcher) Option {
+// WithLauncher overrides the process launcher used by default for new ACP sessions.
+func WithLauncher(launcher Launcher) Option {
 	return func(driver *Driver) {
 		driver.launcher = launcher
 	}
 }
 
-// WithToolHost overrides the sandbox tool host used by default for new ACP sessions.
-func WithToolHost(toolHost sandbox.ToolHost) Option {
+// WithToolHost overrides the local tool host used by default for new ACP sessions.
+func WithToolHost(toolHost ToolHost) Option {
 	return func(driver *Driver) {
 		driver.toolHost = toolHost
 	}

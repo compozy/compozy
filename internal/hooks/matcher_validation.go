@@ -22,10 +22,6 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf(matcherWorktreeIDKey, matcher.WorktreeID != "")
 	appendIf(matcherWorkspaceRootKey, matcher.WorkspaceRoot != "")
 	appendIf("session_type", matcher.SessionType != "")
-	appendIf("sandbox_id", matcher.SandboxID != "")
-	appendIf("sandbox_backend", matcher.SandboxBackend != "")
-	appendIf("sandbox_profile", matcher.SandboxProfile != "")
-	appendIf("sync_direction", matcher.SyncDirection != "")
 	appendIf(matcherInputClassKey, matcher.InputClass != "")
 	appendIf("acp_event_type", matcher.ACPEventType != "")
 	appendIf("turn_id", matcher.TurnID != "")
@@ -35,9 +31,6 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf("decision_class", matcher.DecisionClass != "")
 	appendIf("message_role", matcher.MessageRole != "")
 	appendIf("message_delta_type", matcher.MessageDeltaType != "")
-	if matcher.NetworkMatcher != nil {
-		appendNetworkMatcherFieldNames(&fields, matcher.NetworkMatcher)
-	}
 	if matcher.CompactionMatcher != nil {
 		appendCompactionMatcherFieldNames(&fields, matcher.CompactionMatcher)
 	}
@@ -72,7 +65,6 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 	appendIf(matcherLoopNameKey, matcher.LoopName != "")
 	appendIf(matcherNodeIDKey, matcher.NodeID != "")
 	appendIf(matcherWorkflowIDKey, matcher.WorkflowID != "")
-	appendIf(matcherParticipationChannelKey, matcher.ParticipationChannel != "")
 	appendIf("coordinator_session_id", matcher.CoordinatorSessionID != "")
 	appendIf("parent_session_id", matcher.ParentSessionID != "")
 	appendIf("root_session_id", matcher.RootSessionID != "")
@@ -92,10 +84,6 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: matcherWorktreeIDKey, pattern: matcher.WorktreeID},
 		{field: matcherWorkspaceRootKey, pattern: matcher.WorkspaceRoot},
 		{field: "session_type", pattern: matcher.SessionType},
-		{field: "sandbox_id", pattern: matcher.SandboxID},
-		{field: "sandbox_backend", pattern: matcher.SandboxBackend},
-		{field: "sandbox_profile", pattern: matcher.SandboxProfile},
-		{field: "sync_direction", pattern: matcher.SyncDirection},
 		{field: matcherInputClassKey, pattern: matcher.InputClass},
 		{field: "acp_event_type", pattern: matcher.ACPEventType},
 		{field: "turn_id", pattern: matcher.TurnID},
@@ -109,9 +97,6 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
 			return err
 		}
-	}
-	if err := validateNetworkMatcherPatterns(matcher.NetworkMatcher); err != nil {
-		return err
 	}
 	if err := validateCompactionMatcherPatterns(matcher.CompactionMatcher); err != nil {
 		return err
@@ -152,7 +137,6 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 		{field: matcherLoopNameKey, pattern: matcher.LoopName},
 		{field: matcherNodeIDKey, pattern: matcher.NodeID},
 		{field: matcherWorkflowIDKey, pattern: matcher.WorkflowID},
-		{field: matcherParticipationChannelKey, pattern: matcher.ParticipationChannel},
 		{field: "coordinator_session_id", pattern: matcher.CoordinatorSessionID},
 		{field: "parent_session_id", pattern: matcher.ParentSessionID},
 		{field: "root_session_id", pattern: matcher.RootSessionID},

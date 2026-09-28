@@ -272,37 +272,7 @@ export function TaskSetupForm({
         disabled={disabled}
       >
         <legend className="eyebrow mb-1 text-subtle">Environment</legend>
-        <Field>
-          <FieldLabel htmlFor="tasks-setup-sandbox-mode">Sandbox</FieldLabel>
-          <NativeSelect
-            id="tasks-setup-sandbox-mode"
-            onChange={event =>
-              update("sandbox", {
-                ...value.sandbox,
-                mode: event.target.value as TaskExecutionProfileSetRequest["sandbox"]["mode"],
-              })
-            }
-            value={value.sandbox.mode}
-          >
-            <NativeSelectOption value="inherit">Inherit workspace</NativeSelectOption>
-            <NativeSelectOption value="none">None</NativeSelectOption>
-            <NativeSelectOption value="ref">Named sandbox</NativeSelectOption>
-          </NativeSelect>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="tasks-setup-sandbox-ref">Sandbox reference</FieldLabel>
-          <Input
-            disabled={value.sandbox.mode !== "ref"}
-            id="tasks-setup-sandbox-ref"
-            onChange={event =>
-              update("sandbox", {
-                ...value.sandbox,
-                sandbox_ref: event.target.value.trim() || undefined,
-              })
-            }
-            value={value.sandbox.sandbox_ref ?? ""}
-          />
-        </Field>
+
         <Field>
           <FieldLabel htmlFor="tasks-setup-participants">Participant agents</FieldLabel>
           <Input

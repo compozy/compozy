@@ -315,10 +315,9 @@ func newWorkspaceAccessIntegrationSession(
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
 	managed, err := manager.Create(ctx, session.CreateOpts{
-		AgentName:      "coder",
-		Workspace:      workspaceAccessIntegrationHome,
-		Permissions:    permissions,
-		DisableSandbox: true,
+		AgentName:   "coder",
+		Workspace:   workspaceAccessIntegrationHome,
+		Permissions: permissions,
 	})
 	if err != nil {
 		t.Fatalf("Manager.Create() error = %v", err)

@@ -15,7 +15,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -176,7 +175,6 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			profile := store.SessionCreationProfile{
 				Version: store.SessionCreationProfileVersion, AgentName: "codex", Provider: "native",
 				ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, CWD: "/tmp",
-				SandboxMode: store.SessionCreationSandboxNone,
 			}
 			profileRef, err := profile.Ref()
 			if err != nil {
@@ -187,9 +185,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				t.Fatalf("SessionCreationProfile.PolicySpecDigest() error = %v", err)
 			}
 			creationOptions := store.SessionCreationOptions{
-				NetworkOwnerKey:      "loop_run:" + loopRunID,
-				NetworkParticipation: participation.LocalSpec(),
-				SessionType:          "loop-goal",
+				SessionType: "loop-goal",
 			}
 			priorOptions := creationOptions
 			priorOptions.SessionID = "session-binding-allocate-1"

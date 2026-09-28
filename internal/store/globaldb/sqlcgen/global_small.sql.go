@@ -64,7 +64,7 @@ func (q *Queries) GetAppMetadata(ctx context.Context, key string) (string, error
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE id = ?1
 `
 
@@ -77,7 +77,6 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
-		&i.SandboxRef,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -85,7 +84,7 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 }
 
 const getWorkspaceByName = `-- name: GetWorkspaceByName :one
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE name = ?1
 `
 
@@ -98,7 +97,6 @@ func (q *Queries) GetWorkspaceByName(ctx context.Context, name string) (Workspac
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
-		&i.SandboxRef,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -106,7 +104,7 @@ func (q *Queries) GetWorkspaceByName(ctx context.Context, name string) (Workspac
 }
 
 const getWorkspaceByPath = `-- name: GetWorkspaceByPath :one
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE root_dir = ?1
 `
 
@@ -119,7 +117,6 @@ func (q *Queries) GetWorkspaceByPath(ctx context.Context, rootDir string) (Works
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
-		&i.SandboxRef,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -179,10 +176,10 @@ func (q *Queries) InsertPermissionLog(ctx context.Context, arg InsertPermissionL
 
 const insertWorkspace = `-- name: InsertWorkspace :exec
 INSERT INTO workspaces (
-  id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+  id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?5, ?6, ?7
 )
 `
 
@@ -192,7 +189,6 @@ type InsertWorkspaceParams struct {
 	AddDirs      string         `json:"add_dirs"`
 	Name         string         `json:"name"`
 	DefaultAgent sql.NullString `json:"default_agent"`
-	SandboxRef   string         `json:"sandbox_ref"`
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 }
@@ -204,7 +200,6 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 		arg.AddDirs,
 		arg.Name,
 		arg.DefaultAgent,
-		arg.SandboxRef,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -239,7 +234,7 @@ func (q *Queries) ListActiveSessionIDsByWorkspace(ctx context.Context, workspace
 }
 
 const listWorkspaces = `-- name: ListWorkspaces :many
-SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces ORDER BY name ASC, id ASC
 `
 
@@ -258,7 +253,6 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 			&i.AddDirs,
 			&i.Name,
 			&i.DefaultAgent,
-			&i.SandboxRef,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -278,9 +272,8 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 const updateWorkspace = `-- name: UpdateWorkspace :execrows
 UPDATE workspaces SET
   root_dir = ?1, add_dirs = ?2, name = ?3,
-  default_agent = ?4, sandbox_ref = ?5,
-  updated_at = ?6
-WHERE id = ?7
+  default_agent = ?4, updated_at = ?5
+WHERE id = ?6
 `
 
 type UpdateWorkspaceParams struct {
@@ -288,7 +281,6 @@ type UpdateWorkspaceParams struct {
 	AddDirs      string         `json:"add_dirs"`
 	Name         string         `json:"name"`
 	DefaultAgent sql.NullString `json:"default_agent"`
-	SandboxRef   string         `json:"sandbox_ref"`
 	UpdatedAt    string         `json:"updated_at"`
 	ID           string         `json:"id"`
 }
@@ -299,7 +291,6 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		arg.AddDirs,
 		arg.Name,
 		arg.DefaultAgent,
-		arg.SandboxRef,
 		arg.UpdatedAt,
 		arg.ID,
 	)

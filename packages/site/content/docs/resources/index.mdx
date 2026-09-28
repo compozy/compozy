@@ -9,7 +9,7 @@ canonical resource records, validates their specs through registered codecs, and
 runtime state.
 
 Use this page when you need to understand why a tool, MCP server, agent definition, package-owned
-agent sidecar, skill, automation job, trigger, window layout, or bridge instance can be managed
+agent sidecar, skill, automation job, trigger, or window layout can be managed
 through the same control plane.
 
 <OperatorNote label="Control-plane boundary">
@@ -29,7 +29,7 @@ through the same control plane.
     Validate --> Store[(resource_records)]
     Store --> Reconcile[Per-kind reconcile driver]
     Reconcile --> Projectors[Typed projectors]
-    Projectors --> Runtime[Tools, agents, skills, automation, layouts, bridges]
+    Projectors --> Runtime[Tools, agents, skills, automation, layouts]
     Runtime --> Observe[Status, health, events, and API reads]`}
   caption="Desired-state resources pass through validation, storage, and reconcile before they affect runtime subsystems."
 />
@@ -60,7 +60,6 @@ The daemon registers typed codecs for these resource families at boot:
 | `automation.job`     | Scheduled or claimable automation jobs.                           |
 | `automation.trigger` | Automation trigger definitions.                                   |
 | `window_layout`      | Strict declarative desktop and tiled-group layout templates.      |
-| `bridge.instance`    | Bridge runtime instances.                                         |
 
 ## Write flow
 

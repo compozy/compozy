@@ -9,18 +9,18 @@ import (
 	"slices"
 	"time"
 
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-var _ notifications.AttentionStore = (*NotificationRepo)(nil)
+var _ attention.Store = (*NotificationRepo)(nil)
 
 const attentionSnapshotLifetime = 24 * time.Hour
 
 // CaptureAttentionSnapshot freezes the complete unread population before any display limit.
 func (r *NotificationRepo) CaptureAttentionSnapshot(
-	ctx context.Context, scope notifications.AttentionScope, occurrences []string,
+	ctx context.Context, scope attention.Scope, occurrences []string,
 ) (snapshot string, unread []string, err error) {
 	if err := r.checkReady(ctx, "capture attention snapshot"); err != nil {
 		return "", nil, err
@@ -42,7 +42,7 @@ func (r *NotificationRepo) CaptureAttentionSnapshot(
 	if err := queries.DeleteExpiredAttentionSnapshots(ctx, store.FormatTimestamp(now)); err != nil {
 		return "", nil, fmt.Errorf("store: expire attention snapshots: %w", err)
 	}
-	_, ids := notifications.AttentionSnapshotIdentity(scope, occurrences)
+	_, ids := attention.SnapshotIdentity(scope, occurrences)
 	raw, err := json.Marshal(ids)
 	if err != nil {
 		return "", nil, fmt.Errorf("store: encode attention occurrences: %w", err)
@@ -58,7 +58,7 @@ func (r *NotificationRepo) CaptureAttentionSnapshot(
 		seen[id] = struct{}{}
 	}
 	unread = slices.DeleteFunc(ids, func(id string) bool { _, ok := seen[id]; return ok })
-	snapshot, unread = notifications.AttentionSnapshotIdentity(scope, unread)
+	snapshot, unread = attention.SnapshotIdentity(scope, unread)
 	if unread == nil {
 		unread = []string{}
 	}
@@ -85,7 +85,7 @@ func (r *NotificationRepo) CaptureAttentionSnapshot(
 
 // AcknowledgeAttentionSnapshot commits all requested receipts in one statement or none.
 func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
-	ctx context.Context, scope notifications.AttentionScope, snapshot, occurrence string,
+	ctx context.Context, scope attention.Scope, snapshot, occurrence string,
 ) error {
 	if err := r.checkReady(ctx, "acknowledge attention snapshot"); err != nil {
 		return err
@@ -98,7 +98,7 @@ func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
 		Population: scope.Population, Now: store.FormatTimestamp(r.now()),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return notifications.ErrAttentionSnapshotUnavailable
+		return attention.ErrSnapshotUnavailable
 	}
 	if err != nil {
 		return fmt.Errorf("store: read attention snapshot: %w", err)
@@ -109,7 +109,7 @@ func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
 			return fmt.Errorf("store: decode attention snapshot: %w", err)
 		}
 		if !slices.Contains(ids, occurrence) {
-			return notifications.ErrAttentionSnapshotUnavailable
+			return attention.ErrSnapshotUnavailable
 		}
 		encoded, err := json.Marshal([]string{occurrence})
 		if err != nil {

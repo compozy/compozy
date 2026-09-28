@@ -10,7 +10,7 @@ const meta: Meta<typeof RightRail> = {
     docs: {
       description: {
         component:
-          "Right rail panel for thread overlays and channel inspectors. Fills its container (`h-full w-full`) so the parent — a `ResizablePanel` in the network shell — owns sizing. Left rule on `--line`, surface on `--canvas-soft`. Gracefully renders nothing when `open=false`.",
+          "Right rail panel for detail overlays and inspectors. Fills its container (`h-full w-full`) so the parent — a `ResizablePanel` in the app shell — owns sizing. Left rule on `--line`, surface on `--canvas-soft`. Gracefully renders nothing when `open=false`.",
       },
     },
   },

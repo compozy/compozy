@@ -21,17 +21,12 @@ func (m *Service) publishCompletedLeaseSettlement(
 	defer publicationCancel()
 
 	run := settlement.Run
-	if run.IsNetworkWake() {
-		m.dispatchTaskRunCompleted(publicationCtx, run, Task{}, actor)
-		return &run, nil
-	}
 	reconciledTask, publicationErr := m.publishCompletedRunSettlement(publicationCtx, settlement, actor)
 	m.dispatchTerminalWake(publicationCtx, reconciledTask, run, actor)
 	advisoryCtx, advisoryCancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
 	defer advisoryCancel()
 	m.recordCompletionHallucinationSuspected(advisoryCtx, advisoryEventID, run, actor)
 	m.dispatchTaskRunCompleted(publicationCtx, run, reconciledTask, actor)
-	m.restoreTaskRunNetworkBestEffort(publicationCtx, run.SessionID, run.ID)
 	if !run.IsLoopWorker() {
 		autoCtx, cancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
 		defer cancel()

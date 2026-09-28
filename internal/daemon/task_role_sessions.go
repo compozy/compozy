@@ -10,7 +10,6 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -45,20 +44,16 @@ func (r *taskRoleRuntime) startRoleSession(
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
-		AgentName:                    activation.AgentName,
-		Provider:                     activation.Provider,
-		Model:                        activation.Model,
-		Name:                         taskRoleSessionName(activation),
-		ResolvedNetworkParticipation: activation.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindTaskRun,
-			ID:   activation.RunID,
-		}),
+		AgentName: activation.AgentName,
+		Provider:  activation.Provider,
+		Model:     activation.Model,
+		Name:      taskRoleSessionName(activation),
+
 		PromptOverlay: taskRolePromptOverlay(activation),
 		Type:          session.SessionTypeSystem,
 	}
 	policy := sessionPolicyFromTaskExecutionProfile(activation.Profile)
-	applySessionSandboxPolicy(&opts, policy)
+
 	applySessionPermissionPolicy(&opts, policy)
 	if activation.Worktree.Mode.Normalize() == taskpkg.WorktreeModeRef {
 		opts.Worktree = strings.TrimSpace(activation.Worktree.WorktreeRef)
@@ -98,7 +93,7 @@ func (r *taskRoleRuntime) createRoleSession(
 
 // activateForStarvation spawns a capability-matched worker for a starved run that no agent has
 // claimed. The worker self-claims through the hosted session-bound native tool; the scheduler never
-// claims. It carries a TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, channel, scope) keeps the
+// claims. It carries a TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, scope) keeps the
 // effective per-workspace cap at one active worker per role.
 func (r *taskRoleRuntime) activateForStarvation(
 	ctx context.Context,
@@ -140,7 +135,6 @@ func (r *taskRoleRuntime) activateForStarvation(
 			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			daemonLogRunIDKey, activation.RunID,
 			"agent_name", activation.AgentName,
-			"channel", activation.NetworkParticipation.ChannelID,
 		)
 		return nil
 	}
@@ -150,7 +144,6 @@ func (r *taskRoleRuntime) activateForStarvation(
 		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		daemonLogRunIDKey, activation.RunID,
 		"agent_name", activation.AgentName,
-		"channel", activation.NetworkParticipation.ChannelID,
 	)
 	return nil
 }
@@ -200,13 +193,13 @@ func (r *taskRoleRuntime) starvationActivation(
 	default:
 	}
 	activation := taskRoleActivation{
-		TaskID:               strings.TrimSpace(taskRecord.ID),
-		RunID:                strings.TrimSpace(run.ID),
-		Scope:                taskRecord.Scope.Normalize(),
-		WorkspaceID:          strings.TrimSpace(taskRecord.WorkspaceID),
-		AgentName:            agentName,
-		NetworkParticipation: new(run.NetworkSpecSnapshot()),
-		Title:                strings.TrimSpace(taskRecord.Title),
+		TaskID:      strings.TrimSpace(taskRecord.ID),
+		RunID:       strings.TrimSpace(run.ID),
+		Scope:       taskRecord.Scope.Normalize(),
+		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:   agentName,
+
+		Title: strings.TrimSpace(taskRecord.Title),
 		Worktree: taskpkg.WorktreePolicy{
 			Mode:        run.ResolvedWorktreeModeValue(),
 			WorktreeRef: run.ResolvedWorktreeRefValue(),
@@ -254,9 +247,7 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 	if strings.TrimSpace(info.AgentName) != activation.AgentName {
 		return false
 	}
-	if activation.NetworkParticipation == nil || info.NetworkParticipation != *activation.NetworkParticipation {
-		return false
-	}
+
 	if strings.TrimSpace(info.Name) != taskRoleSessionName(activation) {
 		return false
 	}
@@ -295,21 +286,15 @@ func taskRoleSessionName(activation taskRoleActivation) string {
 
 func taskRoleProfileFingerprint(activation taskRoleActivation) string {
 	profile := activation.Profile
-	sandboxMode := taskpkg.SandboxModeInherit
-	sandboxRef := ""
 	runtimeMode := taskpkg.RuntimeModeDefault
 	requiredCapabilities := []string(nil)
 	if profile != nil {
-		sandboxMode = profile.Sandbox.Mode.Normalize()
-		sandboxRef = strings.TrimSpace(profile.Sandbox.SandboxRef)
 		runtimeMode = profile.Runtime.Mode.Normalize()
 		requiredCapabilities = profile.Worker.RequiredCapabilities
 	}
 	parts := []string{
 		strings.TrimSpace(activation.Provider),
 		strings.TrimSpace(activation.Model),
-		string(sandboxMode),
-		sandboxRef,
 		string(activation.Worktree.Mode.Normalize()),
 		strings.TrimSpace(activation.Worktree.WorktreeRef),
 		string(runtimeMode),
@@ -323,11 +308,7 @@ func taskRolePromptOverlay(activation taskRoleActivation) string {
 	title := firstNonEmpty(activation.Title, activation.TaskID)
 	designation := taskRoleDesignationOverlay(activation)
 	worktree := taskRoleWorktreeOverlay(activation.Worktree)
-	channelLine := ""
-	if activation.NetworkParticipation != nil &&
-		activation.NetworkParticipation.Mode == participation.ModeLive {
-		channelLine = fmt.Sprintf("Coordination channel: %s", activation.NetworkParticipation.ChannelID)
-	}
+
 	assignment := fmt.Sprintf(`A queued Compozy task run is assigned to this agent.
 
 Task: %s
@@ -336,7 +317,6 @@ Run: %s`,
 		activation.RunID,
 	)
 	contextLines := strings.Join(uniqueNonEmptyStrings([]string{
-		channelLine,
 		designation,
 		worktree,
 	}), "\n")
@@ -423,7 +403,6 @@ func (r *taskRoleRuntime) logTaskRoleError(
 		taskRoleRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
 		taskRoleRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
-		daemonNetworkChannelKey, strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
 	}
 	if err != nil {
 		args = append(args, "error", err)

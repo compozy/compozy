@@ -69,15 +69,10 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 		return udsServer.Shutdown(ctx)
 	})
 
-	networkInfo, err := daemonNetworkInfo(ctx, state.cfg.Network, state.deps.Network)
-	if err != nil {
-		return err
-	}
 	info := Info{
 		PID:       d.pid(),
 		Port:      resolveDaemonPort(state.cfg.HTTP.Port, httpServer),
 		StartedAt: state.startedAt,
-		Network:   networkInfo,
 	}
 	state.httpServer = httpServer
 	state.udsServer = udsServer

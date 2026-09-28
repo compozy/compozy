@@ -258,9 +258,8 @@ func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 					MaxActivePerWorkspace: 4,
 				},
 				PermissionPolicy: store.SessionPermissionPolicy{
-					Tools:           []string{testToolEdit, testToolRead},
-					Skills:          []string{"go"},
-					NetworkChannels: []string{"builders"},
+					Tools:  []string{testToolEdit, testToolRead},
+					Skills: []string{"go"},
 				},
 			},
 		})

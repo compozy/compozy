@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestHostAPIViewPatch(t *testing.T) {
@@ -38,13 +36,7 @@ func TestHostAPIViewPatch(t *testing.T) {
 				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-a"},
 			},
 		})
-		ctx = withHostAPIBridgeRuntime(ctx, &subprocess.InitializeBridgeRuntime{
-			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
-					ID: "bridge-1", ProfileID: "profile-marketing",
-				}),
-			}},
-		})
+		ctx = withHostAPIInstanceKey(ctx, InstanceKey{Name: "notes", ProfileID: "profile-marketing"})
 		_, err := handler.Handle(ctx, "notes", "view/patch", mustViewPatchParams(t, map[string]any{
 			"patch": map[string]any{
 				"view_id": "ext.notes.recent", "from": "vr_1", "to": "vr_2",

@@ -22,29 +22,6 @@ func (s *Session) setFailure(failure *store.SessionFailure) {
 	s.failure = store.CloneSessionFailure(failure)
 }
 
-func (s *Session) setSandbox(sandbox *store.SessionSandboxMeta, now time.Time) {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Sandbox = cloneSessionSandboxMeta(sandbox)
-	if !now.IsZero() {
-		s.UpdatedAt = now
-	}
-}
-
-func (s *Session) sandboxShouldDestroy() bool {
-	if s == nil {
-		return false
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.sandboxDestroyOnStop
-}
-
 func (s *Session) activate(now time.Time, preserveStopReason bool) error {
 	if err := s.transition(StateActive, now); err != nil {
 		return err

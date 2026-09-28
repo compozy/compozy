@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	yaml "gopkg.in/yaml.v3"
+
 	"github.com/compozy/compozy/internal/api/contract"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -23,7 +25,6 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
-	"github.com/goccy/go-yaml"
 )
 
 type stubDreamTrigger struct {

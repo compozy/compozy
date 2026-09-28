@@ -198,14 +198,13 @@ func runtimeGateInput(
 		return gate.GateInput{}, err
 	}
 	return gate.GateInput{
-		LoopRunID:            string(run.ID),
-		Placement:            placement,
-		Contract:             &contract,
-		Revision:             max(0, revision),
-		BestScore:            cloneFloat64(run.BestScore),
-		HumanDecisions:       humanDecisions,
-		JudgeRuntime:         effective.RuntimeDefaults.Judge,
-		NetworkParticipation: new(run.NetworkSpecSnapshot()),
+		LoopRunID:      string(run.ID),
+		Placement:      placement,
+		Contract:       &contract,
+		Revision:       max(0, revision),
+		BestScore:      cloneFloat64(run.BestScore),
+		HumanDecisions: humanDecisions,
+		JudgeRuntime:   effective.RuntimeDefaults.Judge,
 		ToolScope: tools.Scope{
 			ProfileID:   strings.TrimSpace(run.ProfileID),
 			WorkspaceID: string(run.WorkspaceID),

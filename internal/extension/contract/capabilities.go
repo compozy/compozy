@@ -17,7 +17,7 @@ func ProvideCapabilityContracts() []ProvideCapabilityContract {
 		contracts = append(contracts, ProvideCapabilityContract{
 			Provide: provide,
 			Methods: extensionprotocol.RequiredServiceMethods(provide),
-			Public:  provide != extensionprotocol.CapabilityProvideBridgeAdapter,
+			Public:  true,
 		})
 	}
 	return contracts

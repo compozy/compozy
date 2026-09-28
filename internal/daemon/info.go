@@ -10,24 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/internal/network"
 )
 
 const daemonInfoMaxBytes = 64 << 10
 
 // Info is the persisted daemon discovery record written to daemon.json.
 type Info struct {
-	PID       int          `json:"pid"`
-	Port      int          `json:"port"`
-	StartedAt time.Time    `json:"started_at"`
-	Network   *NetworkInfo `json:"network,omitempty"`
-}
-
-// NetworkInfo is the persisted daemon-safe network diagnostics snapshot.
-type NetworkInfo struct {
-	Enabled bool   `json:"enabled"`
-	Status  string `json:"status"`
+	PID       int       `json:"pid"`
+	Port      int       `json:"port"`
+	StartedAt time.Time `json:"started_at"`
 }
 
 // Validate ensures the persisted daemon info remains usable for discovery.
@@ -39,32 +30,6 @@ func (i Info) Validate() error {
 		return fmt.Errorf("daemon: daemon port must be between 0 and 65535: %d", i.Port)
 	case i.StartedAt.IsZero():
 		return errors.New("daemon: daemon start time is required")
-	}
-	if i.Network != nil {
-		if err := i.Network.Validate(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Validate ensures the persisted network diagnostics remain usable.
-func (n NetworkInfo) Validate() error {
-	status := strings.TrimSpace(n.Status)
-	if status == "" {
-		return errors.New("daemon: network status is required")
-	}
-	switch status {
-	case network.StatusDisabled:
-		if n.Enabled {
-			return errors.New("daemon: disabled network status requires enabled=false")
-		}
-	case network.StatusReady, network.StatusActive:
-		if !n.Enabled {
-			return fmt.Errorf("daemon: network status %q requires enabled=true", status)
-		}
-	default:
-		return fmt.Errorf("daemon: unsupported network status %q", status)
 	}
 	return nil
 }

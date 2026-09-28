@@ -55,7 +55,6 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 	if err != nil {
 		return "", nil, err
 	}
-	assignments, args = appendSessionSandboxAssignments(assignments, args, update)
 	if update.AttentionTransition {
 		assignments = append(
 			assignments,
@@ -187,37 +186,4 @@ func appendSessionLivenessAssignments(
 		activityJSON,
 	)
 	return assignments, args, nil
-}
-
-func appendSessionSandboxAssignments(
-	assignments []string,
-	args []any,
-	update store.SessionStateUpdate,
-) ([]string, []any) {
-	if update.Sandbox == nil {
-		return assignments, args
-	}
-	assignments = append(
-		assignments,
-		"sandbox_id = ?",
-		"sandbox_backend = ?",
-		"sandbox_profile = ?",
-		"sandbox_instance_id = ?",
-		"sandbox_state = ?",
-		"sandbox_provider_state_json = ?",
-		"sandbox_last_sync_at = ?",
-		"sandbox_last_sync_error = ?",
-	)
-	args = append(
-		args,
-		sessionSandboxID(update.Sandbox),
-		sessionSandboxBackend(update.Sandbox),
-		sessionSandboxProfile(update.Sandbox),
-		sessionSandboxInstanceID(update.Sandbox),
-		sessionSandboxState(update.Sandbox),
-		sessionSandboxProviderStateJSON(update.Sandbox),
-		sessionSandboxLastSyncAt(update.Sandbox),
-		sessionSandboxLastSyncError(update.Sandbox),
-	)
-	return assignments, args
 }

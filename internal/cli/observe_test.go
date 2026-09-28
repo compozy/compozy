@@ -43,8 +43,7 @@ func overviewTestPayload() contract.ObserveOverviewPayload {
 				Date:            "2026-07-22",
 			},
 		},
-		Network: contract.OverviewNetworkPayload{MessagesToday: 128},
-		System:  contract.OverviewSystemPayload{HookRunsToday: 24, HookFailuresToday: 0, RetentionDays: 7},
+		System: contract.OverviewSystemPayload{HookRunsToday: 24, HookFailuresToday: 0, RetentionDays: 7},
 	}
 }
 
@@ -82,7 +81,7 @@ func TestObserveOverviewCommand(t *testing.T) {
 		if decoded.SchemaVersion != contract.ObserveOverviewSchemaVersion {
 			t.Fatalf("schema_version = %q, want %q", decoded.SchemaVersion, contract.ObserveOverviewSchemaVersion)
 		}
-		if decoded.Attention.Total != 3 || decoded.Network.MessagesToday != 128 {
+		if decoded.Attention.Total != 3 {
 			t.Fatalf("decoded = %+v, want stubbed counters", decoded)
 		}
 		var fields map[string]json.RawMessage
@@ -140,8 +139,8 @@ func TestObserveOverviewCommand(t *testing.T) {
 		}
 
 		lines := strings.Split(strings.TrimSpace(stdout), "\n")
-		if len(lines) != 9 {
-			t.Fatalf("jsonl lines = %d, want meta + 8 sections:\n%s", len(lines), stdout)
+		if len(lines) != 8 {
+			t.Fatalf("jsonl lines = %d, want meta + 7 sections:\n%s", len(lines), stdout)
 		}
 		var meta map[string]any
 		if err := json.Unmarshal([]byte(lines[0]), &meta); err != nil {

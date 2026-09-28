@@ -145,10 +145,10 @@ func writeExtensionKitE2EFile(t *testing.T, sourceDir string, relativePath strin
 	}
 }
 
-func addExtensionKitE2ENetworkRequirement(
+func addExtensionKitE2EGatewayRequirement(
 	t *testing.T,
 	generationDir string,
-	channelScope string,
+	permission string,
 ) string {
 	t.Helper()
 	manifestPath := filepath.Join(generationDir, "extension.toml")
@@ -157,25 +157,23 @@ func addExtensionKitE2ENetworkRequirement(
 		t.Fatalf("os.OpenFile(%q) error = %v", manifestPath, err)
 	}
 	_, writeErr := fmt.Fprintf(file, `
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = [%q]
-`, channelScope)
+[gateway]
+permissions = [%q]
+`, permission)
 	closeErr := file.Close()
 	if writeErr != nil || closeErr != nil {
-		t.Fatalf("append network requirement write error = %v, close error = %v", writeErr, closeErr)
+		t.Fatalf("append gateway requirement write error = %v, close error = %v", writeErr, closeErr)
 	}
 	manifest, err := extensionpkg.LoadManifest(generationDir)
 	if err != nil {
 		t.Fatalf("extension.LoadManifest(%q) error = %v", generationDir, err)
 	}
-	digest, err := extensionpkg.NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+	digest, err := extensionpkg.GatewayRequirementDigest(manifest.Gateway)
 	if err != nil {
-		t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
+		t.Fatalf("GatewayRequirementDigest() error = %v", err)
 	}
 	if strings.TrimSpace(digest) == "" {
-		t.Fatal("network requirement digest is empty")
+		t.Fatal("gateway requirement digest is empty")
 	}
 	return digest
 }

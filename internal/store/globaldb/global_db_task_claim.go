@@ -16,10 +16,6 @@ const (
 	globalDBTaskClaimRequestKey = "request"
 )
 
-const (
-	globalDBTaskClaimHandoffKey = "handoff"
-)
-
 type taskRunLeaseSnapshot struct {
 	status         taskpkg.RunStatus
 	sessionID      string
@@ -76,33 +72,7 @@ func (g *TaskRunRepo) claimNextRunWithExecutor(
 	if err != nil {
 		return taskpkg.ClaimResult{}, err
 	}
-	if run.IsNetworkWake() {
-		return claimNetworkWakeResult(ctx, exec, run, claimToken, leaseUntil, criteria.Now)
-	}
 	return g.claimStandardTaskRunResult(ctx, exec, run, claimToken, leaseUntil, criteria.Now)
-}
-
-func claimNetworkWakeResult(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-	claimToken string,
-	leaseUntil time.Time,
-	claimedAt time.Time,
-) (taskpkg.ClaimResult, error) {
-	if run.ClaimedBy == nil {
-		return taskpkg.ClaimResult{}, fmt.Errorf("store: network wake claim actor is required")
-	}
-	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
-	if err := appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
-		workspaceID: run.WorkspaceID, wakeID: wakeID, taskRunID: run.ID,
-		ownerKey: ownerKey, targetSessionID: targetSessionID,
-		eventType: networkWakeEventClaimed, state: run.Status.String(),
-		claimTokenHash: run.ClaimTokenHash, actor: *run.ClaimedBy, at: claimedAt,
-	}); err != nil {
-		return taskpkg.ClaimResult{}, err
-	}
-	return taskpkg.ClaimResult{Run: run, ClaimToken: claimToken, LeaseUntil: leaseUntil}, nil
 }
 
 func (g *TaskRunRepo) claimStandardTaskRunResult(
@@ -123,16 +93,11 @@ func (g *TaskRunRepo) claimStandardTaskRunResult(
 	if err != nil {
 		return taskpkg.ClaimResult{}, err
 	}
-	channel, err := g.coordinationChannelMetadata(ctx, exec, run)
-	if err != nil {
-		return taskpkg.ClaimResult{}, err
-	}
 	return taskpkg.ClaimResult{
-		Task:                &taskRecord,
-		Run:                 run,
-		ClaimToken:          claimToken,
-		LeaseUntil:          leaseUntil,
-		CoordinationChannel: channel,
+		Task:       &taskRecord,
+		Run:        run,
+		ClaimToken: claimToken,
+		LeaseUntil: leaseUntil,
 	}, nil
 }
 

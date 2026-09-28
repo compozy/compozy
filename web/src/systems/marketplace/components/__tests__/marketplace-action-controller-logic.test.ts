@@ -35,7 +35,7 @@ describe("marketplaceActionControllerLogic", () => {
     expect(notifySuccess).toHaveBeenCalledWith(entry);
   });
 
-  it("Should close trust consent without a success notice when network consent takes over", async () => {
+  it("Should close trust consent without a success notice when gateway consent takes over", async () => {
     const store = marketplaceActionControllerLogic.createStore();
     const entry = marketplaceCatalogFixture.items[1]!;
     const notifySuccess = vi.fn();

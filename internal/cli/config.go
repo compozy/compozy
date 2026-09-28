@@ -27,7 +27,6 @@ const (
 	configManagedKey           = "managed"
 	configManagerKey           = "manager"
 	configMemoryKey            = "memory"
-	configNetworkKey           = "network"
 	configPathKey              = cliPathKey
 	configReadKey              = "read"
 	configRedactedKey          = "redacted"
@@ -178,12 +177,10 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"daemon.socket":                                   configSetString,
 	"daemon.reload_timeouts.providers":                configSetDuration,
 	"daemon.reload_timeouts.mcp":                      configSetDuration,
-	"daemon.reload_timeouts.bridges":                  configSetDuration,
 	"http.host":                                       configSetString,
 	"http.port":                                       configSetInt,
 	"defaults.agent":                                  configSetString,
 	configDefaultsProviderPath:                        configSetString,
-	"defaults.sandbox":                                configSetString,
 	"limits.max_concurrent_agents":                    configSetInt,
 	"session.limits.timeout":                          configSetDuration,
 	"session.supervision.activity_heartbeat_interval": configSetDuration,
@@ -301,7 +298,6 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
 },
 	roleConfigSetPathKinds(),
-	networkConfigSetPathKinds(),
 	gatewayConfigSetPathKinds(),
 	loopAndGoalConfigSetPathKinds(),
 	extensionConfigSetPathKinds(),

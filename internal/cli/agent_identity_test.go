@@ -174,10 +174,8 @@ func TestAgentCommandErrorRendering(t *testing.T) {
 		exitCode, stdout, stderr := executeRootCommandWithExit(
 			t,
 			deps,
-			"ch",
-			"recv",
-			"coord-run-123",
-			"--wait",
+			"task",
+			"next",
 			"-o",
 			"jsonl",
 		)

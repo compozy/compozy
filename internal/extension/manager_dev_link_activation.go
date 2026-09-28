@@ -34,7 +34,7 @@ func (m *Manager) StageDevelopmentLink(
 	return m.stageDevelopmentLinkLocked(key, verified)
 }
 
-// ActivateDevelopmentLink starts only a staged generation whose network requirement is already confirmed.
+// ActivateDevelopmentLink starts only a staged generation whose gateway requirement is already confirmed.
 func (m *Manager) ActivateDevelopmentLink(ctx context.Context, key InstanceKey) (*Extension, error) {
 	operation, err := m.beginDevOperation(ctx, key)
 	if err != nil {
@@ -76,7 +76,7 @@ func (m *Manager) stageDevelopmentLinkLocked(
 		WorkspaceID:              key.WorkspaceID,
 		OriginPath:               verified.OriginPath,
 		GenerationHash:           verified.GenerationHash,
-		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+		GatewayRequirementDigest: verified.GatewayRequirementDigest,
 		Format:                   verified.Manifest.Format,
 		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	})
@@ -88,8 +88,8 @@ func (m *Manager) activateDevelopmentLinkLocked(
 	link *DevLink,
 	verified *verifiedDevGeneration,
 ) (*Extension, error) {
-	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
-		return nil, &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
+	if developmentLinkRequiresConfirmation(link, verified.GatewayRequirementDigest) {
+		return nil, &GatewayConfirmationRequiredError{CurrentDigest: verified.GatewayRequirementDigest}
 	}
 	candidate, err := m.startVerifiedDevCandidate(ctx, key, verified)
 	if err != nil {
@@ -129,20 +129,20 @@ func (m *Manager) restoreDevelopmentLinkSnapshot(key InstanceKey, snapshot *DevL
 		WorkspaceID:              snapshot.WorkspaceID,
 		OriginPath:               snapshot.OriginPath,
 		GenerationHash:           snapshot.BundleGeneration,
-		NetworkRequirementDigest: snapshot.NetworkRequirementDigest,
+		GatewayRequirementDigest: snapshot.GatewayRequirementDigest,
 		Format:                   snapshot.Format,
 		IngestDiagnostics:        snapshot.IngestDiagnostics,
 	}); err != nil {
 		return err
 	}
-	return m.registry.RestoreNetworkConfirmation(key, NetworkConfirmation{
-		Digest: snapshot.NetworkRequirementDigest, ConfirmedBy: snapshot.NetworkConfirmedBy,
-		ConfirmedAt: snapshot.NetworkConfirmedAt,
+	return m.registry.RestoreGatewayConfirmation(key, GatewayConfirmation{
+		Digest: snapshot.GatewayRequirementDigest, ConfirmedBy: snapshot.GatewayConfirmedBy,
+		ConfirmedAt: snapshot.GatewayConfirmedAt,
 	})
 }
 
 func developmentLinkRequiresConfirmation(link *DevLink, digest string) bool {
 	digest = strings.TrimSpace(digest)
-	return digest != "" && (link == nil || strings.TrimSpace(link.NetworkRequirementDigest) != digest ||
-		strings.TrimSpace(link.NetworkConfirmedBy) == "" || link.NetworkConfirmedAt.IsZero())
+	return digest != "" && (link == nil || strings.TrimSpace(link.GatewayRequirementDigest) != digest ||
+		strings.TrimSpace(link.GatewayConfirmedBy) == "" || link.GatewayConfirmedAt.IsZero())
 }

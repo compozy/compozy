@@ -99,7 +99,7 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 	response, err := service.ListLoopRuns(c.Request.Context(), c.Param("workspace_id"), query)
 	if err != nil {
 		if errors.Is(err, looppkg.ErrInvalidRunListCursor) {
-			c.JSON(http.StatusBadRequest, gin.H{bridgesErrorKey: loopInvalidCursor})
+			c.JSON(http.StatusBadRequest, gin.H{"error": loopInvalidCursor})
 			return
 		}
 		h.respondLoopError(c, err)

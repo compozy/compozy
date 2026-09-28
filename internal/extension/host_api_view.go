@@ -96,10 +96,7 @@ func (h *HostAPIHandler) publishDeclarativeViewPatch(
 	if !bound || strings.TrimSpace(workspaceID) == "" {
 		return nil, errors.New("extension: declarative view patch requires a workspace-bound session")
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return nil, err
-	}
+	profileID := hostAPIProfileID(ctx)
 	if err := h.viewPatches.PublishViewPatch(
 		ctx,
 		cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(profileID), ""),

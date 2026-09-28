@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -20,11 +19,10 @@ type handlerConfig struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	sessionCatalog        core.SessionCatalog
+	taskDesignations      core.TaskDesignationStore
+	skillExposureStore    store.SkillExposureRepository
+	skillExposureEvents   store.EventSummaryStore
 	tasks                 core.TaskService
-	network               core.NetworkService
-	networkStore          core.NetworkStore
-	networkUsage          store.NetworkUsageStore
-	coordination          workspacepkg.CoordinationCommands
 	observer              core.Observer
 	schemaStreams         core.SchemaStreamStatusReader
 	resources             core.ResourceService
@@ -32,8 +30,6 @@ type handlerConfig struct {
 	terminal              core.TerminalProvider
 	automation            core.AutomationManager
 	loops                 core.LoopService
-	bridges               core.BridgeService
-	notifications         core.NotificationPresetService
 	profiles              core.ProfileService
 	supportBundles        core.SupportBundleService
 	tools                 core.ToolRegistry
@@ -66,8 +62,8 @@ type handlerConfig struct {
 	heartbeatPurger       core.HeartbeatHistoryPurger
 	heartbeatStatus       core.HeartbeatStatusService
 	heartbeatWake         core.HeartbeatWakeService
-	sessionHealth         core.SessionHealthReader
 	wakeEvents            core.HeartbeatWakeEventReader
+	sessionHealth         core.SessionHealthReader
 	coordinatorRole       core.CoordinatorRoleResolver
 	roles                 core.RolesStatusProvider
 	skillsRegistry        core.SkillsRegistry

@@ -1,7 +1,7 @@
 # J-administer-terminal-capacity — Recover from terminal limits without false capability claims
 
 An administrator reaches each configured terminal limit, sees the exact bounded resource and safe
-recovery action, and can distinguish a full local terminal from sandbox execute-only behavior.
+recovery action, and can verify the effective terminal capabilities.
 
 ```mermaid
 flowchart TD
@@ -18,9 +18,7 @@ flowchart TD
   I --> G
   G --> J{Workspace capability?}
   J -->|local interactive| K[Expose attach, input, resize, lease, and recording]
-  J -->|sandbox execute-only| L[Expose bounded execution and hide interactive claims]
   K --> Z[True end: admitted work stays within every configured cap]
-  L --> Z
   C -.->|administrator does not recover capacity| X1[Abandon: existing terminals and viewers remain untouched]
 ```
 
@@ -44,17 +42,17 @@ journey:
       verb: "Recover capacity and retry"
       expected_observable: "The next operation succeeds without evicting or mutating unrelated terminal work."
     - step: 4
-      verb: "Compare local and sandbox workspaces"
-      expected_observable: "Local work advertises interactive features; sandbox work advertises only bounded execution."
+      verb: "Inspect supported terminal capabilities"
+      expected_observable: "Capability reads match the available controls and unsupported operations fail explicitly."
   goal:
     observable: "Limits fail closed with actionable reasons and capability surfaces never promise an unsupported terminal mode."
     side_effects: [limit-rejection-emitted, capacity-released, terminal-operation-admitted]
-  true_end_state: "After recovery, admitted terminal and subscriber counts match the effective policy, while sandbox surfaces remain execute-only."
+  true_end_state: "After recovery, admitted terminal and subscriber counts match the effective policy."
   exit:
     natural: "The administrator resumes work after freeing or validly increasing capacity."
   abandonment:
     - at_step: 3
       how: "Leave the refusal without closing a terminal or viewer."
       resume: "The next attempt re-reads current capacity and gives the same truthful refusal until space exists."
-  crosses: [terminal-config, admission-control, subscriber-cap, capabilities, sandbox, settings]
+  crosses: [terminal-config, admission-control, subscriber-cap, capabilities, settings]
 ```

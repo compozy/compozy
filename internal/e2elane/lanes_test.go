@@ -100,11 +100,6 @@ func TestPlanForLaneKeepsCredentialedNightlyOutOfPRRequiredEntryPoints(t *testin
 			}
 
 			for _, suite := range plan.GoSuites {
-				for _, pkg := range suite.Packages {
-					if pkg == "./internal/sandbox/daytona" {
-						t.Fatalf("plan.GoSuites unexpectedly included nightly package %q", pkg)
-					}
-				}
 				if suite.Run == NightlyRuntimeE2EPattern {
 					t.Fatalf("plan.GoSuites unexpectedly included nightly daemon pattern %q", suite.Run)
 				}
@@ -126,12 +121,12 @@ func TestLaneRunPatternsCompileAndMatchRepresentativeTests(t *testing.T) {
 			name:    "Should match default daemon e2e tests only with the runtime daemon pattern",
 			pattern: RuntimeE2EPattern,
 			matches: []string{"TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun"},
-			rejects: []string{"TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel"},
+			rejects: []string{"TestDaemonNightlyE2EProviderExecution"},
 		},
 		{
 			name:    "Should match nightly daemon tests only with the nightly daemon pattern",
 			pattern: NightlyRuntimeE2EPattern,
-			matches: []string{"TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel"},
+			matches: []string{"TestDaemonNightlyE2EProviderExecution"},
 			rejects: []string{"TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun"},
 		},
 		{
@@ -160,16 +155,6 @@ func TestLaneRunPatternsCompileAndMatchRepresentativeTests(t *testing.T) {
 				"TestRemoteGatewayE2ESSHConnectLeavesNoReachableSurface",
 			},
 			rejects: []string{"TestRemoteCLIProfilesIntegrationIT060ThroughIT066"},
-		},
-		{
-			name:    "Should match credentialed Daytona nightly tests with the Daytona pattern",
-			pattern: DaytonaNightlyE2EPattern,
-			matches: []string{
-				"TestDaytonaProviderIntegrationFullLifecycle",
-				"TestDaytonaLauncherTransportValidation",
-				"TestDaytonaSSHNonPTYValidation",
-			},
-			rejects: []string{"TestDaytonaUnlistedScenario"},
 		},
 	}
 
@@ -220,10 +205,6 @@ func expectedRuntimeGoSuites() []GoSuite {
 func expectedNightlyGoSuites() []GoSuite {
 	return []GoSuite{
 		{Packages: []string{"./internal/daemon"}, Run: "^TestDaemonNightlyE2E"},
-		{
-			Packages: []string{"./internal/sandbox/daytona"},
-			Run:      "^TestDaytona(ProviderIntegrationFullLifecycle|LauncherTransportValidation|SSHNonPTYValidation)$",
-		},
 	}
 }
 

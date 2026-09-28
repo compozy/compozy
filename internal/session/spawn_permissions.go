@@ -62,12 +62,10 @@ func effectiveSpawnBudget(budget store.SessionSpawnBudget) store.SessionSpawnBud
 func hookPermissionSetFromPolicy(policy store.SessionPermissionPolicy) *hookspkg.PermissionSet {
 	normalized := store.NormalizeSessionPermissionPolicy(policy)
 	return &hookspkg.PermissionSet{
-		Tools:           append([]string(nil), normalized.Tools...),
-		Skills:          append([]string(nil), normalized.Skills...),
-		MCPServers:      append([]string(nil), normalized.MCPServers...),
-		WorkspacePaths:  append([]string(nil), normalized.WorkspacePaths...),
-		NetworkChannels: append([]string(nil), normalized.NetworkChannels...),
-		SandboxProfiles: append([]string(nil), normalized.SandboxProfiles...),
+		Tools:          append([]string(nil), normalized.Tools...),
+		Skills:         append([]string(nil), normalized.Skills...),
+		MCPServers:     append([]string(nil), normalized.MCPServers...),
+		WorkspacePaths: append([]string(nil), normalized.WorkspacePaths...),
 	}
 }
 
@@ -76,12 +74,10 @@ func policyFromHookPermissionSet(src *hookspkg.PermissionSet) store.SessionPermi
 		return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{})
 	}
 	return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
-		Tools:           append([]string(nil), src.Tools...),
-		Skills:          append([]string(nil), src.Skills...),
-		MCPServers:      append([]string(nil), src.MCPServers...),
-		WorkspacePaths:  append([]string(nil), src.WorkspacePaths...),
-		NetworkChannels: append([]string(nil), src.NetworkChannels...),
-		SandboxProfiles: append([]string(nil), src.SandboxProfiles...),
+		Tools:          append([]string(nil), src.Tools...),
+		Skills:         append([]string(nil), src.Skills...),
+		MCPServers:     append([]string(nil), src.MCPServers...),
+		WorkspacePaths: append([]string(nil), src.WorkspacePaths...),
 	})
 }
 

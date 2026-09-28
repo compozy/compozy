@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -33,11 +32,6 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		) {
 			t.Fatalf("GetExecutionProfile(missing) error = %v, want profile not found", err)
 		}
-		liveMode := participation.ModeLive
-		runStrategy := participation.StrategyRun
-		maxWakes := 3
-		coalesceWindow := "750ms"
-
 		created, err := globalDB.UpsertExecutionProfile(ctx, &taskpkg.ExecutionProfile{
 			TaskID: "task-profile-1",
 			Coordinator: taskpkg.CoordinatorProfile{
@@ -73,34 +67,17 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 				}},
 				AllowedAgentNames:     []string{"reviewer"},
 				PreferredAgentNames:   []string{"reviewer"},
-				AllowedChannelIDs:     []string{"review-channel"},
-				PreferredChannelIDs:   []string{"review-channel"},
-				AllowedPeerIDs:        []string{"peer-a"},
-				PreferredPeerIDs:      []string{"peer-a"},
 				RequiredCapabilities:  []string{"review"},
 				PreferredCapabilities: []string{"go"},
 			},
 			Participants: taskpkg.ParticipantPolicy{
 				AllowedAgentNames:     []string{"coder", "reviewer"},
 				PreferredAgentNames:   []string{"reviewer"},
-				AllowedChannelIDs:     []string{"work-channel"},
-				PreferredChannelIDs:   []string{"review-channel"},
-				AllowedPeerIDs:        []string{"peer-a"},
-				PreferredPeerIDs:      []string{"peer-a"},
 				RequiredCapabilities:  []string{"go"},
 				PreferredCapabilities: []string{"review"},
 			},
-			Sandbox:  taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "workspace"},
 			Worktree: taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeRef, WorktreeRef: "feature-one"},
 			Runtime:  taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
-			NetworkParticipation: &participation.Request{
-				Mode:            &liveMode,
-				ChannelStrategy: &runStrategy,
-				Bounds: &participation.BoundsRequest{
-					MaxWakes:       &maxWakes,
-					CoalesceWindow: &coalesceWindow,
-				},
-			},
 		})
 		if err != nil {
 			t.Fatalf("UpsertExecutionProfile(create) error = %v", err)
@@ -124,7 +101,6 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 				AgentName:         "runner",
 				AllowedAgentNames: []string{"runner"},
 			},
-			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeInherit},
 		})
 		if err != nil {
 			t.Fatalf("UpsertExecutionProfile(update) error = %v", err)
@@ -137,9 +113,6 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		}
 		if got, want := updated.Runtime.Mode, taskpkg.RuntimeModeDefault; got != want {
 			t.Fatalf("updated.Runtime.Mode = %q, want %q", got, want)
-		}
-		if updated.NetworkParticipation != nil {
-			t.Fatalf("updated.NetworkParticipation = %#v, want nil after replacement", updated.NetworkParticipation)
 		}
 		assertStringSliceGlobal(t, updated.Worker.AllowedAgentNames, []string{"runner"})
 		assertStringSliceGlobal(t, updated.Review.AllowedAgentNames, nil)
@@ -185,7 +158,6 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 				AgentName:         "coder",
 				AllowedAgentNames: []string{"coder"},
 			},
-			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeInherit},
 		})
 		if !errors.Is(err, taskpkg.ErrTaskNotFound) {
 			t.Fatalf("UpsertExecutionProfile(missing task) error = %v, want %v", err, taskpkg.ErrTaskNotFound)
@@ -218,9 +190,6 @@ func assertStoredProfileShape(t *testing.T, profile *taskpkg.ExecutionProfile) {
 		*profile.Review.ACPOptions[0].BoolValue {
 		t.Fatalf("Review runtime = %#v, want persisted thinking=false", profile.Review)
 	}
-	if got, want := profile.Sandbox.Mode, taskpkg.SandboxModeRef; got != want {
-		t.Fatalf("Sandbox.Mode = %q, want %q", got, want)
-	}
 	if got, want := profile.Worktree, (taskpkg.WorktreePolicy{
 		Mode: taskpkg.WorktreeModeRef, WorktreeRef: "feature-one",
 	}); got != want {
@@ -229,17 +198,7 @@ func assertStoredProfileShape(t *testing.T, profile *taskpkg.ExecutionProfile) {
 	if got, want := profile.Runtime.Mode, taskpkg.RuntimeModeEvidence; got != want {
 		t.Fatalf("Runtime.Mode = %q, want %q", got, want)
 	}
-	if profile.NetworkParticipation == nil || profile.NetworkParticipation.Mode == nil ||
-		*profile.NetworkParticipation.Mode != participation.ModeLive ||
-		profile.NetworkParticipation.ChannelStrategy == nil ||
-		*profile.NetworkParticipation.ChannelStrategy != participation.StrategyRun ||
-		profile.NetworkParticipation.Bounds == nil ||
-		profile.NetworkParticipation.Bounds.MaxWakes == nil ||
-		*profile.NetworkParticipation.Bounds.MaxWakes != 3 {
-		t.Fatalf("NetworkParticipation = %#v, want live run strategy with max_wakes 3", profile.NetworkParticipation)
-	}
 	assertStringSliceGlobal(t, profile.Participants.AllowedAgentNames, []string{"coder", "reviewer"})
-	assertStringSliceGlobal(t, profile.Review.AllowedChannelIDs, []string{"review-channel"})
 	assertStringSliceGlobal(t, profile.Review.RequiredCapabilities, []string{"review"})
 }
 

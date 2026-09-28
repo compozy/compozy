@@ -84,7 +84,7 @@ compozy task fail run_123 \
 
 | Evidence         | Command                                                      | Why it matters                                             |
 | ---------------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
-| Task definition  | `compozy task get task_123 -o json`                          | Shows scope, workspace, owner, channel, and metadata.      |
+| Task definition  | `compozy task get task_123 -o json`                          | Shows scope, workspace, owner, and metadata.               |
 | Run state        | `compozy task run list task_123 -o json`                     | Shows whether work is queued, claimed, running, or closed. |
 | Claiming session | `compozy task run list task_123 --session sess_1234 -o json` | Connects the session-bound lease to the task run.          |
 | Session history  | `compozy session history sess_1234`                          | Preserves the reasoning and commands behind the result.    |

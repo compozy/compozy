@@ -166,13 +166,6 @@ func (fakeStore) UpdateTaskRunMetadata(
 	return taskpkg.Run{}, nil
 }
 
-func (fakeStore) FailTasklessRunOnBoot(
-	context.Context,
-	taskpkg.TerminalRunMutation,
-) (taskpkg.Run, error) {
-	return taskpkg.Run{}, nil
-}
-
 func (fakeStore) TransitionTerminalRun(
 	_ context.Context,
 	mutation taskpkg.TerminalRunMutation,
@@ -259,13 +252,6 @@ func (fakeStore) RecoverTaskRunOnBoot(
 	return taskpkg.NominalRunMutationResult{}, nil
 }
 
-func (fakeStore) RecoverNetworkWakeOnBoot(
-	context.Context,
-	taskpkg.NetworkWakeBootRecoveryMutation,
-) (taskpkg.NominalRunMutationResult, error) {
-	return taskpkg.NominalRunMutationResult{}, nil
-}
-
 func (fakeStore) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
 }
@@ -329,13 +315,6 @@ func (fakeStore) FailRunLeaseMutation(
 	return taskpkg.FailedRunLeaseMutation{}, nil
 }
 
-func (fakeStore) SettleNetworkWake(
-	context.Context,
-	taskpkg.NetworkWakeSettlement,
-) (taskpkg.NetworkWakeSettlementResult, error) {
-	return taskpkg.NetworkWakeSettlementResult{}, nil
-}
-
 func (fakeStore) MarkRunNeedsAttentionMutation(
 	context.Context,
 	taskpkg.RunNeedsAttentionCommand,
@@ -384,21 +363,23 @@ func (fakeStore) ReserveQueuedRun(
 	context.Context,
 	taskpkg.QueueRunReservation,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
-	return taskpkg.Task{
-			ID:             "task-1",
-			Scope:          taskpkg.ScopeGlobal,
-			Title:          "bootstrap",
-			Priority:       taskpkg.PriorityMedium,
-			MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
-			Status:         taskpkg.TaskStatusReady,
-			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
-			ApprovalState:  taskpkg.ApprovalStatePending,
-		}, taskpkg.Run{
-			ID:      "run-1",
-			TaskID:  "task-1",
-			Status:  taskpkg.TaskRunStatusQueued,
-			Attempt: 1,
-		}, false, nil
+	task := taskpkg.Task{
+		ID:             "task-1",
+		Scope:          taskpkg.ScopeGlobal,
+		Title:          "bootstrap",
+		Priority:       taskpkg.PriorityMedium,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		Status:         taskpkg.TaskStatusReady,
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		ApprovalState:  taskpkg.ApprovalStatePending,
+	}
+	run := taskpkg.Run{
+		ID:      "run-1",
+		TaskID:  "task-1",
+		Status:  taskpkg.TaskRunStatusQueued,
+		Attempt: 1,
+	}
+	return task, run, false, nil
 }
 
 func (fakeStore) CompleteCoordinatorAndEnqueueNext(

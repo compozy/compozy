@@ -385,14 +385,14 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	}
 }
 
-func TestTriggerEnginePersistentWebhookReservationCarriesDefinitionParticipation(t *testing.T) {
+func TestTriggerEnginePersistentWebhookReservationCarriesDeliveryAttribution(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should create the durable reservation with canonical authored participation", func(t *testing.T) {
+	t.Run("Should preserve delivery attribution through a durable loop reservation", func(t *testing.T) {
 		t.Parallel()
 
 		store := newMemoryRunStore()
-		starter := &recordingLoopStarter{runID: "looprun-webhook-participation"}
+		starter := &recordingLoopStarter{runID: "looprun-webhook-loop"}
 		now := time.Date(2026, 4, 11, 5, 45, 0, 0, time.UTC)
 		dispatcher := newTestDispatcher(
 			t,
@@ -408,14 +408,13 @@ func TestTriggerEnginePersistentWebhookReservationCarriesDefinitionParticipation
 			WithTriggerEngineWebhookDeliveryStore(store),
 		)
 
-		trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-participation", "")
+		trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-loop", "")
 		trigger.TargetKind = TargetKindLoop
 		trigger.AgentName = ""
 		trigger.Prompt = ""
 		trigger.LoopTarget = &LoopTarget{
-			WorkspaceID:          "ws_alpha",
-			LoopName:             "release-loop",
-			NetworkParticipation: testNamedParticipation("webhook-loop"),
+			WorkspaceID: "ws_alpha",
+			LoopName:    "release-loop",
 		}
 		if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 			t.Fatalf("Register() error = %v", err)
@@ -429,7 +428,7 @@ func TestTriggerEnginePersistentWebhookReservationCarriesDefinitionParticipation
 		result, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
 			Scope:      AutomationScopeGlobal,
 			Endpoint:   "deploy-review--" + trigger.WebhookID,
-			DeliveryID: "delivery-participation",
+			DeliveryID: "delivery-loop",
 			Timestamp:  now,
 			Signature:  signature,
 			Payload:    payload,
@@ -441,10 +440,9 @@ func TestTriggerEnginePersistentWebhookReservationCarriesDefinitionParticipation
 		if got, want := len(result.Runs), 1; got != want {
 			t.Fatalf("len(result.Runs) = %d, want %d", got, want)
 		}
-		assertNamedParticipation(t, result.Runs[0].NetworkParticipation, "webhook-loop")
 		calls := starter.startCallSnapshot()
-		if len(calls) != 1 || calls[0].TriggerPayload[triggerDeliveryIDKey] != "delivery-participation" {
-			t.Fatalf("loop trigger delivery attribution = %#v, want delivery-participation", calls)
+		if len(calls) != 1 || calls[0].TriggerPayload[triggerDeliveryIDKey] != "delivery-loop" {
+			t.Fatalf("loop trigger delivery attribution = %#v, want delivery-loop", calls)
 		}
 		updates := store.updateSnapshot()
 		if len(updates) == 0 || updates[0].Status == RunScheduled {
@@ -802,7 +800,7 @@ func TestTriggerEngineRegisterRejectsInvalidWebhookSecretConfiguration(t *testin
 
 		engine := newTestTriggerEngine(t, dispatcher)
 		trigger := testWebhookTrigger(AutomationScopeGlobal, "invalid-namespace", "")
-		trigger.WebhookSecretRef = "vault:bridges/brg-core/bot_token"
+		trigger.WebhookSecretRef = "vault:providers/deploy/token"
 
 		err := engine.Register(TriggerRegistration{Trigger: trigger})
 		if err == nil || !strings.Contains(err.Error(), "must use vault:automation/<path>") {

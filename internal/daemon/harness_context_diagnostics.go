@@ -7,9 +7,6 @@ func buildHarnessDiagnosticLabel(
 	policy ResolvedHarnessPolicy,
 ) string {
 	parts := []string{string(sessionCtx.SessionClass)}
-	if sessionCtx.NetworkLive {
-		parts = append(parts, "network")
-	}
 	parts = append(parts, string(policy.TurnOrigin))
 	if policy.ReentryMode == ReentryModeSynthetic {
 		parts = append(parts, "reentry")
@@ -28,7 +25,6 @@ func buildHarnessObservabilityTags(
 		harnessContextHarnessSessionTypePath:     string(sessionCtx.Type),
 		harnessContextHarnessSessionClassPath:    string(policy.SessionClass),
 		harnessContextHarnessTurnOriginPath:      string(policy.TurnOrigin),
-		harnessContextHarnessNetworkLivePath:     boolTag(sessionCtx.NetworkLive),
 		harnessContextHarnessDiagnosticLabelPath: policy.DiagnosticLabel,
 	}
 	if sessionID := strings.TrimSpace(sessionCtx.SessionID); sessionID != "" {
@@ -50,11 +46,4 @@ func buildHarnessObservabilityTags(
 		}
 	}
 	return tags
-}
-
-func boolTag(value bool) string {
-	if value {
-		return harnessContextTrueKey
-	}
-	return harnessContextFalseKey
 }

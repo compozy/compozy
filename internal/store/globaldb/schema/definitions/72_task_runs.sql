@@ -2,7 +2,7 @@ CREATE TABLE task_run_idempotency (
 		idempotency_key TEXT NOT NULL,
 		origin_kind     TEXT NOT NULL CHECK (
 			origin_kind IN (
-				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'agent_session', 'daemon'
 			)
 		),
 		origin_ref      TEXT NOT NULL,
@@ -47,8 +47,6 @@ CREATE TABLE task_run_reviews (
 		review_text          TEXT NOT NULL DEFAULT '',
 		reviewer_session_id  TEXT,
 		reviewer_agent_name  TEXT NOT NULL DEFAULT '',
-		reviewer_peer_id     TEXT NOT NULL DEFAULT '',
-		reviewer_channel_id  TEXT NOT NULL DEFAULT '',
 		reviewed_by_kind     TEXT NOT NULL DEFAULT '',
 		reviewed_by_ref      TEXT NOT NULL DEFAULT '',
 		requested_at         TEXT NOT NULL,
@@ -73,7 +71,7 @@ CREATE TABLE task_run_starvation (
 
 CREATE TABLE "task_runs" (
 		id              TEXT PRIMARY KEY,
-		task_id         TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		worktree_id     TEXT,
 		status          TEXT NOT NULL,
@@ -85,28 +83,18 @@ CREATE TABLE "task_runs" (
 		),
 		claimed_by_kind TEXT CHECK (
 			claimed_by_kind IS NULL OR claimed_by_kind IN (
-				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+				'human', 'agent_session', 'automation', 'extension', 'daemon'
 			)
 		),
 		claimed_by_ref  TEXT,
 		session_id      TEXT,
 		origin_kind     TEXT NOT NULL CHECK (
 			origin_kind IN (
-				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'agent_session', 'daemon'
 			)
 		),
 		origin_ref      TEXT NOT NULL,
 		idempotency_key TEXT,
-		network_spec_json TEXT NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}'
-			CHECK (json_valid(network_spec_json)),
-		network_mode TEXT NOT NULL DEFAULT 'local' CHECK (network_mode IN ('local', 'live')),
-		network_channel TEXT,
-		network_source TEXT NOT NULL DEFAULT 'built_in_local' CHECK (
-			network_source IN (
-				'explicit_request', 'task_profile', 'workspace_coordination',
-				'loop_definition', 'automation_job', 'built_in_local'
-			)
-		),
 		designation_group_id TEXT NOT NULL DEFAULT '',
 		resolved_worktree_mode TEXT NOT NULL DEFAULT '' CHECK (
 			resolved_worktree_mode IN ('', 'none', 'ref', 'per_run')
@@ -121,10 +109,8 @@ CREATE TABLE "task_runs" (
 		result_json     TEXT,
 		summary         TEXT NOT NULL DEFAULT '',
 		claimed_agent_name TEXT NOT NULL DEFAULT '',
-		claimed_peer_id TEXT NOT NULL DEFAULT '',
 		terminalized_by_session_id TEXT NOT NULL DEFAULT '',
 		terminalized_by_agent_name TEXT NOT NULL DEFAULT '',
-		terminalized_by_peer_id TEXT NOT NULL DEFAULT '',
 		terminalized_by_actor_kind TEXT NOT NULL DEFAULT '',
 		terminalized_by_actor_ref TEXT NOT NULL DEFAULT '',
 		review_required BOOLEAN NOT NULL DEFAULT 0 CHECK (review_required IN (0, 1)),
@@ -144,27 +130,16 @@ CREATE TABLE "task_runs" (
 		claim_token_hash TEXT,
 		lease_until TEXT,
 		heartbeat_at TEXT,
-		run_kind TEXT NOT NULL DEFAULT 'worker' CHECK (run_kind IN ('worker', 'coordinator', 'network_wake')),
+		run_kind TEXT NOT NULL DEFAULT 'worker' CHECK (run_kind IN ('worker', 'coordinator')),
 		loop_run_id TEXT,
 		tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (tokens_used >= 0),
-		network_wake_id TEXT,
-		network_target_session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
-		network_owner_key TEXT,
 		CHECK (
 			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR
 			(claimed_by_kind IS NOT NULL AND claimed_by_ref IS NOT NULL)
 		),
 		CHECK (status <> 'queued' OR session_id IS NULL),
-		CHECK (run_kind = 'network_wake' OR task_id IS NOT NULL),
-		CHECK (run_kind <> 'network_wake' OR task_id IS NULL),
 		CHECK (
 			(resolved_worktree_mode = 'ref') = (resolved_worktree_ref <> '')
-		),
-		CHECK (
-			(run_kind = 'network_wake' AND network_wake_id IS NOT NULL
-				AND network_target_session_id IS NOT NULL AND network_owner_key IS NOT NULL) OR
-			(run_kind <> 'network_wake' AND network_wake_id IS NULL
-				AND network_target_session_id IS NULL AND network_owner_key IS NULL)
 		),
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
@@ -243,12 +218,6 @@ CREATE INDEX idx_task_run_reviews_deadline
 CREATE INDEX idx_task_run_reviews_reviewer_agent
 		ON task_run_reviews(reviewer_agent_name, status);
 
-CREATE INDEX idx_task_run_reviews_reviewer_channel
-		ON task_run_reviews(reviewer_channel_id, status);
-
-CREATE INDEX idx_task_run_reviews_reviewer_peer
-		ON task_run_reviews(reviewer_peer_id, status);
-
 CREATE INDEX idx_task_run_reviews_reviewer_session
 		ON task_run_reviews(reviewer_session_id, status);
 
@@ -263,8 +232,6 @@ CREATE INDEX idx_task_run_starvation_tier
 
 CREATE INDEX idx_task_runs_active_lease_recovery
 			ON task_runs(status, lease_until, heartbeat_at, id);
-
-CREATE INDEX idx_task_runs_channel ON task_runs(network_channel);
 
 CREATE INDEX idx_task_runs_designation_group ON task_runs(task_id, designation_group_id);
 
@@ -285,10 +252,6 @@ CREATE INDEX idx_task_runs_session_status
 			ON task_runs(session_id, status, lease_until);
 
 CREATE INDEX idx_task_runs_worktree ON task_runs(worktree_id) WHERE worktree_id IS NOT NULL;
-
-CREATE INDEX idx_task_runs_target_session
-			ON task_runs(network_target_session_id, status, queued_at, id)
-			WHERE run_kind = 'network_wake';
 
 CREATE INDEX idx_task_runs_status ON task_runs(status);
 

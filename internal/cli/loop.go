@@ -242,7 +242,6 @@ type loopRunOptions struct {
 	runtimeFlags []string
 	dry          bool
 	noPrompt     bool
-	networkFlags networkParticipationFlags
 }
 
 func newLoopRunCommand(deps commandDeps) *cobra.Command {
@@ -278,7 +277,7 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 		false,
 		"Disable interactive prompts for missing required inputs",
 	)
-	bindNetworkParticipationFlags(cmd, &options.networkFlags)
+
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
 }
@@ -300,15 +299,10 @@ func executeLoopRun(cmd *cobra.Command, deps commandDeps, options loopRunOptions
 	if err != nil {
 		return err
 	}
-	participationRequest, err := options.networkFlags.request()
-	if err != nil {
-		return err
-	}
 	response, err := client.RunLoop(cmd.Context(), workspaceID, loopName, contract.RunLoopRequest{
-		Inputs:               values,
-		ParentLoopRunID:      strings.TrimSpace(options.parentRunID),
-		ConfigOverrides:      overrides,
-		NetworkParticipation: participationRequest,
+		Inputs:          values,
+		ParentLoopRunID: strings.TrimSpace(options.parentRunID),
+		ConfigOverrides: overrides,
 	}, options.dry, agentCredentialsFromEnv(deps))
 	if err != nil {
 		return err

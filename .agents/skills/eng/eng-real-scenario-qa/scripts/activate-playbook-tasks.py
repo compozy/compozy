@@ -138,8 +138,6 @@ def record_run_action(helper: Path, journey_log: Path, row: dict) -> None:
         "--evidence-path",
         row["evidence_path"],
     ]
-    if row.get("channel"):
-        command.extend(["--channel", row["channel"]])
     if row.get("task_kind"):
         command.extend(["--task-kind", row["task_kind"]])
     proc = subprocess.run(command, check=False, capture_output=True, text=True)
@@ -205,7 +203,6 @@ def prepare_activation(
 
         for task in tasks:
             runtime_id = str(task["runtime_id"])
-            channel = str(task.get("channel", "")).strip()
             args = [
                 "task",
                 "start",
@@ -215,21 +212,10 @@ def prepare_activation(
                 "--metadata",
                 json.dumps({"playbook_ref": playbook_ref, "activation": "pre_kickoff"}),
             ]
-            if channel:
-                args.extend(
-                    [
-                        "--network",
-                        "live",
-                        "--network-channel-strategy",
-                        "named",
-                        "--network-channel",
-                        channel,
-                    ]
-                )
             output = runner(compozy_bin, args, env)
             task_id, run_id = execution_ids(output, runtime_id)
             evidence["tasks"].append(
-                {"task_id": task_id, "run_id": run_id, "channel": channel, "output": output}
+                {"task_id": task_id, "run_id": run_id, "output": output}
             )
             write_evidence(evidence_path, evidence)
 
@@ -245,7 +231,6 @@ def prepare_activation(
                     "target": task["task_id"],
                     "ids": [task["run_id"]],
                     "evidence_path": str(evidence_path),
-                    "channel": task["channel"],
                     "task_kind": "run",
                 },
             )

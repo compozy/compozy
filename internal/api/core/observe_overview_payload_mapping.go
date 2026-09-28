@@ -25,7 +25,6 @@ func ObserveOverviewPayloadFromView(view *observe.OverviewView) contract.Observe
 		Outcomes: overviewOutcomesPayload(view.Outcomes),
 		Usage:    overviewUsagePayload(view.Usage),
 		Pulse:    overviewPulsePayload(view.Pulse),
-		Network:  contract.OverviewNetworkPayload{MessagesToday: view.Network.MessagesToday},
 		System: contract.OverviewSystemPayload{
 			HookRunsToday:     view.System.HookRunsToday,
 			HookFailuresToday: view.System.HookFailuresToday,

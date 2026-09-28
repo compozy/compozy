@@ -75,21 +75,6 @@ type AgentContextResponse struct {
 	Context AgentContextPayload `json:"context"`
 }
 
-// AgentChannelsResponse wraps discoverable coordination channels for the caller.
-type AgentChannelsResponse struct {
-	Channels []CoordinationChannelPayload `json:"channels"`
-}
-
-// AgentChannelMessagesResponse wraps channel inbox messages.
-type AgentChannelMessagesResponse struct {
-	Messages []AgentChannelMessagePayload `json:"messages"`
-}
-
-// AgentChannelMessageResponse wraps one sent channel message.
-type AgentChannelMessageResponse struct {
-	Message AgentChannelMessagePayload `json:"message"`
-}
-
 // AgentTaskClaimResponse wraps the synchronous task claim response.
 type AgentTaskClaimResponse struct {
 	Claim AgentTaskClaimPayload `json:"claim"`

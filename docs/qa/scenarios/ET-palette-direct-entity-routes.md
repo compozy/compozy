@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-eng-131-palette-direct-20260825-004748-874920-lab/qa-artifacts/evidence/direct-loop-detail.png; /Users/pedronauck/dev/qa-labs/compozy-eng-131-palette-direct-20260825-004748-874920-lab/qa-artifacts/qa/journey-log.jsonl
 last_report: docs/qa/reports/2026-08-24-eng-131-palette-direct.md
-overlaps: ET-palette-domain-views;ET-palette-nested-views;ET-palette-action-panel
+overlaps: ET-palette-domain-views; ET-palette-nested-views; ET-palette-action-panel
 ---
 
 Added for the targeted ENG-131 walk. This scenario owns the real workspace-loop journey recorded

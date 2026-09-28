@@ -4,7 +4,6 @@ import (
 	"time"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
 
@@ -99,41 +98,6 @@ type SessionInputResult struct {
 	Input SessionInput `json:"input"`
 }
 
-// SandboxSummary is one active sandbox in the host-visible list response.
-type SandboxSummary struct {
-	SessionID  string `json:"session_id"`
-	SandboxID  string `json:"sandbox_id"`
-	Backend    string `json:"backend"`
-	Profile    string `json:"profile,omitempty"`
-	InstanceID string `json:"instance_id,omitempty"`
-	State      string `json:"state"`
-	SyncState  string `json:"sync_state,omitempty"`
-}
-
-// SandboxListResult returns active sandbox instances.
-type SandboxListResult struct {
-	Sandboxes []SandboxSummary `json:"sandboxes"`
-}
-
-// SandboxInfoResult returns detailed sandbox state for a session.
-type SandboxInfoResult struct {
-	SandboxID     string    `json:"sandbox_id"`
-	Backend       string    `json:"backend"`
-	Profile       string    `json:"profile"`
-	InstanceID    string    `json:"instance_id"`
-	RuntimeRoot   string    `json:"runtime_root"`
-	SyncState     string    `json:"sync_state"`
-	CreatedAt     time.Time `json:"created_at"`
-	LastSyncError string    `json:"last_sync_error"`
-}
-
-// SandboxExecResult returns command execution output.
-type SandboxExecResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
-}
-
 // MemoryRecallEntry is one scored memory lookup hit.
 type MemoryRecallEntry struct {
 	Key     string  `json:"key"`
@@ -143,6 +107,3 @@ type MemoryRecallEntry struct {
 
 // ObserveHealth is the host-visible daemon health payload.
 type ObserveHealth = observepkg.Health
-
-// BridgesMessagesIngestResult reports the resolved session association for one inbound message.
-type BridgesMessagesIngestResult = bridgepkg.BridgesMessagesIngestResult

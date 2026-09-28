@@ -188,17 +188,6 @@ func (o HookRunOutcome) Validate() error {
 	}
 }
 
-// NetworkMatcher narrows network observation hooks by low-cardinality fields.
-type NetworkMatcher struct {
-	Channel             string `json:"channel,omitempty"              yaml:"channel,omitempty"`
-	Surface             string `json:"surface,omitempty"              yaml:"surface,omitempty"`
-	Kind                string `json:"kind,omitempty"                 yaml:"kind,omitempty"`
-	Direction           string `json:"direction,omitempty"            yaml:"direction,omitempty"`
-	WorkState           string `json:"work_state,omitempty"           yaml:"work_state,omitempty"`
-	ParticipationMode   string `json:"participation_mode,omitempty"   yaml:"participation_mode,omitempty"`
-	ParticipationSource string `json:"participation_source,omitempty" yaml:"participation_source,omitempty"`
-}
-
 // CompactionMatcher narrows context-compaction hooks by compaction metadata.
 type CompactionMatcher struct {
 	Reason   string `json:"compaction_reason,omitempty"   yaml:"compaction_reason,omitempty"`
@@ -213,10 +202,6 @@ type HookMatcher struct {
 	WorktreeID         string `json:"worktree_id,omitempty"        yaml:"worktree_id,omitempty"`
 	WorkspaceRoot      string `json:"workspace_root,omitempty"     yaml:"workspace_root,omitempty"`
 	SessionType        string `json:"session_type,omitempty"       yaml:"session_type,omitempty"`
-	SandboxID          string `json:"sandbox_id,omitempty"         yaml:"sandbox_id,omitempty"`
-	SandboxBackend     string `json:"sandbox_backend,omitempty"    yaml:"sandbox_backend,omitempty"`
-	SandboxProfile     string `json:"sandbox_profile,omitempty"    yaml:"sandbox_profile,omitempty"`
-	SyncDirection      string `json:"sync_direction,omitempty"     yaml:"sync_direction,omitempty"`
 	InputClass         string `json:"input_class,omitempty"        yaml:"input_class,omitempty"`
 	ACPEventType       string `json:"acp_event_type,omitempty"     yaml:"acp_event_type,omitempty"`
 	TurnID             string `json:"turn_id,omitempty"            yaml:"turn_id,omitempty"`
@@ -226,7 +211,6 @@ type HookMatcher struct {
 	DecisionClass      string `json:"decision_class,omitempty"     yaml:"decision_class,omitempty"`
 	MessageRole        string `json:"message_role,omitempty"       yaml:"message_role,omitempty"`
 	MessageDeltaType   string `json:"message_delta_type,omitempty" yaml:"message_delta_type,omitempty"`
-	*NetworkMatcher    `                                                     yaml:",inline,omitempty"`
 	*CompactionMatcher `                                                     yaml:",inline,omitempty"`
 	Autonomy           *AutonomyMatcher `json:"autonomy,omitempty"           yaml:"autonomy,omitempty"`
 }
@@ -239,7 +223,6 @@ type AutonomyMatcher struct {
 	LoopName             string `json:"loop_name,omitempty"              yaml:"loop_name,omitempty"`
 	NodeID               string `json:"node_id,omitempty"                yaml:"node_id,omitempty"`
 	WorkflowID           string `json:"workflow_id,omitempty"            yaml:"workflow_id,omitempty"`
-	ParticipationChannel string `json:"participation_channel,omitempty"  yaml:"participation_channel,omitempty"`
 	CoordinatorSessionID string `json:"coordinator_session_id,omitempty" yaml:"coordinator_session_id,omitempty"`
 	ParentSessionID      string `json:"parent_session_id,omitempty"      yaml:"parent_session_id,omitempty"`
 	RootSessionID        string `json:"root_session_id,omitempty"        yaml:"root_session_id,omitempty"`

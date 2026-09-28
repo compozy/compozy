@@ -4,21 +4,21 @@ area: GL
 title: Let an agent control an authorized child Goal through typed surfaces
 persona: Ada
 journey: J-29
-expected: An authenticated agent sets, replaces, reads, pauses, resumes, and clears a target session Goal through native, HTTP, UDS, and CLI surfaces with matching structured results, while an unrelated session is rejected and the Goal keeps its immutable origin and workspace participation.
+expected: An authenticated agent sets, replaces, reads, pauses, resumes, and clears a target session Goal through native, HTTP, UDS, and CLI surfaces with matching structured results, while an unrelated session is rejected and the Goal keeps its immutable origin and workspace scope.
 entry_points: compozy__goal_control; POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal; UDS equivalent; compozy session goal
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-eng-148-agent-session-control-20260825-014009-304323-lab/qa-artifacts/qa/journey-log.jsonl; internal/daemon goal lifecycle and eight-child isolation race suite; final CLI/HTTP/UDS/native focused checks
 last_report: docs/qa/reports/2026-08-24-eng-148-agent-session-control.md
-overlaps: GL-025;GL-026;GL-034
+overlaps: GL-025; GL-026; GL-034
 ---
 
 ENG-148 flag: new typed agent-manageability behavior. Walk the same lifecycle from an agent-owned
 session to itself and to a descendant, compare direct HTTP/UDS/CLI/native output, then attempt a
-foreign target. Include a runtime override and verify the target's Goal origin/network provenance
+foreign target. Include a runtime override and verify the target's Goal origin provenance
 does not change. Record failed binding evidence rather than treating it as an empty projection.
 
 Issue #595 acceptance: activate the session's own Goal during an ordinary Codex prompt after context usage arrives. Read Goal, session supervision, Loop nodes, and task states through CLI and HTTP, then refresh/reconnect. The first context observation must not fail ownership validation; known context reads must resolve their pinned event. Pause/resume and real approval or quarantine retain actionable attention, and recovery clears derived attention. Stop and remove separate live Goal sessions, cancel again by Run, and confirm terminal state with retained audit and unaffected foreign sessions.
@@ -38,3 +38,5 @@ original beta.25 runtime restarted successfully and the desktop reported `state:
 backup, generation 2's Run was canceled, and the stop receipt was removed. The existing Goal runtime
 and time-travel integration suites passed with the race detector. This verifies the restart slice,
 not a new full cross-surface scenario sweep.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

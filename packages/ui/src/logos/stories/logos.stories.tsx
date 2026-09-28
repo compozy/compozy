@@ -38,7 +38,7 @@ import {
 
 type LogoProps = Pick<SVGProps<SVGSVGElement>, "aria-label" | "className">;
 type LogoComponent = ComponentType<LogoProps>;
-type LogoGroup = "all" | "agents" | "bridges";
+type LogoGroup = "all" | "agents" | "integrations";
 
 interface LogoGalleryProps {
   group?: LogoGroup;
@@ -71,7 +71,7 @@ const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
   { label: "Z.ai", Logo: ZAILogo },
 ];
 
-const BRIDGE_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
+const INTEGRATION_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
   { label: "Discord", Logo: DiscordLogo },
   { label: "GitHub", Logo: GithubLogo },
   { label: "Google Chat", Logo: GoogleChatLogo },
@@ -113,7 +113,7 @@ function LogoSection({
 
 function LogoGallery({ group = "all" }: LogoGalleryProps) {
   const showAgents = group === "all" || group === "agents";
-  const showBridges = group === "all" || group === "bridges";
+  const showIntegrations = group === "all" || group === "integrations";
 
   return (
     <div className="grid w-[min(960px,calc(100vw-2rem))] gap-8 rounded-lg border border-line bg-canvas p-6 text-fg">
@@ -121,13 +121,15 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
         <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-accent">
           Logo registry
         </p>
-        <h1 className="text-xl font-medium">Agent and bridge logos</h1>
+        <h1 className="text-xl font-medium">Agent and integration logos</h1>
         <p className="max-w-[62ch] text-sm leading-6 text-muted">
           Brand SVGs exported by `@compozy/ui/logos` for Compozy site and runtime surfaces.
         </p>
       </div>
       {showAgents ? <LogoSection title="Agent providers" logos={AGENT_LOGOS} /> : null}
-      {showBridges ? <LogoSection title="Bridge surfaces" logos={BRIDGE_LOGOS} /> : null}
+      {showIntegrations ? (
+        <LogoSection title="Integration services" logos={INTEGRATION_LOGOS} />
+      ) : null}
     </div>
   );
 }
@@ -140,14 +142,14 @@ const meta: Meta<typeof LogoGallery> = {
     docs: {
       description: {
         component:
-          "Shared brand logo registry for agent providers and bridge surfaces consumed by Compozy public pages.",
+          "Shared brand logo registry for agent providers and integration services consumed by Compozy public pages.",
       },
     },
   },
   argTypes: {
     group: {
       control: "select",
-      options: ["all", "agents", "bridges"],
+      options: ["all", "agents", "integrations"],
     },
   },
 };
@@ -174,10 +176,10 @@ export const AgentProviders: Story = {
 };
 
 /**
- * Bridge logos used by bridge and integration sections.
+ * Brand logos used by integration sections.
  */
-export const BridgeSurfaces: Story = {
+export const IntegrationServices: Story = {
   args: {
-    group: "bridges",
+    group: "integrations",
   },
 };

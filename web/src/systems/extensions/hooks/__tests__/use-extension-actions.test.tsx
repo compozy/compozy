@@ -217,7 +217,7 @@ describe("useUpdateExtension", () => {
     await act(async () => {
       await result.current.mutateAsync({
         allowUnverified: true,
-        confirmNetworkDigest: "sha256:6f1c0a94d3b27e58",
+        confirmGatewayDigest: "sha256:6f1c0a94d3b27e58",
         name: "dep-kit-ops",
         version: "1.1.0",
       });
@@ -225,7 +225,7 @@ describe("useUpdateExtension", () => {
 
     expect(mocks.updateExtension).toHaveBeenCalledWith("dep-kit-ops", {
       allow_unverified: true,
-      confirm_network_digest: "sha256:6f1c0a94d3b27e58",
+      confirm_gateway_digest: "sha256:6f1c0a94d3b27e58",
       version: "1.1.0",
     });
   });
@@ -243,11 +243,11 @@ describe("useUpdateExtension", () => {
     await waitFor(() => expect(queryClient.getQueryState(inventoryKey)?.isInvalidated).toBe(true));
   });
 
-  it("Should stay silent for a network-confirmation refusal instead of toasting it", async () => {
+  it("Should stay silent for a gateway-confirmation refusal instead of toasting it", async () => {
     const { wrapper } = setup();
     mocks.updateExtension.mockRejectedValue(
       new ExtensionsApiError("confirmation required", 409, "daemon", {
-        code: "extension_network_confirmation_required",
+        code: "extension_gateway_confirmation_required",
         currentDigest: "sha256:6f1c0a94d3b27e58",
       })
     );

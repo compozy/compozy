@@ -8,8 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 
@@ -51,31 +49,30 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 			SelectionRevision: info.RuntimeSelectionRevision,
 			ACPSessionID:      info.ACPSessionID,
 		},
-		WorkspaceID:                  ref.WorkspaceID,
-		WorkspacePath:                ref.WorkspacePath,
-		WorktreeID:                   strings.TrimSpace(info.WorktreeID),
-		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
-		Type:                         info.Type,
-		State:                        info.State,
-		Badge:                        session.BadgeForInfo(info),
-		Attachable:                   session.AttachableForInfo(info, now),
-		AttachedTo:                   strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:              cloneTimePtr(info.AttachExpiresAt),
-		TranscriptEpoch:              info.TranscriptEpoch,
-		AttentionChangedAt:           cloneTimePtr(info.AttentionChangedAt),
-		PendingInteractions:          PendingInteractionPayloadsFromStore(info.PendingInteractions),
-		ArchivedAt:                   cloneTimePtr(info.ArchivedAt),
-		StopReason:                   info.StopReason,
-		StopCause:                    sessionStopCause(info),
-		Verified:                     new(info.State == session.StateStopped),
-		Escalated:                    new(info.StopEscalated),
-		Attention:                    sessionStopAttention(info),
-		StopDetail:                   info.StopDetail,
-		Failure:                      SessionFailurePayloadFromStore(info.Failure),
-		AvailableCommands:            availableCommandPayloads(info.AdvertisedCommands),
-		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt:                    info.CreatedAt,
-		UpdatedAt:                    info.UpdatedAt,
+		WorkspaceID:         ref.WorkspaceID,
+		WorkspacePath:       ref.WorkspacePath,
+		WorktreeID:          strings.TrimSpace(info.WorktreeID),
+		Type:                info.Type,
+		State:               info.State,
+		Badge:               session.BadgeForInfo(info),
+		Attachable:          session.AttachableForInfo(info, now),
+		AttachedTo:          strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:     cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:     info.TranscriptEpoch,
+		AttentionChangedAt:  cloneTimePtr(info.AttentionChangedAt),
+		PendingInteractions: PendingInteractionPayloadsFromStore(info.PendingInteractions),
+		ArchivedAt:          cloneTimePtr(info.ArchivedAt),
+		StopReason:          info.StopReason,
+		StopCause:           sessionStopCause(info),
+		Verified:            new(info.State == session.StateStopped),
+		Escalated:           new(info.StopEscalated),
+		Attention:           sessionStopAttention(info),
+		StopDetail:          info.StopDetail,
+		Failure:             SessionFailurePayloadFromStore(info.Failure),
+		AvailableCommands:   availableCommandPayloads(info.AdvertisedCommands),
+		Lineage:             contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:           info.CreatedAt,
+		UpdatedAt:           info.UpdatedAt,
 	}
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
 		payload.Runtime.Effective = runtime
@@ -85,9 +82,6 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	}
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
 		payload.Activity = activity
-	}
-	if sandbox := SessionSandboxPayloadFromMeta(info.Sandbox); sandbox != nil {
-		payload.Sandbox = sandbox
 	}
 	return payload
 }
@@ -116,7 +110,6 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
 		WorktreeID:               strings.TrimSpace(info.WorktreeID),
-		NetworkParticipation:     info.NetworkSpecSnapshot(),
 		Type:                     session.Type(strings.TrimSpace(info.SessionType)),
 		State:                    state,
 		StopReason:               info.StopReason,
@@ -127,7 +120,6 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		ACPSessionID:             stringPointerValue(info.ACPSessionID),
 		Lineage:                  store.NormalizeSessionLineage(info.ID, info.Lineage),
 		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:                  cloneStoreSessionSandboxMeta(info.Sandbox),
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
@@ -256,18 +248,6 @@ func stringPointerValue(value *string) string {
 	return strings.TrimSpace(*value)
 }
 
-func cloneStoreSessionSandboxMeta(meta *store.SessionSandboxMeta) *store.SessionSandboxMeta {
-	if meta == nil {
-		return nil
-	}
-	cloned := *meta
-	cloned.RuntimeAdditionalDirs = append([]string(nil), meta.RuntimeAdditionalDirs...)
-	cloned.ProviderState = append([]byte(nil), meta.ProviderState...)
-	cloned.SSHAccessExpiresAt = cloneTimePtr(meta.SSHAccessExpiresAt)
-	cloned.LastSyncAt = cloneTimePtr(meta.LastSyncAt)
-	return &cloned
-}
-
 // RuntimeActivityPayloadFromSessionMeta converts persisted session activity metadata into the shared payload.
 func RuntimeActivityPayloadFromSessionMeta(
 	liveness *store.SessionLivenessMeta,
@@ -322,21 +302,6 @@ func runtimeActivityPayloadFromEvent(activity *acp.RuntimeActivity) *contract.Ru
 		IdleSeconds:        activity.IdleSeconds,
 		ElapsedSeconds:     activity.ElapsedSeconds,
 		ElapsedMS:          activity.ElapsedMS,
-	}
-}
-
-// SessionSandboxPayloadFromMeta converts session sandbox metadata into the shared payload.
-func SessionSandboxPayloadFromMeta(meta *store.SessionSandboxMeta) *contract.SessionSandboxPayload {
-	if meta == nil {
-		return nil
-	}
-	return &contract.SessionSandboxPayload{
-		SandboxID:     strings.TrimSpace(meta.SandboxID),
-		Backend:       strings.TrimSpace(meta.Backend),
-		Profile:       strings.TrimSpace(meta.Profile),
-		State:         strings.TrimSpace(meta.State),
-		InstanceID:    strings.TrimSpace(meta.InstanceID),
-		LastSyncError: strings.TrimSpace(meta.LastSyncError),
 	}
 }
 

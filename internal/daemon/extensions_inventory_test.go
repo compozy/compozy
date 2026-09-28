@@ -984,7 +984,7 @@ func inventoryTestTrigger(name string, enabled bool) automationpkg.Trigger {
 func inventoryTestResourceCodecs(t *testing.T) *resources.CodecRegistry {
 	t.Helper()
 	codecs := resources.NewCodecRegistry()
-	if err := registerDaemonResourceCodecs(codecs, nil); err != nil {
+	if err := registerDaemonResourceCodecs(codecs); err != nil {
 		t.Fatalf("registerDaemonResourceCodecs() error = %v", err)
 	}
 	return codecs

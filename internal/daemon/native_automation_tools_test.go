@@ -591,7 +591,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return automationpkg.ManagerStatus{}, nil
 				},
 			},
-			Sessions: nativeNetworkTestSessionManager("ws-a"),
+			Sessions: nativeTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
 
@@ -872,7 +872,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return dismissed, nil
 				},
 			},
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -959,7 +959,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return automationpkg.ManagerStatus{}, nil
 				},
 			},
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(

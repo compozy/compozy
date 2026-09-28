@@ -175,7 +175,6 @@ def main() -> None:
     for key in (
         "agents",
         "differentiated_roles",
-        "channels",
         "provider_backed_sessions",
         "cross_surface_objects",
         "disruption_probes",

@@ -154,8 +154,6 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutation
 	tasks.GET("/:id", handlers.GetTask)
 	tasks.GET("/:id/inspect", handlers.InspectTask)
 	tasks.GET("/:id/execution-profile", handlers.GetTaskExecutionProfile)
-	tasks.GET("/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
-	tasks.GET("/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
 	tasks.GET("/:id/reviews", handlers.ListTaskReviews)
 	tasks.GET("/:id/blocks", handlers.ListTaskBlocks)
 	tasks.GET("/:id/timeline", handlers.TaskTimeline)
@@ -169,7 +167,6 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutation
 	taskRuns := api.Group("/task-runs")
 	taskRuns.GET("/:id", handlers.GetTaskRun)
 	taskRuns.GET("/:id/result", handlers.ReadTaskRunResult)
-	taskRuns.GET("/:id/conversation/stream", handlers.StreamTaskRunConversation)
 	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
 	if includeTaskMutations {
 		taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
@@ -204,8 +201,6 @@ func registerTaskMutationRoutes(tasks *gin.RouterGroup, handlers *Handlers) {
 	tasks.PUT("/:id/execution-profile", handlers.SetTaskExecutionProfile)
 	tasks.PATCH("/:id/execution-profile/worktree", handlers.SetTaskWorktreePolicy)
 	tasks.DELETE("/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
-	tasks.POST("/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
-	tasks.DELETE("/:id/notifications/bridges/:subscription_id", handlers.DeleteTaskBridgeNotificationSubscription)
 	tasks.POST("/:id/publish", handlers.PublishTask)
 	tasks.POST("/:id/start", handlers.StartTask)
 	tasks.POST("/:id/cancel", handlers.CancelTask)
@@ -314,41 +309,6 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceMemorySessions.POST("/:session_id/replay", handlers.ReplayMemorySession)
 }
 
-func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
-	networkGroup := api.Group("/network")
-	networkGroup.GET("/status", handlers.NetworkStatus)
-
-	workspaceNetwork := api.Group("/workspaces/:workspace_id/network")
-	workspaceNetwork.Use(handlers.AuthorizeNetworkWorkspaceAccess)
-	workspaceNetwork.GET("/peers", handlers.NetworkPeers)
-	workspaceNetwork.GET("/peers/:peer_id", handlers.NetworkPeer)
-	workspaceNetwork.GET("/channels", handlers.NetworkChannels)
-	workspaceNetwork.POST("/channels", handlers.CreateNetworkChannel)
-	workspaceNetwork.GET("/channels/:channel", handlers.NetworkChannel)
-	workspaceNetwork.PATCH("/channels/:channel", handlers.UpdateNetworkChannel)
-	workspaceNetwork.GET("/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
-	workspaceNetwork.PUT("/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
-	workspaceNetwork.DELETE("/channels/:channel/subscriptions/:session_id", handlers.DeleteNetworkSubscription)
-	workspaceNetwork.GET("/channels/:channel/threads", handlers.NetworkThreads)
-	workspaceNetwork.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
-	workspaceNetwork.POST("/channels/:channel/threads/:thread_id/promote-task", handlers.PromoteNetworkThreadTask)
-	workspaceNetwork.GET("/channels/:channel/threads/:thread_id/messages", handlers.NetworkThreadMessages)
-	workspaceNetwork.GET("/channels/:channel/directs", handlers.NetworkDirectRooms)
-	workspaceNetwork.POST("/channels/:channel/directs/resolve", handlers.ResolveNetworkDirectRoom)
-	workspaceNetwork.GET("/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
-	workspaceNetwork.GET("/channels/:channel/directs/:direct_id/messages", handlers.NetworkDirectRoomMessages)
-	workspaceNetwork.GET("/work/:work_id", handlers.NetworkWork)
-	workspaceNetwork.POST("/send", handlers.NetworkSend)
-	workspaceNetwork.GET("/inbox", handlers.NetworkInbox)
-	workspaceNetwork.GET("/usage", handlers.GetNetworkUsage)
-
-	workspaceCoordination := api.Group("/workspaces/:workspace_id/network-coordination")
-	workspaceCoordination.Use(handlers.AuthorizeNetworkWorkspaceAccess)
-	workspaceCoordination.GET("", handlers.GetNetworkCoordination)
-	workspaceCoordination.PUT("", handlers.PutNetworkCoordination)
-	workspaceCoordination.PUT("/invitation", handlers.PutNetworkCoordinationInvitation)
-}
-
 func registerExtensionRoutes(api gin.IRouter, handlers *Handlers, localOnly bool) {
 	privileged := handlers.privilegedMutationGuard()
 	profileWrite := privileged
@@ -399,8 +359,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/skills", privileged, handlers.UpdateSettingsSkills)
 	settings.GET("/automation", handlers.GetSettingsAutomation)
 	settings.PATCH("/automation", privileged, handlers.UpdateSettingsAutomation)
-	settings.GET("/network", handlers.GetSettingsNetwork)
-	settings.PATCH("/network", privileged, handlers.UpdateSettingsNetwork)
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", privileged, handlers.UpdateSettingsWindowManager)
 	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
@@ -433,11 +391,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.POST("/mcp-servers/:name/auth/logout", privileged, handlers.LogoutSettingsMCPAuth)
 	settings.PUT("/mcp-servers/:name", privileged, handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", privileged, handlers.DeleteSettingsMCPServer)
-
-	settings.GET("/sandboxes", handlers.ListSettingsSandboxes)
-	settings.GET("/sandboxes/:name", handlers.GetSettingsSandbox)
-	settings.PUT("/sandboxes/:name", privileged, handlers.PutSettingsSandbox)
-	settings.DELETE("/sandboxes/:name", privileged, handlers.DeleteSettingsSandbox)
 
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", privileged, handlers.PutSettingsHook)
@@ -478,8 +431,4 @@ func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
 	webhooks := api.Group("/webhooks", handlers.gatewayIngressRateLimitMiddleware())
 	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
 	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
-	callbacks := api.Group("/bridge-callbacks", handlers.gatewayIngressRateLimitMiddleware())
-	callbacks.GET("/:id", handlers.ProxyGatewayBridgeCallback)
-	callbacks.POST("/:id", handlers.ProxyGatewayBridgeCallback)
-	callbacks.HEAD("/:id", handlers.ProxyGatewayBridgeCallback)
 }

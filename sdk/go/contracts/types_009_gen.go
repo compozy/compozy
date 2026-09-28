@@ -2,205 +2,208 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
+type HeartbeatFrontmatterPayload struct {
+	Version     int                                    `json:"version"`
+	Enabled     bool                                   `json:"enabled"`
+	Summary     string                                 `json:"summary,omitempty"`
+	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
+	Context     HeartbeatContextProjectionPayload      `json:"context"`
 }
 
-type EffectResult struct {
-	EffectID string          `json:"effect_id"`
-	Payload  json.RawMessage `json:"payload,omitempty"`
+type HeartbeatFrontmatterPreferencesPayload struct {
+	MinInterval  string                       `json:"min_interval,omitempty"`
+	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
 }
 
-type Effort string
-
-type EmptyResult struct{}
-
-type EmptyState struct {
-	Title string `json:"title"`
-	Hint  string `json:"hint,omitempty"`
-	Icon  string `json:"icon,omitempty"`
+type HeartbeatHistoryRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name"`
+	Limit       int    `json:"limit,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
 }
 
-type EventPostRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
+type HeartbeatHistoryResponse struct {
+	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
+	NextCursor string                     `json:"next_cursor,omitempty"`
 }
 
-type EventPostRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
+type HeartbeatMutationResponse struct {
+	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
+	Revision  HeartbeatRevisionPayload `json:"revision"`
 }
 
-type EventPreRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
+type HeartbeatPolicyPayload struct {
+	AgentName        string                             `json:"agent_name,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	SchemaVersion    int                                `json:"schema_version"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
+	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Limits           AuthoredContextLimitsPayload       `json:"limits"`
+	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
 }
 
-type EventPreRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
+type HeartbeatPreferencesPayload struct {
+	MinInterval  string                            `json:"min_interval"`
+	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
+	Context      HeartbeatContextProjectionPayload `json:"context"`
 }
 
-type EventRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
+type HeartbeatPromptContributionPayload struct {
+	Active           bool                               `json:"active"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Truncated        bool                               `json:"truncated"`
+	MaxBytes         int64                              `json:"max_bytes"`
+	MaxBodyBytes     int64                              `json:"max_body_bytes"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Context          HeartbeatContextProjectionPayload  `json:"context"`
 }
 
-type EventRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
+type HeartbeatPutRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	Body           string `json:"body"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
-type ExtensionCommandGroupSpec struct {
-	Path    string `json:"path"`
-	Summary string `json:"summary"`
-	Profile string `json:"profile,omitempty"`
+type HeartbeatRevisionOperation string
+
+type HeartbeatRevisionPayload struct {
+	ID             string                     `json:"id"`
+	AgentName      string                     `json:"agent_name"`
+	SourcePath     string                     `json:"source_path"`
+	Operation      HeartbeatRevisionOperation `json:"operation"`
+	PreviousDigest string                     `json:"previous_digest,omitempty"`
+	NewDigest      string                     `json:"new_digest,omitempty"`
+	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
+	Actor          HeartbeatActorPayload      `json:"actor"`
+	CreatedAt      time.Time                  `json:"created_at"`
 }
 
-type ExtensionCommandSpec struct {
-	Verb    string            `json:"verb"`
-	Summary string            `json:"summary"`
-	Example string            `json:"example,omitempty"`
-	Flags   map[string]string `json:"flags,omitempty"`
+type HeartbeatRollbackRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	TargetDigest   string `json:"target_digest,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
-type ExtensionManifestSummary struct {
-	Name              string   `json:"name"`
-	Version           string   `json:"version"`
-	Description       string   `json:"description,omitempty"`
-	MinCompozyVersion string   `json:"min_compozy_version"`
-	Provides          []string `json:"provides"`
-	Permissions       []string `json:"permissions"`
+type HeartbeatStatusRequest struct {
+	WorkspaceID             string `json:"workspace_id,omitempty"`
+	AgentName               string `json:"agent_name"`
+	SessionID               string `json:"session_id,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
 }
 
-type ExtensionProvideToolsResponse struct {
-	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+type HeartbeatStatusResponse struct {
+	AgentName        string                             `json:"agent_name"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
+	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
 }
 
-type ExtensionToolCallRequest struct {
-	ToolID           ToolID                       `json:"tool_id"`
-	Handler          string                       `json:"handler"`
-	SessionID        string                       `json:"session_id,omitempty"`
-	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
-	Input            json.RawMessage              `json:"input"`
+type HeartbeatTimeWindowPayload struct {
+	Timezone string `json:"timezone"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
 }
 
-type ExtensionToolCallResponse struct {
-	Result ToolResult `json:"result"`
+type HeartbeatValidateRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Body        string `json:"body"`
 }
 
-type ExtensionToolRuntimeDescriptor struct {
-	Profile             string                `json:"profile,omitempty"`
-	ID                  ToolID                `json:"id"`
-	Handler             string                `json:"handler"`
-	Description         string                `json:"description,omitempty"`
-	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
-	Preview             string                `json:"preview,omitempty"`
-	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
-	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
-	InputSchemaDigest   string                `json:"input_schema_digest"`
-	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
-	ReadOnly            bool                  `json:"read_only"`
-	Risk                RiskClass             `json:"risk"`
-	RequiresInteraction bool                  `json:"requires_interaction"`
-	Capabilities        []string              `json:"capabilities,omitempty"`
-	Command             *ExtensionCommandSpec `json:"command,omitempty"`
+type HeartbeatWakeDecisionPayload struct {
+	WakeEventID       string                             `json:"wake_event_id,omitempty"`
+	Result            HeartbeatWakeResult                `json:"result"`
+	Reason            HeartbeatWakeReason                `json:"reason"`
+	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest      string                             `json:"policy_digest,omitempty"`
+	ConfigDigest      string                             `json:"config_digest,omitempty"`
+	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
+	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 }
 
-type ExtensionToolWorkspaceScope struct {
-	ID   string `json:"id"`
-	Root string `json:"root"`
+type HeartbeatWakeEventPayload struct {
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id,omitempty"`
+	AgentName         string              `json:"agent_name,omitempty"`
+	SessionID         string              `json:"session_id,omitempty"`
+	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
+	Source            HeartbeatWakeSource `json:"source"`
+	Result            HeartbeatWakeResult `json:"result"`
+	Reason            HeartbeatWakeReason `json:"reason"`
+	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	ExpiresAt         time.Time           `json:"expires_at"`
 }
 
-type ExtensionValidatePayload struct {
-	Status       string                         `json:"status"`
-	Format       string                         `json:"format"`
-	Name         string                         `json:"name,omitempty"`
-	Version      string                         `json:"version,omitempty"`
-	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
-	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
-	Issues       []ValidationIssue              `json:"issues"`
-	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
+type HeartbeatWakeReason string
+
+type HeartbeatWakeRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
+	AgentName      string              `json:"agent_name"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitempty"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
 }
 
-type ExtensionValidationComponent struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Transport string `json:"transport,omitempty"`
+type HeartbeatWakeResponse struct {
+	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }
 
-type FailureHealth struct {
-	Status string                 `json:"status"`
-	Total  int                    `json:"total"`
-	ByKind map[FailureKind]int    `json:"by_kind,omitempty"`
-	Recent []SessionFailureHealth `json:"recent,omitempty"`
-}
+type HeartbeatWakeResult string
 
-type FailureKind string
+type HeartbeatWakeSource string
 
-type FireLimitConfig struct {
-	Max    int    `json:"max"`
-	Window string `json:"window"`
+type HeartbeatWakeStatePayload struct {
+	WorkspaceID      string              `json:"workspace_id,omitempty"`
+	AgentName        string              `json:"agent_name,omitempty"`
+	SessionID        string              `json:"session_id"`
+	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
+	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
+	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
+	CoalescedCount   int                 `json:"coalesced_count"`
+	LastResult       HeartbeatWakeResult `json:"last_result"`
+	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
+	UpdatedAt        time.Time           `json:"updated_at"`
 }

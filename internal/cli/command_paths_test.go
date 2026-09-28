@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/procutil"
@@ -68,7 +68,6 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	}
 
 	getCalls := 0
-	networkChannelsCalled := false
 	getAgentSoulCalled := false
 	putAgentSoulCalled := false
 	deleteAgentSoulCalled := false
@@ -213,49 +212,6 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				ValidationStatus: "valid",
 			}, nil
 		},
-		networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
-			return NetworkStatusRecord{Enabled: true, Status: "running"}, nil
-		},
-		networkPeersFn: func(_ context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
-			if query.WorkspaceRef != "ws-1" || query.Channel != "builders" {
-				t.Fatalf("NetworkPeers() query = %#v, want ws-1/builders scope", query)
-			}
-			return []NetworkPeerRecord{{PeerID: "reviewer.sess-1", Channel: "builders"}}, nil
-		},
-		networkChannelsFn: func(_ context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
-			if workspaceRef != "ws-1" {
-				t.Fatalf("NetworkChannels() workspaceRef = %q, want ws-1", workspaceRef)
-			}
-			networkChannelsCalled = true
-			return []NetworkChannelRecord{{Channel: "builders", PeerCount: 1}}, nil
-		},
-		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
-			if request.WorkspaceID != "ws-1" ||
-				request.SessionID != "sess-1" || request.Channel != "builders" || request.Kind != "say" ||
-				request.Surface != "thread" || request.ThreadID != "thread_command_path" ||
-				string(request.Body) != `{"text":"hello"}` {
-				t.Fatalf("NetworkSend() request = %#v, want workspace thread session/channel/kind/body", request)
-			}
-			return NetworkSendRecord{
-				ID:        "msg-1",
-				SessionID: "sess-1",
-				Channel:   "builders",
-				Surface:   "thread",
-				ThreadID:  "thread_command_path",
-				Kind:      "say",
-			}, nil
-		},
-		networkInboxFn: func(_ context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error) {
-			if workspaceRef != "ws-1" {
-				t.Fatalf("NetworkInbox() workspaceRef = %q, want ws-1", workspaceRef)
-			}
-			if sessionID != "sess-1" {
-				t.Fatalf("NetworkInbox() sessionID = %q, want sess-1", sessionID)
-			}
-			return []NetworkEnvelopeRecord{
-				{ID: "msg-1", Kind: "say", Channel: "builders", From: "reviewer.sess-1"},
-			}, nil
-		},
 		listLogsFn: func(_ context.Context, query LogsListQuery) ([]LogEventRecord, error) {
 			if query.WorkspaceRef != "ws-1" {
 				t.Fatalf("ListLogs() workspaceRef = %q, want ws-1", query.WorkspaceRef)
@@ -347,74 +303,6 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 			return DaemonStatus{Status: "running", PID: 10, StartedAt: fixedTestNow}, nil
 		},
-		getBridgeFn: func(context.Context, string) (BridgeRecord, error) {
-			return BridgeRecord{
-				ID:            "brg-1",
-				Scope:         "global",
-				Platform:      "telegram",
-				ExtensionName: "ext-telegram",
-				DisplayName:   "Support",
-				Enabled:       true,
-				Status:        "ready",
-			}, nil
-		},
-		bridgeRoutesFn: func(context.Context, string) ([]BridgeRouteRecord, error) {
-			return []BridgeRouteRecord{
-				{
-					RoutingKeyHash:   "hash-1",
-					Scope:            "global",
-					BridgeInstanceID: "brg-1",
-					PeerID:           "peer-1",
-					SessionID:        "sess-1",
-					AgentName:        "coder",
-					LastActivityAt:   fixedTestNow,
-				},
-			}, nil
-		},
-		bridgeTargetsFn: func(context.Context, string, string, int) (BridgeTargetsRecord, error) {
-			return BridgeTargetsRecord{
-				BridgeID: "brg-1",
-				Targets: []BridgeTargetRecord{
-					{
-						BridgeID:       "brg-1",
-						CanonicalRoute: "telegram:channel:support",
-						DisplayName:    "Support room",
-						Normalized:     "support room",
-						TargetType:     bridgepkg.BridgeTargetTypeChannel,
-						Qualifier:      "telegram",
-						Capabilities:   []string{"reply"},
-						UpdatedAt:      fixedTestNow,
-						LastSeenAt:     fixedTestNow,
-					},
-				},
-				Total:       1,
-				GeneratedAt: fixedTestNow,
-			}, nil
-		},
-		resolveBridgeTargetFn: func(context.Context, string, string) (BridgeResolveTargetRecord, error) {
-			return BridgeResolveTargetRecord{
-				Result: bridgepkg.ResolveBridgeTargetResult{
-					Step: 2,
-					Match: &bridgepkg.BridgeTarget{
-						BridgeID:       "brg-1",
-						CanonicalRoute: "telegram:channel:support",
-						DisplayName:    "Support room",
-						Normalized:     "support room",
-						TargetType:     bridgepkg.BridgeTargetTypeChannel,
-						Qualifier:      "telegram",
-						Capabilities:   []string{"reply"},
-						UpdatedAt:      fixedTestNow,
-						LastSeenAt:     fixedTestNow,
-					},
-				},
-			}, nil
-		},
-		testBridgeDeliveryFn: func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error) {
-			return BridgeTestDeliveryRecord{
-				Status:         "resolved",
-				DeliveryTarget: DeliveryTargetRecord{BridgeInstanceID: "brg-1", PeerID: "peer-1", Mode: "reply"},
-			}, nil
-		},
 	}
 	deps := newWorkspaceTestDeps(t, client)
 	runner := &stubRunner{}
@@ -475,39 +363,10 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			"json",
 		},
 		{"agent", "heartbeat", "status", "coder", "-o", "json"},
-		{"network", "status", "-o", "json"},
-		{"network", "--workspace", "ws-1", "peers", "builders", "-o", "json"},
-		{"network", "--workspace", "ws-1", "channels", "-o", "json"},
-		{
-			"network",
-			"--workspace",
-			"ws-1",
-			"send",
-			"--session",
-			"sess-1",
-			"--channel",
-			"builders",
-			"--surface",
-			"thread",
-			"--thread",
-			"thread_command_path",
-			"--kind",
-			"say",
-			"--body",
-			`{"text":"hello"}`,
-			"-o",
-			"json",
-		},
-		{"network", "--workspace", "ws-1", "inbox", "--session", "sess-1", "-o", "json"},
 		{"logs", "--workspace", "ws-1", "-o", "json"},
 		{"logs", "--workspace", "ws-1", "--follow", "-o", "json"},
 		{"status", "-o", "json"},
 		{"doctor", "-o", "json"},
-		{"bridge", "get", "brg-1", "-o", "json"},
-		{"bridge", "routes", "brg-1", "-o", "json"},
-		{"bridge", "targets", "brg-1", "-o", "json"},
-		{"bridge", "resolve", "brg-1", "support", "-o", "json"},
-		{"bridge", "test-delivery", "brg-1", "--peer-id", "peer-1", "--mode", "reply", "-o", "json"},
 		{"session", "soul", "refresh", "sess-1", "--expected-digest", "sha256:old", "-o", "json"},
 		{"session", "health", "sess-1", "-o", "json"},
 		{"session", "status", "sess-1", "-o", "json"},
@@ -527,9 +386,6 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 
 	if _, _, err := executeRootCommand(t, deps, "daemon", "start", "--foreground"); err != nil {
 		t.Fatalf("daemon start --foreground error = %v", err)
-	}
-	if !networkChannelsCalled {
-		t.Fatal("NetworkChannels() was not called")
 	}
 	if !getAgentSoulCalled || !putAgentSoulCalled || !deleteAgentSoulCalled || !rollbackAgentSoulCalled {
 		t.Fatalf(
@@ -687,9 +543,6 @@ func TestDaemonStatusFallbackStartingAndStopped(t *testing.T) {
 	}
 	if status.Status != "stopped" {
 		t.Fatalf("stopped status = %q, want %q", status.Status, "stopped")
-	}
-	if status.Network != nil {
-		t.Fatalf("stopped network = %#v, want nil", status.Network)
 	}
 }
 

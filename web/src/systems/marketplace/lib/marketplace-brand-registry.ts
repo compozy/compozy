@@ -1,5 +1,14 @@
-import { bridgeKindIconRegistry, type KindIconRegistry } from "@compozy/ui";
-import { ClaudeLogo, CursorLogo, GeminiLogo, OpenAILogo, VercelLogo } from "@compozy/ui/logos";
+import { type KindIconRegistry } from "@compozy/ui";
+import {
+  ClaudeLogo,
+  CursorLogo,
+  GeminiLogo,
+  GithubLogo,
+  LinearLogo,
+  OpenAILogo,
+  SlackLogo,
+  VercelLogo,
+} from "@compozy/ui/logos";
 import { createElement, type SVGProps } from "react";
 
 /**
@@ -8,7 +17,12 @@ import { createElement, type SVGProps } from "react";
  * a generic glyph, which the card never shows.
  */
 const marketplaceBrandRegistry = {
-  ...bridgeKindIconRegistry,
+  github: { brand: GithubLogo },
+  linear: {
+    render: (props: SVGProps<SVGSVGElement>) =>
+      createElement(LinearLogo, { ...props, mode: "dark" }),
+  },
+  slack: { brand: SlackLogo },
   claude: { brand: ClaudeLogo },
   cursor: { brand: CursorLogo },
   gemini: { brand: GeminiLogo },

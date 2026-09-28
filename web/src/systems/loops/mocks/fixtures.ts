@@ -6,7 +6,6 @@ import type {
   LoopRun,
   LoopRunAggregates,
 } from "../types";
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import { heroEffectiveLifecycle, heroRunFixtures } from "./fixture-hero-path";
 import { fixtureGraph } from "./fixture-graph";
@@ -85,7 +84,6 @@ function buildRun(
     budget_wall_sec: 3_600,
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     created_at: "2026-07-05T12:00:00Z",
     started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:18:00Z",
@@ -273,7 +271,7 @@ export const loopRunFixtures: LoopRun[] = [
     tokens_used: 152_000,
     generation: 3,
     started_origin_kind: "http",
-    inputs: { task_name: "network-bridge", reviewer: "reviewer", fixer: "review_fixer" },
+    inputs: { task_name: "billing-reports", reviewer: "reviewer", fixer: "review_fixer" },
   }),
   ...heroRunFixtures,
 ];

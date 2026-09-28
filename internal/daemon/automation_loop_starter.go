@@ -11,7 +11,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -43,7 +43,7 @@ func newAutomationLoopStarter(
 	toolRegistry toolspkg.Registry,
 	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
-	participationResolver participation.Resolver,
+
 	inputEntities looppkg.InputEntityCatalog,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
 	profiles loopProfileNameResolver,
@@ -69,9 +69,6 @@ func newAutomationLoopStarter(
 	}
 	if runtimeCatalog != nil {
 		options = append(options, looppkg.WithRuntimeCatalog(runtimeCatalog))
-	}
-	if participationResolver != nil {
-		options = append(options, looppkg.WithParticipationResolver(participationResolver))
 	}
 	service, err := looppkg.NewService(
 		loopStore,
@@ -185,12 +182,11 @@ func (s *automationLoopStarter) StartLoop(
 		return automationpkg.LoopStartResult{}, err
 	}
 	run, err := s.service.Start(ctx, workspaceID, loopName, looppkg.Inputs{
-		ProfileID:                  strings.TrimSpace(req.ProfileID),
-		Values:                     values,
-		StartMetadata:              automationLoopStartMetadata(req),
-		NetworkParticipation:       req.NetworkParticipation,
-		NetworkParticipationSource: participation.SourceAutomationJob,
-		Admission:                  automationLoopAdmission(req),
+		ProfileID:     strings.TrimSpace(req.ProfileID),
+		Values:        values,
+		StartMetadata: automationLoopStartMetadata(req),
+
+		Admission: automationLoopAdmission(req),
 	}, req.Actor)
 	if err != nil {
 		if errors.Is(err, looppkg.ErrConcurrencyConflict) {

@@ -596,49 +596,6 @@ cleanup:
   - revert all changes; runtime.dispose().
 ```
 
-### UI-08 — Bridges: list / detail / test-delivery roundtrip with explicit error states
-
-```yaml qa-scenario
-id: ui-08-bridges-test-delivery
-title: Bridges page lists bridges, opens detail, and the test-delivery dialog reaches the daemon and surfaces success/failure inline; failure shows actionable error citing the offending field
-theme: web.bridges
-coverage:
-  primary:
-    - web.bridges.list
-    - web.bridges.test_delivery
-  secondary:
-    - api.parity.http
-risk: medium
-live: false
-provider: mock-acp
-preconditions:
-  - Seed at least one bridge config via `runtime.requestOperatorJSON("/api/bridges", { method: "POST", ... })` ahead of navigation; pick a bridge type whose adapter is available in the test build (per `internal/transport`).
-code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/bridge-list-panel.tsx
-  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/bridge-detail-panel.tsx
-  - /Users/pedronauck/Dev/compozy/compozy/web/src/systems/bridges/components/bridge-test-delivery-dialog.tsx
-steps:
-  - await page.goto(runtime.url("/bridges"));
-  - await expect(page.getByTestId(/bridge-list/i)).toBeVisible();
-  - Click the seeded bridge to open the detail panel.
-  - Click the "Test delivery" button → dialog opens with a payload editor.
-  - Submit a malformed payload (e.g. missing required `target` field) → assert dialog shows an inline error citing the missing field name (NOT a raw 400 stack trace).
-  - Submit a valid payload → assert success indicator (success-toned chip + toast).
-  - Verify daemon-side: bridge runs increment by 1 (via `runtime.requestOperatorJSON("/api/bridges/:id/runs")`).
-expected:
-  - Validation errors use copy from the daemon's error envelope translated through `apiErrorMessage`.
-  - Success/failure paint within ≤2s of the POST response.
-  - Toast affordance includes a "View runs" or equivalent action that deep-links into the runs panel.
-evidence:
-  - ui-08-screenshots/{list,detail,test-delivery-dialog,error-state,success-state}.png
-  - ui-08-network.har (POST /api/bridges/:id/test-delivery)
-failure_signatures:
-  - Error toast renders raw JSON — apiErrorMessage regression.
-  - Success toast appears even when the daemon returned 4xx — request inference regression in the bridges-api adapter.
-cleanup:
-  - delete seeded bridge; runtime.dispose().
-```
-
 ### UI-09 — Sessions / lineage tree visible; click child opens its transcript
 
 ```yaml qa-scenario

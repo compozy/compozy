@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -47,7 +46,6 @@ func (s *service) Start(
 	if created.RunStartState != nil && created.Admission != nil && created.Admission.Suppressed {
 		return &created, nil
 	}
-	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
 }
@@ -79,7 +77,6 @@ func (s *service) StartInline(
 	if err != nil {
 		return nil, err
 	}
-	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
 }
@@ -121,7 +118,6 @@ func (s *service) ReplaceInline(
 	if err != nil {
 		return InlineReplaceResult{}, err
 	}
-	s.observeCommittedRunParticipation(ctx, committed.Run)
 	s.revokeGoalPromptLeases(ctx, committed.RevokedPromptLeases, TransitionCauseGoalReplace)
 	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, replacedAt)
 	s.dispatchLoopStarted(ctx, committed.Run, actor)
@@ -196,21 +192,6 @@ func (s *service) prepareResolvedStart(
 	if err != nil {
 		return Run{}, fmt.Errorf("loop: generate run id: %w", err)
 	}
-	networkSpec, err := s.resolveRunParticipation(
-		ctx,
-		ws,
-		runID,
-		inputs.NetworkParticipation,
-		inputs.NetworkParticipationSource,
-		resolved.Definition.NetworkParticipation,
-		inputs.NetworkParticipationSnapshot,
-	)
-	if err != nil {
-		return Run{}, err
-	}
-	if err := validateLoopParticipation(resolved.Definition.Graph, networkSpec); err != nil {
-		return Run{}, err
-	}
 	return s.startResolved(
 		runID,
 		ws,
@@ -221,7 +202,6 @@ func (s *service) prepareResolvedStart(
 		inputs,
 		origin,
 		policy,
-		networkSpec,
 		actor,
 	)
 }
@@ -250,7 +230,6 @@ func (s *service) startResolved(
 	inputs Inputs,
 	origin RunOrigin,
 	policy GoalRunPolicy,
-	networkSpec participation.Spec,
 	actor task.ActorContext,
 ) (Run, error) {
 	snapshot, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
@@ -271,7 +250,6 @@ func (s *service) startResolved(
 		Origin: &origin, Inputs: resolvedInputs,
 	}
 	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
-	run.SetNetworkSpec(networkSpec)
 	if inputs.Admission != nil {
 		admission := *inputs.Admission
 		if admission.Horizon <= 0 && effective.Lifecycle.AdmissionHorizon != nil {

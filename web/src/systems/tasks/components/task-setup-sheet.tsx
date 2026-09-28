@@ -116,7 +116,7 @@ export function TaskSetupSheet({
             />
           ) : (
             <p className="text-small-body text-muted" data-testid="tasks-setup-empty">
-              No custom setup. Runs inherit the workspace defaults for worker, model, and sandbox.
+              No custom setup. Runs inherit the workspace defaults for worker and model.
             </p>
           )}
 

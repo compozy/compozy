@@ -202,11 +202,10 @@ func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 	t.Helper()
 
 	created, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:                    compozyconfig.BuiltinCoordinatorAgentName,
-		Provider:                     "claude",
-		Name:                         "bundled-coordinator",
-		Workspace:                    h.workspaceID,
-		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "coord-fallback-test"),
+		AgentName: compozyconfig.BuiltinCoordinatorAgentName,
+		Provider:  "claude",
+		Name:      "bundled-coordinator",
+		Workspace: h.workspaceID,
 		Lineage: &store.SessionLineage{
 			SpawnRole: string(SessionTypeCoordinator),
 			TTLExpiresAt: func() *time.Time {

@@ -5,21 +5,17 @@ date: 2026-07-27
 category: runtime
 tags:
   - runtime
-  - compozy-network
   - agent-operating-system
   - extensibility
   - beta
   - launch
 author: pedronauck
-kinds:
-  - greet
-  - whois
-  - say
-  - capability
-  - receipt
-  - trace
 featured: true
 ---
+
+> **Historical release post:** Networks, Bridges, and the product Sandbox described in this post
+> have since been removed. Tasks, autonomy, Goal, HEARTBEAT.md, and SOUL.md remain supported.
+> See the [current migration notes](/docs/migration#networks-bridges-and-sandbox-removal).
 
 > **Release context:** This launch post records v0.3.0-beta.1. For the current installable beta, use
 > the [installation guide](/docs/getting-started/installation) and
@@ -37,9 +33,7 @@ built to pass it.
 
 The claim is about integration. A task can start a durable session. A loop can coordinate the work.
 Permissions stay attached to execution. Memory stays scoped to the right workspace. The OS shell,
-CLI, HTTP/SSE, Unix domain socket, and agent tools inspect the same daemon-owned state. CompozyOS
-Network lets sessions become peers inside that system instead of adding a separate coordination
-product beside it.
+CLI, HTTP/SSE, Unix domain socket, and agent tools inspect the same daemon-owned state.
 
 That connection is the release. The shell is how people see it; the runtime is what makes it an OS.
 
@@ -48,8 +42,8 @@ That connection is the release. The shell is how people see it; the runtime is w
 The v0.3 line replaces the old product boundary instead of wrapping it in compatibility layers.
 
 - The product, binary, package, environment, storage, API, and native-tool namespaces are CompozyOS.
-- Sessions, tasks, loops, memory, permissions, automation, hooks, extensions, bridges, tools, and
-  Compozy Network operate through one daemon.
+- Sessions, tasks, loops, memory, permissions, automation, hooks, extensions, and tools
+  operate through one daemon.
 - The `review-and-fix` loop is agent-authored. A reviewer produces structured issues, fixer agents
   remediate them, and deterministic artifacts record the round without depending on an external
   review provider.
@@ -66,7 +60,7 @@ surface, and explains the clean-state transition.
 ## Built to be built on
 
 An operating system is useful because other things can become part of it. CompozyOS exposes that
-boundary through extensions, typed hooks, skills, capabilities, bridge adapters, SDK contracts, MCP,
+boundary through extensions, typed hooks, skills, capabilities, SDK contracts, MCP,
 native tools, and daemon-owned registries.
 
 The same rule applies to management. A feature is incomplete when it only works through a private Go
@@ -88,10 +82,6 @@ living only inside a model conversation.
 People can start a session from the CLI, follow it in the OS shell, inspect the same state over HTTP
 or UDS, and let an agent continue through structured tools. The surface changes; the work record does
 not.
-
-Compozy Network adds explicit agent-to-agent coordination. Live sessions can discover peers, exchange
-typed envelopes, advertise capabilities, and return receipts. Local execution remains the default;
-Network participation is explicit and bounded by runtime policy.
 
 ## What the beta means
 
@@ -128,8 +118,7 @@ $ compozy session new --workspace current --agent general --name first-run
 ```
 
 Continue with the [Quick Start](/docs/getting-started/quick-start), inspect the
-[runtime documentation](/docs), or read the [Compozy Network protocol](/docs/network/protocol) before enabling
-Live coordination.
+[runtime documentation](/docs).
 
 For an existing v0.2 environment, start with the [migration guide](/docs/migration). It records
 the hard cuts, the clean-state procedure, and where each legacy surface moved — including the cases

@@ -1,7 +1,7 @@
 # J-cross-workspace-access — Reach another workspace under the session's permission mode
 
 An agent working in one workspace needs something that lives in another: a workspace read, a task to
-claim, a child to spawn, a coordination setting. The session's own permission mode is the only
+claim, a child to spawn. The session's own permission mode is the only
 authority. `approve-all` crosses without asking, `deny-all` never crosses and never asks, and
 `approve-reads` asks the operator once at the native-tool seam and denies with a hint everywhere
 else. In a healthy event store, the operator can read the decision afterwards; an audit append
@@ -14,7 +14,6 @@ flowchart TD
     E3[Entry: agent HTTP or UDS identity route scoped to another workspace] --> CAN
     E4[Entry: claim the next task run in another workspace] --> CAN
     E5[Entry: spawn a child agent into another workspace] --> CAN
-    E6[Entry: read or set network coordination in another workspace] --> CAN
     CAN --> POL{Which authority decides?}
     POL -->|operator, or the target is home| ALLOW
     POL -->|mode approve-all| ALLOW[Crossing proceeds, no prompt]
@@ -33,7 +32,7 @@ flowchart TD
     ONCE --> ALLOW
     RONCE --> DENY
     SESSREJ --> DENY
-    SESSALLOW --> REUSE[Later task claim, spawn, and coordination crossings succeed with no further prompt]
+    SESSALLOW --> REUSE[Later task claim, spawn crossings succeed with no further prompt]
     ALLOW --> AUD[Side effect: best-effort workspace.access_granted event names target, seam, source, and mode]
     DENY --> HINT[Denial carries the permission-mode hint — native denials report workspace_access_denied and agent CLI verbs exit 77]
     HINT --> AUD2[Side effect: best-effort workspace.access_denied event names target, seam, source, and mode]
@@ -55,11 +54,9 @@ journey:
   entry_points:
     - url: "compozy__workspace_info / compozy__memory_* / compozy__task_run_claim_next with a foreign workspace input"
       origin: direct
-    - url: "compozy task next --workspace / compozy network coordination status --workspace / compozy spawn --workspace"
+    - url: "compozy task next --workspace / compozy spawn --workspace"
       origin: direct
     - url: "POST /api/agent/spawn, POST /api/agent/tasks/claim-next, GET /api/agent/me over HTTP and UDS"
-      origin: direct
-    - url: "GET|PUT /api/workspaces/:workspace_id/network-coordination"
       origin: direct
     - url: "compozy session approve <session-id> --request-id <request-id> --decision <decision> / POST /api/workspaces/:workspace_id/sessions/:session_id/approve"
       origin: in-app-nav
@@ -68,7 +65,7 @@ journey:
   actions:
     - step: 1
       verb: "Name another workspace from a session whose agent is approve-all"
-      expected_observable: "The crossing succeeds at the native-tool, task-claim, spawn, and coordination seams with no prompt, and the work lands in the named workspace"
+      expected_observable: "The crossing succeeds at the native-tool, task-claim, and spawn seams with no prompt, and the work lands in the named workspace"
     - step: 2
       verb: "Repeat the same crossings from a deny-all session"
       expected_observable: "Every seam denies with the permission-mode hint, nothing prompts anywhere, and native denials report reason workspace_access_denied while agent CLI verbs exit 77"
@@ -77,7 +74,7 @@ journey:
       expected_observable: "Exactly one pending permission offers allow once, allow for this session, reject once, and reject for this session; the non-tool seams deny with the same hint and never prompt"
     - step: 4
       verb: "Answer allow for this session, then cross at a seam that never prompts"
-      expected_observable: "Task claim, spawn, and coordination crossings now succeed without asking, and no approval appears in any list or revoke surface"
+      expected_observable: "Task claim, spawn crossings now succeed without asking, and no approval appears in any list or revoke surface"
     - step: 5
       verb: "Stop the session, or restart the daemon, and cross again"
       expected_observable: "The first crossing prompts again — the session answer did not survive"
@@ -97,7 +94,7 @@ journey:
     - at_step: 2
       how: "The agent hits a final denial, stops retrying, and surfaces the block to the operator."
       resume: "The operator raises the agent's permissions.mode or answers the prompt; the agent retries the same crossing and it now resolves under the new authority."
-  crosses: [native-tools, CLI, HTTP, UDS, session-identity, task-claim, spawn, network-coordination, approval-bridge, event-store, site-docs, official-skill]
+  crosses: [native-tools, CLI, HTTP, UDS, session-identity, task-claim, spawn, approval-bridge, event-store, site-docs, official-skill]
 ```
 
 Taxonomy note: journeys, functional checks, and edge/error states are all in scope — the denial hint,

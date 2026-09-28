@@ -1,8 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
 import { Button, Time } from "@compozy/ui";
-
-import { runCoordinationChannelLabel, runIsCoordinated } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 
 type ActiveRun = NonNullable<NonNullable<TaskDetailView["summary"]>["active_run"]>;
@@ -26,7 +24,6 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
       ? `${attempts} is assigned`
       : `${attempts} is queued`;
   const claimant = run.claimed_by?.ref;
-  const coordinationChannel = runIsCoordinated(run) ? runCoordinationChannelLabel(run) : null;
 
   return (
     <section
@@ -57,15 +54,6 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
             </>
           ) : null}
         </p>
-        {coordinationChannel ? (
-          <p
-            className="mt-1 text-form-label text-subtle"
-            data-testid="tasks-detail-coordination"
-            title="Channel messages support coordination only; task-run status remains authoritative."
-          >
-            Coordination channel · {coordinationChannel}
-          </p>
-        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-3.5">
         {elapsed ? (

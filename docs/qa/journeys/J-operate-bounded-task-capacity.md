@@ -45,14 +45,14 @@ journey:
       expected_observable: "One run owns the available slot; a non-waiting claim returns the typed capacity conflict and a waiting claim continues polling while the second run stays queued."
     - step: 3
       verb: "Check isolation and control-plane exemptions"
-      expected_observable: "Workspace B, global task runs, and Network wake runs remain claimable while workspace A is full."
+      expected_observable: "Workspace B and global task runs remain claimable while workspace A is full."
     - step: 4
       verb: "Open capacity and continue the queued run"
       expected_observable: "Completing, releasing, or expiring the active lease lets the deferred run claim without re-enqueueing or changing its attempt."
   goal:
     observable: "Fresh config and task reads show the configured bound, one active workspace-A run, and eventual claim of the preserved queued run."
     side_effects: [desired-config-written, daemon-generation-restarted, task-run-preserved-and-claimed]
-  true_end_state: "The deferred run leaves the durable queue only after workspace capacity opens; another workspace plus global and Network wake work were never blocked."
+  true_end_state: "The deferred run leaves the durable queue only after workspace capacity opens; another workspace and global work were never blocked."
   exit:
     natural: "The operator leaves the configured bound in place and agents continue processing the backlog within it."
   abandonment:

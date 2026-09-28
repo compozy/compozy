@@ -7,7 +7,7 @@
 
 ## Purpose
 
-This catalog names reusable, atomic integrations and providers that could make existing services reachable from Compozy. It contains **211 new opportunities**: **18 platform-enabling investments** and **193 service or provider extensions** across twelve domains. The eight bridge providers already implemented in the repository are recorded separately as baseline and are not counted as new candidates.
+This catalog names reusable, atomic integrations and providers that could make existing services reachable from Compozy. It contains **211 new opportunities**: **18 platform-enabling investments** and **193 service or provider extensions** across twelve domains.
 
 Every row is a proposal. Inclusion does not claim that Compozy supports the service, that the provider will grant API access, that a catalog entry is official, that an MCP server is safe, or that the integration has product-market fit. Provider terms, scopes, rate limits, regional availability, commercial access, data handling, and maintenance ownership must be verified before implementation.
 
@@ -24,10 +24,9 @@ The current implementation supports installable, versioned extensions with prove
 
 An extension kit can publish agents with Soul and Heartbeat sidecars, automation jobs and triggers, layouts, skills, Loops, and MCP sidecars when the extension is enabled. It does not install arbitrary extension dependencies. Therefore, every row below is an independently owned extension or MCP candidate; multi-package recommendations remain editorial collections.
 
-Two current constraints materially affect this catalog:
+A current constraint materially affects this catalog:
 
-1. Remote APIs normally need a trusted tool.provider subprocess plus a narrowly scoped skill. An upstream OpenAPI, GraphQL, CLI, or hosted MCP surface is discovery evidence, not a current zero-code import path.
-2. External messaging bridge adapters are production-capable in-tree or local-source implementations, but third-party bridge authoring is not yet a first-class public SDK and marketplace path. Any new messaging bridge adapter depends on PE-014 before it should be presented as a routine community extension.
+Remote APIs normally need a trusted tool.provider subprocess plus a narrowly scoped skill. An upstream OpenAPI, GraphQL, CLI, or hosted MCP surface is discovery evidence, not a current zero-code import path.
 
 Marketplace extensions also have a stricter read-oriented grant ceiling today. Write-capable connectors need an explicit trust and permission design; they must not be described as marketplace-ready merely because a provider exposes an API.
 
@@ -55,7 +54,6 @@ Priority is directional product judgment, not verified demand.
 | **LP** | Packaged deterministic Loop. |
 | **MCP-L** | Command-launched local MCP server declared by the extension. Hosted MCP enrollment requires PE-004. |
 | **KIT** | Static extension kit resource or lifecycle work. |
-| **BA** | bridge.adapter implementation. Third-party distribution requires PE-014. |
 | **CORE** | Daemon, registry, SDK, permission, or lifecycle work; not representable as an extension alone today. |
 
 The surface column is an implementation hypothesis. It does not assert that the named upstream currently offers a particular protocol.
@@ -84,23 +82,6 @@ Risk is the highest plausible operation in the proposed extension, not the defau
 | **I:** | Product inference: Compozy fit, outcome, priority, surface, or packaging is an inference made for this catalog. |
 
 Source codes are defined in the appendix. Every candidate carries at least one inference marker so verified upstream presence cannot be mistaken for a shipped Compozy integration.
-
-## Existing production in-tree bridge baseline
-
-These are production implementations present in the source tree. Released compozy artifacts do **not** include their provider executables or install them automatically. An operator currently builds and installs them explicitly from a trusted source checkout. They are baseline, not new opportunity rows.
-
-| ID | Platform | In-tree directory | Current provider contract | Catalog treatment |
-| --- | --- | --- | --- | --- |
-| BL-001 | Discord | [extensions/bridges/discord](../../extensions/bridges/discord/) | Signed interactions/webhooks; message create, edit, and delete | Existing baseline; do not count as a new extension |
-| BL-002 | Google Chat | [extensions/bridges/gchat](../../extensions/bridges/gchat/) | Direct, Pub/Sub, or hybrid JWT inbound; message create, edit, and delete | Existing baseline; do not count as a new extension |
-| BL-003 | GitHub | [extensions/bridges/github](../../extensions/bridges/github/) | Signed issue/review-comment webhooks; comment create, edit, and delete | Existing baseline; do not count as a new extension |
-| BL-004 | Linear | [extensions/bridges/linear](../../extensions/bridges/linear/) | Signed comment or Agent Session webhooks; comments or append-only activities | Existing baseline; do not count as a new extension |
-| BL-005 | Slack | [extensions/bridges/slack](../../extensions/bridges/slack/) | Signed events, commands, and interactions; message create, edit, and delete | Existing baseline; do not count as a new extension |
-| BL-006 | Microsoft Teams | [extensions/bridges/teams](../../extensions/bridges/teams/) | Bot Framework activities with bearer JWTs; activity create, edit, and delete | Existing baseline; do not count as a new extension |
-| BL-007 | Telegram | [extensions/bridges/telegram](../../extensions/bridges/telegram/) | Secret-token Bot API webhooks; message create, edit, and delete | Existing baseline; do not count as a new extension |
-| BL-008 | WhatsApp | [extensions/bridges/whatsapp](../../extensions/bridges/whatsapp/) | Meta verification and signed POST; Cloud API text create | Existing baseline; do not count as a new extension |
-
-The baseline describes external messaging bridge transport, not Compozy Network channels or every business operation exposed by the corresponding vendor. A separate tool-provider extension may still be appropriate for service-specific records, search, files, administration, or analytics.
 
 ## Platform-enabling opportunities
 
@@ -131,7 +112,7 @@ The following are intentionally separated from atomic service extensions. Each r
 | ⛔ rejected | PE-011 | Signed releases and publisher identity | P0 | Operators verify namespace ownership, immutable artifacts, checksums, publisher identity, and provenance before enablement. | CORE | R3/A0 | V:MCP · V:OAI · V:ANTH · V:Compozy · I:Compozy |
 | ⛔ rejected | PE-012 | Registry federation and namespace ownership | P1 | Teams discover official, verified, community, workspace, and local packages without collapsing those trust lanes. | CORE | R2/A0 | V:MCP · V:ANTH · V:OAI · I:Compozy |
 | ⛔ rejected | PE-013 | Extension conformance harness | P0 | Publishers prove clean install, auth failure, scope denial, pagination, rate limit, idempotency, partial failure, cleanup, and removal behavior. | CORE+TP+TL | R2/A0 | V:OAI · V:Compozy · I:Compozy |
-| ⛔ rejected | PE-014 | Third-party bridge SDK and marketplace grants | P0 | Messaging bridge authors build and test adapters through a supported SDK, conformance suite, and explicit marketplace permission lane. | CORE+BA | R3/A2 | V:Compozy · I:Compozy |
+| ⛔ rejected | PE-014 | Third-party bridge SDK and marketplace grants | P0 | Retired proposal; external messaging adapters are outside the product scope. | CORE | R3/A2 | V:Compozy · I:Compozy |
 | ✅ accepted (health only) | PE-015 | Permission-scoped secret bindings and health | P0 | Operators bind a secret to one extension permission grant, validate it without disclosure, and distinguish missing, expired, denied, and unhealthy states. **Accepted scope: liveness/health only; the secret→permission-grant binding is rejected.** | CORE+TP | R3/A1 | V:INT · V:Compozy · I:Compozy |
 | ⛔ rejected | PE-016 | Transactional cross-extension dependency resolution | P1 | One package resolves and activates required, optional, and one-of extensions as a hidden composition graph. | CORE+KIT | R3/A0 | V:Compozy · P:ANTH · P:OAI · I:Compozy |
 | ⛔ rejected | PE-017 | Profile-scoped static resource activation | P0 | An alternate profile layer selects only part of an extension's static resources instead of using the extension lifecycle. | CORE+KIT | R3/A0 | V:Compozy · I:Compozy |
@@ -404,7 +385,7 @@ P0 is a portfolio tier, not a direction to build all 75 P0 rows at once. The fir
 3. **Personal, household, and team core:** PW-001, PW-002, PW-003, PW-006, PW-007, PW-009, PW-010, PW-011, and PW-017. Together they cover email, calendar, files, enterprise knowledge, lightweight databases, both Google and Microsoft audiences, and a self-hosted home-automation gateway.
 4. **Business system anchors:** choose one initial CRM from SR-001 through SR-004, one support desk from CS-001, CS-002, CS-004, or CS-005, Shopify (CP-001), Stripe (CP-007), and one accounting provider from FL-001 or FL-002. Provider choice should follow design-partner access, not catalog popularity alone.
 5. **Visible-output providers:** Zoom or one meeting-record provider, Figma or Canva, Cloudinary, and YouTube make meeting, campaign, creator, and launch kits produce inspectable results.
-6. **Technical operator set:** DA-001, DA-002, DA-003, EC-001, EC-003, EC-005, EC-006, EC-009, EC-010, and EC-011 provide a coherent read-first data and delivery collection without duplicating the existing GitHub bridge.
+6. **Technical operator set:** DA-001, DA-002, DA-003, EC-001, EC-003, EC-005, EC-006, EC-009, EC-010, and EC-011 provide a coherent read-first data and delivery collection.
 7. **Long-tail expansion:** add P1 and P2 providers only when a maintained extension kit, design partner, or verified demand signal supplies an owner, access path, conformance fixtures, and first-success outcome.
 
 ### Selection gates
@@ -434,7 +415,6 @@ Evidence was recorded at catalog or documentation level, not as a full technical
 | --- | --- | --- |
 | V:Compozy | [Extension manifest](../../internal/extension/manifest.go), [extension grants](../../internal/extension/capability.go), and [spec-cycle reference extension](../../extensions/spec-cycle/extension.json) | Current resource fields, subprocess lifecycle, provider contracts, Host API grants, and tool/watch-source precedent. |
 | V:Compozy | [Extension development guide](../../packages/site/content/docs/extensions/develop.mdx), [install and trust guide](../../packages/site/content/docs/extensions/install.mdx), and [extensions reference](../../skills/compozy/references/extensions.md) | Publicly documented extension lifecycle, kit publication, stricter Marketplace grants, and agent manageability. |
-| V:Compozy | [Bridge provider baseline](../../extensions/bridges/README.md) | Eight production in-tree providers and the explicit build/install process; released artifacts do not include or auto-install their executables. |
 
 ### Primary ecosystem sources
 

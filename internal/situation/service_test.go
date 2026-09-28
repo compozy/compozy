@@ -12,8 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -72,7 +71,7 @@ func TestRenderPromptPreservesSectionOrderAndOmitsUnavailableSections(t *testing
 		`"provenance"`,
 	}
 	assertOrder(t, rendered, wantOrder)
-	for _, omitted := range []string{`"task"`, `"coordination_channel"`, `"inbox_summary"`, `"peer_roster"`} {
+	for _, omitted := range []string{`"task"`} {
 		if strings.Contains(rendered, omitted) {
 			t.Fatalf("RenderPrompt() included unavailable section %s: %s", omitted, rendered)
 		}
@@ -132,9 +131,8 @@ func TestRenderPromptProvenanceCacheStability(t *testing.T) {
 	})
 }
 
-func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *testing.T) {
+func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 	t.Parallel()
-	liveSpec := situationLiveSpec(t, "ws-1", "coord-structured")
 
 	taskRecord := taskpkg.Task{
 		ID: "task-1", ProfileID: store.DefaultProfileID,
@@ -148,18 +146,18 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 		UpdatedAt:   fixedTime().Add(time.Minute),
 	}
 	run := taskpkg.Run{
-		ID:              "run-1",
-		TaskID:          "task-1",
-		Status:          taskpkg.TaskRunStatusRunning,
-		Attempt:         1,
-		ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
-		SessionID:       "sess-1",
-		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: liveSpec},
-		Metadata:        jsonRaw(t, `{"workflow_id":"wf-1"}`),
-		QueuedAt:        fixedTime(),
-		StartedAt:       fixedTime().Add(time.Minute),
+		ID:        "run-1",
+		TaskID:    "task-1",
+		Status:    taskpkg.TaskRunStatusRunning,
+		Attempt:   1,
+		ClaimedBy: &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
+		SessionID: "sess-1",
+
+		Metadata:  jsonRaw(t, `{"workflow_id":"wf-1"}`),
+		QueuedAt:  fixedTime(),
+		StartedAt: fixedTime().Add(time.Minute),
 	}
-	displayName := "Reviewer"
+
 	service := NewService(Deps{
 		Now:          fixedNow,
 		SectionLimit: 2,
@@ -192,40 +190,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 			tasks: map[string]taskpkg.Task{"task-1": taskRecord},
 			runs:  []taskpkg.Run{run},
 		},
-		Network: networkStub{
-			envelopes: []network.Envelope{
-				coordinationEnvelope(t, "msg-3", "coord-structured", "third", fixedTime().Add(3*time.Minute)),
-				coordinationEnvelope(t, "msg-2", "coord-structured", "second", fixedTime().Add(2*time.Minute)),
-				coordinationEnvelope(t, "msg-1", "coord-structured", "first", fixedTime().Add(time.Minute)),
-			},
-			peers: []network.PeerInfo{
-				{
-					PeerID:  "peer-c",
-					Channel: "coord-structured",
-					PeerCard: network.PeerCard{
-						PeerID:       "peer-c",
-						Capabilities: []string{"test"},
-					},
-				},
-				{
-					PeerID:  "peer-a",
-					Channel: "coord-structured",
-					PeerCard: network.PeerCard{
-						PeerID:       "peer-a",
-						DisplayName:  &displayName,
-						Capabilities: []string{"review"},
-					},
-				},
-				{
-					PeerID:  "peer-b",
-					Channel: "coord-structured",
-					PeerCard: network.PeerCard{
-						PeerID:       "peer-b",
-						Capabilities: []string{"build"},
-					},
-				},
-			},
-		},
+
 		CoordinatorRole: coordinatorResolverFunc(
 			func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
 				return compozyconfig.ResolvedCoordinatorRole{MaxChildren: 3}, nil
@@ -248,10 +213,10 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 			SpawnDepth:      1,
 			SpawnRole:       "worker",
 		},
-		State:                session.StateActive,
-		NetworkParticipation: liveSpec,
-		CreatedAt:            fixedTime(),
-		UpdatedAt:            fixedTime(),
+		State: session.StateActive,
+
+		CreatedAt: fixedTime(),
+		UpdatedAt: fixedTime(),
 	})
 	if err != nil {
 		t.Fatalf("ContextForSession() error = %v", err)
@@ -269,32 +234,16 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 	if payload.Task.Task == nil || payload.Task.Task.ID != "task-1" {
 		t.Fatalf("Task section = %#v, want task-1", payload.Task)
 	}
-	if payload.Task.Lease == nil || payload.Task.Lease.ResolvedNetworkParticipation == nil {
-		t.Fatalf("Task lease = %#v, want complete resolved participation", payload.Task.Lease)
-	}
-	if got, want := *payload.Task.Lease.ResolvedNetworkParticipation, liveSpec; got != want {
-		t.Fatalf("Task lease participation = %#v, want %#v", got, want)
+
+	if payload.Task.Lease == nil || payload.Task.Lease.RunID != "run-1" {
+		t.Fatalf("Task lease = %#v, want run-1", payload.Task.Lease)
 	}
 	if payload.Task.Bundle == nil ||
 		payload.Task.Bundle.CurrentRun == nil ||
 		payload.Task.Bundle.CurrentRun.ID != "run-1" {
 		t.Fatalf("Task bundle = %#v, want current run context", payload.Task.Bundle)
 	}
-	if !payload.CoordinationChannel.Available ||
-		payload.CoordinationChannel.Channel == nil ||
-		payload.CoordinationChannel.Channel.ID != "coord-structured" ||
-		payload.CoordinationChannel.Channel.WorkflowID != "wf-1" {
-		t.Fatalf("CoordinationChannel = %#v, want workflow-bound channel", payload.CoordinationChannel)
-	}
-	if got := payload.InboxSummary.Section; got.Limit != 2 || got.Returned != 2 || !got.Truncated {
-		t.Fatalf("Inbox section = %#v, want truncated limit 2", got)
-	}
-	if got, want := payload.InboxSummary.UnreadCount, 3; got != want {
-		t.Fatalf("UnreadCount = %d, want %d", got, want)
-	}
-	if got := payload.PeerRoster.Section; got.Limit != 2 || got.Returned != 2 || !got.Truncated {
-		t.Fatalf("Peer section = %#v, want truncated limit 2", got)
-	}
+
 	if got := payload.Capabilities.Section; got.Limit != 2 || got.Returned != 2 || !got.Truncated {
 		t.Fatalf("Capability section = %#v, want truncated limit 2", got)
 	}
@@ -314,9 +263,6 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 		`"workspace"`,
 		`"session"`,
 		`"task"`,
-		`"coordination_channel"`,
-		`"inbox_summary"`,
-		`"peer_roster"`,
 		`"capabilities"`,
 		"\n  \"limits\"",
 		`"provenance"`,
@@ -689,13 +635,13 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			Status:      taskpkg.TaskStatusInProgress,
 		}
 		run := taskpkg.Run{
-			ID:              "run-reviewed",
-			TaskID:          taskRecord.ID,
-			Status:          taskpkg.TaskRunStatusCompleted,
-			SessionID:       "sess-worker",
-			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: situationLiveSpec(t, "ws-review", "reviews")},
-			StartedAt:       fixedTime(),
-			EndedAt:         fixedTime().Add(10 * time.Minute),
+			ID:        "run-reviewed",
+			TaskID:    taskRecord.ID,
+			Status:    taskpkg.TaskRunStatusCompleted,
+			SessionID: "sess-worker",
+
+			StartedAt: fixedTime(),
+			EndedAt:   fixedTime().Add(10 * time.Minute),
 		}
 		review := taskpkg.RunReview{
 			ReviewID:          "review-bound",
@@ -707,7 +653,6 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			Attempt:           1,
 			ReviewerSessionID: "sess-reviewer",
 			ReviewerAgentName: "reviewer",
-			ReviewerChannelID: "reviews",
 		}
 		service := NewService(Deps{
 			Now: fixedNow,
@@ -732,17 +677,17 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 		})
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
-			ID:                   "sess-reviewer",
-			ProfileID:            store.DefaultProfileID,
-			AgentName:            "reviewer",
-			Provider:             "codex",
-			WorkspaceID:          "ws-review",
-			Workspace:            "/work/compozy",
-			NetworkParticipation: situationLiveSpec(t, "ws-review", "reviews"),
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			CreatedAt:            fixedTime(),
-			UpdatedAt:            fixedTime(),
+			ID:          "sess-reviewer",
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-review",
+			Workspace:   "/work/compozy",
+
+			Type:      session.SessionTypeSystem,
+			State:     session.StateActive,
+			CreatedAt: fixedTime(),
+			UpdatedAt: fixedTime(),
 		})
 		if err != nil {
 			t.Fatalf("ContextForSession(reviewer) error = %v", err)
@@ -758,11 +703,6 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			payload.Task.Bundle.CurrentRun.ID != run.ID {
 			t.Fatalf("Task bundle = %#v, want reviewed run context", payload.Task.Bundle)
 		}
-		if !payload.CoordinationChannel.Available ||
-			payload.CoordinationChannel.Channel == nil ||
-			payload.CoordinationChannel.Channel.ID != "reviews" {
-			t.Fatalf("CoordinationChannel = %#v, want reviewer channel", payload.CoordinationChannel)
-		}
 	})
 
 	t.Run("Should skip review-bound context when the stored run belongs to another task", func(t *testing.T) {
@@ -776,13 +716,13 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			Status:      taskpkg.TaskStatusInProgress,
 		}
 		run := taskpkg.Run{
-			ID:              "run-mismatched",
-			TaskID:          "task-other",
-			Status:          taskpkg.TaskRunStatusCompleted,
-			SessionID:       "sess-worker",
-			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: situationLiveSpec(t, "ws-review", "reviews")},
-			StartedAt:       fixedTime(),
-			EndedAt:         fixedTime().Add(10 * time.Minute),
+			ID:        "run-mismatched",
+			TaskID:    "task-other",
+			Status:    taskpkg.TaskRunStatusCompleted,
+			SessionID: "sess-worker",
+
+			StartedAt: fixedTime(),
+			EndedAt:   fixedTime().Add(10 * time.Minute),
 		}
 		review := taskpkg.RunReview{
 			ReviewID:          "review-bound",
@@ -794,7 +734,6 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			Attempt:           1,
 			ReviewerSessionID: "sess-reviewer",
 			ReviewerAgentName: "reviewer",
-			ReviewerChannelID: "reviews",
 		}
 		service := NewService(Deps{
 			Now: fixedNow,
@@ -819,17 +758,17 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 		})
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
-			ID:                   "sess-reviewer",
-			ProfileID:            store.DefaultProfileID,
-			AgentName:            "reviewer",
-			Provider:             "codex",
-			WorkspaceID:          "ws-review",
-			Workspace:            "/work/compozy",
-			NetworkParticipation: situationLiveSpec(t, "ws-review", "reviews"),
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			CreatedAt:            fixedTime(),
-			UpdatedAt:            fixedTime(),
+			ID:          "sess-reviewer",
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-review",
+			Workspace:   "/work/compozy",
+
+			Type:      session.SessionTypeSystem,
+			State:     session.StateActive,
+			CreatedAt: fixedTime(),
+			UpdatedAt: fixedTime(),
 		})
 		if err != nil {
 			t.Fatalf("ContextForSession(reviewer mismatch) error = %v", err)
@@ -838,16 +777,10 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			payload.Task.Lease != nil {
 			t.Fatalf("Task context = %#v, want no mismatched review-bound task context", payload.Task)
 		}
-		if payload.CoordinationChannel.Available || payload.CoordinationChannel.Channel != nil {
-			t.Fatalf(
-				"CoordinationChannel = %#v, want no mismatched review channel context",
-				payload.CoordinationChannel,
-			)
-		}
 	})
 }
 
-func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *testing.T) {
+func TestContextForSessionKeepsTaskContextWhenBundleEnrichmentFails(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should keep active-lease task context when bundle enrichment fails", func(t *testing.T) {
@@ -865,9 +798,7 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 			TaskID:    taskRecord.ID,
 			Status:    taskpkg.TaskRunStatusRunning,
 			SessionID: "sess-active",
-			RunNetworkState: &taskpkg.RunNetworkState{
-				NetworkSpec: situationLiveSpec(t, "ws-bundle-active", "coord-active"),
-			},
+
 			QueuedAt:  fixedTime(),
 			StartedAt: fixedTime().Add(time.Minute),
 		}
@@ -893,17 +824,17 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 		})
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
-			ID:                   "sess-active",
-			ProfileID:            store.DefaultProfileID,
-			AgentName:            "coder",
-			Provider:             "codex",
-			WorkspaceID:          taskRecord.WorkspaceID,
-			Workspace:            "/work/compozy",
-			NetworkParticipation: situationLiveSpec(t, "ws-bundle-active", "coord-active"),
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			CreatedAt:            fixedTime(),
-			UpdatedAt:            fixedTime(),
+			ID:          "sess-active",
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "coder",
+			Provider:    "codex",
+			WorkspaceID: taskRecord.WorkspaceID,
+			Workspace:   "/work/compozy",
+
+			Type:      session.SessionTypeSystem,
+			State:     session.StateActive,
+			CreatedAt: fixedTime(),
+			UpdatedAt: fixedTime(),
 		})
 		if err != nil {
 			t.Fatalf("ContextForSession(active lease) error = %v", err)
@@ -916,11 +847,6 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 		}
 		if payload.Task.Lease == nil || payload.Task.Lease.RunID != run.ID {
 			t.Fatalf("Task.Lease = %#v, want active run lease", payload.Task.Lease)
-		}
-		if !payload.CoordinationChannel.Available ||
-			payload.CoordinationChannel.Channel == nil ||
-			payload.CoordinationChannel.Channel.ID != "coord-active" {
-			t.Fatalf("CoordinationChannel = %#v, want preserved active channel", payload.CoordinationChannel)
 		}
 	})
 
@@ -939,9 +865,7 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 			TaskID:    taskRecord.ID,
 			Status:    taskpkg.TaskRunStatusCompleted,
 			SessionID: "sess-worker",
-			RunNetworkState: &taskpkg.RunNetworkState{
-				NetworkSpec: situationLiveSpec(t, "ws-bundle-review", "coord-run"),
-			},
+
 			StartedAt: fixedTime(),
 			EndedAt:   fixedTime().Add(10 * time.Minute),
 		}
@@ -952,7 +876,6 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 			Status:            taskpkg.RunReviewStatusInReview,
 			ReviewerSessionID: "sess-reviewer",
 			ReviewerAgentName: "reviewer",
-			ReviewerChannelID: "coord-review",
 		}
 		service := NewService(Deps{
 			Now: fixedNow,
@@ -977,17 +900,17 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 		})
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
-			ID:                   "sess-reviewer",
-			ProfileID:            store.DefaultProfileID,
-			AgentName:            "reviewer",
-			Provider:             "codex",
-			WorkspaceID:          taskRecord.WorkspaceID,
-			Workspace:            "/work/compozy",
-			NetworkParticipation: situationLiveSpec(t, "ws-bundle-review", "coord-review"),
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			CreatedAt:            fixedTime(),
-			UpdatedAt:            fixedTime(),
+			ID:          "sess-reviewer",
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: taskRecord.WorkspaceID,
+			Workspace:   "/work/compozy",
+
+			Type:      session.SessionTypeSystem,
+			State:     session.StateActive,
+			CreatedAt: fixedTime(),
+			UpdatedAt: fixedTime(),
 		})
 		if err != nil {
 			t.Fatalf("ContextForSession(review binding) error = %v", err)
@@ -997,11 +920,6 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 		}
 		if payload.Task.Bundle != nil {
 			t.Fatalf("Task.Bundle = %#v, want nil optional bundle on enrichment failure", payload.Task.Bundle)
-		}
-		if !payload.CoordinationChannel.Available ||
-			payload.CoordinationChannel.Channel == nil ||
-			payload.CoordinationChannel.Channel.ID != "coord-review" {
-			t.Fatalf("CoordinationChannel = %#v, want preserved reviewer channel", payload.CoordinationChannel)
 		}
 	})
 }
@@ -1144,24 +1062,12 @@ func TestContextForSessionMissingOptionalServicesOmitsUnavailableSections(t *tes
 	if payload.Task.Available {
 		t.Fatalf("Task.Available = true, want false without task store")
 	}
-	if payload.CoordinationChannel.Available {
-		t.Fatalf("CoordinationChannel.Available = true, want false without task store")
-	}
-	if payload.InboxSummary.Section.Limit != 0 {
-		t.Fatalf("Inbox section = %#v, want omitted without network", payload.InboxSummary.Section)
-	}
-	if payload.PeerRoster.Section.Limit != 0 {
-		t.Fatalf("Peer section = %#v, want omitted without network", payload.PeerRoster.Section)
-	}
-	if got := payload.Session.ResolvedNetworkParticipation; got == nil || *got != participation.LocalSpec() {
-		t.Fatalf("ResolvedNetworkParticipation = %#v, want canonical Local", got)
-	}
 
 	rendered, err := RenderPrompt(&payload)
 	if err != nil {
 		t.Fatalf("RenderPrompt() error = %v", err)
 	}
-	for _, omitted := range []string{`"task"`, `"coordination_channel"`, `"inbox_summary"`, `"peer_roster"`} {
+	for _, omitted := range []string{`"task"`} {
 		if strings.Contains(rendered, omitted) {
 			t.Fatalf("RenderPrompt() included unavailable section %s: %s", omitted, rendered)
 		}
@@ -1200,8 +1106,6 @@ func TestPromptStartupSectionIncludesStartupIdentity(t *testing.T) {
 		`"session_id":"sess-start"`,
 		`"agent_name":"coder"`,
 		`"model":"gpt-test"`,
-		`"mode":"local"`,
-		`"source":"built_in_local"`,
 		`"workspace"`,
 		`"provenance"`,
 	} {
@@ -1282,7 +1186,7 @@ func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refresh changed sections while compacting stable peers", func(t *testing.T) {
+	t.Run("Should refresh changed sections while compacting stable identity", func(t *testing.T) {
 		t.Parallel()
 
 		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
@@ -1377,122 +1281,12 @@ func TestSelectionPreviewAndBoundingHelpers(t *testing.T) {
 		t.Fatalf("runActivityTime() = %s, want latest start", got)
 	}
 
-	direct := envelopeWithBody(t, network.KindSay, network.SayBody{Text: "direct message"})
-	if got, want := envelopePreview(direct), "direct message"; got != want {
-		t.Fatalf("envelopePreview(direct) = %q, want %q", got, want)
-	}
-	trace := envelopeWithBody(t, network.KindTrace, network.TraceBody{
-		State:   network.WorkStateWorking,
-		Message: "trace message",
-	})
-	if got, want := envelopePreview(trace), "trace message"; got != want {
-		t.Fatalf("envelopePreview(trace) = %q, want %q", got, want)
-	}
-	capability := envelopeWithBody(t, network.KindCapability, network.CapabilityBody{
-		Capability: capabilityPayload(t, "cap", "capability summary", "done"),
-	})
-	if got, want := envelopePreview(capability), "capability summary"; got != want {
-		t.Fatalf("envelopePreview(capability) = %q, want %q", got, want)
-	}
-	detail := "receipt detail"
-	receipt := envelopeWithBody(t, network.KindReceipt, network.ReceiptBody{
-		ForID:  "msg-1",
-		Status: network.ReceiptStatusAccepted,
-		Detail: &detail,
-	})
-	if got, want := envelopePreview(receipt), "receipt detail"; got != want {
-		t.Fatalf("envelopePreview(receipt) = %q, want %q", got, want)
-	}
-	greet := envelopeWithBody(t, network.KindGreet, network.GreetBody{
-		PeerCard: network.PeerCard{
-			PeerID:              "peer",
-			ProfilesSupported:   []string{network.ProtocolV0},
-			Capabilities:        []string{},
-			ArtifactsSupported:  []string{},
-			TrustModesSupported: []string{},
-		},
-		Summary: "hello peer",
-	})
-	if got, want := envelopePreview(greet), "hello peer"; got != want {
-		t.Fatalf("envelopePreview(greet) = %q, want %q", got, want)
-	}
-	if got := envelopePreview(network.Envelope{Kind: network.KindSay, Body: json.RawMessage(`{`)}); got != "" {
-		t.Fatalf("envelopePreview(invalid) = %q, want empty", got)
-	}
-	if got := envelopeTimestamp(network.Envelope{}); !got.IsZero() {
-		t.Fatalf("envelopeTimestamp(zero) = %s, want zero", got)
-	}
-
-	long := strings.Repeat("x", inboxPreviewLimit+10)
+	long := strings.Repeat("x", 30)
 	if got := truncateRunes(long, 12); utf8.RuneCountInString(got) != 12 || !strings.HasSuffix(got, "...") {
 		t.Fatalf("truncateRunes() = %q, want 12-rune ellipsized value", got)
 	}
 	if got, want := truncateRunes("abcdef", 2), ".."; got != want {
 		t.Fatalf("truncateRunes(short limit) = %q, want %q", got, want)
-	}
-}
-
-func TestCoordinationMetadataAndPeerHelpers(t *testing.T) {
-	t.Parallel()
-
-	rawMetadata := jsonRaw(t, `{
-		"task_id":"task-1",
-		"run_id":"run-1",
-		"channel_id":"coord-1",
-		"message_kind":"status",
-		"correlation_id":"corr-1"
-	}`)
-	direct := network.Envelope{
-		Ext: network.ExtensionMap{
-			"task_id":        jsonRaw(t, `"task-1"`),
-			"run_id":         jsonRaw(t, `"run-1"`),
-			"channel_id":     jsonRaw(t, `"coord-1"`),
-			"message_kind":   jsonRaw(t, `"status"`),
-			"correlation_id": jsonRaw(t, `"corr-1"`),
-		},
-	}
-	if metadata, ok := coordinationMetadataFromEnvelope(direct); !ok || metadata.TaskID != "task-1" {
-		t.Fatalf("coordinationMetadataFromEnvelope(direct) = %#v, %v; want task metadata", metadata, ok)
-	}
-	nested := network.Envelope{Ext: network.ExtensionMap{"metadata": rawMetadata}}
-	if metadata, ok := coordinationMetadataFromEnvelope(nested); !ok || metadata.CorrelationID != "corr-1" {
-		t.Fatalf("coordinationMetadataFromEnvelope(nested) = %#v, %v; want nested metadata", metadata, ok)
-	}
-	if _, ok := coordinationMetadataFromEnvelope(network.Envelope{}); ok {
-		t.Fatal("coordinationMetadataFromEnvelope(empty) ok = true, want false")
-	}
-	if _, ok := decodeCoordinationMetadata(json.RawMessage(`{"claim_token":"raw"}`)); ok {
-		t.Fatal("decodeCoordinationMetadata(raw claim token) ok = true, want false")
-	}
-
-	selfSession := "sess-self"
-	display := "Peer A"
-	roster := peerRoster([]network.PeerInfo{
-		{
-			SessionID: &selfSession,
-			PeerID:    "self",
-			Channel:   "coord",
-		},
-		{
-			PeerID:  "peer-a",
-			Channel: "coord",
-			PeerCard: network.PeerCard{
-				PeerID:       "peer-a",
-				DisplayName:  &display,
-				Capabilities: []string{"review", "review"},
-			},
-			CapabilityCatalogKnown: true,
-			CapabilityCatalog: []session.NetworkPeerCapability{
-				{ID: "build"},
-				{ID: "review"},
-			},
-		},
-	}, selfSession, 4)
-	if got, want := len(roster.Peers), 1; got != want {
-		t.Fatalf("peerRoster() peers = %d, want %d", got, want)
-	}
-	if got, want := roster.Peers[0].Capabilities, []string{"build", "review"}; !slices.Equal(got, want) {
-		t.Fatalf("peer capabilities = %#v, want %#v", got, want)
 	}
 }
 
@@ -1518,31 +1312,6 @@ func fixedNow() time.Time {
 
 func fixedTime() time.Time {
 	return time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-}
-
-func situationLiveSpec(t *testing.T, workspaceID string, channelID string) participation.Spec {
-	t.Helper()
-	spec := participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     workspaceID,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       channelID,
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         1,
-			MaxWakeWallTime:  "1m",
-			MaxTotalWallTime: "5m",
-			MaxInputTokens:   1024,
-			MaxOutputTokens:  512,
-			MaxWakeDepth:     1,
-			CoalesceWindow:   "500ms",
-		},
-	}
-	if err := participation.ValidateSpec(spec); err != nil {
-		t.Fatalf("ValidateSpec() error = %v", err)
-	}
-	return spec
 }
 
 func newSituationCompactionSession() *session.Session {
@@ -1574,83 +1343,6 @@ func workspaceConfigWithTaskDefaults() compozyconfig.Config {
 	return compozyconfig.Config{
 		Defaults: compozyconfig.DefaultsConfig{Provider: "codex"},
 		Task:     compozyconfig.DefaultTaskConfig(),
-	}
-}
-
-func coordinationEnvelope(
-	t *testing.T,
-	id string,
-	channel string,
-	text string,
-	timestamp time.Time,
-) network.Envelope {
-	t.Helper()
-
-	body, err := json.Marshal(network.SayBody{Text: text})
-	if err != nil {
-		t.Fatalf("marshal say body: %v", err)
-	}
-	metadata, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
-		TaskID:        "task-1",
-		RunID:         "run-1",
-		ChannelID:     channel,
-		MessageKind:   contract.CoordinationMessageStatus,
-		CorrelationID: id + "-corr",
-	})
-	if err != nil {
-		t.Fatalf("marshal coordination metadata: %v", err)
-	}
-	return network.Envelope{
-		Protocol: network.ProtocolV0,
-		ID:       id,
-		Kind:     network.KindSay,
-		Channel:  channel,
-		From:     "peer-a",
-		TS:       timestamp.Unix(),
-		Body:     body,
-		Ext:      network.ExtensionMap{"coordination": metadata},
-	}
-}
-
-func envelopeWithBody(t *testing.T, kind network.Kind, bodyValue network.Body) network.Envelope {
-	t.Helper()
-
-	body, err := json.Marshal(bodyValue)
-	if err != nil {
-		t.Fatalf("marshal %s body: %v", kind, err)
-	}
-	return network.Envelope{
-		Protocol: network.ProtocolV0,
-		ID:       "preview",
-		Kind:     kind,
-		Channel:  "coord",
-		From:     "peer",
-		TS:       fixedTime().Unix(),
-		Body:     body,
-	}
-}
-
-func capabilityPayload(
-	t *testing.T,
-	id string,
-	summary string,
-	outcome string,
-) network.CapabilityEnvelopePayload {
-	t.Helper()
-
-	digest, err := compozyconfig.CanonicalCapabilityDigest(compozyconfig.CapabilityDef{
-		ID:      id,
-		Summary: summary,
-		Outcome: outcome,
-	})
-	if err != nil {
-		t.Fatalf("CanonicalCapabilityDigest() error = %v", err)
-	}
-	return network.CapabilityEnvelopePayload{
-		ID:      id,
-		Summary: summary,
-		Outcome: outcome,
-		Digest:  digest,
 	}
 }
 
@@ -1951,19 +1643,6 @@ func (s soulSnapshotStoreStub) GetSoulSnapshot(_ context.Context, id string) (so
 		return soul.Snapshot{}, soul.ErrSnapshotNotFound
 	}
 	return snapshot, nil
-}
-
-type networkStub struct {
-	envelopes []network.Envelope
-	peers     []network.PeerInfo
-}
-
-func (s networkStub) Inbox(_ context.Context, _ string) ([]network.Envelope, error) {
-	return slices.Clone(s.envelopes), nil
-}
-
-func (s networkStub) ListPeers(_ context.Context, _ string, _ string) ([]network.PeerInfo, error) {
-	return slices.Clone(s.peers), nil
 }
 
 func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {

@@ -168,8 +168,7 @@ journal, artifacts, and recordings. Workspace deletion removes all terminal data
 workspace.
 
 Check `capabilities.interactive` before opening or requesting visible execution. Local macOS, Linux,
-and Windows support interactive terminals. Remote sandboxes are execute-only: use pipe exec and do
-not retry `terminal_interactive_unavailable` through another interactive surface.
+and Windows support interactive terminals.
 
 ## CLI Fallback
 

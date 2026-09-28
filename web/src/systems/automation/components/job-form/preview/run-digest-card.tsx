@@ -26,32 +26,6 @@ export function RunDigestCard({ runDigest }: RunDigestCardProps) {
           <dd className="text-right font-medium text-fg">{task.title}</dd>
           <dt className="text-subtle">Owner</dt>
           <dd className="text-right font-mono text-form-hint font-medium text-fg">{task.owner}</dd>
-          <dt className="text-subtle">Participation</dt>
-          <dd
-            className="text-right font-mono text-form-hint font-medium text-fg"
-            data-testid="job-preview-task-participation"
-          >
-            {task.participation.mode === "live" ? "Live" : "Local"}
-          </dd>
-          {task.participation.channelStrategy ? (
-            <>
-              <dt className="text-subtle">Channel strategy</dt>
-              <dd className="text-right font-mono text-form-hint font-medium text-fg">
-                {task.participation.channelStrategy}
-              </dd>
-            </>
-          ) : null}
-          {task.participation.channelId ? (
-            <>
-              <dt className="text-subtle">Channel</dt>
-              <dd
-                className="text-right font-mono text-form-hint font-medium text-fg"
-                data-testid="job-preview-task-channel"
-              >
-                {task.participation.channelId}
-              </dd>
-            </>
-          ) : null}
           <dt className="text-subtle">Run status</dt>
           <dd className="text-right font-mono text-form-hint font-medium text-info">
             {task.runStatus}

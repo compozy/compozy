@@ -59,11 +59,6 @@ export const TaskMode: Story = {
           title: "Prepare weekly burn report",
           description: "Pull spend deltas across launch workspaces and draft the operator summary.",
           owner: { kind: "agent_session", ref: storyAgentNames.cfo },
-          network_participation: {
-            mode: "live",
-            channel_strategy: "named",
-            channel_id: "release-room",
-          },
         },
       })}
     />

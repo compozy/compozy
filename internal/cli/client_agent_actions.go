@@ -54,81 +54,6 @@ func (c *daemonClient) AgentSpawn(
 	return response.Spawn, nil
 }
 
-func (c *daemonClient) AgentChannels(
-	ctx context.Context,
-	credentials agentidentity.Credentials,
-) ([]AgentChannelRecord, error) {
-	var response contract.AgentChannelsResponse
-	if err := c.doAgentJSON(ctx, http.MethodGet, "/api/agent/channels", nil, nil, credentials, &response); err != nil {
-		return nil, err
-	}
-	return response.Channels, nil
-}
-
-func (c *daemonClient) AgentChannelRecv(
-	ctx context.Context,
-	channel string,
-	query AgentChannelRecvQuery,
-	credentials agentidentity.Credentials,
-) ([]AgentChannelMessageRecord, error) {
-	var response contract.AgentChannelMessagesResponse
-	path := "/api/agent/channels/" + url.PathEscape(strings.TrimSpace(channel)) + "/recv"
-	if err := c.doAgentJSON(
-		ctx,
-		http.MethodGet,
-		path,
-		agentChannelRecvValues(query),
-		nil,
-		credentials,
-		&response,
-	); err != nil {
-		return nil, err
-	}
-	return response.Messages, nil
-}
-
-func (c *daemonClient) AgentChannelSend(
-	ctx context.Context,
-	channel string,
-	request AgentChannelSendRequest,
-	credentials agentidentity.Credentials,
-) (AgentChannelMessageRecord, error) {
-	var response contract.AgentChannelMessageResponse
-	path := "/api/agent/channels/" + url.PathEscape(strings.TrimSpace(channel)) + "/send"
-	if err := c.doAgentJSON(
-		ctx,
-		http.MethodPost,
-		path,
-		nil,
-		request,
-		credentials,
-		&response,
-	); err != nil {
-		return AgentChannelMessageRecord{}, err
-	}
-	return response.Message, nil
-}
-
-func (c *daemonClient) AgentChannelReply(
-	ctx context.Context,
-	request AgentChannelReplyRequest,
-	credentials agentidentity.Credentials,
-) (AgentChannelMessageRecord, error) {
-	var response contract.AgentChannelMessageResponse
-	if err := c.doAgentJSON(
-		ctx,
-		http.MethodPost,
-		"/api/agent/channels/reply",
-		nil,
-		request,
-		credentials,
-		&response,
-	); err != nil {
-		return AgentChannelMessageRecord{}, err
-	}
-	return response.Message, nil
-}
-
 func (c *daemonClient) AgentTaskClaimNext(
 	ctx context.Context,
 	request AgentTaskClaimNextRequest,
@@ -219,17 +144,6 @@ func (c *daemonClient) extensionAction(ctx context.Context, name string, action 
 		return ExtensionRecord{}, err
 	}
 	return response.Extension, nil
-}
-
-func (c *daemonClient) bridgeAction(ctx context.Context, id string, action string) (BridgeRecord, error) {
-	var response struct {
-		Bridge BridgeRecord `json:"bridge"`
-	}
-	path := "/api/bridges/" + url.PathEscape(id) + "/" + action
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
-		return BridgeRecord{}, err
-	}
-	return response.Bridge, nil
 }
 
 func (c *daemonClient) skillAction(

@@ -9,18 +9,12 @@ const failures = [];
 
 const surfaces = [
   "create-agent.html",
-  "create-bridge.html",
-  "edit-bridge.html",
   "start-session.html",
   "create-knowledge.html",
   "edit-knowledge.html",
-  "create-network-channel.html",
-  "edit-network-channel.html",
   "create-mcp-server.html",
   "edit-mcp-server.html",
   "create-vault-secret.html",
-  "create-sandbox-profile.html",
-  "edit-sandbox-profile.html",
   "add-workspace.html",
   "create-provider-sheet.html",
   "edit-provider-sheet.html",
@@ -28,19 +22,13 @@ const surfaces = [
 
 const componentMatrix = {
   "create-agent.html": ["dialog", "scope-selector", "workspace-select", "runtime-selector", "radio-card", "command-select", "dialog-footer"],
-  "create-bridge.html": ["dialog", "scope-selector", "workspace-select", "radio-card", "secret-field", "dialog-footer"],
-  "edit-bridge.html": ["dialog", "immutable-identity", "secret-field", "native-select", "dialog-footer"],
-  "start-session.html": ["dialog", "agent-select", "workspace-select", "runtime-selector", "command-select", "dialog-footer"],
+  "start-session.html": ["dialog", "agent-select", "workspace-select", "runtime-selector", "dialog-footer"],
   "create-knowledge.html": ["dialog", "radio-card", "dialog-footer"],
   "edit-knowledge.html": ["dialog", "immutable-identity", "dialog-footer"],
-  "create-network-channel.html": ["dialog", "agent-multi-select", "radio-card", "command-select", "dialog-footer"],
-  "edit-network-channel.html": ["dialog", "immutable-identity", "radio-card", "command-select", "dialog-footer"],
   "create-mcp-server.html": ["dialog", "scope-selector", "workspace-select", "radio-card", "native-select", "secret-field", "dialog-footer"],
   "edit-mcp-server.html": ["dialog", "immutable-identity", "radio-card", "native-select", "secret-field", "dialog-footer"],
   "create-vault-secret.html": ["dialog", "secret-field", "dialog-footer"],
-  "create-sandbox-profile.html": ["dialog", "radio-card", "native-select", "secret-field", "dialog-footer"],
-  "edit-sandbox-profile.html": ["dialog", "immutable-identity", "radio-card", "native-select", "secret-field", "dialog-footer"],
-  "add-workspace.html": ["dialog", "directory-browser", "agent-select", "command-select", "dialog-footer"],
+  "add-workspace.html": ["dialog", "directory-browser", "agent-select", "dialog-footer"],
   "create-provider-sheet.html": ["sheet", "settings-field-row", "radio-card", "secret-field", "native-select", "dialog-footer"],
   "edit-provider-sheet.html": ["sheet", "settings-field-row", "immutable-identity", "radio-card", "secret-field", "native-select", "dialog-footer"],
 };
@@ -169,7 +157,7 @@ for (const href of launcher.matchAll(/href="([^"]+\.html)"/g)) {
 
 // The modal design-system catalog was absorbed into ../design-system/
 // (patterns.html §05 owns the contract summary; this suite keeps owning
-// the runnable library: modal-system.css/.js + the 16 surfaces).
+// the runnable library: modal-system.css/.js + the 10 surfaces).
 
 const css = read("modal-system.css");
 const geometry = [
@@ -236,7 +224,7 @@ for (const providerFile of ["create-provider-sheet.html", "edit-provider-sheet.h
 }
 
 const sharedScript = read("modal-system.js");
-for (const marker of ["activeDialog", "data-component-trigger", "agent-multi-select", "data-safe-json", "data-members-list", "secretRequiredToggle", "data-absolute-path", "data-delivery-test", "data-auth-refresh", "previewName", "aria-describedby"]) {
+for (const marker of ["activeDialog", "data-component-trigger", "agent-multi-select", "data-safe-json", "data-members-list", "secretRequiredToggle", "data-absolute-path", "data-auth-refresh", "previewName", "aria-describedby"]) {
   if (!sharedScript.includes(marker)) failures.push(`modal-system.js: shared behavior marker missing: ${marker}`);
 }
 for (const behavior of ["event.stopPropagation()", "event.key === 'Home'", "event.key === 'End'", "syncMultiTrigger", "data-favorite-key", "state === 'no-model'", "state === 'disabled'", "state === 'stale'"]) {

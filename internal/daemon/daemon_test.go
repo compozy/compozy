@@ -36,7 +36,6 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -51,7 +50,6 @@ import (
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/procutil"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -347,10 +345,6 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 		PID:       4242,
 		Port:      2123,
 		StartedAt: now,
-		Network: &NetworkInfo{
-			Enabled: true,
-			Status:  network.StatusActive,
-		},
 	}
 
 	if err := WriteInfo(path, info); err != nil {
@@ -387,81 +381,61 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	})
 }
 
-func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = false
-	registry := &recordingRegistry{path: homePaths.DatabaseFile}
-	ownerSawDisabledAvailability := false
-	ownerSawSessionAttachments := false
-	httpSawSessionAttachments := false
-	udsSawSessionAttachments := false
+func TestBootWiresSessionDependencies(t *testing.T) {
+	t.Run("Should wire attachments and turn completion before serving sessions", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		registry := &recordingRegistry{path: homePaths.DatabaseFile}
+		ownerSawSessionAttachments := false
+		httpSawSessionAttachments := false
+		udsSawSessionAttachments := false
 
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return registry, nil
-	}
-	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		availability, err := registry.GetNetworkAvailability(testutil.Context(t))
-		if err != nil {
-			t.Fatalf("GetNetworkAvailability() before session owner construction error = %v", err)
+		sessions := &fakeSessionManager{}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return registry, nil
 		}
-		ownerSawDisabledAvailability = !availability.Enabled &&
-			availability.UpdatedBy == "config.reload.boot"
-		ownerSawSessionAttachments = deps.SessionAttachments != nil
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-		httpSawSessionAttachments = deps.SessionAttachments != nil
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-		udsSawSessionAttachments = deps.SessionAttachments != nil
-		return &fakeServer{name: "uds"}, nil
-	}
+		d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+			ownerSawSessionAttachments = deps.SessionAttachments != nil
+			return sessions, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			httpSawSessionAttachments = deps.SessionAttachments != nil
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			udsSawSessionAttachments = deps.SessionAttachments != nil
+			return &fakeServer{name: "uds"}, nil
+		}
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		if !ownerSawSessionAttachments {
+			t.Fatal("session owner constructed before session attachment storage")
+		}
+		if !httpSawSessionAttachments {
+			t.Fatal("http server constructed without session attachment storage")
+		}
+		if !udsSawSessionAttachments {
+			t.Fatal("uds server constructed without session attachment storage")
+		}
+		sessions.mu.Lock()
+		notifier := sessions.turnEndNotifier
+		sessions.mu.Unlock()
+		if notifier == nil {
+			t.Fatal("boot() did not bind the session turn-end notifier")
 		}
 	})
-
-	if d.network == nil {
-		t.Fatal("boot() network runtime = nil, want paused manager when disabled")
-	}
-	if d.networkWakeRunner == nil {
-		t.Fatal("boot() network wake runner = nil, want paused runner when disabled")
-	}
-	if d.info.Network == nil {
-		t.Fatal("boot() daemon info network = nil, want disabled diagnostics")
-	}
-	if d.info.Network.Enabled {
-		t.Fatalf("boot() daemon info network enabled = %v, want false", d.info.Network.Enabled)
-	}
-	if got, want := d.info.Network.Status, network.StatusDisabled; got != want {
-		t.Fatalf("boot() daemon info network status = %q, want %q", got, want)
-	}
-	if !ownerSawDisabledAvailability {
-		t.Fatal("session owner constructed before disabled network availability was persisted")
-	}
-	if !ownerSawSessionAttachments {
-		t.Fatal("session owner constructed before session attachment storage")
-	}
-	if !httpSawSessionAttachments {
-		t.Fatal("http server constructed without session attachment storage")
-	}
-	if !udsSawSessionAttachments {
-		t.Fatal("uds server constructed without session attachment storage")
-	}
-	if got, want := registry.networkAvailabilityWrites, []bool{false}; !slices.Equal(got, want) {
-		t.Fatalf("network availability boot writes = %#v, want %#v", got, want)
-	}
 }
 
 // Invariant: the terminal-Loop neutralization barrier finishes before task recovery and readiness;
@@ -470,7 +444,6 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 	t.Run("Should fail closed before recovery readiness backstop ticker or claims IT-031", func(t *testing.T) {
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		barrierErr := errors.New("injected Loop neutralization failure")
 		recoveryCalled := false
 		registry := &recordingRegistry{
@@ -517,7 +490,6 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 	t.Run("Should block real SQLite claim traffic until orphan ownership is neutralized IT-028", func(t *testing.T) {
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
 		db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 		if err != nil {
@@ -664,7 +636,6 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 	t.Run("Should neutralize before recovery and backfill only after readiness IT-028", func(t *testing.T) {
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		var mu sync.Mutex
 		order := make([]string, 0, 3)
 		backfillAfterReady := false
@@ -732,7 +703,6 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 	t.Run("Should backfill a pre-change coordinator through first boot IT-010", func(t *testing.T) {
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
 		database, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 		if err != nil {
@@ -844,7 +814,6 @@ func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		cfg.Session.Attachments.Retention.MaxCount = 1
 		cfg.Session.Attachments.Retention.MaxBytes = 1 << 20
 		cfg.Session.Attachments.Retention.MaxAge = 24 * time.Hour
@@ -994,7 +963,6 @@ func TestBootPublishesOperatingSystemProcessStartTime(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		d := newTestDaemon(t, homePaths, &cfg)
 		d.now = func() time.Time { return expectedStartedAt.Add(-time.Hour) }
 		d.openRegistry = func(context.Context, string) (Registry, error) {
@@ -1046,7 +1014,6 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 		d := newTestDaemon(t, homePaths, &cfg)
 		d.openRegistry = func(context.Context, string) (Registry, error) {
 			return &recordingRegistry{path: homePaths.DatabaseFile}, nil
@@ -1118,7 +1085,6 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 func TestBootWithRegistryMissingResourceDBLeavesResourceServiceUnavailable(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = false
 
 	var httpSawNilResources bool
 	var udsSawNilResources bool
@@ -1162,7 +1128,6 @@ func TestBootWithRegistryMissingResourceDBLeavesResourceServiceUnavailable(t *te
 func TestBootRunsResourceReconcileBeforeObserverReconcile(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = false
 
 	var mu sync.Mutex
 	var order []string
@@ -1224,7 +1189,6 @@ func TestBootRunsObserverReconcileBeforeTaskRoleRecovery(t *testing.T) {
 	t.Run("Should fence recovered task activation until session reconciliation finishes", func(t *testing.T) {
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 
 		var mu sync.Mutex
 		observerReconciled := false
@@ -1332,7 +1296,6 @@ func TestLoopCoordinatorBootGate(t *testing.T) {
 func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = false
 
 	driver := &fakeResourceReconcileDriver{}
 	d := newTestDaemon(t, homePaths, &cfg)
@@ -1385,7 +1348,6 @@ func TestBootDoesNotRegisterOperatorHomeAsWorkspace(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeDaemonFile(t, homePaths.ConfigFile, "[gateway]\nprivate_port = 4242\n")
 		cfg := testConfig(t, homePaths)
-		cfg.Network.Enabled = false
 
 		d := newTestDaemon(t, homePaths, &cfg)
 		d.getenv = func(key string) string {
@@ -1438,100 +1400,6 @@ func TestBootDoesNotRegisterOperatorHomeAsWorkspace(t *testing.T) {
 			t.Fatalf("ListWorkspaces(after refused registration) = %#v, want none", after)
 		}
 	})
-}
-
-func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t *testing.T) {
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	if !cfg.Network.Enabled {
-		t.Fatal("testConfig() Network.Enabled = false, want true by default")
-	}
-
-	bindableSessions := newFakeNetworkBindableSessionManager()
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return bindableSessions, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
-		}
-	})
-
-	if d.network == nil {
-		t.Fatal("boot() network runtime = nil, want initialized manager")
-	}
-	if bindableSessions.currentNetworkPeerLifecycle() == nil {
-		t.Fatal("boot() did not late-bind network peer lifecycle")
-	}
-	if bindableSessions.currentTurnEndNotifier() == nil {
-		t.Fatal("boot() did not late-bind turn-end notifier")
-	}
-
-	info, err := ReadInfo(homePaths.DaemonInfo)
-	if err != nil {
-		t.Fatalf("ReadInfo(daemon.json) error = %v", err)
-	}
-	if info.Network == nil {
-		t.Fatal("daemon info network diagnostics = nil, want populated diagnostics")
-	}
-	if !info.Network.Enabled {
-		t.Fatal("daemon info network enabled = false, want true")
-	}
-	if got, want := info.Network.Status, network.StatusReady; got != want {
-		t.Fatalf("daemon info network status = %q, want %q", got, want)
-	}
-
-	rawInfo, err := os.ReadFile(homePaths.DaemonInfo)
-	if err != nil {
-		t.Fatalf("os.ReadFile(daemon.json) error = %v", err)
-	}
-	if strings.Contains(strings.ToLower(string(rawInfo)), "token") {
-		t.Fatalf("daemon info leaked credentials: %s", string(rawInfo))
-	}
-}
-
-func TestBootEnabledNetworkRejectsSessionManagersMissingBindingSurface(t *testing.T) {
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = true
-
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		base := &fakeSessionManager{}
-		return nonBindableHarnessSessionManager{
-			SessionManager:        base,
-			syntheticPrompter:     base,
-			workspaceAccessBinder: base,
-		}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-
-	err := d.boot(testutil.Context(t))
-	if !errors.Is(err, errMissingNetworkBindingSurface) {
-		t.Fatalf("boot() error = %v, want errMissingNetworkBindingSurface", err)
-	}
 }
 
 func TestBootRejectsSessionManagersMissingWorkspaceRemovalPreparation(t *testing.T) {
@@ -1702,11 +1570,6 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		},
 	}
 	d.tasks = &taskRuntime{}
-	d.network = &fakeNetworkRuntime{
-		onShutdown: func() {
-			events = append(events, "network")
-		},
-	}
 	d.httpServer = &fakeServer{name: "http", onShutdown: func() { events = append(events, "http") }}
 	d.udsServer = &fakeServer{name: "uds", onShutdown: func() { events = append(events, "uds") }}
 	d.registry = &recordingRegistry{
@@ -1746,7 +1609,6 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		"session:sess-b",
 		"http",
 		"uds",
-		"network",
 		"hooks",
 		"db",
 		"lock",
@@ -2201,31 +2063,6 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve durable acceptance alongside bridge prompt methods", func(t *testing.T) {
-		t.Parallel()
-
-		source := &fakeAcceptingNetworkSessionManager{
-			fakeNetworkBindableSessionManager: newFakeNetworkBindableSessionManager(),
-		}
-		adapter := newHostAPISessionManagerAdapter(source)
-		if _, ok := adapter.(hostAPIBridgePromptSessionManager); !ok {
-			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want bridge prompt methods", adapter)
-		}
-		acceptance, ok := adapter.(core.SessionAcceptanceManager)
-		if !ok {
-			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want durable acceptance", adapter)
-		}
-		if _, err := acceptance.CreateAccepted(
-			testutil.Context(t),
-			session.CreateAcceptedOpts{Session: session.CreateOpts{Name: "network-accepted-session"}},
-		); err != nil {
-			t.Fatalf("CreateAccepted() error = %v", err)
-		}
-		if got, want := source.acceptedCall.Session.Name, "network-accepted-session"; got != want {
-			t.Fatalf("CreateAccepted() name = %q, want %q", got, want)
-		}
-	})
-
 	t.Run("Should omit durable acceptance when source does not support it", func(t *testing.T) {
 		t.Parallel()
 
@@ -2235,76 +2072,29 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose bridge prompt methods when source supports them", func(t *testing.T) {
+	t.Run("Should forward prompt options when the session source supports them", func(t *testing.T) {
 		t.Parallel()
 
-		source := newFakeNetworkBindableSessionManager()
-		source.prompting["sess-bridge"] = true
-		promptNetworkCalls := 0
-		source.promptNetworkFn = func(_ context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
-			promptNetworkCalls++
-			if got, want := id, "sess-bridge"; got != want {
-				t.Fatalf("PromptNetwork() id = %q, want %q", got, want)
-			}
-			if got, want := msg, "bridge message"; got != want {
-				t.Fatalf("PromptNetwork() message = %q, want %q", got, want)
-			}
-			events := make(chan acp.AgentEvent)
-			close(events)
-			return events, nil
-		}
-
+		source := &fakePromptOptionsSessionManager{fakeSessionManager: &fakeSessionManager{}}
 		adapter := newHostAPISessionManagerAdapter(source)
-		bridgePrompts, ok := adapter.(hostAPIBridgePromptSessionManager)
+		prompter, ok := adapter.(hostAPIPromptOptsSessionManager)
 		if !ok {
-			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want bridge prompt methods", adapter)
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want prompt options", adapter)
 		}
-		if !bridgePrompts.IsPrompting("sess-bridge") {
-			t.Fatal("IsPrompting(sess-bridge) = false, want forwarded true")
-		}
-
-		events, err := bridgePrompts.PromptNetwork(
-			testutil.Context(t),
-			"sess-bridge",
-			"bridge message",
-			acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "message", From: "peer-1"},
-		)
-		if err != nil {
-			t.Fatalf("PromptNetwork() error = %v", err)
-		}
-		for event := range events {
-			t.Fatalf("PromptNetwork() emitted unexpected event %#v", event)
-		}
-		if got, want := promptNetworkCalls, 1; got != want {
-			t.Fatalf("PromptNetwork() calls = %d, want %d", got, want)
-		}
-		if got := len(source.promptCalls); got != 0 {
-			t.Fatalf("Prompt() fallback calls = %d, want 0", got)
-		}
-
-		promptOpts, ok := adapter.(hostAPIPromptOptsSessionManager)
-		if !ok {
-			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want PromptWithOpts", adapter)
-		}
-		optsEvents, err := promptOpts.PromptWithOpts(
-			testutil.Context(t),
-			"sess-bridge",
-			session.PromptOpts{
-				Message:    "bridge opts message",
-				TurnSource: session.TurnSourceNetwork,
-				PromptMeta: acp.PromptMeta{
-					Network: &acp.PromptNetworkMeta{MessageID: "msg-2", Kind: "message", From: "peer-1"},
-				},
-			},
-		)
+		opts := session.PromptOpts{Message: "user message", TurnSource: session.TurnSourceUser}
+		events, err := prompter.PromptWithOpts(testutil.Context(t), "sess-user", opts)
 		if err != nil {
 			t.Fatalf("PromptWithOpts() error = %v", err)
 		}
-		for event := range optsEvents {
+		for event := range events {
 			t.Fatalf("PromptWithOpts() emitted unexpected event %#v", event)
 		}
-		if got, want := source.promptWithOptsCalls, 1; got != want {
-			t.Fatalf("PromptWithOpts() calls = %d, want %d", got, want)
+		if source.sessionID != "sess-user" || !reflect.DeepEqual(source.options, opts) {
+			t.Fatalf(
+				"PromptWithOpts() = (%q, %#v), want forwarded session and options",
+				source.sessionID,
+				source.options,
+			)
 		}
 	})
 }
@@ -2407,7 +2197,6 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 	observer := &fakeObserver{}
 	automation := &fakeAutomationManager{}
 	reconcile := &fakeResourceReconcileDriver{}
-	bridges := &bridgeRuntime{broker: bridgepkg.NewBroker(nil)}
 	codecs := resources.NewCodecRegistry()
 	extRegistry := extensionpkg.NewRegistry(db.DB())
 
@@ -2421,7 +2210,6 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 		memoryProviderRegistry: memProviders,
 		observer:               observer,
 		skillsRegistry:         skillsRegistry,
-		bridges:                bridges,
 		resourceKernel:         kernel,
 		resourceCodecs:         codecs,
 		resourceReconcile:      reconcile,
@@ -2615,7 +2403,6 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	observer := &hookAwareTestObserver{}
 	reconcile := &fakeResourceReconcileDriver{}
 	d := newTestDaemon(t, homePaths, &cfg)
-	participationResolver := &hookAwareParticipationResolver{}
 	state := &bootState{
 		cfg:    cfg,
 		logger: discardLogger(),
@@ -2623,12 +2410,11 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 			discardLogger(),
 			func() time.Time { return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC) },
 		),
-		observer:              observer,
-		skillsRegistry:        skills.NewRegistry(skills.RegistryConfig{}),
-		resourceKernel:        kernel,
-		resourceCodecs:        codecs,
-		resourceReconcile:     reconcile,
-		participationResolver: participationResolver,
+		observer:          observer,
+		skillsRegistry:    skills.NewRegistry(skills.RegistryConfig{}),
+		resourceKernel:    kernel,
+		resourceCodecs:    codecs,
+		resourceReconcile: reconcile,
 	}
 	cleanup := &bootCleanup{}
 
@@ -2651,9 +2437,6 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	}
 	if state.hooks == nil || state.hookDispatcher == nil || state.hookBindings == nil {
 		t.Fatalf("hook state = %#v, want populated runtime, dispatcher, and bindings", state)
-	}
-	if participationResolver.hooks.Load() != state.hooks {
-		t.Fatal("participation resolver hooks were not attached during hook boot")
 	}
 	if len(cleanup.fns) < 2 {
 		t.Fatalf("cleanup fns = %d, want hook close plus skills watcher stop", len(cleanup.fns))
@@ -2875,7 +2658,6 @@ func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
 		registry: db,
 		sessions: &fakeSessionManager{},
 		observer: &fakeObserver{},
-		bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
 		hooks: &fakeHookRuntime{
 			onRebuild: func(context.Context) error {
 				rebuilds++
@@ -2903,9 +2685,6 @@ func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
 	}
 	if state.deps.Extensions == nil {
 		t.Fatal("state.deps.Extensions = nil, want extension service after failed start")
-	}
-	if state.bridges.extensions != runtime {
-		t.Fatalf("state.bridges.extensions = %#v, want runtime after failed start", state.bridges.extensions)
 	}
 	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
@@ -2959,7 +2738,6 @@ func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(
 			registry: db,
 			sessions: &fakeSessionManager{},
 			observer: &fakeObserver{},
-			bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
 			hooks: &fakeHookRuntime{
 				onRebuild: func(context.Context) error {
 					rebuilds++
@@ -2987,9 +2765,6 @@ func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(
 		}
 		if state.deps.Extensions == nil {
 			t.Fatal("state.deps.Extensions = nil, want extension service")
-		}
-		if state.bridges.extensions != runtime {
-			t.Fatalf("state.bridges.extensions = %#v, want runtime", state.bridges.extensions)
 		}
 		healthy, err := state.deps.Extensions.Status(testutil.Context(t), "ext-healthy")
 		if err != nil {
@@ -3035,7 +2810,6 @@ func TestBootExtensionsContinuesAfterExtensionLocalContextFailure(t *testing.T) 
 			registry: db,
 			sessions: &fakeSessionManager{},
 			observer: &fakeObserver{},
-			bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
 			hooks: &fakeHookRuntime{
 				onRebuild: func(context.Context) error {
 					rebuilds++
@@ -3118,7 +2892,6 @@ func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
 				registry: db,
 				sessions: &fakeSessionManager{},
 				observer: &fakeObserver{},
-				bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
 				hooks: &fakeHookRuntime{
 					onRebuild: func(context.Context) error {
 						t.Fatal("hooks should not rebuild when extension start is canceled")
@@ -3143,9 +2916,6 @@ func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
 			}
 			if state.deps.Extensions != nil {
 				t.Fatalf("state.deps.Extensions = %#v, want nil after canceled start", state.deps.Extensions)
-			}
-			if state.bridges.extensions != nil {
-				t.Fatalf("state.bridges.extensions = %#v, want nil after canceled start", state.bridges.extensions)
 			}
 		})
 	}
@@ -5564,9 +5334,6 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the session manager workspace resolver")
 	}
-	if capturedDeps.SandboxRegistry == nil {
-		t.Fatal("boot() did not inject the session manager sandbox registry")
-	}
 	if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
 		t.Fatal("boot() did not inject the daemon-owned session wake bridge")
 	}
@@ -5579,9 +5346,6 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	}
 	if sessions.compactionHandler == nil {
 		t.Fatal("boot() did not bind the checkpoint compaction runtime")
-	}
-	if d.sandboxRegistry == nil {
-		t.Fatal("boot() did not retain the daemon sandbox registry")
 	}
 	if capturedUDSDeps.WorkspaceService == nil {
 		t.Fatal("boot() did not inject the uds workspace service")
@@ -6144,64 +5908,6 @@ func TestInfoValidationAndReadFailures(t *testing.T) {
 	}
 }
 
-func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-
-	if err := (NetworkInfo{}).Validate(); err == nil {
-		t.Fatal("NetworkInfo.Validate() error = nil, want non-nil")
-	}
-	if err := (NetworkInfo{Enabled: true, Status: network.StatusActive}).Validate(); err != nil {
-		t.Fatalf("NetworkInfo.Validate(valid) error = %v", err)
-	}
-	for _, invalid := range []NetworkInfo{
-		{Status: network.StatusActive},
-		{Status: network.StatusReady},
-		{Enabled: true, Status: network.StatusDisabled},
-		{Enabled: true, Status: "degraded"},
-	} {
-		t.Run("Should reject inconsistent or unsupported network status "+invalid.Status, func(t *testing.T) {
-			t.Parallel()
-			if err := invalid.Validate(); err == nil {
-				t.Fatalf("NetworkInfo.Validate(%#v) error = nil, want non-nil", invalid)
-			}
-		})
-	}
-
-	disabledInfo, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{}, nil)
-	if err != nil {
-		t.Fatalf("daemonNetworkInfo(disabled) error = %v", err)
-	}
-	if disabledInfo == nil || disabledInfo.Enabled || disabledInfo.Status != network.StatusDisabled {
-		t.Fatalf("daemonNetworkInfo(disabled) = %#v, want disabled snapshot", disabledInfo)
-	}
-
-	if _, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{Enabled: true}, nil); err == nil {
-		t.Fatal("daemonNetworkInfo(enabled nil service) error = nil, want non-nil")
-	}
-	if _, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{}); err == nil {
-		t.Fatal("daemonNetworkInfo(nil status) error = nil, want non-nil")
-	}
-
-	info, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{
-		status: &network.Status{
-			Enabled: true,
-			Status:  " active ",
-		},
-	})
-	if err != nil {
-		t.Fatalf("daemonNetworkInfo(runtime status) error = %v", err)
-	}
-	if info == nil {
-		t.Fatal("daemonNetworkInfo(runtime status) = nil, want populated diagnostics")
-		return
-	}
-	if !info.Enabled || info.Status != network.StatusActive {
-		t.Fatalf("daemonNetworkInfo(runtime status) = %#v, want trimmed active diagnostics", info)
-	}
-}
-
 func TestLockHelpersAndErrors(t *testing.T) {
 	lock := &Lock{path: "/tmp/daemon.lock"}
 	if got := lock.Path(); got != "/tmp/daemon.lock" {
@@ -6566,22 +6272,20 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ProfileID:            store.DefaultProfileID,
-			ID:                   "sess-owner",
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ProfileID:   store.DefaultProfileID,
+			ID:          "sess-owner",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 		{
-			ProfileID:            store.DefaultProfileID,
-			ID:                   "sess-wake",
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ProfileID:   store.DefaultProfileID,
+			ID:          "sess-wake",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 	}
 
@@ -6676,20 +6380,18 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:                   "sess-owner",
-				AgentName:            "coder",
-				Type:                 session.SessionTypeSystem,
-				State:                session.StateActive,
-				WorkspaceID:          "ws-1",
-				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
+				ID:          "sess-owner",
+				AgentName:   "coder",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "ws-1",
 			},
 			{
-				ID:                   "sess-wake",
-				AgentName:            "coder",
-				Type:                 session.SessionTypeSystem,
-				State:                session.StateActive,
-				WorkspaceID:          "ws-1",
-				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
+				ID:          "sess-wake",
+				AgentName:   "coder",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "ws-1",
 			},
 		},
 	}
@@ -6882,19 +6584,19 @@ func testSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T)
 				Provider: staticPromptProvider("memory block"),
 			},
 			{
-				Name:     string(HarnessPromptSectionNetwork),
+				Name:     string(HarnessPromptSectionTools),
 				Position: PromptSectionPositionAppend,
 				Order:    10,
-				Provider: staticPromptProvider("network block"),
+				Provider: staticPromptProvider("tools block"),
 				Predicate: func(ResolvedHarnessPolicy) bool {
 					return false
 				},
 			},
 			{
-				Name:     string(HarnessPromptSectionNetwork),
+				Name:     string(HarnessPromptSectionTools),
 				Position: PromptSectionPositionAppend,
 				Order:    20,
-				Provider: staticPromptProvider("duplicate network block"),
+				Provider: staticPromptProvider("duplicate tools block"),
 			},
 		},
 	)
@@ -6908,7 +6610,7 @@ func testSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T)
 	}
 	if got, want := gotNames, []string{
 		string(HarnessPromptSectionMemory),
-		string(HarnessPromptSectionNetwork),
+		string(HarnessPromptSectionTools),
 	}; !slices.Equal(
 		got,
 		want,
@@ -7133,19 +6835,18 @@ func seedDetachedHarnessRecoveryRunForTest(
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
 	run := taskpkg.Run{
-		ProfileID:       store.DefaultProfileID,
-		ID:              runID,
-		TaskID:          taskID,
-		Status:          taskpkg.TaskRunStatusCompleted,
-		Attempt:         1,
-		Origin:          actor.Origin,
-		IdempotencyKey:  "idem-" + runID,
-		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "builders")},
-		Metadata:        runMetadata,
-		QueuedAt:        completedAt.Add(-2 * time.Minute),
-		ClaimedAt:       completedAt.Add(-90 * time.Second),
-		StartedAt:       completedAt.Add(-time.Minute),
-		EndedAt:         completedAt,
+		ProfileID:      store.DefaultProfileID,
+		ID:             runID,
+		TaskID:         taskID,
+		Status:         taskpkg.TaskRunStatusCompleted,
+		Attempt:        1,
+		Origin:         actor.Origin,
+		IdempotencyKey: "idem-" + runID,
+		Metadata:       runMetadata,
+		QueuedAt:       completedAt.Add(-2 * time.Minute),
+		ClaimedAt:      completedAt.Add(-90 * time.Second),
+		StartedAt:      completedAt.Add(-time.Minute),
+		EndedAt:        completedAt,
 	}
 	run.SetResult(json.RawMessage(`{"ok":true}`))
 	command, err := taskpkg.NewTerminalRunHistoryImport(run, actor)
@@ -7343,14 +7044,13 @@ func (f *fakeSessionManager) CreateLifecycleContinuation(
 
 func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
 	child, err := f.Create(ctx, session.CreateOpts{
-		AgentName:            opts.AgentName,
-		Provider:             opts.Provider,
-		Name:                 opts.Name,
-		Workspace:            opts.Workspace,
-		WorkspacePath:        opts.WorkspacePath,
-		NetworkParticipation: opts.NetworkParticipation,
-		PromptOverlay:        opts.PromptOverlay,
-		Type:                 session.SessionTypeSpawned,
+		AgentName:     opts.AgentName,
+		Provider:      opts.Provider,
+		Name:          opts.Name,
+		Workspace:     opts.Workspace,
+		WorkspacePath: opts.WorkspacePath,
+		PromptOverlay: opts.PromptOverlay,
+		Type:          session.SessionTypeSpawned,
 		Lineage: &store.SessionLineage{
 			ParentSessionID:  opts.ParentSessionID,
 			SpawnRole:        opts.SpawnRole,
@@ -7730,16 +7430,15 @@ func (f *fakeSessionManager) ClearConversation(
 	}
 
 	return &session.Session{
-		ID:                   info.ID,
-		Name:                 info.Name,
-		AgentName:            info.AgentName,
-		WorkspaceID:          info.WorkspaceID,
-		Workspace:            info.Workspace,
-		NetworkParticipation: info.NetworkParticipation,
-		Type:                 info.Type,
-		State:                session.StateActive,
-		CreatedAt:            info.CreatedAt,
-		UpdatedAt:            info.UpdatedAt,
+		ID:          info.ID,
+		Name:        info.Name,
+		AgentName:   info.AgentName,
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+		Type:        info.Type,
+		State:       session.StateActive,
+		CreatedAt:   info.CreatedAt,
+		UpdatedAt:   info.UpdatedAt,
 	}, nil
 }
 
@@ -8095,8 +7794,6 @@ func (f *fakeSessionManager) ApprovePermission(
 	return session.ApprovalResult{}, nil
 }
 
-func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
-
 func (f *fakeSessionManager) SetTurnEndNotifier(fn session.TurnEndNotifier) {
 	f.mu.Lock()
 	f.turnEndNotifier = fn
@@ -8118,17 +7815,6 @@ func (f *fakeSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
 		}
 	}
 	f.mu.Unlock()
-}
-
-func (f *fakeSessionManager) PromptNetwork(
-	context.Context,
-	string,
-	string,
-	...acp.PromptNetworkMeta,
-) (<-chan acp.AgentEvent, error) {
-	ch := make(chan acp.AgentEvent)
-	close(ch)
-	return ch, nil
 }
 
 func (f *fakeSessionManager) IsPrompting(string) bool {
@@ -8196,13 +7882,22 @@ func (f *fakeSessionManager) createCall(index int) session.CreateOpts {
 	return f.createCalls[index]
 }
 
-type fakeNetworkBindableSessionManager struct {
+type fakePromptOptionsSessionManager struct {
 	*fakeSessionManager
-	networkPeers        session.NetworkPeerLifecycle
-	turnEndNotifier     session.TurnEndNotifier
-	promptNetworkFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	promptWithOptsCalls int
-	prompting           map[string]bool
+	sessionID string
+	options   session.PromptOpts
+}
+
+func (f *fakePromptOptionsSessionManager) PromptWithOpts(
+	_ context.Context,
+	id string,
+	opts session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	f.sessionID = id
+	f.options = opts
+	events := make(chan acp.AgentEvent)
+	close(events)
+	return events, nil
 }
 
 type fakeAcceptingSessionManager struct {
@@ -8245,104 +7940,6 @@ func (f *fakeAcceptingSessionManager) CreateAccepted(
 ) (*session.Info, error) {
 	f.acceptedCall = opts
 	return &session.Info{ID: "accepted-session"}, nil
-}
-
-type fakeAcceptingNetworkSessionManager struct {
-	*fakeNetworkBindableSessionManager
-	acceptedCall session.CreateAcceptedOpts
-}
-
-func (f *fakeAcceptingNetworkSessionManager) CreateAccepted(
-	_ context.Context,
-	opts session.CreateAcceptedOpts,
-) (*session.Info, error) {
-	f.acceptedCall = opts
-	return &session.Info{ID: "accepted-session"}, nil
-}
-
-func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
-	return &fakeNetworkBindableSessionManager{
-		fakeSessionManager: &fakeSessionManager{},
-		prompting:          make(map[string]bool),
-	}
-}
-
-func (f *fakeNetworkBindableSessionManager) PromptWithOpts(
-	_ context.Context,
-	_ string,
-	_ session.PromptOpts,
-) (<-chan acp.AgentEvent, error) {
-	f.mu.Lock()
-	f.promptWithOptsCalls++
-	f.mu.Unlock()
-	ch := make(chan acp.AgentEvent)
-	close(ch)
-	return ch, nil
-}
-
-func (f *fakeNetworkBindableSessionManager) SetNetworkPeerLifecycle(lifecycle session.NetworkPeerLifecycle) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.networkPeers = lifecycle
-}
-
-func (f *fakeNetworkBindableSessionManager) currentNetworkPeerLifecycle() session.NetworkPeerLifecycle {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.networkPeers
-}
-
-func (f *fakeNetworkBindableSessionManager) SetTurnEndNotifier(fn session.TurnEndNotifier) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.turnEndNotifier = fn
-}
-
-func (f *fakeNetworkBindableSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
-	if fn == nil {
-		return
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	previous := f.turnEndNotifier
-	if previous == nil {
-		f.turnEndNotifier = fn
-		return
-	}
-	f.turnEndNotifier = func(ctx context.Context, identity session.PromptRunIdentity) {
-		previous(ctx, identity)
-		fn(ctx, identity)
-	}
-}
-
-func (f *fakeNetworkBindableSessionManager) currentTurnEndNotifier() session.TurnEndNotifier {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.turnEndNotifier
-}
-
-func (f *fakeNetworkBindableSessionManager) PromptNetwork(
-	ctx context.Context,
-	id string,
-	msg string,
-	_ ...acp.PromptNetworkMeta,
-) (<-chan acp.AgentEvent, error) {
-	f.mu.Lock()
-	fn := f.promptNetworkFn
-	f.mu.Unlock()
-	if fn != nil {
-		return fn(ctx, id, msg)
-	}
-
-	ch := make(chan acp.AgentEvent)
-	close(ch)
-	return ch, nil
-}
-
-func (f *fakeNetworkBindableSessionManager) IsPrompting(sessionID string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.prompting[sessionID]
 }
 
 type syntheticPrompter interface {
@@ -8483,14 +8080,12 @@ func (m sessionManagerWithoutWorkspaceRemoval) StopWithCause(
 }
 
 var (
-	_ SessionManager                = (*fakeSessionManager)(nil)
-	_ SessionManager                = (*fakeNetworkBindableSessionManager)(nil)
-	_ SessionManager                = nonBindableHarnessSessionManager{}
-	_ networkBindableSessionManager = (*fakeNetworkBindableSessionManager)(nil)
-	_ syntheticPrompter             = (*fakeSessionManager)(nil)
-	_ syntheticPrompter             = nonBindableHarnessSessionManager{}
-	_ spawnSurface                  = nonBindableHarnessSessionManager{}
-	_ autoTitleApplySurface         = nonBindableHarnessSessionManager{}
+	_ SessionManager        = (*fakeSessionManager)(nil)
+	_ SessionManager        = nonBindableHarnessSessionManager{}
+	_ syntheticPrompter     = (*fakeSessionManager)(nil)
+	_ syntheticPrompter     = nonBindableHarnessSessionManager{}
+	_ spawnSurface          = nonBindableHarnessSessionManager{}
+	_ autoTitleApplySurface = nonBindableHarnessSessionManager{}
 )
 
 func (m nonBindableHarnessSessionManager) Spawn(
@@ -8535,205 +8130,6 @@ func (m nonBindableHarnessSessionManager) PrepareWorkspaceRemoval(
 	return preparer.PrepareWorkspaceRemoval(ctx, workspaceID)
 }
 
-type fakeNetworkRuntime struct {
-	mu               sync.Mutex
-	status           *network.Status
-	statusErr        error
-	sendID           string
-	sendErr          error
-	sendCalls        []network.SendRequest
-	runtimeSendCalls []network.RuntimeSendRequest
-	joinCalls        []fakeNetworkJoinCall
-	leaveCalls       []string
-	turnEnds         []string
-	inboxes          map[string][]network.Envelope
-	shutdownErr      error
-	onShutdown       func()
-}
-
-type fakeNetworkJoinCall struct {
-	sessionID    string
-	peerID       string
-	channel      string
-	capabilities []session.NetworkPeerCapability
-}
-
-func cloneFakeNetworkPeerCapabilities(capabilities []session.NetworkPeerCapability) []session.NetworkPeerCapability {
-	if capabilities == nil {
-		return nil
-	}
-
-	cloned := make([]session.NetworkPeerCapability, 0, len(capabilities))
-	for _, capability := range capabilities {
-		cloned = append(cloned, session.NetworkPeerCapability{
-			ID:                capability.ID,
-			Summary:           capability.Summary,
-			Outcome:           capability.Outcome,
-			ContextNeeded:     append([]string(nil), capability.ContextNeeded...),
-			ArtifactsExpected: append([]string(nil), capability.ArtifactsExpected...),
-			ExecutionOutline:  append([]string(nil), capability.ExecutionOutline...),
-			Constraints:       append([]string(nil), capability.Constraints...),
-			Examples:          append([]string(nil), capability.Examples...),
-		})
-	}
-
-	return cloned
-}
-
-func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sendCalls = append(f.sendCalls, req)
-	if f.sendErr != nil {
-		return "", f.sendErr
-	}
-	if strings.TrimSpace(f.sendID) != "" {
-		return f.sendID, nil
-	}
-	return "msg-test", nil
-}
-
-func (f *fakeNetworkRuntime) SendFromRuntimePeer(
-	_ context.Context,
-	req network.RuntimeSendRequest,
-) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.runtimeSendCalls = append(f.runtimeSendCalls, req)
-	if f.sendErr != nil {
-		return "", f.sendErr
-	}
-	if strings.TrimSpace(f.sendID) != "" {
-		return f.sendID, nil
-	}
-	return "msg-runtime-test", nil
-}
-
-func (f *fakeNetworkRuntime) ListPeers(context.Context, string, string) ([]network.PeerInfo, error) {
-	return nil, nil
-}
-
-func (f *fakeNetworkRuntime) ListChannels(context.Context, string) ([]network.ChannelInfo, error) {
-	return nil, nil
-}
-
-func (f *fakeNetworkRuntime) Status(context.Context) (*network.Status, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.statusErr != nil {
-		return nil, f.statusErr
-	}
-	if f.status == nil {
-		return nil, nil
-	}
-	status := *f.status
-	return &status, nil
-}
-
-func (f *fakeNetworkRuntime) Inbox(_ context.Context, sessionID string) ([]network.Envelope, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if len(f.inboxes) == 0 {
-		return nil, nil
-	}
-	return append([]network.Envelope(nil), f.inboxes[sessionID]...), nil
-}
-
-func (f *fakeNetworkRuntime) WaitInbox(ctx context.Context, sessionID string, _ string) ([]network.Envelope, error) {
-	return f.Inbox(ctx, sessionID)
-}
-
-func (f *fakeNetworkRuntime) JoinChannel(_ context.Context, join session.NetworkPeerJoin) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.joinCalls = append(f.joinCalls, fakeNetworkJoinCall{
-		sessionID:    join.SessionID,
-		peerID:       join.PeerID,
-		channel:      join.Channel,
-		capabilities: cloneFakeNetworkPeerCapabilities(join.Capabilities),
-	})
-	return nil
-}
-
-func (f *fakeNetworkRuntime) LeaveChannel(_ context.Context, sessionID string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.leaveCalls = append(f.leaveCalls, sessionID)
-	return nil
-}
-
-func (f *fakeNetworkRuntime) OnTurnEnd(sessionID string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.turnEnds = append(f.turnEnds, sessionID)
-}
-
-func (f *fakeNetworkRuntime) Shutdown(context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.onShutdown != nil {
-		f.onShutdown()
-	}
-	return f.shutdownErr
-}
-
-func TestFakeNetworkRuntimeJoinChannelDeepClonesCapabilities(t *testing.T) {
-	t.Parallel()
-
-	runtime := &fakeNetworkRuntime{}
-	join := session.NetworkPeerJoin{
-		SessionID: "sess-1",
-		PeerID:    "peer-1",
-		Channel:   "channel-1",
-		Capabilities: []session.NetworkPeerCapability{{
-			ID:                "review-pr",
-			Summary:           "Review pull requests",
-			Outcome:           "Review feedback",
-			ContextNeeded:     []string{"repo", "diff"},
-			ArtifactsExpected: []string{"comments"},
-			ExecutionOutline:  []string{"inspect", "comment"},
-			Constraints:       []string{"stay scoped"},
-			Examples:          []string{"review PR #49"},
-		}},
-	}
-
-	if err := runtime.JoinChannel(testutil.Context(t), join); err != nil {
-		t.Fatalf("JoinChannel() error = %v", err)
-	}
-
-	join.Capabilities[0].ContextNeeded[0] = "mutated"
-	join.Capabilities[0].ArtifactsExpected[0] = "mutated"
-	join.Capabilities[0].ExecutionOutline[0] = "mutated"
-	join.Capabilities[0].Constraints[0] = "mutated"
-	join.Capabilities[0].Examples[0] = "mutated"
-
-	runtime.mu.Lock()
-	recorded := runtime.joinCalls[0]
-	runtime.mu.Unlock()
-
-	if got, want := recorded.capabilities[0].ContextNeeded, []string{"repo", "diff"}; !slices.Equal(got, want) {
-		t.Fatalf("recorded ContextNeeded = %#v, want %#v", got, want)
-	}
-	if got, want := recorded.capabilities[0].ArtifactsExpected, []string{"comments"}; !slices.Equal(got, want) {
-		t.Fatalf("recorded ArtifactsExpected = %#v, want %#v", got, want)
-	}
-	if got, want := recorded.capabilities[0].ExecutionOutline, []string{
-		"inspect",
-		"comment",
-	}; !slices.Equal(
-		got,
-		want,
-	) {
-		t.Fatalf("recorded ExecutionOutline = %#v, want %#v", got, want)
-	}
-	if got, want := recorded.capabilities[0].Constraints, []string{"stay scoped"}; !slices.Equal(got, want) {
-		t.Fatalf("recorded Constraints = %#v, want %#v", got, want)
-	}
-	if got, want := recorded.capabilities[0].Examples, []string{"review PR #49"}; !slices.Equal(got, want) {
-		t.Fatalf("recorded Examples = %#v, want %#v", got, want)
-	}
-}
-
 type fakeObserver struct {
 	reconciled  bool
 	result      store.ReconcileResult
@@ -8758,10 +8154,6 @@ func (f *fakeObserver) QueryHookEvents(context.Context, hookspkg.EventFilter) ([
 }
 
 func (f *fakeObserver) QueryTokenStats(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error) {
-	return nil, nil
-}
-
-func (f *fakeObserver) QueryBridgeHealth(context.Context) ([]observe.BridgeInstanceHealth, error) {
 	return nil, nil
 }
 
@@ -8917,9 +8309,6 @@ type recordingRegistry struct {
 	workspaces                map[string]workspacepkg.Workspace
 	workspaceDeletionIntents  map[string]workspacepkg.DeletionIntent
 	deadEntities              map[store.DeadEntityKey]store.DeadEntity
-	networkAvailability       store.NetworkAvailability
-	networkAvailabilityWrites []bool
-	coordinationSettings      map[string]workspacepkg.CoordinationSetting
 	approvalGrants            map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant
 	gatewaySnapshot           gateway.Snapshot
 	neutralizeLoopOrphansErr  error
@@ -9701,202 +9090,6 @@ func (r *recordingRegistry) ListPermissionLog(
 	return nil, nil
 }
 
-func (r *recordingRegistry) WriteNetworkAudit(context.Context, store.NetworkAuditEntry) error {
-	return nil
-}
-
-func (r *recordingRegistry) ListNetworkAudit(
-	context.Context,
-	store.NetworkAuditQuery,
-) ([]store.NetworkAuditEntry, error) {
-	return nil, nil
-}
-
-func (r *recordingRegistry) GetNetworkAvailability(context.Context) (store.NetworkAvailability, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.networkAvailability, nil
-}
-
-func (r *recordingRegistry) SetNetworkAvailability(
-	_ context.Context,
-	enabled bool,
-	updatedBy string,
-) (store.NetworkAvailability, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.networkAvailability.Enabled != enabled {
-		r.networkAvailability.Epoch++
-	}
-	r.networkAvailability.Enabled = enabled
-	r.networkAvailability.UpdatedAt = time.Now().UTC()
-	r.networkAvailability.UpdatedBy = strings.TrimSpace(updatedBy)
-	r.networkAvailabilityWrites = append(r.networkAvailabilityWrites, enabled)
-	return r.networkAvailability, nil
-}
-
-func (*recordingRegistry) AcceptNetworkMessage(
-	context.Context,
-	*store.AcceptNetworkMessageRequest,
-) (store.AcceptNetworkMessageResult, error) {
-	return store.AcceptNetworkMessageResult{}, nil
-}
-
-func (*recordingRegistry) SettleNetworkWake(
-	context.Context,
-	taskpkg.NetworkWakeSettlement,
-) (taskpkg.NetworkWakeSettlementResult, error) {
-	return taskpkg.NetworkWakeSettlementResult{}, nil
-}
-
-func (*recordingRegistry) ListQueuedNetworkWakes(
-	context.Context,
-	int,
-) ([]store.CommittedNetworkNotification, error) {
-	return nil, nil
-}
-
-func (*recordingRegistry) LoadNetworkWake(
-	context.Context,
-	string,
-	string,
-) (store.WakeReservation, []store.NetworkMessageEntry, error) {
-	return store.WakeReservation{}, nil, nil
-}
-
-func (r *recordingRegistry) Get(
-	_ context.Context,
-	workspaceID string,
-) (workspacepkg.CoordinationSetting, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	id := strings.TrimSpace(workspaceID)
-	return r.coordinationSettings[id], nil
-}
-
-func (r *recordingRegistry) Set(
-	_ context.Context,
-	workspaceID string,
-	enabled bool,
-	actor string,
-) (workspacepkg.CoordinationSetting, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.coordinationSettings == nil {
-		r.coordinationSettings = make(map[string]workspacepkg.CoordinationSetting)
-	}
-	id := strings.TrimSpace(workspaceID)
-	setting := r.coordinationSettings[id]
-	setting.WorkspaceID = id
-	setting.Enabled = enabled
-	setting.Revision++
-	setting.UpdatedAt = time.Now().UTC()
-	setting.UpdatedBy = strings.TrimSpace(actor)
-	r.coordinationSettings[id] = setting
-	return setting, nil
-}
-
-func (*recordingRegistry) GetInvitation(
-	_ context.Context,
-	workspaceID string,
-	scopeKind string,
-	scopeID string,
-) (workspacepkg.CoordinationInvitation, error) {
-	return workspacepkg.CoordinationInvitation{
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		ScopeKind:   strings.TrimSpace(scopeKind),
-		ScopeID:     strings.TrimSpace(scopeID),
-	}, nil
-}
-
-func (*recordingRegistry) DismissInvitation(
-	_ context.Context,
-	workspaceID string,
-	scopeKind string,
-	scopeID string,
-	actor string,
-) (workspacepkg.CoordinationInvitation, error) {
-	now := time.Now().UTC()
-	return workspacepkg.CoordinationInvitation{
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		ScopeKind:   strings.TrimSpace(scopeKind),
-		ScopeID:     strings.TrimSpace(scopeID),
-		Dismissed:   true,
-		DismissedAt: now,
-		DismissedBy: strings.TrimSpace(actor),
-	}, nil
-}
-
-func (*recordingRegistry) ResetInvitation(context.Context, string, string, string) error {
-	return nil
-}
-
-func (*recordingRegistry) GetCoordination(
-	context.Context,
-	workspacepkg.CoordinationRef,
-) (workspacepkg.CoordinationView, error) {
-	return workspacepkg.CoordinationView{}, nil
-}
-
-func (*recordingRegistry) SetCoordination(
-	context.Context,
-	workspacepkg.SetCoordination,
-	taskpkg.ActorContext,
-) (workspacepkg.CoordinationView, error) {
-	return workspacepkg.CoordinationView{}, nil
-}
-
-func (*recordingRegistry) SetCoordinationInvitation(
-	context.Context,
-	workspacepkg.SetInvitation,
-	taskpkg.ActorContext,
-) (workspacepkg.CoordinationView, error) {
-	return workspacepkg.CoordinationView{}, nil
-}
-
-func (*recordingRegistry) GetNetworkUsage(
-	context.Context,
-	store.NetworkUsageQuery,
-) (store.NetworkUsageReport, error) {
-	return store.NetworkUsageReport{}, nil
-}
-
-func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error {
-	return nil
-}
-
-func (r *recordingRegistry) CreateNetworkChannel(context.Context, store.NetworkChannelEntry) error {
-	return nil
-}
-
-func (r *recordingRegistry) PatchNetworkChannel(
-	context.Context,
-	store.ReadScope,
-	store.NetworkChannelRef,
-	store.NetworkChannelPatch,
-) error {
-	return nil
-}
-
-func (r *recordingRegistry) GetNetworkChannel(
-	context.Context,
-	store.ReadScope,
-	store.NetworkChannelRef,
-) (store.NetworkChannelEntry, error) {
-	return store.NetworkChannelEntry{}, sql.ErrNoRows
-}
-
-func (r *recordingRegistry) ListNetworkChannels(
-	context.Context,
-	store.NetworkChannelQuery,
-) ([]store.NetworkChannelEntry, error) {
-	return nil, nil
-}
-
-func (r *recordingRegistry) DeleteNetworkChannel(context.Context, store.NetworkChannelRef) error {
-	return nil
-}
-
 func (r *recordingRegistry) GetOnboardingStatus(context.Context) (store.OnboardingStatus, error) {
 	return store.OnboardingStatus{}, nil
 }
@@ -9919,116 +9112,6 @@ func (r *recordingRegistry) SetAppMetadata(context.Context, string, string) erro
 
 func (r *recordingRegistry) DeleteAppMetadata(context.Context, string) error {
 	return nil
-}
-
-func (r *recordingRegistry) WriteNetworkMessage(context.Context, store.NetworkMessageEntry) error {
-	return nil
-}
-
-func (r *recordingRegistry) ListNetworkMessages(
-	context.Context,
-	store.NetworkMessageQuery,
-) ([]store.NetworkMessageEntry, error) {
-	return nil, nil
-}
-
-func (r *recordingRegistry) ResolveDirectRoom(
-	context.Context,
-	store.NetworkDirectRoomEntry,
-) (store.NetworkDirectRoomSummary, error) {
-	return store.NetworkDirectRoomSummary{}, nil
-}
-
-func (r *recordingRegistry) WriteConversationMessage(
-	context.Context,
-	store.NetworkConversationMessage,
-) (store.NetworkConversationWriteResult, error) {
-	return store.NetworkConversationWriteResult{}, nil
-}
-
-func (r *recordingRegistry) ListThreads(
-	context.Context,
-	store.NetworkChannelRef,
-	store.NetworkThreadQuery,
-) (store.NetworkThreadPage, error) {
-	return store.NetworkThreadPage{}, nil
-}
-
-func (r *recordingRegistry) GetThread(
-	context.Context,
-	store.ReadScope,
-	store.NetworkChannelRef,
-	string,
-) (store.NetworkThreadSummary, error) {
-	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
-}
-
-func (r *recordingRegistry) ListDirectRooms(
-	context.Context,
-	store.NetworkChannelRef,
-	store.NetworkDirectRoomQuery,
-) (store.NetworkDirectRoomPage, error) {
-	return store.NetworkDirectRoomPage{}, nil
-}
-
-func (r *recordingRegistry) GetDirectRoom(
-	context.Context,
-	store.ReadScope,
-	store.NetworkChannelRef,
-	string,
-) (store.NetworkDirectRoomSummary, error) {
-	return store.NetworkDirectRoomSummary{}, store.ErrNetworkConversationNotFound
-}
-
-func (r *recordingRegistry) ListConversationMessages(
-	context.Context,
-	store.NetworkConversationRef,
-	store.NetworkConversationMessageQuery,
-) ([]store.NetworkConversationMessage, error) {
-	return nil, nil
-}
-
-func (r *recordingRegistry) GetWork(
-	context.Context,
-	store.ReadScope,
-	string,
-	string,
-) (store.NetworkWorkEntry, error) {
-	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
-}
-
-func (r *recordingRegistry) PutNetworkSubscription(context.Context, store.NetworkSubscriptionEntry) error {
-	return nil
-}
-
-func (r *recordingRegistry) PutNetworkSubscriptionWithChannel(
-	context.Context,
-	store.NetworkChannelEntry,
-	store.NetworkSubscriptionEntry,
-) error {
-	return nil
-}
-
-func (r *recordingRegistry) ListNetworkSubscriptions(
-	context.Context,
-	store.NetworkSubscriptionQuery,
-) ([]store.NetworkSubscriptionEntry, error) {
-	return nil, nil
-}
-
-func (r *recordingRegistry) DeleteNetworkSubscription(context.Context, store.NetworkSubscriptionRef) error {
-	return nil
-}
-
-func (r *recordingRegistry) PutNetworkTaskThreadOrigin(context.Context, store.NetworkTaskThreadOrigin) error {
-	return nil
-}
-
-func (r *recordingRegistry) ListNetworkTaskThreadOrigins(
-	context.Context,
-	store.NetworkTaskThreadOriginQuery,
-) ([]store.NetworkTaskThreadOrigin, error) {
-	return nil, nil
 }
 
 func (r *recordingRegistry) PutTaskDesignationRollup(context.Context, store.TaskDesignationRollup) error {
@@ -10400,13 +9483,6 @@ func (r *recordingRegistry) TransitionRunRunning(
 func (r *recordingRegistry) RecoverTaskRunOnBoot(
 	context.Context,
 	taskpkg.RunBootRecoveryMutation,
-) (taskpkg.NominalRunMutationResult, error) {
-	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
-}
-
-func (r *recordingRegistry) RecoverNetworkWakeOnBoot(
-	context.Context,
-	taskpkg.NetworkWakeBootRecoveryMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
 	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
 }
@@ -11305,41 +10381,6 @@ func (f *fakeHookRuntime) DispatchContextPostCompact(
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchSandboxPrepare(
-	_ context.Context,
-	payload *hookspkg.SandboxPreparePayload,
-) (*hookspkg.SandboxPreparePayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchSandboxReady(
-	_ context.Context,
-	payload hookspkg.SandboxReadyPayload,
-) (hookspkg.SandboxReadyPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchSandboxSyncBefore(
-	_ context.Context,
-	payload hookspkg.SandboxSyncBeforePayload,
-) (hookspkg.SandboxSyncBeforePayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchSandboxSyncAfter(
-	_ context.Context,
-	payload hookspkg.SandboxSyncAfterPayload,
-) (hookspkg.SandboxSyncAfterPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchSandboxStop(
-	_ context.Context,
-	payload hookspkg.SandboxStopPayload,
-) (hookspkg.SandboxStopPayload, error) {
-	return payload, nil
-}
-
 func (f *fakeHookRuntime) DispatchCoordinatorPreSpawn(
 	_ context.Context,
 	payload hookspkg.CoordinatorPreSpawnPayload,
@@ -11627,62 +10668,6 @@ func (f *fakeHookRuntime) DispatchSessionAttentionChanged(
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchNetworkPeerJoined(
-	_ context.Context,
-	payload hookspkg.NetworkPeerJoinedPayload,
-) (hookspkg.NetworkPeerJoinedPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkPeerLeft(
-	_ context.Context,
-	payload hookspkg.NetworkPeerLeftPayload,
-) (hookspkg.NetworkPeerLeftPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkThreadOpened(
-	_ context.Context,
-	payload hookspkg.NetworkThreadOpenedPayload,
-) (hookspkg.NetworkThreadOpenedPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkDirectRoomOpened(
-	_ context.Context,
-	payload hookspkg.NetworkDirectRoomOpenedPayload,
-) (hookspkg.NetworkDirectRoomOpenedPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkMessagePersisted(
-	_ context.Context,
-	payload hookspkg.NetworkMessagePersistedPayload,
-) (hookspkg.NetworkMessagePersistedPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkWorkOpened(
-	_ context.Context,
-	payload hookspkg.NetworkWorkOpenedPayload,
-) (hookspkg.NetworkWorkOpenedPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkWorkTransitioned(
-	_ context.Context,
-	payload hookspkg.NetworkWorkTransitionedPayload,
-) (hookspkg.NetworkWorkTransitionedPayload, error) {
-	return payload, nil
-}
-
-func (f *fakeHookRuntime) DispatchNetworkWorkClosed(
-	_ context.Context,
-	payload hookspkg.NetworkWorkClosedPayload,
-) (hookspkg.NetworkWorkClosedPayload, error) {
-	return payload, nil
-}
-
 func testHookExecutorResolver(native map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
 	return func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 		if decl.ExecutorKind == hookspkg.HookExecutorNative {
@@ -11908,20 +10893,18 @@ func (f *fakeExtensionRuntime) InspectPackageResources(
 }
 
 type daemonTestExtensionOptions struct {
-	bundled           bool
-	version           string
-	requiredEnv       []string
-	runtimeCommand    string
-	runtimeArgs       []string
-	runtimeEnv        map[string]string
-	runtimeSecretEnv  map[string]string
-	hookCommand       string
-	hookArgs          []string
-	hookEvent         hookspkg.HookEvent
-	capabilities      []string
-	permissions       []string
-	bridgePlatform    string
-	bridgeDisplayName string
+	bundled          bool
+	version          string
+	requiredEnv      []string
+	runtimeCommand   string
+	runtimeArgs      []string
+	runtimeEnv       map[string]string
+	runtimeSecretEnv map[string]string
+	hookCommand      string
+	hookArgs         []string
+	hookEvent        hookspkg.HookEvent
+	capabilities     []string
+	permissions      []string
 }
 
 func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
@@ -12014,16 +10997,6 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 	if opts.permissions == nil {
 		permissions = []string{"sessions/list"}
 	}
-	bridgePlatform := strings.TrimSpace(opts.bridgePlatform)
-	bridgeDisplayName := strings.TrimSpace(opts.bridgeDisplayName)
-	if slices.Contains(capabilities, extensionprotocol.CapabilityProvideBridgeAdapter) {
-		if bridgePlatform == "" {
-			bridgePlatform = "telegram"
-		}
-		if bridgeDisplayName == "" {
-			bridgeDisplayName = "Telegram"
-		}
-	}
 
 	event := opts.hookEvent
 	if event == "" {
@@ -12094,14 +11067,6 @@ command = ` + fmt.Sprintf("%q", command) + `
 		}
 	}
 
-	if bridgePlatform != "" || bridgeDisplayName != "" {
-		fmt.Fprintf(&builder, `
-[bridge]
-platform = %q
-display_name = %q
-`, bridgePlatform, bridgeDisplayName)
-	}
-
 	return builder.String()
 }
 
@@ -12155,24 +11120,6 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 					unexpected,
 					manifest,
 				)
-			}
-		}
-	})
-
-	t.Run("ShouldEmitBridgeMetadataForBridgeAdapters", func(t *testing.T) {
-		t.Parallel()
-
-		manifest := daemonTestExtensionManifest("bridge-ext", daemonTestExtensionOptions{
-			capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		})
-		for _, expected := range []string{
-			`provides = ["bridge.adapter"]`,
-			`[bridge]`,
-			`platform = "telegram"`,
-			`display_name = "Telegram"`,
-		} {
-			if !strings.Contains(manifest, expected) {
-				t.Fatalf("daemonTestExtensionManifest() missing bridge metadata %q in manifest %q", expected, manifest)
 			}
 		}
 	})
@@ -12282,66 +11229,6 @@ func TestDaemonExtensionHelperShutdownAppendsMarkerLine(t *testing.T) {
 	}
 }
 
-func TestDaemonExtensionHelperHandleRequest(t *testing.T) {
-	t.Run("ShouldRejectInvalidDeliveryRequestsBeforeRecordingOrAcking", func(t *testing.T) {
-		t.Parallel()
-
-		marker := filepath.Join(t.TempDir(), "helper-marker.jsonl")
-		var output bytes.Buffer
-
-		server := newDaemonExtensionHelperServer("", marker)
-		server.encoder = json.NewEncoder(&output)
-
-		params, err := json.Marshal(bridgepkg.DeliveryRequest{
-			Event: bridgepkg.DeliveryEvent{
-				DeliveryID:       "delivery-1",
-				BridgeInstanceID: "brg-1",
-				RoutingKey: bridgepkg.RoutingKey{
-					Scope:            bridgepkg.ScopeGlobal,
-					BridgeInstanceID: "brg-1",
-					PeerID:           "peer-1",
-				},
-				DeliveryTarget: bridgepkg.DeliveryTarget{
-					BridgeInstanceID: "brg-1",
-					PeerID:           "peer-1",
-					Mode:             bridgepkg.DeliveryModeDirectSend,
-				},
-				Seq:       1,
-				EventType: bridgepkg.DeliveryEventTypeResume,
-			},
-		})
-		if err != nil {
-			t.Fatalf("json.Marshal(delivery request) error = %v", err)
-		}
-
-		exit, err := server.handleRequest(daemonExtensionHelperRequest{
-			ID:     "1",
-			Method: "bridges/deliver",
-			Params: params,
-		})
-		if exit {
-			t.Fatal("handleRequest(bridges/deliver) exit = true, want false")
-		}
-		if err == nil {
-			t.Fatal("handleRequest(bridges/deliver) error = nil, want delivery validation failure")
-		}
-		if !strings.Contains(err.Error(), "validate bridges/deliver request") {
-			t.Fatalf("handleRequest(bridges/deliver) error = %q, want validation context", err)
-		}
-
-		payload, readErr := os.ReadFile(marker)
-		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-			t.Fatalf("os.ReadFile(marker) error = %v", readErr)
-		}
-		if strings.TrimSpace(string(payload)) != "" {
-			t.Fatalf("marker payload = %q, want no recorded delivery", string(payload))
-		}
-		if strings.TrimSpace(output.String()) != "" {
-			t.Fatalf("helper output = %q, want no ACK payload", output.String())
-		}
-	})
-}
-
 func TestDaemonExtensionHelperMarkerRecording(t *testing.T) {
 	t.Run("ShouldWrapInitializeMarkerFailuresWithOperationContext", func(t *testing.T) {
 		t.Parallel()
@@ -12363,38 +11250,14 @@ func TestDaemonExtensionHelperMarkerRecording(t *testing.T) {
 			t.Fatalf("recordInitialize() error = %q, want append context", err)
 		}
 	})
-
-	t.Run("ShouldWrapDeliveryMarkerFailuresWithOperationContext", func(t *testing.T) {
-		t.Parallel()
-
-		marker := filepath.Join(t.TempDir(), "marker-dir")
-		if err := os.Mkdir(marker, 0o755); err != nil {
-			t.Fatalf("os.Mkdir(marker) error = %v", err)
-		}
-
-		server := newDaemonExtensionHelperServer("", marker)
-		err := server.recordDelivery(bridgepkg.DeliveryRequest{})
-		if err == nil {
-			t.Fatal("recordDelivery() error = nil, want marker append failure")
-		}
-		if !strings.Contains(err.Error(), "record delivery marker") {
-			t.Fatalf("recordDelivery() error = %q, want delivery context", err)
-		}
-		if !strings.Contains(err.Error(), "append marker line") {
-			t.Fatalf("recordDelivery() error = %q, want append context", err)
-		}
-	})
 }
 
 type daemonExtensionHelperServer struct {
-	scenario                string
-	marker                  string
-	scanner                 *bufio.Scanner
-	encoder                 *json.Encoder
-	slowDeliveryRelease     chan struct{}
-	slowDeliveryReleaseOnce sync.Once
-	slowDeliveryWG          sync.WaitGroup
-	mu                      sync.Mutex
+	scenario string
+	marker   string
+	scanner  *bufio.Scanner
+	encoder  *json.Encoder
+	mu       sync.Mutex
 }
 
 type daemonExtensionHelperRequest struct {
@@ -12411,11 +11274,10 @@ func newDaemonExtensionHelperServer(scenario string, marker string) *daemonExten
 	encoder.SetEscapeHTML(false)
 
 	return &daemonExtensionHelperServer{
-		scenario:            scenario,
-		marker:              marker,
-		scanner:             scanner,
-		encoder:             encoder,
-		slowDeliveryRelease: make(chan struct{}),
+		scenario: scenario,
+		marker:   marker,
+		scanner:  scanner,
+		encoder:  encoder,
 	}
 }
 
@@ -12461,41 +11323,7 @@ func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperReq
 		return h.scenario == "auto_exit_record_initialize", nil
 	case "health_check":
 		return false, h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
-	case "bridges/deliver":
-		var params bridgepkg.DeliveryRequest
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return false, fmt.Errorf("decode bridges/deliver request: %w", err)
-		}
-		if err := params.Validate(); err != nil {
-			return false, fmt.Errorf("validate bridges/deliver request: %w", err)
-		}
-		if err := h.recordDelivery(params); err != nil {
-			return false, err
-		}
-
-		ack := bridgepkg.DeliveryAck{
-			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
-			Seq:        params.Event.Seq,
-		}
-		if ack.Seq > 0 {
-			ack.RemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq)
-		}
-		if ack.Seq > 1 {
-			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
-		}
-		switch h.scenario {
-		case "slow_record_deliveries":
-			h.sendDelayedDeliveryResult(req.ID, ack)
-			return false, nil
-		case "exit_once_record_deliveries":
-			if markerLineCount(h.marker) == 1 {
-				return true, nil
-			}
-		}
-		return false, h.sendResult(req.ID, ack)
 	case "shutdown":
-		h.releaseSlowDeliveries()
-		h.waitSlowDeliveries()
 		if strings.TrimSpace(h.marker) != "" {
 			if err := appendMarkerLine(h.marker, "shutdown"); err != nil {
 				return false, err
@@ -12505,26 +11333,6 @@ func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperReq
 	default:
 		return false, h.sendResult(req.ID, map[string]any{})
 	}
-}
-
-func (h *daemonExtensionHelperServer) sendDelayedDeliveryResult(id any, ack bridgepkg.DeliveryAck) {
-	h.slowDeliveryWG.Go(func() {
-		<-h.slowDeliveryRelease
-		if err := h.sendResult(id, ack); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-	})
-}
-
-func (h *daemonExtensionHelperServer) releaseSlowDeliveries() {
-	h.slowDeliveryReleaseOnce.Do(func() {
-		close(h.slowDeliveryRelease)
-	})
-}
-
-func (h *daemonExtensionHelperServer) waitSlowDeliveries() {
-	h.slowDeliveryWG.Wait()
 }
 
 func (h *daemonExtensionHelperServer) sendResult(id any, result any) error {
@@ -12558,24 +11366,6 @@ func (h *daemonExtensionHelperServer) recordInitialize(
 	return nil
 }
 
-func (h *daemonExtensionHelperServer) recordDelivery(request bridgepkg.DeliveryRequest) error {
-	if strings.TrimSpace(h.marker) == "" {
-		return nil
-	}
-
-	payload, err := json.Marshal(daemonDeliveryMarker{
-		PID:     os.Getpid(),
-		Request: request,
-	})
-	if err != nil {
-		return fmt.Errorf("record delivery marker: marshal payload: %w", err)
-	}
-	if err := appendMarkerLine(h.marker, string(payload)); err != nil {
-		return fmt.Errorf("record delivery marker: %w", err)
-	}
-	return nil
-}
-
 func daemonExtensionInitializeResponse(req subprocess.InitializeRequest) subprocess.InitializeResponse {
 	implementedMethods := []string{"health_check", "shutdown"}
 	implementedMethods = append(
@@ -12605,11 +11395,6 @@ type daemonInitializeMarker struct {
 	Response subprocess.InitializeResponse `json:"response"`
 }
 
-type daemonDeliveryMarker struct {
-	PID     int                       `json:"pid"`
-	Request bridgepkg.DeliveryRequest `json:"request"`
-}
-
 func appendMarkerLine(path string, line string) (err error) {
 	target := strings.TrimSpace(path)
 	if target == "" {
@@ -12632,22 +11417,6 @@ func appendMarkerLine(path string, line string) (err error) {
 		return fmt.Errorf("append marker line: write marker file: %w", err)
 	}
 	return nil
-}
-
-func markerLineCount(path string) int {
-	payload, err := os.ReadFile(strings.TrimSpace(path))
-	if err != nil {
-		// The helper treats missing or unreadable markers as an empty state file.
-		return 0
-	}
-	count := 0
-	for line := range strings.SplitSeq(string(payload), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		count++
-	}
-	return count
 }
 
 func (f *fakeSessionManager) UsageEvents(context.Context, string) ([]session.UsageEventEnvelope, error) {

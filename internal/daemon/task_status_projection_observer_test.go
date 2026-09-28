@@ -11,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -25,11 +23,10 @@ import (
 func TestTaskStatusProjectionObserver(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should project a real terminal transition without prompting or writing conversation", func(t *testing.T) {
+	t.Run("Should project and persist a real terminal task transition", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newTaskStatusProjectionFixture(t, true)
-		before := fixture.messages(t)
+		fixture := newTaskStatusProjectionFixture(t)
 		completed := fixture.completeRun(t)
 		projection := fixture.nextProjection(t)
 
@@ -45,35 +42,8 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 				projection.RunStatus,
 			)
 		}
-		if projection.NetworkParticipation.Mode != participation.ModeLive ||
-			projection.NetworkParticipation.ChannelID != "builders" {
-			t.Fatalf("projection participation = %#v, want live builders snapshot", projection.NetworkParticipation)
-		}
-		if !projection.ConversationAvailable || projection.ConversationAvailability != taskConversationAvailable {
-			t.Fatalf(
-				"projection conversation = %v/%q, want available",
-				projection.ConversationAvailable,
-				projection.ConversationAvailability,
-			)
-		}
-		if projection.ThreadOrigin == nil || projection.ThreadOrigin.OriginMessageID != "msg-origin" {
-			t.Fatalf("projection origin = %#v, want persisted thread origin", projection.ThreadOrigin)
-		}
 		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
 			t.Fatalf("completed run status = %s, want completed", completed.Status)
-		}
-		if got := fixture.networkCallCount(); got != 0 {
-			t.Fatalf("PromptNetwork/runtime sends = %d, want zero", got)
-		}
-		after := fixture.messages(t)
-		if len(after) != len(before) {
-			t.Fatalf("conversation messages = %d after transition, want unchanged %d", len(after), len(before))
-		}
-
-		fixture.writePostTerminalMessage(t)
-		history := fixture.messages(t)
-		if len(history) != len(before)+1 || !containsConversationMessage(history, "msg-after-terminal") {
-			t.Fatalf("conversation messages = %#v, want post-terminal message preserved as history", history)
 		}
 		storedTask, err := fixture.db.GetTask(fixture.ctx, fixture.task.ID)
 		if err != nil {
@@ -90,29 +60,6 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 				storedTask.Status,
 				storedRun.Status,
 			)
-		}
-	})
-
-	t.Run("Should complete orchestration while marking a disabled conversation unavailable", func(t *testing.T) {
-		t.Parallel()
-
-		fixture := newTaskStatusProjectionFixture(t, false)
-		completed := fixture.completeRun(t)
-		projection := fixture.nextProjection(t)
-
-		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
-			t.Fatalf("completed run status = %s, want completed", completed.Status)
-		}
-		if projection.ConversationAvailable ||
-			projection.ConversationAvailability != taskConversationNetworkDisabled {
-			t.Fatalf(
-				"projection conversation = %v/%q, want network_disabled",
-				projection.ConversationAvailable,
-				projection.ConversationAvailability,
-			)
-		}
-		if got := fixture.networkCallCount(); got != 0 {
-			t.Fatalf("PromptNetwork/runtime sends = %d, want zero", got)
 		}
 	})
 
@@ -156,7 +103,7 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 		)
 		publisher := &recordingTaskStatusProjectionPublisher{}
 		observer := &taskStatusProjectionObserver{
-			tasks: db, prefs: db, availability: db, publisher: publisher,
+			tasks: db, designations: db, publisher: publisher,
 			now: func() time.Time { return now.Add(time.Minute) },
 		}
 		err := observer.processWithContext(ctx, taskpkg.EventRecord{Event: taskpkg.Event{
@@ -186,7 +133,7 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 		}
 	})
 
-	t.Run("Should construct independently of a network runtime", func(t *testing.T) {
+	t.Run("Should apply the configured projection queue and timeout", func(t *testing.T) {
 		t.Parallel()
 
 		db := openDaemonTestGlobalDB(t)
@@ -199,7 +146,7 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			withTaskStatusProjectionObserverTimeout(2*time.Second),
 		)
 		if observer == nil {
-			t.Fatal("newTaskStatusProjectionObserver() = nil, want observer without network runtime")
+			t.Fatal("newTaskStatusProjectionObserver() = nil, want configured observer")
 		}
 		t.Cleanup(observer.shutdown)
 		if cap(observer.queue) != 7 || observer.timeout != 2*time.Second {
@@ -270,7 +217,7 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			}
 			observerCtx, cancel := context.WithCancel(context.Background())
 			observer := &taskStatusProjectionObserver{
-				tasks: flakyStore, prefs: flakyStore, availability: flakyStore,
+				tasks: flakyStore, designations: flakyStore,
 				events: flakyStore, cursors: flakyStore, publisher: publisher,
 				logger: discardLogger(), now: func() time.Time { return now.Add(time.Minute) },
 				ctx: observerCtx, cancel: cancel, queue: make(chan struct{}, 1), batchSize: 1,
@@ -363,60 +310,31 @@ func (s *flakyTaskStatusProjectionStore) PutTaskDesignationRollup(
 
 type taskStatusProjectionFixture struct {
 	ctx       context.Context
-	db        taskStatusProjectionStore
+	db        taskStore
 	manager   *taskpkg.Service
 	publisher *recordingTaskStatusProjectionPublisher
-	network   *fakeNetworkRuntime
 	task      taskpkg.Task
 	run       taskpkg.Run
 	actor     taskpkg.ActorContext
 	claim     *taskpkg.ClaimResult
 }
 
-type taskStatusProjectionStore interface {
-	taskStore
-	store.NetworkAvailabilityStore
-	store.NetworkPreferenceStore
-	ListConversationMessages(
-		context.Context,
-		store.NetworkConversationRef,
-		store.NetworkConversationMessageQuery,
-	) ([]store.NetworkConversationMessage, error)
-	WriteConversationMessage(
-		context.Context,
-		store.NetworkConversationMessage,
-	) (store.NetworkConversationWriteResult, error)
-}
-
-func newTaskStatusProjectionFixture(t *testing.T, networkAvailableAtCompletion bool) *taskStatusProjectionFixture {
+func newTaskStatusProjectionFixture(t *testing.T) *taskStatusProjectionFixture {
 	t.Helper()
 	ctx := testutil.Context(t)
 	db := openDaemonTestGlobalDB(t)
 	now := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
-	seedTaskStatusProjectionThread(ctx, t, db, now)
-	if _, err := db.SetNetworkAvailability(ctx, true, "test:projection-start"); err != nil {
-		t.Fatalf("SetNetworkAvailability() error = %v", err)
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID: "wks_status", RootDir: t.TempDir(), Name: "status-projection",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
 	actorIdentity := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "daemon.test"}
 	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "status-projection-test"}
 	taskRecord := taskStatusProjectionTask("task-status", now, actorIdentity, origin)
 	if err := db.CreateTask(ctx, taskRecord); err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
-	}
-	liveSpec := daemonTestLiveParticipation("wks_status", "builders")
-	cfg := compozyconfig.DefaultNetworkConfig()
-	participationResolver, err := participation.NewResolver(participation.ResolverOptions{
-		Defaults: liveSpec.Bounds,
-		Limits:   cfg.Live.Limits.ParticipationLimits(),
-		Availability: func(context.Context) (bool, error) {
-			return true, nil
-		},
-		ChannelExists: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("participation.NewResolver() error = %v", err)
 	}
 	seedActor, err := taskpkg.DeriveDaemonActorContext("status-projection", "daemon.test")
 	if err != nil {
@@ -427,41 +345,22 @@ func newTaskStatusProjectionFixture(t *testing.T, networkAvailableAtCompletion b
 		db,
 		now,
 		"run-status",
-		taskpkg.WithParticipationResolver(participationResolver),
 	)
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	channelID := "builders"
 	queued, err := seedManager.EnqueueRun(ctx, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "projection-run-status",
-		NetworkParticipation: &participation.Request{
-			Mode:            &mode,
-			ChannelStrategy: &strategy,
-			ChannelID:       &channelID,
-		},
-		NetworkParticipationSource: participation.SourceExplicitRequest,
 	}, seedActor)
 	if err != nil {
 		t.Fatalf("EnqueueRun(run-status) error = %v", err)
 	}
 	run := *queued
-	if err := db.PutNetworkTaskThreadOrigin(ctx, store.NetworkTaskThreadOrigin{
-		TaskID: taskRecord.ID, WorkspaceID: "wks_status", Channel: "builders",
-		ThreadID: "thread_status", OriginMessageID: "msg-origin", Digest: "Investigate latency",
-		SourceMessageIDs: []string{"msg-origin"}, CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("PutNetworkTaskThreadOrigin() error = %v", err)
-	}
 	publisher := &recordingTaskStatusProjectionPublisher{ch: make(chan taskStatusProjection, 4)}
 	notifier := newHooksNotifier(discardLogger(), func() time.Time { return now })
 	notifier.AddTaskStatusProjectionObserver(publisher)
-	networkRuntime := &fakeNetworkRuntime{}
 	daemon := &Daemon{now: func() time.Time { return now.Add(time.Minute) }}
-	eventObserver, _, observer := daemon.composeTaskEventObserver(&bootState{
+	eventObserver, observer := daemon.composeTaskEventObserver(&bootState{
 		logger:   discardLogger(),
 		notifier: notifier,
-		network:  networkRuntime,
 	}, db, nil)
 	if observer == nil {
 		t.Fatal("composeTaskEventObserver() status projection = nil")
@@ -487,13 +386,8 @@ func newTaskStatusProjectionFixture(t *testing.T, networkAvailableAtCompletion b
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
-	if !networkAvailableAtCompletion {
-		if _, err := db.SetNetworkAvailability(ctx, false, "test:projection-mid-run"); err != nil {
-			t.Fatalf("SetNetworkAvailability(mid-run) error = %v", err)
-		}
-	}
 	return &taskStatusProjectionFixture{
-		ctx: ctx, db: db, manager: manager, publisher: publisher, network: networkRuntime,
+		ctx: ctx, db: db, manager: manager, publisher: publisher,
 		task: taskRecord, run: run, actor: actor, claim: claim,
 	}
 }
@@ -529,50 +423,6 @@ func (f *taskStatusProjectionFixture) nextProjection(t *testing.T) taskStatusPro
 			return taskStatusProjection{}
 		}
 	}
-}
-
-func (f *taskStatusProjectionFixture) messages(t *testing.T) []store.NetworkConversationMessage {
-	t.Helper()
-	messages, err := f.db.ListConversationMessages(f.ctx, store.NetworkConversationRef{
-		WorkspaceID: "wks_status", Channel: "builders", Surface: store.NetworkSurfaceThread,
-		ThreadID: "thread_status",
-	}, store.NetworkConversationMessageQuery{
-		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 20,
-	})
-	if err != nil {
-		t.Fatalf("ListConversationMessages() error = %v", err)
-	}
-	return messages
-}
-
-func (f *taskStatusProjectionFixture) writePostTerminalMessage(t *testing.T) {
-	t.Helper()
-	_, err := f.db.WriteConversationMessage(f.ctx, store.NetworkConversationMessage{
-		ProfileID: store.DefaultProfileID, MessageID: "msg-after-terminal",
-		SessionID: "sess-origin", WorkspaceID: "wks_status",
-		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: "thread_status",
-		Direction: "received", PeerFrom: "reviewer.sess-origin", Kind: store.NetworkKindSay,
-		Body: json.RawMessage(`{"text":"post-terminal note"}`), Text: "post-terminal note",
-		SizeBytes: 29, Timestamp: time.Date(2026, 7, 1, 12, 2, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatalf("WriteConversationMessage(post-terminal) error = %v", err)
-	}
-}
-
-func containsConversationMessage(messages []store.NetworkConversationMessage, messageID string) bool {
-	for _, message := range messages {
-		if message.MessageID == messageID {
-			return true
-		}
-	}
-	return false
-}
-
-func (f *taskStatusProjectionFixture) networkCallCount() int {
-	f.network.mu.Lock()
-	defer f.network.mu.Unlock()
-	return len(f.network.runtimeSendCalls)
 }
 
 type recordingTaskStatusProjectionPublisher struct {
@@ -727,55 +577,4 @@ func taskStatusProjectionTerminalRecords(
 		}
 	}
 	return terminal
-}
-
-func seedTaskStatusProjectionThread(
-	ctx context.Context,
-	t *testing.T,
-	db interface {
-		InsertWorkspace(context.Context, workspacepkg.Workspace) error
-		RegisterSession(context.Context, store.SessionInfo) error
-		WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error
-		WriteConversationMessage(
-			context.Context,
-			store.NetworkConversationMessage,
-		) (store.NetworkConversationWriteResult, error)
-	},
-	now time.Time,
-) {
-	t.Helper()
-	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
-		ID: "wks_status", RootDir: t.TempDir(), Name: "status-projection",
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("InsertWorkspace() error = %v", err)
-	}
-	if err := db.RegisterSession(ctx, store.SessionInfo{
-		ID: "sess-origin", ProfileID: store.DefaultProfileID,
-		AgentName: "reviewer", WorkspaceID: "wks_status",
-		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
-		SessionType:         "system", State: "stopped", CreatedAt: now, UpdatedAt: now,
-		RuntimeStatus: store.SessionRuntimeUnbound,
-	}); err != nil {
-		t.Fatalf("RegisterSession() error = %v", err)
-	}
-	if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-		ProfileID: store.DefaultProfileID, WorkspaceID: "wks_status",
-		Channel: "builders", Purpose: "Coordination",
-		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch, CreatedBy: "daemon.test",
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("WriteNetworkChannel() error = %v", err)
-	}
-	_, err := db.WriteConversationMessage(ctx, store.NetworkConversationMessage{
-		ProfileID: store.DefaultProfileID, MessageID: "msg-origin",
-		SessionID: "sess-origin", WorkspaceID: "wks_status",
-		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: "thread_status",
-		Direction: "received", PeerFrom: "reviewer.sess-origin", Kind: store.NetworkKindSay,
-		Body: json.RawMessage(`{"text":"please investigate latency"}`),
-		Text: "please investigate latency", SizeBytes: 37, Timestamp: now,
-	})
-	if err != nil {
-		t.Fatalf("WriteConversationMessage() error = %v", err)
-	}
 }

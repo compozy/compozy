@@ -14,7 +14,7 @@ const (
 )
 
 // StatusProjectionEventType returns the canonical transition type included in
-// durable Network task-status projections. Empty means the event is not a
+// durable task-status projections. Empty means the event is not a
 // status transition.
 func StatusProjectionEventType(eventType string) string {
 	switch strings.TrimSpace(eventType) {

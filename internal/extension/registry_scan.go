@@ -37,8 +37,8 @@ type extensionInfoRow struct {
 	registryName         sql.NullString
 	remoteVersion        sql.NullString
 	provenanceRaw        string
-	networkConfirmedBy   sql.NullString
-	networkConfirmedAt   sql.NullString
+	gatewayConfirmedBy   sql.NullString
+	gatewayConfirmedAt   sql.NullString
 }
 
 func (r *extensionInfoRow) scan(scanner interface{ Scan(dest ...any) error }) error {
@@ -59,9 +59,9 @@ func (r *extensionInfoRow) scan(scanner interface{ Scan(dest ...any) error }) er
 		&r.registryName,
 		&r.remoteVersion,
 		&r.provenanceRaw,
-		&r.info.NetworkRequirementDigest,
-		&r.networkConfirmedBy,
-		&r.networkConfirmedAt,
+		&r.info.GatewayRequirementDigest,
+		&r.gatewayConfirmedBy,
+		&r.gatewayConfirmedAt,
 	)
 }
 
@@ -105,12 +105,12 @@ func (r *extensionInfoRow) decode() error {
 	)
 	fallbackProvenance.Slug = dereferenceOptionalString(r.info.RegistrySlug)
 	r.info.Provenance = normalizeExtensionProvenance(r.info.Provenance, fallbackProvenance)
-	r.info.NetworkRequirementDigest = strings.TrimSpace(r.info.NetworkRequirementDigest)
-	r.info.NetworkConfirmedBy = strings.TrimSpace(r.networkConfirmedBy.String)
-	if r.networkConfirmedAt.Valid {
-		r.info.NetworkConfirmedAt, err = store.ParseTimestamp(r.networkConfirmedAt.String)
+	r.info.GatewayRequirementDigest = strings.TrimSpace(r.info.GatewayRequirementDigest)
+	r.info.GatewayConfirmedBy = strings.TrimSpace(r.gatewayConfirmedBy.String)
+	if r.gatewayConfirmedAt.Valid {
+		r.info.GatewayConfirmedAt, err = store.ParseTimestamp(r.gatewayConfirmedAt.String)
 		if err != nil {
-			return fmt.Errorf("extension: parse network_confirmed_at for %q: %w", r.info.Name, err)
+			return fmt.Errorf("extension: parse gateway_confirmed_at for %q: %w", r.info.Name, err)
 		}
 	}
 	return nil

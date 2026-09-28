@@ -13,7 +13,7 @@ export const SECTIONS: ShowcaseSection[] = [
   { id: "inputs", label: "Inputs & Search", anchor: "#inputs" },
   {
     id: "status",
-    label: "Status, Metric, MonoBadge, KindChip",
+    label: "Status, Metric, MonoBadge",
     anchor: "#status-indicators",
   },
   { id: "feedback", label: "Feedback", anchor: "#empty-state" },

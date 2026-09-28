@@ -10,25 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
-type sandboxExecSessionManager interface {
-	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
-}
-
-type hostAPIExtensionSessionManager interface {
-	SessionManager
-	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
-}
-
-type hostAPIBridgePromptSessionManager interface {
-	PromptNetwork(
-		ctx context.Context,
-		sessionID string,
-		message string,
-		meta ...acp.PromptNetworkMeta,
-	) (<-chan acp.AgentEvent, error)
-	IsPrompting(sessionID string) bool
-}
-
 type hostAPIPromptOptsSessionManager interface {
 	PromptWithOpts(
 		ctx context.Context,
@@ -39,14 +20,9 @@ type hostAPIPromptOptsSessionManager interface {
 
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
-	exec             sandboxExecSessionManager
+
 	archive          core.SessionArchiveManager
 	runtimeSelection core.SessionRuntimeSelectionManager
-}
-
-type hostAPINetworkSessionManagerAdapter struct {
-	hostAPISessionManagerAdapter
-	bridgePrompts hostAPIBridgePromptSessionManager
 }
 
 type hostAPISessionAcceptance struct {
@@ -58,48 +34,25 @@ type hostAPIAcceptanceSessionManagerAdapter struct {
 	hostAPISessionAcceptance
 }
 
-type hostAPIAcceptanceNetworkSessionManagerAdapter struct {
-	hostAPINetworkSessionManagerAdapter
-	hostAPISessionAcceptance
-}
-
 var (
 	_ hostAPIPromptOptsSessionManager           = (*hostAPISessionManagerAdapter)(nil)
-	_ hostAPIPromptOptsSessionManager           = (*hostAPINetworkSessionManagerAdapter)(nil)
 	_ core.SessionArchiveManager                = (*hostAPISessionManagerAdapter)(nil)
 	_ core.SessionRuntimeSelectionManager       = (*hostAPISessionManagerAdapter)(nil)
 	_ core.SessionAcceptanceManager             = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
-	_ core.SessionAcceptanceManager             = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
 	_ core.SessionWorktreeForkAcceptanceManager = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
-	_ core.SessionWorktreeForkAcceptanceManager = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
 )
 
-func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSessionManager {
+func newHostAPISessionManagerAdapter(sessions SessionManager) SessionManager {
 	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
-	if exec, ok := sessions.(sandboxExecSessionManager); ok {
-		adapter.exec = exec
-	}
 	if archive, ok := sessions.(core.SessionArchiveManager); ok {
 		adapter.archive = archive
 	}
 	if runtimeSelection, ok := sessions.(core.SessionRuntimeSelectionManager); ok {
 		adapter.runtimeSelection = runtimeSelection
 	}
-	bridgePrompts, supportsBridgePrompts := sessions.(hostAPIBridgePromptSessionManager)
 	acceptance, supportsAcceptance := sessions.(core.SessionAcceptanceManager)
-	networkAdapter := hostAPINetworkSessionManagerAdapter{
-		hostAPISessionManagerAdapter: adapter,
-		bridgePrompts:                bridgePrompts,
-	}
 	acceptanceAdapter := hostAPISessionAcceptance{acceptance: acceptance}
 	switch {
-	case supportsBridgePrompts && supportsAcceptance:
-		return hostAPIAcceptanceNetworkSessionManagerAdapter{
-			hostAPINetworkSessionManagerAdapter: networkAdapter,
-			hostAPISessionAcceptance:            acceptanceAdapter,
-		}
-	case supportsBridgePrompts:
-		return networkAdapter
 	case supportsAcceptance:
 		return hostAPIAcceptanceSessionManagerAdapter{
 			hostAPISessionManagerAdapter: adapter,
@@ -182,32 +135,7 @@ func (a hostAPISessionAcceptance) CreateWorktreeForkAccepted(
 	return info, nil
 }
 
-func (a hostAPISessionManagerAdapter) ExecSandbox(
-	ctx context.Context,
-	req session.SandboxExecRequest,
-) (session.SandboxExecResult, error) {
-	if a.exec == nil {
-		return session.SandboxExecResult{}, session.ErrSessionNotActive
-	}
-	return a.exec.ExecSandbox(ctx, req)
-}
-
-func (a hostAPINetworkSessionManagerAdapter) PromptNetwork(
-	ctx context.Context,
-	sessionID string,
-	message string,
-	meta ...acp.PromptNetworkMeta,
-) (<-chan acp.AgentEvent, error) {
-	return a.bridgePrompts.PromptNetwork(ctx, sessionID, message, meta...)
-}
-
-func (a hostAPINetworkSessionManagerAdapter) IsPrompting(sessionID string) bool {
-	return a.bridgePrompts.IsPrompting(sessionID)
-}
-
 // PromptWithOpts forwards provenance-aware prompts to the concrete session manager.
-// Bridge ingress relies on this path so Local bridge sessions keep turn_source=network
-// metadata without requiring Live NetworkParticipation.
 func (a hostAPISessionManagerAdapter) PromptWithOpts(
 	ctx context.Context,
 	id string,

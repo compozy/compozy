@@ -18,11 +18,11 @@
 
 An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation enables the kit by default. Per-profile enablement and resource placement decide what is published in each profile.
 
-Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
+Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Gateway digest without changing state.
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref> --profile <profile>`, or set a value through stdin or a hidden prompt. Set, bind, list, and unset resolve and transport the selected profile; without `--profile`, they use the normal profile-resolution chain. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. Reads expose bound key, server, and header names only, never values or Vault references.
 
-If a candidate extension changes its normalized Network Live requirement, install or update returns `extension_network_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
+If a candidate extension changes its normalized gateway permission requirement, install or update returns `extension_gateway_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-gateway-requirement <digest>` or the equivalent `confirm_gateway_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to those exact gateway permissions.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
 
@@ -225,7 +225,7 @@ the 64-lowercase-hex checksum of that tree. For a code-backed source it compiles
 mode. For a native resource-only source with at least one declared skill, agent, Loop, automation, or
 layout path, it validates the handwritten manifest and copies those trees without running a build or
 describe command. A resource-only source cannot use a build-command override or declare a top-level
-subprocess, runtime capabilities, Host API permissions, hooks, tools, MCP servers, bridge metadata,
+subprocess, runtime capabilities, Host API permissions, hooks, tools, MCP servers,
 command groups, or dynamic resource publication; those contracts require `package.json` or `go.mod`.
 
 That hash is the only generation identity any surface accepts: `dev` takes
@@ -325,4 +325,4 @@ Hooks may deny, narrow, annotate, or observe. They must not bypass safety primit
 
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.
 
-Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, `network.participation.*` in `references/network.md`, and `window_manager.*` in `references/window-management.md`.
+Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, and `window_manager.*` in `references/window-management.md`.

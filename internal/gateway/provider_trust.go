@@ -15,11 +15,11 @@ type ProviderTrust struct {
 	ConfirmedDigest string
 	ConfirmedBy     string
 	ConfirmedAt     time.Time
-	ChannelScopes   []string
+	Permissions     []string
 }
 
-// ProviderChannelScope returns the manifest scope that authorizes one gateway tier.
-func ProviderChannelScope(tier Tier) string {
+// ProviderPermission returns the manifest permission that authorizes one gateway tier.
+func ProviderPermission(tier Tier) string {
 	return "gateway." + strings.TrimSpace(string(tier))
 }
 

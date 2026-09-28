@@ -71,7 +71,6 @@ function replaceGeneratedSections(text) {
     ["shell-glass", tokenTable(shellGlassRows())],
     ["signal", signalTable()],
     ["owner-avatar", tokenTable(prefixRows(runtimeTheme, "color-avatar-"))],
-    ["status-tone", tokenTable(prefixRows(runtimeTheme, "color-kind-"))],
     ["terminal-ansi", tokenTable(terminalRampRows())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],
     ["type-ladder", typeTable()],

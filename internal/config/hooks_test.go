@@ -64,11 +64,11 @@ args = ["-c", "printf '{\"message\":\"marketing\"}'"]
 		t.Fatalf("marketing dispatch message = %q, want marketing", got)
 	}
 
-	writeFile(t, profilePath, profileConfig+"\n[sandboxes.dev]\nbackend = \"host\"\n")
+	writeFile(t, profilePath, profileConfig+"\n[observability]\nenabled = false\n")
 	_, err = LoadForHome(homePaths, WithProfile("marketing"))
 	var validation ValidationError
 	if !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" {
-		t.Fatalf("LoadForHome(profile sandbox) error = %#v, want profile_config_key_denied", err)
+		t.Fatalf("LoadForHome(profile observability) error = %#v, want profile_config_key_denied", err)
 	}
 }
 
@@ -182,51 +182,6 @@ command = "/bin/echo"
 	}
 }
 
-func TestLoadParsesNetworkHookMatcherFields(t *testing.T) {
-	t.Run("Should parse network matcher fields", func(t *testing.T) {
-		workspaceRoot, homePaths := prepareHookConfigTestEnv(t)
-		writeFile(t, homePaths.ConfigFile, `
-[[hooks.declarations]]
-name = "network-observer"
-event = "network.message.persisted"
-mode = "async"
-command = "/bin/echo"
-
-[hooks.declarations.matcher]
-channel = "builders"
-surface = "direct"
-kind = "trace"
-direction = "received"
-work_state = "completed"
-`)
-
-		cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
-		if err != nil {
-			t.Fatalf("Load() error = %v", err)
-		}
-
-		decls, err := HookDeclarations(cfg.Hooks, nil)
-		if err != nil {
-			t.Fatalf("HookDeclarations() error = %v", err)
-		}
-		if got, want := len(decls), 1; got != want {
-			t.Fatalf("len(HookDeclarations()) = %d, want %d", got, want)
-		}
-
-		matcher := decls[0].Matcher.NetworkMatcher
-		if matcher == nil {
-			t.Fatal("NetworkMatcher = nil, want parsed matcher")
-		}
-		if matcher.Channel != "builders" ||
-			matcher.Surface != "direct" ||
-			matcher.Kind != "trace" ||
-			matcher.Direction != "received" ||
-			matcher.WorkState != "completed" {
-			t.Fatalf("NetworkMatcher = %#v, want parsed network fields", matcher)
-		}
-	})
-}
-
 func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 	t.Parallel()
 
@@ -237,9 +192,6 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		decl := hookspkg.HookDecl{
 			Matcher: hookspkg.HookMatcher{
 				ToolReadOnly: &toolReadOnly,
-				NetworkMatcher: &hookspkg.NetworkMatcher{
-					Channel: "builders",
-				},
 				CompactionMatcher: &hookspkg.CompactionMatcher{
 					Reason: "size",
 				},
@@ -250,14 +202,10 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Channel = "ops"
 		cloned.Matcher.Reason = "time"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Channel, "builders"; got != want {
-			t.Fatalf("source NetworkMatcher.Channel = %q, want %q", got, want)
-		}
 		if got, want := decl.Matcher.Reason, "size"; got != want {
 			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
 		}

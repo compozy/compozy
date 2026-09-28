@@ -33,8 +33,7 @@ func (o *Observer) QueryTaskMetrics(ctx context.Context, query TaskMetricsQuery)
 	}
 
 	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{
-		ReadScope:            query.ReadScope,
-		ParticipationChannel: query.ParticipationChannel,
+		ReadScope: query.ReadScope,
 	})
 	if err != nil {
 		return TaskMetrics{}, err
@@ -116,20 +115,19 @@ func (o *Observer) taskHealthFromSnapshot(
 	}
 
 	return TaskHealth{
-		Status:                     status,
-		QueueDepthTotal:            queueDepthTotal,
-		OldestQueuedAt:             oldestQueuedAt,
-		OldestQueueAgeMilli:        oldestQueuedAge,
-		QueueDepth:                 summary.QueueDepth,
-		StuckRuns:                  stuckRuns,
-		ActiveOrphanRuns:           activeOrphans,
-		TaskTotals:                 summary.TaskTotals,
-		RunTotals:                  summary.RunTotals,
-		OwnerTotals:                summary.OwnerTotals,
-		ForcedStopsSinceStart:      metrics.TaskForcedStopsTotal,
-		DuplicateIngressSinceStart: metrics.DuplicateIngressTotal,
-		ChannelMismatchSinceStart:  metrics.ChannelMismatchTotal,
-		RecoverySinceStart:         metrics.RecoveryTotals,
+		Status:                status,
+		QueueDepthTotal:       queueDepthTotal,
+		OldestQueuedAt:        oldestQueuedAt,
+		OldestQueueAgeMilli:   oldestQueuedAge,
+		QueueDepth:            summary.QueueDepth,
+		StuckRuns:             stuckRuns,
+		ActiveOrphanRuns:      activeOrphans,
+		TaskTotals:            summary.TaskTotals,
+		RunTotals:             summary.RunTotals,
+		OwnerTotals:           summary.OwnerTotals,
+		ForcedStopsSinceStart: metrics.TaskForcedStopsTotal,
+
+		RecoverySinceStart: metrics.RecoveryTotals,
 	}, nil
 }
 
@@ -137,8 +135,8 @@ func taskSummaryFromSnapshot(snapshot taskSnapshot, now func() time.Time) Summar
 	return Summary{
 		TotalTasks:  len(snapshot.tasks),
 		TotalRuns:   len(snapshot.runs),
-		TaskTotals:  summarizeTasks(snapshot.tasks, snapshot.taskChannels),
-		TaskOrigins: summarizeTaskOrigins(snapshot.tasks, snapshot.taskChannels),
+		TaskTotals:  summarizeTasks(snapshot.tasks),
+		TaskOrigins: summarizeTaskOrigins(snapshot.tasks),
 		RunTotals:   summarizeRuns(snapshot.runs),
 		OwnerTotals: summarizeOwners(snapshot.tasks),
 		QueueDepth:  summarizeQueueDepth(snapshot.runs, now),
@@ -147,14 +145,11 @@ func taskSummaryFromSnapshot(snapshot taskSnapshot, now func() time.Time) Summar
 
 func taskMetricsFromSnapshot(snapshot taskSnapshot, query TaskMetricsQuery, now func() time.Time) TaskMetrics {
 	runs := filterRunsByOrigin(snapshot.runs, query.OriginKind)
-	events := filterTaskEvents(snapshot.events, snapshot.taskChannels, snapshot.runsByID, query)
-	audits := filterTaskIngressAudits(snapshot.audits, query)
-	duplicateIngress := max(countAcceptedEnqueueAudits(audits)-countNetworkEnqueueEvents(events), 0)
+	events := filterTaskEvents(snapshot.events, query)
 
 	return TaskMetrics{
 		TasksTotal: summarizeTasks(
 			filterTasksByOrigin(snapshot.tasks, query.OriginKind),
-			snapshot.taskChannels,
 		),
 		TaskRunsTotal:           summarizeRuns(runs),
 		TaskQueueDepth:          summarizeQueueDepth(runs, now),
@@ -162,9 +157,8 @@ func taskMetricsFromSnapshot(snapshot taskSnapshot, query TaskMetricsQuery, now 
 		TaskForcedStopsTotal:    countEventsByType(events, taskEventRunForceStopped),
 		TaskClaimLatencyMillis:  summarizeClaimLatency(runs),
 		TaskStartLatencyMillis:  summarizeStartLatency(runs),
-		DuplicateIngressTotal:   duplicateIngress,
-		ChannelMismatchTotal:    countChannelMismatchAudits(audits),
-		RecoveryTotals:          summarizeRecovery(events),
+
+		RecoveryTotals: summarizeRecovery(events),
 	}
 }
 

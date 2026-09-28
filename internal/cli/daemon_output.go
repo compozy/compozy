@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	compozydaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle {
@@ -46,12 +44,6 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		strconv.Itoa(status.ActiveSessions),
 		strconv.Itoa(status.TotalSessions),
 		status.Version,
-	}
-	if status.Network != nil {
-		networkRows, networkLabels, networkValues := daemonNetworkStatusFields(status.Network)
-		rows = append(rows, networkRows...)
-		labels = append(labels, networkLabels...)
-		values = append(values, networkValues...)
 	}
 	if status.Gateway != nil {
 		gatewayFields := daemonGatewayStatusFields(status.Gateway)
@@ -116,57 +108,4 @@ func daemonGatewayStatusFields(info *contract.GatewayStatusPayload) daemonGatewa
 		strconv.Itoa(len(info.Devices)),
 		refusal,
 	}}
-}
-
-func daemonNetworkStatusFields(info *contract.NetworkStatusPayload) ([]keyValue, []string, []string) {
-	return []keyValue{
-			{Label: "Network", Value: stringOrDash(info.Status)},
-			{Label: "Network Live Participants", Value: strconv.Itoa(info.LocalPeers)},
-			{Label: "Network Channels", Value: strconv.Itoa(info.Channels)},
-			{Label: "Network Messages Sent", Value: strconv.FormatInt(info.MessagesSent, 10)},
-			{Label: "Network Messages Received", Value: strconv.FormatInt(info.MessagesReceived, 10)},
-			{Label: "Network Messages Rejected", Value: strconv.FormatInt(info.MessagesRejected, 10)},
-			{Label: "Network Messages Delivered", Value: strconv.FormatInt(info.MessagesDelivered, 10)},
-			{Label: "Network Workflow Tagged", Value: strconv.FormatInt(info.WorkflowTaggedEvents, 10)},
-			{Label: "Network Handoff Tagged", Value: strconv.FormatInt(info.HandoffTaggedEvents, 10)},
-		}, []string{
-			"network_status",
-			"network_local_peers",
-			"network_channels",
-			"network_messages_sent",
-			"network_messages_received",
-			"network_messages_rejected",
-			"network_messages_delivered",
-			"network_workflow_tagged_events",
-			"network_handoff_tagged_events",
-		}, []string{
-			info.Status,
-			strconv.Itoa(info.LocalPeers),
-			strconv.Itoa(info.Channels),
-			strconv.FormatInt(info.MessagesSent, 10),
-			strconv.FormatInt(info.MessagesReceived, 10),
-			strconv.FormatInt(info.MessagesRejected, 10),
-			strconv.FormatInt(info.MessagesDelivered, 10),
-			strconv.FormatInt(info.WorkflowTaggedEvents, 10),
-			strconv.FormatInt(info.HandoffTaggedEvents, 10),
-		}
-}
-
-func daemonNetworkStatusFromInfo(
-	cfg *compozyconfig.Config,
-	info *compozydaemon.NetworkInfo,
-) *contract.NetworkStatusPayload {
-	if info != nil {
-		return &contract.NetworkStatusPayload{
-			Enabled: info.Enabled,
-			Status:  strings.TrimSpace(info.Status),
-		}
-	}
-	if !cfg.Network.Enabled {
-		return &contract.NetworkStatusPayload{
-			Enabled: false,
-			Status:  daemonDisabledKey,
-		}
-	}
-	return nil
 }

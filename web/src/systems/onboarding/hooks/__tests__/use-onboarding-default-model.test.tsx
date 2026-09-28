@@ -25,7 +25,7 @@ const {
     error: null as Error | null,
   },
   mockSettingsPersona: {
-    data: { config: { agent: "general", provider: "", sandbox: "" } },
+    data: { config: { agent: "general", provider: "" } },
     error: null as Error | null,
     isSuccess: true,
   },
@@ -93,7 +93,7 @@ describe("useOnboardingDefaultModel", () => {
     mockUpdatePersona.mutateAsync.mockReset().mockResolvedValue(undefined);
     mockUseSettingsPersona.mockReset().mockReturnValue(mockSettingsPersona);
     mockCatalogRefresh.mockReset();
-    mockSettingsPersona.data = { config: { agent: "general", provider: "", sandbox: "" } };
+    mockSettingsPersona.data = { config: { agent: "general", provider: "" } };
     mockSettingsPersona.error = null;
     mockSettingsPersona.isSuccess = true;
     mockSettingsProvider.data = {
@@ -206,7 +206,7 @@ describe("useOnboardingDefaultModel", () => {
       default_speed: "fast",
     });
     expect(mockUpdatePersona.mutateAsync).toHaveBeenCalledWith({
-      body: { config: { agent: "general", provider: "claude", sandbox: "" } },
+      body: { config: { agent: "general", provider: "claude" } },
       filter: { scope: "user" },
     });
     expect(mockUseSettingsPersona).toHaveBeenCalledWith({ scope: "user" });

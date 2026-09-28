@@ -152,25 +152,6 @@ func (s *service) buildAutomationSection(
 	}, nil
 }
 
-func (s *service) buildNetworkSection(ctx context.Context, cfg *compozyconfig.Config) (NetworkSection, error) {
-	runtime := NetworkRuntimeStatus{}
-	if s.networkRuntime != nil {
-		status, err := s.networkRuntime.NetworkRuntimeStatus(ctx)
-		if err != nil {
-			return NetworkSection{}, fmt.Errorf("settings: network runtime: %w", err)
-		}
-		runtime = status
-	}
-
-	return NetworkSection{
-		Config:  cfg.Network,
-		Runtime: runtime,
-		Links: []OperationalLink{
-			{Label: string(SectionNetwork), Path: "/network"},
-		},
-	}, nil
-}
-
 func (s *service) buildObservabilitySection(
 	ctx context.Context,
 	cfg *compozyconfig.Config,

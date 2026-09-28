@@ -335,7 +335,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
+			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&origin_kind=http",
 			nil,
 		)
 		if dashboardResp.Code != http.StatusOK {
@@ -346,7 +346,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 				dashboardResp.Body.String(),
 			)
 		}
-		if dashboardQuery.WorkspaceID != "ws-alpha" || dashboardQuery.ParticipationChannel != "builders" ||
+		if dashboardQuery.WorkspaceID != "ws-alpha" ||
 			dashboardQuery.OriginKind != taskpkg.OriginKindHTTP || len(dashboardQuery.ExcludeCreatedBy) != 1 ||
 			dashboardQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
 			t.Fatalf("dashboard query = %#v", dashboardQuery)
@@ -578,7 +578,6 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		body         []byte
 		want         int
 		wantKey      string
-		wantChannel  string
 		wantMetadata string
 	}{
 		{
@@ -627,8 +626,6 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 					response.Run.TaskID != "task-1" ||
 					response.Run.Status != taskpkg.TaskRunStatusQueued ||
 					response.Run.IdempotencyKey != tc.wantKey ||
-					response.Run.ResolvedNetworkParticipation == nil ||
-					response.Run.ResolvedNetworkParticipation.ChannelID != tc.wantChannel ||
 					string(response.Run.Metadata) != tc.wantMetadata {
 					t.Fatalf("%s response = %#v, want task/run execution payload", tc.path, response)
 				}
@@ -662,11 +659,10 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 				t.Fatalf("%s request was not recorded", tc.call)
 			}
 			if got.IdempotencyKey != tc.wantKey || string(got.Metadata) != tc.wantMetadata {
-				t.Fatalf("%s request = %#v, want key=%q channel=%q metadata=%s",
+				t.Fatalf("%s request = %#v, want key=%q metadata=%s",
 					tc.call,
 					got,
 					tc.wantKey,
-					tc.wantChannel,
 					tc.wantMetadata,
 				)
 			}

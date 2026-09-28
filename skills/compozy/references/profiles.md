@@ -36,8 +36,7 @@ scope. Agent-native calls derive their immutable session profile and cannot acce
 replacement.
 
 Worktrees are intentionally visible across profiles because they represent workspace filesystem state;
-their rows still identify the owner. Network delivery is profile-blind, while network channels,
-conversations, subscriptions, and work remain owner-scoped.
+their rows still identify the owner.
 
 ## Lifecycle
 

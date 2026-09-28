@@ -7,7 +7,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation/model"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -43,10 +43,6 @@ func TestCloneConfig(t *testing.T) {
 		provider.MCPServers[0].Env["TOKEN"] = "mutated"
 		cloned.Providers["codex"] = provider
 		*cloned.ModelCatalog.Sources.ModelsDev.Enabled = false
-		sandbox := cloned.Sandboxes["secure"]
-		sandbox.Env["MODE"] = "mutated"
-		sandbox.Network.AllowList[0] = "mutated"
-		cloned.Sandboxes["secure"] = sandbox
 		cloned.Memory.Controller.Policy.AllowOrigins[0] = "mutated"
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated"
 		cloned.RoleSources[RoleCoordinator][RoleFieldModel] = RoleFieldSourceWorkspace
@@ -57,7 +53,6 @@ func TestCloneConfig(t *testing.T) {
 		cloned.Tools.Policy.TrustedSources[0] = "mutated"
 		cloned.Session.Attachments.AllowedMIME[0] = "mutated"
 		cloned.Automation.Jobs[0].Task.Owner.Ref = "mutated"
-		*cloned.Automation.Jobs[0].Task.NetworkParticipation.ChannelID = "mutated"
 		cloned.Automation.Jobs[0].LoopTarget.Inputs["nested"].(map[string]any)["value"] = "mutated"
 		cloned.Automation.Jobs[0].LoopTarget.InputMapping["topic"] = "mutated"
 		cloned.Automation.Triggers[0].Filter["branch"] = "mutated"
@@ -86,7 +81,6 @@ func TestCloneConfig(t *testing.T) {
 func configCloneFixture() Config {
 	enabled := true
 	toolReadOnly := true
-	channelID := "operations"
 	return Config{
 		MCP: MCPConfig{OAuth: MCPOAuthConfig{ClientMetadataURL: "https://example.com/client.json"}},
 		Marketplace: MarketplaceRuntimeConfig{
@@ -114,12 +108,6 @@ func configCloneFixture() Config {
 		ModelCatalog: ModelCatalogConfig{Sources: ModelCatalogSourcesConfig{
 			ModelsDev: ModelsDevSourceConfig{Enabled: &enabled},
 		}},
-		Sandboxes: map[string]SandboxProfile{
-			"secure": {
-				Env:     map[string]string{"MODE": "safe"},
-				Network: NetworkProfile{AllowList: []string{"api.example.com"}},
-			},
-		},
 		Memory: MemoryConfig{Controller: MemoryControllerConfig{
 			Policy: MemoryControllerPolicyConfig{AllowOrigins: []string{"agent"}},
 		}},
@@ -143,8 +131,7 @@ func configCloneFixture() Config {
 		Automation: AutomationConfig{
 			Jobs: []AutomationJob{{
 				Task: &automationpkg.JobTaskConfig{
-					Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindAgentSession, Ref: "agent-1"},
-					NetworkParticipation: &participation.Request{ChannelID: &channelID},
+					Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindAgentSession, Ref: "agent-1"},
 				},
 				LoopTarget: &automationpkg.LoopTarget{
 					Inputs:       map[string]any{"nested": map[string]any{"value": "original"}},

@@ -31,9 +31,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		if got, want := profile.Worker.Mode, WorkerModeInherit; got != want {
 			t.Fatalf("Worker.Mode = %q, want %q", got, want)
 		}
-		if got, want := profile.Sandbox.Mode, SandboxModeInherit; got != want {
-			t.Fatalf("Sandbox.Mode = %q, want %q", got, want)
-		}
+
 		if got, want := profile.Worktree.Mode, WorktreeModeInherit; got != want {
 			t.Fatalf("Worktree.Mode = %q, want %q", got, want)
 		}
@@ -51,10 +49,10 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 				Mode: WorkerModeSelect, AgentName: "coder", AllowedAgentNames: []string{"coder"},
 			},
 			Review:       ReviewProfile{AgentName: "reviewer", AllowedAgentNames: []string{"reviewer"}},
-			Participants: ParticipantPolicy{AllowedPeerIDs: []string{"peer-1"}},
-			Sandbox:      SandboxPolicy{Mode: SandboxModeRef, SandboxRef: "workspace"},
-			Worktree:     WorktreePolicy{Mode: WorktreeModeNone},
-			Runtime:      RuntimePolicy{Mode: RuntimeModeEvidence},
+			Participants: ParticipantPolicy{},
+
+			Worktree: WorktreePolicy{Mode: WorktreeModeNone},
+			Runtime:  RuntimePolicy{Mode: RuntimeModeEvidence},
 		}
 		store.profiles["task-1"] = before
 		manager := newTaskManagerForTest(t, store)
@@ -75,7 +73,6 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 			!reflect.DeepEqual(after.Worker, before.Worker) ||
 			!reflect.DeepEqual(after.Review, before.Review) ||
 			!reflect.DeepEqual(after.Participants, before.Participants) ||
-			!reflect.DeepEqual(after.Sandbox, before.Sandbox) ||
 			!reflect.DeepEqual(after.Runtime, before.Runtime) {
 			t.Fatalf("SetWorktreePolicy() changed unrelated profile blocks: before=%#v after=%#v", before, after)
 		}
@@ -149,7 +146,6 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 				}},
 				AllowedAgentNames: []string{"reviewer"},
 			},
-			Sandbox: SandboxPolicy{Mode: SandboxModeRef, SandboxRef: "workspace"},
 		}, validActorContext())
 		if err != nil {
 			t.Fatalf("SetExecutionProfile() error = %v", err)
@@ -306,7 +302,6 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 			TaskID:      "task-1",
 			Coordinator: CoordinatorProfile{Mode: CoordinatorModeGuided},
 			Worker:      WorkerProfile{Mode: WorkerModeInherit},
-			Sandbox:     SandboxPolicy{Mode: SandboxModeInherit},
 		}
 		manager := newTaskManagerForTest(t, store)
 

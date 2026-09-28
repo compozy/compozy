@@ -54,8 +54,6 @@ func updateRunReviewBinding(
 		Status:            string(taskpkg.RunReviewStatusInReview),
 		ReviewerSessionID: nullableTaskString(req.SessionID),
 		ReviewerAgentName: req.ReviewerAgentName,
-		ReviewerPeerID:    req.ReviewerPeerID,
-		ReviewerChannelID: req.ReviewerChannelID,
 		StartedAt:         nullableTaskTime(boundAt), UpdatedAt: store.FormatTimestamp(boundAt),
 		ReviewID: req.ReviewID,
 	})

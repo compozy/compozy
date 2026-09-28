@@ -28,7 +28,6 @@ const (
 const (
 	approveReads    = "approve-reads"
 	approveAll      = "approve-all"
-	toolNetworkSend = "compozy__network_send"
 	toolTaskList    = "compozy__task_list"
 	toolTaskRead    = "compozy__task_read"
 	toolTaskUpdate  = "compozy__task_update"
@@ -88,15 +87,13 @@ const (
 )
 
 const (
-	networkRootMessageID = "msg_northstar_01"
-	jsonTextKey          = "text"
-	launchChannel        = "launch-war-room"
-	launchThreadID       = "thread_checkout_launch"
-	launchAutomationID   = "job_northstar_canary_digest"
-	launchAutomationRun  = "autorun_northstar_canary_digest"
-	digestAutomationID   = "job_northstar_settlement_watch"
-	digestAutomationRun  = "autorun_northstar_settlement_watch"
-	worktreeID           = "wt_northstar_settlement_retry"
+	jsonTextKey         = "text"
+	launchThreadID      = "thread_checkout_launch"
+	launchAutomationID  = "job_northstar_canary_digest"
+	launchAutomationRun = "autorun_northstar_canary_digest"
+	digestAutomationID  = "job_northstar_settlement_watch"
+	digestAutomationRun = "autorun_northstar_settlement_watch"
+	worktreeID          = "wt_northstar_settlement_retry"
 )
 
 const (

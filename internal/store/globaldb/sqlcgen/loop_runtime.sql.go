@@ -112,9 +112,9 @@ WHERE loop_run_id = ?1 AND run_kind = 'coordinator'
 ORDER BY queued_at DESC, id DESC LIMIT 1
 `
 
-func (q *Queries) GetLastCoordinatorTaskIDForLoopRun(ctx context.Context, loopRunID sql.NullString) (sql.NullString, error) {
+func (q *Queries) GetLastCoordinatorTaskIDForLoopRun(ctx context.Context, loopRunID sql.NullString) (string, error) {
 	row := q.db.QueryRowContext(ctx, getLastCoordinatorTaskIDForLoopRun, loopRunID)
-	var task_id sql.NullString
+	var task_id string
 	err := row.Scan(&task_id)
 	return task_id, err
 }

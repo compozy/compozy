@@ -13,8 +13,7 @@ func runReviewFromGenerated(row sqlcgen.TaskRunReview) (taskpkg.RunReview, error
 		ReviewID: row.ReviewID, TaskID: row.TaskID, RunID: row.RunID,
 		ReviewRound: int(row.ReviewRound), Attempt: int(row.Attempt), Reason: row.Reason,
 		NextRoundGuidance: row.NextRoundGuidance, ReviewText: row.ReviewText,
-		ReviewerAgentName: row.ReviewerAgentName, ReviewerPeerID: row.ReviewerPeerID,
-		ReviewerChannelID: row.ReviewerChannelID,
+		ReviewerAgentName: row.ReviewerAgentName,
 	}
 	fields := runReviewScanFields{
 		parentReviewID: row.ParentReviewID, policy: row.Policy, status: row.Status,
@@ -38,8 +37,7 @@ func insertRunReviewRequestParams(review taskpkg.RunReview) sqlcgen.InsertRunRev
 		Reason: review.Reason, DeliveryID: nullableTaskString(review.DeliveryID),
 		MissingWorkJson: string(review.MissingWork), NextRoundGuidance: review.NextRoundGuidance,
 		ReviewText: review.ReviewText, ReviewerSessionID: nullableTaskString(review.ReviewerSessionID),
-		ReviewerAgentName: review.ReviewerAgentName, ReviewerPeerID: review.ReviewerPeerID,
-		ReviewerChannelID: review.ReviewerChannelID,
+		ReviewerAgentName: review.ReviewerAgentName,
 		ReviewedByKind:    runReviewActorKindValue(review.ReviewedBy),
 		ReviewedByRef:     runReviewActorRefValue(review.ReviewedBy),
 		RequestedAt:       store.FormatTimestamp(review.RequestedAt), RoutedAt: nullableTaskTime(review.RoutedAt),

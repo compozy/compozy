@@ -1,16 +1,11 @@
 import { useId } from "react";
 
 import { Alert, AlertDescription, Button, Field, FieldLabel, Spinner } from "@compozy/ui";
-import {
-  networkParticipationDraftFromPayload,
-  serializeNetworkParticipation,
-} from "@/lib/network-participation";
 
 import {
   setLoopTargetInput,
   setLoopTargetLoop,
   setLoopTargetMapping,
-  setLoopTargetNetworkParticipation,
   type LoopTargetDraft,
 } from "../../lib/loop-target";
 import {
@@ -22,7 +17,6 @@ import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
 import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
 import { LoopCatalogValueSelect } from "../input/loop-typed-input-control";
 import { LoopInputMapping } from "./loop-input-mapping";
-import { NetworkParticipationFields } from "@/systems/network";
 
 interface LoopTargetFieldsProps {
   catalog: LoopTargetCatalog;
@@ -127,15 +121,6 @@ export function LoopTargetFields({
           </Button>
         ) : null}
       </Field>
-
-      <NetworkParticipationFields
-        allowedStrategies={["named", "loop_run"]}
-        onChange={next =>
-          onChange(setLoopTargetNetworkParticipation(value, serializeNetworkParticipation(next)))
-        }
-        testIdPrefix="loop-target-participation"
-        value={networkParticipationDraftFromPayload(value.network_participation)}
-      />
 
       {selected && inputNames.length > 0 ? (
         <LoopInputCatalogBoundary workspaceId={workspaceId} needs={loopInputCatalogNeeds(inputs)}>

@@ -84,14 +84,13 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 
 	opts := session.CreateOpts{
-		ProfileID:            mutationScope.ProfileID,
-		AgentName:            req.AgentName,
-		Name:                 req.Name,
-		Workspace:            req.Workspace,
-		WorkspacePath:        req.WorkspacePath,
-		Worktree:             worktreeTarget.ID,
-		NetworkParticipation: req.NetworkParticipation,
-		Type:                 session.SessionTypeUser,
+		ProfileID:     mutationScope.ProfileID,
+		AgentName:     req.AgentName,
+		Name:          req.Name,
+		Workspace:     req.Workspace,
+		WorkspacePath: req.WorkspacePath,
+		Worktree:      worktreeTarget.ID,
+		Type:          session.SessionTypeUser,
 	}
 	if parentSessionID != "" {
 		parent, statusErr := h.Sessions.Status(c.Request.Context(), parentSessionID)

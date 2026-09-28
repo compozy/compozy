@@ -9,7 +9,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
-	"github.com/compozy/compozy/internal/sandbox"
 )
 
 type cachedAgentConfig struct {
@@ -21,7 +20,6 @@ type cachedAgentConfig struct {
 type workspaceAgentState struct {
 	agents      []compozyconfig.AgentDef
 	diagnostics []AgentDiagnostic
-	sandbox     sandbox.Resolved
 }
 
 // ResolveAgentConfig resolves current configuration and agents without discovering skills.
@@ -75,7 +73,7 @@ func (r *Resolver) ResolveAgentConfig(ctx context.Context, ref, profileName stri
 	return resolved, nil
 }
 
-// buildResolvedAgentConfig applies the full resolver's configuration, agent, and sandbox validation without skills.
+// buildResolvedAgentConfig applies the full resolver's configuration and agent validation without skills.
 func (r *Resolver) buildResolvedAgentConfig(
 	ctx context.Context,
 	ws Workspace,
@@ -118,7 +116,7 @@ func (r *Resolver) scanAgentConfig(ctx context.Context, ws Workspace, profileNam
 	return scan, nil
 }
 
-// buildWorkspaceAgentState applies the workspace default and validates sandbox and discovered agent definitions.
+// buildWorkspaceAgentState applies the workspace default and validates discovered agent definitions.
 func buildWorkspaceAgentState(
 	ctx context.Context,
 	ws Workspace,
@@ -126,15 +124,11 @@ func buildWorkspaceAgentState(
 	candidates []agentCandidate,
 ) (workspaceAgentState, error) {
 	applyDefaultAgentOverride(cfg, ws.DefaultAgent)
-	resolvedSandbox, err := resolveWorkspaceSandbox(ws, cfg)
-	if err != nil {
-		return workspaceAgentState{}, fmt.Errorf("workspace: resolve sandbox for %q: %w", ws.ID, err)
-	}
 	agents, diagnostics, err := loadAgents(ctx, candidates)
 	if err != nil {
 		return workspaceAgentState{}, err
 	}
-	return workspaceAgentState{agents: agents, diagnostics: diagnostics, sandbox: resolvedSandbox}, nil
+	return workspaceAgentState{agents: agents, diagnostics: diagnostics}, nil
 }
 
 // resolveProfileIdentity validates the profile name and rechecks its current availability and durable identity.
@@ -165,7 +159,6 @@ func cloneResolvedAgentConfig(src *ResolvedAgentConfig) ResolvedAgentConfig {
 // sameWorkspaceRuntimeInputs compares only workspace fields that affect resolved runtime behavior.
 func sameWorkspaceRuntimeInputs(left, right Workspace) bool {
 	return strings.TrimSpace(left.DefaultAgent) == strings.TrimSpace(right.DefaultAgent) &&
-		strings.TrimSpace(left.SandboxRef) == strings.TrimSpace(right.SandboxRef) &&
 		strings.TrimSpace(left.RootDir) == strings.TrimSpace(right.RootDir) &&
 		slices.Equal(left.AdditionalDirs, right.AdditionalDirs)
 }

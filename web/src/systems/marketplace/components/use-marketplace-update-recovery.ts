@@ -2,7 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { extensionNetworkConfirmation, ExtensionsApiError } from "@/systems/extensions";
+import { extensionGatewayConfirmation, ExtensionsApiError } from "@/systems/extensions";
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
 import type { ExtensionUpdateRequest } from "../types";
 import {
@@ -21,7 +21,7 @@ type TrackUpdate = <T>(action: () => Promise<T>) => Promise<T>;
 type UpdateTarget = { label: string; request: MarketplaceUpdateRequest; track: TrackUpdate };
 type Recovery = UpdateTarget &
   (
-    | { kind: "network"; digest: string }
+    | { kind: "gateway"; digest: string }
     | { kind: "inputs"; definitions: ExtensionInputDefinitions }
   );
 type RecoveryState = { phase: "idle" } | { phase: "review" | "submitting"; recovery: Recovery };
@@ -64,10 +64,10 @@ export function useMarketplaceUpdateRecovery(
       await mutate(request);
       return true;
     } catch (error) {
-      const confirmation = extensionNetworkConfirmation(error);
+      const confirmation = extensionGatewayConfirmation(error);
       if (confirmation) {
         store.trigger.recoveryRequired({
-          recovery: { kind: "network", digest: confirmation.digest, label, request, track },
+          recovery: { kind: "gateway", digest: confirmation.digest, label, request, track },
         });
         return false;
       }
@@ -85,7 +85,7 @@ export function useMarketplaceUpdateRecovery(
     if (current.phase !== "review") return;
     const { recovery } = current;
     const body = { ...recovery.request.body };
-    if (recovery.kind === "network") body.confirm_network_digest = recovery.digest;
+    if (recovery.kind === "gateway") body.confirm_gateway_digest = recovery.digest;
     else {
       const prepared = prepareExtensionInputs(recovery.definitions, draft);
       if (!prepared.valid) return;

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -103,12 +102,11 @@ func buildNextGenerationCoordinatorPlan(
 		Payload:    GenerationSnapshotPayload{Outputs: nextOutputs},
 	}
 	plan.NextCoordinator = &task.EnqueueSpec{
-		TaskID:                       strings.TrimSpace(taskRun.TaskID),
-		RunID:                        coordinatorRunID(run.ID, nextGeneration),
-		RunKind:                      task.RunKindCoordinator,
-		LoopRunID:                    string(run.ID),
-		IdempotencyKey:               coordinatorIdempotencyKey(run.ID, nextGeneration),
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		TaskID:         strings.TrimSpace(taskRun.TaskID),
+		RunID:          coordinatorRunID(run.ID, nextGeneration),
+		RunKind:        task.RunKindCoordinator,
+		LoopRunID:      string(run.ID),
+		IdempotencyKey: coordinatorIdempotencyKey(run.ID, nextGeneration),
 	}
 	return plan, nil
 }

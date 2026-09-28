@@ -73,7 +73,7 @@ func forbiddenOwner(key string) string {
 		return "task lease heartbeat"
 	case "network", "greet", "presence", "peer_presence", "peers",
 		"channels", "channel":
-		return "Compozy Network membership"
+		return "runtime state"
 	case "provider", "providers", "model", "command", "tools", "toolsets", "deny_tools",
 		"permissions", "capabilities", "capability", "hooks", "mcp_servers", "env", "config":
 		return "agent definition or runtime config"

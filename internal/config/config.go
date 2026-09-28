@@ -1,8 +1,6 @@
 package config
 
 import (
-	"errors"
-
 	"strings"
 )
 
@@ -34,14 +32,10 @@ const (
 
 const defaultMemoryWorkspaceTOMLPath = "<workspace>/" + DirName + "/workspace.toml"
 
-// ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
-var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")
-
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {
 	Agent    string `toml:"agent"`
 	Provider string `toml:"provider,omitempty"`
-	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
 // ValidationError preserves the config path for agent-parseable validation failures.

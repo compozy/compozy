@@ -123,7 +123,6 @@ func taskDashboardQueuePayload(queue observepkg.TaskDashboardQueue) apicontract.
 	payload.Depth = make([]apicontract.TaskDashboardQueueDepthPayload, 0, len(queue.Depth))
 	for _, item := range queue.Depth {
 		payload.Depth = append(payload.Depth, apicontract.TaskDashboardQueueDepthPayload{
-			ChannelID:           item.ChannelID,
 			Count:               item.Count,
 			OldestQueuedAt:      item.OldestQueuedAt,
 			OldestQueueAgeMilli: item.OldestQueueAgeMilli,
@@ -158,26 +157,25 @@ func taskDashboardActiveRunsPayload(
 	payload.Items = make([]apicontract.TaskDashboardActiveRunPayload, 0, len(activeRuns.Items))
 	for _, item := range activeRuns.Items {
 		payload.Items = append(payload.Items, apicontract.TaskDashboardActiveRunPayload{
-			TaskID:                       item.TaskID,
-			TaskIdentifier:               item.TaskIdentifier,
-			TaskTitle:                    taskpkg.RedactClaimTokens(strings.TrimSpace(item.TaskTitle)),
-			TaskStatus:                   item.TaskStatus,
-			TaskPriority:                 item.TaskPriority,
-			TaskOwner:                    cloneOwnership(item.TaskOwner),
-			Scope:                        item.Scope,
-			WorkspaceID:                  item.WorkspaceID,
-			LatestEventSeq:               item.LatestEventSeq,
-			RunID:                        item.RunID,
-			RunStatus:                    item.RunStatus,
-			Attempt:                      item.Attempt,
-			MaxAttempts:                  item.MaxAttempts,
-			SessionID:                    item.SessionID,
-			ResolvedNetworkParticipation: cloneResolvedParticipation(item.ResolvedNetworkParticipation),
-			LastActivityAt:               item.LastActivityAt,
-			AgeMilli:                     item.AgeMilli,
-			HealthStatus:                 item.HealthStatus,
-			Stuck:                        item.Stuck,
-			Error:                        taskpkg.RedactClaimTokens(strings.TrimSpace(item.Error)),
+			TaskID:         item.TaskID,
+			TaskIdentifier: item.TaskIdentifier,
+			TaskTitle:      taskpkg.RedactClaimTokens(strings.TrimSpace(item.TaskTitle)),
+			TaskStatus:     item.TaskStatus,
+			TaskPriority:   item.TaskPriority,
+			TaskOwner:      cloneOwnership(item.TaskOwner),
+			Scope:          item.Scope,
+			WorkspaceID:    item.WorkspaceID,
+			LatestEventSeq: item.LatestEventSeq,
+			RunID:          item.RunID,
+			RunStatus:      item.RunStatus,
+			Attempt:        item.Attempt,
+			MaxAttempts:    item.MaxAttempts,
+			SessionID:      item.SessionID,
+			LastActivityAt: item.LastActivityAt,
+			AgeMilli:       item.AgeMilli,
+			HealthStatus:   item.HealthStatus,
+			Stuck:          item.Stuck,
+			Error:          taskpkg.RedactClaimTokens(strings.TrimSpace(item.Error)),
 		})
 	}
 	return payload

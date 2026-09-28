@@ -40,35 +40,6 @@ func cloneProviderItem(value *ProviderItem) ProviderItem {
 	return cloned
 }
 
-func cloneSandboxItem(value SandboxItem) SandboxItem {
-	value.Profile = compozyconfig.SandboxProfile{
-		Backend:     value.Profile.Backend,
-		SyncMode:    value.Profile.SyncMode,
-		Persistence: value.Profile.Persistence,
-		RuntimeRoot: value.Profile.RuntimeRoot,
-		Env:         cloneStringMap(value.Profile.Env),
-		SecretEnv:   cloneStringMap(value.Profile.SecretEnv),
-		Network: compozyconfig.NetworkProfile{
-			AllowPublicIngress: value.Profile.Network.AllowPublicIngress,
-			AllowOutbound:      value.Profile.Network.AllowOutbound,
-			AllowList:          append([]string(nil), value.Profile.Network.AllowList...),
-			DenyList:           append([]string(nil), value.Profile.Network.DenyList...),
-			Required:           value.Profile.Network.Required,
-		},
-		Daytona: compozyconfig.DaytonaProfile{
-			APIURL:      value.Profile.Daytona.APIURL,
-			Target:      value.Profile.Daytona.Target,
-			Image:       value.Profile.Daytona.Image,
-			Snapshot:    value.Profile.Daytona.Snapshot,
-			Class:       value.Profile.Daytona.Class,
-			AutoStop:    value.Profile.Daytona.AutoStop,
-			AutoArchive: value.Profile.Daytona.AutoArchive,
-		},
-	}
-	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
-	return value
-}
-
 func cloneHookItem(value *HookItem) HookItem {
 	cloned := *value
 	cloned.SourceMetadata = cloneSourceMetadata(cloned.SourceMetadata)

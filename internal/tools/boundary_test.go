@@ -31,7 +31,6 @@ func TestPackageBoundary(t *testing.T) {
 			"/internal/session",
 			"/internal/task",
 			"/internal/skills",
-			"/internal/network",
 		}
 		imports := strings.SplitSeq(strings.TrimSpace(string(out)), "\n")
 		for importPath := range imports {

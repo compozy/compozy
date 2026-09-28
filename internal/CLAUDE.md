@@ -6,7 +6,7 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 
 - `internal/daemon` is the composition root. Other packages do not import `daemon`, `api`, or `cli`; inject consumed interfaces/callbacks and keep dependencies downward. Boot reconciliation belongs to the composition root.
 - Keep packages flat where practical, interfaces at their consumer, constructors with functional options, and files cohesive. Update `magefiles/boundaries.go` when adding a boundary it governs.
-- Domain calls use typed interfaces; Notifier fan-out carries observability/SSE. Do not introduce a generic event bus or reflection router. Network acceptance commits before notification.
+- Domain calls use typed interfaces; Notifier fan-out carries observability/SSE. Do not introduce a generic event bus or reflection router.
 - `internal/api/core` owns shared `BaseHandlers`; HTTP/UDS choose registration and authentication rather than duplicate parsing/validation.
 - Authoritative state transitions have one owner. Peers may observe/wake/sweep, but do not reproduce claim/spawn/migration ownership. The mechanical scheduler does not call `ClaimNextRun`.
 - Hooks dispatch at the owning transition, not by tailing logs. They may deny/narrow/annotate but cannot bypass claims, leases, TTL, lineage, spawn limits, or permission narrowing.
@@ -32,9 +32,8 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 
 ## Security
 
-- Raw claim tokens, MCP auth tokens, OAuth codes, PKCE verifiers, and bound secrets stay out of logs, status/error payloads, SSE, UI, and memory. Expose hash forms; reject raw claim tokens in network metadata.
+- Raw claim tokens, MCP auth tokens, OAuth codes, PKCE verifiers, and bound secrets stay out of logs, status/error payloads, SSE, UI, and memory. Expose hash forms.
 - Resolve symlinks and enforce approved-root containment for skill/extension paths, including canonicalized macOS temporary roots. User/agent-controlled paths use the existing sanitization and deepest-existing-realpath helpers.
-- A signed-format network identity without valid proof is rejected, never downgraded to unverified.
 - Outbound calls use explicit timeouts. Non-bundled skills run `internal/skills.VerifyContent` on load; preserve the configured severity decisions and bundled immutability exception.
 - Provider authentication ownership is explicit: `native_cli` uses native login without Compozy credential slots; `bound_secret` injects only declared resolved secrets; `none` injects neither. Preserve filtered/isolated environment policies and provider-home isolation without copying operator credentials. Public config changes follow SD-013 boundary translation.
 

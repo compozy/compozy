@@ -1,18 +1,10 @@
-import {
-  useCreateTaskBridgeNotificationSubscription,
-  useDeleteTaskBridgeNotificationSubscription,
-  useTaskBridgeNotificationSubscriptions,
-} from "./use-task-notifications";
 import { useDeleteTaskExecutionProfile, useSetTaskExecutionProfile } from "./use-task-profile";
 import { submitTaskMutation } from "../lib/task-mutation";
 import type { TaskStreamState } from "../lib/task-stream-state";
-import type {
-  TaskBridgeNotificationSubscriptionCreateRequest,
-  TaskExecutionProfileSetRequest,
-} from "../types";
+import type { TaskExecutionProfileSetRequest } from "../types";
 
 interface UseTaskOperatorLayerOptions {
-  /** Gate bridge-subscription reads and stream diagnostics to the open drawer. */
+  /** Gate stream diagnostics to the open drawer. */
   enabled?: boolean;
   streamErrorMessage?: string | null;
   streamSeedSequence?: number;
@@ -21,7 +13,7 @@ interface UseTaskOperatorLayerOptions {
 
 /**
  * Operator-layer data for the Inspect drawer and Setup sheet:
- * bridge subscriptions, execution-profile writes, and a status-bearing SSE
+ * execution-profile writes and a status-bearing SSE
  * probe whose connection state feeds the drawer's Stream pane.
  *
  * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.7–4.8
@@ -31,16 +23,8 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
   const hasTaskId = taskId.trim() !== "";
   const layerEnabled = enabled && hasTaskId;
 
-  const subscriptionsQuery = useTaskBridgeNotificationSubscriptions(
-    taskId,
-    {},
-    { enabled: layerEnabled }
-  );
-
   const setProfileMutation = useSetTaskExecutionProfile();
   const deleteProfileMutation = useDeleteTaskExecutionProfile();
-  const createSubscriptionMutation = useCreateTaskBridgeNotificationSubscription();
-  const deleteSubscriptionMutation = useDeleteTaskBridgeNotificationSubscription();
 
   const handleSetProfile = async (data: TaskExecutionProfileSetRequest) => {
     await submitTaskMutation(
@@ -58,39 +42,14 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
     );
   };
 
-  const handleCreateSubscription = async (
-    request: TaskBridgeNotificationSubscriptionCreateRequest
-  ) => {
-    await submitTaskMutation(
-      () => createSubscriptionMutation.mutateAsync({ taskId, data: request }),
-      "Subscription added.",
-      "Failed to add subscription"
-    );
-  };
-
-  const handleDeleteSubscription = async (subscriptionId: string) => {
-    await submitTaskMutation(
-      () => deleteSubscriptionMutation.mutateAsync({ taskId, subscriptionId }),
-      "Subscription removed.",
-      "Failed to remove subscription"
-    );
-  };
-
   return {
-    handleCreateSubscription,
     handleDeleteProfile,
-    handleDeleteSubscription,
     handleSetProfile,
-    isCreateSubscriptionPending: createSubscriptionMutation.isPending,
     isDeleteProfilePending: deleteProfileMutation.isPending,
-    isDeleteSubscriptionPending: deleteSubscriptionMutation.isPending,
     isSetProfilePending: setProfileMutation.isPending,
     streamErrorMessage: layerEnabled ? (options.streamErrorMessage ?? null) : null,
     streamSeedSequence: options.streamSeedSequence ?? 0,
     streamState: layerEnabled ? (options.streamState ?? "idle") : "disabled",
-    subscriptions: subscriptionsQuery.data ?? [],
-    subscriptionsError: subscriptionsQuery.error ?? null,
-    subscriptionsLoading: subscriptionsQuery.isLoading && !subscriptionsQuery.data,
   };
 }
 

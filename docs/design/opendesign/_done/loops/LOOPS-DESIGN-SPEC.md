@@ -72,7 +72,7 @@ one `.pill--*` status vocabulary, and one type scale.
 - **Authoring is fork-and-edit only** (ADR-008): the builder opens an existing Loop or
   built-in. There is no blank-canvas from-scratch builder in v1. `[shipped-in-spec]`
 - **Start bindings (ADR-007):** a Loop declares how it may be initiated via the DSL
-  `start[]` allowlist (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`).
+  `start[]` allowlist (`manual|cli|http|uds|trigger|schedule|webhook|extension|native_tool`).
   Event-driven starts (trigger/schedule/webhook) are carried by CompozyOS's existing automation
   primitives: a Trigger or Job gains a discriminated target, `Run agent` (today) or `Run loop`
   `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only, TechSpec §9.14).
@@ -138,7 +138,7 @@ Topbar (inventory: icon + title + count; detail: breadcrumb); `.btn` / `.btn--pr
 listing view `PillGroup` (`.pill-group`); category is a Filters field (not pills);
 status legend; form controls (`.input`, `select.input`, `.textarea`, `.switch`,
 agent-picker, pill-group/segmented, `<details>` collapsible); meters/progress bars; node
-spine (run timeline) and node canvas (editor); gate card (flat tint); embedded channel;
+spine (run timeline) and node canvas (editor); gate card (flat tint);
 approval gate.
 
 ---
@@ -156,7 +156,7 @@ approval gate.
   `[VERIFY]` "New from template" = fork-and-edit entry (ADR-008), not a blank builder.
 - **Layout.** Page head (title + `count-chip` + meta line) · listing toolbar · grouped
   listing (Built-in, Custom). Default view = **rows**; optional **cards** via PillGroup.
-  Shared contract: `LISTING-STANDARD.md` (reuse for skills / bridges catalogs).
+  Shared contract: `LISTING-STANDARD.md` (reuse for skills / extensions catalogs).
 - **Key components.**
   - **SearchInput** — compact (26px / ~200px), placed **before** Filters in the listing
     toolbar (`/` shortcut). Not in the topbar.
@@ -269,7 +269,7 @@ approval gate.
 
 ### 4.4 `run-detail.html` - Live run monitor (heaviest)
 - **Purpose.** Truthful, real-time view of a running Loop: contract, live meters,
-  generation-by-generation timeline, fan-out, gate verdicts, multi-agent channel, and the
+  generation-by-generation timeline, fan-out, gate verdicts, and the
   human approval gate.
 - **Route/IA.** `Loops › software-delivery › r-8f3a2b`. Topbar: `Graph view`, `DSL`.
 - **Layout.** Two columns: main (sticky contract header + meters, then timeline) + 332px
@@ -288,10 +288,9 @@ approval gate.
     human approval gate). Node IDs are snake_case (ADR-020).
   - **Gate card.** Flat tint (`pass` success / `fail` danger), verdict + reason + route
     (`revise` / `next_generation`). No side-stripe, no gradient.
-  - **Channel.** Embedded `#delivery-r8f3a` with implementer/reviewer/decision messages.
   - **Approval gate.** `needs-approval` tag, "Approve merge to `main`?", facts (branch,
     diff, tests, verifier), actions: `Approve & resume`, `Request changes`, `Reject & halt`.
-  - **Right rail.** Streaming live events (`node_running`, `channel_msg`,
+  - **Right rail.** Streaming live events (`node_running`,
     `generation_started`, `gate_verdict`, `node_failed`, `node_succeeded`); run facts
     (loop, revision pinned, re-attempt, trigger, workspace, run id); terminal legend.
     Automation-started runs name their trigger in Run facts and the sticky-header meta
@@ -301,18 +300,16 @@ approval gate.
   + prepends events (guarded by reduced-motion).
 - **Spec terms surfaced.** live + terminal states (11-state enum); generations; attempts
   vs iteration_cap; token/wall/cost/breadth meters; no-progress window count; node
-  classes/kinds incl. channel posting via `compozy__network_send` with
-  `harvest: {kind: channel_result, window, responder?, content_rule?}` (the UC2
-  converse-and-decide convention, ADR-021; `channel-post` is not a kind); gate verdict +
+  classes/kinds; gate verdict +
   routing (`revise`/`next_generation`); carry-forward (failed-only); `needs-approval`
   live pause; pinned revision; trigger source.
 - **Data contract.** `GET /runs/:id` + an SSE/event stream. Events the UI binds:
   `node_running|node_succeeded|node_failed`, `gate_verdict`, `generation_started`,
-  `channel_msg`, `token_tick`/budget updates, `needs_approval`. Run object must expose:
+  `token_tick`/budget updates, `needs_approval`. Run object must expose:
   state, generation index, attempt/cap, token/wall/cost/breadth usage + caps, pinned
   revision, re-attempt mode, trigger (kind, plus automation name + automation kind when
   automation-started), per-node status + output, gate verdicts + route,
-  channel transcript + harvested decision, approval-gate payload. Controls: pause, resume,
+  approval-gate payload. Controls: pause, resume,
   stop, and approval decision (approve / request-changes / reject). (section 9.3, 9.8)
 
 ### 4.5 `runs.html` - Runs history (global)
@@ -348,9 +345,8 @@ approval gate.
   bottom linter dock · 344px node inspector.
 - **Key components.**
   - **Palette ("Add node").** Grouped by class: Action (the three reserved kinds
-    run-agent / run-loop / transform, a curated tool shortlist incl. a "Channel post"
-    shortcut that inserts a pre-filled `compozy__network_send` node, and a searchable
-    "Call tool..." picker over the full 181-tool registry, ADR-021), Control (fan-out,
+    run-agent / run-loop / transform, a curated tool shortlist, and a searchable
+    "Call tool..." picker over the full tool registry, ADR-021), Control (fan-out,
     collect, branch, gate, sub-loop), Source (watch-source, file-import, input). Drag
     affordance. Fork-and-edit note.
   - **Canvas.** Positioned nodes + SVG edges (ReactFlow-style, not a graph lib). Neutral
@@ -375,8 +371,7 @@ approval gate.
     - action/transform: id, params.map rows ({from: <namespace path>} | {value: literal}
       | {template: "{{ ... }}"}).
     - action/any ToolID: id, kind (the literal ToolID), params form generated from the
-      tool's registry input schema (template-interpolated); optional harvest (e.g.
-      `channel_result` on `compozy__network_send`).
+      tool's registry input schema (template-interpolated); optional harvest.
     - control/gate: id, criteria rows ({id, type: command|agent-judge|human|extension,
       per-type fields incl. rubric templates}), verdict_policy (revise_until_clean |
       fixed_passes; the linter requires a judge/human criterion for revise_until_clean),
@@ -482,7 +477,7 @@ tool schemas are the canonical schema source; the editor inspector renders FROM 
 (ADR-023).
 
 - **action** (open): exactly three reserved kinds plus any ToolID (ADR-021); `call-tool`
-  and `channel-post` do not exist as kinds.
+  does not exist as a kind.
   - `run-agent` (reserved): `params: { agent (REQUIRED, interpolable profile ref),
     prompt (REQUIRED template), output_schema? (JSON Schema → structured harvest + one
     free schema-validation retry), cwd?, model?, allowed_tools?, max_turns? }`. The
@@ -494,11 +489,9 @@ tool schemas are the canonical schema source; the editor inspector renders FROM 
   - `transform` (reserved): `params.map: { <key>: {from: <namespace path>} | {value:
     literal} | {template: "{{ ... }}"} }`; pure in-daemon reshaping, the confinement for
     complex mapping.
-  - **any ToolID** (`compozy__*` / `ext__*` / `mcp__*`, 181 native tools): `params` = the
+  - **any ToolID** (`compozy__*` / `ext__*` / `mcp__*`): `params` = the
     tool's input schema (template-interpolated); the editor form is generated from the
-    registry schema. Channel posting is `kind: compozy__network_send` + optional
-    `harvest: {kind: channel_result, window, responder?, content_rule?}` (the UC2
-    result convention; the `channel-post` primitive is retired, ADR-021).
+    registry schema.
 - **control** (closed enum): `fan-out` (`collection: "{{ .nodes.<id>.output.<path> }}"`
   template over a finite materialized collection, plus the three orthogonal knobs
   `batch_size` (items per branch, default 1; the branch `item` is the single element at
@@ -562,7 +555,7 @@ read-only **run fact** on `run-detail`, never chosen on the run form.
 
 ### 5.6 Start bindings (ADR-007)
 The DSL `start[]` allowlist
-(`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`) declares how a
+(`manual|cli|http|uds|trigger|schedule|webhook|extension|native_tool`) declares how a
 Loop may be initiated; the definition is the only place it is edited. Event-driven kinds
 (trigger/schedule/webhook) are carried by CompozyOS's existing automation primitives via a
 discriminated target on Trigger/Job: `Run agent` (today) or `Run loop`
@@ -640,7 +633,7 @@ Reusable, build-once components implied by the eight screens:
 - **Loops-specific:** `ReadOnlyDAG` (graph view), `DAGCanvas` + `Node` + `Edge` +
   `NodeInspector` (per-class field sets) + `LinterDock` + `Palette` (editor),
   `GenerationTimeline` + `NodeSpine` + `NodeRow`, `GateCard` (pass/fail/route),
-  `EmbeddedChannel` + `ChannelMessage`, `ApprovalGate`, `ContractPreview`, `DSLView`
+  `ApprovalGate`, `ContractPreview`, `DSLView`
   (YAML render of `compozy.loop/v1`), `StartBindingsPanel` (declared-kind chips + automation
   rows + add CTAs), `BindingBadge` (catalog rows), `StartChipStrip` (editor graph view).
 
@@ -778,26 +771,12 @@ close/reopen; runs outcome filter.
 - **Proposal.** Document the decision verbs + their routing in the gate/ADR-005 section and
   expose `compozy run approve|request-changes|reject`.
 
-### 9.9 channel-post / converse-and-decide as runtime primitive `[P0]` - REVERSED (ADR-021)
-- **Design (round 4).** `run-detail` rendered an embedded multi-agent channel as a
-  first-class `channel-post` action node with a harvested decision; the editor palette
-  offered `channel-post`.
-- **Resolution (ADR-021, delete target).** The `channel-post` primitive is retired and
-  does not exist as a kind. Channel posting is `kind: compozy__network_send`; the UC2
-  converse-and-decide completion contract survives as the **harvest spec**, not a kind:
-  the node may declare `harvest: {kind: channel_result, window, responder?,
-  content_rule?}` (post the request, await the designated result message, harvest its
-  payload; no result within the window → `stalled`, unchanged ADR-014 semantics). The
-  editor palette keeps a "Channel post" shortcut that inserts a pre-filled
-  `compozy__network_send` node, so the UX survives while the dual path is eliminated. The
-  run-detail channel surface stays and binds to the tool node plus its harvest.
-
 ### 9.10 Picker data sources: agent / ref / file kinds `[P1]`
 - **Design.** Run form renders an `agent` picker; the type system includes `ref` and
   `file`. The editor kind dropdowns list registry actions/tools/agents.
 - **Question.** What entity kinds can a `ref` target, and what feeds the agent/tool/action
   pickers?
-- **Proposal.** Enumerate `ref` target kinds (task/run/channel/...) in the DSL input-type
+- **Proposal.** Enumerate `ref` target kinds (task/run/...) in the DSL input-type
   section, and define the registry-list endpoints the pickers read.
 
 ### 9.11 Computed aggregates: success rate, run counts, 30d stats `[P2]`

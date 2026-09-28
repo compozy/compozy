@@ -101,35 +101,10 @@ func canonicalClaimTokenHash(value string) string {
 	return hash
 }
 
-func sanitizedCoordinationChannelMetadata(
-	metadata *CoordinationChannelMetadata,
-) *CoordinationChannelMetadata {
-	if metadata == nil {
-		return nil
-	}
-	cloned := *metadata
-	cloned.ID = strings.TrimSpace(cloned.ID)
-	cloned.DisplayName = strings.TrimSpace(cloned.DisplayName)
-	cloned.Purpose = strings.TrimSpace(cloned.Purpose)
-	cloned.WorkspaceID = strings.TrimSpace(cloned.WorkspaceID)
-	cloned.TaskID = strings.TrimSpace(cloned.TaskID)
-	cloned.RunID = strings.TrimSpace(cloned.RunID)
-	cloned.WorkflowID = strings.TrimSpace(cloned.WorkflowID)
-	cloned.AllowedMessageKinds = normalizeStringSet(cloned.AllowedMessageKinds)
-	if cloned.DisplayName == "" {
-		cloned.DisplayName = cloned.ID
-	}
-	if cloned.AllowedMessageKinds == nil {
-		cloned.AllowedMessageKinds = append([]string(nil), defaultCoordinationMessageKinds...)
-	}
-	return &cloned
-}
-
 func claimResultWithoutRawTokenInMetadata(result *ClaimResult) {
 	if result == nil {
 		return
 	}
-	result.CoordinationChannel = sanitizedCoordinationChannelMetadata(result.CoordinationChannel)
 	if result.Task != nil {
 		result.Task.Metadata = removeRawClaimTokenFields(result.Task.Metadata)
 	}

@@ -31,10 +31,6 @@ type RoutingPolicy = Partial<
   Record<
     | "allowed_agent_names"
     | "preferred_agent_names"
-    | "allowed_channel_ids"
-    | "preferred_channel_ids"
-    | "allowed_peer_ids"
-    | "preferred_peer_ids"
     | "required_capabilities"
     | "preferred_capabilities",
     string[]
@@ -44,10 +40,6 @@ type RoutingPolicy = Partial<
 const ROUTING_ROWS: ReadonlyArray<{ key: keyof RoutingPolicy; label: string }> = [
   { key: "allowed_agent_names", label: "Allowed agents" },
   { key: "preferred_agent_names", label: "Preferred agents" },
-  { key: "allowed_channel_ids", label: "Allowed channels" },
-  { key: "preferred_channel_ids", label: "Preferred channels" },
-  { key: "allowed_peer_ids", label: "Allowed peers" },
-  { key: "preferred_peer_ids", label: "Preferred peers" },
   { key: "required_capabilities", label: "Required capabilities" },
   { key: "preferred_capabilities", label: "Preferred capabilities" },
 ];
@@ -92,7 +84,6 @@ export function TaskSetupProfileView({
 }: TaskSetupProfileViewProps) {
   const worker = profile.worker;
   const coordinator = profile.coordinator;
-  const sandbox = profile.sandbox;
   const review = profile.review;
   const participants = profile.participants;
   const workerRuntime = runtimeLabel(worker.provider, worker.model);
@@ -102,7 +93,6 @@ export function TaskSetupProfileView({
     review.agent_name || reviewRuntime || hasRoutingSelectors(review)
   );
   const participantsConfigured = hasRoutingSelectors(participants);
-  const network = profile.network_participation;
 
   return (
     <>
@@ -175,26 +165,13 @@ export function TaskSetupProfileView({
       </SetupGroup>
 
       <SetupGroup label="Environment">
-        <SetupRow label="Sandbox">
-          {sandbox.mode === "ref" && sandbox.sandbox_ref ? (
-            <Pill tone="neutral">{sandbox.sandbox_ref}</Pill>
-          ) : (
-            <span className="capitalize text-muted">{sandbox.mode}</span>
-          )}
-        </SetupRow>
         {showWorktree ? (
           <TaskWorktreePolicyReadRow value={profile.worktree} worktrees={worktrees} />
         ) : null}
         <SetupRow label="Runtime evidence">
           <span className="capitalize text-muted">{profile.runtime.mode}</span>
         </SetupRow>
-        <SetupRow label="Network">
-          <span className="text-muted">
-            {network
-              ? `${network.mode}${"channel_strategy" in network ? ` · ${network.channel_strategy}` : ""}`
-              : "Off"}
-          </span>
-        </SetupRow>
+
         {participantsConfigured ? (
           <RoutingRows policy={participants} />
         ) : (

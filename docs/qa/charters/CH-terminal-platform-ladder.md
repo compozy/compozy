@@ -21,7 +21,6 @@ charter:
     must_try:
       - "On a local Windows project: open a terminal, type, read output, resize, detach and reattach, and record; confirm the lifecycle matches what macOS and Linux offer."
       - "On Windows, start a command that spawns child processes, close the terminal, and confirm the whole process tree exits with no orphan and no leaked handle; then run a bounded one-shot command and confirm its output and exit code."
-      - "On a Windows sandbox project and on a remote sandbox project, confirm command execution still works while every interactive control and every interactive capability claim is absent — not present and disabled."
       - "Request an interactive terminal on a rung that cannot offer one, through the browser, the command line, and the agent tools, and confirm each refusal names the platform limit and points at the execute-only path."
       - "Compare a macOS or Linux baseline against the matrix below and record any row where the observed behaviour and the promised rung disagree."
     must_avoid:
@@ -37,7 +36,6 @@ The rungs are honest about themselves; a surface that promises more than its run
 | macOS (local project) | Yes — full, including full-screen programs | Yes | Yes | Yes | interactive |
 | Linux (local project) | Yes — full, including full-screen programs | Yes | Yes | Yes | interactive |
 | Windows (local project) | Yes — full, through the platform's own console interface | Yes | Yes | Yes | interactive |
-| Windows or remote sandbox project | No — refused with the platform named | Yes | No — controls absent, not disabled | No — refused with the platform named | not interactive |
 
 Closing a terminal must end the whole process tree on every rung, and the exit state and retained output
 must read the same through the browser and the command line.

@@ -44,7 +44,7 @@ var toolResultDisplayJSONFields = []string{
 	"stdout",
 	"summary",
 	sessionClarifyTextFlag,
-	networkTitleKey,
+	cliOutputTitleKey,
 	"tool_input",
 	"tool_result",
 }

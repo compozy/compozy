@@ -267,7 +267,7 @@ types fail validation before the child starts.
 
 An exact reference keeps the source JSON type: the token budget remains a number and runtime rules
 remain an array. See [Reference grammar](/docs/loops/reference-grammar#typed-direct-references).
-`run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
+`run-agent` sessions use the target agent definition plus workspace defaults for
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
 rejects the node run deterministically before an ungated session can start.
@@ -439,15 +439,14 @@ kind outside the supported set fails lint (`watch_events_kind_unsupported`). Onl
 observation** hooks are subscribable — sync-eligible `pre_*` hooks are rejected (you watch committed
 state, you do not intercept it).
 
-| Family        | Kinds                                                                                                                                                         | Replay ledger                 |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `task`        | `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered`                                                             | `task_events`                 |
-| `task.run`    | `task.run.completed`, `task.run.failed`                                                                                                                       | `task_events`                 |
-| `loop`        | `loop.terminal`, `loop.node.terminal`                                                                                                                         | `loop_run_events`             |
-| `automation`  | `automation.run.completed`, `automation.run.failed`                                                                                                           | `automation_runs`             |
-| `network`     | `network.message.persisted`, `network.thread.opened`, `network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`, `network.work.closed` | `network_timeline_log`        |
-| `coordinator` | `coordinator.spawned`, `coordinator.decision`, `coordinator.stopped`, `coordinator.failed`                                                                    | `event_summaries`             |
-| `event`       | `event.post_record`                                                                                                                                           | `session_events:<session_id>` |
+| Family        | Kinds                                                                                             | Replay ledger                 |
+| ------------- | ------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `task`        | `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered` | `task_events`                 |
+| `task.run`    | `task.run.completed`, `task.run.failed`                                                           | `task_events`                 |
+| `loop`        | `loop.terminal`, `loop.node.terminal`                                                             | `loop_run_events`             |
+| `automation`  | `automation.run.completed`, `automation.run.failed`                                               | `automation_runs`             |
+| `coordinator` | `coordinator.spawned`, `coordinator.decision`, `coordinator.stopped`, `coordinator.failed`        | `event_summaries`             |
+| `event`       | `event.post_record`                                                                               | `session_events:<session_id>` |
 
 `event.post_record` subscriptions must constrain `event.session_id` with equality; otherwise lint
 returns `watch_events_filter_too_broad`. Its output includes metadata such as `record_type`,
@@ -567,7 +566,7 @@ start:
 ```
 
 Available kinds: `manual`, `cli`, `http`, `uds`, `native_tool`, `schedule`, `trigger`, `webhook`,
-`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride CompozyOS's existing
+`extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride CompozyOS's existing
 [automation](/docs/automation) primitives — a `Trigger` or `Job` targets the Loop with
 typed inputs. A watch-source is a body-node concept, **never** a start binding.
 

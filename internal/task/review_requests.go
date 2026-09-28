@@ -69,8 +69,6 @@ func (r BindRunReviewSessionRequest) Normalize() BindRunReviewSessionRequest {
 	normalized.ReviewID = strings.TrimSpace(normalized.ReviewID)
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.ReviewerAgentName = strings.TrimSpace(normalized.ReviewerAgentName)
-	normalized.ReviewerPeerID = strings.TrimSpace(normalized.ReviewerPeerID)
-	normalized.ReviewerChannelID = strings.TrimSpace(normalized.ReviewerChannelID)
 	return normalized
 }
 
@@ -87,8 +85,6 @@ func (r BindRunReviewSessionRequest) Validate(path string) error {
 			reviewEvidenceIDKey:   r.ReviewID,
 			sessionEvidenceIDKey:  r.SessionID,
 			"reviewer_agent_name": r.ReviewerAgentName,
-			"reviewer_peer_id":    r.ReviewerPeerID,
-			"reviewer_channel_id": r.ReviewerChannelID,
 		},
 		path,
 	)

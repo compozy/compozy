@@ -93,7 +93,6 @@ type ExtensionContentsPayload struct {
 	Hooks      int `json:"hooks"`
 	Loops      int `json:"loops"`
 	Agents     int `json:"agents"`
-	Bridges    int `json:"bridges"`
 }
 
 // MarketplaceListResponse preserves the source and cursor metadata of the catalog page.

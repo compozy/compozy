@@ -1196,8 +1196,8 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	}
 	if resources, err := listSkillResources(bundledSkill, ctx.bundledFS); err != nil {
 		t.Fatalf("listSkillResources(bundled) error = %v", err)
-	} else if !slices.Contains(resources, "references/network.md") {
-		t.Fatalf("bundled resources = %#v, want references/network.md", resources)
+	} else if !slices.Contains(resources, "references/runtime-operations.md") {
+		t.Fatalf("bundled resources = %#v, want references/runtime-operations.md", resources)
 	}
 
 	if _, err := findSkillByName(ctx.skills, ""); err == nil {

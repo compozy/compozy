@@ -3,7 +3,7 @@ import type { SearchSchemaInput } from "@tanstack/react-router";
 export const TASK_DETAIL_TABS = ["overview", "runs", "activity"] as const;
 export type TaskDetailTab = (typeof TASK_DETAIL_TABS)[number];
 
-export const TASK_INSPECT_TARGETS = ["diagnostics", "stream", "bridges", "raw"] as const;
+export const TASK_INSPECT_TARGETS = ["diagnostics", "stream", "raw"] as const;
 export type TaskInspectTarget = (typeof TASK_INSPECT_TARGETS)[number];
 
 /** Navigation shape; the route validator materializes `tab` before rendering. */

@@ -14,10 +14,6 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
 	addNativeToolBindings(
 		bindings,
-		n.networkToolBindings(availability.network, availability.networkRead, availability.networkUsage),
-	)
-	addNativeToolBindings(
-		bindings,
 		n.sessionToolBindings(availability.sessions, availability.sessionCatalog, availability.sessionRuntime),
 	)
 	addNativeToolBindings(bindings, n.sessionAttentionToolBindings(availability.notifications))
@@ -63,9 +59,8 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		sessionLedger: availability.memorySessionLedger,
 	}))
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
-	addNativeToolBindings(bindings, n.bridgeToolBindings(availability.bridges))
 	addNativeToolBindings(bindings, n.gatewayToolBindings(availability.gateway))
-	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks, availability.taskNotifications))
+	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))

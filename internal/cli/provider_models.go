@@ -321,7 +321,7 @@ func providerModelSourceStatusBundle(
 		[]string{
 			agentKernelProviderValue,
 			authoredContextSourceValue,
-			bridgeKindValue,
+			cliOutputKindValue,
 			authoredContextStateValue,
 			"Rows",
 			"Stale",

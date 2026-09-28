@@ -4,8 +4,6 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import type {
   CreateTaskRequest,
   FanOutTaskRunsRequest,
-  TaskBridgeNotificationSubscription,
-  TaskBridgeNotificationSubscriptionCreateRequest,
   TaskExecutionProfileSetRequest,
   TaskInspectView,
   TaskListItem,
@@ -21,18 +19,15 @@ import {
   TASK_CATALOG_FIXTURES,
   TASK_FIXTURES,
   agentContextFixture,
-  buildBridgeNotificationCursorFixture,
   buildCreatedTaskFixture,
   buildDetailFixture,
   buildTaskInspectFixture,
-  buildTaskBridgeNotificationSubscriptionFixture,
   buildTaskExecutionProfileFixture,
   buildTaskRunRecordFixture,
   buildTaskRunDetailFixture,
   buildTaskRunReviewFixture,
   buildTaskRunReviewVerdictResultFixture,
   buildTaskTreeFixture,
-  taskBridgeNotificationSubscriptionsFixture,
   taskDashboardFixture,
   taskDetailFixture,
   taskExecutionProfileFixture,
@@ -80,7 +75,6 @@ function runRecordFromActiveRun(task: TaskListItem): TaskRun | null {
     claimed_by: task.active_run.claimed_by,
     error: task.active_run.error,
     session_id: task.active_run.session_id,
-    resolved_network_participation: task.active_run.resolved_network_participation,
   });
 }
 
@@ -647,84 +641,6 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ reviews: taskRunReviewListFixture });
   }),
-
-  // Bridge notification subscriptions
-  compozyApiMock.get("/api/tasks/{id}/notifications/bridges", ({ params, request, response }) => {
-    const taskId = String(params.id);
-    if (!resolveTask(taskId)) {
-      return response(404).json(notFound("Task", taskId));
-    }
-    const url = new URL(request.url);
-    const bridgeInstanceId = url.searchParams.get("bridge_instance_id");
-    const scope = url.searchParams.get("scope");
-    const workspaceId = url.searchParams.get("workspace_id");
-    const filtered: TaskBridgeNotificationSubscription[] =
-      taskBridgeNotificationSubscriptionsFixture.filter(sub => {
-        if (bridgeInstanceId && sub.bridge_instance_id !== bridgeInstanceId) return false;
-        if (scope && sub.scope !== scope) return false;
-        if (workspaceId && sub.workspace_id !== workspaceId) return false;
-        return true;
-      });
-    return HttpResponse.json({ subscriptions: filtered });
-  }),
-  compozyApiMock.post(
-    "/api/tasks/{id}/notifications/bridges",
-    async ({ params, request, response }) => {
-      const taskId = String(params.id);
-      if (!resolveTask(taskId)) {
-        return response(404).json(notFound("Task", taskId));
-      }
-      const body = (await request.json()) as TaskBridgeNotificationSubscriptionCreateRequest;
-      const subscriptionId = body.subscription_id ?? "bsub_created";
-      const subscription = buildTaskBridgeNotificationSubscriptionFixture({
-        subscription_id: subscriptionId,
-        task_id: taskId,
-        bridge_instance_id: body.bridge_instance_id,
-        delivery_mode: body.delivery_mode,
-        scope: body.scope,
-        workspace_id: body.workspace_id,
-        peer_id: body.peer_id,
-        group_id: body.group_id,
-        thread_id: body.thread_id,
-        cursor: buildBridgeNotificationCursorFixture({
-          consumer_id: subscriptionId,
-          subject_id: taskId,
-          last_sequence: 0,
-          last_delivery_id: undefined,
-          last_delivered_at: null,
-          updated_at: null,
-        }),
-      });
-      return HttpResponse.json({ subscription }, { status: 201 });
-    }
-  ),
-  compozyApiMock.get(
-    "/api/tasks/{id}/notifications/bridges/{subscription_id}",
-    ({ params, response }) => {
-      const taskId = String(params.id);
-      const subscriptionId = String(params.subscription_id);
-      const subscription = taskBridgeNotificationSubscriptionsFixture.find(
-        item => item.subscription_id === subscriptionId
-      );
-      if (!subscription) {
-        return response(404).json(notFound("Bridge notification subscription", subscriptionId));
-      }
-      return HttpResponse.json({ subscription: { ...subscription, task_id: taskId } });
-    }
-  ),
-  compozyApiMock.delete(
-    "/api/tasks/{id}/notifications/bridges/{subscription_id}",
-    ({ params, response }) => {
-      const subscriptionId = String(params.subscription_id);
-      const subscription = taskBridgeNotificationSubscriptionsFixture.find(
-        item => item.subscription_id === subscriptionId
-      );
-      if (!subscription) {
-        return response(404).json(notFound("Bridge notification subscription", subscriptionId));
-      }
-      return response(204).empty();
-    }
-  ),
 
   // Agent context (carries the task context bundle)
   compozyApiMock.get("/api/agent/context", () =>

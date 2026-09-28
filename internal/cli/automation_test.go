@@ -77,7 +77,7 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should create a workspace job with static Loop inputs and Network participation", func(t *testing.T) {
+	t.Run("Should create a workspace job with static Loop inputs", func(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobCreateRequest
@@ -105,9 +105,6 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			"--loop", "release-readiness",
 			"--loop-input", "channel=stable",
 			"--loop-input", "retries=3",
-			"--network", "live",
-			"--network-channel-strategy", "named",
-			"--network-channel", "automation",
 		)
 		if err != nil {
 			t.Fatalf("automation jobs create Loop target error = %v", err)
@@ -122,11 +119,6 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 		}
 		if retries, ok := request.LoopTarget.Inputs["retries"].(json.Number); !ok || retries.String() != "3" {
 			t.Fatalf("job Loop retries = %#v, want json.Number(3)", request.LoopTarget.Inputs["retries"])
-		}
-		participation := request.LoopTarget.NetworkParticipation
-		if participation == nil || participation.Mode == nil || *participation.Mode != "live" ||
-			participation.ChannelID == nil || *participation.ChannelID != "automation" {
-			t.Fatalf("job Loop Network participation = %#v, want Live automation channel", participation)
 		}
 	})
 
@@ -211,19 +203,6 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			name: "Should require a Loop name for Loop-only options",
 			args: []string{"--loop-input", "channel=stable"},
 			want: "--loop is required when Loop target flags are set",
-		},
-		{
-			name: "Should require a Loop name for Network participation flags",
-			args: []string{"--network", "live"},
-			want: "--loop is required when Loop target flags are set",
-		},
-		{
-			name: "Should reject Network participation flags on an Agent target",
-			args: []string{
-				"--agent", "coder", "--prompt", "review", "--network", "live",
-				"--network-channel-strategy", "named", "--network-channel", "automation",
-			},
-			want: "Loop target flags cannot be used with --agent",
 		},
 		{
 			name: "Should require a Loop workspace for global automation",

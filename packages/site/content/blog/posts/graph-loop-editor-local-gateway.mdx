@@ -11,11 +11,12 @@ tags:
   - agent-orchestration
   - runtime
 author: pedronauck
-kinds:
-  - say
-  - capability
 featured: false
 ---
+
+> **Historical release post:** Networks, Bridges, and the product Sandbox described in this post
+> have since been removed. Tasks, autonomy, Goal, HEARTBEAT.md, and SOUL.md remain supported.
+> See the [current migration notes](/docs/migration#networks-bridges-and-sandbox-removal).
 
 Most agent orchestration tools put you in an uncomfortable spot. Either you write every loop, branch,
 and retry condition in code with no visual representation of what's actually happening, or you hand
@@ -282,11 +283,11 @@ enforced twice — structurally, because remote listeners are built with a fixed
 routes literally do not exist on them, and again as a client-side denylist.
 
 <Callout tone="accent" eyebrow="Remote operation matrix">
-  **Remote-capable:** sessions, task reads, loops, memory, settings, bridges, extensions, and
-  gateway management. **Local-only:** task mutations, task-run queue and scheduler authority, agent
-  kernel, hosted MCP and the MCP Host API, and resource mutation. The split is method-aware —
-  resource and task *reads* travel fine; their mutations don't. Use a local daemon or an SSH forward
-  for the rest.
+  **Remote-capable:** sessions, task reads, loops, memory, settings, extensions, and gateway
+  management. **Local-only:** task mutations, task-run queue and scheduler authority, agent kernel,
+  hosted MCP and the MCP Host API, and resource mutation. The split is method-aware — resource and
+  task *reads* travel fine; their mutations don't. Use a local daemon or an SSH forward for the
+  rest.
 </Callout>
 
 ### Honest limits
@@ -295,9 +296,9 @@ routes literally do not exist on them, and again as a client-side denylist.
   **No store-and-forward.** If the daemon is offline when a delivery arrives, that delivery is lost.
   Configure retries at the sender and treat a connection failure as a failed delivery.
   **Fixed-window rate limit** of 60 requests per minute, keyed on endpoint path and transport
-  source, covering webhook ingress and bridge callbacks. It is not configurable, and it fails
-  closed. **Payloads cap at 1 MiB.** These are intentional boundaries for a local-first tool;
-  always-on availability and event buffering belong to a hosted tier, not to this one.
+  source, covering webhook ingress. It is not configurable, and it fails closed. **Payloads cap at 1
+  MiB.** These are intentional boundaries for a local-first tool; always-on availability and event
+  buffering belong to a hosted tier, not to this one.
 </Callout>
 
 The relevant comparison for the gateway isn't LangGraph, Temporal, or Inngest — those are cloud-hosted
@@ -373,8 +374,7 @@ rejected while it's still inside that window.
 <Callout tone="danger" eyebrow="Signature contract">
   A GitHub repository webhook pointed straight at this URL is **rejected** — GitHub signs with
   `X-Hub-Signature-256`, a different contract. Send from a GitHub Actions workflow that signs the
-  CompozyOS shape, or use the dedicated GitHub bridge, which verifies GitHub's native signature
-  itself. The same applies to any sender with its own signing scheme.
+  CompozyOS shape. The same applies to any sender with its own signing scheme.
 </Callout>
 
 Publishing the URL is its own confirmation step, too. A trigger read exposes an `ingress` object once
@@ -420,15 +420,14 @@ UI on.
 **What are the gateway's real limitations?**
 No store-and-forward: a delivery arriving while the daemon is offline is lost. A fixed-window rate
 limit of 60 requests per minute per endpoint path and transport source, not configurable, covering
-webhook ingress and bridge callbacks. Payloads cap at 1 MiB. And remote reach is not remote
+webhook ingress. Payloads cap at 1 MiB. And remote reach is not remote
 authority — task mutations, scheduler authority, the agent kernel, hosted MCP, and resource mutations
 stay local-only.
 
 **Can GitHub or Linear deliver to it directly?**
 Not with their native signatures. CompozyOS verifies `X-Compozy-Webhook-Timestamp`,
 `X-Compozy-Webhook-Signature`, and `X-Compozy-Webhook-Delivery-ID` — an HMAC-SHA256 over
-`"<timestamp>." + body`. Send from a workflow step that signs that contract, or use the dedicated
-GitHub bridge, which verifies GitHub's own signature.
+`"<timestamp>." + body`. Send from a workflow step that signs that contract.
 
 **What makes the graph editor different from CrewAI Studio?**
 The editor and the file-based path share one canonical `compozy.loop/v1` document and one linter. The

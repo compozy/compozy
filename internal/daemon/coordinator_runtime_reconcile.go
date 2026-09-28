@@ -11,7 +11,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -37,14 +36,14 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 		if cleanupErr != nil {
 			err = errors.Join(err, cleanupErr)
 		}
-		r.dispatchFailed(ctx, decision, participation.CloneSpec(info.NetworkParticipation), reason, err)
+		r.dispatchFailed(ctx, decision, reason, err)
 		return nil, false, err
 	}
 	if existing != nil && strings.TrimSpace(existing.ID) != strings.TrimSpace(info.ID) {
 		shouldPrompt := r.beginCoordinatorWakeLocked(existing, decision)
 		r.mu.Unlock()
-		existingParticipation := participation.CloneSpec(existing.NetworkParticipation)
-		r.dispatchDecision(ctx, decision, existingParticipation, reason, coordinator.DecisionExisting)
+
+		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
 		if err := r.cleanupCreatedCoordinatorSession(
 			ctx,
 			info,
@@ -53,11 +52,11 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 			if shouldPrompt {
 				r.finishCoordinatorWake(existing, decision)
 			}
-			r.dispatchFailed(ctx, decision, participation.CloneSpec(info.NetworkParticipation), reason, err)
+			r.dispatchFailed(ctx, decision, reason, err)
 			return existing, false, err
 		}
 		if err := r.wakeCoordinatorIfNeeded(ctx, existing, decision, reason, shouldPrompt); err != nil {
-			r.dispatchFailed(ctx, decision, existingParticipation, reason, err)
+			r.dispatchFailed(ctx, decision, reason, err)
 			return existing, false, err
 		}
 		return existing, false, nil
@@ -65,7 +64,7 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 	shouldPrompt := r.beginCoordinatorWakeLocked(info, decision)
 	r.mu.Unlock()
 	if err := r.wakeCoordinatorIfNeeded(ctx, info, decision, reason, shouldPrompt); err != nil {
-		r.dispatchFailed(ctx, decision, participation.CloneSpec(info.NetworkParticipation), reason, err)
+		r.dispatchFailed(ctx, decision, reason, err)
 		return nil, false, err
 	}
 	r.dispatchSpawned(ctx, decision, info, createdCfg, reason)
@@ -113,32 +112,27 @@ func (r *coordinatorRuntime) createCoordinatorSession(
 	cfg compozyconfig.ResolvedCoordinatorRole,
 	reason string,
 ) (*session.Info, compozyconfig.ResolvedCoordinatorRole, bool, error) {
-	coordinatorParticipation, err := bindCoordinatorParticipation(decision)
-	if err != nil {
-		r.dispatchFailed(ctx, decision, nil, reason, err)
-		return nil, cfg, false, err
-	}
-	preSpawn := r.preSpawnPayload(decision, cfg, coordinatorParticipation, reason)
-	preSpawn, err = r.dispatchPreSpawn(ctx, preSpawn)
+	preSpawn := r.preSpawnPayload(decision, cfg, reason)
+	preSpawn, err := r.dispatchPreSpawn(ctx, preSpawn)
 	if err != nil {
 		if preSpawn.Denied {
-			r.dispatchDecision(ctx, decision, &coordinatorParticipation, reason, coordinator.DecisionDenied)
+			r.dispatchDecision(ctx, decision, reason, coordinator.DecisionDenied)
 			return nil, cfg, false, nil
 		}
-		r.dispatchFailed(ctx, decision, &coordinatorParticipation, reason, err)
+		r.dispatchFailed(ctx, decision, reason, err)
 		return nil, cfg, false, err
 	}
 	if preSpawn.Denied {
-		r.dispatchDecision(ctx, decision, &coordinatorParticipation, reason, coordinator.DecisionDenied)
+		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionDenied)
 		return nil, cfg, false, nil
 	}
 
 	cfg.AgentName = firstNonEmpty(preSpawn.AgentName, cfg.AgentName)
 	cfg.Provider = firstNonEmpty(preSpawn.Provider, cfg.Provider)
 	cfg.Model = firstNonEmpty(preSpawn.Model, cfg.Model)
-	info, err := r.startCoordinatorSession(ctx, decision, cfg, coordinatorParticipation)
+	info, err := r.startCoordinatorSession(ctx, decision, cfg)
 	if err != nil {
-		r.dispatchFailed(ctx, decision, &coordinatorParticipation, reason, err)
+		r.dispatchFailed(ctx, decision, reason, err)
 		return nil, cfg, false, err
 	}
 	return info, cfg, true, nil

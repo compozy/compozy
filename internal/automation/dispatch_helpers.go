@@ -46,7 +46,6 @@ func cloneRun(run *Run) *Run {
 		cloned.DeliveryErrorAt = &deliveryErrorAt
 	}
 	cloned.Metadata = cloneJSONMap(run.Metadata)
-	cloned.NetworkParticipation = cloneParticipationRequest(run.NetworkParticipation)
 	return &cloned
 }
 

@@ -26,7 +26,7 @@ type OverviewStore interface {
 		query store.OverviewSinceQuery,
 	) ([]store.EventHourWeekdayBucket, error)
 	LatestEventSummaryAt(ctx context.Context, query store.OverviewWorkspaceQuery) (time.Time, error)
-	CountNetworkMessagesSince(ctx context.Context, query store.OverviewSinceQuery) (int, error)
+
 	CountHookDispatchesSince(ctx context.Context, query store.OverviewSinceQuery) (store.HookDispatchCounts, error)
 	LongestUserSessionSince(ctx context.Context, query store.OverviewSinceQuery) (*store.LongestSessionSample, error)
 }
@@ -61,7 +61,7 @@ func (o *Observer) QueryObserveOverview(ctx context.Context, query OverviewQuery
 		Outcomes:    overviewOutcomes(outcomeDays, overviewOutcomeWindowDays),
 		Usage:       parts.usage,
 		Pulse:       parts.pulse,
-		Network:     OverviewNetwork{MessagesToday: parts.messagesToday},
+
 		System: OverviewSystem{
 			HookRunsToday:     parts.hooks.Runs,
 			HookFailuresToday: parts.hooks.Failures,
@@ -73,14 +73,14 @@ func (o *Observer) QueryObserveOverview(ctx context.Context, query OverviewQuery
 
 // overviewParts holds the independently-fetched pieces of one overview read.
 type overviewParts struct {
-	attention     OverviewAttention
-	rawOutcomes   []store.TaskRunOutcomeDay
-	closedToday   []store.TaskClosedDay
-	usage         OverviewUsage
-	pulse         OverviewPulse
-	messagesToday int
-	hooks         store.HookDispatchCounts
-	freshness     TaskDashboardFreshness
+	attention   OverviewAttention
+	rawOutcomes []store.TaskRunOutcomeDay
+	closedToday []store.TaskClosedDay
+	usage       OverviewUsage
+	pulse       OverviewPulse
+
+	hooks     store.HookDispatchCounts
+	freshness TaskDashboardFreshness
 }
 
 // fetchOverviewParts fans the independent store reads out over one errgroup so
@@ -127,17 +127,6 @@ func (o *Observer) fetchOverviewParts(
 	group.Go(func() (err error) {
 		parts.pulse, err = o.overviewPulse(gctx, overviewStore, query, now)
 		return err
-	})
-	group.Go(func() (err error) {
-		parts.messagesToday, err = overviewStore.CountNetworkMessagesSince(gctx, store.OverviewSinceQuery{
-			ReadScope:   query.ReadScope,
-			WorkspaceID: query.WorkspaceID,
-			Since:       todayStart,
-		})
-		if err != nil {
-			return fmt.Errorf("observe: count network messages today: %w", err)
-		}
-		return nil
 	})
 	group.Go(func() (err error) {
 		parts.hooks, err = overviewStore.CountHookDispatchesSince(gctx, store.OverviewSinceQuery{

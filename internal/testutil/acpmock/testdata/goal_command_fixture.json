@@ -98,7 +98,7 @@
                     "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
+                            "kind": "command_exec",
                             "tool_call_id": "goal-pause-delay",
                             "title": "Hold the first Goal boundary",
                             "command": "sh",

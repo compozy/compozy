@@ -37,22 +37,6 @@ func WithCapabilityChecker(checker *CapabilityChecker) Option {
 	}
 }
 
-// WithBridgeRuntimeResolver injects the bridge launch material resolver used
-// for bridge-capable extension sessions.
-func WithBridgeRuntimeResolver(resolver BridgeRuntimeResolver) Option {
-	return func(manager *Manager) {
-		manager.bridgeRuntimeResolver = resolver
-	}
-}
-
-// WithBridgeTelemetrySink injects the sink used to publish per-instance
-// runtime degradation/error signals into observability surfaces.
-func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
-	return func(manager *Manager) {
-		manager.bridgeTelemetrySink = sink
-	}
-}
-
 // WithLifecycleEventSink injects the append-only lifecycle observer used by manager-owned call sites.
 func WithLifecycleEventSink(sink LifecycleEventSink) Option {
 	return func(manager *Manager) {

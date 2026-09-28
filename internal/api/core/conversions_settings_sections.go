@@ -25,8 +25,6 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsSkillsSectionResponse(envelope)
 	case settingspkg.SectionAutomation:
 		return settingsAutomationSectionResponse(envelope)
-	case settingspkg.SectionNetwork:
-		return settingsNetworkSectionResponse(envelope)
 	case settingspkg.SectionWindowManager:
 		return settingsWindowManagerSectionResponse(envelope)
 	case settingspkg.SectionCmdPalette:
@@ -124,18 +122,6 @@ func settingsAutomationSectionResponse(envelope settingspkg.SectionEnvelope) (an
 	}, nil
 }
 
-func settingsNetworkSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
-	if envelope.Network == nil {
-		return nil, errors.New("settings network section is required")
-	}
-	return contract.SettingsNetworkResponse{
-		SettingsUserSectionResponseMetaPayload: settingsUserSectionMetaPayload(envelope),
-		Config:                                 settingsNetworkConfigPayload(envelope.Network.Config),
-		Runtime:                                settingsNetworkRuntimePayload(envelope.Network.Runtime),
-		Links:                                  settingsOperationalLinkPayloads(envelope.Network.Links),
-	}, nil
-}
-
 func settingsObservabilitySectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
 	if envelope.Observability == nil {
 		return nil, errors.New("settings observability section is required")
@@ -182,11 +168,6 @@ func SettingsCollectionResponseFromEnvelope(envelope settingspkg.CollectionEnvel
 			),
 			MCPServers: settingsMCPServerItemPayloads(envelope.MCPServers),
 		}, nil
-	case settingspkg.CollectionSandboxes:
-		return contract.SettingsSandboxesResponse{
-			SettingsUserCollectionResponseMetaPayload: settingsUserCollectionMetaPayload(envelope),
-			Sandboxes: settingsSandboxItemPayloads(envelope.Sandboxes),
-		}, nil
 	case settingspkg.CollectionHooks:
 		return contract.SettingsHooksResponse{
 			SettingsLayeredCollectionResponseMetaPayload: settingsLayeredCollectionMetaPayload(
@@ -205,7 +186,6 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 	case settingspkg.SectionGeneral,
 		settingspkg.SectionMemory,
 		settingspkg.SectionAutomation,
-		settingspkg.SectionNetwork,
 		settingspkg.SectionShell,
 		settingspkg.SectionObservability,
 		settingspkg.SectionHooksExtensions, settingspkg.SectionMarketplace:
@@ -268,8 +248,7 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 func SettingsCollectionMutationResultPayloadFromResult(result settingspkg.MutationResult) (any, error) {
 	collection := contract.SettingsCollectionName(result.Section)
 	switch collection {
-	case contract.SettingsCollectionProviders,
-		contract.SettingsCollectionSandboxes:
+	case contract.SettingsCollectionProviders:
 		return contract.SettingsUserCollectionMutationResult{
 			Section:         collection,
 			Scope:           contract.SettingsUserScopeKind(result.Scope),

@@ -538,13 +538,12 @@
   var TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
   var CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
 
-  /* Sample inventory — refs mirror real Compozy vault namespaces (providers, mcp, bridges, automation, sessions). */
+  /* Sample inventory — refs mirror real Compozy vault namespaces (providers, mcp, automation, sessions). */
   var SECRETS = [
     { ref: "providers/anthropic/api_key",  kind: "api_key",        created: "Apr 03, 2026", updated: "Jun 21" },
     { ref: "providers/openai/api_key",     kind: "api_key",        created: "Apr 03, 2026", updated: "May 09" },
     { ref: "mcp/ws/launch-hq/github-local/env/github_personal_access_token", kind: "env", created: "May 12, 2026", updated: "Jul 02" },
     { ref: "mcp/ws/launch-hq/linear/oauth/client-secret", kind: "oauth_client_secret", created: "May 20, 2026", updated: "May 20" },
-    { ref: "bridges/slack-ops/bot_token",  kind: "bot_token",      created: "Jun 02, 2026", updated: "Jun 30" },
     { ref: "automation/nightly-deploy/webhook_secret", kind: "webhook_secret", created: "May 12, 2026", updated: "Jul 15" },
     { ref: "sessions/sess_product_brief/scoped_token", kind: "token", created: "Jul 16, 2026", updated: "Jul 16" }
   ];

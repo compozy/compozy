@@ -27,7 +27,7 @@ describe("SettingsFieldRow", () => {
     render(
       <TooltipProvider delay={0}>
         <SettingsFieldRow
-          label="Default sandbox"
+          label="Default provider"
           help="How much of your file system new sessions can touch."
           control={<input />}
           data-testid="field-row"
@@ -36,9 +36,9 @@ describe("SettingsFieldRow", () => {
     );
 
     const row = screen.getByTestId("field-row");
-    expect(row).toHaveTextContent("Default sandbox");
+    expect(row).toHaveTextContent("Default provider");
     expect(row).not.toHaveTextContent("How much of your file system");
-    expect(screen.getByRole("button", { name: "About default sandbox" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About default provider" })).toBeInTheDocument();
   });
 
   it("forwards the error message when provided", () => {

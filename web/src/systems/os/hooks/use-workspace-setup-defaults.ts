@@ -1,11 +1,9 @@
 import { useAgents } from "@/systems/agent";
-import { useSettingsSandboxes } from "@/systems/settings";
 import type { WorkspaceSetupCollection, WorkspaceSetupDefaultsModel } from "@/systems/workspace";
 
-/** Loads the two catalogs that seed the workspace setup dialog. */
+/** Loads the agent catalog that seed the workspace setup dialog. */
 export function useWorkspaceSetupDefaults(): WorkspaceSetupDefaultsModel {
   const agentsQuery = useAgents();
-  const sandboxesQuery = useSettingsSandboxes();
 
   return {
     agents: workspaceSetupCollection(
@@ -13,15 +11,6 @@ export function useWorkspaceSetupDefaults(): WorkspaceSetupDefaultsModel {
       agentsQuery.isLoading,
       agentsQuery.error,
       "Could not load agents."
-    ),
-    sandboxes: workspaceSetupCollection(
-      sandboxesQuery.data?.sandboxes.map(entry => ({
-        name: entry.name,
-        backend: entry.profile.backend,
-      })),
-      sandboxesQuery.isLoading,
-      sandboxesQuery.error,
-      "Could not load sandbox profiles."
     ),
   };
 }

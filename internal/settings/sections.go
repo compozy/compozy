@@ -196,13 +196,6 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Automation = &section
-	case SectionNetwork:
-		envelope.Scope = ScopeUser
-		section, err := s.buildNetworkSection(ctx, cfg)
-		if err != nil {
-			return err
-		}
-		envelope.Network = &section
 	case SectionWindowManager:
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
 		section, err := s.buildWindowManagerSection(ctx, cfg, envelope.WorkspaceID, envelope.ClientID)

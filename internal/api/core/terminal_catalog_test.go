@@ -12,47 +12,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
-	"github.com/compozy/compozy/internal/testutil"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
-
-func TestTerminalHandlersShouldResolveSandboxCapabilities(t *testing.T) { // IT-016
-	t.Parallel()
-	gin.SetMode(gin.TestMode)
-	manager := &terminalAgentManagerStub{
-		terminalManagerStub: terminalManagerStub{},
-		handle:              &terminalAgentHandleStub{},
-		journal:             &terminalAgentJournalStub{},
-	}
-	provider := &terminalProviderStub{Manager: manager}
-	workspaces := workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-		return workspacepkg.Workspace{ID: ref, SandboxRef: "daytona"}, nil
-	}}
-	handlers := NewBaseHandlers(&BaseHandlerConfig{
-		TransportName: "udsapi",
-		Terminal:      provider,
-		Workspaces:    workspaces,
-	})
-	router := gin.New()
-	router.POST("/api/workspaces/:workspace_id/terminals/exec", handlers.ExecTerminal)
-
-	request := httptest.NewRequestWithContext(testutil.Context(t),
-		http.MethodPost,
-		"/api/workspaces/workspace-a/terminals/exec",
-		strings.NewReader(`{"command":"pwd"}`))
-
-	request.Header.Set("Content-Type", "application/json")
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", response.Code, response.Body.String())
-	}
-	if manager.exec.Capabilities.Interactive {
-		t.Fatalf("sandbox capabilities = %#v, want interactive disabled", manager.exec.Capabilities)
-	}
-}
 
 func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) {
 	t.Parallel()

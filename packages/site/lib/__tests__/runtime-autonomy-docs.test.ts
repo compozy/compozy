@@ -44,7 +44,6 @@ describe("runtime autonomy docs", () => {
       "Task creation alone does not start a coordinator",
       "Manual sessions, task APIs, and run claims",
       "Global-scope runs do not auto-start a coordinator",
-      "changing workspace coordination affects future coordinated runs only",
     ]);
     expectIncludesAll(config, [
       "[roles.coordinator]",
@@ -57,9 +56,8 @@ describe("runtime autonomy docs", () => {
     expectExcludesAll(config, ["[autonomy.coordinator]", "default_ttl ="]);
   });
 
-  it("documents task leases and channel authority without exposing raw tokens in read paths", () => {
+  it("documents task lease authority without exposing raw tokens in read paths", () => {
     const leases = readRuntimeDoc("autonomy/task-runs-and-leases.mdx");
-    const channels = readRuntimeDoc("autonomy/coordination-channels.mdx");
 
     expectIncludesAll(leases, [
       "`claim_token_hash`",
@@ -67,15 +65,7 @@ describe("runtime autonomy docs", () => {
       "the calling session plus `run_id`",
       "One active lease per session",
       "Stale holders fail",
-      "Never send raw lease credentials through `compozy ch send`",
-    ]);
-    expectIncludesAll(channels, [
-      "There is no channel bound to every run",
-      "`resolved_network_participation`",
-      "Conversation is not ownership",
-      "only authority even when every participant",
-      "directly addressed or explicitly mentioned",
-      "`usage_unavailable`",
+      "Never send raw lease credentials through prompts",
     ]);
   });
 
@@ -93,8 +83,6 @@ describe("runtime autonomy docs", () => {
         "execution-profiles",
         "review-gate",
         "notification-cursors",
-        "notification-presets",
-        "coordination-channels",
         "safe-spawn",
       ],
     });
@@ -108,34 +96,20 @@ describe("runtime autonomy docs", () => {
     expectIncludesAll(profiles, [
       "[task.orchestration.profile]",
       "[task.orchestration.review]",
-      "Selector precedence and runtime selection",
-      "ClaimNextRun",
-      "Session start (load only)",
-      "Sandbox mode behavior",
-      "Worker runtime selection",
-      "config.ResolveSessionAgentWithRuntime",
-      "Manage a profile from the CLI",
-      "compozy task profile inspect",
-      "compozy task profile update",
-      "compozy task profile delete",
-      "Manage a profile through HTTP and UDS",
       "/api/tasks/{id}/execution-profile",
-      "Update is a full replace, not a patch",
-      "Native tools for in-session agents",
-      "task_execution_profile_get",
-      "task_execution_profile_set",
-      "task_execution_profile_delete",
+      "PUT",
+      "DELETE",
+      "409 Conflict",
       "compozy__task_execution_profile_get",
       "compozy__task_execution_profile_set",
       "compozy__task_execution_profile_delete",
-      "Inspect and edit from the operator web UI",
       "Task setup",
       "View JSON",
-      "form-first",
-      "Config lifecycle",
-      "compozy config set",
-      "compozy__config_*",
-      "Authority boundary",
+      "configured session permission policy",
+      "active run",
+      "provider authorization",
+      "worktree",
+      "review verdicts",
     ]);
     expect(overview).toContain("/docs/autonomy/execution-profiles");
     expectIncludesAll(config, [
@@ -144,9 +118,7 @@ describe("runtime autonomy docs", () => {
       "[task.orchestration.review]",
       "default_coordinator_mode",
       "default_worker_mode",
-      "default_sandbox_mode",
       "allow_task_provider_override",
-      "allow_task_sandbox_none",
       "max_active_runs_per_workspace",
       'lifecycle="restart-required"',
       "Profile validation runs in `task.Service` when a profile is created or updated",
@@ -264,71 +236,20 @@ describe("runtime review-gate docs", () => {
 });
 
 describe("runtime notification cursor docs", () => {
-  it("documents cursor identity, lifecycle, terminal notifier states, and SSE resume", () => {
+  it("documents task projection progress and SSE resume", () => {
     const notifications = readRuntimeDoc("autonomy/notification-cursors.mdx");
     const overview = readRuntimeDoc("autonomy/index.mdx");
 
     expectIncludesAll(notifications, [
-      "internal/notifications",
-      "delivery progress",
-      "never owns task ownership",
-      "Cursor identity and store",
       "notification_cursors",
-      "consumer_id",
-      "stream_name",
-      "subject_id",
-      "last_sequence",
-      "last_delivery_id",
-      "last_delivered_at",
-      "last_error",
-      "`last_delivered_at` |",
-      "ErrNonMonotonicCursor",
-      "only service/store path that lowers a cursor",
-      "No task notification CLI/API reset verb is exposed today",
-      "at-least-once",
-      "Bridge task subscription lifecycle",
-      "bridge_task_subscriptions",
-      "zero-sequence",
-      "Resubscribe",
-      "Terminal notifier states",
-      "deliver",
-      "defer",
-      "mismatch",
-      "task.run_completed",
-      "task.run_failed",
-      "task.run_canceled",
-      "task.run_review_approved",
-      "task.canceled",
-      "fail-closed",
-      "notification.terminal_state_mismatch",
-      "Bridge notification envelope",
-      "delivery_id",
-      "Manage subscriptions from the CLI",
-      "compozy task notification subscribe",
-      "compozy task notification list",
-      "compozy task notification show",
-      "compozy task notification delete",
-      "Manage subscriptions with native tools",
-      "compozy__task_notification_subscribe",
-      "compozy__task_notification_list",
-      "compozy__task_notification_show",
-      "compozy__task_notification_delete",
-      "Manage subscriptions through HTTP and UDS",
-      "/api/tasks/{id}/notifications/bridges",
-      "/api/tasks/{id}/notifications/bridges/{subscription_id}",
-      "createTaskBridgeNotificationSubscription",
-      "listTaskBridgeNotificationSubscriptions",
-      "getTaskBridgeNotificationSubscription",
-      "deleteTaskBridgeNotificationSubscription",
-      "Inspect from the operator web UI",
-      "Bridges",
-      "requires confirmation",
-      "Inspect → Stream",
-      "SSE resume seeding",
+      "task-status projection",
+      "sequence",
       "latest_event_seq",
       "Last-Event-ID",
-      "Authority boundary",
-      "accepted-final",
+      "after_sequence",
+      "Inspect → Stream",
+      "/api/tasks/{id}/stream",
+      "does not grant task or run authority",
     ]);
     expectExcludesAll(notifications, [
       "matching run-detail context render the same cursor diagnostics",
@@ -396,39 +317,6 @@ describe("generated task review CLI references", () => {
   });
 });
 
-describe("generated task notification CLI references", () => {
-  const requiredNotificationPages = [
-    "cli/task/notification/index.mdx",
-    "cli/task/notification/subscribe.mdx",
-    "cli/task/notification/list.mdx",
-    "cli/task/notification/show.mdx",
-    "cli/task/notification/delete.mdx",
-  ];
-
-  it("keeps regenerated CLI reference pages present for the notification command group", () => {
-    for (const page of requiredNotificationPages) {
-      expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
-    }
-  });
-
-  it("documents notification CLI flags on the generated pages", () => {
-    const subscribe = readRuntimeDoc("cli/task/notification/subscribe.mdx");
-    const list = readRuntimeDoc("cli/task/notification/list.mdx");
-
-    expectIncludesAll(subscribe, [
-      "--bridge",
-      "--peer",
-      "--thread",
-      "--group",
-      "--scope",
-      "--workspace",
-      "--mode",
-      "--subscription-id",
-    ]);
-    expectIncludesAll(list, ["--bridge", "--scope", "--workspace", "--last"]);
-  });
-});
-
 describe("generated task execution profile CLI references", () => {
   const requiredProfilePages = [
     "cli/task/profile/index.mdx",
@@ -461,11 +349,6 @@ describe("generated autonomy CLI references", () => {
   const requiredPages = [
     "cli/me/index.mdx",
     "cli/me/context.mdx",
-    "cli/ch/index.mdx",
-    "cli/ch/list.mdx",
-    "cli/ch/recv.mdx",
-    "cli/ch/send.mdx",
-    "cli/ch/reply.mdx",
     "cli/spawn.mdx",
     "cli/task/next.mdx",
     "cli/task/heartbeat.mdx",
@@ -481,15 +364,13 @@ describe("generated autonomy CLI references", () => {
     }
   });
 
-  it("lists exact implemented flags for task, channel, and spawn examples", () => {
+  it("lists exact implemented flags for task and spawn examples", () => {
     const taskNext = readRuntimeDoc("cli/task/next.mdx");
     const heartbeat = readRuntimeDoc("cli/task/heartbeat.mdx");
     const complete = readRuntimeDoc("cli/task/complete.mdx");
     const fail = readRuntimeDoc("cli/task/fail.mdx");
     const release = readRuntimeDoc("cli/task/release.mdx");
     const retry = readRuntimeDoc("cli/task/retry.mdx");
-    const send = readRuntimeDoc("cli/ch/send.mdx");
-    const reply = readRuntimeDoc("cli/ch/reply.mdx");
     const spawn = readRuntimeDoc("cli/spawn.mdx");
 
     expectIncludesAll(taskNext, ["--wait", "--lease-seconds", "--capability", "--priority-min"]);
@@ -500,17 +381,6 @@ describe("generated autonomy CLI references", () => {
     for (const content of [heartbeat, complete, fail, release, retry]) {
       expect(content).not.toContain("--claim-token");
     }
-    expectIncludesAll(send, [
-      "--body",
-      "--task-id",
-      "--run-id",
-      "--kind",
-      "--correlation-id",
-      "--channel-id",
-    ]);
-    expectIncludesAll(reply, ["--to-message", "--body", "--task-id", "--run-id", "--channel-id"]);
-    expectExcludesAll(send, ["--coordination-channel-id"]);
-    expectExcludesAll(reply, ["--coordination-channel-id"]);
     expectIncludesAll(spawn, [
       "--agent",
       "--ttl-seconds",
@@ -521,8 +391,6 @@ describe("generated autonomy CLI references", () => {
       "--skill",
       "--mcp-server",
       "--workspace-path",
-      "--channel",
-      "--sandbox-profile",
     ]);
   });
 });

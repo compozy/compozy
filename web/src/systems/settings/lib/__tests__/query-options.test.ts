@@ -21,7 +21,6 @@ import {
   shouldRetrySettingsQuery,
   settingsAttentionOptions,
   settingsAutomationOptions,
-  settingsSandboxDetailOptions,
   settingsGeneralOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
@@ -105,12 +104,10 @@ describe("settings collection options", () => {
 
   it("disables detail queries when name is empty", () => {
     expect(settingsProviderDetailOptions("").enabled).toBe(false);
-    expect(settingsSandboxDetailOptions("").enabled).toBe(false);
   });
 
   it("enables detail queries when name is provided", () => {
     expect(settingsProviderDetailOptions("openai").enabled).toBe(true);
-    expect(settingsSandboxDetailOptions("cloud").enabled).toBe(true);
   });
 
   it("includes scope and workspace filters in MCP list query keys", () => {

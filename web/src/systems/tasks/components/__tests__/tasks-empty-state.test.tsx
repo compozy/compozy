@@ -10,13 +10,13 @@ describe("TasksEmptyState", () => {
     vi.restoreAllMocks();
   });
 
-  it("Should render the headline with the workspace name and exactly four template rows", () => {
+  it("Should render the headline with the workspace name and exactly three template rows", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
     expect(screen.getByRole("heading", { name: "No tasks yet in Polybot" })).toBeInTheDocument();
     expect(screen.getByTestId("tasks-empty-templates")).toBeInTheDocument();
     expect(screen.getByRole("list")).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
   it("Should paint each template row with the accent / info / warning / neutral tone vocabulary", () => {
@@ -26,7 +26,6 @@ describe("TasksEmptyState", () => {
       one_shot: "accent",
       recurring: "info",
       human_in_loop: "warning",
-      remote_peer: "neutral",
     };
 
     for (const [templateId, tone] of Object.entries(expected)) {
@@ -41,7 +40,7 @@ describe("TasksEmptyState", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
     expect(screen.getByRole("heading", { name: /Start from a template/i })).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("Should fall back to a generic headline when no workspace is provided", () => {
@@ -87,8 +86,8 @@ describe("TasksEmptyState", () => {
     fireEvent.click(screen.getByTestId("tasks-empty-template-recurring-use"));
     expect(onSelectTemplate).toHaveBeenLastCalledWith("recurring");
 
-    fireEvent.click(screen.getByTestId("tasks-empty-template-remote_peer-use"));
-    expect(onSelectTemplate).toHaveBeenLastCalledWith("remote_peer");
+    fireEvent.click(screen.getByTestId("tasks-empty-template-human_in_loop-use"));
+    expect(onSelectTemplate).toHaveBeenLastCalledWith("human_in_loop");
   });
 
   it("Should reveal template review details only after the opener is expanded", () => {
@@ -129,9 +128,6 @@ describe("TasksEmptyState", () => {
 
     await user.click(screen.getByRole("button", { name: /Recurring via automation/ }));
     expect(screen.getByText(/schedule attached in Automation/)).toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: /Remote from peer/ }));
-    expect(screen.getByText(/enqueued by remote peer/)).toBeVisible();
   });
 
   it("Should show an executable CLI command and only render Copy with a handler", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { bridgeKindIconRegistry, CatalogCard, cn, KindIcon } from "@compozy/ui";
+import { providerKindIconRegistry, CatalogCard, cn, KindIcon } from "@compozy/ui";
 import Avatar from "boring-avatars";
 import Image from "next/image";
 import { Component, useState, type ReactNode } from "react";
@@ -48,7 +48,7 @@ function brandKeyFor(entry: LogoEntry): string | null {
     .map(value => value?.trim().toLowerCase() ?? "")
     .filter(value => value !== "");
   for (const candidate of candidates) {
-    if (Object.hasOwn(bridgeKindIconRegistry, candidate)) return candidate;
+    if (Object.hasOwn(providerKindIconRegistry, candidate)) return candidate;
   }
   return null;
 }
@@ -110,7 +110,7 @@ export function MarketplaceEntryLogo({
         <KindIcon
           className={cn("text-fg-strong", BRAND_CLASS[size])}
           kind={brandKey}
-          registry={bridgeKindIconRegistry}
+          registry={providerKindIconRegistry}
           size="md"
           tone="default"
         />

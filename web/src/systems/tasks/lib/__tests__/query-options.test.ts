@@ -4,8 +4,6 @@ import { buildDetailFixture, buildTaskRunDetailFixture } from "../../mocks/fixtu
 
 import {
   agentContextOptions,
-  taskBridgeNotificationSubscriptionOptions,
-  taskBridgeNotificationSubscriptionsOptions,
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,
@@ -207,12 +205,5 @@ describe("orchestration options", () => {
 
     expect(agentContextOptions(identity, false).enabled).toBe(false);
     expect(agentContextOptions(identity).enabled).toBe(true);
-  });
-
-  it("Should disable bridge notification queries when ids are missing", () => {
-    expect(taskBridgeNotificationSubscriptionsOptions("").enabled).toBe(false);
-    expect(taskBridgeNotificationSubscriptionOptions("", "bsub_1").enabled).toBe(false);
-    expect(taskBridgeNotificationSubscriptionOptions("task_1", "").enabled).toBe(false);
-    expect(taskBridgeNotificationSubscriptionOptions("task_1", "bsub_1").enabled).toBe(true);
   });
 });

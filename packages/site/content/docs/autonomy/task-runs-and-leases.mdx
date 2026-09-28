@@ -42,13 +42,12 @@ The synchronous response includes:
 - run summary
 - safe lease summary
 - `claim_token_hash` for observability
-- coordination channel metadata when the run has a bound channel
 
 `compozy task next` claims only. Operator flows that use it must call the explicit run-start surface
 before expecting a worktree or execution session.
 
 The raw bearer lease token is internal to CompozyOS. Public CLI, HTTP, UDS, native-tool, web, stream,
-log, channel, and memory payloads use the calling session plus `run_id` and expose at most
+log, and memory payloads use the calling session plus `run_id` and expose at most
 `claim_token_hash`. Tools belonging to the `compozy__autonomy` toolset reject any input or response
 field that would carry a raw claim token.
 
@@ -87,8 +86,7 @@ CLI path:
 compozy task heartbeat run-123 --lease-seconds 300
 ```
 
-Heartbeats are task-service operations. Do not mirror routine heartbeats into coordination channel
-messages unless a human-readable update is useful.
+Heartbeats are task-service operations. A progress note does not renew a lease.
 
 ## Completing a run
 
@@ -518,17 +516,14 @@ Lease writers and the autonomy tool bridge return the same deterministic reason 
 | `AUTONOMY_LEASE_EXPIRED`      | The lookup found a stale or expired lease and refused to mutate it.                     |
 | `AUTONOMY_LEASE_ALREADY_HELD` | `claim_next` was called while the session already owns an active lease.                 |
 
-## Lease credentials and channels
+## Lease credentials
 
-Never send raw lease credentials through `compozy ch send`, `compozy ch reply`, `compozy__network_send`,
-network envelopes, logs, or memory. If another participant needs to know progress, send a
-coordination message. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
+Never send raw lease credentials through prompts, logs, or memory. Read Task and run state to inspect progress. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
 tools or the matching `compozy task` command for the owned `run_id`; CompozyOS resolves the internal lease
 server-side.
 
 ## Related pages
 
-- [Coordination Channels](/docs/autonomy/coordination-channels) explains channel metadata and message kinds.
 - [Task CLI Reference](/docs/cli/task) lists exact command flags for the parallel CLI surface.
 - [Tool CLI Reference](/docs/cli/tool) lists the operator commands for inspecting the registry, including the `compozy__autonomy` family.
 - [Hooks](/docs/hooks/event-catalog) lists task-run hook events.

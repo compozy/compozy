@@ -18,9 +18,8 @@ const (
 )
 
 const (
-	sessionAgentValue     = "Agent"
-	sessionBackendValue   = "Backend"
-	sessionChannelValue   = "Channel"
+	sessionAgentValue = "Agent"
+
 	sessionCreatedValue   = "Created"
 	sessionBadgeValue     = "Badge"
 	sessionNameValue      = "Name"
@@ -34,7 +33,7 @@ const (
 	sessionWorkspaceValue = "Workspace"
 	sessionAgentNameKey   = "agent_name"
 	sessionBadgeKey       = "badge"
-	sessionChannelKey     = "channel"
+
 	sessionCreatedAtKey   = "created_at"
 	sessionHistoryIDValue = "history <id>"
 	sessionListKey        = "list"

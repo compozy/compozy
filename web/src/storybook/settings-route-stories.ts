@@ -31,13 +31,6 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
-    routePath: "/sandbox",
-    storybookPath: "/sandbox",
-    title: "systems/settings/routes/Sandbox",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
     routePath: "/settings/skills",
     storybookPath: "/settings/skills",
     title: "systems/settings/routes/SettingsSkills",
@@ -62,13 +55,6 @@ export const settingsRouteStories = [
     routePath: "/settings/observability",
     storybookPath: "/settings/observability",
     title: "systems/settings/routes/SettingsObservability",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/network",
-    storybookPath: "/settings/network",
-    title: "systems/settings/routes/SettingsNetwork",
     storyName: "Default",
   },
   {

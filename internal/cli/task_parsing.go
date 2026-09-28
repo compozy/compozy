@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +62,6 @@ func missingWorkFromFlags(items []string, raw string) (json.RawMessage, error) {
 		}
 		return payload, nil
 	}
-
 	normalized := make([]string, 0, len(items))
 	for _, item := range items {
 		trimmed := strings.TrimSpace(item)
@@ -97,7 +94,6 @@ func resolveTaskScopeWorkspace(
 	if scopeRequired && scope == "" {
 		return "", "", errors.New("cli: --scope is required")
 	}
-
 	workspace := strings.TrimSpace(workspaceRef)
 	switch scope.Normalize() {
 	case taskpkg.ScopeGlobal:
@@ -326,7 +322,6 @@ func buildTaskCreateRequest(
 	if err != nil {
 		return CreateTaskRequest{}, err
 	}
-
 	request := CreateTaskRequest{
 		ID:                 strings.TrimSpace(input.ID),
 		Identifier:         strings.TrimSpace(input.Identifier),
@@ -339,11 +334,6 @@ func buildTaskCreateRequest(
 		Owner:              owner,
 		Metadata:           metadata,
 	}
-	participationRequest, err := input.NetworkFlags.request()
-	if err != nil {
-		return CreateTaskRequest{}, err
-	}
-	request.NetworkParticipation = participationRequest
 	if input.NoWakeCreator {
 		wakeCreator := false
 		request.WakeCreator = &wakeCreator

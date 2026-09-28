@@ -68,12 +68,6 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
-			name:          "Should classify sandbox descendants as session rebind",
-			path:          "sandboxes.daytona-dev.backend",
-			wantLifecycle: SessionRebind,
-			wantDiffClass: DiffClassSessionRebind,
-		},
-		{
 			name:          "Should classify reload timeout as live",
 			path:          "daemon.reload_timeouts.providers",
 			wantLifecycle: Live,
@@ -158,23 +152,11 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
-			name:          "Should classify network availability as live",
-			path:          "network.enabled",
-			wantLifecycle: Live,
-			wantDiffClass: DiffClassLive,
-		},
-		{
 			name:          "Should classify terminal settings as live",
 			path:          "terminal.max_subscribers",
 			wantLifecycle: Live,
 			wantDiffClass: DiffClassLive,
 			wantPattern:   "terminal.*",
-		},
-		{
-			name:          "Should classify network Live bounds as restart required",
-			path:          "network.live.defaults.max_wakes",
-			wantLifecycle: RestartRequired,
-			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
 			name:          "Should classify the gateway ceiling as live [UT-006]",

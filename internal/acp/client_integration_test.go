@@ -248,49 +248,6 @@ func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
 	})
 }
 
-func TestACPIntegrationNetworkTurnGuardrails(t *testing.T) {
-	t.Run("Should allow only network-safe tools during network turns", func(t *testing.T) {
-		root := t.TempDir()
-		driver, workspaceID := newIntegrationTerminalDriver(t, root)
-		target := filepath.Join(root, "network.txt")
-		fakeCompozy := filepath.Join(root, "compozy")
-		if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", fakeCompozy, err)
-		}
-		// not parallel: t.Setenv mutates process-wide PATH for the helper executable lookup.
-		t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-		proc := startHelperProcess(t, driver, "network_guardrails", target, StartOpts{
-			WorkspaceID: workspaceID,
-			ProfileID:   store.DefaultProfileID,
-			Cwd:         root,
-			Permissions: compozyconfig.PermissionModeApproveAll,
-		})
-		proc.SetTurnSourceProvider(func() string { return "network" })
-		defer stopProcess(t, driver, proc)
-
-		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-			RunID: "run-terminal-integration", Generation: 1,
-			TurnID:  "turn-integration-network-guardrails",
-			Message: "exercise network guardrails",
-		})
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-
-		events := collectEvents(t, eventsCh)
-		if !containsEventText(events, "write_blocked") {
-			t.Fatalf("Prompt() events = %#v, want blocked file write result", events)
-		}
-		if !containsEventText(events, "shell_blocked") {
-			t.Fatalf("Prompt() events = %#v, want blocked shell-wrapper result", events)
-		}
-		if !containsEventText(events, "network-ok") {
-			t.Fatalf("Prompt() events = %#v, want allowlisted compozy network output", events)
-		}
-	})
-}
-
 func containsEventText(events []AgentEvent, want string) bool {
 	for _, event := range events {
 		if event.Text == want {

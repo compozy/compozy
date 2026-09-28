@@ -40,7 +40,7 @@ func (n *daemonNativeTools) autonomyClaimNext(
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
 	if criteria.WorkspaceID != strings.TrimSpace(scope.WorkspaceID) {
-		criteria.WorkspaceID, err = n.nativeNetworkWorkspaceID(ctx, req.ToolID, criteria.WorkspaceID, scope)
+		criteria.WorkspaceID, err = n.nativeWorkspaceID(ctx, req.ToolID, criteria.WorkspaceID, scope)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -229,7 +229,7 @@ func (n *daemonNativeTools) autonomyHeartbeat(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
-	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	lease := core.AgentTaskLeasePayloadFromRun(run)
 	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("heartbeat %s", lease.RunID))
 }
 
@@ -267,7 +267,7 @@ func (n *daemonNativeTools) autonomyComplete(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
-	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	lease := core.AgentTaskLeasePayloadFromRun(run)
 	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("completed %s", lease.RunID))
 }
 
@@ -307,7 +307,7 @@ func (n *daemonNativeTools) autonomyFail(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
-	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	lease := core.AgentTaskLeasePayloadFromRun(run)
 	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("failed %s", lease.RunID))
 }
 
@@ -340,6 +340,6 @@ func (n *daemonNativeTools) autonomyRelease(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
-	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	lease := core.AgentTaskLeasePayloadFromRun(run)
 	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("released %s", lease.RunID))
 }

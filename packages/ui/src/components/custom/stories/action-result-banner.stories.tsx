@@ -72,8 +72,8 @@ export const Danger: Story = {
     <ActionResultBanner
       tone="danger"
       icon={OctagonXIcon}
-      title="Bridge handshake failed"
-      description="The remote peer rejected the compozy-network/v0 greet."
+      title="Extension handshake failed"
+      description="The extension rejected the initialization request."
       actions={
         <Button size="xs" variant="outline">
           Retry

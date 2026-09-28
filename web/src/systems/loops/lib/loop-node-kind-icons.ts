@@ -31,7 +31,7 @@ export const LOOP_NODE_KIND_ICONS = {
   goal: Target,
   "run-loop": RotateCcw,
   transform: Parentheses,
-  compozy__network_send: Send,
+  compozy__task_list: Send,
   "fan-out": Split,
   collect: GitMerge,
   branch: GitBranch,

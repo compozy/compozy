@@ -30,10 +30,10 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
-			Sessions:           networkTestSessionManager("ws-workspace", "sess-1"),
+			Sessions:           testSessionManager("ws-workspace", "sess-1"),
 			Observer:           testutil.StubObserver{},
 			Tasks:              &testutil.StubTaskManager{},
 			Workspaces:         defaultCoreWorkspaceService(testutil.StubWorkspaceService{}),
@@ -357,7 +357,7 @@ func newProfileScopedToolCoreEngine(t *testing.T) (*apiTestToolRegistry, *gin.En
 
 	registry := newAPITestToolRegistry(t, false)
 	registry.restrictListTo("profile-marketing", "ws-owner")
-	homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+	homePaths, cfg := testutil.NewHomeConfig(t)
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:      "api-core-test",
 		Profiles:           sessionProfileServiceStub{},
@@ -414,7 +414,7 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 				}, nil
 			},
 		})
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			Workspaces:         workspaces,
@@ -766,7 +766,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			}),
 		)
 		registry := newAPITestToolRegistry(t, true, approvals)
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "api-core-test",
 			Profiles:      sessionProfileServiceStub{},
@@ -931,7 +931,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			Sessions:           testutil.StubSessionManager{},
@@ -980,7 +980,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, true)
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			Sessions:           testutil.StubSessionManager{},
@@ -1054,7 +1054,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 						toolspkg.ErrToolInvalidInput,
 					),
 				)
-				homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+				homePaths, cfg := testutil.NewHomeConfig(t)
 				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 					TransportName:      "api-core-test",
 					Sessions:           testutil.StubSessionManager{},
@@ -1103,7 +1103,7 @@ func TestSessionToolHandlersUseResolvedRouteScope(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				switch ref {
@@ -1123,7 +1123,7 @@ func TestSessionToolHandlersUseResolvedRouteScope(t *testing.T) {
 		})
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
-			Sessions:           networkTestSessionManager("ws-registry", "sess-1"),
+			Sessions:           testSessionManager("ws-registry", "sess-1"),
 			Observer:           testutil.StubObserver{},
 			Tasks:              &testutil.StubTaskManager{},
 			Workspaces:         workspaces,
@@ -1194,10 +1194,10 @@ func TestSessionToolHandlersUseResolvedRouteScope(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
-		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
-			Sessions:           networkTestSessionManager("ws-workspace", "sess-1"),
+			Sessions:           testSessionManager("ws-workspace", "sess-1"),
 			Observer:           testutil.StubObserver{},
 			Tasks:              &testutil.StubTaskManager{},
 			Workspaces:         defaultCoreWorkspaceService(testutil.StubWorkspaceService{}),

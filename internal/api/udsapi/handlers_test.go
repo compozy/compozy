@@ -18,11 +18,9 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	apispec "github.com/compozy/compozy/internal/api/spec"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -73,13 +71,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/agents/:name/soul",
 			"DELETE /api/automation/jobs/:id",
 			"DELETE /api/automation/triggers/:id",
-			"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 			"DELETE /api/extensions/:name",
 			"DELETE /api/extensions/:name/secrets/:env_name",
 			"DELETE /api/memory/:filename",
-			"DELETE /api/notifications/presets/:name",
 			"DELETE /api/tool-approval-grants/:id",
-			"DELETE /api/settings/sandboxes/:name",
 			"DELETE /api/settings/hooks/:name",
 			"DELETE /api/settings/mcp-servers/:name",
 			"DELETE /api/settings/providers/:name",
@@ -88,7 +83,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/runtime",
 			"DELETE /api/tasks/:id",
-			"DELETE /api/tasks/:id/notifications/bridges/:subscription_id",
 			"DELETE /api/tasks/:id/dependencies/:depends_on_id",
 			"DELETE /api/tasks/:id/execution-profile",
 			"DELETE /api/vault/secrets",
@@ -115,8 +109,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/agents/:name/heartbeat/status",
 			"GET /api/agents/:name/soul",
 			"GET /api/agents/:name/soul/history",
-			"GET /api/agent/channels",
-			"GET /api/agent/channels/:channel/recv",
 			"GET /api/agent/context",
 			"GET /api/agent/coordinator/config",
 			"GET /api/agent/me",
@@ -138,14 +130,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/automation/triggers/:id",
 			"GET /api/automation/triggers/:id/runs",
 			"GET /api/workspaces/:workspace_id/automation/suggestions",
-			"GET /api/bridges",
-			"GET /api/bridges/:id",
-			"GET /api/bridges/health/stream",
-			"GET /api/bridges/:id/routes",
-			"GET /api/bridges/:id/secret-bindings",
-			"GET /api/bridges/:id/targets",
-			"GET /api/bridges/providers",
-			"GET /api/bridges/providers/slack/manifest",
 			"GET /api/doctor",
 			"POST /api/drain",
 			"GET /api/extensions",
@@ -161,8 +145,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/hooks/catalog",
 			"GET /api/hooks/events",
 			"GET /api/notifications/attention",
-			"GET /api/notifications/presets",
-			"GET /api/notifications/presets/:name",
 			"GET /api/tool-approval-grants",
 			"GET /api/workspaces/:workspace_id/hooks/runs",
 			"GET /api/internal/hosted-mcp/projection",
@@ -196,24 +178,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/marketplace",
 			"PATCH /api/settings/marketplace",
 			"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
-			"GET /api/workspaces/:workspace_id/network/inbox",
-			"GET /api/workspaces/:workspace_id/network/usage",
-			"GET /api/workspaces/:workspace_id/network-coordination",
-			"PUT /api/workspaces/:workspace_id/network-coordination",
-			"PUT /api/workspaces/:workspace_id/network-coordination/invitation",
-			"GET /api/workspaces/:workspace_id/network/peers",
-			"GET /api/workspaces/:workspace_id/network/peers/:peer_id",
-			"GET /api/workspaces/:workspace_id/network/channels",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/directs",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/threads",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id",
-			"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
-			"GET /api/network/status",
-			"GET /api/workspaces/:workspace_id/network/work/:work_id",
 			"GET /api/status",
 			"GET /api/status/identity",
 			"POST /api/undrain",
@@ -262,8 +226,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/actions/restart/:operation_id",
 			"GET /api/settings/apply",
 			"GET /api/settings/automation",
-			"GET /api/settings/sandboxes",
-			"GET /api/settings/sandboxes/:name",
 			"GET /api/settings/general",
 			"GET /api/settings/persona",
 			"GET /api/settings/update",
@@ -276,7 +238,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/settings/mcp-servers/:name/auth/exchange",
 			"POST /api/settings/mcp-servers/:name/auth/logout",
 			"GET /api/settings/memory",
-			"GET /api/settings/network",
 			"GET /api/settings/attention",
 			"GET /api/settings/shell",
 			"GET /api/settings/cmd-palette",
@@ -297,7 +258,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/scheduler/backlog",
 			"GET /api/task-runs/:id",
 			"GET /api/task-runs/:id/result",
-			"GET /api/task-runs/:id/conversation/stream",
 			"GET /api/task-runs/:id/reviews",
 			"GET /api/runs/:id/inspect",
 			"GET /api/task-reviews/:id",
@@ -305,8 +265,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/tasks/:id",
 			"GET /api/tasks/:id/blocks",
 			"GET /api/tasks/:id/inspect",
-			"GET /api/tasks/:id/notifications/bridges",
-			"GET /api/tasks/:id/notifications/bridges/:subscription_id",
 			"GET /api/tasks/:id/execution-profile",
 			"GET /api/tasks/:id/reviews",
 			"GET /api/tasks/:id/stream",
@@ -346,7 +304,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"PATCH /api/automation/jobs/:id",
 			"PATCH /api/automation/triggers/:id",
-			"PATCH /api/bridges/:id",
 			"PATCH /api/memory/:filename",
 			"PATCH /api/settings/automation",
 			"PATCH /api/settings/attention",
@@ -356,13 +313,11 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/settings/persona",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
-			"PATCH /api/settings/network",
 			"PATCH /api/settings/roles",
 			"PATCH /api/settings/window-manager",
 			"PATCH /api/settings/observability",
 			"PATCH /api/settings/skills",
 			"PATCH /api/tasks/:id",
-			"PATCH /api/workspaces/:workspace_id/network/channels/:channel",
 			"PATCH /api/workspaces/:workspace_id",
 			"PATCH /api/workspaces/:workspace_id/loops/:name",
 			"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
@@ -377,17 +332,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 			"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
 			"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
-			"POST /api/bridges",
-			"POST /api/bridges/:id/disable",
-			"POST /api/bridges/:id/enable",
-			"POST /api/bridges/:id/resolve",
-			"POST /api/bridges/:id/restart",
-			"POST /api/bridges/:id/test-delivery",
-			"POST /api/bridges/:id/verify",
-			"POST /api/bridges/:id/send-test",
-			"POST /api/bridges/:id/webhook/register",
-			"POST /api/agent/channels/:channel/send",
-			"POST /api/agent/channels/reply",
 			"POST /api/agent/notify",
 			"POST /api/agent/soul/validate",
 			"POST /api/agent/spawn",
@@ -410,7 +354,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/extensions/dev",
 			"POST /api/extensions/update",
 			"POST /api/notifications/attention/acknowledge",
-			"POST /api/notifications/presets",
 			"POST /api/internal/hosted-mcp/bind",
 			"POST /api/internal/hosted-mcp/release",
 			"POST /api/internal/hosted-mcp/tools/call",
@@ -446,9 +389,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/scheduler/drain",
 			"POST /api/scheduler/pause",
 			"POST /api/scheduler/resume",
-			"POST /api/workspaces/:workspace_id/network/channels",
-			"POST /api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
-			"POST /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/approve",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/cancel",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/fork",
@@ -465,7 +405,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/loops",
 			"POST /api/workspaces/:workspace_id/loops/:name/run",
 			"POST /api/workspaces/:workspace_id/loops/:name/validate",
-			"POST /api/workspaces/:workspace_id/network/send",
 			"POST /api/sessions",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
@@ -508,7 +447,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/tasks/:id/approve",
 			"POST /api/tasks/:id/blocks",
 			"POST /api/tasks/:id/blocks/:block_id/clear",
-			"POST /api/tasks/:id/notifications/bridges",
 			"POST /api/tasks/:id/cancel",
 			"POST /api/tasks/:id/children",
 			"POST /api/tasks/:id/dependencies",
@@ -545,13 +483,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/agents/:name/heartbeat",
 			"PUT /api/agents/:name/soul",
 			"PUT /api/agents/:name",
-			"PUT /api/bridges/:id/secret-bindings/:binding_name",
 			"PUT /api/extensions/:name",
 			"PUT /api/extensions/:name/enablement",
 			"PUT /api/extensions/:name/secrets",
-			"PUT /api/notifications/presets/:name",
-			"PUT /api/notifications/presets/:name/enablement",
-			"PUT /api/settings/sandboxes/:name",
 			"PUT /api/settings/hooks/:name",
 			"PUT /api/settings/mcp-servers/:name",
 			"PUT /api/settings/providers/:name",
@@ -561,7 +495,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/workspaces/:workspace_id/loops/:name/config",
 			"PUT /api/workspaces/:workspace_id/loops/:name/input-defaults",
 			"PUT /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
-			"PUT /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
 			"PUT /api/tasks/:id/execution-profile",
 			"PATCH /api/tasks/:id/execution-profile/worktree",
 			"PUT /api/vault/secrets",
@@ -570,7 +503,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/loops/:name",
 			"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"DELETE /api/agents/:name",
-			"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
 			"DELETE /api/workspaces/:workspace_id/terminals/:id",
 			"GET /api/workspaces/:workspace_id/terminals",
 			"GET /api/workspaces/:workspace_id/terminals/:id",
@@ -751,7 +683,7 @@ func TestTaskBlockHandlersReturnUDSStatusAndBody(t *testing.T) {
 			stubObserver{},
 			nil,
 			manager,
-			nil,
+
 			stubWorkspaceService{},
 			nil,
 			homePaths,
@@ -1252,57 +1184,6 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 	}
 }
 
-func TestRegisterNetworkRoutesMatchDocumentedHTTPAndUDSSurface(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
-
-	got := registeredNetworkRoutesFromEngine(engine.Routes())
-	want := documentedNetworkRoutesForTransport(apispec.TransportUDS)
-	if !slices.Equal(got, want) {
-		t.Fatalf("network routes = %v, want documented %s routes %v", got, apispec.TransportUDS, want)
-	}
-}
-
-func registeredNetworkRoutesFromEngine(routes gin.RoutesInfo) []string {
-	filtered := make([]string, 0)
-	for _, route := range routes {
-		if strings.HasPrefix(route.Path, "/api/network") ||
-			strings.HasPrefix(route.Path, "/api/workspaces/:workspace_id/network") {
-			filtered = append(filtered, route.Method+" "+route.Path)
-		}
-	}
-	sort.Strings(filtered)
-	return filtered
-}
-
-func documentedNetworkRoutesForTransport(transport apispec.Transport) []string {
-	routes := make([]string, 0)
-	for _, operation := range apispec.Operations() {
-		if !slices.Contains(operation.Transports, transport) {
-			continue
-		}
-		if !strings.HasPrefix(operation.Path, "/api/network") &&
-			!strings.HasPrefix(operation.Path, "/api/workspaces/{workspace_id}/network") {
-			continue
-		}
-		routes = append(routes, operation.Method+" "+normalizeNetworkSpecRoutePath(operation.Path))
-	}
-	sort.Strings(routes)
-	return routes
-}
-
-func normalizeNetworkSpecRoutePath(path string) string {
-	parts := strings.Split(path, "/")
-	for i, part := range parts {
-		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") && len(part) > 2 {
-			parts[i] = ":" + part[1:len(part)-1]
-		}
-	}
-	return strings.Join(parts, "/")
-}
-
 func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 	t.Parallel()
 
@@ -1321,24 +1202,17 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/runs/bulk/release":                                  "BulkForceReleaseTaskRuns",
 		"GET /api/task-runs/:id":                                       "GetTaskRun",
 		"GET /api/task-runs/:id/result":                                "ReadTaskRunResult",
-		"GET /api/task-runs/:id/conversation/stream":                   "StreamTaskRunConversation",
 		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
 		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
 		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",
 		"GET /api/tasks/:id/inspect":                                   "InspectTask",
-		"GET /api/tasks/:id/notifications/bridges":                     "ListTaskBridgeNotificationSubscriptions",
-		"GET /api/tasks/:id/notifications/bridges/:subscription_id":    "GetTaskBridgeNotificationSubscription",
 		"GET /api/tasks/:id/reviews":                                   "ListTaskReviews",
 		"GET /api/tasks/:id/stream":                                    "StreamTask",
 		"GET /api/tasks/:id/timeline":                                  "TaskTimeline",
 		"GET /api/tasks/:id/tree":                                      "TaskTree",
-		"GET /api/agent/channels":                                      "AgentChannels",
-		"GET /api/agent/channels/:channel/recv":                        "AgentChannelRecv",
 		"GET /api/agent/context":                                       "AgentContext",
 		"GET /api/agent/coordinator/config":                            "AgentCoordinatorRole",
 		"GET /api/agent/me":                                            "AgentMe",
-		"POST /api/agent/channels/:channel/send":                       "AgentChannelSend",
-		"POST /api/agent/channels/reply":                               "AgentChannelReply",
 		"POST /api/agent/notify":                                       "AgentNotify",
 		"POST /api/agent/tasks/:run_id/complete":                       "AgentTaskComplete",
 		"POST /api/agent/tasks/:run_id/fail":                           "AgentTaskFail",
@@ -1348,11 +1222,9 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/agent/tasks/claim-next":                             "AgentTaskClaimNext",
 		"POST /api/agent/spawn":                                        "AgentSpawn",
 		"DELETE /api/tasks/:id":                                        "DeleteTask",
-		"DELETE /api/tasks/:id/notifications/bridges/:subscription_id": "DeleteTaskBridgeNotificationSubscription",
 		"DELETE /api/tasks/:id/execution-profile":                      "DeleteTaskExecutionProfile",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop": "StopSession",
 		"POST /api/tasks/:id/approve":                                  "ApproveTask",
-		"POST /api/tasks/:id/notifications/bridges":                    "CreateTaskBridgeNotificationSubscription",
 		"POST /api/tasks/:id/publish":                                  "PublishTask",
 		"POST /api/tasks/:id/reject":                                   "RejectTask",
 		"POST /api/tasks/:id/runs/fan-out":                             "FanOutTaskRuns",
@@ -1386,70 +1258,12 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 	}
 }
 
-func TestAgentChannelRecvRejectsInvalidPathAndQuery(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		path string
-	}{
-		{
-			name: "Should reject malformed channel identifiers before reading inbox",
-			path: "/api/agent/channels/bad.channel/recv",
-		},
-		{
-			name: "Should reject malformed wait query values before reading inbox",
-			path: "/api/agent/channels/builders/recv?wait=maybe",
-		},
-		{
-			name: "Should reject malformed limit query values before reading inbox",
-			path: "/api/agent/channels/builders/recv?limit=abc",
-		},
-		{
-			name: "Should reject non-positive limit query values before reading inbox",
-			path: "/api/agent/channels/builders/recv?limit=0",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			handlers := newAgentChannelHandlers(t, stubNetworkService{
-				InboxFn: func(context.Context, string) ([]network.Envelope, error) {
-					t.Fatal("Inbox should not be called for invalid receive requests")
-					return nil, nil
-				},
-				WaitInboxFn: func(context.Context, string, string) ([]network.Envelope, error) {
-					t.Fatal("WaitInbox should not be called for invalid receive requests")
-					return nil, nil
-				},
-			})
-			recorder := performAgentKernelRequest(
-				t,
-				newTestRouter(t, handlers),
-				http.MethodGet,
-				tt.path,
-				nil,
-				agentKernelHeaders(),
-			)
-			if recorder.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-			}
-			var payload contract.ErrorPayload
-			decodeJSONResponse(t, recorder, &payload)
-			if payload.Error == "" {
-				t.Fatalf("error payload = %#v, want validation error", payload)
-			}
-		})
-	}
-}
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
-				opts.WorkspacePath != "" || opts.NetworkParticipation != nil {
+				opts.WorkspacePath != "" {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
 			return newSession("sess-123"), nil
@@ -1478,13 +1292,6 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	}
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
-	}
-	if response.Session.ResolvedNetworkParticipation != nil &&
-		response.Session.ResolvedNetworkParticipation.Mode != "local" {
-		t.Fatalf(
-			"session resolved_network_participation = %#v, want Local session projection",
-			response.Session.ResolvedNetworkParticipation,
-		)
 	}
 }
 
@@ -1637,9 +1444,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	workspaces := stubWorkspaceService{
 		RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			if opts.RootDir != rootDir || opts.Name != "alpha" || len(opts.AdditionalDirs) != 1 ||
-				opts.AdditionalDirs[0] != addDir ||
-				opts.DefaultAgent != "coder" ||
-				opts.SandboxRef != "daytona-dev" {
+				opts.AdditionalDirs[0] != addDir || opts.DefaultAgent != "coder" {
 				t.Fatalf("Register() opts = %#v", opts)
 			}
 			return workspacepkg.Workspace{
@@ -1648,9 +1453,9 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 				AdditionalDirs: []string{addDir},
 				Name:           "alpha",
 				DefaultAgent:   "coder",
-				SandboxRef:     "daytona-dev",
-				CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-				UpdatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+
+				CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			}, nil
 		},
 	}
@@ -1664,7 +1469,6 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 		"name":          "alpha",
 		"add_dirs":      []string{addDir},
 		"default_agent": "coder",
-		"sandbox_ref":   "daytona-dev",
 	})
 	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces", body)
 	if recorder.Code != http.StatusCreated {
@@ -1803,17 +1607,12 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 				Name:           "beta",
 				AdditionalDirs: []string{addDir},
 				DefaultAgent:   "reviewer",
-				SandboxRef:     "local-dev",
 			}, nil
 		},
 		UpdateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
 			if id != "ws_alpha" || opts.Name == nil || *opts.Name != "beta" || opts.AdditionalDirs == nil ||
-				len(*opts.AdditionalDirs) != 1 ||
-				(*opts.AdditionalDirs)[0] != addDir ||
-				opts.DefaultAgent == nil ||
-				*opts.DefaultAgent != "reviewer" ||
-				opts.SandboxRef == nil ||
-				*opts.SandboxRef != "local-dev" {
+				len(*opts.AdditionalDirs) != 1 || (*opts.AdditionalDirs)[0] != addDir ||
+				opts.DefaultAgent == nil || *opts.DefaultAgent != "reviewer" {
 				t.Fatalf("Update() id=%q opts=%#v", id, opts)
 			}
 			updated = true
@@ -1829,7 +1628,6 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 		"name":          "beta",
 		"add_dirs":      []string{addDir},
 		"default_agent": "reviewer",
-		"sandbox_ref":   "local-dev",
 	})
 	recorder := performRequest(t, engine, http.MethodPatch, "/api/workspaces/ws_alpha", body)
 	if recorder.Code != http.StatusOK {

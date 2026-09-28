@@ -97,9 +97,6 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
 		return nil, err
 	}
-	if err := normalizeDefinitionParticipation(&def); err != nil {
-		return nil, fmt.Errorf("normalize Loop definition participation: %w", err)
-	}
 
 	definition := foldDefinitionDefaults(def)
 	ctx := newLintContext(definition, &DefinitionLinter{tools: c.tools})

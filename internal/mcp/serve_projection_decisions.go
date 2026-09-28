@@ -5,9 +5,7 @@ import extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 const (
 	projectionReasonAgentsExcluded     = "agents are outside the approved MCP families"
 	projectionReasonAutomationExcluded = "automation is outside the approved MCP families"
-	projectionReasonBridgesExcluded    = "bridges are outside the approved MCP families"
 	projectionReasonModelsExcluded     = "models are outside the approved MCP families"
-	projectionReasonSandboxExcluded    = "sandbox is outside the approved MCP families"
 	projectionReasonTargetOnly         = "target-only request has no workspace binding"
 )
 
@@ -30,9 +28,6 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodSessionsSoulRefresh:   {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsHealthGet:     {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsStatusGet:     {Publish: true},
-	extensionprotocol.HostAPIMethodSandboxList:           {Reason: projectionReasonSandboxExcluded},
-	extensionprotocol.HostAPIMethodSandboxInfo:           {Reason: projectionReasonSandboxExcluded},
-	extensionprotocol.HostAPIMethodSandboxExec:           {Reason: projectionReasonSandboxExcluded},
 	extensionprotocol.HostAPIMethodMemoryRecall:          {Publish: true},
 	extensionprotocol.HostAPIMethodMemoryStore:           {Publish: true},
 	extensionprotocol.HostAPIMethodMemoryForget:          {Publish: true},
@@ -96,27 +91,9 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodTasksRunsComplete:        {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsFail:            {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsCancel:          {Reason: projectionReasonTargetOnly},
-	extensionprotocol.HostAPIMethodNetworkStatus: {
-		Reason: "daemon-global status has no workspace binding",
-	},
-	extensionprotocol.HostAPIMethodNetworkUsage:                {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkChannels:             {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkPeers:                {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkThreads:              {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkThreadGet:            {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkThreadMessages:       {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkDirects:              {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkDirectResolve:        {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkDirectMessages:       {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkWorkGet:              {Publish: true},
-	extensionprotocol.HostAPIMethodNetworkSend:                 {Publish: true},
-	extensionprotocol.HostAPIMethodResourcesList:               {Publish: true},
-	extensionprotocol.HostAPIMethodResourcesGet:                {Publish: true},
-	extensionprotocol.HostAPIMethodResourcesSnapshot:           {Publish: true},
-	extensionprotocol.HostAPIMethodBridgesInstancesList:        {Reason: projectionReasonBridgesExcluded},
-	extensionprotocol.HostAPIMethodBridgesMessagesIngest:       {Reason: projectionReasonBridgesExcluded},
-	extensionprotocol.HostAPIMethodBridgesInstancesGet:         {Reason: projectionReasonBridgesExcluded},
-	extensionprotocol.HostAPIMethodBridgesInstancesReportState: {Reason: projectionReasonBridgesExcluded},
+	extensionprotocol.HostAPIMethodResourcesList:            {Publish: true},
+	extensionprotocol.HostAPIMethodResourcesGet:             {Publish: true},
+	extensionprotocol.HostAPIMethodResourcesSnapshot:        {Publish: true},
 	extensionprotocol.HostAPIMethodClarifyAsk: {
 		Reason: "clarify is outside the approved MCP families",
 	},

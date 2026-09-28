@@ -269,12 +269,10 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 		}
 
 		policy := SessionPermissionPolicy{
-			Tools:           []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
-			Skills:          []string{"go"},
-			MCPServers:      []string{"memory"},
-			WorkspacePaths:  []string{"/repo"},
-			NetworkChannels: []string{"coord"},
-			SandboxProfiles: []string{"local"},
+			Tools:          []string{"compozy__task_update", " compozy__skill_view ", "compozy__skill_view"},
+			Skills:         []string{"go"},
+			MCPServers:     []string{"memory"},
+			WorkspacePaths: []string{"/repo"},
 		}
 		rawPolicy, err := EncodeSessionPermissionPolicy(policy)
 		if err != nil {
@@ -285,12 +283,10 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 			t.Fatalf("DecodeSessionPermissionPolicy() error = %v", err)
 		}
 		wantPolicy := SessionPermissionPolicy{
-			Tools:           []string{"compozy__skill_view", "compozy__task_update"},
-			Skills:          []string{"go"},
-			MCPServers:      []string{"memory"},
-			WorkspacePaths:  []string{"/repo"},
-			NetworkChannels: []string{"coord"},
-			SandboxProfiles: []string{"local"},
+			Tools:          []string{"compozy__skill_view", "compozy__task_update"},
+			Skills:         []string{"go"},
+			MCPServers:     []string{"memory"},
+			WorkspacePaths: []string{"/repo"},
 		}
 		if !reflect.DeepEqual(decodedPolicy, wantPolicy) {
 			t.Fatalf("decoded policy = %#v, want %#v", decodedPolicy, wantPolicy)
@@ -356,7 +352,7 @@ func TestSessionLineageJSONRejectsMalformedValues(t *testing.T) {
 		{
 			name: "Should reject decoding empty policy atom",
 			run: func() error {
-				_, err := DecodeSessionPermissionPolicy(`{"network_channels":["coord"," "]}`)
+				_, err := DecodeSessionPermissionPolicy(`{"skills":["go"," "]}`)
 				return err
 			},
 			want: "empty atom",

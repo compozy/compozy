@@ -270,7 +270,7 @@ describe("OsDock", () => {
         magnify={false}
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard" },
-          { id: "network", name: "Network", icon: "network" },
+          { id: "knowledge", name: "Knowledge", icon: "knowledge" },
         ]}
         onSelect={vi.fn()}
       />
@@ -278,9 +278,9 @@ describe("OsDock", () => {
 
     await user.tab();
     await user.tab();
-    expect(screen.getByRole("button", { name: "Network" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
     await waitFor(() => {
-      expect(screen.getByText("Network")).toBeInTheDocument();
+      expect(screen.getByText("Knowledge")).toBeInTheDocument();
     });
   });
 
@@ -414,17 +414,14 @@ describe("OsDock", () => {
       "terminal",
       "sep:sep-1",
       "agents",
-      "network",
       "tasks",
       "loops",
       "jobs",
       "triggers",
       "sep:sep-2",
       "marketplace",
-      "bridges",
       "knowledge",
       "sep:sep-3",
-      "sandbox",
       "vault",
     ]);
   });

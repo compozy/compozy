@@ -366,7 +366,7 @@
         readme:"## What it does\nspec-preflight validates PRD and TechSpec inputs against the authoring playbook before any drafting begins. It checks that the brief, ADRs, and glossary terms a spec references actually exist and resolve, and blocks the draft when a required input is missing." }
     ],
     extensions: [
-      { id:"otel-bridge", name:"otel-bridge", author:"@compozy", version:"0.6.0", downloads:"1.2k", source:"registry", trust:"verified", type:"bridge", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=otel-bridge",
+      { id:"otel-bridge", name:"otel-bridge", author:"@compozy", version:"0.6.0", downloads:"1.2k", source:"registry", trust:"verified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=otel-bridge",
         readme:"## What it does\notel-bridge exports session and tool spans to any OpenTelemetry collector. It hooks the session lifecycle, wraps each tool call in a span, and ships batches over OTLP/gRPC without holding up the agent.\n\nPoint it at a collector endpoint and every session becomes a trace you can open in Jaeger, Tempo, or Honeycomb.",
         desc:"Export session and tool spans to an OpenTelemetry collector." },
       { id:"slack-notify", name:"slack-notify", author:"@community", version:"1.1.4", downloads:"840", source:"registry", trust:"unverified", type:"hook", icon:"puzzle", state:"default", href:"marketplace-detail.html?kind=extensions&name=slack-notify",

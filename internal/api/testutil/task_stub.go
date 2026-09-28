@@ -180,13 +180,9 @@ type StubTaskManager struct {
 		taskpkg.SchedulerBacklogQuery,
 		taskpkg.ActorContext,
 	) (taskpkg.SchedulerBacklog, error)
-	CompleteRunLeaseFn  func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
-	FailRunLeaseFn      func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
-	SettleNetworkWakeFn func(
-		context.Context,
-		taskpkg.NetworkWakeSettlement,
-		taskpkg.ActorContext,
-	) (*taskpkg.NetworkWakeSettlementResult, error)
+	CompleteRunLeaseFn func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
+	FailRunLeaseFn     func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+
 	LookupActiveRunForSessionFn func(
 		context.Context,
 		string,

@@ -145,35 +145,6 @@ func (p *AgentProcess) cancelCurrentPrompt() bool {
 	return true
 }
 
-// SetTurnSourceProvider configures a daemon-local callback that reports the current turn provenance.
-func (p *AgentProcess) SetTurnSourceProvider(provider func() string) {
-	if p == nil {
-		return
-	}
-
-	p.turnSourceProviderMu.Lock()
-	defer p.turnSourceProviderMu.Unlock()
-	p.turnSourceProvider = provider
-}
-
-func (p *AgentProcess) currentTurnSource() string {
-	if p == nil {
-		return ""
-	}
-
-	p.turnSourceProviderMu.RLock()
-	provider := p.turnSourceProvider
-	p.turnSourceProviderMu.RUnlock()
-	if provider == nil {
-		return ""
-	}
-	return strings.TrimSpace(provider())
-}
-
-func (p *AgentProcess) isNetworkTurn() bool {
-	return p.currentTurnSource() == networkCommandName
-}
-
 func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromptDeliveryMode) {
 	userMessage := strings.TrimSpace(message)
 

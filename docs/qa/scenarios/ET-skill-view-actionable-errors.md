@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-terminal-recovery-20260902-205559-939126-lab/qa-artifacts/qa/test-cases/skill-view-hosted-recovery.md
 last_report: docs/qa/reports/2026-09-02-skill-terminal-recovery.md
-overlaps: ET-compozy-native-tool-invocation;ET-managed-session-skill-loading
+overlaps: ET-compozy-native-tool-invocation; ET-managed-session-skill-loading
 ---
 
 Ask a managed agent to read one missing skill resource and one skill whose `SKILL.md` frontmatter is

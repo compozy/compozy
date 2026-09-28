@@ -27,12 +27,6 @@ var HostAPISessionsEventsContract = HostAPIMethodContract[SessionEventsParams, [
 var HostAPISessionsSoulRefreshContract = HostAPIMethodContract[SessionSoulRefreshParams, AgentSoulPayload]{Method: HostAPIMethodSessionsSoulRefresh}
 var HostAPISessionsHealthGetContract = HostAPIMethodContract[SessionHealthGetParams, SessionHealthResponse]{Method: HostAPIMethodSessionsHealthGet}
 var HostAPISessionsStatusGetContract = HostAPIMethodContract[SessionStatusGetParams, SessionStatusResponse]{Method: HostAPIMethodSessionsStatusGet}
-var HostAPISandboxListContract = HostAPIMethodContract[SandboxListParams, SandboxListResult]{
-	Method:         HostAPIMethodSandboxList,
-	OptionalParams: true,
-}
-var HostAPISandboxInfoContract = HostAPIMethodContract[SandboxInfoParams, SandboxInfoResult]{Method: HostAPIMethodSandboxInfo}
-var HostAPISandboxExecContract = HostAPIMethodContract[SandboxExecParams, SandboxExecResult]{Method: HostAPIMethodSandboxExec}
 var HostAPIMemoryRecallContract = HostAPIMethodContract[MemoryRecallParams, []MemoryRecallEntry]{Method: HostAPIMethodMemoryRecall}
 var HostAPIMemoryStoreContract = HostAPIMethodContract[MemoryStoreParams, EmptyResult]{Method: HostAPIMethodMemoryStore}
 var HostAPIMemoryForgetContract = HostAPIMethodContract[MemoryForgetParams, EmptyResult]{Method: HostAPIMethodMemoryForget}
@@ -126,32 +120,10 @@ var HostAPITasksRunsAttachSessionContract = HostAPIMethodContract[TaskRunAttachS
 var HostAPITasksRunsCompleteContract = HostAPIMethodContract[TaskRunCompleteParams, TaskRun]{Method: HostAPIMethodTasksRunsComplete}
 var HostAPITasksRunsFailContract = HostAPIMethodContract[TaskRunFailParams, TaskRun]{Method: HostAPIMethodTasksRunsFail}
 var HostAPITasksRunsCancelContract = HostAPIMethodContract[TaskRunCancelParams, TaskRun]{Method: HostAPIMethodTasksRunsCancel}
-var HostAPINetworkStatusContract = HostAPIMethodContract[EmptyResult, NetworkStatusPayload]{
-	Method:         HostAPIMethodNetworkStatus,
-	OptionalParams: true,
-}
-var HostAPINetworkUsageContract = HostAPIMethodContract[NetworkUsageParams, NetworkUsageResponse]{Method: HostAPIMethodNetworkUsage}
-var HostAPINetworkChannelsContract = HostAPIMethodContract[NetworkChannelsParams, []NetworkChannelPayload]{Method: HostAPIMethodNetworkChannels}
-var HostAPINetworkPeersContract = HostAPIMethodContract[NetworkPeersParams, []NetworkPeerPayload]{Method: HostAPIMethodNetworkPeers}
-var HostAPINetworkThreadsContract = HostAPIMethodContract[NetworkThreadsParams, NetworkThreadsResponse]{Method: HostAPIMethodNetworkThreads}
-var HostAPINetworkThreadGetContract = HostAPIMethodContract[NetworkThreadTargetParams, NetworkThreadSummaryPayload]{Method: HostAPIMethodNetworkThreadGet}
-var HostAPINetworkThreadMessagesContract = HostAPIMethodContract[NetworkThreadMessagesParams, NetworkThreadMessagesResponse]{Method: HostAPIMethodNetworkThreadMessages}
-var HostAPINetworkDirectsContract = HostAPIMethodContract[NetworkDirectsParams, NetworkDirectRoomsResponse]{Method: HostAPIMethodNetworkDirects}
-var HostAPINetworkDirectResolveContract = HostAPIMethodContract[NetworkDirectResolveParams, NetworkDirectRoomPayload]{Method: HostAPIMethodNetworkDirectResolve}
-var HostAPINetworkDirectMessagesContract = HostAPIMethodContract[NetworkDirectMessagesParams, NetworkDirectRoomMessagesResponse]{Method: HostAPIMethodNetworkDirectMessages}
-var HostAPINetworkWorkGetContract = HostAPIMethodContract[NetworkWorkGetParams, NetworkWorkPayload]{Method: HostAPIMethodNetworkWorkGet}
-var HostAPINetworkSendContract = HostAPIMethodContract[NetworkSendParams, NetworkSendPayload]{Method: HostAPIMethodNetworkSend}
 var HostAPIResourcesListContract = HostAPIMethodContract[ResourcesListParams, []ResourceRecord]{
 	Method:         HostAPIMethodResourcesList,
 	OptionalParams: true,
 }
 var HostAPIResourcesGetContract = HostAPIMethodContract[ResourceGetParams, ResourceRecord]{Method: HostAPIMethodResourcesGet}
 var HostAPIResourcesSnapshotContract = HostAPIMethodContract[ResourcesSnapshotParams, EmptyResult]{Method: HostAPIMethodResourcesSnapshot}
-var HostAPIBridgesInstancesListContract = HostAPIMethodContract[EmptyResult, []BridgeInstance]{
-	Method:         HostAPIMethodBridgesInstancesList,
-	OptionalParams: true,
-}
-var HostAPIBridgesMessagesIngestContract = HostAPIMethodContract[InboundMessageEnvelope, BridgesMessagesIngestResult]{Method: HostAPIMethodBridgesMessagesIngest}
-var HostAPIBridgesInstancesGetContract = HostAPIMethodContract[BridgeInstanceTargetParams, BridgeInstance]{Method: HostAPIMethodBridgesInstancesGet}
-var HostAPIBridgesInstancesReportStateContract = HostAPIMethodContract[BridgesInstancesReportStateParams, BridgeInstance]{Method: HostAPIMethodBridgesInstancesReportState}
 var HostAPIClarifyAskContract = HostAPIMethodContract[ClarifyAskParams, ClarifyAnswer]{Method: HostAPIMethodClarifyAsk}

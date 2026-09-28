@@ -1,9 +1,4 @@
-import {
-  storyAgentNames,
-  storyDefaultWorkspaceId,
-  storyHeroNetworkChannel,
-  storySessionIds,
-} from "./fintech-scenario";
+import { storyAgentNames, storySessionIds } from "./fintech-scenario";
 import type { RouteStoryRegistryEntry } from "./route-story-types";
 
 const storyTaskId = "task_001";
@@ -11,10 +6,6 @@ const storyTaskRunId = "run_001";
 const storyLoopName = "implement-tasks";
 const storyLoopRunId = "looprun_running";
 const storyLoopDiffRunId = "looprun_release_train";
-const storyThreadId = "thread_launch_command";
-const storyDirectId = "direct_story_launch_corridor";
-const storyBridgeId = "brg_launch_room";
-const storyNetworkBasePath = `/network/${storyDefaultWorkspaceId}/${storyHeroNetworkChannel}`;
 
 export const appRouteStories = [
   {
@@ -81,13 +72,6 @@ export const appRouteStories = [
     storyName: "DefaultList",
   },
   {
-    system: "network",
-    routePath: "/network",
-    storybookPath: "/network",
-    title: "systems/network/routes/Network",
-    storyName: "Overview",
-  },
-  {
     system: "loops",
     routePath: "/loops",
     storybookPath: "/loops",
@@ -128,20 +112,6 @@ export const appRouteStories = [
     storybookPath: "/triggers/trg_summarize_failures",
     title: "systems/automation/routes/Triggers",
     storyName: "TriggerDetail",
-  },
-  {
-    system: "bridges",
-    routePath: "/bridges",
-    storybookPath: "/bridges",
-    title: "systems/bridges/routes/Bridges",
-    storyName: "Default",
-  },
-  {
-    system: "bridges",
-    routePath: "/bridges/$id",
-    storybookPath: `/bridges/${storyBridgeId}`,
-    title: "systems/bridges/routes/Bridges",
-    storyName: "TestDelivery",
   },
   {
     system: "tasks",
@@ -256,27 +226,6 @@ export const appRouteStories = [
     storyName: "Running",
   },
   {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/threads",
-    storybookPath: `${storyNetworkBasePath}/threads`,
-    title: "systems/network/routes/Network",
-    storyName: "ThreadsTab",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/directs",
-    storybookPath: `${storyNetworkBasePath}/directs`,
-    title: "systems/network/routes/Network",
-    storyName: "DirectsTab",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/activity",
-    storybookPath: `${storyNetworkBasePath}/activity`,
-    title: "systems/network/routes/Network",
-    storyName: "ActivityTab",
-  },
-  {
     system: "session",
     routePath: "/agents/$name/sessions/$id",
     storybookPath: `/agents/${storyAgentNames.fraud}/sessions/${storySessionIds.fraud}`,
@@ -296,19 +245,5 @@ export const appRouteStories = [
     storybookPath: "/new-tab",
     title: "systems/os/routes/NewTab",
     storyName: "Default",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/threads/$threadId",
-    storybookPath: `${storyNetworkBasePath}/threads/${storyThreadId}`,
-    title: "systems/network/routes/NetworkDetail",
-    storyName: "ThreadDetail",
-  },
-  {
-    system: "network",
-    routePath: "/network/$workspaceId/$channel/directs/$directId",
-    storybookPath: `${storyNetworkBasePath}/directs/${storyDirectId}`,
-    title: "systems/network/routes/NetworkDetail",
-    storyName: "DirectDetail",
   },
 ] as const satisfies RouteStoryRegistryEntry[];

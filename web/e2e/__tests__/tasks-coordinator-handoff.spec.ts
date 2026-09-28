@@ -187,12 +187,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   // Persist Live/run participation on the draft profile so publish binds a derived channel.
   await runtime.requestJSON(`/api/tasks/${encodeURIComponent(draftId)}`, {
     method: "PATCH",
-    body: JSON.stringify({
-      network_participation: {
-        mode: "live",
-        channel_strategy: "run",
-      },
-    }),
+    body: JSON.stringify({}),
   });
 
   const publishResponsePromise = appPage.waitForResponse(response => {
@@ -206,19 +201,6 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   expect(publishResponse.ok()).toBeTruthy();
 
   await expect(tasksUI.detailPublish).toBeHidden();
-
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        runs: Array<{
-          id: string;
-          status: string;
-          resolved_network_participation?: { channel_id?: string | null } | null;
-        }>;
-      }>(`/api/tasks/${encodeURIComponent(draftId)}/runs?limit=10`);
-      return payload.runs[0]?.resolved_network_participation?.channel_id ?? "";
-    })
-    .not.toBe("");
 
   await expect(tasksUI.detailNowRun).toBeVisible();
   await expect(tasksUI.detailCoordination).toBeVisible();

@@ -75,8 +75,6 @@ func OwnerKindForActor(kind ActorKind) OwnerKind {
 		return OwnerKindAutomation
 	case ActorKindExtension:
 		return OwnerKindExtension
-	case ActorKindNetworkPeer:
-		return OwnerKindNetworkPeer
 	default:
 		return ""
 	}

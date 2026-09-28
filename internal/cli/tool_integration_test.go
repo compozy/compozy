@@ -26,7 +26,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	t.Parallel()
 
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = shortSocketPath(t)
 	registry := newCLIToolIntegrationRegistry()
 	artifactStore, err := toolspkg.OpenFilesystemToolArtifactStore(

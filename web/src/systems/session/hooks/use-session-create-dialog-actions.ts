@@ -1,7 +1,6 @@
 import { useSelector } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
-import type { NetworkParticipationDraft } from "@/lib/network-participation";
 
 import {
   clearPendingTerminalQuote,
@@ -38,11 +37,5 @@ export function useSessionCreateDialogActions({
     onAgentChange: (agentName: string) =>
       store.trigger.agentSelected({ agentName, workspaceId: runtimeWorkspaceId ?? "" }),
     onSessionNameChange: (sessionName: string) => store.trigger.sessionNameChanged({ sessionName }),
-    onNetworkParticipationChange: (next: NetworkParticipationDraft) =>
-      store.trigger.networkParticipationSelected({
-        networkParticipationMode: next.mode,
-        networkChannelId: next.channelId,
-        networkChannelStrategy: next.channelStrategy,
-      }),
   };
 }

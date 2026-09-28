@@ -10,9 +10,6 @@ const (
 	// PromptTurnSourceUser identifies a daemon prompt that originated from the
 	// user-facing prompt surfaces.
 	PromptTurnSourceUser = "user"
-	// PromptTurnSourceNetwork identifies a daemon prompt that originated from an
-	// Compozy network envelope delivery.
-	PromptTurnSourceNetwork = "network"
 	// PromptTurnSourceSynthetic identifies a daemon-owned prompt turn injected by
 	// internal runtime code.
 	PromptTurnSourceSynthetic = "synthetic"
@@ -21,7 +18,6 @@ const (
 // PromptMeta carries structured, transport-stable metadata for one ACP prompt.
 type PromptMeta struct {
 	TurnSource string               `json:"turn_source,omitempty"`
-	Network    *PromptNetworkMeta   `json:"network,omitempty"`
 	Synthetic  *PromptSyntheticMeta `json:"synthetic,omitempty"`
 	Judge      *PromptJudgeMeta     `json:"judge,omitempty"`
 	System     *PromptSystemMeta    `json:"system,omitempty"`
@@ -32,37 +28,10 @@ type PromptSystemMeta struct {
 	PromptDelivery string `json:"prompt_delivery,omitempty"`
 }
 
-// PromptNetworkMeta captures stable Compozy network envelope correlation fields.
-type PromptNetworkMeta struct {
-	MessageID             string   `json:"message_id,omitempty"`
-	Kind                  string   `json:"kind,omitempty"`
-	Channel               string   `json:"channel,omitempty"`
-	Surface               string   `json:"surface,omitempty"`
-	ThreadID              string   `json:"thread_id,omitempty"`
-	DirectID              string   `json:"direct_id,omitempty"`
-	From                  string   `json:"from,omitempty"`
-	To                    string   `json:"to,omitempty"`
-	Mentions              []string `json:"mentions,omitempty"`
-	WorkID                string   `json:"work_id,omitempty"`
-	ReplyTo               string   `json:"reply_to,omitempty"`
-	TraceID               string   `json:"trace_id,omitempty"`
-	CausationID           string   `json:"causation_id,omitempty"`
-	Trust                 string   `json:"trust,omitempty"`
-	DeliveryMode          string   `json:"delivery_mode,omitempty"`
-	PromptSizeBytes       int64    `json:"prompt_size_bytes,omitempty"`
-	EstimatedPromptTokens int64    `json:"estimated_prompt_tokens,omitempty"`
-}
-
 // Normalize returns a trimmed copy of the prompt metadata.
 func (m PromptMeta) Normalize() PromptMeta {
 	normalized := PromptMeta{
 		TurnSource: strings.TrimSpace(m.TurnSource),
-	}
-	if m.Network != nil {
-		network := m.Network.Normalize()
-		if !network.IsZero() {
-			normalized.Network = &network
-		}
 	}
 	if m.Synthetic != nil {
 		synthetic := m.Synthetic.Normalize()
@@ -89,7 +58,6 @@ func (m PromptMeta) Normalize() PromptMeta {
 func (m PromptMeta) IsZero() bool {
 	normalized := m.Normalize()
 	return normalized.TurnSource == "" &&
-		normalized.Network == nil &&
 		normalized.Synthetic == nil &&
 		normalized.Judge == nil &&
 		normalized.System == nil
@@ -127,22 +95,11 @@ func (m PromptMeta) Validate() error {
 	}
 	switch normalized.TurnSource {
 	case "", PromptTurnSourceUser:
-		if normalized.Network != nil || normalized.Synthetic != nil {
-			return invalidPromptMetadata("acp: user prompt metadata cannot include network or synthetic fields")
-		}
-		return nil
-	case PromptTurnSourceNetwork:
 		if normalized.Synthetic != nil {
-			return invalidPromptMetadata("acp: network prompt metadata cannot include synthetic fields")
-		}
-		if normalized.Judge != nil {
-			return invalidPromptMetadata("acp: network prompt metadata cannot include judge fields")
+			return invalidPromptMetadata("acp: user prompt metadata cannot include synthetic fields")
 		}
 		return nil
 	case PromptTurnSourceSynthetic:
-		if normalized.Network != nil {
-			return invalidPromptMetadata("acp: synthetic prompt metadata cannot include network fields")
-		}
 		if normalized.Judge != nil {
 			return invalidPromptMetadata("acp: synthetic prompt metadata cannot include judge fields")
 		}
@@ -177,67 +134,4 @@ func (m PromptSystemMeta) Validate() error {
 	default:
 		return invalidPromptMetadata(fmt.Sprintf("acp: invalid system prompt delivery %q", normalized.PromptDelivery))
 	}
-}
-
-// Normalize returns a trimmed copy of the network metadata.
-func (m PromptNetworkMeta) Normalize() PromptNetworkMeta {
-	return PromptNetworkMeta{
-		MessageID:             strings.TrimSpace(m.MessageID),
-		Kind:                  strings.TrimSpace(m.Kind),
-		Channel:               strings.TrimSpace(m.Channel),
-		Surface:               strings.TrimSpace(m.Surface),
-		ThreadID:              strings.TrimSpace(m.ThreadID),
-		DirectID:              strings.TrimSpace(m.DirectID),
-		From:                  strings.TrimSpace(m.From),
-		To:                    strings.TrimSpace(m.To),
-		Mentions:              normalizePromptMetaStrings(m.Mentions),
-		WorkID:                strings.TrimSpace(m.WorkID),
-		ReplyTo:               strings.TrimSpace(m.ReplyTo),
-		TraceID:               strings.TrimSpace(m.TraceID),
-		CausationID:           strings.TrimSpace(m.CausationID),
-		Trust:                 strings.TrimSpace(m.Trust),
-		DeliveryMode:          strings.TrimSpace(m.DeliveryMode),
-		PromptSizeBytes:       max(m.PromptSizeBytes, 0),
-		EstimatedPromptTokens: max(m.EstimatedPromptTokens, 0),
-	}
-}
-
-// IsZero reports whether the network metadata carries any fields.
-func (m PromptNetworkMeta) IsZero() bool {
-	normalized := m.Normalize()
-	return normalized.MessageID == "" &&
-		normalized.Kind == "" &&
-		normalized.Channel == "" &&
-		normalized.Surface == "" &&
-		normalized.ThreadID == "" &&
-		normalized.DirectID == "" &&
-		normalized.From == "" &&
-		normalized.To == "" &&
-		len(normalized.Mentions) == 0 &&
-		normalized.WorkID == "" &&
-		normalized.ReplyTo == "" &&
-		normalized.TraceID == "" &&
-		normalized.CausationID == "" &&
-		normalized.Trust == "" &&
-		normalized.DeliveryMode == "" &&
-		normalized.PromptSizeBytes == 0 &&
-		normalized.EstimatedPromptTokens == 0
-}
-
-func normalizePromptMetaStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		normalized = append(normalized, trimmed)
-	}
-	if len(normalized) == 0 {
-		return nil
-	}
-	return normalized
 }

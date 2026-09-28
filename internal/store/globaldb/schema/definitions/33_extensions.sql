@@ -14,9 +14,9 @@ CREATE TABLE extensions (
 		registry_name TEXT,
 		remote_version TEXT,
 		provenance_json TEXT NOT NULL DEFAULT '{}',
-		network_requirement_digest TEXT NOT NULL DEFAULT '',
-		network_confirmed_by TEXT,
-		network_confirmed_at TEXT
+		gateway_requirement_digest TEXT NOT NULL DEFAULT '',
+		gateway_confirmed_by TEXT,
+		gateway_confirmed_at TEXT
 	);
 
 CREATE TRIGGER extensions_profile_enablement_delete

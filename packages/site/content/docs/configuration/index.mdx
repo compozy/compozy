@@ -16,7 +16,7 @@ for the change you actually want.
 | One operator profile                | `$COMPOZY_HOME/profiles/<name>/config.toml`                                                    | One profile needs different persona, provider, permission, hook, memory, or tool defaults without changing another profile.                                    |
 | One profile inside one workspace    | `<workspace>/.compozy/profiles/<name>/config.toml`                                             | A repository supplies a read-only named profile layer that activates only when the selected profile has the same name.                                         |
 | One agent                           | `AGENT.md`                                                                                     | A specific agent needs a different prompt, provider, permission mode, or MCP attachment.                                                                       |
-| One agent's advertised capabilities | [capability catalog](/docs/agents/capabilities) next to `AGENT.md`                             | Other peers need outcome-oriented discovery metadata about what that agent can do.                                                                             |
+| One agent's advertised capabilities | [capability catalog](/docs/agents/capabilities) next to `AGENT.md`                             | Task selection needs outcome-oriented metadata about what that agent can do.                                                                                   |
 | One skill                           | `SKILL.md`                                                                                     | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
 | MCP server configuration            | `mcp.json`                                                                                     | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
 | Encrypted CompozyOS-managed secrets | [Vault](/docs/configuration/vault)                                                             | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
@@ -64,7 +64,7 @@ If a more specific layer already wins, the command returns `ok_overridden` with 
 the value was saved, but it is not the current effective value.
 
 Profile files cannot change machine-only roots: `http`, `daemon`, `log`, `database`, `gateway`,
-`shell`, `marketplace`, `observability`, `network`, or `sandboxes`. They also cannot change
+`shell`, `marketplace`, `observability`. They also cannot change
 `window_manager.global_shortcuts`, because the operating system has one shortcut registry. These
 writes fail with `profile_config_key_denied` and direct the operator to `--scope user`.
 

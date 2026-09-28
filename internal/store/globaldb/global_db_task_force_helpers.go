@@ -177,7 +177,7 @@ func taskRunsByIDForTaskWithExecutor(
 	exec taskSQLExecutor,
 	taskID string,
 ) (runs map[string]taskpkg.Run, err error) {
-	runIDs, err := sqlcgen.New(exec).ListTaskRunIDsForTask(ctx, nullableTaskString(taskID))
+	runIDs, err := sqlcgen.New(exec).ListTaskRunIDsForTask(ctx, taskID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list retry lineage runs for task %q: %w", taskID, err)
 	}

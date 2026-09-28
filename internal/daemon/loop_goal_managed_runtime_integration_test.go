@@ -17,7 +17,7 @@ import (
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -32,8 +32,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 	t.Run("Should delete a stopped session with an unbound Goal checkpoint", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "delete-unbound", nil, withoutInitialGoalBinding())
 		ctx := t.Context()
-		originID, originIdentity := fixture.createOriginSession(t, "delete-unbound", participation.LocalSpec())
-		neighborID, _ := fixture.createOriginSession(t, "delete-neighbor", participation.LocalSpec())
+		originID, originIdentity := fixture.createOriginSession(t, "delete-unbound")
+		neighborID, _ := fixture.createOriginSession(t, "delete-neighbor")
 		if err := fixture.manager.Stop(ctx, originID); err != nil {
 			t.Fatal(err)
 		}
@@ -56,11 +56,16 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			originIdentity.CreationDigest, string(fixture.run.ID)); err != nil {
 			t.Fatal(err)
 		}
-		aggregate, err := looppkg.NewService(fixture.goalStore,
-			looppkg.DefinitionResolverFunc(func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
-				return nil, looppkg.ErrDefinitionNotFound
-			}), managedTestGoalRunPolicyResolver(),
-			looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: fixture.manager}))
+		aggregate, err := looppkg.NewService(
+			fixture.goalStore,
+			looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+					return nil, looppkg.ErrDefinitionNotFound
+				},
+			),
+			managedTestGoalRunPolicyResolver(),
+			looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: fixture.manager}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -355,14 +360,13 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 
 	t.Run("Should revalidate a borrowed origin without rewriting its immutable profile", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "origin-borrowed", nil, withoutInitialGoalBinding())
-		localParticipation := participation.LocalSpec()
-		originID, originIdentity := fixture.createOriginSession(t, "origin-borrowed", localParticipation)
+
+		originID, originIdentity := fixture.createOriginSession(t, "origin-borrowed")
 		request := fixture.bindingRequest("origin-borrowed")
 		request.OriginSessionID = originID
 		request.PinnedCreationProfileRef = originIdentity.CreationProfileRef
 		request.PinnedCreationDigest = originIdentity.CreationDigest
 		request.StaticPolicySpecDigest = originIdentity.PolicySpecDigest
-		request.NetworkParticipation = &localParticipation
 
 		applied, err := fixture.runtime.revalidatePersistedProfile(
 			testutil.Context(t),
@@ -378,54 +382,9 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should create a run-owned session when origin participation differs from the Loop Run", func(t *testing.T) {
-		fixture := newLoopGoalManagedRuntimeFixture(t, "origin-participation", nil, withoutInitialGoalBinding())
-		originParticipation := daemonTestLiveParticipation(
-			string(fixture.run.WorkspaceID),
-			"goal-origin-live",
-		)
-		originID, originIdentity := fixture.createOriginSession(
-			t,
-			"origin-participation",
-			originParticipation,
-		)
-		request := fixture.bindingRequest("origin-participation")
-		request.OriginSessionID = originID
-		request.PinnedCreationProfileRef = originIdentity.CreationProfileRef
-		request.PinnedCreationDigest = originIdentity.CreationDigest
-		request.StaticPolicySpecDigest = originIdentity.PolicySpecDigest
-		localParticipation := participation.LocalSpec()
-		request.NetworkParticipation = &localParticipation
-
-		binding, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
-		if err != nil {
-			t.Fatalf("BindActionSession() error = %v", err)
-		}
-		if binding.SessionID == originID {
-			t.Fatalf("binding.SessionID = %q, want a run-owned session distinct from origin", binding.SessionID)
-		}
-		if got, want := binding.Ownership, string(goalpkg.BindingOwnershipRunOwned); got != want {
-			t.Fatalf("binding.Ownership = %q, want %q", got, want)
-		}
-		bound, err := fixture.manager.Status(testutil.Context(t), binding.SessionID)
-		if err != nil {
-			t.Fatalf("Status(bound session) error = %v", err)
-		}
-		if got := bound.NetworkParticipation; got != localParticipation {
-			t.Fatalf("bound session participation = %#v, want Loop Run snapshot %#v", got, localParticipation)
-		}
-		origin, err := fixture.manager.Status(testutil.Context(t), originID)
-		if err != nil {
-			t.Fatalf("Status(origin session) error = %v", err)
-		}
-		if got := origin.NetworkParticipation; got != originParticipation {
-			t.Fatalf("origin participation = %#v, want unchanged %#v", got, originParticipation)
-		}
-	})
-
 	t.Run("Should preserve a materialized binding lineage after provenance parent deletion", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "provenance-existing", nil, withoutInitialGoalBinding())
-		parentID, _ := fixture.createOriginSession(t, "provenance-existing", participation.LocalSpec())
+		parentID, _ := fixture.createOriginSession(t, "provenance-existing")
 		request := fixture.bindingRequest("provenance-existing")
 		request.ProvenanceParentSessionID = parentID
 
@@ -465,7 +424,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				return failingManager
 			}),
 		)
-		parentID, _ := fixture.createOriginSession(t, "provenance-retry", participation.LocalSpec())
+		parentID, _ := fixture.createOriginSession(t, "provenance-retry")
 		failingManager.beforeFailure = func(ctx context.Context) error {
 			return fixture.manager.Delete(ctx, parentID)
 		}
@@ -1585,12 +1544,11 @@ func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.Act
 func (f loopGoalManagedRuntimeFixture) createOriginSession(
 	t *testing.T,
 	suffix string,
-	spec participation.Spec,
 ) (string, store.SessionCreationIdentity) {
 	t.Helper()
 	ctx := testutil.Context(t)
 	request := f.bindingRequest("origin-" + suffix)
-	request.NetworkParticipation = &spec
+
 	profile, opts, materialized, err := f.runtime.resolveEffectiveCreationProfile(ctx, request, "")
 	if err != nil {
 		t.Fatalf("resolveEffectiveCreationProfile(origin) error = %v", err)
@@ -1600,10 +1558,7 @@ func (f loopGoalManagedRuntimeFixture) createOriginSession(
 	}
 	sessionID := "sess-goal-origin-" + suffix
 	opts.DesiredSessionID = sessionID
-	opts.NetworkOwnerKey = participation.OwnerKey(participation.OwnerRef{
-		Kind: participation.OwnerKindSession,
-		ID:   sessionID,
-	})
+
 	identity, err := bindingCreationIdentity(profile, opts, sessionID)
 	if err != nil {
 		t.Fatalf("bindingCreationIdentity(origin) error = %v", err)

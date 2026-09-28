@@ -11,10 +11,7 @@ func nativeAutomationJobFromCreateRequest(
 	toolID toolspkg.ToolID,
 	request contract.CreateJobRequest,
 ) (automationpkg.Job, error) {
-	job, err := core.AutomationJobFromCreateRequest(request)
-	if err != nil {
-		return automationpkg.Job{}, nativeAutomationValidationError(toolID, err)
-	}
+	job := core.AutomationJobFromCreateRequest(request)
 	if err := job.Validate(nativeAutomationToolsJobKey); err != nil {
 		return automationpkg.Job{}, nativeAutomationValidationError(toolID, err)
 	}

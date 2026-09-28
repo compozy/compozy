@@ -35,14 +35,13 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		StopDetail:        info.StopDetail,
 		Failure:           store.CloneSessionFailure(info.Failure),
 		Liveness:          store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:           cloneSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:    strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:        strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest:  strings.TrimSpace(info.ParentSoulDigest),
-		TranscriptEpoch:   info.TranscriptEpoch,
-		CreatedAt:         info.CreatedAt,
-		UpdatedAt:         info.UpdatedAt,
+
+		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:       strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
+		TranscriptEpoch:  info.TranscriptEpoch,
+		CreatedAt:        info.CreatedAt,
+		UpdatedAt:        info.UpdatedAt,
 	}
-	result.SetNetworkSpec(info.NetworkParticipation)
 	return result
 }

@@ -1,6 +1,5 @@
 import type {
   AgentContextIdentity,
-  TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskInboxFilter,
   TaskListFilter,
@@ -55,7 +54,6 @@ export const tasksKeys = {
       normalizeText(normalized.owner_kind),
       normalizeText(normalized.owner_ref),
       normalizeText(normalized.parent_task_id),
-      normalizeText(normalized.participation_channel),
       normalizeText(normalized.query),
       normalizeText(normalized.sort),
       normalizeNumber(normalized.limit),
@@ -116,7 +114,6 @@ export const tasksKeys = {
       normalizeText(filters.worktree),
       normalizeText(filters.owner_kind),
       normalizeText(filters.owner_ref),
-      normalizeText(filters.participation_channel),
       normalizeText(filters.origin_kind),
       // The profile axis: a dashboard scoped to one profile is not the machine's.
       profileLens(filters),
@@ -179,18 +176,4 @@ export const tasksKeys = {
   streamsRoot: () => [...tasksKeys.all, "stream"] as const,
   stream: (taskId: string, filters: TaskStreamFilter = {}) =>
     [...tasksKeys.streamsRoot(), taskId, normalizeNumber(filters.after_sequence)] as const,
-
-  // Bridge notification diagnostics
-  bridgeNotificationsRoot: () => [...tasksKeys.all, "bridge-notifications"] as const,
-  bridgeNotifications: (taskId: string, filters: TaskBridgeNotificationSubscriptionsFilter = {}) =>
-    [
-      ...tasksKeys.bridgeNotificationsRoot(),
-      taskId,
-      filters.bridge_instance_id ?? null,
-      normalizeText(filters.scope),
-      filters.workspace_id ?? null,
-      normalizeNumber(filters.limit),
-    ] as const,
-  bridgeNotification: (taskId: string, subscriptionId: string) =>
-    [...tasksKeys.bridgeNotificationsRoot(), taskId, "detail", subscriptionId] as const,
 };

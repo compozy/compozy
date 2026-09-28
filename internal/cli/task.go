@@ -7,10 +7,8 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticitems "github.com/compozy/compozy/internal/diagnostics"
-
 	"github.com/spf13/cobra"
 )
 
@@ -25,79 +23,72 @@ const (
 )
 
 const (
-	taskAttemptValue              = "Attempt"
-	taskBridgeValue               = "Bridge"
-	taskClaimedByValue            = "Claimed By"
-	taskParticipationChannelValue = "Participation Channel"
-	taskCreatedValue              = "Created"
-	taskCreatedByValue            = "Created By"
-	taskDescriptionValue          = "Description"
-	taskEndedValue                = "Ended"
-	taskErrorValue                = "Error"
-	taskIdentifierValue           = "Identifier"
-	taskKindValue                 = "Kind"
-	taskModeValue                 = "Mode"
-	taskOriginValue               = "Origin"
-	taskOutcomeValue              = "Outcome"
-	taskOwnerValue                = "Owner"
-	taskParentValue               = "Parent"
-	taskQueuedValue               = "Queued"
-	taskReasonValue               = "Reason"
-	taskResultValue               = "Result"
-	taskReviewValue               = "Review"
-	taskRunValue                  = "Run"
-	taskSandboxValue              = "Sandbox"
-	taskScopeValue                = "Scope"
-	taskSessionValue              = "Session"
-	taskStartedValue              = "Started"
-	taskStatusValue               = "Status"
-	taskSubscriptionValue         = "Subscription"
-	taskTaskValue                 = "Task"
-	taskTaskIDValue               = "Task ID"
-	taskTimeValue                 = "Time"
-	taskTitleValue                = "Title"
-	taskUpdatedValue              = "Updated"
-	taskWorkspaceValue            = "Workspace"
-	taskAttemptKey                = "attempt"
-	taskAutoEnqueueOnReadyFlag    = "auto-enqueue-on-ready"
-	taskClaimedByKey              = "claimed_by"
-	taskCreateKey                 = "create"
-	taskCreatedAtKey              = "created_at"
-	createdByKey                  = "created_by"
-	taskDeleteIDValue             = "delete <id>"
-	taskDeletedKey                = "deleted"
-	taskDescriptionKey            = "description"
-	taskEndedAtKey                = "ended_at"
-	taskErrorKey                  = "error"
-	taskFailureKindKey            = "failure_kind"
-	taskGetIDValue                = "get <id>"
-	taskGroupIDKey                = "group_id"
-	taskIdentifierKey             = "identifier"
-	taskKindKey                   = "kind"
-	taskListKey                   = "list"
-	taskParticipationChannelKey   = "participation_channel"
-	taskNextKey                   = "next"
-	taskOriginKey                 = cliOriginKey
-	taskOutcomeKey                = "outcome"
-	taskPeerIDKey                 = "peer_id"
-	taskProfileKey                = profileFlagName
-	taskQueuedAtKey               = "queued_at"
-	taskReasonKey                 = "reason"
-	taskReviewKey                 = "review"
-	taskRunIDKey                  = "run_id"
-	taskScopeKey                  = "scope"
-	taskSessionIDKey              = "session_id"
-	taskStartedAtKey              = "started_at"
-	taskStatusKey                 = "status"
-	taskTaskKey                   = "task"
-	taskTaskIDKey                 = "task_id"
-	taskTimestampKey              = "timestamp"
-	taskTitleKey                  = "title"
-	taskUpdateIDValue             = "update <id>"
-	taskUpdatedAtKey              = "updated_at"
-	taskWorkspaceIDKey            = "workspace_id"
-	taskWorktreeModeKey           = "mode"
-	taskWorktreeRefKey            = "ref"
+	taskAttemptValue           = "Attempt"
+	taskClaimedByValue         = "Claimed By"
+	taskCreatedValue           = "Created"
+	taskCreatedByValue         = "Created By"
+	taskDescriptionValue       = "Description"
+	taskEndedValue             = "Ended"
+	taskErrorValue             = "Error"
+	taskIdentifierValue        = "Identifier"
+	taskKindValue              = "Kind"
+	taskModeValue              = "Mode"
+	taskOriginValue            = "Origin"
+	taskOutcomeValue           = "Outcome"
+	taskOwnerValue             = "Owner"
+	taskParentValue            = "Parent"
+	taskQueuedValue            = "Queued"
+	taskReasonValue            = "Reason"
+	taskResultValue            = "Result"
+	taskReviewValue            = "Review"
+	taskRunValue               = "Run"
+	taskScopeValue             = "Scope"
+	taskSessionValue           = "Session"
+	taskStartedValue           = "Started"
+	taskStatusValue            = "Status"
+	taskTaskValue              = "Task"
+	taskTaskIDValue            = "Task ID"
+	taskTimeValue              = "Time"
+	taskTitleValue             = "Title"
+	taskUpdatedValue           = "Updated"
+	taskWorkspaceValue         = "Workspace"
+	taskAttemptKey             = "attempt"
+	taskAutoEnqueueOnReadyFlag = "auto-enqueue-on-ready"
+	taskClaimedByKey           = "claimed_by"
+	taskCreateKey              = "create"
+	taskCreatedAtKey           = "created_at"
+	createdByKey               = "created_by"
+	taskDeleteIDValue          = "delete <id>"
+	taskDeletedKey             = "deleted"
+	taskDescriptionKey         = "description"
+	taskEndedAtKey             = "ended_at"
+	taskErrorKey               = "error"
+	taskFailureKindKey         = "failure_kind"
+	taskGetIDValue             = "get <id>"
+	taskIdentifierKey          = "identifier"
+	taskKindKey                = "kind"
+	taskListKey                = "list"
+	taskNextKey                = "next"
+	taskOriginKey              = cliOriginKey
+	taskOutcomeKey             = "outcome"
+	taskProfileKey             = profileFlagName
+	taskQueuedAtKey            = "queued_at"
+	taskReasonKey              = "reason"
+	taskReviewKey              = "review"
+	taskRunIDKey               = "run_id"
+	taskScopeKey               = "scope"
+	taskSessionIDKey           = "session_id"
+	taskStartedAtKey           = "started_at"
+	taskStatusKey              = "status"
+	taskTaskKey                = "task"
+	taskTaskIDKey              = "task_id"
+	taskTimestampKey           = "timestamp"
+	taskTitleKey               = "title"
+	taskUpdateIDValue          = "update <id>"
+	taskUpdatedAtKey           = "updated_at"
+	taskWorkspaceIDKey         = "workspace_id"
+	taskWorktreeModeKey        = "mode"
+	taskWorktreeRefKey         = "ref"
 )
 
 type taskCreateInput struct {
@@ -105,7 +96,6 @@ type taskCreateInput struct {
 	Identifier         string
 	ScopeRaw           string
 	WorkspaceRef       string
-	NetworkFlags       networkParticipationFlags
 	Title              string
 	Description        string
 	PriorityRaw        string
@@ -127,7 +117,6 @@ type taskBlockInput struct {
 
 type taskExecutionInput struct {
 	IdempotencyKey string
-	NetworkFlags   networkParticipationFlags
 	MetadataRaw    string
 }
 
@@ -143,30 +132,7 @@ type taskReviewSubmitInput struct {
 	ReviewText        string
 }
 
-type taskNotificationSubscribeInput struct {
-	SubscriptionID   string
-	BridgeInstanceID string
-	ScopeRaw         string
-	WorkspaceID      string
-	PeerID           string
-	ThreadID         string
-	GroupID          string
-	DeliveryModeRaw  string
-}
-
-type taskPromoteInput struct {
-	WorkspaceRef    string
-	Channel         string
-	ThreadID        string
-	OriginMessageID string
-	Title           string
-	Description     string
-	Priority        string
-	MetadataRaw     string
-}
-
 type taskFanOutInput struct {
-	NetworkFlags   networkParticipationFlags
 	Designations   []string
 	IdempotencyKey string
 	WorktreePerRun bool
@@ -227,13 +193,11 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
   compozy task create --scope workspace --workspace checkout-api --title "Audit auth flow"
 
   # Explicitly enqueue execution for an existing task
-  compozy task start task-123 --network live \
-    --network-channel-strategy named --network-channel coord-run-123
+  compozy task start task-123
 
   # Let the current agent session claim work
   compozy task next --wait`,
 	}
-
 	cmd.AddCommand(newTaskListCommand(deps))
 	cmd.AddCommand(newTaskCreateCommand(deps))
 	cmd.AddCommand(newTaskGetCommand(deps))
@@ -242,7 +206,6 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskDeleteCommand(deps))
 	cmd.AddCommand(newTaskProfileCommand(deps))
 	cmd.AddCommand(newTaskReviewCommand(deps))
-	cmd.AddCommand(newTaskNotificationCommand(deps))
 	cmd.AddCommand(newTaskPublishCommand(deps))
 	cmd.AddCommand(newTaskStartCommand(deps))
 	cmd.AddCommand(newTaskApproveCommand(deps))
@@ -260,7 +223,6 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskRecoverCommand(deps))
 	cmd.AddCommand(newTaskPauseCommand(deps))
 	cmd.AddCommand(newTaskResumeCommand(deps))
-	cmd.AddCommand(newTaskPromoteCommand(deps))
 	cmd.AddCommand(newTaskFanOutCommand(deps))
 	cmd.AddCommand(newTaskChildCommand(deps))
 	cmd.AddCommand(newTaskDependencyCommand(deps))

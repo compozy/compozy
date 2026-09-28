@@ -10,7 +10,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -34,22 +34,22 @@ type automationRuntime interface {
 }
 
 type automationManagerDeps struct {
-	Store                 automationpkg.Store
-	Sessions              SessionManager
-	Tasks                 taskpkg.Manager
-	WorkspaceResolver     workspacepkg.RuntimeResolver
-	Config                compozyconfig.AutomationConfig
-	Hooks                 automationpkg.HookDispatcher
-	WebhookSecrets        automationpkg.WebhookSecretStore
-	Logger                *slog.Logger
-	GlobalWorkspacePath   string
-	ResourceStore         resources.RawStore
-	ResourceCodecs        *resources.CodecRegistry
-	ResourceTrigger       func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	LoopCatalog           *resourceCatalog[looppkg.ResourceSpec]
-	ToolRegistry          toolspkg.Registry
-	ParticipationResolver participation.Resolver
-	LoopInputEntities     looppkg.InputEntityCatalog
-	LoopRuntimeCatalog    looppkg.WorkspaceRuntimeCatalog
-	Profiles              loopProfileNameResolver
+	Store               automationpkg.Store
+	Sessions            SessionManager
+	Tasks               taskpkg.Manager
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	Config              compozyconfig.AutomationConfig
+	Hooks               automationpkg.HookDispatcher
+	WebhookSecrets      automationpkg.WebhookSecretStore
+	Logger              *slog.Logger
+	GlobalWorkspacePath string
+	ResourceStore       resources.RawStore
+	ResourceCodecs      *resources.CodecRegistry
+	ResourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	LoopCatalog         *resourceCatalog[looppkg.ResourceSpec]
+	ToolRegistry        toolspkg.Registry
+
+	LoopInputEntities  looppkg.InputEntityCatalog
+	LoopRuntimeCatalog looppkg.WorkspaceRuntimeCatalog
+	Profiles           loopProfileNameResolver
 }

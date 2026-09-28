@@ -11,7 +11,6 @@ import {
   SettingsSaveBar,
   useSettingsPersonaPage,
   useSettingsProviders,
-  useSettingsSandboxes,
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
@@ -38,7 +37,6 @@ function SmoothStreamingSetting() {
 export function DefaultsSettingsPage() {
   const page = useSettingsPersonaPage();
   const providers = useSettingsProviders();
-  const sandboxes = useSettingsSandboxes();
   useSettingsTopbar("defaults");
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
@@ -48,11 +46,11 @@ export function DefaultsSettingsPage() {
     warnings: page.warnings,
     lastAppliedLabel: null,
   });
-  const dependencyError = providers.error ?? sandboxes.error;
+  const dependencyError = providers.error;
   const dependencyErrorMessage =
     dependencyError instanceof Error ? dependencyError.message : "Failed to load runtime options";
 
-  if (page.isLoading || providers.isLoading || sandboxes.isLoading) {
+  if (page.isLoading || providers.isLoading) {
     return (
       <div
         aria-label="Loading profile defaults"
@@ -85,7 +83,6 @@ export function DefaultsSettingsPage() {
             onClick={() => {
               page.handleRetry();
               void providers.refetch();
-              void sandboxes.refetch();
             }}
             size="sm"
             type="button"
@@ -99,7 +96,6 @@ export function DefaultsSettingsPage() {
   }
 
   const providerNames = (providers.data?.providers ?? []).map(entry => entry.name);
-  const sandboxNames = (sandboxes.data?.sandboxes ?? []).map(entry => entry.name);
   const { draft, setDraft } = page;
 
   return (
@@ -161,27 +157,7 @@ export function DefaultsSettingsPage() {
           }
           label="Provider"
         />
-        <SettingRow
-          control={
-            <NativeSelect
-              className="w-52 font-mono"
-              data-testid="settings-page-defaults-sandbox"
-              onChange={event => {
-                const sandbox = event.currentTarget.value;
-                setDraft(current => (current === null ? current : { ...current, sandbox }));
-              }}
-              value={draft.sandbox ?? ""}
-            >
-              <NativeSelectOption value="">local</NativeSelectOption>
-              {sandboxNames.map(name => (
-                <NativeSelectOption key={name} value={name}>
-                  {name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          }
-          label="Sandbox"
-        />
+
         <SmoothStreamingSetting />
       </SettingsGroup>
     </SettingsPageFrame>

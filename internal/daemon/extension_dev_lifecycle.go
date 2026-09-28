@@ -40,7 +40,7 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 			snapshot.BundleGeneration,
 		)
 		rollbackErr = errors.Join(rollbackErr, err)
-		rollbackErr = errors.Join(rollbackErr, s.restoreDevNetworkConfirmation(key, snapshot))
+		rollbackErr = errors.Join(rollbackErr, s.restoreDevGatewayConfirmation(key, snapshot))
 		_, err = runtime.ActivateDevelopmentLink(rollbackCtx, key)
 		rollbackErr = errors.Join(rollbackErr, err)
 	}
@@ -75,13 +75,13 @@ func (s *daemonExtensionService) restoreStagedDevLink(
 		WorkspaceID:              snapshot.WorkspaceID,
 		OriginPath:               snapshot.OriginPath,
 		GenerationHash:           snapshot.BundleGeneration,
-		NetworkRequirementDigest: snapshot.NetworkRequirementDigest,
+		GatewayRequirementDigest: snapshot.GatewayRequirementDigest,
 		Format:                   snapshot.Format,
 		IngestDiagnostics:        snapshot.IngestDiagnostics,
 	}); err != nil {
 		return err
 	}
-	return s.restoreDevNetworkConfirmation(key, snapshot)
+	return s.restoreDevGatewayConfirmation(key, snapshot)
 }
 
 func (s *daemonExtensionService) rollbackDevRemoval(
@@ -99,16 +99,16 @@ func (s *daemonExtensionService) rollbackDevRemoval(
 	)
 }
 
-func (s *daemonExtensionService) restoreDevNetworkConfirmation(
+func (s *daemonExtensionService) restoreDevGatewayConfirmation(
 	key extensionpkg.InstanceKey,
 	snapshot *extensionpkg.DevLink,
 ) error {
 	if snapshot == nil {
 		return nil
 	}
-	return s.registry.RestoreNetworkConfirmation(key, extensionpkg.NetworkConfirmation{
-		Digest:      snapshot.NetworkRequirementDigest,
-		ConfirmedBy: snapshot.NetworkConfirmedBy,
-		ConfirmedAt: snapshot.NetworkConfirmedAt,
+	return s.registry.RestoreGatewayConfirmation(key, extensionpkg.GatewayConfirmation{
+		Digest:      snapshot.GatewayRequirementDigest,
+		ConfirmedBy: snapshot.GatewayConfirmedBy,
+		ConfirmedAt: snapshot.GatewayConfirmedAt,
 	})
 }

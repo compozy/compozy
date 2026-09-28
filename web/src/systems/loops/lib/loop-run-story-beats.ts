@@ -107,7 +107,6 @@ const BEAT_REGISTER: Record<LoopTimelineEntry["kind"], BeatRegister> = {
   goal_status_changed: { tone: "neutral", icon: "started" },
   // Machinery — chatter tier; present under `all`, coalesced by the daemon.
   token_tick: { tone: "neutral", icon: "effect" },
-  channel_msg: { tone: "neutral", icon: "effect" },
   runtime_applied: { tone: "neutral", icon: "effect" },
   predicate_diagnostic: { tone: "neutral", icon: "check-warn" },
   effect_results: { tone: "neutral", icon: "effect" },

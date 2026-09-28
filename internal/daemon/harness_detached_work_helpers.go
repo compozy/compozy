@@ -35,8 +35,6 @@ func normalizeDetachedHarnessTurnSource(source session.TurnSource) session.TurnS
 	switch session.TurnSource(strings.TrimSpace(string(source))) {
 	case "", session.TurnSourceUser:
 		return session.TurnSourceUser
-	case session.TurnSourceNetwork:
-		return session.TurnSourceNetwork
 	case session.TurnSourceSynthetic:
 		return session.TurnSourceSynthetic
 	default:

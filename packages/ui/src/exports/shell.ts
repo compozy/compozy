@@ -15,7 +15,6 @@ export {
   type TopbarSlotValue,
 } from "../components/custom/hooks/use-topbar-slot";
 export { RouteNav } from "../components/custom/route-nav";
-export { KindChip, type KindChipProps } from "../components/custom/kind-chip";
 export {
   RightRail,
   type RightRailMode,

@@ -324,7 +324,7 @@ func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engi
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	runtimeConfig := testConfigWithDisabledNetwork(homePaths)
+	runtimeConfig := testConfigForTest(homePaths)
 	cfg.HomePaths = homePaths
 	cfg.Config = runtimeConfig
 	cfg.Logger = testutil.DiscardLogger()

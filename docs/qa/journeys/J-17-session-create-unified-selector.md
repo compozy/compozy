@@ -11,7 +11,7 @@ flowchart TD
     E1[Entry: Agents view or agent detail → Start session] --> D[Launch dialog]
     D --> S[Simple: choose agent]
     S --> ADV{Open Advanced?}
-    ADV -->|yes| A[Set workspace, optional name, working path, Network participation]
+    ADV -->|yes| A[Set workspace, optional name, working path]
     ADV -->|no| POST
     A --> W{Workspace changed?}
     W -->|yes| CLR[Clear only workspace-scoped launch selections]
@@ -53,7 +53,7 @@ journey:
       expected_observable: "Simple shows agent selection only; it contains no first-message composer and no runtime selector."
     - step: 2
       verb: "Optionally open Advanced and choose launch details"
-      expected_observable: "Workspace, optional name, working path, and Network participation are available in Advanced; changing workspace clears only workspace-scoped launch selections."
+      expected_observable: "Workspace, optional name, working path are available in Advanced; changing workspace clears only workspace-scoped launch selections."
     - step: 3
       verb: "Create the session"
       expected_observable: "Create gives immediate truthful feedback, persists one durable logical session without queuing a prompt, activates the returned owner workspace, and navigates to the created session."
@@ -85,7 +85,7 @@ design_reference:
   truthful_ui_checks:
     - "The launch dialog never offers a first-message composer or runtime selector; runtime selection is available after navigation in the session composer."
     - "Create yields one durable session and uses its returned workspace_id before navigation, so the destination is never redirected or silently scoped to the previous workspace."
-    - "Workspace, name, working path, and Network participation are advanced launch details; changing workspace clears only selections whose scope changed."
+    - "Workspace, name, working path are advanced launch details; changing workspace clears only selections whose scope changed."
     - "A chosen prompt runtime is not presented as an agent-default mutation or as a property of earlier prompts."
     - "Use an exact custom model ID opens a labelled field, keeps its provider target explicit, preserves case, and never disappears behind catalog loading."
 

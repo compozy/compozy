@@ -30,15 +30,6 @@ type automationRunWatchObserver interface {
 	OnAutomationRunFailed(context.Context, hookspkg.AutomationRunFailedPayload) error
 }
 
-type networkWatchObserver interface {
-	OnNetworkThreadOpened(context.Context, hookspkg.NetworkThreadOpenedPayload) error
-	OnNetworkDirectRoomOpened(context.Context, hookspkg.NetworkDirectRoomOpenedPayload) error
-	OnNetworkMessagePersisted(context.Context, hookspkg.NetworkMessagePersistedPayload) error
-	OnNetworkWorkOpened(context.Context, hookspkg.NetworkWorkOpenedPayload) error
-	OnNetworkWorkTransitioned(context.Context, hookspkg.NetworkWorkTransitionedPayload) error
-	OnNetworkWorkClosed(context.Context, hookspkg.NetworkWorkClosedPayload) error
-}
-
 func (n *hooksNotifier) AddTaskStatusChangedObserver(observer taskStatusChangedObserver) {
 	if n == nil || observer == nil {
 		return
@@ -104,15 +95,6 @@ func (n *hooksNotifier) AddAutomationRunWatchObserver(observer automationRunWatc
 	n.automationRunWatchHooks = append(n.automationRunWatchHooks, observer)
 }
 
-func (n *hooksNotifier) AddNetworkWatchObserver(observer networkWatchObserver) {
-	if n == nil || observer == nil {
-		return
-	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.networkWatchHooks = append(n.networkWatchHooks, observer)
-}
-
 func (n *hooksNotifier) taskStatusChangedObservers() []taskStatusChangedObserver {
 	if n == nil {
 		return nil
@@ -147,15 +129,6 @@ func (n *hooksNotifier) automationRunWatchObservers() []automationRunWatchObserv
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return append([]automationRunWatchObserver(nil), n.automationRunWatchHooks...)
-}
-
-func (n *hooksNotifier) networkWatchObservers() []networkWatchObserver {
-	if n == nil {
-		return nil
-	}
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return append([]networkWatchObserver(nil), n.networkWatchHooks...)
 }
 
 func dispatchTaskStatusChangedWithWatchObservers(

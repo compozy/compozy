@@ -1,10 +1,10 @@
-import { CheckCircle2, FlaskConical, Info, Play, Radio, TextCursorInput } from "lucide-react";
+import { CheckCircle2, FlaskConical, Info, Play, TextCursorInput } from "lucide-react";
 
 import { Button, Eyebrow, Spinner } from "@compozy/ui";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
 import { loopSourceLabel } from "../../lib/loop-catalog";
-import { declaredInputCountsGist, participationGist } from "../../lib/loop-run-form";
+import { declaredInputCountsGist } from "../../lib/loop-run-form";
 import { LoopPageLede } from "../loop-page-lede";
 import { LoopRailSection } from "../loop-rail-section";
 import type { LoopDetail, LoopEffectiveConfig, LoopRun } from "../../types";
@@ -12,7 +12,6 @@ import { LoopRunActiveNotice } from "./loop-run-active-notice";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPlan } from "./loop-run-plan";
-import { NetworkParticipationFields } from "@/systems/network";
 import { ProfileDestinationChip } from "@/systems/profiles";
 import { useWorktrees } from "@/systems/workspace";
 import { LoopRunEnvironment } from "./loop-run-environment";
@@ -203,22 +202,6 @@ export function LoopRunForm({
               </div>
             )}
           </LoopInputCatalogBoundary>
-        </LoopRailSection>
-
-        <LoopRailSection
-          gist={participationGist(form.networkParticipation)}
-          icon={<Radio aria-hidden="true" className="size-3.5" />}
-          title="Participation"
-        >
-          <div className="px-3.5 py-3">
-            <NetworkParticipationFields
-              allowedStrategies={["named", "loop_run"]}
-              disabled={form.busy}
-              onChange={form.setNetworkParticipationDraft}
-              testIdPrefix="loop-run-participation"
-              value={form.networkParticipation}
-            />
-          </div>
         </LoopRailSection>
 
         <LoopRunEnvironment

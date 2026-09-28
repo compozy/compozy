@@ -40,7 +40,6 @@ const (
 	LoopRunEventNodeFailed           = looppkg.RunEventNodeFailed
 	LoopRunEventGateVerdict          = looppkg.RunEventGateVerdict
 	LoopRunEventGenerationStarted    = looppkg.RunEventGenerationStarted
-	LoopRunEventChannelMsg           = looppkg.RunEventChannelMsg
 	LoopRunEventTokenTick            = looppkg.RunEventTokenTick
 	LoopRunEventNeedsApproval        = looppkg.RunEventNeedsApproval
 	LoopRunEventStatusChanged        = looppkg.RunEventStatusChanged

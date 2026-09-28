@@ -12,7 +12,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -56,11 +55,11 @@ func (n *daemonNativeTools) nativeLoopWorkspaceID(
 	}
 	workspace, err := n.deps.Workspaces.Resolve(ctx, resolved)
 	if err != nil {
-		return "", nativeNetworkInputError(id, err)
+		return "", nativeInputError(id, err)
 	}
 	registryID, err := nativeResolvedRegistryWorkspaceID(&workspace)
 	if err != nil {
-		return "", nativeNetworkInputError(id, err)
+		return "", nativeInputError(id, err)
 	}
 	return registryID, nil
 }
@@ -337,13 +336,13 @@ type nativeLoopCreateInput struct {
 }
 
 type nativeLoopRunInput struct {
-	WorkspaceID          string                 `json:"workspace,omitempty"`
-	Name                 string                 `json:"name"`
-	Inputs               map[string]any         `json:"inputs,omitempty"`
-	ParentLoopRunID      string                 `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides      *looppkg.LoopConfig    `json:"config_overrides,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	Dry                  bool                   `json:"dry,omitempty"`
+	WorkspaceID     string              `json:"workspace,omitempty"`
+	Name            string              `json:"name"`
+	Inputs          map[string]any      `json:"inputs,omitempty"`
+	ParentLoopRunID string              `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides *looppkg.LoopConfig `json:"config_overrides,omitempty"`
+
+	Dry bool `json:"dry,omitempty"`
 }
 
 type nativeLoopRunsInput struct {

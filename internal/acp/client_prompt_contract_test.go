@@ -1013,66 +1013,51 @@ func TestPromptActivityReporterReportsWhilePromptIsInFlight(t *testing.T) {
 
 func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 	t.Parallel()
+	t.Run("Should transmit synthetic task metadata through ACP", func(t *testing.T) {
+		t.Parallel()
 
-	driver := New()
-	proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{})
-	defer stopProcess(t, driver, proc)
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
 
-	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-		TurnID:  "turn-meta",
-		Message: "network delivery",
-		Meta: PromptMeta{
-			TurnSource: PromptTurnSourceNetwork,
-			Network: &PromptNetworkMeta{
-				MessageID:   "msg-meta-1",
-				Kind:        "say",
-				Channel:     "builders",
-				Surface:     "direct",
-				DirectID:    "direct_meta_1",
-				From:        "ops.peer",
-				To:          "worker.peer",
-				WorkID:      "work-meta-1",
-				ReplyTo:     "msg-root-1",
-				TraceID:     "trace-meta-1",
-				CausationID: "msg-root-1",
-				Trust:       "untrusted",
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-meta",
+			Message: "task wake-up",
+			Meta: PromptMeta{
+				TurnSource: PromptTurnSourceSynthetic,
+				Synthetic: &PromptSyntheticMeta{
+					Reason:    "task_run_completed",
+					TaskID:    "task-1",
+					TaskRunID: "run-1",
+					Summary:   "Completed task",
+				},
 			},
-		},
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var payload PromptMeta
+		if err := json.Unmarshal([]byte(events[0].Text), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(prompt meta echo) error = %v", err)
+		}
+		if got, want := payload.TurnSource, PromptTurnSourceSynthetic; got != want {
+			t.Fatalf("payload.TurnSource = %q, want %q", got, want)
+		}
+		if payload.Synthetic == nil {
+			t.Fatal("payload.Synthetic = nil, want task provenance")
+		}
+		if got := payload.Synthetic; got.Reason != "task_run_completed" || got.TaskID != "task-1" ||
+			got.TaskRunID != "run-1" ||
+			got.Summary != "Completed task" {
+			t.Fatalf("payload.Synthetic = %#v, want complete task provenance", got)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-
-	events := collectEvents(t, eventsCh)
-	if len(events) == 0 {
-		t.Fatal("Prompt() returned no events")
-	}
-
-	var payload PromptMeta
-	if err := json.Unmarshal([]byte(events[0].Text), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(prompt meta echo) error = %v", err)
-	}
-	if got, want := payload.TurnSource, PromptTurnSourceNetwork; got != want {
-		t.Fatalf("payload.TurnSource = %q, want %q", got, want)
-	}
-	if payload.Network == nil {
-		t.Fatal("payload.Network = nil, want populated network metadata")
-	}
-	if got, want := payload.Network.MessageID, "msg-meta-1"; got != want {
-		t.Fatalf("payload.Network.MessageID = %q, want %q", got, want)
-	}
-	if got, want := payload.Network.Surface, "direct"; got != want {
-		t.Fatalf("payload.Network.Surface = %q, want %q", got, want)
-	}
-	if got, want := payload.Network.DirectID, "direct_meta_1"; got != want {
-		t.Fatalf("payload.Network.DirectID = %q, want %q", got, want)
-	}
-	if got, want := payload.Network.WorkID, "work-meta-1"; got != want {
-		t.Fatalf("payload.Network.WorkID = %q, want %q", got, want)
-	}
-	if got, want := payload.Network.Trust, "untrusted"; got != want {
-		t.Fatalf("payload.Network.Trust = %q, want %q", got, want)
-	}
 }
 
 func TestPromptStreamsSessionUpdates(t *testing.T) {

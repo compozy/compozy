@@ -32,12 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/memory/provider/local/memstore"
 	"github.com/compozy/compozy/internal/profile"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
-	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
-
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/sandbox"
 
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -92,7 +87,6 @@ type bootState struct {
 	processRegistry        *toolruntime.Registry
 	terminals              *terminalpkg.Service
 	terminalPermissions    *terminalPermissionBridge
-	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
 	worktrees              *worktree.Service
 	windowManagerBootState
@@ -109,11 +103,8 @@ type bootState struct {
 	spawnReaper           *spawnReaper
 	scheduler             *schedulerRuntime
 	coordinator           *coordinatorRuntime
-	network               networkRuntime
 	gateway               gateway.Policy
 	gatewayVerifier       *gateway.EndpointVerifier
-	networkWakeRunner     *networkWakeRunner
-	participationResolver participation.Resolver
 	accessPolicy          workspaceaccess.Policy
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
@@ -156,8 +147,6 @@ type bootState struct {
 	extensions            extensionRuntime
 	resourceReconcile     resources.ReconcileDriver
 	automation            automationRuntime
-	bridges               *bridgeRuntime
-	notificationPresets   *presetspkg.Service
 	supportBundles        supportBundleShutdowner
 	updateManager         settingsUpdateManager
 	backgroundUpdates     *backgroundUpdateRuntime
@@ -256,13 +245,11 @@ func (d *Daemon) beginBoot() error {
 		d.sessions != nil ||
 		d.modelCatalog != nil ||
 		d.marketplace != nil ||
-		d.network != nil ||
 		d.gateway != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
 		d.resourceReconcile != nil ||
-		d.automation != nil ||
-		d.bridges != nil {
+		d.automation != nil {
 		return errors.New("daemon: already booted")
 	}
 	d.admission.Undrain()
@@ -343,7 +330,6 @@ func (d *Daemon) bootHarnessPromptRuntime(
 				prependProviders,
 				appendProviders,
 				state.situationContext,
-				0,
 			)...,
 		),
 	)
@@ -451,9 +437,6 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 				return nil
 			}
 			return state.tasks.store
-		},
-		NetworkFunc: func() situation.NetworkReader {
-			return state.network
 		},
 		CoordinatorRoleFunc: func() situation.CoordinatorRoleResolver {
 			return state.deps.CoordinatorRole

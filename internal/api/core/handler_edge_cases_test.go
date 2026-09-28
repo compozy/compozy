@@ -24,7 +24,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -1109,122 +1108,6 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 				http.StatusInternalServerError,
 				resp.Body.String(),
 			)
-		}
-	})
-
-	t.Run("Should daemon status network enabled without service", func(t *testing.T) {
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{}, nil
-				},
-			},
-			testutil.StubObserver{
-				HealthFn: func(context.Context) (observe.Health, error) {
-					return observe.Health{Status: "ok", Version: "dev"}, nil
-				},
-			},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = nil
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf(
-				"daemon status = %d, want %d; body=%s",
-				resp.Code,
-				http.StatusOK,
-				resp.Body.String(),
-			)
-		}
-		var payload contract.StatusPayload
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
-			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
-		}
-	})
-
-	t.Run("Should daemon status network missing payload", func(t *testing.T) {
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{}, nil
-				},
-			},
-			testutil.StubObserver{
-				HealthFn: func(context.Context) (observe.Health, error) {
-					return observe.Health{Status: "ok", Version: "dev"}, nil
-				},
-			},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = testutil.StubNetworkService{
-			StatusFn: func(context.Context) (*network.Status, error) {
-				return nil, nil
-			},
-		}
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf(
-				"daemon status = %d, want %d; body=%s",
-				resp.Code,
-				http.StatusOK,
-				resp.Body.String(),
-			)
-		}
-		var payload contract.StatusPayload
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
-			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
-		}
-	})
-
-	t.Run("Should daemon status network failure", func(t *testing.T) {
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{}, nil
-				},
-			},
-			testutil.StubObserver{
-				HealthFn: func(context.Context) (observe.Health, error) {
-					return observe.Health{Status: "ok", Version: "dev"}, nil
-				},
-			},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = testutil.StubNetworkService{
-			StatusFn: func(context.Context) (*network.Status, error) {
-				return nil, errors.New("network failed")
-			},
-		}
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf(
-				"daemon status = %d, want %d; body=%s",
-				resp.Code,
-				http.StatusOK,
-				resp.Body.String(),
-			)
-		}
-		var payload contract.StatusPayload
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
-			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
 		}
 	})
 }

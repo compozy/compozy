@@ -14,44 +14,6 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func (s *service) buildSandboxItems(
-	ctx context.Context,
-	cfg *compozyconfig.Config,
-) ([]SandboxItem, error) {
-	usage := make(map[string]int)
-	if s.workspaceResolver != nil {
-		workspaces, err := s.workspaceResolver.List(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("settings: list workspaces for sandbox usage: %w", err)
-		}
-		for _, workspace := range workspaces {
-			ref := strings.TrimSpace(workspace.SandboxRef)
-			if ref == "" {
-				continue
-			}
-			usage[ref]++
-		}
-	}
-
-	names := make([]string, 0, len(cfg.Sandboxes))
-	for name := range cfg.Sandboxes {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	items := make([]SandboxItem, 0, len(names))
-	for _, name := range names {
-		item := SandboxItem{
-			Name:                name,
-			Profile:             cfg.Sandboxes[name],
-			WorkspaceUsageCount: usage[name],
-			SourceMetadata:      globalConfigSourceMetadata(),
-		}
-		items = append(items, cloneSandboxItem(item))
-	}
-	return items, nil
-}
-
 func (s *service) buildMCPServerItems(
 	ctx context.Context,
 	scope ScopeKind,

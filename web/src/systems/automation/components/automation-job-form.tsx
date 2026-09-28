@@ -232,7 +232,6 @@ export function AutomationJobForm({
                     jobName={draft.name}
                     onOwnerKind={form.onOwnerKind}
                     onOwnerRef={form.onOwnerRef}
-                    onNetworkParticipationChange={form.onTaskNetworkParticipation}
                     onTaskDescription={form.onTaskDescription}
                     onTaskTitle={form.onTaskTitle}
                     task={draft.task}

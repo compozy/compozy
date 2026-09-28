@@ -4,9 +4,9 @@ area: ET
 title: Iterate on a resource-only extension without a build toolchain
 persona: Bruno
 journey: J-extension-dev-lifecycle
-expected: A native extension that declares only static agents, skills, loops, automation, or layouts builds without package.json or go.mod and without running build or describe commands; network participation remains in the generated manifest and contributes to its generation hash; dev, reload, and watch publish changed resources only to the selected workspace; and an invalid edit leaves the last-good generation active.
+expected: A native extension that declares only static agents, skills, loops, automation, or layouts builds without package.json or go.mod and without running build or describe commands; dev, reload, and watch publish changed resources only to the selected workspace; and an invalid edit leaves the last-good generation active.
 entry_points: `compozy extension build <dir>`; `compozy extension dev <dir> --workspace <ref>`; `compozy extension reload <name> <dir> --workspace <ref>`; `compozy extension dev <dir> --watch`; `GET /api/agents?workspace=<ref>`
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,29 +16,8 @@ last_report: docs/qa/reports/2026-08-17-pr-423-resource-only-watch.md
 overlaps: ET-extension-dev-reload-loop; ET-agent-plugin-dev-reload
 ---
 
-Issue #421 adds the passive resource-kit lane to the existing immutable generation and workspace
-overlay lifecycle. This scenario owns absence of a language toolchain and absence of extension
-build/describe subprocesses; the generic dev scenario remains canonical for logs, executable tool
-invocation, and published-instance restoration.
+A native extension that declares only static agents, skills, loops, automation, or layouts builds without package.json or go.mod and without running build or describe commands; dev, reload, and watch publish changed resources only to the selected workspace; and an invalid edit leaves the last-good generation active.
 
-The failure probes are part of the user promise: an authored subprocess, capability, permission,
-dynamic publication family, or explicit build command must fail with a toolchain diagnostic instead
-of being silently treated as a passive kit. Invalid static resource edits must fail before the daemon
-replaces the workspace's active generation.
+Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
-QA 2026-08-17: Bruno built a passive agent kit twice to the same generation, linked it to one
-workspace, observed it only through that workspace's public agent catalog, reloaded a changed prompt,
-and confirmed malformed YAML left the new last-good generation active. Removal cleared the projected
-agent, and a code-backed scaffold remained callable as the adjacent compatibility canary. The
-source-freeze retest also confirmed the workspace agent through `compozy__workspace_describe` before
-strict evidence audit and clean teardown.
-
-QA impact 2026-08-17 (PR #423 review): reset after the resource-only watch path, generated Network
-requirement fidelity, and cross-workspace consumer synchronization were strengthened. The new targeted
-walk must exercise an actual long-running `--watch` process and a fresh public read after the edit.
-
-QA 2026-08-17 (PR #423 review): Bruno observed the Network consent refusal, retried with the exact
-digest, kept `extension dev --watch` active, changed only `SKILL.md`, and received generation
-`8df8e674…` after `898e6f20…`. Workspace API reads returned the changed skill and agent while global
-reads returned neither. A malformed skill then failed with a positioned YAML error while the daemon
-kept `8df8e674…` and its prior skill active. A code-backed tool-provider remained callable.
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

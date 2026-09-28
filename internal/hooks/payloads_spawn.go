@@ -2,40 +2,35 @@ package hooks
 
 import (
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // PermissionSet captures concrete permission atoms that spawned children may only narrow.
 type PermissionSet struct {
-	Tools           []string `json:"tools,omitempty"`
-	Skills          []string `json:"skills,omitempty"`
-	MCPServers      []string `json:"mcp_servers,omitempty"`
-	WorkspacePaths  []string `json:"workspace_paths,omitempty"`
-	NetworkChannels []string `json:"network_channels,omitempty"`
-	SandboxProfiles []string `json:"sandbox_profiles,omitempty"`
+	Tools          []string `json:"tools,omitempty"`
+	Skills         []string `json:"skills,omitempty"`
+	MCPServers     []string `json:"mcp_servers,omitempty"`
+	WorkspacePaths []string `json:"workspace_paths,omitempty"`
 }
 
 // SpawnContext carries spawn identifiers shared across spawn lifecycle hooks.
 type SpawnContext struct {
-	ProfileID                    string              `json:"profile_id,omitempty"`
-	ParentSessionID              string              `json:"parent_session_id,omitempty"`
-	RootSessionID                string              `json:"root_session_id,omitempty"`
-	ChildSessionID               string              `json:"child_session_id,omitempty"`
-	WorkspaceID                  string              `json:"workspace_id,omitempty"`
-	Workspace                    string              `json:"workspace,omitempty"`
-	AgentName                    string              `json:"agent_name,omitempty"`
-	SpawnRole                    string              `json:"spawn_role,omitempty"`
-	SpawnDepth                   int                 `json:"spawn_depth,omitempty"`
-	TTLSeconds                   int64               `json:"ttl_seconds,omitempty"`
-	AutoStopOnParent             bool                `json:"auto_stop_on_parent,omitempty"`
-	TaskID                       string              `json:"task_id,omitempty"`
-	RunID                        string              `json:"run_id,omitempty"`
-	WorkflowID                   string              `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
-	SoulSnapshotID               string              `json:"soul_snapshot_id,omitempty"`
-	SoulDigest                   string              `json:"soul_digest,omitempty"`
-	ParentSoulDigest             string              `json:"parent_soul_digest,omitempty"`
+	ProfileID        string `json:"profile_id,omitempty"`
+	ParentSessionID  string `json:"parent_session_id,omitempty"`
+	RootSessionID    string `json:"root_session_id,omitempty"`
+	ChildSessionID   string `json:"child_session_id,omitempty"`
+	WorkspaceID      string `json:"workspace_id,omitempty"`
+	Workspace        string `json:"workspace,omitempty"`
+	AgentName        string `json:"agent_name,omitempty"`
+	SpawnRole        string `json:"spawn_role,omitempty"`
+	SpawnDepth       int    `json:"spawn_depth,omitempty"`
+	TTLSeconds       int64  `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent bool   `json:"auto_stop_on_parent,omitempty"`
+	TaskID           string `json:"task_id,omitempty"`
+	RunID            string `json:"run_id,omitempty"`
+	WorkflowID       string `json:"workflow_id,omitempty"`
+	SoulSnapshotID   string `json:"soul_snapshot_id,omitempty"`
+	SoulDigest       string `json:"soul_digest,omitempty"`
+	ParentSoulDigest string `json:"parent_soul_digest,omitempty"`
 }
 
 // HookProfileID returns the durable owner used to isolate profile-scoped declarations.

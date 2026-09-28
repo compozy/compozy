@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-01; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-16
 last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
-overlaps: LP-run-detail-story-redesign;LP-web-run-page-section-grammar;LP-fanout-progress-naming;LP-web-runs-roster-rerank;LP-web-strategy-progress
+overlaps: LP-run-detail-story-redesign; LP-web-run-page-section-grammar; LP-fanout-progress-naming; LP-web-runs-roster-rerank; LP-web-strategy-progress
 ---
 
 story: As a supervisor I open any run and understand what is running, what needs me, how far along it is, what it has spent, and what it produced — in under thirty seconds, in plain words, without runtime literacy and without opening a single disclosure.

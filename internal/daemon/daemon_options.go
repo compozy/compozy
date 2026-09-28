@@ -66,16 +66,6 @@ func WithCompozyExecutableResolver(resolver func() (string, error)) Option {
 	}
 }
 
-// WithBridgeSecretResolver injects the daemon-owned resolver used to convert
-// bridge secret bindings into launch-time bound secret material. When this
-// option is not supplied, daemon boot wires the canonical vault-backed resolver.
-func WithBridgeSecretResolver(resolver BridgeSecretResolver) Option {
-	return func(d *Daemon) {
-		d.bridgeSecretResolver = resolver
-		d.bridgeSecretResolverExplicit = true
-	}
-}
-
 // WithNow overrides the daemon clock, mainly for tests.
 func WithNow(now func() time.Time) Option {
 	return func(d *Daemon) {

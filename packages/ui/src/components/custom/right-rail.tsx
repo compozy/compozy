@@ -24,7 +24,7 @@ export function RightRail({ open, mode, children, className }: RightRailProps) {
         className
       )}
       data-mode={mode}
-      data-testid="network-right-rail"
+      data-testid="right-rail"
     >
       {children}
     </aside>

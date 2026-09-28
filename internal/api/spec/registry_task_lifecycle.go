@@ -16,7 +16,6 @@ func registryTaskLifecycleOperations() []OperationSpec {
 		enqueueTaskRunOperationSpec(),
 		getTaskRunOperationSpec(),
 		readTaskRunResultOperationSpec(),
-		taskRunConversationStreamOperation(),
 	}
 }
 func publishTaskOperationSpec() OperationSpec {
@@ -212,7 +211,6 @@ func listTaskRunsOperationSpec() OperationSpec {
 			pathParam("id", "Task id"),
 			enumQueryParam("status", "Filter by run status", taskRunStatusValues()),
 			queryParam("session_id", "Filter by attached session id", false),
-			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{

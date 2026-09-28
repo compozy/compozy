@@ -53,13 +53,12 @@ type Query struct {
 // RunQuery captures the supported task-run filters and an explicit profile or
 // aggregate read lens when supplied.
 type RunQuery struct {
-	ReadScope            store.ReadScope `json:"read_scope,omitzero"`
-	TaskID               string          `json:"task_id,omitempty"`
-	Status               RunStatus       `json:"status,omitempty"`
-	SessionID            string          `json:"session_id,omitempty"`
-	DesignationGroupID   string          `json:"designation_group_id,omitempty"`
-	ParticipationChannel string          `json:"participation_channel,omitempty"`
-	Limit                int             `json:"limit,omitempty"`
+	ReadScope          store.ReadScope `json:"read_scope,omitzero"`
+	TaskID             string          `json:"task_id,omitempty"`
+	Status             RunStatus       `json:"status,omitempty"`
+	SessionID          string          `json:"session_id,omitempty"`
+	DesignationGroupID string          `json:"designation_group_id,omitempty"`
+	Limit              int             `json:"limit,omitempty"`
 }
 
 // EventQuery captures the supported list filters for task-event reads.

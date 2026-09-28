@@ -7,7 +7,7 @@ flowchart TD
     A[Entry: Ada uses HTTP, UDS, CLI, or native Goal tools] --> B[Start/read/control/report with exact workspace and prompt identity]
     B --> C{Ingress source authenticated operator/agent prompt?}
     C -->|yes| D[Parse /goal command]
-    C -->|internal automation/network/extension/binder| E[Keep /goal text literal]
+    C -->|internal automation/extension/binder| E[Keep /goal text literal]
     D --> F[Compare direct structured result across HTTP/UDS/CLI JSON/JSONL]
     F --> G[Read turns and origin filters out of session]
     G --> H[Submit prompt-correlated report intent]
@@ -45,7 +45,7 @@ journey:
       expected_observable: "Statuses, content types, reason codes, cursors, nullability, and JSON/JSONL meaning agree; an agent may target only its own session or an authorized descendant."
     - step: 2
       verb: "Send literal /goal text from every non-operator internal source"
-      expected_observable: "Automation, network, extension, binder, and synthetic prompts do not invoke Goal dispatch."
+      expected_observable: "Automation, extension, binder, and synthetic prompts do not invoke Goal dispatch."
     - step: 3
       verb: "Report complete/blocked from the current bound prompt"
       expected_observable: "Intent is durable, identical retries dedupe, stale/conflicting/revoked identities fail, and settlement consumes once."

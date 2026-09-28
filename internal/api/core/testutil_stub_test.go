@@ -77,23 +77,6 @@ func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {
 		)
 		assertAPIErrorResponse(t, clearResponse, http.StatusNotFound, "session not found")
 	})
-
-	t.Run("Should return not found when bridge create stub has no implementation", func(t *testing.T) {
-		t.Parallel()
-
-		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{})
-		response := performRequest(
-			t,
-			engine,
-			http.MethodPost,
-			"/bridges",
-			[]byte(
-				`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true}`,
-			),
-		)
-
-		assertAPIErrorResponse(t, response, http.StatusNotFound, "bridge instance not found")
-	})
 }
 
 func TestTestutilAutomationToggleFallbacksReturnDeterministicErrors(t *testing.T) {

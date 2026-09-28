@@ -9,7 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/worktree"
@@ -124,19 +124,15 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
-		ProfileID:                    strings.TrimSpace(req.ProfileID),
-		AgentName:                    strings.TrimSpace(agent),
-		Provider:                     strings.TrimSpace(runtime.Provider),
-		Model:                        strings.TrimSpace(runtime.Model),
-		ReasoningEffort:              strings.TrimSpace(runtime.Reasoning),
-		Speed:                        runtime.Speed,
-		ACPOptions:                   loopACPOptionsForSession(runtime.ACPOptions),
-		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   string(req.LoopRunID),
-		}),
+		ProfileID:       strings.TrimSpace(req.ProfileID),
+		AgentName:       strings.TrimSpace(agent),
+		Provider:        strings.TrimSpace(runtime.Provider),
+		Model:           strings.TrimSpace(runtime.Model),
+		ReasoningEffort: strings.TrimSpace(runtime.Reasoning),
+		Speed:           runtime.Speed,
+		ACPOptions:      loopACPOptionsForSession(runtime.ACPOptions),
+		Name:            loopRuntimeSessionName(kind, agent, req.Handle),
+
 		PromptOverlay:       strings.TrimSpace(req.ContractBlock),
 		ContractOverlay:     strings.TrimSpace(req.ContractBlock),
 		Type:                session.SessionTypeSystem,
@@ -187,25 +183,20 @@ func createOptionsFromProfile(
 	profile store.SessionCreationProfile,
 ) session.CreateOpts {
 	return session.CreateOpts{
-		ProfileID:                    profile.ProfileID,
-		AgentName:                    profile.AgentName,
-		Provider:                     profile.Provider,
-		Model:                        profile.Model,
-		ReasoningEffort:              profile.ReasoningEffort,
-		Speed:                        profile.Speed,
-		ACPOptions:                   session.ACPOptionSelectionsFromStore(profile.ACPOptions),
-		CWD:                          profile.CWD,
-		Worktree:                     profile.WorktreeRef,
-		SandboxRef:                   profile.SandboxRef,
-		DisableSandbox:               profile.SandboxMode == store.SessionCreationSandboxNone,
-		Permissions:                  compozyconfig.PermissionMode(profile.Permissions),
-		Name:                         loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
-		Workspace:                    profile.WorkspaceID,
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   string(req.LoopRunID),
-		}),
+		ProfileID:       profile.ProfileID,
+		AgentName:       profile.AgentName,
+		Provider:        profile.Provider,
+		Model:           profile.Model,
+		ReasoningEffort: profile.ReasoningEffort,
+		Speed:           profile.Speed,
+		ACPOptions:      session.ACPOptionSelectionsFromStore(profile.ACPOptions),
+		CWD:             profile.CWD,
+		Worktree:        profile.WorktreeRef,
+
+		Permissions: compozyconfig.PermissionMode(profile.Permissions),
+		Name:        loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
+		Workspace:   profile.WorkspaceID,
+
 		PromptOverlay:        profile.PromptOverlay,
 		ContractOverlay:      profile.ContractOverlay,
 		RuntimeMode:          profile.RuntimeMode,
@@ -219,12 +210,6 @@ func profileFromPolicyResolution(
 	opts session.CreateOpts,
 	resolution *loopSessionPolicyResolution,
 ) store.SessionCreationProfile {
-	sandboxMode := store.SessionCreationSandboxRef
-	sandboxRef := strings.TrimSpace(opts.SandboxRef)
-	if opts.DisableSandbox || sandboxRef == "" {
-		sandboxMode = store.SessionCreationSandboxNone
-		sandboxRef = ""
-	}
 	permissions := strings.TrimSpace(string(opts.Permissions))
 	if permissions == "" {
 		permissions = strings.TrimSpace(resolution.agent.Permissions)
@@ -240,8 +225,7 @@ func profileFromPolicyResolution(
 		WorkspaceID:     resolution.workspace.ID,
 		CWD:             opts.CWD,
 		WorktreeRef:     opts.Worktree,
-		SandboxMode:     sandboxMode,
-		SandboxRef:      sandboxRef,
+
 		Permissions:     permissions,
 		AllowedTools:    opts.AllowedToolsOverride,
 		AgentTools:      resolution.agent.Tools,
@@ -279,11 +263,10 @@ func bindingCreationIdentity(
 
 func bindingCreationOptions(opts session.CreateOpts, sessionID string) store.SessionCreationOptions {
 	return store.SessionCreationOptions{
-		SessionID:            strings.TrimSpace(sessionID),
-		Name:                 opts.Name,
-		NetworkOwnerKey:      opts.NetworkOwnerKey,
-		NetworkParticipation: participationSnapshotValue(opts.ResolvedNetworkParticipation),
-		SessionType:          string(opts.Type),
+		SessionID: strings.TrimSpace(sessionID),
+		Name:      opts.Name,
+
+		SessionType: string(opts.Type),
 	}
 }
 

@@ -59,7 +59,7 @@ type agentConnection interface {
 	ReleaseTerminal(context.Context, acpsdk.ReleaseTerminalRequest) (acpsdk.ReleaseTerminalResponse, error)
 }
 
-type sandboxRunResult struct {
+type commandRunResult struct {
 	Output        string
 	ExitCode      *int
 	ObservedError string

@@ -1,16 +1,10 @@
 import { Field, FieldError, FieldLabel, Input, Spinner } from "@compozy/ui";
 
-import type { NetworkParticipationDraft } from "@/lib/network-participation";
-
-import { NetworkParticipationFields } from "@/systems/network";
-
 import { SessionEnvironmentField } from "./session-environment-field";
 
 interface SessionCreateAdvancedSectionProps {
-  networkParticipation: NetworkParticipationDraft;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
-  onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   isSubmitting: boolean;
   /** Absent when the selected workspace is not git-backed — there is nothing to choose. */
   environment?: React.ComponentProps<typeof SessionEnvironmentField>;
@@ -19,10 +13,8 @@ interface SessionCreateAdvancedSectionProps {
 }
 
 function SessionCreateAdvancedSection({
-  networkParticipation,
   sessionName,
   onSessionNameChange,
-  onNetworkParticipationChange,
   isSubmitting,
   environment,
   environmentListingState,
@@ -55,14 +47,6 @@ function SessionCreateAdvancedSection({
           value={sessionName}
         />
       </Field>
-
-      <NetworkParticipationFields
-        allowedStrategies={["named"]}
-        disabled={isSubmitting}
-        onChange={onNetworkParticipationChange}
-        testIdPrefix="session-create-participation"
-        value={networkParticipation}
-      />
     </>
   );
 }

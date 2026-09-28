@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // LoopSource is the public source-provenance tier for a Loop definition.
@@ -211,10 +210,9 @@ type LoopVersionConflictResponse struct {
 
 // RunLoopRequest starts a Loop, or previews it when dry=true.
 type RunLoopRequest struct {
-	Inputs               map[string]any         `json:"inputs,omitempty"`
-	ParentLoopRunID      string                 `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides      *LoopConfig            `json:"config_overrides,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Inputs          map[string]any `json:"inputs,omitempty"`
+	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides *LoopConfig    `json:"config_overrides,omitempty"`
 }
 
 // RunLoopResponse returns either a persisted run or a dry-run plan preview.
@@ -229,15 +227,14 @@ const LoopRunWebRoute = "/loop-runs/%s"
 
 // LoopPlanPayload is the public dry-run preview.
 type LoopPlanPayload struct {
-	LoopName                     string                     `json:"loop_name"`
-	ResolvedInputs               map[string]any             `json:"resolved_inputs"`
-	InputOrigins                 map[string]LoopInputOrigin `json:"input_origins"`
-	Generation                   int                        `json:"generation"`
-	Nodes                        []LoopPlanNodePreview      `json:"nodes"`
-	Contract                     LoopContract               `json:"contract"`
-	MaterializedContract         LoopContract               `json:"materialized_contract"`
-	EffectiveConfig              LoopEffectiveConfig        `json:"effective_config"`
-	ResolvedNetworkParticipation *participation.Spec        `json:"resolved_network_participation"`
+	LoopName             string                     `json:"loop_name"`
+	ResolvedInputs       map[string]any             `json:"resolved_inputs"`
+	InputOrigins         map[string]LoopInputOrigin `json:"input_origins"`
+	Generation           int                        `json:"generation"`
+	Nodes                []LoopPlanNodePreview      `json:"nodes"`
+	Contract             LoopContract               `json:"contract"`
+	MaterializedContract LoopContract               `json:"materialized_contract"`
+	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
 }
 
 // LoopInputOrigin is the public effective-input provenance vocabulary.

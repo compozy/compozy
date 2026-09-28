@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Seed the foreign fixture in every stamped root before probing: sessions, tasks, loop runs, automation jobs/triggers/suggestions, bridge instances, worktrees, the four network families, notification cursors, tool approval grants, event summaries, dead entities, and token usage. A root with no fixture is an unprobed root — say so in the debrief."
+      - "Seed the foreign fixture in every stamped root before probing: sessions, tasks, loop runs, automation jobs/triggers/suggestions, worktrees, notification cursors, tool approval grants, event summaries, dead entities, and token usage. A root with no fixture is an unprobed root — say so in the debrief."
       - "Feed each read hostile scope values: an unknown profile name, an archived one, an empty one, one differing in case, `all`, `global`, `default` spelled oddly, `profile` together with `all_profiles`, and the aggregate against a single-item get. Each must be a typed refusal or an empty result — never unfiltered rows."
       - "Attack continuity: page to a cursor in profile A, switch to B, and replay that cursor; reconnect a catalog stream with a stale cursor after work landed in both profiles; open a deep link to a foreign item and then reload the surrounding lists."
       - "Compare CLI, HTTP, UDS, and a native read from inside a managed session for the same query, and prove the session-bound read follows the session's immutable profile even when a different acting profile is supplied."

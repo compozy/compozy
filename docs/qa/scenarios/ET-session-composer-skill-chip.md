@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e
 last_report: docs/qa/reports/2026-08-25-skill-sources.md
-overlaps: ET-session-slash-commands-inline;ET-web-session-composer-text-entry
+overlaps: ET-session-slash-commands-inline; ET-web-session-composer-text-entry
 ---
 
 QA impact 2026-08-05: new user-visible behavior from the composer redesign — inline skill chips in the prompt editor (Lexical), mirroring the transcript's verified skill pills. The wire contract is unchanged: the daemon still receives the raw token text and returns skill_invocations; the chip is presentation only. Walk chip insertion at start and mid-text, atomic deletion, caret traversal, draft restore re-materialization, and confirm the transcript echo matches the sent token.

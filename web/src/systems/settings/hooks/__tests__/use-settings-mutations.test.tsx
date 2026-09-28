@@ -6,11 +6,9 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../adapters/settings-api", () => ({
-  deleteSettingsSandbox: vi.fn(),
   deleteSettingsHook: vi.fn(),
   deleteSettingsMCPServer: vi.fn(),
   deleteSettingsProvider: vi.fn(),
-  putSettingsSandbox: vi.fn(),
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
@@ -20,7 +18,6 @@ vi.mock("../../adapters/settings-api", () => ({
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
   updateSettingsMemory: vi.fn(),
-  updateSettingsNetwork: vi.fn(),
   updateSettingsObservability: vi.fn(),
   updateSettingsRoles: vi.fn(),
   updateSettingsSkills: vi.fn(),
@@ -119,7 +116,7 @@ describe("useUpdateSettingsGeneral", () => {
         config: {
           daemon: {
             memory_report_interval: "5m",
-            reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+            reload_timeouts: { mcp: "10s", providers: "5s" },
             socket: "/tmp/a.sock",
           },
           http: { host: "127.0.0.1", port: 2123 },

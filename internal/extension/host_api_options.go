@@ -9,8 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/resources"
 
-	"github.com/compozy/compozy/internal/store"
-
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -49,27 +47,6 @@ func WithHostAPITaskCatalogFilterMapper(mapper HostAPITaskCatalogFilterMapper) H
 	}
 }
 
-// WithHostAPINetworkService injects the network runtime used by network Host API methods.
-func WithHostAPINetworkService(service hostAPINetworkService) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.network = service
-	}
-}
-
-// WithHostAPINetworkStore injects the durable conversation store used by network Host API methods.
-func WithHostAPINetworkStore(networkStore store.NetworkConversationStore) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.networkStore = networkStore
-	}
-}
-
-// WithHostAPINetworkUsageStore injects the bounded Network usage reader.
-func WithHostAPINetworkUsageStore(networkUsage store.NetworkUsageStore) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.networkUsage = networkUsage
-	}
-}
-
 // WithHostAPIAutomationGetter injects a lazy automation lookup used when the runtime boots after extensions.
 func WithHostAPIAutomationGetter(getter func() HostAPIAutomationManager) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -81,27 +58,6 @@ func WithHostAPIAutomationGetter(getter func() HostAPIAutomationManager) HostAPI
 func WithHostAPIWorkspaceResolver(resolver workspacepkg.RuntimeResolver) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.workspaces = resolver
-	}
-}
-
-// WithHostAPIBridgeRegistry injects the bridge registry used by bridge Host API methods.
-func WithHostAPIBridgeRegistry(registry hostAPIBridgeRegistry) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.bridges = registry
-	}
-}
-
-// WithHostAPIBridgeDedupStore injects the dedup persistence used by inbound bridge ingest.
-func WithHostAPIBridgeDedupStore(store hostAPIBridgeDedupStore) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.dedupStore = store
-	}
-}
-
-// WithHostAPIDeliveryBroker injects the session-to-bridge delivery projection broker.
-func WithHostAPIDeliveryBroker(broker hostAPIDeliveryBroker) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.deliveryBroker = broker
 	}
 }
 
@@ -180,14 +136,6 @@ func WithHostAPIHeartbeatWakeEvents(reader hostAPIHeartbeatWakeEventReader) Host
 	}
 }
 
-// WithHostAPIBridgeIngressConfig overrides dedup TTL and cleanup cadence for bridge ingest.
-func WithHostAPIBridgeIngressConfig(dedupTTL time.Duration, cleanupInterval time.Duration) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.bridgeIngestDedupTTL = dedupTTL
-		handler.bridgeCleanupInterval = cleanupInterval
-	}
-}
-
 // WithHostAPIMemoryProviderRegistry injects MemoryProvider registration state.
 func WithHostAPIMemoryProviderRegistry(registry *MemoryProviderRegistry) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -252,16 +200,13 @@ func newHostAPIHandlerDefaults(
 	skillsRegistry hostAPISkillsRegistry,
 ) *HostAPIHandler {
 	return &HostAPIHandler{
-		sessions:              sessions,
-		memory:                memoryStore,
-		observer:              observer,
-		skills:                skillsRegistry,
-		capChecker:            &CapabilityChecker{},
-		rateLimit:             defaultHostAPIRateLimit,
-		rateBurst:             defaultHostAPIBurst,
-		bridgeIngestDedupTTL:  defaultHostAPIBridgeIngestDedupTTL,
-		bridgeCleanupInterval: defaultHostAPIBridgeCleanupInterval,
-		bridgeLocks:           newHostAPIKeyLocker(),
+		sessions:   sessions,
+		memory:     memoryStore,
+		observer:   observer,
+		skills:     skillsRegistry,
+		capChecker: &CapabilityChecker{},
+		rateLimit:  defaultHostAPIRateLimit,
+		rateBurst:  defaultHostAPIBurst,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -279,14 +224,5 @@ func normalizeHostAPIHandlerDefaults(handler *HostAPIHandler) {
 	}
 	if handler.capChecker == nil {
 		handler.capChecker = &CapabilityChecker{}
-	}
-	if handler.bridgeIngestDedupTTL <= 0 {
-		handler.bridgeIngestDedupTTL = defaultHostAPIBridgeIngestDedupTTL
-	}
-	if handler.bridgeCleanupInterval <= 0 {
-		handler.bridgeCleanupInterval = defaultHostAPIBridgeCleanupInterval
-	}
-	if handler.bridgeLocks == nil {
-		handler.bridgeLocks = newHostAPIKeyLocker()
 	}
 }

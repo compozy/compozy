@@ -1445,7 +1445,6 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 		current.Attention = &attention
 	}
 	current.Liveness = store.CloneSessionLivenessMeta(update.Liveness)
-	current.Sandbox = cloneSessionSandboxMeta(update.Sandbox)
 	current.UpdatedAt = update.UpdatedAt
 	c.sessions[update.ID] = current
 	return nil

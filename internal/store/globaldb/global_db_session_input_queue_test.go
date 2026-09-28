@@ -2442,3 +2442,14 @@ func registerInputQueueMigrationPrefixSession(t *testing.T, globalDB *GlobalDB, 
 	}
 	return sessionID
 }
+
+func requireSQLiteConstraintError(t *testing.T, err error) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("error = nil, want sqlite constraint error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "constraint") {
+		t.Fatalf("error = %v, want sqlite constraint failure", err)
+	}
+}

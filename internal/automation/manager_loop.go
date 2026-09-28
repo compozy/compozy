@@ -80,7 +80,6 @@ func cloneLoopTarget(target *LoopTarget) *LoopTarget {
 	cloned := *target
 	cloned.Inputs = cloneJSONMap(target.Inputs)
 	cloned.InputMapping = cloneStringMap(target.InputMapping)
-	cloned.NetworkParticipation = cloneParticipationRequest(target.NetworkParticipation)
 	return &cloned
 }
 
@@ -94,8 +93,7 @@ func sameLoopTarget(left *LoopTarget, right *LoopTarget) bool {
 		return left.WorkspaceID == right.WorkspaceID &&
 			left.LoopName == right.LoopName &&
 			sameJSONMap(left.Inputs, right.Inputs) &&
-			sameStringMap(left.InputMapping, right.InputMapping) &&
-			reflect.DeepEqual(left.NetworkParticipation, right.NetworkParticipation)
+			sameStringMap(left.InputMapping, right.InputMapping)
 	}
 }
 

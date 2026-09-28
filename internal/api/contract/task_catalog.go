@@ -4,29 +4,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // TaskListQuery captures the shared bounded task catalog filters.
 type TaskListQuery struct {
-	Scope                taskpkg.CatalogScope  `json:"scope,omitempty"`
-	Workspace            string                `json:"workspace,omitempty"`
-	Status               taskpkg.Status        `json:"status,omitempty"`
-	Priority             taskpkg.Priority      `json:"priority,omitempty"`
-	IncludeDrafts        bool                  `json:"include_drafts,omitempty"`
-	IncludeLoop          bool                  `json:"include_loop,omitempty"`
-	LoopRunID            string                `json:"loop_run_id,omitempty"`
-	ApprovalState        taskpkg.ApprovalState `json:"approval_state,omitempty"`
-	OwnerKind            taskpkg.OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef             string                `json:"owner_ref,omitempty"`
-	ParentTaskID         string                `json:"parent_task_id,omitempty"`
-	Worktree             string                `json:"worktree,omitempty"`
-	ParticipationChannel string                `json:"participation_channel,omitempty"`
-	Query                string                `json:"query,omitempty"`
-	Sort                 taskpkg.CatalogSort   `json:"sort,omitempty"`
-	Cursor               string                `json:"cursor,omitempty"`
-	Limit                int                   `json:"limit,omitempty"`
+	Scope         taskpkg.CatalogScope  `json:"scope,omitempty"`
+	Workspace     string                `json:"workspace,omitempty"`
+	Status        taskpkg.Status        `json:"status,omitempty"`
+	Priority      taskpkg.Priority      `json:"priority,omitempty"`
+	IncludeDrafts bool                  `json:"include_drafts,omitempty"`
+	IncludeLoop   bool                  `json:"include_loop,omitempty"`
+	LoopRunID     string                `json:"loop_run_id,omitempty"`
+	ApprovalState taskpkg.ApprovalState `json:"approval_state,omitempty"`
+	OwnerKind     taskpkg.OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef      string                `json:"owner_ref,omitempty"`
+	ParentTaskID  string                `json:"parent_task_id,omitempty"`
+	Worktree      string                `json:"worktree,omitempty"`
+	Query         string                `json:"query,omitempty"`
+	Sort          taskpkg.CatalogSort   `json:"sort,omitempty"`
+	Cursor        string                `json:"cursor,omitempty"`
+	Limit         int                   `json:"limit,omitempty"`
 }
 
 // TaskCatalogStatusFacetPayload is one exact status count after all filters.
@@ -49,67 +47,65 @@ type TaskCatalogFacetsPayload struct {
 
 // TaskCatalogRunPayload is the bounded run summary embedded in catalog and inbox rows.
 type TaskCatalogRunPayload struct {
-	ID                           string                 `json:"id"`
-	TaskID                       string                 `json:"task_id"`
-	Status                       taskpkg.RunStatus      `json:"status"`
-	Attempt                      int                    `json:"attempt"`
-	RecoveryCount                int                    `json:"recovery_count"`
-	PreviousRunID                string                 `json:"previous_run_id,omitempty"`
-	FailureKind                  string                 `json:"failure_kind,omitempty"`
-	MaxAttempts                  int                    `json:"max_attempts"`
-	SessionID                    string                 `json:"session_id,omitempty"`
-	WorktreeID                   string                 `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode         ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef          string                 `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy                    *taskpkg.ActorIdentity `json:"claimed_by,omitempty"`
-	LeaseUntil                   *time.Time             `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time             `json:"heartbeat_at,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation,omitempty"`
-	QueuedAt                     time.Time              `json:"queued_at"`
-	ClaimedAt                    *time.Time             `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time             `json:"started_at,omitempty"`
-	EndedAt                      *time.Time             `json:"ended_at,omitempty"`
-	Error                        string                 `json:"error,omitempty"`
+	ID                   string                 `json:"id"`
+	TaskID               string                 `json:"task_id"`
+	Status               taskpkg.RunStatus      `json:"status"`
+	Attempt              int                    `json:"attempt"`
+	RecoveryCount        int                    `json:"recovery_count"`
+	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
+	FailureKind          string                 `json:"failure_kind,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	WorktreeID           string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *taskpkg.ActorIdentity `json:"claimed_by,omitempty"`
+	LeaseUntil           *time.Time             `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time             `json:"heartbeat_at,omitempty"`
+	QueuedAt             time.Time              `json:"queued_at"`
+	ClaimedAt            *time.Time             `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time             `json:"started_at,omitempty"`
+	EndedAt              *time.Time             `json:"ended_at,omitempty"`
+	Error                string                 `json:"error,omitempty"`
 }
 
 // TaskCatalogItemPayload is one lean task catalog row.
 type TaskCatalogItemPayload struct {
-	ID                           string                 `json:"id"`
-	ProfileID                    string                 `json:"profile_id"`
-	ProfileName                  string                 `json:"profile_name"`
-	ProfileColor                 string                 `json:"profile_color,omitempty"`
-	ProfileIcon                  string                 `json:"profile_icon,omitempty"`
-	Identifier                   string                 `json:"identifier,omitempty"`
-	Scope                        taskpkg.Scope          `json:"scope"`
-	WorkspaceID                  string                 `json:"workspace_id,omitempty"`
-	ParentTaskID                 string                 `json:"parent_task_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation,omitempty"`
-	Title                        string                 `json:"title"`
-	Priority                     taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts                  int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady           bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Status                       taskpkg.Status         `json:"status"`
-	ApprovalPolicy               taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	ApprovalState                taskpkg.ApprovalState  `json:"approval_state,omitempty"`
-	Draft                        bool                   `json:"draft,omitempty"`
-	Owner                        *taskpkg.Ownership     `json:"owner,omitempty"`
-	CurrentRunID                 string                 `json:"current_run_id,omitempty"`
-	LatestEventSeq               int64                  `json:"latest_event_seq"`
-	NeedsAttention               bool                   `json:"needs_attention,omitempty"`
-	NeedsAttentionReason         string                 `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt             *time.Time             `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy             *taskpkg.ActorIdentity `json:"needs_attention_by,omitempty"`
-	WakeCreator                  bool                   `json:"wake_creator"`
-	CreatedBy                    taskpkg.ActorIdentity  `json:"created_by"`
-	Origin                       taskpkg.Origin         `json:"origin"`
-	CreatedAt                    time.Time              `json:"created_at"`
-	UpdatedAt                    time.Time              `json:"updated_at"`
-	ClosedAt                     *time.Time             `json:"closed_at,omitempty"`
-	ChildCount                   int                    `json:"child_count,omitempty"`
-	DependencyCount              int                    `json:"dependency_count,omitempty"`
-	ActiveRun                    *TaskCatalogRunPayload `json:"active_run,omitempty"`
-	LastActivityAt               *time.Time             `json:"last_activity_at,omitempty"`
-	Loop                         *LoopProvenance        `json:"loop,omitempty"`
+	ID                   string                 `json:"id"`
+	ProfileID            string                 `json:"profile_id"`
+	ProfileName          string                 `json:"profile_name"`
+	ProfileColor         string                 `json:"profile_color,omitempty"`
+	ProfileIcon          string                 `json:"profile_icon,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                taskpkg.Scope          `json:"scope"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
+	Title                string                 `json:"title"`
+	Priority             taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	Status               taskpkg.Status         `json:"status"`
+	ApprovalPolicy       taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	ApprovalState        taskpkg.ApprovalState  `json:"approval_state,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	CurrentRunID         string                 `json:"current_run_id,omitempty"`
+	LatestEventSeq       int64                  `json:"latest_event_seq"`
+	NeedsAttention       bool                   `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string                 `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time             `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *taskpkg.ActorIdentity `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool                   `json:"wake_creator"`
+	CreatedBy            taskpkg.ActorIdentity  `json:"created_by"`
+	Origin               taskpkg.Origin         `json:"origin"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
+	ClosedAt             *time.Time             `json:"closed_at,omitempty"`
+	ChildCount           int                    `json:"child_count,omitempty"`
+	DependencyCount      int                    `json:"dependency_count,omitempty"`
+	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
+	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
+	Loop                 *LoopProvenance        `json:"loop,omitempty"`
 }
 
 // TaskInboxTaskPayload is the lean task reference embedded in inbox rows.
@@ -130,39 +126,38 @@ func TaskCatalogItemPayloadFromSummary(record *taskpkg.Summary) TaskCatalogItemP
 	needsAttention := record.NeedsAttention != nil ||
 		record.Status.Normalize() == taskpkg.TaskStatusNeedsAttention
 	return TaskCatalogItemPayload{
-		ID:                           record.ID,
-		ProfileID:                    record.ProfileID,
-		Identifier:                   record.Identifier,
-		Scope:                        record.Scope,
-		WorkspaceID:                  record.WorkspaceID,
-		ParentTaskID:                 record.ParentTaskID,
-		ResolvedNetworkParticipation: taskCatalogResolvedParticipation(record.ActiveRun),
-		Title:                        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
-		Priority:                     record.Priority,
-		MaxAttempts:                  record.MaxAttempts,
-		AutoEnqueueOnReady:           record.AutoEnqueueOnReady,
-		Status:                       record.Status,
-		ApprovalPolicy:               record.ApprovalPolicy,
-		ApprovalState:                record.ApprovalState,
-		Draft:                        record.Draft,
-		Owner:                        taskCatalogCloneOwnership(record.Owner),
-		CurrentRunID:                 record.CurrentRunID,
-		LatestEventSeq:               record.LatestEventSeq,
-		NeedsAttention:               needsAttention,
-		NeedsAttentionReason:         taskCatalogNeedsAttentionReason(record.NeedsAttention),
-		NeedsAttentionAt:             taskCatalogNeedsAttentionAt(record.NeedsAttention),
-		NeedsAttentionBy:             taskCatalogNeedsAttentionBy(record.NeedsAttention),
-		WakeCreator:                  record.WakeCreator,
-		CreatedBy:                    record.CreatedBy,
-		Origin:                       record.Origin,
-		CreatedAt:                    record.CreatedAt,
-		UpdatedAt:                    record.UpdatedAt,
-		ClosedAt:                     taskCatalogOptionalTime(record.ClosedAt),
-		ChildCount:                   int(record.ChildCount),
-		DependencyCount:              int(record.DependencyCount),
-		ActiveRun:                    TaskCatalogRunPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:               taskCatalogOptionalTime(record.LastActivityAt),
-		Loop:                         LoopProvenanceFromRun(record.RunProvenance),
+		ID:                   record.ID,
+		ProfileID:            record.ProfileID,
+		Identifier:           record.Identifier,
+		Scope:                record.Scope,
+		WorkspaceID:          record.WorkspaceID,
+		ParentTaskID:         record.ParentTaskID,
+		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
+		Priority:             record.Priority,
+		MaxAttempts:          record.MaxAttempts,
+		AutoEnqueueOnReady:   record.AutoEnqueueOnReady,
+		Status:               record.Status,
+		ApprovalPolicy:       record.ApprovalPolicy,
+		ApprovalState:        record.ApprovalState,
+		Draft:                record.Draft,
+		Owner:                taskCatalogCloneOwnership(record.Owner),
+		CurrentRunID:         record.CurrentRunID,
+		LatestEventSeq:       record.LatestEventSeq,
+		NeedsAttention:       needsAttention,
+		NeedsAttentionReason: taskCatalogNeedsAttentionReason(record.NeedsAttention),
+		NeedsAttentionAt:     taskCatalogNeedsAttentionAt(record.NeedsAttention),
+		NeedsAttentionBy:     taskCatalogNeedsAttentionBy(record.NeedsAttention),
+		WakeCreator:          record.WakeCreator,
+		CreatedBy:            record.CreatedBy,
+		Origin:               record.Origin,
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.UpdatedAt,
+		ClosedAt:             taskCatalogOptionalTime(record.ClosedAt),
+		ChildCount:           int(record.ChildCount),
+		DependencyCount:      int(record.DependencyCount),
+		ActiveRun:            TaskCatalogRunPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:       taskCatalogOptionalTime(record.LastActivityAt),
+		Loop:                 LoopProvenanceFromRun(record.RunProvenance),
 	}
 }
 
@@ -187,35 +182,27 @@ func TaskCatalogRunPayloadFromSummary(summary *taskpkg.RunSummary) *TaskCatalogR
 		return nil
 	}
 	return &TaskCatalogRunPayload{
-		ID:                           summary.ID,
-		TaskID:                       summary.TaskID,
-		Status:                       summary.Status,
-		Attempt:                      summary.Attempt,
-		RecoveryCount:                summary.RecoveryCount,
-		PreviousRunID:                summary.PreviousRunID,
-		FailureKind:                  summary.FailureKind,
-		MaxAttempts:                  summary.MaxAttempts,
-		SessionID:                    summary.SessionID,
-		WorktreeID:                   summary.WorktreeID,
-		ResolvedWorktreeMode:         ResolvedWorktreeMode(summary.ResolvedWorktreeMode),
-		ResolvedWorktreeRef:          summary.ResolvedWorktreeRef,
-		ClaimedBy:                    taskCatalogCloneActorIdentity(summary.ClaimedBy),
-		LeaseUntil:                   taskCatalogOptionalTime(summary.LeaseUntil),
-		HeartbeatAt:                  taskCatalogOptionalTime(summary.HeartbeatAt),
-		ResolvedNetworkParticipation: taskCatalogResolvedParticipation(summary),
-		QueuedAt:                     summary.QueuedAt,
-		ClaimedAt:                    taskCatalogOptionalTime(summary.ClaimedAt),
-		StartedAt:                    taskCatalogOptionalTime(summary.StartedAt),
-		EndedAt:                      taskCatalogOptionalTime(summary.EndedAt),
-		Error:                        taskpkg.RedactClaimTokens(strings.TrimSpace(summary.Error)),
+		ID:                   summary.ID,
+		TaskID:               summary.TaskID,
+		Status:               summary.Status,
+		Attempt:              summary.Attempt,
+		RecoveryCount:        summary.RecoveryCount,
+		PreviousRunID:        summary.PreviousRunID,
+		FailureKind:          summary.FailureKind,
+		MaxAttempts:          summary.MaxAttempts,
+		SessionID:            summary.SessionID,
+		WorktreeID:           summary.WorktreeID,
+		ResolvedWorktreeMode: ResolvedWorktreeMode(summary.ResolvedWorktreeMode),
+		ResolvedWorktreeRef:  summary.ResolvedWorktreeRef,
+		ClaimedBy:            taskCatalogCloneActorIdentity(summary.ClaimedBy),
+		LeaseUntil:           taskCatalogOptionalTime(summary.LeaseUntil),
+		HeartbeatAt:          taskCatalogOptionalTime(summary.HeartbeatAt),
+		QueuedAt:             summary.QueuedAt,
+		ClaimedAt:            taskCatalogOptionalTime(summary.ClaimedAt),
+		StartedAt:            taskCatalogOptionalTime(summary.StartedAt),
+		EndedAt:              taskCatalogOptionalTime(summary.EndedAt),
+		Error:                taskpkg.RedactClaimTokens(strings.TrimSpace(summary.Error)),
 	}
-}
-
-func taskCatalogResolvedParticipation(summary *taskpkg.RunSummary) *participation.Spec {
-	if summary == nil || summary.ResolvedNetworkParticipation == nil {
-		return nil
-	}
-	return participation.CloneSpec(*summary.ResolvedNetworkParticipation)
 }
 
 func taskCatalogCloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {

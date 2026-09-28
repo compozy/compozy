@@ -39,7 +39,7 @@ describe("gateway provider model", () => {
   it("Should carry the install source and control digest the enable contract fences on", () => {
     const model = buildGatewayProviderModel(gatewayStatusFixture(), [
       connectivityProviderFixture({
-        network_requirement_digest: "sha256:live-digest",
+        gateway_requirement_digest: "sha256:live-digest",
         source: "marketplace",
       }),
     ]);
@@ -55,14 +55,14 @@ describe("gateway provider model", () => {
       connectivityProviderFixture({
         enabled: false,
         missing_env: ["OVERLAY_AUTH_KEY"],
-        network_confirmation_required: true,
+        gateway_confirmation_required: true,
       }),
     ]);
     const blockers = model.candidates[0].blockers;
 
     expect(blockers.map(blocker => blocker.id)).toEqual([
       "extension-disabled",
-      "network-confirmation",
+      "gateway-confirmation",
       "missing-secrets",
     ]);
     expect(blockers.every(blocker => blocker.message.includes("Settings → Extensions"))).toBe(true);

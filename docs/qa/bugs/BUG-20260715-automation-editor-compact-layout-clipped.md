@@ -4,7 +4,7 @@
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Nia
-- **Journey Step:** J-network-local-default, inspect automation controls on compact devices
+- **Journey Step:** J-administer-runtime-settings, inspect automation controls on compact devices
 - **Scenarios:** NB-participation-controls-serialize
 - **Found:** 2026-07-15 · **Report:** docs/qa/reports/2026-07-14-network-changes.md
 
@@ -14,7 +14,7 @@ The Automation editor exceeded the viewport at tablet width, collapsed its edito
 
 ## Reproduction
 
-- **Charter:** CH-network-local-default · **Tour:** Feature Tour
+- **Charter:** retired historical charter · **Tour:** Feature Tour
 - **Environment:** 375/768 px / isolated daemon-served Web / en-US
 
 1. Open Create job or Create trigger below the desktop breakpoint.

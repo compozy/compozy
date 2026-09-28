@@ -13,7 +13,6 @@ import (
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -61,16 +60,9 @@ var (
 	ErrManagerRequired = errors.New("extension: manager is required")
 	// ErrRegistryRequired reports that a manager operation requires a configured registry.
 	ErrRegistryRequired = errors.New("extension: registry is required")
-	// ErrBridgeRuntimeResolverRequired reports that a bridge-capable extension cannot start
-	// without a bridge runtime resolver.
-	ErrBridgeRuntimeResolverRequired = errors.New("extension: bridge runtime resolver is required")
 	// ErrPathEscapesExtensionRoot reports that a requested resource path resolves outside the
 	// extension root.
 	ErrPathEscapesExtensionRoot = errors.New("extension: path escapes extension root")
-	// ErrBridgeRuntimeDeferred reports that a bridge-capable extension is
-	// installed and registered, but no enabled bridge instance exists yet for
-	// the runtime launch handshake.
-	ErrBridgeRuntimeDeferred = errors.New("extension: bridge runtime deferred")
 )
 
 var safeSubprocessEnvKeys = []string{
@@ -105,20 +97,6 @@ type processHandle interface {
 }
 
 type processLauncher func(context.Context, subprocess.LaunchConfig) (processHandle, error)
-
-// BridgeRuntimeResolver resolves one provider-scoped bridge launch payload
-// for a bridge-capable extension session.
-type BridgeRuntimeResolver interface {
-	ResolveBridgeRuntime(ctx context.Context, extensionName string) (*subprocess.InitializeBridgeRuntime, error)
-}
-
-// BridgeTelemetrySink records live bridge runtime/auth telemetry for
-// per-instance observability surfaces.
-type BridgeTelemetrySink interface {
-	RecordBridgeAuthFailure(bridgeInstanceID string)
-	RecordBridgeRuntimeIssue(bridgeInstanceID string, status bridgepkg.BridgeStatus, message string)
-	ClearBridgeRuntimeIssue(bridgeInstanceID string)
-}
 
 // ExtensionPhase names one lifecycle phase or supervisor state for an extension.
 type ExtensionPhase string
@@ -238,33 +216,28 @@ type launchedRuntime struct {
 	redactionCleanups []func()
 }
 
-var _ bridgepkg.DeliveryTransport = (*Manager)(nil)
-var _ bridgepkg.TargetSnapshotTransport = (*Manager)(nil)
-
 // Manager orchestrates extension loading, subprocess lifecycle, and resource registration.
 type Manager struct {
 	lifecycleMu sync.Mutex
 	mu          sync.RWMutex
 
-	registry              *Registry
-	capChecker            *CapabilityChecker
-	bridgeRuntimeResolver BridgeRuntimeResolver
-	bridgeTelemetrySink   BridgeTelemetrySink
-	lifecycleEventSink    LifecycleEventSink
-	sourceSessions        resources.SourceSessionManager
-	workspaceResolver     workspacepkg.RuntimeResolver
-	homePaths             compozyconfig.HomePaths
-	processRegistry       *toolruntime.Registry
-	logger                *slog.Logger
-	now                   func() time.Time
-	getenv                func(string) string
-	compozyExecutable     func() (string, error)
-	secretResolver        SecretRefResolver
-	envBindings           EnvBindingStore
-	profileNames          ProfileNameResolver
-	launch                processLauncher
-	toolCallTracker       ExtensionToolCallTracker
-	hostMethods           map[string]subprocess.HandlerFunc
+	registry           *Registry
+	capChecker         *CapabilityChecker
+	lifecycleEventSink LifecycleEventSink
+	sourceSessions     resources.SourceSessionManager
+	workspaceResolver  workspacepkg.RuntimeResolver
+	homePaths          compozyconfig.HomePaths
+	processRegistry    *toolruntime.Registry
+	logger             *slog.Logger
+	now                func() time.Time
+	getenv             func(string) string
+	compozyExecutable  func() (string, error)
+	secretResolver     SecretRefResolver
+	envBindings        EnvBindingStore
+	profileNames       ProfileNameResolver
+	launch             processLauncher
+	toolCallTracker    ExtensionToolCallTracker
+	hostMethods        map[string]subprocess.HandlerFunc
 
 	protocolVersion           string
 	supportedProtocolVersions []string

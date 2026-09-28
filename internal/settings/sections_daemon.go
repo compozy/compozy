@@ -44,9 +44,6 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	if cfg.Daemon.ReloadTimeouts.MCP != desired.Daemon.ReloadTimeouts.MCP {
 		changed = append(changed, "daemon.reload_timeouts.mcp")
 	}
-	if cfg.Daemon.ReloadTimeouts.Bridges != desired.Daemon.ReloadTimeouts.Bridges {
-		changed = append(changed, "daemon.reload_timeouts.bridges")
-	}
 	if cfg.Redact.Enabled != desired.Redact.Enabled {
 		changed = append(changed, "redact.enabled")
 	}
@@ -92,10 +89,6 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "mcp"},
 			value: settings.Daemon.ReloadTimeouts.MCP.String(),
 		},
-		{
-			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "bridges"},
-			value: settings.Daemon.ReloadTimeouts.Bridges.String(),
-		},
 		{path: []string{"redact", sectionsEnabledKey}, value: settings.Redact.Enabled},
 	}
 	updates = append(updates, terminalSettingUpdates(settings.Terminal)...)
@@ -140,9 +133,6 @@ func normalizeDaemonReloadTimeouts(
 	}
 	if value.MCP == 0 {
 		value.MCP = defaults.MCP
-	}
-	if value.Bridges == 0 {
-		value.Bridges = defaults.Bridges
 	}
 	return value
 }

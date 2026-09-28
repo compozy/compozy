@@ -311,7 +311,7 @@ model: claude-sonnet-5
 reasoning_effort: max
 tools: ["mcp__github__*"]
 toolsets: ["compozy__coordination"]
-deny_tools: ["compozy__network_send"]
+deny_tools: ["compozy__task_create"]
 permissions: approve-reads
 mcp_servers:
   - name: github
@@ -375,7 +375,7 @@ but `skills.disabled` is now persisted in `AGENT.md` as the agent-scoped tombsto
 ## Related pages
 
 - [Agent Capabilities](/docs/agents/capabilities) covers the optional capability catalog
-  sidecar that sits next to `AGENT.md` and feeds network discovery.
+  sidecar that sits next to `AGENT.md` and feeds task selection.
 - [Providers](/docs/agents/providers) lists every built-in provider and the provider config
   shape.
 - [Spawning](/docs/agents/spawning) follows the ACP subprocess startup path.

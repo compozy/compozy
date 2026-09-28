@@ -76,13 +76,6 @@ func (c TaskOrchestrationConfig) validateScheduler(path string) error {
 }
 
 func (c TaskOrchestrationConfig) validateRuntime(path string) error {
-	if err := validateWholeSecondDuration(
-		path+".bridge_notification_timeout",
-		c.BridgeNotificationTimeout,
-		false,
-	); err != nil {
-		return err
-	}
 	if c.DesignatedRunMax <= 0 || c.DesignatedRunMax > MaxTaskDesignatedRunMax {
 		return fmt.Errorf(
 			"%s.designated_run_max must be between 1 and %d: %d",
@@ -98,10 +91,10 @@ func (c TaskOrchestrationConfig) validateRuntime(path string) error {
 			c.MaxActiveRunsPerWorkspace,
 		)
 	}
-	if c.NetworkStatusQueueSize <= 0 {
-		return fmt.Errorf("%s.network_status_queue_size must be positive: %d", path, c.NetworkStatusQueueSize)
+	if c.StatusProjectionQueueSize <= 0 {
+		return fmt.Errorf("%s.status_projection_queue_size must be positive: %d", path, c.StatusProjectionQueueSize)
 	}
-	return validateWholeSecondDuration(path+".network_status_timeout", c.NetworkStatusTimeout, false)
+	return validateWholeSecondDuration(path+".status_projection_timeout", c.StatusProjectionTimeout, false)
 }
 
 // Validate ensures task execution profile defaults are recognized.
@@ -119,20 +112,6 @@ func (c TaskOrchestrationProfileConfig) Validate(path string) error {
 	}
 	if c.DefaultWorkerMode != TaskWorkerModeInherit {
 		return fmt.Errorf("%s.default_worker_mode must be %q: %q", path, TaskWorkerModeInherit, c.DefaultWorkerMode)
-	}
-	switch c.DefaultSandboxMode {
-	case TaskSandboxModeInherit, TaskSandboxModeNone:
-	default:
-		return fmt.Errorf(
-			"%s.default_sandbox_mode must be %q or %q: %q",
-			path,
-			TaskSandboxModeInherit,
-			TaskSandboxModeNone,
-			c.DefaultSandboxMode,
-		)
-	}
-	if c.DefaultSandboxMode == TaskSandboxModeNone && !c.AllowTaskSandboxNone {
-		return fmt.Errorf("%s.default_sandbox_mode %q requires allow_task_sandbox_none", path, TaskSandboxModeNone)
 	}
 	switch c.DefaultWorktreeMode {
 	case TaskWorktreeModeInherit, TaskWorktreeModeNone, TaskWorktreeModePerRun:

@@ -16,7 +16,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe/attention"
 	providerpkg "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -335,23 +335,7 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("insert extension profile secret binding error = %v", err)
 		}
-		bridgeRef := "vault:profiles/dev/bridges/telegram/token"
-		if _, err := database.DB().ExecContext(ctx, `INSERT INTO bridge_instances (
-			id, profile_id, scope, workspace_id, platform, extension_name, display_name,
-			status, routing_policy, created_at, updated_at
-		) VALUES (
-			'bridge-profile-rename', ?, 'global', NULL, 'telegram', 'telegram.bridge',
-			'Profile rename bridge', 'active', '{}', ?, ?
-		)`, created.ID, now, now); err != nil {
-			t.Fatalf("insert profile rename bridge error = %v", err)
-		}
-		if _, err := database.DB().ExecContext(ctx, `INSERT INTO bridge_secret_bindings (
-			bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
-		) VALUES ('bridge-profile-rename', 'token', ?, 'bridge_secret', ?, ?)`,
-			bridgeRef, now, now,
-		); err != nil {
-			t.Fatalf("insert bridge profile secret binding error = %v", err)
-		}
+
 		automationRef := "vault:profiles/dev/automations/nightly/webhook"
 		if _, err := database.DB().ExecContext(ctx, `INSERT INTO automation_triggers (
 			id, profile_id, scope, name, agent_name, workspace_id, prompt, event, enabled,
@@ -414,7 +398,6 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		for _, location := range []string{
 			"vault_secrets.ref",
 			"extension_env_bindings.secret_ref",
-			"bridge_secret_bindings.secret_ref",
 			"automation_triggers.webhook_secret_ref",
 			"mcp_auth_tokens.access_token_ref",
 			"mcp_auth_tokens.refresh_token_ref",
@@ -1026,7 +1009,7 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		desktops.byProfile[created.ID] = 2
 		seedMCPAuthProfileLifecycleRows(ctx, t, database, "growth")
 		// Notification history belongs to the deleted profile, not to source work.
-		receiptScope := notifications.AttentionScope{
+		receiptScope := attention.Scope{
 			ProfileID:  created.ID,
 			ActorKind:  "human",
 			ActorID:    "operator",
@@ -1440,40 +1423,6 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		}
 		if _, err := manager.GetByName(ctx, "dev"); err != nil {
 			t.Fatalf("GetByName(dev after stale plan) error = %v", err)
-		}
-	})
-
-	t.Run("Should refuse archive while a notification delivery permit is held", func(t *testing.T) {
-		t.Parallel()
-
-		manager, database, _ := newTestManager(t)
-		ctx := testutil.Context(t)
-		created, err := manager.Create(ctx, CreateInput{Name: "alerts"})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		plan, err := manager.PrepareArchive(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("PrepareArchive() error = %v", err)
-		}
-		now := formatTimestamp(time.Now())
-		if _, err := database.DB().ExecContext(ctx, `
-			INSERT INTO notification_delivery_permits
-			(scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id, delivery_id, acquired_at)
-			VALUES ('global', ?, '', 'terminal', 'task-events', 'task-1', 'delivery-held', ?)`,
-			created.ID, now,
-		); err != nil {
-			t.Fatalf("insert delivery permit error = %v", err)
-		}
-		if _, err := manager.Archive(ctx, created.Name, plan.Revision); !errors.Is(err, ErrDeliveriesInFlight) {
-			t.Fatalf("Archive(with permit) error = %v, want ErrDeliveriesInFlight", err)
-		}
-		stored, err := manager.GetByName(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("GetByName() error = %v", err)
-		}
-		if stored.State != StateActive {
-			t.Fatalf("profile state after refused archive = %q, want active", stored.State)
 		}
 	})
 }

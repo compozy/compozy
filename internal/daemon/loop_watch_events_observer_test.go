@@ -433,19 +433,19 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 			name:   "Should wake from a failed task-run terminal payload",
 			kind:   hookspkg.HookTaskRunFailed,
 			stream: looppkg.WatchEventsTaskStream,
-			filter: `event.channel == "chan-1" && event.payload.error == "boom" && event.loop_run_id == "loop-run-source"`,
+			filter: `event.payload.error == "boom" && event.loop_run_id == "loop-run-source"`,
 			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
 				return observer.OnTaskRunTerminal(ctx, hookspkg.TaskRunLeasePayload{
 					PayloadBase: hookspkg.PayloadBase{Timestamp: fixedNow},
 					TaskRunContext: hookspkg.TaskRunContext{
-						WorkspaceID:                  "ws-1",
-						TaskID:                       "task-target",
-						RunID:                        "run-failed",
-						RunStatus:                    taskpkg.TaskRunStatusFailed.String(),
-						LoopRunID:                    "loop-run-source",
-						SessionID:                    "session-1",
-						ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "chan-1"),
-						Error:                        "boom",
+						WorkspaceID: "ws-1",
+						TaskID:      "task-target",
+						RunID:       "run-failed",
+						RunStatus:   taskpkg.TaskRunStatusFailed.String(),
+						LoopRunID:   "loop-run-source",
+						SessionID:   "session-1",
+
+						Error: "boom",
 					},
 					PreviousRunStatus: "claimed",
 					PreviousSessionID: "session-old",
@@ -458,7 +458,7 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 			name:   "Should wake from a loop terminal payload",
 			kind:   hookspkg.HookLoopTerminal,
 			stream: looppkg.WatchEventsLoopStream,
-			filter: `event.channel == "chan-1" && event.payload.details.done == true && event.loop_name == "delivery"`,
+			filter: `event.payload.details.done == true && event.loop_name == "delivery"`,
 			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
 				return observer.OnLoopTerminal(ctx, hookspkg.LoopTerminalPayload{
 					PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
@@ -474,7 +474,7 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 			name:   "Should wake from a failed loop node terminal payload",
 			kind:   hookspkg.HookLoopNodeTerminal,
 			stream: looppkg.WatchEventsLoopStream,
-			filter: `event.channel == "chan-1" && event.payload.node_id == "node-1" && event.payload.error == "boom"`,
+			filter: `event.payload.node_id == "node-1" && event.payload.error == "boom"`,
 			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
 				return observer.OnLoopNodeTerminal(ctx, hookspkg.LoopNodeTerminalPayload{
 					PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopNodeTerminal, Timestamp: fixedNow},
@@ -503,32 +503,7 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 				})
 			},
 		},
-		{
-			name:   "Should wake from a network work transition payload",
-			kind:   hookspkg.HookNetworkWorkTransitioned,
-			stream: looppkg.WatchEventsNetworkStream,
-			filter: `event.channel == "builders" && event.payload.work_state == "working"`,
-			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
-				return observer.OnNetworkWorkTransitioned(ctx, hookspkg.NetworkPayload{
-					PayloadBase: hookspkg.PayloadBase{
-						Event:     hookspkg.HookNetworkWorkTransitioned,
-						Timestamp: fixedNow,
-					},
-					WorkspaceID: "ws-1",
-					SessionID:   "sess-network",
-					Channel:     "builders",
-					Surface:     "thread",
-					ThreadID:    "thread-1",
-					MessageID:   "msg-1",
-					Kind:        "trace",
-					Direction:   "received",
-					WorkID:      "work-1",
-					WorkState:   "working",
-					PeerFrom:    "reviewer.sess-1",
-					PeerTo:      "coder.sess-1",
-				})
-			},
-		},
+
 		{
 			name:   "Should wake from a stopped coordinator payload",
 			kind:   hookspkg.HookCoordinatorStopped,
@@ -739,15 +714,14 @@ func TestHooksNotifierWatchEventsObserversShouldFailOpen(t *testing.T) {
 		}
 	})
 
-	t.Run("Should notify automation and network watch observers from typed dispatch", func(t *testing.T) {
+	t.Run("Should notify automation watch observers from typed dispatch", func(t *testing.T) {
 		t.Parallel()
 
 		notifier := newHooksNotifier(discardLogger(), time.Now)
 		notifier.setRuntime(&fakeHookRuntime{}, nil)
 		automationRecorder := &recordingAutomationRunWatchObserver{}
-		networkRecorder := &recordingNetworkWatchObserver{}
+
 		notifier.AddAutomationRunWatchObserver(automationRecorder)
-		notifier.AddNetworkWatchObserver(networkRecorder)
 
 		if _, err := notifier.DispatchAutomationRunCompleted(t.Context(), hookspkg.AutomationRunCompletedPayload{
 			RunID:       "run-auto",
@@ -755,21 +729,9 @@ func TestHooksNotifierWatchEventsObserversShouldFailOpen(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("DispatchAutomationRunCompleted() error = %v", err)
 		}
-		if _, err := notifier.DispatchNetworkWorkTransitioned(t.Context(), hookspkg.NetworkPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookNetworkWorkTransitioned, Timestamp: time.Now().UTC()},
-			WorkspaceID: "ws-1",
-			MessageID:   "msg-1",
-			WorkID:      "work-1",
-			WorkState:   "working",
-		}); err != nil {
-			t.Fatalf("DispatchNetworkWorkTransitioned() error = %v", err)
-		}
 
 		if !automationRecorder.completed {
 			t.Fatal("automation run observer was not called")
-		}
-		if !networkRecorder.workTransitioned {
-			t.Fatal("network work observer was not called")
 		}
 	})
 }
@@ -841,15 +803,14 @@ func watchEventsTaskContextForTest(taskID string) hookspkg.TaskContext {
 
 func watchEventsLoopContextForTest(nodeID string) hookspkg.LoopContext {
 	return hookspkg.LoopContext{
-		WorkspaceID:                  "ws-1",
-		LoopRunID:                    "loop-run-source",
-		LoopName:                     "delivery",
-		Generation:                   1,
-		TaskID:                       "task-target",
-		RunID:                        "run-loop-node",
-		NodeID:                       nodeID,
-		SessionID:                    "session-1",
-		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "chan-1"),
+		WorkspaceID: "ws-1",
+		LoopRunID:   "loop-run-source",
+		LoopName:    "delivery",
+		Generation:  1,
+		TaskID:      "task-target",
+		RunID:       "run-loop-node",
+		NodeID:      nodeID,
+		SessionID:   "session-1",
 	}
 }
 
@@ -1156,63 +1117,6 @@ func (r *recordingAutomationRunWatchObserver) OnAutomationRunFailed(
 	hookspkg.AutomationRunFailedPayload,
 ) error {
 	r.failed = true
-	return nil
-}
-
-type recordingNetworkWatchObserver struct {
-	threadOpened     bool
-	directOpened     bool
-	messagePersisted bool
-	workOpened       bool
-	workTransitioned bool
-	workClosed       bool
-}
-
-func (r *recordingNetworkWatchObserver) OnNetworkThreadOpened(
-	context.Context,
-	hookspkg.NetworkThreadOpenedPayload,
-) error {
-	r.threadOpened = true
-	return nil
-}
-
-func (r *recordingNetworkWatchObserver) OnNetworkDirectRoomOpened(
-	context.Context,
-	hookspkg.NetworkDirectRoomOpenedPayload,
-) error {
-	r.directOpened = true
-	return nil
-}
-
-func (r *recordingNetworkWatchObserver) OnNetworkMessagePersisted(
-	context.Context,
-	hookspkg.NetworkMessagePersistedPayload,
-) error {
-	r.messagePersisted = true
-	return nil
-}
-
-func (r *recordingNetworkWatchObserver) OnNetworkWorkOpened(
-	context.Context,
-	hookspkg.NetworkWorkOpenedPayload,
-) error {
-	r.workOpened = true
-	return nil
-}
-
-func (r *recordingNetworkWatchObserver) OnNetworkWorkTransitioned(
-	context.Context,
-	hookspkg.NetworkWorkTransitionedPayload,
-) error {
-	r.workTransitioned = true
-	return nil
-}
-
-func (r *recordingNetworkWatchObserver) OnNetworkWorkClosed(
-	context.Context,
-	hookspkg.NetworkWorkClosedPayload,
-) error {
-	r.workClosed = true
 	return nil
 }
 

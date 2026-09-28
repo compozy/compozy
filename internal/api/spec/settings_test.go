@@ -38,8 +38,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/skills", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/automation", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/automation", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/network", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/network", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
+
 			{
 				path:       "/api/settings/cmd-palette",
 				method:     "GET",
@@ -132,22 +131,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				method:     "DELETE",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
-			{path: "/api/settings/sandboxes", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
-			{
-				path:       "/api/settings/sandboxes/{name}",
-				method:     "GET",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
-			{
-				path:       "/api/settings/sandboxes/{name}",
-				method:     "PUT",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
-			{
-				path:       "/api/settings/sandboxes/{name}",
-				method:     "DELETE",
-				transports: []Transport{TransportHTTP, TransportUDS},
-			},
+
 			{path: "/api/settings/hooks", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/hooks/{name}", method: "PUT", transports: []Transport{TransportHTTP, TransportUDS}},
 			{

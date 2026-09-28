@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: .compozy/tasks/tests-cleanup/performance/dev-optimized-events.json; .compozy/tasks/tests-cleanup/performance/dev-optimized-browser.txt; .compozy/tasks/tests-cleanup/performance/dev-browser-api-refresh.log; .compozy/tasks/tests-cleanup/performance/dev-build-recovery.json
 last_report: docs/qa/reports/2026-09-05-dev-performance.md
-overlaps: RT-001;RT-inspect-schema-streams
+overlaps: RT-001; RT-inspect-schema-streams
 ---
 
 QA impact 2026-07-24: new developer-supervisor readiness contract. The current Air run publishes one daemon-ready event carrying its built binary identity; stale runs and repeated rebuilds cannot unlock Vite startup. Planning flag only; automated process integration and implementation validation do not settle the real-user tracker verdict.

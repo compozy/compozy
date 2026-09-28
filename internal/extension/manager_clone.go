@@ -35,10 +35,6 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 
 func cloneHookMatcher(src hookspkg.HookMatcher) hookspkg.HookMatcher {
 	cloned := src
-	if src.NetworkMatcher != nil {
-		value := *src.NetworkMatcher
-		cloned.NetworkMatcher = &value
-	}
 	if src.CompactionMatcher != nil {
 		value := *src.CompactionMatcher
 		cloned.CompactionMatcher = &value
@@ -78,12 +74,12 @@ func cloneManifest(src *Manifest) *Manifest {
 
 	cloned := *src
 	cloned.Inputs = cloneManifestInputs(src.Inputs)
+	cloned.Gateway = src.Gateway.Normalize()
 	cloned.IngestDiagnostics = cloneDiagnosticItems(src.IngestDiagnostics)
 	cloned.Resources = normalizeResourcesConfig(src.Resources)
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(src.Permissions)
 	cloned.Subprocess = normalizeSubprocessConfig(src.Subprocess)
-	cloned.Bridge = normalizeBridgeConfig(src.Bridge)
 	cloned.Profiles = normalizeManifestProfiles(src.Profiles)
 	return &cloned
 }

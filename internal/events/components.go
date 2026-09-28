@@ -2,7 +2,6 @@ package events
 
 const (
 	ComponentAutomation   = "automation"
-	ComponentBridge       = "bridge"
 	ComponentCmdPalette   = "cmd_palette"
 	ComponentConfig       = "config"
 	ComponentExtension    = "extension"
@@ -12,7 +11,6 @@ const (
 	ComponentMarketplace  = "marketplace"
 	ComponentMCP          = "mcp"
 	ComponentMemory       = "memory"
-	ComponentNetwork      = "network"
 	ComponentNotification = "notification"
 	ComponentProvider     = "provider"
 	ComponentProfile      = "profile"

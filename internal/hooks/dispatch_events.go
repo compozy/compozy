@@ -8,7 +8,6 @@ import (
 
 const (
 	dispatchEventsAgentSessionKey = "agent_session"
-	dispatchEventsNetworkPeerKey  = "network_peer"
 )
 
 // DispatchPhase identifies whether a hook-dispatch event marks pipeline entry
@@ -157,18 +156,6 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 		return correlationFromSpawnContext(typed.SpawnContext)
 	case SpawnLifecyclePayload:
 		return correlationFromSpawnContext(typed.SpawnContext)
-	case NetworkPayload:
-		actorID := strings.TrimSpace(typed.PeerFrom)
-		if actorID == "" {
-			actorID = strings.TrimSpace(typed.SessionID)
-		}
-		if actorID == "" {
-			return DispatchCorrelation{}
-		}
-		return DispatchCorrelation{
-			ActorKind: dispatchEventsNetworkPeerKey,
-			ActorID:   actorID,
-		}
 	default:
 		sessionCtx := SessionContextFromPayload(payload)
 		sessionID := strings.TrimSpace(sessionCtx.SessionID)

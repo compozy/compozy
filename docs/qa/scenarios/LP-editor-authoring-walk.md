@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa/evidence/task13/15-loop-editor-hard-navigation.png; final build deep-link and lifecycle-envelope read verified, but full edit/publish walk was not repeated
 last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
-overlaps: LP-operator-lifecycle-ui;LP-error-route-fallback;LP-on-error-notification-with-context;LP-transient-blip-heals
+overlaps: LP-operator-lifecycle-ui; LP-error-route-fallback; LP-on-error-notification-with-context; LP-transient-blip-heals
 ---
 
 story: As a loop author I declare how a step should fail — how often it retries, whether the error is absorbed or routed, who gets told — and publish it, without leaving the editor or typing a key the engine does not model.

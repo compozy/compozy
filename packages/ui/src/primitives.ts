@@ -59,7 +59,6 @@ export {
   type KindIconTone,
 } from "./components/custom/kind-icon";
 export {
-  bridgeKindIconRegistry,
   providerKindIconRegistry,
   type KindIconRegistry,
   type KindIconRegistryEntry,

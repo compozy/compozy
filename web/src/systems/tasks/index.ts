@@ -28,12 +28,6 @@ export type {
   TaskBlockedReasonSource,
   TaskBlockKind,
   TaskApprovalState,
-  TaskBridgeNotificationCursor,
-  TaskBridgeNotificationDeliveryMode,
-  TaskBridgeNotificationSubscription,
-  TaskBridgeNotificationSubscriptionCreateRequest,
-  TaskBridgeNotificationSubscriptionScope,
-  TaskBridgeNotificationSubscriptionsFilter,
   TaskChildSummary,
   TaskContextBundle,
   TaskContextCurrentRun,
@@ -49,8 +43,6 @@ export type {
   TaskExecutionProfileCoordinatorMode,
   TaskExecutionProfileParticipants,
   TaskExecutionProfileReviewSelectors,
-  TaskExecutionProfileSandbox,
-  TaskExecutionProfileSandboxMode,
   TaskExecutionProfileSetRequest,
   TaskExecutionProfileWorker,
   TaskExecutionProfileWorkerMode,
@@ -117,9 +109,7 @@ export {
   completeTaskRun,
   createChildTask,
   createTask,
-  createTaskBridgeNotificationSubscription,
   deleteTask,
-  deleteTaskBridgeNotificationSubscription,
   deleteTaskExecutionProfile,
   dismissTask,
   enqueueTaskRun,
@@ -129,7 +119,6 @@ export {
   forceReleaseTaskRun,
   getAgentContext,
   getTask,
-  getTaskBridgeNotificationSubscription,
   getTaskContextBundle,
   getTaskDashboard,
   getTaskExecutionProfile,
@@ -140,7 +129,6 @@ export {
   getTaskTree,
   inspectRun,
   inspectTask,
-  listTaskBridgeNotificationSubscriptions,
   listTaskReviews,
   listTaskRunReviews,
   listTaskRuns,
@@ -165,8 +153,6 @@ export {
 export { tasksKeys } from "./query-api";
 export {
   agentContextOptions,
-  taskBridgeNotificationSubscriptionOptions,
-  taskBridgeNotificationSubscriptionsOptions,
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,
@@ -325,10 +311,6 @@ export { useTaskInbox, useTaskInboxBadge } from "./hooks/use-task-inbox";
 export { useTaskExecutionProfile } from "./hooks/use-task-profile";
 export { useTaskReviews, useTaskRunReview, useTaskRunReviews } from "./hooks/use-task-reviews";
 export { useAgentContext, useTaskContextBundle } from "./hooks/use-task-context-bundle";
-export {
-  useTaskBridgeNotificationSubscription,
-  useTaskBridgeNotificationSubscriptions,
-} from "./hooks/use-task-notifications";
 export { useTaskStream } from "./hooks/use-task-stream";
 export type {
   TaskStreamEventSource,
@@ -386,10 +368,6 @@ export {
   useSetTaskExecutionProfile,
 } from "./hooks/use-task-profile";
 export { useRequestTaskRunReview, useSubmitTaskRunReviewVerdict } from "./hooks/use-task-reviews";
-export {
-  useCreateTaskBridgeNotificationSubscription,
-  useDeleteTaskBridgeNotificationSubscription,
-} from "./hooks/use-task-notifications";
 
 export {
   applyTaskFilterChips,
@@ -416,7 +394,7 @@ export type {
 } from "./lib/inbox-filters";
 // prettier-ignore
 export {
-  TaskActivityItem, TaskActivityPanel, TaskAutoEnqueueSwitch, TaskBridgeSubscriptionsPane,
+  TaskActivityItem, TaskActivityPanel, TaskAutoEnqueueSwitch,
   TaskCard, TaskDeleteAction, TaskDependenciesSection, TaskEditorModal, TaskFanOutDialog,
   TaskGroup, TaskInspectDrawer, TaskLinkedRow, TaskLoopProvenance, TaskLoopRow, TaskNowStrip, TaskOverviewPanel, TaskPageActions,
   TaskPageOverflow, TaskPageStatus, TaskPauseDialog, TaskPriorityEditor, TaskPropertiesRail,
@@ -432,7 +410,7 @@ export {
 } from "./components-api";
 // prettier-ignore
 export type {
-  TaskActivityPanelProps, TaskBridgeSubscriptionsPaneProps, TaskCardProps, TaskEditorModalMode,
+  TaskActivityPanelProps, TaskCardProps, TaskEditorModalMode,
   TaskEditorModalProps, TaskEditorModalStatus, TaskFanOutDialogProps, TaskGroupProps,
   TaskInspectDrawerProps, TaskInspectDrawerTab, TaskLinkedRowProps, TaskLinkedRowState,
   TaskLoopProvenanceProps, TaskLoopRowProps,

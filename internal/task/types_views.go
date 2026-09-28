@@ -2,8 +2,6 @@ package task
 
 import (
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const maxSummaryCount = int32(1<<31 - 1)
@@ -47,33 +45,32 @@ type DependencyReference struct {
 
 // RunSummary captures the operator-facing run chip data used by enriched task cards.
 type RunSummary struct {
-	ID                           string                 `json:"id"`
-	TaskID                       string                 `json:"task_id"`
-	RunKind                      RunKind                `json:"run_kind,omitempty"`
-	LoopRunID                    string                 `json:"loop_run_id,omitempty"`
-	Status                       RunStatus              `json:"status"`
-	Attempt                      int                    `json:"attempt"`
-	RecoveryCount                int                    `json:"recovery_count"`
-	PreviousRunID                string                 `json:"previous_run_id,omitempty"`
-	FailureKind                  string                 `json:"failure_kind,omitempty"`
-	MaxAttempts                  int                    `json:"max_attempts"`
-	SessionID                    string                 `json:"session_id,omitempty"`
-	WorktreeID                   string                 `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode         WorktreeMode           `json:"resolved_worktree_mode,omitempty"`
-	ResolvedWorktreeRef          string                 `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy                    *ActorIdentity         `json:"claimed_by,omitempty"`
-	ClaimTokenHash               string                 `json:"claim_token_hash,omitempty"`
-	LeaseUntil                   time.Time              `json:"lease_until"`
-	HeartbeatAt                  time.Time              `json:"heartbeat_at"`
-	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation"`
-	DesignationGroupID           string                 `json:"designation_group_id,omitempty"`
-	Designation                  *RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt                     time.Time              `json:"queued_at"`
-	ClaimedAt                    time.Time              `json:"claimed_at"`
-	StartedAt                    time.Time              `json:"started_at"`
-	EndedAt                      time.Time              `json:"ended_at"`
-	TokensUsed                   int64                  `json:"tokens_used,omitempty"`
-	Error                        string                 `json:"error,omitempty"`
+	ID                   string                 `json:"id"`
+	TaskID               string                 `json:"task_id"`
+	RunKind              RunKind                `json:"run_kind,omitempty"`
+	LoopRunID            string                 `json:"loop_run_id,omitempty"`
+	Status               RunStatus              `json:"status"`
+	Attempt              int                    `json:"attempt"`
+	RecoveryCount        int                    `json:"recovery_count"`
+	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
+	FailureKind          string                 `json:"failure_kind,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	WorktreeID           string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode WorktreeMode           `json:"resolved_worktree_mode,omitempty"`
+	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil           time.Time              `json:"lease_until"`
+	HeartbeatAt          time.Time              `json:"heartbeat_at"`
+	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
+	Designation          *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt             time.Time              `json:"queued_at"`
+	ClaimedAt            time.Time              `json:"claimed_at"`
+	StartedAt            time.Time              `json:"started_at"`
+	EndedAt              time.Time              `json:"ended_at"`
+	TokensUsed           int64                  `json:"tokens_used,omitempty"`
+	Error                string                 `json:"error,omitempty"`
 }
 
 // View is the expanded read model returned from single-task lookups.

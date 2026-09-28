@@ -22,7 +22,7 @@ const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provide
 	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
 	runtime_selection_revision, workspace_id, worktree_id,
-	network_spec_json, network_mode, network_channel, network_source, session_type,
+	session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
 	state, archived_at, acp_session_id, stop_reason, stop_escalated, stop_verification_failed, stop_detail,
@@ -32,9 +32,6 @@ const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provide
 	pending_permission_count, pending_clarify_count, attention_revision,
 	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
-	sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
-	sandbox_state, sandbox_provider_state_json,
-	sandbox_last_sync_at, sandbox_last_sync_error,
 	created_at, updated_at
 FROM sessions`
 
@@ -146,9 +143,8 @@ func sessionCatalogPageFilters(
 		where = append(where, `(instr(lower(id), ?) > 0 OR
 			instr(lower(COALESCE(name, '')), ?) > 0 OR
 			instr(lower(agent_name), ?) > 0 OR
-			instr(lower(provider), ?) > 0 OR
-			instr(lower(COALESCE(network_channel, '')), ?) > 0)`)
-		for range 5 {
+			instr(lower(provider), ?) > 0)`)
+		for range 4 {
 			args = append(args, search)
 		}
 	}

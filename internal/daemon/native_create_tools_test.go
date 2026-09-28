@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -18,282 +16,6 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-func TestNativeNetworkChannelCreate(t *testing.T) {
-	t.Parallel()
-
-	var created store.NetworkChannelEntry
-	createCalls := 0
-	netStore := apitest.StubNetworkStore{
-		CreateNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
-			createCalls++
-			created = entry
-			return nil
-		},
-	}
-	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-		Network:      &nativeNetworkStub{},
-		NetworkStore: netStore,
-		Workspaces:   nativeNetworkTestWorkspaceService(t),
-		Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
-	}, nativeApproveAllPolicyInputs())
-
-	t.Run("Should register a channel with purpose through the network store", func(t *testing.T) {
-		result, err := registry.Call(t.Context(), toolspkg.Scope{
-			ProfileID: store.DefaultProfileID,
-			Operator:  true,
-		}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDNetworkChannelCreate,
-			Input: json.RawMessage(
-				`{"workspace":"ws-native-network","channel":"design","purpose":"UI reviews"}`,
-			),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(network_channel_create) error = %v", err)
-		}
-		requireNativeStructuredContains(t, result, []byte(`"design"`))
-		if createCalls != 1 {
-			t.Fatalf("CreateNetworkChannel calls = %d, want 1", createCalls)
-		}
-		if created.Channel != "design" ||
-			created.ProfileID != store.DefaultProfileID ||
-			created.WorkspaceID != nativeNetworkTestWorkspaceID ||
-			created.Purpose != "UI reviews" {
-			t.Fatalf("created entry = %#v, want default-owned design/native-workspace/UI reviews", created)
-		}
-	})
-
-	t.Run("Should persist the registered workspace id when Compozy identity differs", func(t *testing.T) {
-		registryWorkspaceID := "ws-native-network"
-		identityWorkspaceID := "01KSGVKVZVS4WP4HVMFE08J96Y"
-		var stored store.NetworkChannelEntry
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: &nativeNetworkStub{},
-			NetworkStore: apitest.StubNetworkStore{
-				CreateNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
-					stored = entry
-					return nil
-				},
-			},
-			Workspaces: apitest.StubWorkspaceService{
-				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-					if err := ctx.Err(); err != nil {
-						return workspacepkg.ResolvedWorkspace{}, err
-					}
-					if ref != registryWorkspaceID && ref != identityWorkspaceID {
-						t.Fatalf(
-							"Resolve() ref = %q, want registry %q or identity %q",
-							ref,
-							registryWorkspaceID,
-							identityWorkspaceID,
-						)
-					}
-					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      registryWorkspaceID,
-							RootDir: t.TempDir(),
-							Name:    "native-network",
-						},
-						WorkspaceID: identityWorkspaceID,
-					}, nil
-				},
-			},
-			Sessions: nativeNetworkTestSessionManager(registryWorkspaceID),
-		}, nativeApproveAllPolicyInputs())
-
-		result, err := registry.Call(t.Context(), toolspkg.Scope{
-			ProfileID: store.DefaultProfileID,
-			Operator:  true,
-		}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDNetworkChannelCreate,
-			Input: json.RawMessage(
-				"{\"workspace\":\"ws-native-network\",\"channel\":\"general\",\"purpose\":\"Announcements\"}",
-			),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(network_channel_create) error = %v", err)
-		}
-		requireNativeStructuredContains(t, result, []byte("\"general\""))
-		if stored.WorkspaceID != registryWorkspaceID {
-			t.Fatalf(
-				"stored workspace_id = %q, want registry id %q; identity id %q must not be persisted",
-				stored.WorkspaceID,
-				registryWorkspaceID,
-				identityWorkspaceID,
-			)
-		}
-	})
-
-	t.Run("Should create a durable channel when registry and identity ids differ", func(t *testing.T) {
-		registryWorkspaceID := "ws-native-network"
-		identityWorkspaceID := "01KSGVKVZVS4WP4HVMFE08J96Y"
-		root := t.TempDir()
-		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if closeErr := db.Close(cleanupCtx); closeErr != nil {
-				t.Fatalf("Close() error = %v", closeErr)
-			}
-		})
-		workspace := workspacepkg.Workspace{
-			ID:      registryWorkspaceID,
-			RootDir: root,
-			Name:    "native-network",
-		}
-		if err := db.InsertWorkspace(t.Context(), workspace); err != nil {
-			t.Fatalf("InsertWorkspace() error = %v", err)
-		}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network:      &nativeNetworkStub{},
-			NetworkStore: db,
-			Workspaces: apitest.StubWorkspaceService{
-				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-					if err := ctx.Err(); err != nil {
-						return workspacepkg.ResolvedWorkspace{}, err
-					}
-					if ref != registryWorkspaceID && ref != identityWorkspaceID {
-						t.Fatalf(
-							"Resolve() ref = %q, want registry %q or identity %q",
-							ref,
-							registryWorkspaceID,
-							identityWorkspaceID,
-						)
-					}
-					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspace,
-						WorkspaceID: identityWorkspaceID,
-					}, nil
-				},
-			},
-			Sessions: nativeNetworkTestSessionManager(registryWorkspaceID),
-		}, nativeApproveAllPolicyInputs())
-
-		result, err := registry.Call(t.Context(), toolspkg.Scope{
-			ProfileID: store.DefaultProfileID,
-			Operator:  true,
-		}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDNetworkChannelCreate,
-			Input: json.RawMessage(
-				"{\"workspace\":\"ws-native-network\",\"channel\":\"durable\",\"purpose\":\"Durable coordination\"}",
-			),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(network_channel_create) error = %v", err)
-		}
-		requireNativeStructuredContains(t, result, []byte("\"durable\""))
-		entry, err := db.GetNetworkChannel(t.Context(), store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
-			WorkspaceID: registryWorkspaceID,
-			Channel:     "durable",
-		})
-		if err != nil {
-			t.Fatalf("GetNetworkChannel() error = %v", err)
-		}
-		if entry.Purpose != "Durable coordination" {
-			t.Fatalf("entry purpose = %q, want Durable coordination", entry.Purpose)
-		}
-	})
-
-	t.Run("Should reject an invalid channel name", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDNetworkChannelCreate,
-			Input: json.RawMessage(
-				`{"workspace":"ws-native-network","channel":"Bad Name","purpose":"x"}`,
-			),
-		})
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-	})
-
-	t.Run("Should require a purpose", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDNetworkChannelCreate,
-			Input: json.RawMessage(
-				`{"workspace":"ws-native-network","channel":"general","purpose":"   "}`,
-			),
-		})
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-	})
-}
-
-func TestNativeNetworkChannelUpdate(t *testing.T) {
-	t.Parallel()
-
-	entry := store.NetworkChannelEntry{
-		ProfileID:    store.DefaultProfileID,
-		WorkspaceID:  nativeNetworkTestWorkspaceID,
-		Channel:      "design",
-		Purpose:      "UI reviews",
-		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch,
-		CreatedBy:    "test",
-	}
-	patchCalls := 0
-	netStore := apitest.StubNetworkStore{
-		GetNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
-			if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "design" {
-				return store.NetworkChannelEntry{}, fmt.Errorf(
-					"GetNetworkChannel() ref = %#v, want native design channel",
-					ref,
-				)
-			}
-			return entry, nil
-		},
-		PatchNetworkChannelFn: func(
-			_ context.Context,
-			readScope store.ReadScope,
-			ref store.NetworkChannelRef,
-			patch store.NetworkChannelPatch,
-		) error {
-			if readScope.ProfileID != store.DefaultProfileID {
-				return fmt.Errorf("PatchNetworkChannel() scope = %#v, want default profile", readScope)
-			}
-			if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "design" {
-				return fmt.Errorf("PatchNetworkChannel() ref = %#v, want native design channel", ref)
-			}
-			patchCalls++
-			entry = patch.Apply(entry)
-			if err := entry.Validate(); err != nil {
-				return fmt.Errorf("patched entry Validate(): %w", err)
-			}
-			return nil
-		},
-		WriteNetworkChannelFn: func(context.Context, store.NetworkChannelEntry) error {
-			return fmt.Errorf("WriteNetworkChannel() should not be called for a partial update")
-		},
-	}
-	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-		Network:      &nativeNetworkStub{},
-		NetworkStore: netStore,
-		Workspaces:   nativeNetworkTestWorkspaceService(t),
-		Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
-	}, nativeApproveAllPolicyInputs())
-
-	t.Run("Should return the public snake case channel payload", func(t *testing.T) {
-		t.Parallel()
-
-		result, err := registry.Call(t.Context(), toolspkg.Scope{
-			ProfileID: store.DefaultProfileID,
-			Operator:  true,
-		}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDNetworkChannelUpdate,
-			Input: json.RawMessage(
-				`{"workspace":"ws-native-network","channel":"design","purpose":"Pair reviews","fanout_policy":"coordinator","coordinator_peer_id":"reviewer.sess-a"}`,
-			),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(network_channel_update) error = %v", err)
-		}
-		if patchCalls != 1 {
-			t.Fatalf("PatchNetworkChannel calls = %d, want 1", patchCalls)
-		}
-		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"ws-native-network"`))
-		requireNativeStructuredContains(t, result, []byte(`"fanout_policy":"coordinator"`))
-		requireNativeStructuredContains(t, result, []byte(`"coordinator_peer_id":"reviewer.sess-a"`))
-		requireNativeStructuredExcludes(t, result, []byte(`"WorkspaceID"`))
-	})
-}
 
 func TestNativeAgentCreate(t *testing.T) {
 	t.Parallel()
@@ -367,7 +89,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		homePaths := testHomePaths(t)
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths:  homePaths,
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
@@ -395,7 +117,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths:  homePaths,
 			Config:     cfg,
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 			AgentSkillsRuntime: func() agentSkillPublisher {
 				return publisher
 			},
@@ -425,7 +147,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		syncCalls := 0
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths:  homePaths,
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 			AgentSkills: agentSkillPublisherFunc(func(context.Context) error {
 				syncCalls++
 				if syncCalls == 1 {
@@ -463,7 +185,7 @@ func TestNativeAgentCreate(t *testing.T) {
 	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 		HomePaths:   homePaths,
 		Config:      cfg,
-		Workspaces:  nativeNetworkTestWorkspaceService(t),
+		Workspaces:  nativeTestWorkspaceService(t),
 		AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
 	}, nativeApproveAllPolicyInputs())
 
@@ -594,7 +316,7 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 	t.Run("Should include ordinary onboarding alongside workspace and catalog agents", func(t *testing.T) {
 		t.Parallel()
 
-		const workspaceID = "ws-native-network"
+		const workspaceID = "ws-native"
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Workspaces: apitest.StubWorkspaceService{
 				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
@@ -608,7 +330,7 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 						Workspace: workspacepkg.Workspace{
 							ID:      workspaceID,
 							RootDir: t.TempDir(),
-							Name:    "native-network",
+							Name:    "native",
 						},
 						WorkspaceID: workspaceID,
 						Agents: []compozyconfig.AgentDef{
@@ -618,7 +340,7 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 					}, nil
 				},
 			},
-			Sessions: nativeNetworkTestSessionManager(workspaceID),
+			Sessions: nativeTestSessionManager(workspaceID),
 			AgentCatalog: nativeAgentCatalogStub{agents: []compozyconfig.AgentDef{
 				{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
 				{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
@@ -629,7 +351,7 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDWorkspaceDescribe,
-			Input:  json.RawMessage("{\"workspace\":\"ws-native-network\"}"),
+			Input:  json.RawMessage("{\"workspace\":\"ws-native\"}"),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(workspace_describe) error = %v", err)

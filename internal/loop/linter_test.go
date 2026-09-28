@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestLinterShouldRejectDeletedNoProgressParameters(t *testing.T) {
@@ -484,71 +483,6 @@ func TestLinterShouldValidateExclusiveRoutes(t *testing.T) {
 			errors := loop.NewLinter().Lint(definition)
 			requireLintCodes(t, errors, tt.wantCode)
 			requireLintMessageContains(t, errors, tt.wantCode, tt.message)
-		})
-	}
-}
-
-func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
-	t.Parallel()
-
-	modeLocal := participation.ModeLocal
-	modeLive := participation.ModeLive
-	strategyNamed := participation.StrategyNamed
-	channel := " builders "
-	testCases := []struct {
-		name        string
-		request     *participation.Request
-		wantCode    string
-		wantMessage string
-	}{
-		{
-			name:        "Should reject default Local participation for a Network node",
-			wantCode:    loop.CodeLoopRequiresLive,
-			wantMessage: "agent",
-		},
-		{
-			name:        "Should reject explicit Local participation for a Network node",
-			request:     &participation.Request{Mode: &modeLocal},
-			wantCode:    loop.CodeLoopRequiresLive,
-			wantMessage: "compozy__network_send",
-		},
-		{
-			name: "Should accept and canonicalize valid Live participation during compile",
-			request: &participation.Request{
-				Mode:            &modeLive,
-				ChannelStrategy: &strategyNamed,
-				ChannelID:       &channel,
-			},
-		},
-		{
-			name: "Should reject an invalid Local participation envelope",
-			request: &participation.Request{
-				Mode:            &modeLocal,
-				ChannelStrategy: &strategyNamed,
-				ChannelID:       &channel,
-			},
-			wantCode:    loop.CodeNetworkParticipationInvalid,
-			wantMessage: "local mode",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			def := validDefinition()
-			def.NetworkParticipation = tc.request
-			def.Graph.Nodes[2].Kind = "compozy__network_send"
-			linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
-				"compozy__network_send": {ToolID: "compozy__network_send"},
-			}))
-			errs := linter.Lint(def)
-			if tc.wantCode == "" {
-				requireLintCodes(t, errs)
-				return
-			}
-			requireLintCodes(t, errs, tc.wantCode)
-			requireLintMessageContains(t, errs, tc.wantCode, tc.wantMessage)
 		})
 	}
 }
@@ -1051,53 +985,16 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			},
 			wantCodes: []string{refs.CodeUnknownReference},
 		},
+
 		{
-			name: "Should reject deleted channel post action as unknown",
+			name: "Should reject event range harvest on reserved action kinds",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "agent")
-				node.Kind = "channel-post"
-			},
-			wantCodes: []string{loop.CodeUnknownActionKind},
-		},
-		{
-			name: "Should reject channel result harvest on reserved action kinds",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "5m"}
+				node.Harvest = &dsl.HarvestSpec{Kind: "event_range"}
 			},
 			wantCodes: []string{loop.CodeInvalidHarvest},
 		},
-		{
-			name: "Should reject channel result harvest on non network send actions",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Kind = "compozy__task_read"
-				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "5m"}
-			},
-			wantCodes: []string{loop.CodeInvalidHarvest},
-		},
-		{
-			name: "Should reject channel result harvest without a positive window",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Kind = "compozy__network_send"
-				node.Harvest = &dsl.HarvestSpec{Kind: "channel_result", Window: "0s"}
-			},
-			wantCodes: []string{loop.CodeInvalidHarvest},
-		},
-		{
-			name: "Should reject unsupported channel result content rules",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "agent")
-				node.Kind = "compozy__network_send"
-				node.Harvest = &dsl.HarvestSpec{
-					Kind:        "channel_result",
-					Window:      "5m",
-					ContentRule: "jsonpath:decision",
-				}
-			},
-			wantCodes: []string{loop.CodeInvalidHarvest},
-		},
+
 		{
 			name: "Should reject unknown harvest kinds on open actions",
 			mutate: func(def *dsl.Definition) {
@@ -1852,15 +1749,7 @@ func TestLinterShouldValidateWatchEventsSourceNodes(t *testing.T) {
 			messageCode:   loop.CodeWatchEventsKindUnsupported,
 			messageSubstr: "automation.run.completed",
 		},
-		{
-			name: "Should reject network peer lifecycle kinds without durable anchors",
-			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
-				Kind: "network.peer.joined",
-			}})),
-			wantCodes:     []string{loop.CodeWatchEventsKindUnsupported},
-			messageCode:   loop.CodeWatchEventsKindUnsupported,
-			messageSubstr: "network.message.persisted",
-		},
+
 		{
 			name: "Should reject coordinator pre-spawn because it is pre-state",
 			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{

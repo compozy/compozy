@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: f54e62b;acbbb25
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/console-before-fix.txt;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/console-after-fix.txt;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/screenshots/05-inline-command-hook-fix.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/screenshots/02-adjacent-duplicate-inline.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/exact-prompt-history.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/screenshots/05-exact-prompt-after-refresh.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/screenshots/07-effective-skills-narrow.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/console-reviewed-head.txt
 last_report: docs/qa/reports/2026-08-05-session-slash-commands.md
-overlaps: ET-web-session-composer-text-entry;RT-session-message-reload
+overlaps: ET-web-session-composer-text-entry; RT-session-message-reload
 ---
 
 QA impact 2026-08-05: session slash discovery and inline skill insertion are new user-visible behavior. This scenario owns the Web command-menu interaction and exact trigger-range replacement; the existing composer text-entry and transcript reload scenarios remain adjacent canaries.

@@ -52,7 +52,7 @@ Both keep the contract in `web/src/systems/onboarding` verbatim — nothing was 
 | Step | Content | Continue is enabled when |
 | --- | --- | --- |
 | 1 · Runtime | `RuntimeSelector` (provider · model · reasoning) + a one-line facts strip for the selected model (context, price, tools, reasoning levels, harness) + auth mode (`native_cli` \| `bound_secret`) + env var / API key when bound | `useOnboardingDefaultModel().isValid` — provider set, provider + general settings loaded, bound secret has a target env |
-| 2 · Workspace | `DirectoryBrowser` (`GET /api/fs/browse`, `dirs_only`) on the left, selected workspaces on the right, network mention below the split | at least one workspace resolved |
+| 2 · Workspace | `DirectoryBrowser` (`GET /api/fs/browse`, `dirs_only`) on the left, selected workspaces on the right | at least one workspace resolved |
 
 Auth mode defaults from the provider harness (`acp` → CLI, `pi_acp` → API key) and clears bound credentials when the provider changes, as `updateRuntime` already does. Step 2 names the first resolved workspace in the menu bar behind the scrim — the shell fills in while you are still setting up.
 
@@ -63,7 +63,7 @@ Auth mode defaults from the provider harness (`acp` → CLI, `pi_acp` → API ke
 | `systems/os/components/desktop-gate.tsx` | Render chrome + panel instead of swapping; mark the chrome subtree `inert` while setup is open |
 | `systems/onboarding/components/onboarding-wizard.tsx` | Rewritten as `onboarding-setup-panel.tsx`: `Dialog` host, 52px head, 44px step strip, animated body, 58px footer |
 | `systems/onboarding/components/step-default-model.tsx` | Keep sections and fields; add the model facts line; drop the outer page padding |
-| `systems/onboarding/components/step-workspaces.tsx` | Same data, re-laid out as the two-pane split; the network mention moves below the split |
+| `systems/onboarding/components/step-workspaces.tsx` | Same data, re-laid out as the two-pane split |
 | `systems/onboarding/components/directory-browser.tsx` | Unchanged |
 | `systems/onboarding/hooks/*`, `stores/use-onboarding-draft-store.ts`, `adapters/*` | Unchanged — `step`, `maxStep`, `goToStep`, `commit`, `finish` already model this flow |
 | `systems/onboarding/index.ts` | Export the panel instead of the wizard |
@@ -95,4 +95,4 @@ Auth mode defaults from the provider harness (`acp` → CLI, `pi_acp` → API ke
 
 ## Non-goals
 
-Step count, field set, endpoints and validation are unchanged. No new onboarding step, no provider sign-in flow inside setup, no desktop widgets, no change to Network behaviour — finishing setup still does not enable coordination.
+Step count, field set, endpoints and validation are unchanged. No new onboarding step, no provider sign-in flow inside setup, no desktop widgets.

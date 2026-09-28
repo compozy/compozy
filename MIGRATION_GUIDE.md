@@ -1,4 +1,6 @@
-# Migrate from CompozyOS v0.2.15 to CompozyOS v0.3
+# CompozyOS Migration Guide
+
+For an existing v0.3 installation, follow [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal). The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
 and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned
@@ -7,6 +9,61 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="networks-bridges-and-sandbox-removal"></a>
+
+## Networks, Bridges, and Sandbox removal
+
+The package cleanup release removes the Compozy Network, Bridges, and managed Sandbox products
+across the daemon, CLI, HTTP/UDS, native tools, SDKs, configuration, Web UI, and documentation. This
+is an intentional breaking change with no compatibility aliases or deprecation window.
+
+### Before upgrading
+
+Stop the daemon and back up its global state directory, workspace `.compozy/` directories, and
+`config.toml`. Export any Network messages or Bridge delivery records you need to retain using the
+previous release. The new release has no reader or recovery command for retired state. Do not run
+an older binary against the upgraded database; restore the complete pre-upgrade backup to roll back.
+
+### Database migration 00121
+
+Opening an existing database applies `00121_retire_network_bridges_sandbox.sql` transactionally.
+It permanently drops Network channels, threads, messages, subscriptions, participation, coordination,
+audit/timeline projections, and wake queues; Bridge instances, routes, delivery history, secret
+bindings, target directories, and task subscriptions; and notification presets and their delivery
+permits. Network wake runs and their dependent records are removed. References from retained Tasks
+and task events to those removed runs are cleared. Product-specific Network, Bridge, and Sandbox
+fields are removed from retained runtime records. Historical Loop channel-message events are removed.
+
+Ordinary sessions and their local histories, Tasks and ordinary task runs, execution profiles,
+Loops and Goal nodes, memory, workspaces, attention notifications, and task status cursors remain.
+Agent `SOUL.md` and `HEARTBEAT.md` documents, revisions, schedules, and wake policy remain supported.
+Session supervision and task lease heartbeats also remain supported.
+
+### Update configuration and integrations
+
+Remove product configuration for Network, Bridges, and managed Sandboxes, including default Sandbox
+selection and remote Sandbox drivers. Remove retired fields from session, Task, profile, job, and
+Loop requests. Scripts must stop calling retired CLI commands, routes, native tools, and SDK methods;
+there are no aliases. Rebuild extensions against the current SDK. Agent capability catalogs remain
+local authoring inputs for Task worker selection.
+
+Gateway and webhooks remain supported. Extensions declare their reachability requirement with
+`[gateway]` and explicit permission atoms:
+
+```toml
+[gateway]
+permissions = ["gateway.private", "gateway.public"]
+```
+
+Declare only the permissions the extension needs. Install, update, and development-link callers
+confirm the returned `gateway_requirement_digest` using `--confirm-gateway-requirement` in the CLI
+or `confirm_gateway_digest` in the request. The database migration retains the recorded digest,
+confirmer, and confirmation time under the Gateway names. A changed requirement requires a matching
+confirmation; removal of Network must not grant public ingress implicitly.
+
+Provider-native execution permissions and sandbox policies, operating-system isolation, MCP/ACP
+stdio adapters, and the Herdr hook IPC bridge are independent of the removed products.
 
 <a id="command-map"></a>
 
@@ -70,7 +127,7 @@ The complete v0.2 flag-family disposition is:
 | `--parallel-tasks` and hidden conflict-resolver flags                                                                                                                       | Deferred. The bundled Loop intentionally executes its task fan-out with `max_parallel: 1`.                                                                            |
 | `--include-completed`, `--recursive`, `--skip-validation`, `--force`                                                                                                        | Removed. The bundled importer owns task selection; there is no bypass flag. Fork and publish a custom Loop when a different contract is required.                     |
 | `--attach`, `--ui`, `--stream`, `--detach`                                                                                                                                  | TUI attach is removed. Use the final-line web URL, `loop status`, run events over HTTP/UDS/SSE, or structured output.                                                 |
-| `--add-dir`, `--tail-lines`, `--access-mode`, `--timeout`, `--max-retries`, `--retry-backoff-multiplier`                                                                    | No direct invocation flags. Model execution policy in agent definitions, sandbox/config policy, or a custom Loop node's `timeout` and `retry`.                        |
+| `--add-dir`, `--tail-lines`, `--access-mode`, `--timeout`, `--max-retries`, `--retry-backoff-multiplier`                                                                    | No direct invocation flags. Model execution policy in agent definitions, configuration policy, or a custom Loop node's `timeout` and `retry`.                         |
 | `--recovery`, `--no-recovery`, `--recovery-ide`, `--recovery-model`, `--recovery-reasoning`, `--recovery-max-attempts`                                                      | Removed. The legacy recovery agent has no v0.3 replacement. Use Loop retry/no-progress/terminal state and operator-driven reruns.                                     |
 | `reviews fetch`: `--provider`, `--pr`, `--name`, `--round`                                                                                                                  | External fetch is removed. `task_name` is the only required review target; round allocation is automatic.                                                             |
 | `reviews fix`: `--name`, `--round`, `--agent`, `--batch-size`, `--concurrent`, `--include-resolved`, common runtime/recovery/attach flags                                   | Use `task_name`, optional `fixer`, optional `auto_commit`, and `--runtime`; other flags have no direct replacement.                                                   |

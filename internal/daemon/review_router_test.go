@@ -24,16 +24,16 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AgentName:            "reviewer",
-					AllowedChannelIDs:    []string{"reviews"},
+					AgentName: "reviewer",
+
 					RequiredCapabilities: []string{"review-pr"},
 				},
 			},
 		}
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
-				reviewRouterSessionInfo("sess-reviewer", "reviewer", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
+				reviewRouterSessionInfo("sess-reviewer", "reviewer"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -57,9 +57,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		if got, want := bind.SessionID, "sess-reviewer"; got != want {
 			t.Fatalf("BindRunReviewSession.SessionID = %q, want %q", got, want)
 		}
-		if got, want := bind.ReviewerPeerID, "reviewer.sess-reviewer"; got != want {
-			t.Fatalf("BindRunReviewSession.ReviewerPeerID = %q, want %q", got, want)
-		}
+
 		if len(tasks.records) != 0 {
 			t.Fatalf("RecordRunReview calls = %#v, want none", tasks.records)
 		}
@@ -76,9 +74,9 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
-				reviewRouterSessionInfo("sess-requester", "requester", "reviews"),
-				reviewRouterSessionInfo("sess-reviewer", "reviewer", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
+				reviewRouterSessionInfo("sess-requester", "requester"),
+				reviewRouterSessionInfo("sess-reviewer", "reviewer"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -118,7 +116,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-requester", "requester", "reviews"),
+				reviewRouterSessionInfo("sess-requester", "requester"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -164,7 +162,6 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 					ACPOptions: []taskpkg.ACPOptionSelection{{
 						ID: "thinking", BoolValue: new(false),
 					}},
-					PreferredChannelIDs: []string{"reviews"},
 				},
 			},
 		}
@@ -187,14 +184,9 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		if create.Type != session.SessionTypeSystem {
 			t.Fatalf("CreateOpts.Type = %q, want system", create.Type)
 		}
-		if create.AgentName != "reviewer" || create.NetworkParticipation != nil ||
-			create.ResolvedNetworkParticipation != nil {
-			t.Fatalf(
-				"CreateOpts agent/participation = %q/%#v/%#v, want reviewer with independent Local default",
-				create.AgentName,
-				create.NetworkParticipation,
-				create.ResolvedNetworkParticipation,
-			)
+
+		if create.AgentName != "reviewer" {
+			t.Fatalf("CreateOpts.AgentName = %q, want reviewer", create.AgentName)
 		}
 		if create.Provider != "claude" || create.Model != "opus-5" ||
 			create.ReasoningEffort != "high" || create.Speed != speedpkg.SpeedFast ||
@@ -221,8 +213,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AgentName:           "reviewer",
-					PreferredChannelIDs: []string{"reviews"},
+					AgentName: "reviewer",
 				},
 			},
 		}
@@ -259,8 +250,8 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AgentName:            "reviewer",
-					AllowedChannelIDs:    []string{"reviews"},
+					AgentName: "reviewer",
+
 					RequiredCapabilities: []string{"review-pr"},
 				},
 			},
@@ -270,8 +261,8 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		store.rejectCanceledContext = true
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
-				reviewRouterSessionInfo("sess-reviewer", "reviewer", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
+				reviewRouterSessionInfo("sess-reviewer", "reviewer"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -302,7 +293,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AllowedPeerIDs: []string{"peer-missing"},
+					AgentName: "worker",
 				},
 			},
 			requireDeadline: true,
@@ -311,7 +302,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		store.requireDeadline = true
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -335,49 +326,6 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject Local reviewer creation when explicit channels allow no active candidate", func(t *testing.T) {
-		t.Parallel()
-
-		tasks := &reviewRouterTasksStub{
-			profile: taskpkg.ExecutionProfile{
-				TaskID: "task-1",
-				Review: taskpkg.ReviewProfile{
-					AgentName:         "reviewer",
-					AllowedChannelIDs: []string{"reviews"},
-				},
-			},
-		}
-		sessions := &coordinatorRuntimeSessions{
-			infos: []*session.Info{reviewRouterSessionInfo("sess-worker", "worker", "reviews")},
-		}
-		router := newReviewRouterForTest(
-			t,
-			tasks,
-			reviewRouterStoreForTest(),
-			sessions,
-			reviewRouterAgentResolverStub{
-				"reviewer": reviewRouterAgentDef("reviewer"),
-				"worker":   reviewRouterAgentDef("worker"),
-			},
-		)
-
-		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
-
-		if got := sessions.createCount(); got != 0 {
-			t.Fatalf("session create calls = %d, want 0", got)
-		}
-		if len(tasks.binds) != 0 {
-			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
-		}
-		if got, want := len(tasks.records), 1; got != want {
-			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
-		}
-		if !strings.Contains(tasks.records[0].Verdict.Reason, "only explicit channels") {
-			t.Fatalf("RecordRunReview reason = %q, want channel allowlist diagnostic", tasks.records[0].Verdict.Reason)
-		}
-	})
-
 	t.Run("Should rebind in review requests when reviewer session stops", func(t *testing.T) {
 		t.Parallel()
 
@@ -393,9 +341,9 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
-				stoppedReviewRouterSessionInfo("sess-stopped-reviewer", "reviewer", "reviews"),
-				reviewRouterSessionInfo("sess-active-reviewer", "reviewer", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
+				stoppedReviewRouterSessionInfo("sess-stopped-reviewer", "reviewer"),
+				reviewRouterSessionInfo("sess-active-reviewer", "reviewer"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -410,13 +358,13 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		router.OnSessionStopped(context.Background(), &session.Session{
-			ID:                   "sess-stopped-reviewer",
-			AgentName:            "reviewer",
-			WorkspaceID:          "ws-1",
-			Workspace:            "ws-1",
-			NetworkParticipation: daemonTestLiveParticipation("ws-1", "reviews"),
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateStopped,
+			ID:          "sess-stopped-reviewer",
+			AgentName:   "reviewer",
+			WorkspaceID: "ws-1",
+			Workspace:   "ws-1",
+
+			Type:  session.SessionTypeSystem,
+			State: session.StateStopped,
 		})
 
 		if got, want := len(tasks.listQueries), 1; got != want {
@@ -448,15 +396,15 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AllowedPeerIDs: []string{"missing-peer"},
+					AgentName: "worker",
 				},
 			},
 			listReviews: []taskpkg.RunReview{stoppedReview},
 		}
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
-				stoppedReviewRouterSessionInfo("sess-stopped-reviewer", "reviewer", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
+				stoppedReviewRouterSessionInfo("sess-stopped-reviewer", "reviewer"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -471,13 +419,13 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		router.OnSessionStopped(context.Background(), &session.Session{
-			ID:                   "sess-stopped-reviewer",
-			AgentName:            "reviewer",
-			WorkspaceID:          "ws-1",
-			Workspace:            "ws-1",
-			NetworkParticipation: daemonTestLiveParticipation("ws-1", "reviews"),
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateStopped,
+			ID:          "sess-stopped-reviewer",
+			AgentName:   "reviewer",
+			WorkspaceID: "ws-1",
+			Workspace:   "ws-1",
+
+			Type:  session.SessionTypeSystem,
+			State: session.StateStopped,
 		})
 
 		if len(tasks.binds) != 0 {
@@ -491,7 +439,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			t.Fatalf("RecordRunReview outcome = %q, want %q", got, want)
 		}
 		if !strings.Contains(record.Verdict.Reason, "sess-stopped-reviewer") ||
-			!strings.Contains(record.Verdict.Reason, "allows only explicit peers") {
+			!strings.Contains(record.Verdict.Reason, "exclude all eligible reviewer agents") {
 			t.Fatalf("RecordRunReview reason = %q, want stopped-session no-route diagnostic", record.Verdict.Reason)
 		}
 	})
@@ -554,7 +502,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -594,13 +542,13 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 				profile: taskpkg.ExecutionProfile{
 					TaskID: "task-1",
 					Review: taskpkg.ReviewProfile{
-						AllowedPeerIDs: []string{"peer-missing"},
+						AgentName: "worker",
 					},
 				},
 			}
 			sessions := &coordinatorRuntimeSessions{
 				infos: []*session.Info{
-					reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+					reviewRouterSessionInfo("sess-worker", "worker"),
 				},
 			}
 			router := newReviewRouterForTest(
@@ -630,7 +578,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 					record.Verdict.DeliveryID,
 				)
 			}
-			if !strings.Contains(record.Verdict.Reason, "allows only explicit peers") {
+			if !strings.Contains(record.Verdict.Reason, "exclude all eligible reviewer agents") {
 				t.Fatalf("RecordRunReview reason = %q, want deterministic selector diagnostic", record.Verdict.Reason)
 			}
 		},
@@ -643,7 +591,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AllowedPeerIDs: []string{"peer-missing"},
+					AgentName: "worker",
 				},
 			},
 		}
@@ -651,7 +599,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		store.runErr = context.DeadlineExceeded
 		sessions := &coordinatorRuntimeSessions{
 			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				reviewRouterSessionInfo("sess-worker", "worker"),
 			},
 		}
 		router := newReviewRouterForTest(
@@ -707,11 +655,10 @@ func reviewRouterStoreForTest() *reviewRouterStoreStub {
 			Title:       "Review routed task",
 		},
 		run: taskpkg.Run{
-			ID:              "run-1",
-			TaskID:          "task-1",
-			Status:          taskpkg.TaskRunStatusCompleted,
-			SessionID:       "sess-worker",
-			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "reviews")},
+			ID:        "run-1",
+			TaskID:    "task-1",
+			Status:    taskpkg.TaskRunStatusCompleted,
+			SessionID: "sess-worker",
 		},
 	}
 }
@@ -730,20 +677,20 @@ func reviewRouterNotificationForTest() taskpkg.RunReviewRequestedNotification {
 	}
 }
 
-func reviewRouterSessionInfo(id string, agent string, channel string) *session.Info {
+func reviewRouterSessionInfo(id string, agent string) *session.Info {
 	return &session.Info{
-		ID:                   id,
-		AgentName:            agent,
-		WorkspaceID:          "ws-1",
-		Workspace:            "ws-1",
-		NetworkParticipation: daemonTestLiveParticipation("ws-1", channel),
-		Type:                 session.SessionTypeSystem,
-		State:                session.StateActive,
+		ID:          id,
+		AgentName:   agent,
+		WorkspaceID: "ws-1",
+		Workspace:   "ws-1",
+
+		Type:  session.SessionTypeSystem,
+		State: session.StateActive,
 	}
 }
 
-func stoppedReviewRouterSessionInfo(id string, agent string, channel string) *session.Info {
-	info := reviewRouterSessionInfo(id, agent, channel)
+func stoppedReviewRouterSessionInfo(id string, agent string) *session.Info {
+	info := reviewRouterSessionInfo(id, agent)
 	info.State = session.StateStopped
 	return info
 }

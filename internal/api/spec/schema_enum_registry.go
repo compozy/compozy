@@ -7,14 +7,12 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/notifications"
+
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -68,7 +66,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[taskpkg.BlockedSource]():                   taskBlockedSourceValues(),
 		reflect.TypeFor[taskpkg.CoordinatorMode]():                 taskCoordinatorModeValues(),
 		reflect.TypeFor[taskpkg.WorkerMode]():                      taskWorkerModeValues(),
-		reflect.TypeFor[taskpkg.SandboxMode]():                     taskSandboxModeValues(),
 		reflect.TypeFor[taskpkg.WorktreeMode]():                    taskWorktreeModeValues(),
 		reflect.TypeFor[contract.ResolvedWorktreeMode]():           contract.ResolvedWorktreeModeValues(),
 		reflect.TypeFor[taskpkg.RuntimeMode]():                     taskRuntimeModeValues(),
@@ -77,7 +74,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[taskpkg.RunReviewOutcome]():                taskRunReviewOutcomeValues(),
 		reflect.TypeFor[contract.TaskInboxLane]():                  taskInboxLaneValues(),
 		reflect.TypeFor[contract.LoopProvenanceRole]():             contract.LoopProvenanceRoleValues(),
-		reflect.TypeFor[contract.CoordinationMessageKind]():        coordinationMessageKindValues(),
 		reflect.TypeFor[contract.AgentCreateScope]():               agentCreateScopeValues(),
 		reflect.TypeFor[contract.AgentOrigin]():                    agentOriginValues(),
 		reflect.TypeFor[contract.CoordinatorConfigSource]():        coordinatorConfigSourceValues(),
@@ -170,7 +166,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SkillActivationReasonCode]():   skillActivationReasonCodeValues(),
 		reflect.TypeFor[contract.SkillVerificationStatus]():     skillVerificationStatusValues(),
 		reflect.TypeFor[contract.SkillExposureStatus]():         skillExposureStatusValues(),
-		reflect.TypeFor[contract.BridgeSendTestStatus]():        contract.BridgeSendTestStatusValues(),
 		reflect.TypeFor[hooks.HookEvent]():                      hookEventValues(),
 		reflect.TypeFor[hooks.HookEventFamily]():                hookEventFamilyValues(),
 		reflect.TypeFor[hooks.HookMode]():                       hookModeValues(),
@@ -239,21 +234,11 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(contract.SettingsMCPAuthBeginModeAutomatic),
 			string(contract.SettingsMCPAuthBeginModeManual),
 		},
-		reflect.TypeFor[resources.ResourceScopeKind]():        resourceScopeKindValues(),
-		reflect.TypeFor[notifications.ScopeKind]():            notificationScopeKindValues(),
-		reflect.TypeFor[bridgepkg.Scope]():                    bridgeScopeValues(),
-		reflect.TypeFor[bridgepkg.BridgeInstanceSource]():     bridgeInstanceSourceValues(),
-		reflect.TypeFor[bridgepkg.BridgeStatus]():             bridgeStatusValues(),
-		reflect.TypeFor[bridgepkg.BridgeDMPolicy]():           bridgeDMPolicyValues(),
-		reflect.TypeFor[bridgepkg.BridgeDegradationReason]():  bridgeDegradationReasonValues(),
-		reflect.TypeFor[bridgepkg.BridgeDiagnosticKind]():     bridgeDiagnosticKindValues(),
-		reflect.TypeFor[bridgepkg.BridgeDiagnosticSeverity](): bridgeDiagnosticSeverityValues(),
-		reflect.TypeFor[bridgepkg.BridgeCheckStatus]():        bridgeCheckStatusValues(),
-		reflect.TypeFor[bridgepkg.DeliveryMode]():             deliveryModeValues(),
-		reflect.TypeFor[modelcatalog.ReasoningSource]():       modelcatalog.ReasoningSourceValues(),
-		reflect.TypeFor[speedpkg.Speed]():                     speedpkg.Values(),
-		reflect.TypeFor[speedpkg.ResolutionStatus]():          speedpkg.ResolutionStatusValues(),
-		reflect.TypeFor[speedpkg.ResolutionReason]():          speedpkg.ResolutionReasonValues(),
+		reflect.TypeFor[resources.ResourceScopeKind]():  resourceScopeKindValues(),
+		reflect.TypeFor[modelcatalog.ReasoningSource](): modelcatalog.ReasoningSourceValues(),
+		reflect.TypeFor[speedpkg.Speed]():               speedpkg.Values(),
+		reflect.TypeFor[speedpkg.ResolutionStatus]():    speedpkg.ResolutionStatusValues(),
+		reflect.TypeFor[speedpkg.ResolutionReason]():    speedpkg.ResolutionReasonValues(),
 		reflect.TypeFor[contract.SessionContextState](): {
 			string(contract.SessionContextStateReported), string(contract.SessionContextStateEstimatedSize),
 			string(contract.SessionContextStateUnknown), string(contract.SessionContextStateUnavailable),
@@ -273,19 +258,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[tools.ApprovalGrantDecision]():        toolApprovalGrantDecisionValues(),
 		reflect.TypeFor[tools.ApprovalGrantManagementScope](): toolApprovalGrantManagementScopeValues(),
 		reflect.TypeFor[extensionprotocol.HostAPIMethod]():    hostAPIMethodValues(),
-		reflect.TypeFor[participation.Mode]():                 participationModeValues(),
-		reflect.TypeFor[participation.ChannelStrategy]():      participationChannelStrategyValues(),
-		reflect.TypeFor[participation.Source]():               participationSourceValues(),
-		reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 	}),
 )
-
-func notificationScopeKindValues() []string {
-	return []string{
-		string(notifications.ScopeKindGlobal),
-		string(notifications.ScopeKindWorkspace),
-	}
-}
 
 func roleResolutionModeValues() []string {
 	return []string{

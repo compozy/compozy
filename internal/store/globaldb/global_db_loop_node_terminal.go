@@ -36,7 +36,6 @@ func recordLoopNodeTerminalWithExecutor(
 	run taskpkg.Run,
 	outcome string,
 	outputRef string,
-	resultPayload json.RawMessage,
 	terminalAt time.Time,
 ) error {
 	loopRunID := strings.TrimSpace(run.LoopRunID)
@@ -73,7 +72,6 @@ func recordLoopNodeTerminalWithExecutor(
 		run,
 		outcome,
 		outputRef,
-		normalizeTaskJSON(resultPayload),
 		tokensUsed,
 		terminalAt,
 	)

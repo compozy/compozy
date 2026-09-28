@@ -197,12 +197,11 @@ func runAgentSessionBindRequest(
 		CellFence: &ActionSessionCellFence{
 			Epoch: in.CellEpoch, TaskRunID: strings.TrimSpace(in.CorrelationID),
 		},
-		Isolated:             input.node.Session != nil && input.node.Session.Isolated,
-		Runtime:              &runtimeRequest,
-		AllowedTools:         append([]string(nil), input.spec.AllowedTools...),
-		MaxTurns:             input.spec.MaxTurns,
-		ContractBlock:        input.contractBlock,
-		NetworkParticipation: in.NetworkParticipation,
+		Isolated:      input.node.Session != nil && input.node.Session.Isolated,
+		Runtime:       &runtimeRequest,
+		AllowedTools:  append([]string(nil), input.spec.AllowedTools...),
+		MaxTurns:      input.spec.MaxTurns,
+		ContractBlock: input.contractBlock,
 	}, nil
 }
 

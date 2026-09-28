@@ -136,9 +136,6 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("SaveBootstrapConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if !cfg.Network.Enabled {
-		t.Fatal("SaveBootstrapConfig() Network.Enabled = false, want inherited enabled default")
-	}
 
 	reloaded, err := LoadGlobalConfig(homePaths)
 	if err != nil {
@@ -160,9 +157,6 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 			reloaded.Providers["claude"].Models.Default,
 			"claude-sonnet-4-6",
 		)
-	}
-	if !reloaded.Network.Enabled {
-		t.Fatal("LoadGlobalConfig() Network.Enabled = false, want inherited enabled default")
 	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)
@@ -230,82 +224,6 @@ func TestSaveBootstrapConfigRequiresModelForPiProviders(t *testing.T) {
 	wantErr := `bootstrap model is required for provider "openrouter"`
 	if err.Error() != wantErr {
 		t.Fatalf("SaveBootstrapConfig() error = %q, want %q", err.Error(), wantErr)
-	}
-}
-
-func TestSaveBootstrapConfigNetworkBehavior(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name               string
-		seed               string
-		wantEnabled        bool
-		wantNetworkSection bool
-	}{
-		{
-			name:               "ShouldKeepNetworkEnabledByDefaultOnFirstRun",
-			wantEnabled:        true,
-			wantNetworkSection: false,
-		},
-		{
-			name: "ShouldPreserveExplicitNetworkDisable",
-			seed: `
-[network]
-enabled = false
-`,
-			wantEnabled:        false,
-			wantNetworkSection: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-			if err != nil {
-				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-			}
-
-			if strings.TrimSpace(tt.seed) != "" {
-				writeFile(t, homePaths.ConfigFile, tt.seed)
-			}
-
-			cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
-			if err != nil {
-				t.Fatalf("SaveBootstrapConfig() error = %v", err)
-			}
-			if got := cfg.Network.Enabled; got != tt.wantEnabled {
-				t.Fatalf("SaveBootstrapConfig() Network.Enabled = %t, want %t", got, tt.wantEnabled)
-			}
-			reloaded, err := LoadGlobalConfig(homePaths)
-			if err != nil {
-				t.Fatalf("LoadGlobalConfig() error = %v", err)
-			}
-			if got := reloaded.Network.Enabled; got != tt.wantEnabled {
-				t.Fatalf("LoadGlobalConfig() Network.Enabled = %t, want %t", got, tt.wantEnabled)
-			}
-			contents, err := os.ReadFile(homePaths.ConfigFile)
-			if err != nil {
-				t.Fatalf("ReadFile(config) error = %v", err)
-			}
-			text := string(contents)
-			if !tt.wantNetworkSection {
-				if strings.Contains(text, "[network]") {
-					t.Fatalf("bootstrap config wrote an unexpected network section:\n%s", text)
-				}
-				return
-			}
-
-			for _, want := range []string{
-				"[network]",
-				`enabled = false`,
-			} {
-				if !strings.Contains(text, want) {
-					t.Fatalf("config contents missing %q\n%s", want, text)
-				}
-			}
-		})
 	}
 }
 

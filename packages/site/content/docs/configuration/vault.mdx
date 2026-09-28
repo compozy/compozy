@@ -25,12 +25,10 @@ Supported Vault namespaces are:
 | Namespace    | Typical refs                                                                               |
 | ------------ | ------------------------------------------------------------------------------------------ |
 | `providers`  | `vault:providers/openrouter/api-key`                                                       |
-| `bridges`    | `vault:bridges/brg_123/bot_token`                                                          |
 | `automation` | `vault:automation/deploy-webhook/signing-secret`                                           |
 | `mcp`        | `vault:mcp/global/github/env/GITHUB_TOKEN`, `vault:mcp/ws/acme/linear/oauth/client-secret` |
 | `hooks`      | `vault:hooks/post-task/GITHUB_TOKEN`                                                       |
 | `extensions` | `vault:extensions/slack/app-token`                                                         |
-| `sandbox`    | `vault:sandbox/daytona-dev/api-token`                                                      |
 | `sessions`   | `vault:sessions/sess_123/github-token`                                                     |
 
 Session Vault entries are normal Vault records under the `sessions` namespace. CompozyOS filters them by
@@ -171,14 +169,14 @@ Session pages include a Vault tab in the inspector. It shows only entries below
 secret.
 
 Deleting a Vault ref removes the stored value. It does not rewrite existing configuration that still
-points at that ref, so dependent providers, bridges, MCP servers, hooks, automation triggers,
-sandbox profiles, or session-scoped consumers may report missing credentials until a new value is
+points at that ref, so dependent providers, MCP servers, hooks, automation triggers,
+or session-scoped consumers may report missing credentials until a new value is
 stored.
 
 ## Related Pages
 
 - [config.toml](/docs/configuration/config-toml) documents refs used by provider, MCP,
-  automation, hook, extension, and sandbox configuration.
+  automation, hook, and extension configuration.
 - [mcp.json](/docs/configuration/mcp-json) documents MCP `secret_env` and OAuth
   `client_secret_ref`.
 - [API Reference](/docs/api) lists the Vault route family.

@@ -46,10 +46,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 				{Label: taskOwnerValue, Value: stringOrDash(formatTaskOwnership(item.Owner))},
 				{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
 				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
-				{
-					Label: taskParticipationChannelValue,
-					Value: resolvedParticipationChannel(item.ResolvedNetworkParticipation),
-				},
+
 				{Label: taskCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
 				{Label: taskUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 				{Label: "Closed", Value: stringOrDash(formatTimePtr(item.ClosedAt))},
@@ -73,7 +70,6 @@ func taskBundle(item *TaskRecord) outputBundle {
 				taskOwnerKey,
 				createdByKey,
 				taskOriginKey,
-				taskParticipationChannelKey,
 				taskCreatedAtKey,
 				taskUpdatedAtKey,
 				"closed_at",
@@ -94,7 +90,6 @@ func taskBundle(item *TaskRecord) outputBundle {
 				formatTaskOwnership(item.Owner),
 				formatTaskActor(item.CreatedBy),
 				formatTaskOrigin(item.Origin),
-				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 				formatTime(item.CreatedAt),
 				formatTime(item.UpdatedAt),
 				formatTimePtr(item.ClosedAt),
@@ -208,8 +203,7 @@ func taskExecutionProfileBundle(profile *TaskExecutionProfileRecord) outputBundl
 				{Label: "Worker Provider", Value: stringOrDash(profile.Worker.Provider)},
 				{Label: "Worker Model", Value: stringOrDash(profile.Worker.Model)},
 				{Label: "Review Agent", Value: stringOrDash(profile.Review.AgentName)},
-				{Label: taskSandboxValue, Value: stringOrDash(string(profile.Sandbox.Mode))},
-				{Label: "Sandbox Ref", Value: stringOrDash(profile.Sandbox.SandboxRef)},
+
 				{Label: worktreeLabel, Value: stringOrDash(string(profile.Worktree.Mode))},
 				{Label: "Worktree Ref", Value: stringOrDash(profile.Worktree.WorktreeRef)},
 				{Label: cliRuntimeValue, Value: stringOrDash(string(profile.Runtime.Mode))},

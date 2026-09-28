@@ -18,10 +18,9 @@ interface FormScope {
   loopName: string;
 }
 
-function formInput(scope: FormScope, channelId: string) {
+function formInput(scope: FormScope) {
   return {
     effectiveConfig: loopEffectiveConfigFixture,
-    networkParticipation: { mode: "live" as const, channelId, channelStrategy: "named" as const },
     schema: undefined,
     scope,
   };
@@ -52,18 +51,12 @@ const plan: LoopDryRunPreview = {
   },
   nodes: [],
   resolved_inputs: {},
-  resolved_network_participation: {
-    mode: "local",
-    source: "built_in_local",
-    version: "network-participation/v1",
-  },
 };
 
 describe("useLoopRunFormState", () => {
   it("Should own a daemon input rejection until that field changes", () => {
     const store = loopRunFormLogic.createStore({
       effectiveConfig: loopEffectiveConfigFixture,
-      networkParticipation: { channelId: "", channelStrategy: "", mode: "local" },
       schema,
       scope: { loopName: "delivery", workspaceId: "workspace-alpha" },
     });
@@ -95,7 +88,6 @@ describe("useLoopRunFormState", () => {
   it("Should reject a late plan after the active draft changes", () => {
     const store = loopRunFormLogic.createStore({
       effectiveConfig: loopEffectiveConfigFixture,
-      networkParticipation: { channelId: "", channelStrategy: "", mode: "local" },
       schema,
       scope: { loopName: "delivery", workspaceId: "workspace-alpha" },
     });
@@ -103,11 +95,7 @@ describe("useLoopRunFormState", () => {
     store.trigger.dryRunRequested({ execute: () => new Promise<never>(() => undefined) });
     expect(store.getSnapshot().context.submitAttempted).toBe(true);
 
-    store.trigger.networkParticipationChanged({
-      draft: { channelId: "release", channelStrategy: "named", mode: "live" },
-    });
-    expect(store.getSnapshot().context.networkParticipationOverridden).toBe(true);
-
+    store.trigger.inputChanged({ name: "goal", value: "Updated goal" });
     store.trigger.dryRunSucceeded({ attempt: 1, generation: 1, plan });
     expect(store.getSnapshot().context.plan).toBeNull();
 
@@ -118,35 +106,22 @@ describe("useLoopRunFormState", () => {
 
   it("Should replace the draft when the workspace-and-loop scope changes", () => {
     const { result, rerender } = renderHook(
-      ({ scope, channelId }: { scope: FormScope; channelId: string }) =>
-        useLoopRunFormState(formInput(scope, channelId)),
+      ({ scope }: { scope: FormScope }) => useLoopRunFormState(formInput(scope)),
       {
         initialProps: {
           scope: { workspaceId: "workspace-alpha", loopName: "review" },
-          channelId: "channel-alpha",
         },
       }
     );
 
     act(() => {
-      result.current.setNetworkParticipation({
-        mode: "live",
-        channelId: "edited-alpha",
-        channelStrategy: "named",
-      });
+      result.current.setInput("goal", "Edited goal");
     });
 
     rerender({
       scope: { workspaceId: "workspace-beta", loopName: "review" },
-      channelId: "channel-beta",
     });
-
-    expect(result.current.networkParticipation).toEqual({
-      mode: "live",
-      channelId: "channel-beta",
-      channelStrategy: "named",
-    });
-    expect(result.current.networkParticipationOverridden).toBe(false);
+    expect(result.current.inputs).toEqual({});
   });
 
   describe("run confirmation", () => {
@@ -157,7 +132,6 @@ describe("useLoopRunFormState", () => {
     function runStore() {
       return loopRunFormLogic.createStore({
         effectiveConfig: loopEffectiveConfigFixture,
-        networkParticipation: { channelId: "", channelStrategy: "", mode: "local" },
         schema,
         scope: { loopName: "delivery", workspaceId: "workspace-alpha" },
       });

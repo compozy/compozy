@@ -42,7 +42,6 @@ func nullableAutomationJSON(value any, label string) (sql.NullString, error) {
 
 func automationRunParams(
 	run automation.Run,
-	networkParticipation sql.NullString,
 	metadataJSON string,
 ) sqlcgen.InsertAutomationRunParams {
 	return sqlcgen.InsertAutomationRunParams{
@@ -64,25 +63,24 @@ func automationRunParams(
 		DeliveryErrorAt: nullableAutomationTime(
 			run.DeliveryErrorAt,
 		),
-		LoopRunID:            nullableAutomationString(run.LoopRunID),
-		NetworkParticipation: networkParticipation,
-		MetadataJson:         metadataJSON,
+		LoopRunID: nullableAutomationString(run.LoopRunID),
+
+		MetadataJson: metadataJSON,
 	}
 }
 
 func automationRunUpdateParams(
 	run automation.Run,
-	networkParticipation sql.NullString,
 	metadataJSON string,
 ) sqlcgen.UpdateAutomationRunParams {
-	insert := automationRunParams(run, networkParticipation, metadataJSON)
+	insert := automationRunParams(run, metadataJSON)
 	return sqlcgen.UpdateAutomationRunParams{
 		JobID: insert.JobID, TriggerID: insert.TriggerID, SessionID: insert.SessionID,
 		TaskID: insert.TaskID, TaskRunID: insert.TaskRunID, FireID: insert.FireID,
 		Status: insert.Status, Attempt: insert.Attempt, ScheduledAt: insert.ScheduledAt,
 		StartedAt: insert.StartedAt, EndedAt: insert.EndedAt, Error: insert.Error,
 		DeliveryError: insert.DeliveryError, DeliveryErrorAt: insert.DeliveryErrorAt,
-		LoopRunID: insert.LoopRunID, NetworkParticipation: insert.NetworkParticipation,
+		LoopRunID:    insert.LoopRunID,
 		MetadataJson: metadataJSON, ID: run.ID,
 	}
 }
@@ -111,13 +109,6 @@ func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams,
 	if err != nil {
 		return sqlcgen.InsertAutomationJobParams{}, err
 	}
-	loopNetworkParticipation, err := nullableAutomationJSON(
-		loopTarget.networkParticipationJSON,
-		"job.loop_network_participation",
-	)
-	if err != nil {
-		return sqlcgen.InsertAutomationJobParams{}, err
-	}
 	return sqlcgen.InsertAutomationJobParams{
 		ProfileID:   job.ProfileID,
 		ID:          job.ID,
@@ -136,12 +127,11 @@ func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams,
 		LoopWorkspaceID: nullableAutomationString(
 			loopTarget.workspaceID,
 		),
-		LoopName:                 nullableAutomationString(loopTarget.loopName),
-		LoopInputs:               loopInputs,
-		LoopInputMapping:         loopInputMapping,
-		LoopNetworkParticipation: loopNetworkParticipation,
-		CreatedAt:                store.FormatTimestamp(job.CreatedAt),
-		UpdatedAt:                store.FormatTimestamp(job.UpdatedAt),
+		LoopName:         nullableAutomationString(loopTarget.loopName),
+		LoopInputs:       loopInputs,
+		LoopInputMapping: loopInputMapping,
+		CreatedAt:        store.FormatTimestamp(job.CreatedAt),
+		UpdatedAt:        store.FormatTimestamp(job.UpdatedAt),
 	}, nil
 }
 
@@ -155,9 +145,8 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 		Prompt: insert.Prompt, Schedule: insert.Schedule, Task: insert.Task, Enabled: insert.Enabled,
 		Retry: insert.Retry, FireLimit: insert.FireLimit, Source: insert.Source, TargetKind: insert.TargetKind,
 		LoopWorkspaceID: insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
-		LoopInputMapping:         insert.LoopInputMapping,
-		LoopNetworkParticipation: insert.LoopNetworkParticipation,
-		UpdatedAt:                insert.UpdatedAt, ID: job.ID,
+		LoopInputMapping: insert.LoopInputMapping,
+		UpdatedAt:        insert.UpdatedAt, ID: job.ID,
 	}, nil
 }
 
@@ -183,7 +172,6 @@ func automationJobFromGenerated(row sqlcgen.AutomationJob) (automation.Job, erro
 	loopTarget := automationLoopTargetRecord{
 		workspaceID: row.LoopWorkspaceID, loopName: row.LoopName,
 		inputsRaw: row.LoopInputs, inputMappingRaw: row.LoopInputMapping,
-		networkParticipationRaw: row.LoopNetworkParticipation,
 	}
 	if err := decodeAutomationLoopTarget(loopTarget, job.TargetKind, &job.LoopTarget, "job.loop_target"); err != nil {
 		return automation.Job{}, err
@@ -224,13 +212,6 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 	if err != nil {
 		return sqlcgen.InsertAutomationTriggerParams{}, err
 	}
-	loopNetworkParticipation, err := nullableAutomationJSON(
-		loopTarget.networkParticipationJSON,
-		"trigger.loop_network_participation",
-	)
-	if err != nil {
-		return sqlcgen.InsertAutomationTriggerParams{}, err
-	}
 	return sqlcgen.InsertAutomationTriggerParams{
 		ProfileID:   trigger.ProfileID,
 		ID:          trigger.ID,
@@ -249,15 +230,14 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 		EndpointSlug: nullableAutomationString(
 			trigger.EndpointSlug,
 		),
-		WebhookSecretRef:         nullableAutomationString(trigger.WebhookSecretRef),
-		TargetKind:               string(trigger.TargetKind),
-		LoopWorkspaceID:          nullableAutomationString(loopTarget.workspaceID),
-		LoopName:                 nullableAutomationString(loopTarget.loopName),
-		LoopInputs:               loopInputs,
-		LoopInputMapping:         loopInputMapping,
-		LoopNetworkParticipation: loopNetworkParticipation,
-		CreatedAt:                store.FormatTimestamp(trigger.CreatedAt),
-		UpdatedAt:                store.FormatTimestamp(trigger.UpdatedAt),
+		WebhookSecretRef: nullableAutomationString(trigger.WebhookSecretRef),
+		TargetKind:       string(trigger.TargetKind),
+		LoopWorkspaceID:  nullableAutomationString(loopTarget.workspaceID),
+		LoopName:         nullableAutomationString(loopTarget.loopName),
+		LoopInputs:       loopInputs,
+		LoopInputMapping: loopInputMapping,
+		CreatedAt:        store.FormatTimestamp(trigger.CreatedAt),
+		UpdatedAt:        store.FormatTimestamp(trigger.UpdatedAt),
 	}, nil
 }
 
@@ -272,9 +252,8 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 		Retry: insert.Retry, FireLimit: insert.FireLimit, Source: insert.Source, WebhookID: insert.WebhookID,
 		EndpointSlug: insert.EndpointSlug, WebhookSecretRef: insert.WebhookSecretRef, TargetKind: insert.TargetKind,
 		LoopWorkspaceID: insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
-		LoopInputMapping:         insert.LoopInputMapping,
-		LoopNetworkParticipation: insert.LoopNetworkParticipation,
-		UpdatedAt:                insert.UpdatedAt, ID: trigger.ID,
+		LoopInputMapping: insert.LoopInputMapping,
+		UpdatedAt:        insert.UpdatedAt, ID: trigger.ID,
 	}, nil
 }
 
@@ -299,7 +278,6 @@ func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.T
 	loopTarget := automationLoopTargetRecord{
 		workspaceID: row.LoopWorkspaceID, loopName: row.LoopName,
 		inputsRaw: row.LoopInputs, inputMappingRaw: row.LoopInputMapping,
-		networkParticipationRaw: row.LoopNetworkParticipation,
 	}
 	if err := decodeAutomationLoopTarget(
 		loopTarget,
@@ -421,8 +399,7 @@ func automationJobFromHydrated(row sqlcgen.HydrateAutomationJobCatalogRow) (auto
 		Enabled: enabled, Retry: row.Retry, FireLimit: row.FireLimit, Source: row.Source,
 		TargetKind: row.TargetKind, LoopWorkspaceID: row.LoopWorkspaceID, LoopName: row.LoopName,
 		LoopInputs: row.LoopInputs, LoopInputMapping: row.LoopInputMapping,
-		LoopNetworkParticipation: row.LoopNetworkParticipation,
-		CreatedAt:                row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 }
 
@@ -438,7 +415,6 @@ func automationTriggerFromHydrated(row sqlcgen.HydrateAutomationTriggerCatalogRo
 		WebhookID: row.WebhookID, EndpointSlug: row.EndpointSlug, WebhookSecretRef: row.WebhookSecretRef,
 		TargetKind: row.TargetKind, LoopWorkspaceID: row.LoopWorkspaceID, LoopName: row.LoopName,
 		LoopInputs: row.LoopInputs, LoopInputMapping: row.LoopInputMapping,
-		LoopNetworkParticipation: row.LoopNetworkParticipation,
-		CreatedAt:                row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 }

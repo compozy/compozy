@@ -27,7 +27,7 @@ func (n *daemonNativeTools) sessionSearch(
 	}
 	query, err := (transcript.SearchQuery{Query: input.Query, Limit: input.Limit}).Normalize()
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	id, err := n.nativeSessionInputScope(ctx, scope, req.ToolID, input.Workspace, input.SessionID)
 	if err != nil {

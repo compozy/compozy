@@ -97,24 +97,4 @@ describe("landing CLI snippets", () => {
   it("uses command names that exist in the generated CLI reference", () => {
     expect(commandNameViolations()).toEqual([]);
   });
-
-  it("keeps the public network snippet aligned with implemented flags", () => {
-    const networkSnippet = landingSnippets().find(snippet => snippet.name === "NETWORK_CODE");
-    expect(networkSnippet).toBeDefined();
-
-    const normalized = networkSnippet?.code.replaceAll("\\\n", " ") ?? "";
-    expect(normalized).toContain("compozy network peers builders");
-    expect(normalized).toContain("compozy network directs resolve");
-    expect(normalized).toContain("compozy network send");
-    expect(normalized).toContain("--session <session-id>");
-    expect(normalized).toContain("--channel builders");
-    expect(normalized).toContain("--surface direct");
-    expect(normalized).toContain("--direct ");
-    expect(normalized).toContain("--kind say");
-    expect(normalized).toContain("--work ");
-    expect(normalized).toContain("--body ");
-    expect(normalized).toContain("compozy network inbox --session <session-id>");
-    expect(normalized).not.toContain("--kind direct");
-    expect(normalized).not.toContain("--interaction-id");
-  });
 });

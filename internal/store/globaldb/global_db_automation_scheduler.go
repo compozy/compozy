@@ -9,7 +9,6 @@ import (
 	"time"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -137,7 +136,6 @@ func (g *AutomationRepo) ClaimScheduledRun(
 	}
 
 	run := scheduledRunAfterClaim(normalized, skipReason, activeRunID)
-	run.NetworkParticipation = participation.CloneRequest(normalized.NetworkParticipation)
 	if err := insertAutomationRunTx(ctx, tx, run); err != nil {
 		return automation.SchedulerClaimResult{}, err
 	}
@@ -212,7 +210,6 @@ func (g *AutomationRepo) normalizeSchedulerClaim(claim automation.SchedulerClaim
 	if claim.ClaimedAt.IsZero() {
 		claim.ClaimedAt = g.now().UTC()
 	}
-	claim.NetworkParticipation = normalizeAutomationParticipationIntent(claim.NetworkParticipation)
 	if err := claim.Validate("scheduler_claim"); err != nil {
 		return automation.SchedulerClaim{}, err
 	}
@@ -252,17 +249,9 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	if err != nil {
 		return err
 	}
-	networkParticipation, err := encodeOptionalAutomationParticipation(
-		run.NetworkParticipation,
-		run.NetworkParticipation == nil,
-		"run.network_participation",
-	)
-	if err != nil {
-		return err
-	}
 	if err := sqlcgen.New(tx).InsertAutomationRun(
 		ctx,
-		automationRunParams(run, networkParticipation, metadataJSON),
+		automationRunParams(run, metadataJSON),
 	); err != nil {
 		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(

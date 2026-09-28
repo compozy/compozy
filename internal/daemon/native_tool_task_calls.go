@@ -6,11 +6,9 @@ import (
 	"fmt"
 
 	"strings"
-	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
 
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -281,65 +279,5 @@ func (n *daemonNativeTools) taskRunResult(
 	return structuredResult(
 		map[string]any{"result": page},
 		fmt.Sprintf("%d result bytes from %s", page.Bytes, page.RunID),
-	)
-}
-
-func (n *daemonNativeTools) taskPromoteFromThread(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input taskPromoteFromThreadInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	source, err := n.nativeThreadPromotionSource(ctx, scope, req.ToolID, input)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	actor, err := actorContextFromScope(scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	spec := taskpkg.CreateTask{
-		ProfileID:   strings.TrimSpace(scope.ProfileID),
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: source.workspaceID,
-		Title:       nativePromotedThreadTaskTitle(input, source),
-		Description: firstNonEmpty(strings.TrimSpace(input.Description), source.digest),
-		Priority:    taskpkg.Priority(strings.TrimSpace(input.Priority)).Normalize(),
-		Metadata:    cloneJSON(input.Metadata),
-	}
-	taskRecord, err := n.deps.Tasks.CreateTask(ctx, spec, actor)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	now := time.Now().UTC()
-	origin := store.NetworkTaskThreadOrigin{
-		TaskID:           taskRecord.ID,
-		WorkspaceID:      source.workspaceID,
-		Channel:          source.channel,
-		ThreadID:         source.threadID,
-		OriginMessageID:  source.originMessageID,
-		Digest:           source.digest,
-		SourceMessageIDs: source.sourceMessageIDs,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-	}
-	if err := origin.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(
-			req.ToolID,
-			n.rollbackPromotedThreadTask(ctx, taskRecord.ID, actor, err),
-		)
-	}
-	if err := n.deps.NetworkStore.PutNetworkTaskThreadOrigin(ctx, origin); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(
-			req.ToolID,
-			n.rollbackPromotedThreadTask(ctx, taskRecord.ID, actor, err),
-		)
-	}
-	return structuredResult(
-		map[string]any{"task": taskRecord, "origin": core.NetworkTaskThreadOriginPayloadFromStore(origin)},
-		taskRecord.Title,
 	)
 }

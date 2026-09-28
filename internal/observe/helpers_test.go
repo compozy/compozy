@@ -19,7 +19,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -236,17 +236,16 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-stopped",
-		ProfileID:            store.DefaultProfileID,
-		Name:                 "Stopped",
-		AgentName:            "coder",
-		Provider:             "claude",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            h.now,
-		UpdatedAt:            h.now,
+		ID:            "sess-stopped",
+		ProfileID:     store.DefaultProfileID,
+		Name:          "Stopped",
+		AgentName:     "coder",
+		Provider:      "claude",
+		WorkspaceID:   h.workspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     h.now,
+		UpdatedAt:     h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -272,16 +271,15 @@ func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-without-provider")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   "sess-without-provider",
-		ProfileID:            store.DefaultProfileID,
-		Name:                 "Missing Provider",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            h.now,
-		UpdatedAt:            h.now,
+		ID:            "sess-without-provider",
+		ProfileID:     store.DefaultProfileID,
+		Name:          "Missing Provider",
+		AgentName:     "coder",
+		WorkspaceID:   h.workspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     h.now,
+		UpdatedAt:     h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}

@@ -56,12 +56,12 @@ func (g *TaskRunRepo) recoverLoopTaskRunWithExecutor(
 		worktree = *source.RunWorktreeState
 	}
 	continuation, err := g.tasks.createQueuedRunWithExecutor(ctx, exec, taskRecord, queuedRunReservationInput{
-		taskID:                failed.TaskID,
-		runID:                 args.newRunID,
-		runKind:               source.RunKind,
-		loopRunID:             source.LoopRunID,
-		origin:                args.origin,
-		networkSpec:           source.NetworkSpecSnapshot(),
+		taskID:    failed.TaskID,
+		runID:     args.newRunID,
+		runKind:   source.RunKind,
+		loopRunID: source.LoopRunID,
+		origin:    args.origin,
+
 		designationGroupID:    source.DesignationGroupID,
 		resolvedWorktreeMode:  worktree.ResolvedWorktreeMode,
 		resolvedWorktreeRef:   worktree.ResolvedWorktreeRef,

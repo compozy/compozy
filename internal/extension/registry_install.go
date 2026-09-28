@@ -16,7 +16,7 @@ import (
 
 const (
 	manifestFieldCapabilitiesProvides = "capabilities.provides"
-	manifestFieldNetworkParticipation = "network_participation"
+	manifestFieldGateway              = "gateway"
 )
 
 func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum string, config installConfig) error {
@@ -69,16 +69,6 @@ func validateInstallConfig(manifest *Manifest, checksum string, config *installC
 	if config == nil {
 		return "", errors.New("extension: install config is required")
 	}
-	if config.source != SourceBundled && providesCapability(
-		manifest.Capabilities.Provides,
-		extensionprotocol.CapabilityProvideBridgeAdapter,
-	) {
-		return "", &ManifestValidationError{
-			Field:   manifestFieldCapabilitiesProvides,
-			Value:   extensionprotocol.CapabilityProvideBridgeAdapter,
-			Message: "external bridge authoring is a planned follow-up",
-		}
-	}
 	if providesCapability(
 		manifest.Capabilities.Provides,
 		extensionprotocol.CapabilityProvideConnectivityProvider,
@@ -90,23 +80,23 @@ func validateInstallConfig(manifest *Manifest, checksum string, config *installC
 				Message: "connectivity providers must be installed globally",
 			}
 		}
-		digest, digestErr := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+		digest, digestErr := GatewayRequirementDigest(manifest.Gateway)
 		if digestErr != nil {
 			return "", digestErr
 		}
 		if digest == "" {
 			return "", &ManifestValidationError{
-				Field:   manifestFieldNetworkParticipation,
-				Message: "connectivity providers must declare required live network participation",
+				Field:   manifestFieldGateway,
+				Message: "connectivity providers must declare Gateway tier permissions",
 			}
 		}
-		normalized := manifest.NetworkParticipation.Normalize()
-		privateScope := gateway.ProviderChannelScope(gateway.TierPrivate)
-		publicScope := gateway.ProviderChannelScope(gateway.TierPublic)
-		if normalized == nil || (!slices.Contains(normalized.ChannelScopes, privateScope) &&
-			!slices.Contains(normalized.ChannelScopes, publicScope)) {
+		normalized := manifest.Gateway.Normalize()
+		privateScope := gateway.ProviderPermission(gateway.TierPrivate)
+		publicScope := gateway.ProviderPermission(gateway.TierPublic)
+		if normalized == nil || (!slices.Contains(normalized.Permissions, privateScope) &&
+			!slices.Contains(normalized.Permissions, publicScope)) {
 			return "", &ManifestValidationError{
-				Field: "network_participation.channel_scopes",
+				Field: "gateway.permissions",
 				Message: fmt.Sprintf(
 					"connectivity providers must declare %q or %q",
 					privateScope,
@@ -197,7 +187,7 @@ func registryInstallInfo(
 		provenance = normalizeExtensionProvenance(*config.provenance, fallbackProvenance)
 	}
 	provenance.Layout = resolvedManifest.Layout
-	networkDigest, err := NetworkParticipationRequirementDigest(resolvedManifest.NetworkParticipation)
+	gatewayDigest, err := GatewayRequirementDigest(resolvedManifest.Gateway)
 	if err != nil {
 		return ExtensionInfo{}, err
 	}
@@ -218,7 +208,7 @@ func registryInstallInfo(
 		RegistryName:             config.registryName,
 		RemoteVersion:            config.remoteVersion,
 		Provenance:               provenance,
-		NetworkRequirementDigest: networkDigest,
+		GatewayRequirementDigest: gatewayDigest,
 	}, nil
 }
 
@@ -252,8 +242,8 @@ func (r *Registry) persistInstalledInfo(
 			info.Checksum, info.lifecycleToken,
 			nullableStringValue(info.RegistrySlug), nullableStringValue(info.RegistryName),
 			nullableStringValue(info.RemoteVersion), string(encoded.provenance),
-			strings.TrimSpace(info.NetworkRequirementDigest), nullableRegistryString(info.NetworkConfirmedBy),
-			nullableRegistryTime(info.NetworkConfirmedAt),
+			strings.TrimSpace(info.GatewayRequirementDigest), nullableRegistryString(info.GatewayConfirmedBy),
+			nullableRegistryTime(info.GatewayConfirmedAt),
 		)
 		if execErr != nil {
 			if replaceExisting {
@@ -320,15 +310,15 @@ func installedInfoPersistQuery(replaceExisting bool) string {
 			registry_name = excluded.registry_name,
 			remote_version = excluded.remote_version,
 			provenance_json = excluded.provenance_json
-			,network_requirement_digest = excluded.network_requirement_digest
-			,network_confirmed_by = CASE
-				WHEN extensions.network_requirement_digest = excluded.network_requirement_digest
-				THEN extensions.network_confirmed_by
+			,gateway_requirement_digest = excluded.gateway_requirement_digest
+			,gateway_confirmed_by = CASE
+				WHEN extensions.gateway_requirement_digest = excluded.gateway_requirement_digest
+				THEN extensions.gateway_confirmed_by
 				ELSE NULL
 			END
-			,network_confirmed_at = CASE
-				WHEN extensions.network_requirement_digest = excluded.network_requirement_digest
-				THEN extensions.network_confirmed_at
+			,gateway_confirmed_at = CASE
+				WHEN extensions.gateway_requirement_digest = excluded.gateway_requirement_digest
+				THEN extensions.gateway_confirmed_at
 				ELSE NULL
 			END
 		`

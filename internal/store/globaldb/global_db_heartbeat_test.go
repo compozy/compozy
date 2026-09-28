@@ -1043,7 +1043,7 @@ func TestGlobalDBHeartbeatStoreDefaultsAndErrors(t *testing.T) {
 func TestGlobalDBHeartbeatStorageBoundaries(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should avoid queue lease claim and network greet columns in Heartbeat storage", func(t *testing.T) {
+	t.Run("Should avoid queue lease and claim columns in Heartbeat storage", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -1071,16 +1071,6 @@ func TestGlobalDBHeartbeatStorageBoundaries(t *testing.T) {
 			"heartbeat_snapshot_id",
 			"wake_event_id",
 			"wake_reason",
-		})
-		assertTableExcludesColumns(t, globalDB.db, "network_audit_log", []string{
-			"heartbeat_digest",
-			"session_health",
-			"wake_event_id",
-		})
-		assertTableExcludesColumns(t, globalDB.db, "network_channels", []string{
-			"heartbeat_digest",
-			"session_health",
-			"wake_event_id",
 		})
 	})
 }

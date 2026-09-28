@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -21,12 +20,11 @@ type sessionCreateWorktreeInput struct {
 }
 
 type sessionCreateInput struct {
-	Workspace            string                      `json:"workspace,omitempty"`
-	Agent                string                      `json:"agent"`
-	Name                 string                      `json:"name,omitempty"`
-	Worktree             string                      `json:"worktree,omitempty"`
-	NewWorktree          *sessionCreateWorktreeInput `json:"new_worktree,omitempty"`
-	NetworkParticipation *participation.Request      `json:"network_participation,omitempty"`
+	Workspace   string                      `json:"workspace,omitempty"`
+	Agent       string                      `json:"agent"`
+	Name        string                      `json:"name,omitempty"`
+	Worktree    string                      `json:"worktree,omitempty"`
+	NewWorktree *sessionCreateWorktreeInput `json:"new_worktree,omitempty"`
 }
 
 type sessionPromptInput struct {
@@ -71,7 +69,7 @@ func (n *daemonNativeTools) sessionCreate(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	acceptance, ok := n.deps.Sessions.(core.SessionAcceptanceManager)
 	if !ok {
@@ -87,9 +85,6 @@ func (n *daemonNativeTools) sessionCreate(
 		Workspace: workspaceID,
 		Worktree:  worktreeTarget.ID,
 		Type:      session.SessionTypeUser,
-		NetworkParticipation: participation.CloneRequest(
-			input.NetworkParticipation,
-		),
 	}
 	// The bound caller session is server-minted and not overridable through tool
 	// input. Cross-workspace creates stay unlinked: provenance never crosses the
@@ -175,7 +170,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	message := strings.TrimSpace(input.Message)
 	if message == "" && len(input.Attachments) == 0 {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(
+		return toolspkg.ToolResult{}, nativeInputError(
 			req.ToolID,
 			errors.New("message or attachments is required"),
 		)
@@ -196,7 +191,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -278,7 +273,7 @@ func (n *daemonNativeTools) sessionRewind(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -308,7 +303,7 @@ func requiredNativeNonNegativeInt64(id toolspkg.ToolID, field string, value *int
 		return 0, nativeRequiredInputError(id, field)
 	}
 	if *value < 0 {
-		return 0, nativeNetworkInputError(id, fmt.Errorf("%s must not be negative", field))
+		return 0, nativeInputError(id, fmt.Errorf("%s must not be negative", field))
 	}
 	return *value, nil
 }

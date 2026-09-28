@@ -11,8 +11,8 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -204,14 +204,13 @@ func TestObserverHookOptionsUseCustomSourcesAndStores(t *testing.T) {
 	}
 	now := time.Date(2026, 4, 9, 19, 9, 0, 0, time.UTC)
 	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Dir(path)), store.SessionMeta{
-		ID:                   sessionID,
-		AgentName:            "coder",
-		WorkspaceID:          observerWorkspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+		ID:            sessionID,
+		AgentName:     "coder",
+		WorkspaceID:   observerWorkspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)
 	}
@@ -332,14 +331,13 @@ func openObserverHookSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, 
 	now := time.Date(2026, 4, 9, 18, 55, 0, 0, time.UTC)
 	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID))
 	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:                   sessionID,
-		AgentName:            "coder",
-		WorkspaceID:          owner.WorkspaceID,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+		ID:            sessionID,
+		AgentName:     "coder",
+		WorkspaceID:   owner.WorkspaceID,
+		State:         "stopped",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

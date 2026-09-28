@@ -1313,7 +1313,7 @@ describe("fetchSessionTranscript", () => {
               },
               {
                 type: "text",
-                text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+                text: "Permission blocked diagnostic: terminal/create denied before writing workspace marker.",
                 state: "done",
               },
             ],
@@ -1328,7 +1328,7 @@ describe("fetchSessionTranscript", () => {
     expect(result).toEqual(blockedTranscript);
     expect(result.entries[0]?.message.parts).toHaveLength(2);
     expect(result.entries[0]?.message.parts?.[1]).toMatchObject({
-      text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+      text: "Permission blocked diagnostic: terminal/create denied before writing workspace marker.",
       type: "text",
     });
   });

@@ -77,8 +77,8 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 		if workspaceID := strings.TrimSpace(e.WorkspaceID); workspaceID != "" {
 			fields[lifecycleEventWorkspaceIDKey] = workspaceID
 		}
-	case eventspkg.ExtensionNetworkConfirmed:
-		if err := addNetworkConfirmationLifecycleFields(fields, e); err != nil {
+	case eventspkg.ExtensionGatewayConfirmed:
+		if err := addGatewayConfirmationLifecycleFields(fields, e); err != nil {
 			return nil, err
 		}
 	case eventspkg.ExtensionSecretsUpdated:
@@ -123,16 +123,16 @@ func addDevelopmentLifecycleFields(fields map[string]any, event LifecycleEvent) 
 	)
 }
 
-func addNetworkConfirmationLifecycleFields(fields map[string]any, event LifecycleEvent) error {
+func addGatewayConfirmationLifecycleFields(fields map[string]any, event LifecycleEvent) error {
 	fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(event.WorkspaceID)
 	if err := requireLifecycleStringField(
-		fields, lifecycleEventDigestKey, event.Digest, "extension: network confirmation digest is required",
+		fields, lifecycleEventDigestKey, event.Digest, "extension: gateway confirmation digest is required",
 	); err != nil {
 		return err
 	}
 	return requireLifecycleStringField(
 		fields, lifecycleEventConfirmedByKey, event.ConfirmedBy,
-		"extension: network confirmation actor is required",
+		"extension: gateway confirmation actor is required",
 	)
 }
 

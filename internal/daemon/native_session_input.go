@@ -207,7 +207,7 @@ func (n *daemonNativeTools) nativeSessionInputWorkspaceScope(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return "", nativeNetworkInputError(toolID, err)
+		return "", nativeInputError(toolID, err)
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, toolID, workspaceID, sessionID); err != nil {
 		return "", err

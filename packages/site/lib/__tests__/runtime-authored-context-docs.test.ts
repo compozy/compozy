@@ -111,7 +111,6 @@ describe("authored context runtime docs", () => {
       "compozy session status",
       "compozy session inspect",
       "include_health=true",
-      "Compozy Network membership",
     ]);
   });
 
@@ -166,18 +165,6 @@ describe("authored context runtime docs", () => {
     ]);
     // No native tool for Soul exists today.
     expect(develop).not.toContain("compozy__agent_soul ");
-  });
-
-  it("documents Compozy Network greet as independent from authored context", () => {
-    const protocol = readDoc("network/protocol-model.mdx");
-
-    expectIncludesAll(protocol, [
-      "Network participation is independent from authored context",
-      "greet",
-      "`SOUL.md`",
-      "`HEARTBEAT.md`",
-      "wake-eligible",
-    ]);
   });
 
   it("ships generated CLI references for soul, heartbeat, and session health/status/inspect", () => {

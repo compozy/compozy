@@ -12,7 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -117,7 +117,7 @@ func (r *loopGateJudgeRunner) Judge(
 		executionCleanupErr = r.stopJudgeSession(ctx, sessionID, err)
 		err = errors.Join(err, executionCleanupErr)
 	}()
-	if err := r.bindExecution(req.CorrelationID, sessionID); err != nil {
+	if err := r.bindExecution(req.CorrelationID, sessionID, looppkg.RunID(req.LoopRunID)); err != nil {
 		return gate.JudgeResponse{}, err
 	}
 	if createErr != nil {
@@ -142,19 +142,15 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 ) (session.CreateOpts, error) {
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
-		ProfileID:                    strings.TrimSpace(req.ProfileID),
-		AgentName:                    agent,
-		Provider:                     strings.TrimSpace(req.Runtime.Provider),
-		Model:                        strings.TrimSpace(req.Runtime.Model),
-		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
-		Speed:                        req.Runtime.Speed,
-		ACPOptions:                   loopACPOptionsForSession(req.Runtime.ACPOptions),
-		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   req.LoopRunID,
-		}),
+		ProfileID:       strings.TrimSpace(req.ProfileID),
+		AgentName:       agent,
+		Provider:        strings.TrimSpace(req.Runtime.Provider),
+		Model:           strings.TrimSpace(req.Runtime.Model),
+		ReasoningEffort: strings.TrimSpace(req.Runtime.Reasoning),
+		Speed:           req.Runtime.Speed,
+		ACPOptions:      loopACPOptionsForSession(req.Runtime.ACPOptions),
+		Name:            loopRuntimeSessionName("gate", agent, req.CriterionID),
+
 		PromptOverlay:   contractOverlay,
 		ContractOverlay: contractOverlay,
 		Type:            session.SessionTypeSystem,

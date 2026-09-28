@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: RT-076;RT-078
+overlaps: RT-076; RT-078
 ---
 
 Added by agent-details remediation 2026-07-12 for the new live runtime control on the detail header.

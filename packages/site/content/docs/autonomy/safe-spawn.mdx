@@ -15,17 +15,17 @@ TTL, caps, and permission policy.
 
 ## Required constraints
 
-| Constraint              | Behavior                                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Valid parent identity   | The caller must be a CompozyOS-managed session resolved from daemon-issued identity.                                          |
-| TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
-| Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
-| Child cap               | The MVP default max children per parent is `5`.                                                                               |
-| Workspace target        | Children inherit the parent workspace. `--workspace` may target another workspace when the policy allows.                     |
-| Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.                          |
-| Permission subset       | Child tools, skills, MCP servers, workspace paths, network channels, and sandbox profiles must be a subset of the parent set. |
-| Unknown atoms           | Unknown child permission atoms count as widening and reject the spawn.                                                        |
-| Parent stop             | Children auto-stop when the parent stops unless configured otherwise within hard caps.                                        |
+| Constraint              | Behavior                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| Valid parent identity   | The caller must be a CompozyOS-managed session resolved from daemon-issued identity.                      |
+| TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                   |
+| Depth cap               | The MVP default max spawn depth is `1`.                                                                   |
+| Child cap               | The MVP default max children per parent is `5`.                                                           |
+| Workspace target        | Children inherit the parent workspace. `--workspace` may target another workspace when the policy allows. |
+| Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.      |
+| Permission subset       | Child tools, skills, MCP servers, and workspace paths must be a subset of the parent set.                 |
+| Unknown atoms           | Unknown child permission atoms count as widening and reject the spawn.                                    |
+| Parent stop             | Children auto-stop when the parent stops unless configured otherwise within hard caps.                    |
 
 The daemon rejects invalid spawn requests. It does not silently narrow a child request and continue.
 
@@ -44,8 +44,7 @@ compozy spawn \
   --ttl-seconds 1800 \
   --prompt-overlay "Review only the implementation diff." \
   --tool read \
-  --skill code-review \
-  --channel coord-run-123
+  --skill code-review
 ```
 
 Permission flags are repeatable:
@@ -54,12 +53,6 @@ Permission flags are repeatable:
 - `--skill`
 - `--mcp-server`
 - `--workspace-path`
-- `--channel`
-- `--sandbox-profile`
-
-`--channel` narrows the channel permission atoms a child may use. It does not select Live
-participation, create Network state, or make the child inherit its parent's participation. A spawned
-execution remains Local unless it submits a separate, authorized Network participation request.
 
 `--workspace-path` narrows the workspace-path permission atoms a child may use. It is a permission
 grant checked against the parent set, not a placement flag — it does not choose which workspace the
@@ -75,7 +68,7 @@ needs-you state. This `notify_creator` behavior defaults to on and never interru
 prompt. It is suppressed when the parent is no longer live or the delivery would wake the same
 session.
 
-Opt out for one child when the parent already has another coordination channel:
+Opt out for one child when a parent wake is unnecessary:
 
 ```bash
 compozy spawn \
@@ -128,8 +121,7 @@ What crossing does and does not change:
 
 - **The child's home is the target workspace.** Its agent process starts with that workspace's root
   as `cwd` and that workspace's additional roots, not the parent's.
-- **Permissions do not widen.** Child tools, skills, MCP servers, workspace paths, network channels,
-  and sandbox profiles are still subset-checked against the parent, in the target workspace as in
+- **Permissions do not widen.** Child tools, skills, MCP servers, and workspace paths are still subset-checked against the parent, in the target workspace as in
   the parent's.
 - **Every decision is audited.** Allow and deny both append a `workspace.access_granted` or
   `workspace.access_denied` event carrying the `spawn` seam, the decision source, and the effective

@@ -21,13 +21,14 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 | RT | Runtime & sessions (daemon, session lifecycle, providers) |
 | TA | Tasks & automation (task runs, leases, scheduling, loops) |
 | ET | Extensibility & tools (extensions, hooks, skills, registries, bundles) |
-| NB | Network & bridges (channels, threads, bridge SDKs, delivery) |
-| MS | Memory & settings (memory, config lifecycle, sandbox/env) |
+| MS | Memory & settings (memory, config lifecycle, environment) |
 | LP | Loops (workflow runs, catalog, configure/fork, editor) |
 | GL | Goal (conversational convergence, controls, context, recovery) |
 | REL | Release and distribution (installers, registries, channels, provenance) |
 | SITE | Public documentation site (published receipts and user-visible release truth) |
 | APP | Desktop app shell (CompozyOS app: install/provisioning, runtime resolution, app/runtime updates, links, window lifecycle, `compozy app` CLI) |
+
+NB is retired. Its dated reports remain historical evidence and its ids must not be reused.
 
 New areas: define the code here first, then mint ids.
 
@@ -53,6 +54,14 @@ New areas: define the code here first, then mint ids.
 - The legacy `state.csv` was seeded from the feature-stories tracker (253 stories, cycle 2026-06). Its frozen origin and five subsystem analyses live in `_seeds/feature-stories/`; its rows now live in `scenarios/`. Original prose statuses remain in scenario bodies (`migrated-status:`). Empty journey fields remain intentional until a journey flow legitimately owns the behavior.
 - `bugs/BUG-0001..0017` re-minted from the feature-stories registry (old per-round `BUG-001..017`); impact tiers unclassified — classify on next touch.
 - **Evidence caveat:** the origin lab (`~/dev/qa-labs/compozy-feature-stories-20260621-...-lab/`) was accidentally deleted during the 2026-07-05 cleanup, so its lab-relative `qa/evidence/...` and `qa/issues/...` paths in scenario files are dangling. Treat those migrated `pass` verdicts as historical claims backed by the surviving `file:line` code citations; the next Full cycle re-validates with fresh evidence.
-- `_seeds/final-qa/` — pre-release master plan (283 scenarios across 15 modules) + openclaw/hermes QA pattern libraries, from the retired `.compozy/tasks/final-qa/`. Mine into journeys/charters as cycles touch each module, then prune.
-- `_seeds/qa-e2e-playbook.md` — the 2026-04 E2E playbook (evidence standard, execution profiles, suite matrix, automation backlog seed), formerly `docs/ideas/qa-e2e/`.
+- `_seeds/final-qa/` — archived pre-release master plan (283 scenarios across 15 modules) + openclaw/hermes QA pattern libraries, from the retired `.compozy/tasks/final-qa/`. Mine into journeys/charters as cycles touch each module, then prune.
+- `_seeds/qa-e2e-playbook.md` — the archived 2026-04 E2E playbook (evidence standard, execution profiles, suite matrix, automation backlog seed), formerly `docs/ideas/qa-e2e/`.
 - Historical per-round QA trees (29 under `.compozy/tasks/_archived/*/qa/`), `final-qa/_runs/` evidence, and 28 stale external labs were deleted on 2026-07-05 (no live references; ids collided across rounds and were never migrated).
+
+### Product retirement (2026-09-27)
+
+The active scenario, journey, charter, and backlog trees no longer schedule Network, Bridges, or
+Sandbox work. Dedicated retired plans were removed. Dated reports, retained bug reproduction
+receipts, and mixed `_seeds/` research record historical observations only; they are not a current
+capability catalog or an executable release plan. Use `scenarios/` for current coverage. The two
+retirement canaries are `ET-retired-product-surfaces-absent` and `RT-authored-context-lifecycle`.

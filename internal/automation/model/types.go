@@ -3,7 +3,6 @@ package model
 import (
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -129,10 +128,9 @@ const (
 
 // JobTaskConfig configures direct automation-to-task materialization for one job.
 type JobTaskConfig struct {
-	Title                string                 `json:"title,omitempty"                 toml:"title,omitempty"`
-	Description          string                 `json:"description,omitempty"           toml:"description,omitempty"`
-	Owner                *taskpkg.Ownership     `json:"owner,omitempty"                 toml:"owner,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty" toml:"network_participation,omitempty"`
+	Title       string             `json:"title,omitempty"       toml:"title,omitempty"`
+	Description string             `json:"description,omitempty" toml:"description,omitempty"`
+	Owner       *taskpkg.Ownership `json:"owner,omitempty"       toml:"owner,omitempty"`
 }
 
 // LoopTarget configures an automation fire to start a Loop instead of an agent session.
@@ -144,8 +142,6 @@ type LoopTarget struct {
 	Inputs map[string]any `json:"inputs,omitempty" toml:"inputs,omitempty"`
 
 	InputMapping map[string]string `json:"input_mapping,omitempty" toml:"input_mapping,omitempty"`
-
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty" toml:"network_participation,omitempty"`
 }
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
@@ -218,25 +214,24 @@ type FireLimitConfig struct {
 
 // Run records the execution state of a single automation fire.
 type Run struct {
-	ID                   string                 `json:"id"`
-	ProfileID            string                 `json:"profile_id,omitempty"`
-	JobID                string                 `json:"job_id,omitempty"`
-	TriggerID            string                 `json:"trigger_id,omitempty"`
-	SessionID            string                 `json:"session_id,omitempty"`
-	TaskID               string                 `json:"task_id,omitempty"`
-	TaskRunID            string                 `json:"task_run_id,omitempty"`
-	LoopRunID            string                 `json:"loop_run_id,omitempty"`
-	FireID               string                 `json:"fire_id,omitempty"`
-	Status               RunStatus              `json:"status"`
-	Attempt              int                    `json:"attempt"`
-	ScheduledAt          *time.Time             `json:"scheduled_at,omitempty"`
-	StartedAt            *time.Time             `json:"started_at,omitempty"`
-	EndedAt              *time.Time             `json:"ended_at,omitempty"`
-	Error                string                 `json:"error,omitempty"`
-	DeliveryError        string                 `json:"delivery_error,omitempty"`
-	DeliveryErrorAt      *time.Time             `json:"delivery_error_at,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-	Metadata             map[string]any         `json:"metadata,omitempty"`
+	ID              string         `json:"id"`
+	ProfileID       string         `json:"profile_id,omitempty"`
+	JobID           string         `json:"job_id,omitempty"`
+	TriggerID       string         `json:"trigger_id,omitempty"`
+	SessionID       string         `json:"session_id,omitempty"`
+	TaskID          string         `json:"task_id,omitempty"`
+	TaskRunID       string         `json:"task_run_id,omitempty"`
+	LoopRunID       string         `json:"loop_run_id,omitempty"`
+	FireID          string         `json:"fire_id,omitempty"`
+	Status          RunStatus      `json:"status"`
+	Attempt         int            `json:"attempt"`
+	ScheduledAt     *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time     `json:"started_at,omitempty"`
+	EndedAt         *time.Time     `json:"ended_at,omitempty"`
+	Error           string         `json:"error,omitempty"`
+	DeliveryError   string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time     `json:"delivery_error_at,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 // ActivationEnvelope is the normalized trigger input regardless of source.
@@ -268,20 +263,19 @@ type SchedulerState struct {
 // SchedulerClaim reserves one scheduled fire after the durable cursor has
 // been advanced.
 type SchedulerClaim struct {
-	ProfileID            string
-	JobID                string
-	RunID                string
-	FireID               string
-	ScheduledAt          time.Time
-	NextRunAt            *time.Time
-	ClaimedAt            time.Time
-	ScheduleHash         string
-	CatchUpPolicy        SchedulerCatchUpPolicy
-	MisfireGraceSeconds  int
-	CatchUp              bool
-	Misfire              bool
-	SkipReason           SchedulerSkipReason
-	NetworkParticipation *participation.Request
+	ProfileID           string
+	JobID               string
+	RunID               string
+	FireID              string
+	ScheduledAt         time.Time
+	NextRunAt           *time.Time
+	ClaimedAt           time.Time
+	ScheduleHash        string
+	CatchUpPolicy       SchedulerCatchUpPolicy
+	MisfireGraceSeconds int
+	CatchUp             bool
+	Misfire             bool
+	SkipReason          SchedulerSkipReason
 }
 
 // SchedulerClaimResult reports the state and pre-created run for one claimed

@@ -57,7 +57,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(result.Entries) != 1 || result.Entries[0].EntryID != "bridge-github" {
+		if len(result.Entries) != 1 || result.Entries[0].EntryID != "github-tools" {
 			t.Fatalf("Browse() = %#v, want the published extension", result)
 		}
 	})

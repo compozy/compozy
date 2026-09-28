@@ -227,16 +227,16 @@ func (m *Manager) writeDeclaredSeed(ctx context.Context, opID, profilePath strin
 	if err != nil {
 		return err
 	}
-	var agent, provider, sandbox sql.NullString
+	var agent, provider sql.NullString
 	if err := m.store.DB().QueryRowContext(
 		ctx,
-		`SELECT default_agent, default_provider, default_sandbox
+		`SELECT default_agent, default_provider
 		 FROM profile_lifecycle_op_seed WHERE op_id = ?`,
 		opID,
-	).Scan(&agent, &provider, &sandbox); err != nil {
+	).Scan(&agent, &provider); err != nil {
 		return fmt.Errorf("profile: read declared seed for operation %s: %w", opID, err)
 	}
-	if !agent.Valid && !provider.Valid && !sandbox.Valid {
+	if !agent.Valid && !provider.Valid {
 		return nil
 	}
 	target, err := compozyconfig.ResolveConfigWriteTarget(
@@ -255,7 +255,6 @@ func (m *Manager) writeDeclaredSeed(ctx context.Context, opID, profilePath strin
 		}{
 			{key: "agent", value: agent},
 			{key: "provider", value: provider},
-			{key: "sandbox", value: sandbox},
 		} {
 			if !candidate.value.Valid {
 				continue

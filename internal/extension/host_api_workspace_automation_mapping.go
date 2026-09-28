@@ -81,10 +81,7 @@ func (h *HostAPIHandler) jobFromCreateParams(
 	ctx context.Context,
 	req hostAPIAutomationJobCreateParams,
 ) (automationpkg.Job, error) {
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return automationpkg.Job{}, err
-	}
+	profileID := hostAPIProfileID(ctx)
 	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
 	if err != nil {
 		return automationpkg.Job{}, err
@@ -176,10 +173,7 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 	ctx context.Context,
 	req hostAPIAutomationTriggerCreateParams,
 ) (automationpkg.Trigger, automationpkg.WebhookSecretWrite, error) {
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return automationpkg.Trigger{}, automationpkg.WebhookSecretWrite{}, err
-	}
+	profileID := hostAPIProfileID(ctx)
 	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
 	if err != nil {
 		return automationpkg.Trigger{}, automationpkg.WebhookSecretWrite{}, err

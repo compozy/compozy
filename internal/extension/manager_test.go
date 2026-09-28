@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/fileutil"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
@@ -34,35 +34,6 @@ const (
 	extensionHelperScenarioKey = "COMPOZY_TEST_EXTENSION_SCENARIO"
 	extensionHelperMarkerKey   = "COMPOZY_TEST_EXTENSION_MARKER"
 )
-
-type noopBridgeTelemetrySink struct{}
-
-var _ BridgeTelemetrySink = (*noopBridgeTelemetrySink)(nil)
-
-func (noopBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
-
-func (noopBridgeTelemetrySink) RecordBridgeRuntimeIssue(string, bridgepkg.BridgeStatus, string) {}
-
-func (noopBridgeTelemetrySink) ClearBridgeRuntimeIssue(string) {}
-
-type recordingBridgeTelemetrySink struct {
-	issues []string
-	clears []string
-}
-
-func (r *recordingBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
-
-func (r *recordingBridgeTelemetrySink) RecordBridgeRuntimeIssue(
-	bridgeInstanceID string,
-	status bridgepkg.BridgeStatus,
-	message string,
-) {
-	r.issues = append(r.issues, fmt.Sprintf("%s:%s:%s", bridgeInstanceID, status, message))
-}
-
-func (r *recordingBridgeTelemetrySink) ClearBridgeRuntimeIssue(bridgeInstanceID string) {
-	r.clears = append(r.clears, bridgeInstanceID)
-}
 
 func TestExtensionManagerHelperProcess(_ *testing.T) {
 	if os.Getenv(extensionHelperEnvKey) != "1" {
@@ -1020,175 +991,6 @@ func TestExtensionSkillInstalledFrom(t *testing.T) {
 	}
 }
 
-func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
-	t.Parallel()
-
-	withDaemonVersion(t, "0.5.0")
-	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		permissions: []string{
-			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
-			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
-			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
-		},
-	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
-
-	fakeProc := newFakeProcess(303)
-	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
-	manager := NewManager(
-		env.registry,
-		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
-			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
-				"ext-bridge": testScopedBridgeRuntime(
-					"ext-bridge",
-					"brg-1",
-					[]subprocess.InitializeBridgeBoundSecret{
-						{BindingName: "bot_token", Kind: "bot_token", Value: "token-1"},
-					},
-				),
-			},
-		}),
-		withProcessLauncher(launcher.launch),
-		WithHealthCheckTimeout(20*time.Millisecond),
-		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
-	)
-
-	if err := manager.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(testutil.Context(t)); err != nil {
-			t.Fatalf("Stop() cleanup error = %v", err)
-		}
-	})
-
-	requests := fakeProc.initRequests()
-	if len(requests) != 1 {
-		t.Fatalf("len(initialize requests) = %d, want 1", len(requests))
-	}
-
-	request := requests[0]
-	if !slices.Equal(request.Methods.ExtensionServices, []string{"bridges/deliver", "bridges/targets/snapshot"}) {
-		t.Fatalf(
-			"initialize extension services = %#v, want [bridges/deliver bridges/targets/snapshot]",
-			request.Methods.ExtensionServices,
-		)
-	}
-	if !slices.Equal(request.Capabilities.GrantedPermissions, []extensionprotocol.HostAPIMethod{
-		extensionprotocol.HostAPIMethodBridgesInstancesGet,
-		extensionprotocol.HostAPIMethodBridgesInstancesReportState,
-		extensionprotocol.HostAPIMethodBridgesMessagesIngest,
-	}) {
-		t.Fatalf(
-			"initialize granted permissions = %#v, want bridge permissions",
-			request.Capabilities.GrantedPermissions,
-		)
-	}
-	if request.Runtime.Bridge == nil {
-		t.Fatal("initialize runtime bridge = nil, want scoped bridge launch payload")
-	}
-	managed := mustSingleManagedBridge(t, request.Runtime.Bridge)
-	if got, want := managed.Instance.ID, "brg-1"; got != want {
-		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
-	}
-	if got, want := managed.Instance.ExtensionName, "ext-bridge"; got != want {
-		t.Fatalf("initialize runtime bridge instance extension = %q, want %q", got, want)
-	}
-	if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-1" {
-		t.Fatalf("initialize runtime bridge bound secrets = %#v, want only bot_token", got)
-	}
-
-	for _, method := range request.Capabilities.GrantedPermissions {
-		if strings.Contains(string(method), "vault/") || strings.Contains(string(method), "secret/") {
-			t.Fatalf("initialize granted permissions leaked secret lookup method %q", method)
-		}
-	}
-	for _, method := range request.Methods.ExtensionServices {
-		if strings.Contains(method, "vault/") || strings.Contains(method, "secret/") {
-			t.Fatalf("initialize extension services leaked secret lookup method %q", method)
-		}
-	}
-}
-
-func TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime(t *testing.T) {
-	t.Parallel()
-
-	withDaemonVersion(t, "0.5.0")
-	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-missing", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		permissions:  []string{string(extensionprotocol.HostAPIMethodBridgesInstancesGet)},
-	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
-
-	manager := NewManager(
-		env.registry,
-		withProcessLauncher((&fakeLauncher{queue: []*fakeProcess{newFakeProcess(404)}}).launch),
-	)
-
-	err := manager.Start(testutil.Context(t))
-	if err == nil {
-		t.Fatal("Start() error = nil, want missing bridge runtime resolver failure")
-	}
-	if !errors.Is(err, ErrBridgeRuntimeResolverRequired) {
-		t.Fatalf("Start() error = %v, want %v", err, ErrBridgeRuntimeResolverRequired)
-	}
-}
-
-func TestManagerStartBridgeAdapterDefersUntilRuntimeExists(t *testing.T) {
-	t.Parallel()
-
-	withDaemonVersion(t, "0.5.0")
-	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-deferred", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		permissions: []string{
-			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
-			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
-		},
-	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
-
-	launcher := &fakeLauncher{}
-	manager := NewManager(
-		env.registry,
-		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{err: ErrBridgeRuntimeDeferred}),
-		withProcessLauncher(launcher.launch),
-	)
-
-	if err := manager.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(testutil.Context(t)); err != nil {
-			t.Fatalf("Stop() cleanup error = %v", err)
-		}
-	})
-
-	if got := launcher.launchCount(); got != 0 {
-		t.Fatalf("launch count = %d, want 0 while runtime is deferred", got)
-	}
-
-	loaded, err := manager.Get("ext-bridge-deferred")
-	if err != nil {
-		t.Fatalf("Get(ext-bridge-deferred) error = %v", err)
-	}
-	if loaded.Status.Active {
-		t.Fatal("Get(ext-bridge-deferred).Status.Active = true, want false")
-	}
-	if !loaded.Status.Registered {
-		t.Fatal("Get(ext-bridge-deferred).Status.Registered = false, want true")
-	}
-	if loaded.Status.LastError != "" {
-		t.Fatalf("Get(ext-bridge-deferred).Status.LastError = %q, want empty", loaded.Status.LastError)
-	}
-}
-
 func TestManagerStartSkipsDisabledExtensions(t *testing.T) {
 	t.Parallel()
 
@@ -1607,11 +1409,9 @@ func TestManagerStopKillsHungSubprocessAfterTimeout(t *testing.T) {
 func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	t.Parallel()
 
-	telemetrySink := &noopBridgeTelemetrySink{}
 	manager := NewManager(
 		nil,
 		WithCapabilityChecker(nil),
-		WithBridgeTelemetrySink(telemetrySink),
 		WithLogger(nil),
 		WithNow(nil),
 		WithGetenv(nil),
@@ -1640,9 +1440,7 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	if manager.getenv == nil {
 		t.Fatal("getenv = nil, want default env resolver")
 	}
-	if manager.bridgeTelemetrySink != telemetrySink {
-		t.Fatalf("bridgeTelemetrySink = %#v, want injected sink %#v", manager.bridgeTelemetrySink, telemetrySink)
-	}
+
 	if manager.launch == nil {
 		t.Fatal("launch = nil, want default launcher")
 	}
@@ -2115,180 +1913,162 @@ func TestManagerResolveEnvMapUsesSafeBaselineOnly(t *testing.T) {
 func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	t.Parallel()
 
-	manager := NewManager(nil)
-	ext := &managedExtension{
-		info: ExtensionInfo{
-			Name:    "snapshot",
-			Version: "1.0.0",
-			Source:  SourceUser,
-			Enabled: true,
-			Capabilities: CapabilitiesConfig{
-				Provides: []string{"memory.backend"},
-			},
-			Permissions: PermissionsConfig{
-				Requires: []string{"sessions/list"},
-			},
-		},
-		manifest: &Manifest{
-			Name:    "snapshot",
-			Version: "1.0.0",
-			Resources: ResourcesConfig{
-				Skills: []ManifestResourcePath{{Path: "skills/"}},
-				Publish: ResourceGrantRequest{
-					Families: []string{"tools"},
-					MaxScope: resources.ResourceScopeKindWorkspace,
+	t.Run("Should isolate mutable runtime and permission snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil)
+		ext := &managedExtension{
+			info: ExtensionInfo{
+				Name:    "snapshot",
+				Version: "1.0.0",
+				Source:  SourceUser,
+				Enabled: true,
+				Capabilities: CapabilitiesConfig{
+					Provides: []string{"memory.backend"},
+				},
+				Permissions: PermissionsConfig{
+					Requires: []string{"sessions/list"},
 				},
 			},
-			Capabilities: CapabilitiesConfig{
-				Provides: []string{"memory.backend"},
-			},
-			Permissions: PermissionsConfig{
-				Requires: []string{"sessions/list"},
-			},
-			Subprocess: SubprocessConfig{
-				Command: "snapshot-extension",
-				Args:    []string{"--config", "snapshot.toml"},
-				Env: map[string]string{
-					"TOKEN": "value",
+			manifest: &Manifest{
+				Gateway: &GatewayRequirement{Permissions: []string{"gateway.private"}},
+				Name:    "snapshot",
+				Version: "1.0.0",
+				Resources: ResourcesConfig{
+					Skills: []ManifestResourcePath{{Path: "skills/"}},
+					Publish: ResourceGrantRequest{
+						Families: []string{"tools"},
+						MaxScope: resources.ResourceScopeKindWorkspace,
+					},
+				},
+				Capabilities: CapabilitiesConfig{
+					Provides: []string{"memory.backend"},
+				},
+				Permissions: PermissionsConfig{
+					Requires: []string{"sessions/list"},
+				},
+				Subprocess: SubprocessConfig{
+					Command: "snapshot-extension",
+					Args:    []string{"--config", "snapshot.toml"},
+					Env: map[string]string{
+						"TOKEN": "value",
+					},
 				},
 			},
-		},
-		skills: []*skillspkg.Skill{{
-			Meta: skillspkg.SkillMeta{
-				Name:        "snapshot-skill",
-				Description: "Snapshot skill",
-				Metadata: map[string]any{
-					"nested": map[string]any{"value": "original"},
-					"list":   []any{"original", map[string]any{"child": "value"}},
+			skills: []*skillspkg.Skill{{
+				Meta: skillspkg.SkillMeta{
+					Name:        "snapshot-skill",
+					Description: "Snapshot skill",
+					Metadata: map[string]any{
+						"nested": map[string]any{"value": "original"},
+						"list":   []any{"original", map[string]any{"child": "value"}},
+					},
 				},
-			},
-			Hooks: []hookspkg.HookDecl{{
-				Name:      "snapshot-hook",
-				Args:      []string{"cleanup"},
-				Env:       map[string]string{"PHASE": "stop"},
-				SecretEnv: map[string]string{"TOKEN": "vault:hooks/snapshot-hook/token"},
+				Hooks: []hookspkg.HookDecl{{
+					Name:      "snapshot-hook",
+					Args:      []string{"cleanup"},
+					Env:       map[string]string{"PHASE": "stop"},
+					SecretEnv: map[string]string{"TOKEN": "vault:hooks/snapshot-hook/token"},
+				}},
+				MCPServers: []skillspkg.MCPServerDecl{{
+					Name:    "snapshot-server",
+					Command: "server",
+					Args:    []string{"--once"},
+					Env:     map[string]string{"ROOT": "/tmp/original"},
+				}},
+				Provenance: &skillspkg.Provenance{
+					Hash: "hash-original",
+				},
 			}},
-			MCPServers: []skillspkg.MCPServerDecl{{
-				Name:    "snapshot-server",
-				Command: "server",
-				Args:    []string{"--once"},
-				Env:     map[string]string{"ROOT": "/tmp/original"},
-			}},
-			Provenance: &skillspkg.Provenance{
-				Hash: "hash-original",
+			grantedResourceKinds:  []resources.ResourceKind{resources.ResourceKind("tool")},
+			grantedResourceScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+			initialize: &subprocess.InitializeResponse{
+				ImplementedMethods:  []string{"shutdown"},
+				SupportedHookEvents: []string{"turn.start"},
+				AcceptedCapabilities: subprocess.AcceptedCapabilities{
+					Provides:    []string{"memory.backend"},
+					Permissions: []extensionprotocol.HostAPIMethod{"sessions/list"},
+				},
 			},
-		}},
-		grantedResourceKinds:  []resources.ResourceKind{resources.ResourceKind("tool")},
-		grantedResourceScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
-		initialize: &subprocess.InitializeResponse{
-			ImplementedMethods:  []string{"shutdown"},
-			SupportedHookEvents: []string{"turn.start"},
-			AcceptedCapabilities: subprocess.AcceptedCapabilities{
-				Provides:    []string{"memory.backend"},
-				Permissions: []extensionprotocol.HostAPIMethod{"sessions/list"},
-			},
-		},
-	}
+		}
 
-	clone := manager.cloneExtension(ext)
-	if clone == nil {
-		t.Fatal("cloneExtension() = nil, want snapshot")
-		return
-	}
+		clone := manager.cloneExtension(ext)
+		if clone == nil {
+			t.Fatal("cloneExtension() = nil, want snapshot")
+			return
+		}
 
-	clone.Info.Capabilities.Provides[0] = "changed"
-	clone.Info.Permissions.Requires[0] = "changed"
-	clone.Manifest.Resources.Skills[0].Path = "changed"
-	clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
-	clone.Manifest.Resources.Publish.Families[0] = "changed"
-	clone.Skills[0].Meta.Name = "changed"
-	clone.Skills[0].Meta.Metadata["nested"].(map[string]any)["value"] = "changed"
-	clone.Skills[0].Meta.Metadata["list"].([]any)[0] = "changed"
-	clone.Skills[0].Meta.Metadata["list"].([]any)[1].(map[string]any)["child"] = "changed"
-	clone.Skills[0].Hooks[0].Args[0] = "changed"
-	clone.Skills[0].Hooks[0].SecretEnv["TOKEN"] = "vault:hooks/snapshot-hook/changed"
-	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
-	clone.Skills[0].Provenance.Hash = "hash-changed"
-	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
-	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindUser
-	clone.InitializeResult.ImplementedMethods[0] = "changed"
-	clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
+		clone.Info.Capabilities.Provides[0] = "changed"
+		clone.Info.Permissions.Requires[0] = "changed"
+		clone.Manifest.Resources.Skills[0].Path = "changed"
+		clone.Manifest.Gateway.Permissions[0] = "gateway.public"
+		clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
+		clone.Manifest.Resources.Publish.Families[0] = "changed"
+		clone.Skills[0].Meta.Name = "changed"
+		clone.Skills[0].Meta.Metadata["nested"].(map[string]any)["value"] = "changed"
+		clone.Skills[0].Meta.Metadata["list"].([]any)[0] = "changed"
+		clone.Skills[0].Meta.Metadata["list"].([]any)[1].(map[string]any)["child"] = "changed"
+		clone.Skills[0].Hooks[0].Args[0] = "changed"
+		clone.Skills[0].Hooks[0].SecretEnv["TOKEN"] = "vault:hooks/snapshot-hook/changed"
+		clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
+		clone.Skills[0].Provenance.Hash = "hash-changed"
+		clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
+		clone.GrantedResourceScopes[0] = resources.ResourceScopeKindUser
+		clone.InitializeResult.ImplementedMethods[0] = "changed"
+		clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
 
-	if ext.info.Capabilities.Provides[0] != "memory.backend" {
-		t.Fatalf("original capabilities mutated to %#v", ext.info.Capabilities.Provides)
-	}
-	if ext.info.Permissions.Requires[0] != "sessions/list" {
-		t.Fatalf("original permissions mutated to %#v", ext.info.Permissions.Requires)
-	}
-	if ext.manifest.Resources.Skills[0].Path != "skills/" {
-		t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
-	}
-	if ext.manifest.Resources.Publish.Families[0] != "tools" {
-		t.Fatalf("original manifest publish request mutated to %#v", ext.manifest.Resources.Publish)
-	}
-	if ext.manifest.Subprocess.Env["TOKEN"] != "value" {
-		t.Fatalf("original manifest env mutated to %#v", ext.manifest.Subprocess.Env)
-	}
-	if ext.skills[0].Meta.Name != "snapshot-skill" {
-		t.Fatalf("original skill name mutated to %q", ext.skills[0].Meta.Name)
-	}
-	if ext.skills[0].Meta.Metadata["nested"].(map[string]any)["value"] != "original" {
-		t.Fatalf("original skill metadata mutated to %#v", ext.skills[0].Meta.Metadata)
-	}
-	if ext.skills[0].Meta.Metadata["list"].([]any)[0] != "original" {
-		t.Fatalf("original skill metadata list mutated to %#v", ext.skills[0].Meta.Metadata["list"])
-	}
-	if ext.skills[0].Hooks[0].Args[0] != "cleanup" {
-		t.Fatalf("original skill hook args mutated to %#v", ext.skills[0].Hooks[0].Args)
-	}
-	if got, want := ext.skills[0].Hooks[0].SecretEnv["TOKEN"], "vault:hooks/snapshot-hook/token"; got != want {
-		t.Fatalf("original skill hook secret env mutated to %q, want %q", got, want)
-	}
-	if ext.skills[0].MCPServers[0].Env["ROOT"] != "/tmp/original" {
-		t.Fatalf("original skill MCP env mutated to %#v", ext.skills[0].MCPServers[0].Env)
-	}
-	if ext.skills[0].Provenance.Hash != "hash-original" {
-		t.Fatalf("original skill provenance mutated to %#v", ext.skills[0].Provenance)
-	}
-	if ext.grantedResourceKinds[0] != resources.ResourceKind("tool") {
-		t.Fatalf("original granted resource kinds mutated to %#v", ext.grantedResourceKinds)
-	}
-	if ext.grantedResourceScopes[0] != resources.ResourceScopeKindWorkspace {
-		t.Fatalf("original granted resource scopes mutated to %#v", ext.grantedResourceScopes)
-	}
-	if ext.initialize.ImplementedMethods[0] != "shutdown" {
-		t.Fatalf("original initialize methods mutated to %#v", ext.initialize.ImplementedMethods)
-	}
-	if ext.initialize.AcceptedCapabilities.Provides[0] != "memory.backend" {
-		t.Fatalf("original initialize provides mutated to %#v", ext.initialize.AcceptedCapabilities.Provides)
-	}
-}
-
-func TestManagerBridgeRuntimeIssueHelpers(t *testing.T) {
-	t.Parallel()
-
-	sink := &recordingBridgeTelemetrySink{}
-	manager := NewManager(nil, WithBridgeTelemetrySink(sink))
-
-	manager.reportBridgeRuntimeIssue("  bridge-1  ", bridgepkg.BridgeStatusDegraded, errors.New("boom"))
-	manager.reportBridgeRuntimeIssue("", bridgepkg.BridgeStatusReady, errors.New("ignored"))
-	manager.reportBridgeRuntimeIssues(
-		[]string{"bridge-2", "bridge-3"},
-		bridgepkg.BridgeStatusError,
-		errors.New("failed"),
-	)
-	manager.clearBridgeRuntimeIssue("  bridge-1  ")
-	manager.clearBridgeRuntimeIssues([]string{"bridge-2", "bridge-3"})
-
-	if len(sink.issues) != 3 {
-		t.Fatalf("len(issues) = %d, want 3", len(sink.issues))
-	}
-	if len(sink.clears) != 3 {
-		t.Fatalf("len(clears) = %d, want 3", len(sink.clears))
-	}
-	if sink.issues[0] != "bridge-1:degraded:boom" {
-		t.Fatalf("issues[0] = %q, want bridge-1 degraded entry", sink.issues[0])
-	}
+		if ext.manifest.Gateway.Permissions[0] != "gateway.private" {
+			t.Fatalf("original gateway permissions mutated to %#v", ext.manifest.Gateway.Permissions)
+		}
+		if ext.info.Capabilities.Provides[0] != "memory.backend" {
+			t.Fatalf("original capabilities mutated to %#v", ext.info.Capabilities.Provides)
+		}
+		if ext.info.Permissions.Requires[0] != "sessions/list" {
+			t.Fatalf("original permissions mutated to %#v", ext.info.Permissions.Requires)
+		}
+		if ext.manifest.Resources.Skills[0].Path != "skills/" {
+			t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
+		}
+		if ext.manifest.Resources.Publish.Families[0] != "tools" {
+			t.Fatalf("original manifest publish request mutated to %#v", ext.manifest.Resources.Publish)
+		}
+		if ext.manifest.Subprocess.Env["TOKEN"] != "value" {
+			t.Fatalf("original manifest env mutated to %#v", ext.manifest.Subprocess.Env)
+		}
+		if ext.skills[0].Meta.Name != "snapshot-skill" {
+			t.Fatalf("original skill name mutated to %q", ext.skills[0].Meta.Name)
+		}
+		if ext.skills[0].Meta.Metadata["nested"].(map[string]any)["value"] != "original" {
+			t.Fatalf("original skill metadata mutated to %#v", ext.skills[0].Meta.Metadata)
+		}
+		if ext.skills[0].Meta.Metadata["list"].([]any)[0] != "original" {
+			t.Fatalf("original skill metadata list mutated to %#v", ext.skills[0].Meta.Metadata["list"])
+		}
+		if ext.skills[0].Hooks[0].Args[0] != "cleanup" {
+			t.Fatalf("original skill hook args mutated to %#v", ext.skills[0].Hooks[0].Args)
+		}
+		if got, want := ext.skills[0].Hooks[0].SecretEnv["TOKEN"], "vault:hooks/snapshot-hook/token"; got != want {
+			t.Fatalf("original skill hook secret env mutated to %q, want %q", got, want)
+		}
+		if ext.skills[0].MCPServers[0].Env["ROOT"] != "/tmp/original" {
+			t.Fatalf("original skill MCP env mutated to %#v", ext.skills[0].MCPServers[0].Env)
+		}
+		if ext.skills[0].Provenance.Hash != "hash-original" {
+			t.Fatalf("original skill provenance mutated to %#v", ext.skills[0].Provenance)
+		}
+		if ext.grantedResourceKinds[0] != resources.ResourceKind("tool") {
+			t.Fatalf("original granted resource kinds mutated to %#v", ext.grantedResourceKinds)
+		}
+		if ext.grantedResourceScopes[0] != resources.ResourceScopeKindWorkspace {
+			t.Fatalf("original granted resource scopes mutated to %#v", ext.grantedResourceScopes)
+		}
+		if ext.initialize.ImplementedMethods[0] != "shutdown" {
+			t.Fatalf("original initialize methods mutated to %#v", ext.initialize.ImplementedMethods)
+		}
+		if ext.initialize.AcceptedCapabilities.Provides[0] != "memory.backend" {
+			t.Fatalf("original initialize provides mutated to %#v", ext.initialize.AcceptedCapabilities.Provides)
+		}
+	})
 }
 
 func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
@@ -2417,7 +2197,6 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		"ext-host",
 		"sessions/list",
 		nil,
-		nil,
 		func(_ context.Context, _ json.RawMessage) (any, error) {
 			return "ok", nil
 		},
@@ -2441,20 +2220,9 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
 		},
 	}
-	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
-		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
-			{
-				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
-					ID:            "brg-wrap",
-					ExtensionName: "ext-host",
-				}),
-			},
-		},
-	}
 	injected := manager.wrapHostHandler(
 		InstanceKey{Name: "ext-host", ProfileID: "profile-host", WorkspaceID: "workspace-host"},
 		"sessions/list",
-		bridgeRuntime,
 		resourceSession,
 		func(ctx context.Context, _ json.RawMessage) (any, error) {
 			if got := hostAPIExtensionNameFromContext(ctx); got != "ext-host" {
@@ -2464,14 +2232,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			if !ok || key.ProfileID != "profile-host" || key.WorkspaceID != "workspace-host" {
 				t.Fatalf("hostAPIInstanceKeyFromContext(ctx) = %#v, %t, want profile/workspace scope", key, ok)
 			}
-			runtime := hostAPIBridgeRuntimeFromContext(ctx)
-			if runtime == nil {
-				t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
-				return nil, nil
-			}
-			if got := runtime.ManagedInstances[0].Instance.ID; got != "brg-wrap" {
-				t.Fatalf("runtime.ManagedInstances[0].Instance.ID = %q, want brg-wrap", got)
-			}
+
 			session, ok := hostAPIResourceSessionFromContext(ctx)
 			if !ok {
 				t.Fatal("hostAPIResourceSessionFromContext(ctx) = false, want true")
@@ -2490,7 +2251,6 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	denied := manager.wrapHostHandler(
 		"ext-denied",
 		"sessions/list",
-		nil,
 		nil,
 		func(_ context.Context, _ json.RawMessage) (any, error) {
 			return "never", nil
@@ -2540,22 +2300,20 @@ type managerFixture struct {
 }
 
 type managerManifestOptions struct {
-	command           string
-	args              []string
-	withEnv           map[string]string
-	requiresEnv       []string
-	withSkills        bool
-	withAgents        bool
-	withHooks         bool
-	withMCP           bool
-	resourceFamilies  []string
-	resourceMaxScope  string
-	minVersion        string
-	capabilities      []string
-	permissions       []string
-	bridgePlatform    string
-	bridgeDisplayName string
-	shutdown          time.Duration
+	command          string
+	args             []string
+	withEnv          map[string]string
+	requiresEnv      []string
+	withSkills       bool
+	withAgents       bool
+	withHooks        bool
+	withMCP          bool
+	resourceFamilies []string
+	resourceMaxScope string
+	minVersion       string
+	capabilities     []string
+	permissions      []string
+	shutdown         time.Duration
 }
 
 type fakeLauncher struct {
@@ -2864,67 +2622,7 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		return nil
 	case "health_check":
 		return h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
-	case "bridges/deliver":
-		var params bridgepkg.DeliveryRequest
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return err
-		}
-		if h.scenario == "slow_record_deliveries" {
-			time.Sleep(200 * time.Millisecond)
-		}
-		if err := h.recordDelivery(params); err != nil {
-			return err
-		}
-		switch h.scenario {
-		case "exit_once_record_deliveries":
-			if markerLineCount(h.marker) == 1 {
-				os.Exit(1)
-			}
-		case "transient_fail_once_record_deliveries":
-			if markerLineCount(h.marker) == 1 {
-				return h.sendError(req.ID, -32031, "Transient bridge delivery failure", map[string]string{
-					"kind": "transient_delivery_failure",
-				})
-			}
-		}
 
-		ack := bridgepkg.DeliveryAck{
-			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
-			Seq:        params.Event.Seq,
-		}
-		switch h.scenario {
-		case "delivery_ack_missing_seq":
-			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID})
-		case "delivery_ack_null_seq":
-			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID, "seq": nil})
-		case "delivery_ack_string_seq":
-			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID, "seq": "0"})
-		case "delivery_ack_non_object":
-			return h.sendResult(req.ID, []string{"not", "an", "ack"})
-		}
-		if ack.Seq > 0 {
-			ack.RemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq)
-		}
-		if ack.Seq > 1 {
-			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
-		}
-		return h.sendResult(req.ID, ack)
-	case "bridges/targets/snapshot":
-		var params bridgepkg.BridgeTargetSnapshotRequest
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return err
-		}
-		return h.sendResult(req.ID, bridgepkg.BridgeTargetSnapshotResponse{
-			Targets: []bridgepkg.BridgeTargetSnapshot{
-				{
-					CanonicalRoute: "bridge://" + strings.TrimSpace(params.BridgeInstanceID) + "/general",
-					DisplayName:    "general",
-					TargetType:     bridgepkg.BridgeTargetTypeChannel,
-					Qualifier:      "workspace",
-					Capabilities:   []string{"send"},
-				},
-			},
-		})
 	case "models/list":
 		var params extensioncontract.ModelSourceListParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -3102,7 +2800,7 @@ func (h *extensionHelperServer) handleResponse(resp helperResponse) {
 		return
 	}
 	if len(resp.Result) > 0 {
-		if err := os.WriteFile(h.marker, resp.Result, 0o600); err != nil {
+		if err := fileutil.AtomicWriteFile(h.marker, resp.Result, 0o600); err != nil {
 			h.pendingReq = ""
 			return
 		}
@@ -3186,21 +2884,6 @@ func (h *extensionHelperServer) recordInitialize(
 	return appendMarkerLine(h.marker, string(payload))
 }
 
-func (h *extensionHelperServer) recordDelivery(request bridgepkg.DeliveryRequest) error {
-	if strings.TrimSpace(h.marker) == "" {
-		return nil
-	}
-
-	payload, err := json.Marshal(managerDeliveryMarker{
-		PID:     os.Getpid(),
-		Request: request,
-	})
-	if err != nil {
-		return err
-	}
-	return appendMarkerLine(h.marker, string(payload))
-}
-
 type helperRequest struct {
 	ID     any             `json:"id"`
 	Method string          `json:"method"`
@@ -3210,32 +2893,6 @@ type helperRequest struct {
 type helperResponse struct {
 	ID     any             `json:"id"`
 	Result json.RawMessage `json:"result"`
-}
-
-type managerDeliveryMarker struct {
-	PID     int                       `json:"pid"`
-	Request bridgepkg.DeliveryRequest `json:"request"`
-}
-
-type stubBridgeRuntimeResolver struct {
-	runtimes map[string]*subprocess.InitializeBridgeRuntime
-	err      error
-}
-
-func (r *stubBridgeRuntimeResolver) ResolveBridgeRuntime(
-	_ context.Context,
-	extensionName string,
-) (*subprocess.InitializeBridgeRuntime, error) {
-	if r == nil {
-		return nil, nil
-	}
-	if r.err != nil {
-		return nil, r.err
-	}
-	if r.runtimes == nil {
-		return nil, nil
-	}
-	return subprocess.CloneInitializeBridgeRuntime(r.runtimes[strings.TrimSpace(extensionName)]), nil
 }
 
 func createManagerTestExtension(t *testing.T, manifestContent string, files map[string]string) managerFixture {
@@ -3328,16 +2985,6 @@ func managerTestManifest(name string, opts managerManifestOptions) string {
 	if len(permissions) == 0 {
 		permissions = []string{"sessions/list"}
 	}
-	bridgePlatform := opts.bridgePlatform
-	bridgeDisplayName := opts.bridgeDisplayName
-	if slices.Contains(capabilities, extensionprotocol.CapabilityProvideBridgeAdapter) {
-		if bridgePlatform == "" {
-			bridgePlatform = "telegram"
-		}
-		if bridgeDisplayName == "" {
-			bridgeDisplayName = "Telegram"
-		}
-	}
 
 	var builder strings.Builder
 	fmt.Fprintf(&builder, `[extension]
@@ -3399,13 +3046,6 @@ args = ["--context", "prod"]
 provides = ` + tomlStringArray(capabilities) + `
 
 `)
-	if bridgePlatform != "" || bridgeDisplayName != "" {
-		fmt.Fprintf(&builder, `[bridge]
-platform = %q
-display_name = %q
-
-`, bridgePlatform, bridgeDisplayName)
-	}
 	builder.WriteString(`[permissions]
 requires = ` + tomlStringArray(permissions) + `
 
@@ -3523,60 +3163,4 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("timed out waiting for manager condition")
-}
-
-func testBridgeRuntimeInstance(extensionName string, instanceID string) bridgepkg.BridgeInstance {
-	return bridgepkg.BridgeInstance{
-		ProfileID:     store.DefaultProfileID,
-		ID:            instanceID,
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: extensionName,
-		DisplayName:   "Bridge Runtime",
-		Enabled:       true,
-		Status:        bridgepkg.BridgeStatusReady,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}
-}
-
-func testScopedBridgeRuntime(
-	extensionName string,
-	instanceID string,
-	boundSecrets []subprocess.InitializeBridgeBoundSecret,
-) *subprocess.InitializeBridgeRuntime {
-	instance := testBridgeRuntimeInstance(extensionName, instanceID)
-	return testScopedBridgeRuntimeForInstance(instance, boundSecrets)
-}
-
-func testScopedBridgeRuntimeForInstance(
-	instance bridgepkg.BridgeInstance,
-	boundSecrets []subprocess.InitializeBridgeBoundSecret,
-) *subprocess.InitializeBridgeRuntime {
-	return &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
-		Purpose:        subprocess.BridgeRuntimePurposeService,
-		Provider:       instance.ExtensionName,
-		Platform:       instance.Platform,
-		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-			Instance:     bridgepkg.BridgeInstanceToContract(instance),
-			BoundSecrets: append([]subprocess.InitializeBridgeBoundSecret(nil), boundSecrets...),
-		}},
-	}
-}
-
-func mustSingleManagedBridge(
-	t testing.TB,
-	runtime *subprocess.InitializeBridgeRuntime,
-) subprocess.InitializeBridgeManagedInstance {
-	t.Helper()
-
-	if runtime == nil {
-		t.Fatal("bridge runtime = nil, want non-nil")
-		return subprocess.InitializeBridgeManagedInstance{}
-	}
-	managed, err := runtime.SingleManagedInstance()
-	if err != nil {
-		t.Fatalf("runtime.SingleManagedInstance() error = %v", err)
-	}
-	return *managed
 }

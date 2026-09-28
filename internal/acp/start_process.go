@@ -7,7 +7,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -26,7 +25,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	launcher := d.launcherForStart(normalized)
 	identity := startOptsPreparedLaunchIdentity(normalized)
 
-	handle, err := launcher.Launch(ctx, sandbox.LaunchSpec{
+	handle, err := launcher.Launch(ctx, LaunchSpec{
 		Command:            normalized.Command,
 		ResolvedExecutable: identity.spec.ResolvedExecutable,
 		Args:               append([]string(nil), identity.spec.Args...),
@@ -89,7 +88,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	return process, nil
 }
 
-func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProcess, handle sandbox.Handle) error {
+func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProcess, handle Handle) error {
 	if err := d.registerAgentProcess(ctx, process); err != nil {
 		process.cancelProcess()
 		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
@@ -102,7 +101,7 @@ func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProces
 	return nil
 }
 
-func (d *Driver) configureAgentConnection(process *AgentProcess, handle sandbox.Handle, toolHost ToolHost) {
+func (d *Driver) configureAgentConnection(process *AgentProcess, handle Handle, toolHost ToolHost) {
 	if localHost, ok := toolHost.(*localToolHost); ok {
 		process.terminals = localHost.terminals
 	}
@@ -124,7 +123,7 @@ func (d *Driver) newAgentProcess(
 	normalized StartOpts,
 	command string,
 	args []string,
-	handle sandbox.Handle,
+	handle Handle,
 	toolHost ToolHost,
 	policy permissionPolicy,
 	terminalScope LocalTerminalScope,

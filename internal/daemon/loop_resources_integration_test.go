@@ -400,7 +400,7 @@ func newSpecCycleLoopE2EState(
 	if err != nil {
 		t.Fatalf("resources.NewKernel() error = %v", err)
 	}
-	codecs, err := d.buildResourceCodecs(nil)
+	codecs, err := d.buildResourceCodecs()
 	if err != nil {
 		t.Fatalf("buildResourceCodecs() error = %v", err)
 	}

@@ -28,7 +28,7 @@ func sessionContextRowsToon(injected *contract.SessionContextInjectedPayload) st
 	}
 	return renderToonArray(
 		"context_rows",
-		[]string{"key", "label", networkKindKey, "owner_kind", "bytes", observeTokensLabel,
+		[]string{"key", "label", cliOutputKindKey, "owner_kind", "bytes", observeTokensLabel,
 			"delivered_turn_id", "delivery_sequence", "sent_at", "last_seen_turn_id", "unchanged", "stale",
 			"delivery", "hook_modified", automationNameKey},
 		rows,
@@ -94,8 +94,18 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 		),
 		renderToonArray(
 			"spans",
-			[]string{sessionTurnIDKey, "key", networkKindKey, "bytes", observeTokensLabel, "unchanged", "startup_dedup",
-				"delivery", "hook_modified", automationNameKey},
+			[]string{
+				sessionTurnIDKey,
+				"key",
+				cliOutputKindKey,
+				"bytes",
+				observeTokensLabel,
+				"unchanged",
+				"startup_dedup",
+				"delivery",
+				"hook_modified",
+				automationNameKey,
+			},
 			spans,
 		),
 		renderToonArray(

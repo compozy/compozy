@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -213,24 +212,12 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Run("Should bind the selected runtime before dispatching the first prompt", func(t *testing.T) {
 		t.Parallel()
 
-		provider := &recordingSandboxProvider{}
-		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
-		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-		if err != nil {
-			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
-		}
-		resolved.Config.Sandboxes["task-ref"] = compozyconfig.SandboxProfile{
-			Backend:     string(sandbox.BackendLocal),
-			SyncMode:    string(sandbox.SyncModeNone),
-			Persistence: string(sandbox.PersistenceReuse),
-		}
-		h.resolver.upsert(&resolved)
+		h := newHarness(t)
 
 		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
 			Session: CreateOpts{
-				AgentName:  "coder",
-				Workspace:  h.workspaceID,
-				SandboxRef: "task-ref",
+				AgentName: "coder",
+				Workspace: h.workspaceID,
 			},
 		})
 		if err != nil {
@@ -253,12 +240,6 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		if got := len(h.driver.startCalls); got != 1 {
 			t.Fatalf("driver start calls = %d, want 1", got)
-		}
-		if got := len(provider.prepareRequests); got != 1 {
-			t.Fatalf("sandbox prepare calls = %d, want 1", got)
-		}
-		if got, want := provider.prepareRequests[0].Sandbox.Profile, "task-ref"; got != want {
-			t.Fatalf("sandbox profile = %q, want %q", got, want)
 		}
 		status, err := h.manager.Status(testutil.Context(t), created.ID)
 		if err != nil {
@@ -384,6 +365,8 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	})
 }
 
+// Invariant: local provider launch filters daemon secrets while preserving session and agent identity.
+// Owner: session launch environment; canonical session start environment suite.
 func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 	t.Parallel()
 
@@ -398,9 +381,8 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 				"PROVIDER_HOME=/tmp/provider",
 			},
 			&Session{
-				ID:                   "sess-1",
-				AgentName:            "coder",
-				NetworkParticipation: testLiveParticipation("ws-test", "ops"),
+				ID:        "sess-1",
+				AgentName: "coder",
 			},
 		)
 
@@ -416,8 +398,11 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 		if got := envValue(env, "COMPOZY_SESSION_ID"); got != "sess-1" {
 			t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, "sess-1")
 		}
-		if got := envValue(env, "COMPOZY_PEER_ID"); got == "" {
-			t.Fatal("COMPOZY_PEER_ID = empty, want network peer id")
+		if got := envValue(env, "COMPOZY_AGENT"); got != "coder" {
+			t.Fatalf("COMPOZY_AGENT = %q, want coder", got)
+		}
+		if got := envValue(env, "COMPOZY_AGENT_NAME"); got != "coder" {
+			t.Fatalf("COMPOZY_AGENT_NAME = %q, want coder", got)
 		}
 	})
 }
@@ -437,9 +422,8 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 				"PROVIDER_HOME=/tmp/provider",
 			},
 			&Session{
-				ID:                   "sess-1",
-				AgentName:            "coder",
-				NetworkParticipation: testLiveParticipation("ws-test", "ops"),
+				ID:        "sess-1",
+				AgentName: "coder",
 			},
 			compozyconfig.ProviderEnvPolicyIsolated,
 			"",
@@ -477,4 +461,45 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 			t.Fatalf("COMPOZY_REASONING_EFFORT = %q, want %q", got, "high")
 		}
 	})
+}
+
+// Invariant: explicit session IDs preserve valid local filenames and reject path traversal.
+func TestCreatePreallocatedSessionIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		id    string
+		valid bool
+	}{
+		{name: "Should preserve a caller supplied identifier", id: "sess~manual", valid: true},
+		{name: "Should preserve a long local identifier", id: strings.Repeat("s", 128), valid: true},
+		{name: "Should reject traversal", id: "../escape"},
+		{name: "Should reject a nested path", id: "parent/child"},
+		{name: "Should reject the current directory", id: "."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			created, err := h.manager.Create(
+				t.Context(),
+				CreateOpts{AgentName: "coder", DesiredSessionID: tc.id, Workspace: h.workspaceID},
+			)
+			if !tc.valid {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("Create(%q) error = %v, want validation rejection", tc.id, err)
+				}
+				if len(h.driver.startCalls) != 0 {
+					t.Fatal("invalid identity started the driver")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Create(%q) error = %v", tc.id, err)
+			}
+			reportSessionStop(t, h, created.ID)
+			if created.ID != tc.id {
+				t.Fatalf("session ID = %q, want %q", created.ID, tc.id)
+			}
+		})
+	}
 }

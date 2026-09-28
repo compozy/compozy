@@ -21,5 +21,5 @@ charter:
       - "Expand sections and named attachments; inspect startup-opaque/hook rows, stale/unchanged receipts and the turns union with archive facts and earlier-turn reveal."
       - "Leave and return, then stop and independently reread usage/turns. Check Vault, changed-files and goal strip canaries; capture VC01–11."
     must_avoid:
-      - "Unrelated release, marketplace, network or automation journeys; no private state edits to manufacture product success."
+      - "Unrelated release, marketplace or automation journeys; no private state edits to manufacture product success."
 ```

@@ -207,7 +207,7 @@ var baseRegistryEntries = []Metadata{
 	global(info(ExtensionEnablementChanged, "extension.enablement", ComponentExtension)),
 	global(success(ExtensionProfileCreated, "extension.profile", ComponentExtension)),
 	global(warning(ExtensionDisabled, "extension", ComponentExtension)),
-	global(success(ExtensionNetworkConfirmed, "extension.network", ComponentExtension)),
+	global(success(ExtensionGatewayConfirmed, "extension.gateway", ComponentExtension)),
 	global(success(ExtensionSecretsUpdated, "extension.secrets", ComponentExtension)),
 	global(failure(ExtensionSecretsUpdateFailed, "extension.secrets", ComponentExtension)),
 	global(info(ExtensionDigestVerify, "extension.digest", ComponentExtension)),
@@ -236,7 +236,4 @@ var baseRegistryEntries = []Metadata{
 	global(warning(NotificationPresetDeleted, "notification.preset", ComponentNotification)),
 	global(failure(NotificationPresetDispatchFailed, "notification.preset", ComponentNotification)),
 	global(info(NotificationPresetEnablementChanged, "notification.preset.enablement", ComponentNotification)),
-	notify(global(warning(BridgeNotificationSuppressed, "bridge_notification", ComponentNotification))),
-	notify(global(success(NetworkPeerJoined, "network.peer", ComponentNetwork))),
-	notify(global(warning(NetworkPeerLeft, "network.peer", ComponentNetwork))),
 }

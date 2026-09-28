@@ -372,6 +372,7 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		ToolsPromptSectionEnabled:           true,
 		RuntimeIdentityPromptSectionEnabled: true,
 		MemoryPromptSectionEnabled:          true,
 		SkillsPromptSectionEnabled:          true,
@@ -387,12 +388,12 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 				Predicate: policyIncludesSection(HarnessPromptSectionRuntimeIdentity),
 			},
 			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionNetwork),
+				Name:     string(HarnessPromptSectionTools),
 				Position: PromptSectionPositionAppend,
 				Order:    200,
-				Provider: staticPromptProvider("network block"),
+				Provider: staticPromptProvider("tools block"),
 				Predicate: policyIncludesSection(
-					HarnessPromptSectionNetwork,
+					HarnessPromptSectionTools,
 				),
 			},
 			PromptSectionDescriptor{
@@ -420,14 +421,13 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 		t,
 		assembler,
 		session.StartupPromptContext{
-			SessionType:          session.SessionTypeUser,
-			NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
+			SessionType: session.SessionTypeUser,
 		},
 		testPromptAgent("Base prompt."),
 		t.TempDir(),
 	)
 
-	want := "runtime block\n\nmemory block\n\nBase prompt.\n\nskills block\n\nnetwork block"
+	want := "runtime block\n\nmemory block\n\nBase prompt.\n\nskills block\n\ntools block"
 	if got != want {
 		t.Fatalf("AssembleStartup() = %q, want %q", got, want)
 	}
@@ -595,6 +595,7 @@ func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		ToolsPromptSectionEnabled:  true,
 		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 	})
@@ -611,21 +612,21 @@ func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
 				),
 			},
 			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionNetwork),
+				Name:     string(HarnessPromptSectionTools),
 				Position: PromptSectionPositionAppend,
 				Order:    200,
-				Provider: staticPromptProvider("network block"),
+				Provider: staticPromptProvider("tools block"),
 				Predicate: policyIncludesSection(
-					HarnessPromptSectionNetwork,
+					HarnessPromptSectionTools,
 				),
 			},
 			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionNetwork),
+				Name:     string(HarnessPromptSectionTools),
 				Position: PromptSectionPositionAppend,
 				Order:    210,
-				Provider: staticPromptProvider("network block duplicate"),
+				Provider: staticPromptProvider("tools block duplicate"),
 				Predicate: policyIncludesSection(
-					HarnessPromptSectionNetwork,
+					HarnessPromptSectionTools,
 				),
 			},
 		),
@@ -635,56 +636,18 @@ func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
 		t,
 		assembler,
 		session.StartupPromptContext{
-			SessionType:          session.SessionTypeUser,
-			NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
+			SessionType: session.SessionTypeUser,
 		},
 		testPromptAgent("Base prompt."),
 		t.TempDir(),
 	)
 
-	if strings.Count(got, "network block") != 1 {
-		t.Fatalf("network block occurrences = %d, want 1", strings.Count(got, "network block"))
+	if strings.Count(got, "tools block") != 1 {
+		t.Fatalf("tools block occurrences = %d, want 1", strings.Count(got, "tools block"))
 	}
-	if strings.Contains(got, "network block duplicate") {
-		t.Fatalf("assembled prompt unexpectedly contains duplicate network block: %q", got)
+	if strings.Contains(got, "tools block duplicate") {
+		t.Fatalf("assembled prompt unexpectedly contains duplicate tools block: %q", got)
 	}
-}
-
-func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should load compact network response register section", func(t *testing.T) {
-		t.Parallel()
-
-		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{})
-		assembler := NewComposedAssembler(
-			WithSectionSelector(NewSectionSelector(resolver, nil)),
-			WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
-		)
-
-		got := assembleStartupPrompt(
-			t,
-			assembler,
-			session.StartupPromptContext{
-				SessionType:          session.SessionTypeUser,
-				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
-			},
-			testPromptAgent("Base prompt."),
-			t.TempDir(),
-		)
-
-		networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
-		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
-		}
-		if !strings.Contains(got, "# Compozy Network Response Register") ||
-			!strings.Contains(got, "Threads decide and discuss; actionable work is promoted to tasks") {
-			t.Fatalf("AssembleStartup() = %q, want compact network response register", got)
-		}
-		if strings.Contains(got, strings.TrimSpace(networkSkill)) {
-			t.Fatalf("AssembleStartup() loaded full network reference instead of compact register: %q", got)
-		}
-	})
 }
 
 func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *testing.T) {

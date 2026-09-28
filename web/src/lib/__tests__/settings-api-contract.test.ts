@@ -36,7 +36,6 @@ describe("settings openapi contract", () => {
       | "roles"
       | "skills"
       | "automation"
-      | "network"
       | "window-manager"
       | "cmd-palette"
       | "attention"
@@ -106,7 +105,7 @@ describe("settings openapi contract", () => {
     >();
 
     expectTypeOf<ListSettingsMCPServersResponse["collection"]>().toEqualTypeOf<
-      "providers" | "mcp-servers" | "sandboxes" | "hooks"
+      "providers" | "mcp-servers" | "hooks"
     >();
     expectTypeOf<ListSettingsMCPServersResponse["scope"]>().toEqualTypeOf<
       "user" | "profile" | "workspace"

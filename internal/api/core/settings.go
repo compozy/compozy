@@ -136,21 +136,6 @@ func (h *BaseHandlers) UpdateSettingsAutomation(c *gin.Context) {
 	h.updateSettingsSection(c, req)
 }
 
-// GetSettingsNetwork returns the network settings section.
-func (h *BaseHandlers) GetSettingsNetwork(c *gin.Context) {
-	h.getSettingsSection(c, settingspkg.SectionNetwork)
-}
-
-// UpdateSettingsNetwork persists the network settings section.
-func (h *BaseHandlers) UpdateSettingsNetwork(c *gin.Context) {
-	req, err := parseUpdateSettingsNetworkRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.updateSettingsSection(c, req)
-}
-
 // GetSettingsWindowManager returns the window-manager settings section.
 func (h *BaseHandlers) GetSettingsWindowManager(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionWindowManager)
@@ -328,36 +313,6 @@ func (h *BaseHandlers) PutSettingsMCPServer(c *gin.Context) {
 // DeleteSettingsMCPServer deletes one MCP server settings item.
 func (h *BaseHandlers) DeleteSettingsMCPServer(c *gin.Context) {
 	req, err := parseDeleteSettingsCollectionRequest(c, settingspkg.CollectionMCPServers)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.deleteSettingsCollectionItem(c, req)
-}
-
-// ListSettingsSandboxes returns the sandbox settings collection.
-func (h *BaseHandlers) ListSettingsSandboxes(c *gin.Context) {
-	h.listSettingsCollection(c, settingspkg.CollectionSandboxes)
-}
-
-// GetSettingsSandbox returns one sandbox settings item.
-func (h *BaseHandlers) GetSettingsSandbox(c *gin.Context) {
-	h.getSettingsCollectionItem(c, settingspkg.CollectionSandboxes)
-}
-
-// PutSettingsSandbox upserts one sandbox settings item.
-func (h *BaseHandlers) PutSettingsSandbox(c *gin.Context) {
-	req, err := parsePutSettingsSandboxRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.putSettingsCollectionItem(c, req)
-}
-
-// DeleteSettingsSandbox deletes one sandbox settings item.
-func (h *BaseHandlers) DeleteSettingsSandbox(c *gin.Context) {
-	req, err := parseDeleteSettingsCollectionRequest(c, settingspkg.CollectionSandboxes)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return

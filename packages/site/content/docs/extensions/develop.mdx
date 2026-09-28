@@ -126,7 +126,7 @@ compozy extension dev . --watch
 
 This build reads and validates the manifest, copies the declared resource trees, and publishes the
 generation. It runs no build or describe command. A manifest that declares a subprocess, runtime
-capabilities, Host API permissions, hooks, tools, MCP servers, bridge metadata, command groups, or
+capabilities, Host API permissions, hooks, tools, MCP servers, command groups, or
 dynamic resource publication still needs `package.json` or `go.mod` and an SDK declaration.
 
 ## Build and validate
@@ -281,7 +281,6 @@ and validated at build, install, and load.
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
-| `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 Missing a required service method for a declared provide fails the build. Declaring a value outside
 this set fails manifest load with the valid set in the error.
@@ -356,10 +355,9 @@ providers that omit it retain the host-network verification path. Public endpoin
 Connectivity providers have stricter trust rules than ordinary extensions:
 
 - Install them globally. Workspace-scoped sources are rejected.
-- Declare required Live Network participation. Its normalized requirement becomes the control
-  digest that the operator confirms through the extension lifecycle. Include `gateway.private`,
-  `gateway.public`, or both in `channel_scopes`; a provider cannot start for a tier it did not
-  declare.
+- Declare `gateway.private`, `gateway.public`, or both in `[gateway].permissions`. The normalized
+  permission list becomes the digest confirmed through the extension lifecycle. A provider cannot
+  start for an undeclared tier.
 - Expect that digest and install source to be read again from the live registry whenever Gateway
   enables the provider and whenever the daemon boots. An update that changes the digest requires
   fresh confirmation before provider code can affect reachability.
@@ -398,19 +396,6 @@ The bundled `forge-github` provider serves `github.com`, supports drafts, and re
 `GITHUB_TOKEN` before the operator's `gh auth token`. See the assisted-exit guide for secret binding
 and the zero-credential browser path.
 
-### Bridge adapters
-
-External bridge authoring is a **planned follow-up program**, not a supported path today. CompozyOS
-does not yet publish the bridge service and control contracts, the grant surface, or a public bridge
-conformance harness, so `bridge.adapter` is excluded from the public completeness surface: an
-installed third-party manifest declaring it is rejected deterministically with that reason. The six
-public provide surfaces above are the complete third-party set for now.
-
-In-tree bridge providers are unaffected — they are not installed extensions. Contributing one inside
-the CompozyOS repository follows the
-[in-tree provider guide](/docs/bridges/adding-a-bridge). Extension packaging is not, by
-itself, a third-party bridge path.
-
 ## Call the Host API
 
 Declare the methods you call in one list:
@@ -431,16 +416,12 @@ These methods return bounded envelopes, not bare arrays. Continue with the curso
 while keeping the same workspace and filters, and read the collection field together with its page
 metadata.
 
-| Host API method           | Result envelope                                                 |
-| ------------------------- | --------------------------------------------------------------- |
-| `tasks`                   | `TasksResponse` with `tasks`, `page`, and `facets`              |
-| `automation/jobs`         | `AutomationJobsResult` with `jobs` and `page`                   |
-| `automation/triggers`     | `AutomationTriggersResult` with redacted `triggers` and `page`  |
-| `tasks/inbox`             | `TaskInbox` with `groups`, `page`, facets, and aggregate totals |
-| `network/threads`         | `NetworkThreadsResponse` with `threads` and `page`              |
-| `network/thread/messages` | `NetworkThreadMessagesResponse` with `messages` and `page`      |
-| `network/directs`         | `NetworkDirectRoomsResponse` with `directs` and `page`          |
-| `network/direct/messages` | `NetworkDirectRoomMessagesResponse` with `messages` and `page`  |
+| Host API method       | Result envelope                                                 |
+| --------------------- | --------------------------------------------------------------- |
+| `tasks`               | `TasksResponse` with `tasks`, `page`, and `facets`              |
+| `automation/jobs`     | `AutomationJobsResult` with `jobs` and `page`                   |
+| `automation/triggers` | `AutomationTriggersResult` with redacted `triggers` and `page`  |
+| `tasks/inbox`         | `TaskInbox` with `groups`, `page`, facets, and aggregate totals |
 
 The generated SDK contracts bind these result types, so code that expects an array fails at compile
 time instead of silently dropping pagination metadata.
@@ -493,8 +474,7 @@ window-manager-specific SDK method exists.
 ### Authored context
 
 Soul, Heartbeat, and session health are reachable behind per-method grants. Extensions cannot bypass
-managed authoring — direct file writes from extension code, hooks, tools, MCP sidecars, or bridge
-adapters are forbidden.
+managed authoring — direct file writes from extension code, hooks, tools, MCP sidecars are forbidden.
 
 | Host API method             | Notes                                                                                  |
 | --------------------------- | -------------------------------------------------------------------------------------- |

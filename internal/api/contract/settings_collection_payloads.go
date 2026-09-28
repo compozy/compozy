@@ -194,42 +194,6 @@ type SettingsMCPServerItemPayload struct {
 	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
-type SettingsSandboxProfilePayload struct {
-	Backend     string                         `json:"backend"`
-	SyncMode    string                         `json:"sync_mode,omitempty"`
-	Persistence string                         `json:"persistence,omitempty"`
-	RuntimeRoot string                         `json:"runtime_root,omitempty"`
-	Env         map[string]string              `json:"env,omitempty"`
-	SecretEnv   map[string]string              `json:"secret_env,omitempty"`
-	Network     *SettingsSandboxNetworkPayload `json:"network,omitempty"`
-	Daytona     *SettingsSandboxDaytonaPayload `json:"daytona,omitempty"`
-}
-
-type SettingsSandboxNetworkPayload struct {
-	AllowPublicIngress bool     `json:"allow_public_ingress,omitempty"`
-	AllowOutbound      bool     `json:"allow_outbound,omitempty"`
-	AllowList          []string `json:"allow_list,omitempty"`
-	DenyList           []string `json:"deny_list,omitempty"`
-	Required           bool     `json:"required,omitempty"`
-}
-
-type SettingsSandboxDaytonaPayload struct {
-	APIURL      string `json:"api_url,omitempty"`
-	Target      string `json:"target,omitempty"`
-	Image       string `json:"image,omitempty"`
-	Snapshot    string `json:"snapshot,omitempty"`
-	Class       string `json:"class,omitempty"`
-	AutoStop    string `json:"auto_stop,omitempty"`
-	AutoArchive string `json:"auto_archive,omitempty"`
-}
-
-type SettingsSandboxItemPayload struct {
-	Name                string                        `json:"name"`
-	Profile             SettingsSandboxProfilePayload `json:"profile"`
-	WorkspaceUsageCount int                           `json:"workspace_usage_count"`
-	SourceMetadata      SettingsSourceMetadataPayload `json:"source_metadata"`
-}
-
 type SettingsHookDeclarationPayload struct {
 	Name         string                    `json:"name"`
 	Event        hookspkg.HookEvent        `json:"event"`

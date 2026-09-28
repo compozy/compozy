@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -67,17 +66,11 @@ func (r *spawnReaper) spawnLifecyclePayload(
 		payload.AgentName = child.AgentName
 		payload.WorkspaceID = child.WorkspaceID
 		payload.Workspace = child.Workspace
-		payload.ResolvedNetworkParticipation = participation.CloneSpec(child.NetworkParticipation)
 		payload.SoulSnapshotID = child.SoulSnapshotID
 		payload.SoulDigest = child.SoulDigest
 		payload.ParentSoulDigest = child.ParentSoulDigest
 	}
 	if candidate.parent != nil {
-		if payload.ResolvedNetworkParticipation == nil {
-			payload.ResolvedNetworkParticipation = participation.CloneSpec(
-				candidate.parent.NetworkParticipation,
-			)
-		}
 		if strings.TrimSpace(payload.ParentSoulDigest) == "" {
 			payload.ParentSoulDigest = candidate.parent.SoulDigest
 		}
@@ -101,12 +94,10 @@ func (r *spawnReaper) hooksOrNoop() session.SpawnHooks {
 func spawnReaperPermissionSet(policy store.SessionPermissionPolicy) *hookspkg.PermissionSet {
 	normalized := store.NormalizeSessionPermissionPolicy(policy)
 	return &hookspkg.PermissionSet{
-		Tools:           append([]string(nil), normalized.Tools...),
-		Skills:          append([]string(nil), normalized.Skills...),
-		MCPServers:      append([]string(nil), normalized.MCPServers...),
-		WorkspacePaths:  append([]string(nil), normalized.WorkspacePaths...),
-		NetworkChannels: append([]string(nil), normalized.NetworkChannels...),
-		SandboxProfiles: append([]string(nil), normalized.SandboxProfiles...),
+		Tools:          append([]string(nil), normalized.Tools...),
+		Skills:         append([]string(nil), normalized.Skills...),
+		MCPServers:     append([]string(nil), normalized.MCPServers...),
+		WorkspacePaths: append([]string(nil), normalized.WorkspacePaths...),
 	}
 }
 

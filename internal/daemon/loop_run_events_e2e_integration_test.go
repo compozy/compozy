@@ -134,12 +134,11 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 				string(compozycontract.LoopRunEventStatusChanged),
 				string(compozycontract.LoopRunEventNodeRunning),
 				string(compozycontract.LoopRunEventNodeSucceeded),
-				string(compozycontract.LoopRunEventChannelMsg),
 				string(compozycontract.LoopRunEventTokenTick),
 			)
 		})
 		assertLoopSSEWorkspace(t, events, harness.WorkspaceID, run.ID)
-		assertLoopSSEPayloadContains(t, events, compozycontract.LoopRunEventChannelMsg, "loop channel result")
+
 		assertLoopSSEPayloadContains(t, events, compozycontract.LoopRunEventTokenTick, `"terminal":true`)
 
 		afterSeq := firstLoopEventSeq(t, events, compozycontract.LoopRunEventNodeRunning)
@@ -1177,7 +1176,7 @@ func claimTaskRunViaAgentUDS(
 	if strings.TrimSpace(session.ID) == "" {
 		t.Fatalf("agent session id is empty")
 	}
-	run := enqueueTaskRunViaUDS(t, ctx, harness, taskID, "")
+	run := enqueueTaskRunViaUDS(t, ctx, harness, taskID)
 
 	var response compozycontract.AgentTaskClaimResponse
 	agentUDSJSON(
@@ -1283,14 +1282,12 @@ func enqueueTaskRunViaUDS(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	taskID string,
-	networkChannel string,
 ) compozycontract.TaskRunPayload {
 	t.Helper()
 	var response compozycontract.TaskRunResponse
 	path := "/api/tasks/" + url.PathEscape(taskID) + "/runs"
 	request := compozycontract.EnqueueTaskRunRequest{
-		IdempotencyKey:       "watch-events-" + taskID,
-		NetworkParticipation: daemonTestNamedParticipationRequest(networkChannel),
+		IdempotencyKey: "watch-events-" + taskID,
 	}
 	if err := harness.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		t.Fatalf("UDS enqueue task run error = %v", err)

@@ -18,7 +18,7 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network"
+
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -31,7 +31,6 @@ type settingsRuntimeSurface struct {
 	dreamTrigger      DreamTrigger
 	roles             core.RolesStatusProvider
 	automation        automationRuntime
-	network           networkRuntime
 	mcpAuthStore      mcpauth.TokenStore
 	mcpAuthManager    *mcpauth.Manager
 	mcpAuthGeneration *mcpauth.MutationGeneration
@@ -56,7 +55,6 @@ type settingsRuntimeSurface struct {
 var _ settingspkg.GeneralRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.MemoryRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.AutomationRuntimeProvider = (*settingsRuntimeSurface)(nil)
-var _ settingspkg.NetworkRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ObservabilityRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ExtensionStatusProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.TransportParityProvider = (*settingsRuntimeSurface)(nil)
@@ -99,7 +97,6 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		dreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
 		roles:             roleResolverForState(state),
 		automation:        state.automation,
-		network:           state.network,
 		mcpHealthRegistry: state.mcpRuntimeHealth,
 		mcpHealthKey: func(ctx context.Context, target mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
 			return extensionMCPHealthKeyForTarget(ctx, state, target)
@@ -237,40 +234,6 @@ func (s *settingsRuntimeSurface) AutomationRuntimeStatus(
 		status.LastSyncedAt = &managerStatus.LastSync.SyncedAt
 	}
 	return status, nil
-}
-
-func (s *settingsRuntimeSurface) NetworkRuntimeStatus(
-	ctx context.Context,
-) (settingspkg.NetworkRuntimeStatus, error) {
-	if s.network == nil {
-		if !s.config.Network.Enabled {
-			return settingspkg.NetworkRuntimeStatus{
-				Available: true,
-				Enabled:   false,
-				Status:    network.StatusDisabled,
-			}, nil
-		}
-		return settingspkg.NetworkRuntimeStatus{}, errors.New("daemon: settings network runtime is unavailable")
-	}
-
-	runtimeStatus, err := s.network.Status(ctx)
-	if err != nil {
-		return settingspkg.NetworkRuntimeStatus{}, fmt.Errorf("daemon: settings network runtime: %w", err)
-	}
-	if runtimeStatus == nil {
-		return settingspkg.NetworkRuntimeStatus{}, errors.New("daemon: settings network status is required")
-	}
-
-	return settingspkg.NetworkRuntimeStatus{
-		Available:         true,
-		Enabled:           runtimeStatus.Enabled,
-		Status:            strings.TrimSpace(runtimeStatus.Status),
-		LocalPeers:        runtimeStatus.LocalPeers,
-		Channels:          runtimeStatus.Channels,
-		MessagesReceived:  runtimeStatus.MessagesReceived,
-		MessagesDelivered: runtimeStatus.MessagesDelivered,
-		MessagesRejected:  runtimeStatus.MessagesRejected,
-	}, nil
 }
 
 func (s *settingsRuntimeSurface) ObservabilityRuntimeStatus(

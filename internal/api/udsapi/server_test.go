@@ -34,9 +34,9 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		}
 		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
 		dream := &stubDreamTrigger{}
-		bridgeService := &stubBridgeService{}
+
 		extensionService := &stubExtensionService{}
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -50,7 +50,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 			WithSessionManager(stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
-			WithBridgeService(bridgeService),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 			WithSkillsRegistry(stubSkillsRegistry{}),
 			WithMemoryStore(store),
@@ -86,9 +85,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		if server.handlers.DreamTrigger != dream {
 			t.Fatal("expected dream trigger option to be installed")
 		}
-		if server.handlers.Bridges != bridgeService {
-			t.Fatal("expected bridge service option to be installed")
-		}
 		if server.handlers.Extensions != extensionService {
 			t.Fatal("expected extension service option to be installed")
 		}
@@ -119,7 +115,7 @@ func TestNewRejectsOverlongSocketPath(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := "/tmp/" + strings.Repeat("a", maxSocketPathBytes)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		_, err := New(
@@ -222,7 +218,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -296,7 +292,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -327,7 +323,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -368,7 +364,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 		entered := make(chan struct{})
 		release := make(chan struct{})
@@ -508,7 +504,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 
 		server, err := New(
@@ -582,7 +578,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		cfg.Daemon.Socket = socketPath
 		if err := os.WriteFile(socketPath, []byte("not-a-socket"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(socketPath) error = %v", err)

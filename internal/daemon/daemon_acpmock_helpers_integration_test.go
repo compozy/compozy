@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
@@ -193,4 +194,47 @@ func joinTranscriptContent(messages []transcript.UIMessage) string {
 
 func sessionTranscriptMessages(response compozycontract.SessionTranscriptResponse) []transcript.UIMessage {
 	return transcript.MessagesFromEntries(response.Entries)
+}
+
+func mustSessionTranscript(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) compozycontract.SessionTranscriptResponse {
+	t.Helper()
+
+	response, err := harness.SessionTranscript(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("SessionTranscript(%q) error = %v", sessionID, err)
+	}
+	return response
+}
+
+func sessionTranscriptHasNeedle(
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	needle string,
+) bool {
+	response, err := harness.SessionTranscript(ctx, sessionID)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(joinTranscriptContent(sessionTranscriptMessages(response)), needle)
+}
+
+func mustSessionEvents(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) compozycontract.SessionEventsResponse {
+	t.Helper()
+
+	events, err := harness.SessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("SessionEvents(%q) error = %v", sessionID, err)
+	}
+	return events
 }

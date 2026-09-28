@@ -295,7 +295,6 @@ describe("SDK integration", () => {
       "tool.provider",
       "view.provider",
     ]);
-    expect(provides).not.toContain("bridge.adapter");
 
     for (const fixture of fixtures) {
       expect(() =>
@@ -306,9 +305,9 @@ describe("SDK integration", () => {
         validateProvideConformance(fixture.provide, fixture.requiredMethods.slice(1))
       ).toThrow(fixture.requiredMethods[0]);
     }
-    expect(() =>
-      validateProvideConformance("bridge.adapter", ["bridges/deliver", "bridges/targets/snapshot"])
-    ).toThrow("no public conformance fixture");
+    expect(() => validateProvideConformance("unknown.provider", ["unknown/method"])).toThrow(
+      "no public conformance fixture"
+    );
   });
 
   it(

@@ -1,33 +1,9 @@
 package contract
 
 import (
-	"encoding/json"
-	"errors"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
-)
-
-// CoordinationMessageKind identifies the MVP task-run coordination message kind.
-type CoordinationMessageKind string
-
-const (
-	// CoordinationMessageStatus reports non-authoritative work progress.
-	CoordinationMessageStatus CoordinationMessageKind = "status"
-	// CoordinationMessageRequest asks another participant for information or action.
-	CoordinationMessageRequest CoordinationMessageKind = "request"
-	// CoordinationMessageReply answers a prior coordination message.
-	CoordinationMessageReply CoordinationMessageKind = "reply"
-	// CoordinationMessageBlocker reports a blocking condition for coordinated work.
-	CoordinationMessageBlocker CoordinationMessageKind = "blocker"
-	// CoordinationMessageHandoff transfers conversational context between participants.
-	CoordinationMessageHandoff CoordinationMessageKind = "handoff"
-	// CoordinationMessageResult shares task-run output before or after terminal task APIs.
-	CoordinationMessageResult CoordinationMessageKind = "result"
-	// CoordinationMessageReviewRequest asks for review of coordinated work.
-	CoordinationMessageReviewRequest CoordinationMessageKind = "review_request"
 )
 
 // CoordinatorConfigSource identifies where a coordinator config read model came from.
@@ -40,13 +16,6 @@ const (
 	CoordinatorConfigSourceGlobal CoordinatorConfigSource = "global"
 	// CoordinatorConfigSourceDefault identifies bundled defaults or agent fallback.
 	CoordinatorConfigSourceDefault CoordinatorConfigSource = "default"
-)
-
-var (
-	// ErrRawClaimTokenMetadata reports an unsafe raw lease credential in channel metadata.
-	ErrRawClaimTokenMetadata = errors.New("contract: coordination metadata must not contain raw lease credentials")
-	// ErrInvalidCoordinationMessageMetadata reports missing or invalid typed correlation metadata.
-	ErrInvalidCoordinationMessageMetadata = errors.New("contract: invalid coordination message metadata")
 )
 
 // AgentIdentityPayload describes the daemon-authenticated caller identity.
@@ -87,12 +56,10 @@ type SpawnBudgetPayload struct {
 
 // SpawnPermissionPolicyPayload captures concrete permission atoms available to a spawned session.
 type SpawnPermissionPolicyPayload struct {
-	Tools           []string `json:"tools"`
-	Skills          []string `json:"skills"`
-	MCPServers      []string `json:"mcp_servers"`
-	WorkspacePaths  []string `json:"workspace_paths"`
-	NetworkChannels []string `json:"network_channels"`
-	SandboxProfiles []string `json:"sandbox_profiles"`
+	Tools          []string `json:"tools"`
+	Skills         []string `json:"skills"`
+	MCPServers     []string `json:"mcp_servers"`
+	WorkspacePaths []string `json:"workspace_paths"`
 }
 
 // AgentCapabilityPayload describes one caller capability atom.
@@ -123,31 +90,16 @@ type CoordinatorConfigPayload struct {
 	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
 }
 
-// CoordinationChannelPayload describes the stable task-run coordination channel binding.
-type CoordinationChannelPayload struct {
-	ID                  string                    `json:"id"`
-	DisplayName         string                    `json:"display_name"`
-	Purpose             string                    `json:"purpose,omitempty"`
-	WorkspaceID         string                    `json:"workspace_id,omitempty"`
-	TaskID              string                    `json:"task_id,omitempty"`
-	RunID               string                    `json:"run_id,omitempty"`
-	WorkflowID          string                    `json:"workflow_id,omitempty"`
-	AllowedMessageKinds []CoordinationMessageKind `json:"allowed_message_kinds"`
-	LastActivityAt      *time.Time                `json:"last_activity_at,omitempty"`
-}
-
 // TaskRunLeaseSummaryPayload is the safe read projection for task-run lease state.
 type TaskRunLeaseSummaryPayload struct {
-	TaskID                       string                      `json:"task_id"`
-	RunID                        string                      `json:"run_id"`
-	Status                       taskpkg.RunStatus           `json:"status"`
-	SessionID                    string                      `json:"session_id,omitempty"`
-	ClaimedBy                    *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
-	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
-	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time                  `json:"heartbeat_at,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec         `json:"resolved_network_participation,omitempty"`
-	CoordinationChannel          *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
+	TaskID         string                 `json:"task_id"`
+	RunID          string                 `json:"run_id"`
+	Status         taskpkg.RunStatus      `json:"status"`
+	SessionID      string                 `json:"session_id,omitempty"`
+	ClaimedBy      *taskpkg.ActorIdentity `json:"claimed_by,omitempty"`
+	ClaimTokenHash string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil     *time.Time             `json:"lease_until,omitempty"`
+	HeartbeatAt    *time.Time             `json:"heartbeat_at,omitempty"`
 }
 
 // AgentTaskContextPayload is the bounded active-task section in `/agent/context`.
@@ -158,49 +110,11 @@ type AgentTaskContextPayload struct {
 	Bundle    *taskpkg.ContextBundle      `json:"bundle,omitempty"`
 }
 
-// AgentCoordinationChannelContextPayload is the active coordination-channel section.
-type AgentCoordinationChannelContextPayload struct {
-	Available bool                        `json:"available"`
-	Channel   *CoordinationChannelPayload `json:"channel,omitempty"`
-}
-
 // AgentContextSectionMetaPayload reports bounding/truncation metadata for context sections.
 type AgentContextSectionMetaPayload struct {
 	Limit     int  `json:"limit"`
 	Returned  int  `json:"returned"`
 	Truncated bool `json:"truncated"`
-}
-
-// AgentInboxItemPayload is one compact inbox item in the bounded agent context.
-type AgentInboxItemPayload struct {
-	MessageID string                             `json:"message_id"`
-	ChannelID string                             `json:"channel_id"`
-	Kind      CoordinationMessageKind            `json:"kind"`
-	Metadata  CoordinationMessageMetadataPayload `json:"metadata"`
-	Preview   string                             `json:"preview,omitempty"`
-	Timestamp time.Time                          `json:"timestamp"`
-}
-
-// AgentInboxSummaryPayload is the bounded inbox section in `/agent/context`.
-type AgentInboxSummaryPayload struct {
-	Section     AgentContextSectionMetaPayload `json:"section"`
-	UnreadCount int                            `json:"unread_count"`
-	Items       []AgentInboxItemPayload        `json:"items"`
-}
-
-// AgentPeerSummaryPayload is one compact peer entry in the bounded agent context.
-type AgentPeerSummaryPayload struct {
-	PeerID       string   `json:"peer_id"`
-	SessionID    string   `json:"session_id,omitempty"`
-	DisplayName  string   `json:"display_name,omitempty"`
-	ChannelID    string   `json:"channel_id,omitempty"`
-	Capabilities []string `json:"capabilities"`
-}
-
-// AgentPeerRosterPayload is the bounded peer roster section in `/agent/context`.
-type AgentPeerRosterPayload struct {
-	Section AgentContextSectionMetaPayload `json:"section"`
-	Peers   []AgentPeerSummaryPayload      `json:"peers"`
 }
 
 // AgentCapabilitySectionPayload is the bounded capability section in `/agent/context`.
@@ -221,7 +135,6 @@ type AgentMePayload struct {
 	Workspace        AgentWorkspacePayload        `json:"workspace"`
 	Session          AgentSessionPayload          `json:"session"`
 	Capabilities     []AgentCapabilityPayload     `json:"capabilities"`
-	Channels         []CoordinationChannelPayload `json:"channels"`
 	ActiveTaskLeases []TaskRunLeaseSummaryPayload `json:"active_task_leases"`
 	Coordinator      CoordinatorConfigPayload     `json:"coordinator"`
 	Limits           AgentLimitsPayload           `json:"limits"`
@@ -229,54 +142,14 @@ type AgentMePayload struct {
 
 // AgentContextPayload is the stable bounded situation payload returned by `/agent/context`.
 type AgentContextPayload struct {
-	Self                AgentIdentityPayload                   `json:"self"`
-	Workspace           AgentWorkspacePayload                  `json:"workspace"`
-	Session             AgentSessionPayload                    `json:"session"`
-	Soul                AgentSoulSectionPayload                `json:"soul"`
-	Task                AgentTaskContextPayload                `json:"task"`
-	CoordinationChannel AgentCoordinationChannelContextPayload `json:"coordination_channel"`
-	InboxSummary        AgentInboxSummaryPayload               `json:"inbox_summary"`
-	PeerRoster          AgentPeerRosterPayload                 `json:"peer_roster"`
-	Capabilities        AgentCapabilitySectionPayload          `json:"capabilities"`
-	Limits              AgentLimitsPayload                     `json:"limits"`
-	Provenance          AgentContextProvenancePayload          `json:"provenance"`
-}
-
-// CoordinationMessageMetadataPayload carries typed task/run correlation for channel messages.
-type CoordinationMessageMetadataPayload struct {
-	TaskID        string                     `json:"task_id"`
-	RunID         string                     `json:"run_id"`
-	WorkflowID    string                     `json:"workflow_id,omitempty"`
-	ChannelID     string                     `json:"channel_id"`
-	MessageKind   CoordinationMessageKind    `json:"message_kind"`
-	CorrelationID string                     `json:"correlation_id"`
-	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
-}
-
-// AgentChannelSendRequest sends one task-bound coordination message.
-type AgentChannelSendRequest struct {
-	Body           json.RawMessage                    `json:"body"`
-	Metadata       CoordinationMessageMetadataPayload `json:"metadata"`
-	IdempotencyKey string                             `json:"idempotency_key,omitempty"`
-}
-
-// AgentChannelReplyRequest replies to one delivered coordination message.
-type AgentChannelReplyRequest struct {
-	ReplyToMessageID string                             `json:"reply_to_message_id"`
-	Body             json.RawMessage                    `json:"body"`
-	Metadata         CoordinationMessageMetadataPayload `json:"metadata"`
-	IdempotencyKey   string                             `json:"idempotency_key,omitempty"`
-}
-
-// AgentChannelMessagePayload is one safe channel message read projection.
-type AgentChannelMessagePayload struct {
-	MessageID     string                             `json:"message_id"`
-	ChannelID     string                             `json:"channel_id"`
-	FromSessionID string                             `json:"from_session_id"`
-	ToSessionID   string                             `json:"to_session_id,omitempty"`
-	Body          json.RawMessage                    `json:"body"`
-	Metadata      CoordinationMessageMetadataPayload `json:"metadata"`
-	Timestamp     time.Time                          `json:"timestamp"`
+	Soul         AgentSoulSectionPayload       `json:"soul"`
+	Self         AgentIdentityPayload          `json:"self"`
+	Workspace    AgentWorkspacePayload         `json:"workspace"`
+	Session      AgentSessionPayload           `json:"session"`
+	Task         AgentTaskContextPayload       `json:"task"`
+	Capabilities AgentCapabilitySectionPayload `json:"capabilities"`
+	Limits       AgentLimitsPayload            `json:"limits"`
+	Provenance   AgentContextProvenancePayload `json:"provenance"`
 }
 
 // AgentSpawnRequest asks the daemon to create a narrowed child session.

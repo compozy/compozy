@@ -78,7 +78,7 @@ describe("marketplace acquisition cache boundaries", () => {
   it("Should invalidate marketplace and extension management after extension install", async () => {
     vi.mocked(installMarketplaceExtension).mockResolvedValue({
       extension: {
-        contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0, bridges: 0 },
+        contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
         inputs: [],
         mcp_servers: [],
         missing_inputs: [],
@@ -88,7 +88,7 @@ describe("marketplace acquisition cache boundaries", () => {
         enabled: false,
         format: "compozy",
         name: "review-pack",
-        network_confirmation_required: false,
+        gateway_confirmation_required: false,
         profile: "default",
         restart_backoff_ms: 0,
         source: "marketplace",

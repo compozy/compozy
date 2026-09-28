@@ -41,7 +41,6 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			deps.ToolRegistry,
 			d.homePaths,
 			deps.WorkspaceResolver,
-			deps.ParticipationResolver,
 			deps.LoopInputEntities,
 			deps.LoopRuntimeCatalog,
 			deps.Profiles,
@@ -116,12 +115,6 @@ func buildResourceProjectorRegistrations(
 	}
 	if deps.Automation != nil {
 		registrations, err = appendAutomationProjectorRegistrations(registrations, deps)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if deps.Bridges != nil {
-		registrations, err = appendBridgeProjectorRegistration(registrations, deps)
 		if err != nil {
 			return nil, err
 		}

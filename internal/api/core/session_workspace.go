@@ -15,7 +15,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -130,8 +129,6 @@ func statusForWorkspaceError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrOperatorHomeWorkspace):
 		return http.StatusBadRequest
-	case errors.Is(err, compozyconfig.ErrSandboxProfileNotFound):
-		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
 	default:
@@ -143,9 +140,6 @@ func statusForWorkspaceError(err error) int {
 func statusForSessionError(err error) int {
 	if WorktreeErrorCode(err) != "" {
 		return StatusForWorktreeError(err)
-	}
-	if status, ok := statusForSessionParticipationError(err); ok {
-		return status
 	}
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -188,7 +182,6 @@ func statusForSessionLookupError(err error) (int, bool) {
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
-		errors.Is(err, compozyconfig.ErrSandboxProfileNotFound),
 		errors.Is(err, compozyconfig.ErrProviderUnavailable),
 		errors.Is(err, session.ErrValidation),
 		errors.Is(err, store.ErrConversationRewindTargetInvalid),
@@ -251,22 +244,6 @@ func statusForSessionAvailabilityError(err error) (int, bool) {
 		return http.StatusInternalServerError, true
 	case errors.Is(err, session.ErrSessionArchiveUnavailable):
 		return http.StatusServiceUnavailable, true
-	default:
-		return 0, false
-	}
-}
-
-func statusForSessionParticipationError(err error) (int, bool) {
-	switch {
-	case errors.Is(err, participation.ErrStrategyInvalid),
-		errors.Is(err, participation.ErrStrategyChannelConflict):
-		return http.StatusBadRequest, true
-	case errors.Is(err, participation.ErrChannelUnknown):
-		return http.StatusNotFound, true
-	case errors.Is(err, participation.ErrUnavailable):
-		return http.StatusConflict, true
-	case errors.Is(err, participation.ErrLiveUnsupported):
-		return http.StatusUnprocessableEntity, true
 	default:
 		return 0, false
 	}

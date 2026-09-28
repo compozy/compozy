@@ -24,7 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
+
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -1152,154 +1152,6 @@ func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 	}
 }
 
-func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
-	t.Parallel()
-
-	credentials := agentidentity.Credentials{
-		SessionID: "sess-1",
-		AgentName: "coder",
-	}
-	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:        "task-1",
-		RunID:         "run-1",
-		ChannelID:     "builders",
-		MessageKind:   contract.CoordinationMessageStatus,
-		CorrelationID: "run-1",
-	}
-
-	tests := []struct {
-		name string
-		run  func(t *testing.T, client *daemonClient)
-	}{
-		{
-			name: "Should list agent channels",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				channels, err := client.AgentChannels(context.Background(), credentials)
-				if err != nil {
-					t.Fatalf("AgentChannels() error = %v", err)
-				}
-				if len(channels) != 1 || channels[0].ID != "builders" {
-					t.Fatalf("AgentChannels() = %#v, want builders", channels)
-				}
-			},
-		},
-		{
-			name: "Should receive agent channel messages",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				messages, err := client.AgentChannelRecv(
-					context.Background(),
-					"builders",
-					AgentChannelRecvQuery{Wait: true, Limit: 3},
-					credentials,
-				)
-				if err != nil {
-					t.Fatalf("AgentChannelRecv() error = %v", err)
-				}
-				if len(messages) != 1 || messages[0].MessageID != "msg-1" {
-					t.Fatalf("AgentChannelRecv() = %#v, want msg-1", messages)
-				}
-			},
-		},
-		{
-			name: "Should send agent channel messages",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				message, err := client.AgentChannelSend(context.Background(), "builders", AgentChannelSendRequest{
-					Body:     json.RawMessage(`{"text":"ok"}`),
-					Metadata: metadata,
-				}, credentials)
-				if err != nil {
-					t.Fatalf("AgentChannelSend() error = %v", err)
-				}
-				if message.MessageID != "msg-send" {
-					t.Fatalf("AgentChannelSend() = %#v, want msg-send", message)
-				}
-			},
-		},
-		{
-			name: "Should reply to agent channel messages",
-			run: func(t *testing.T, client *daemonClient) {
-				t.Helper()
-
-				message, err := client.AgentChannelReply(context.Background(), AgentChannelReplyRequest{
-					ReplyToMessageID: "msg-1",
-					Body:             json.RawMessage(`{"text":"ack"}`),
-				}, credentials)
-				if err != nil {
-					t.Fatalf("AgentChannelReply() error = %v", err)
-				}
-				if message.MessageID != "msg-reply" {
-					t.Fatalf("AgentChannelReply() = %#v, want msg-reply", message)
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client := &daemonClient{
-				target: LocalClientTarget("/tmp/compozy.sock"),
-				httpClient: &http.Client{
-					Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-						assertAgentRequestHeaders(t, req, credentials)
-						switch {
-						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels":
-							return newHTTPResponse(
-								http.StatusOK,
-								`{"channels":[{"id":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
-							), nil
-						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels/builders/recv":
-							if req.URL.Query().Get("wait") != "true" || req.URL.Query().Get("limit") != "3" {
-								t.Fatalf("recv query = %s, want wait=true&limit=3", req.URL.RawQuery)
-							}
-							return newHTTPResponse(
-								http.StatusOK,
-								`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
-							), nil
-						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/builders/send":
-							body, err := io.ReadAll(req.Body)
-							if err != nil {
-								t.Fatalf("io.ReadAll(send body) error = %v", err)
-							}
-							if !strings.Contains(string(body), `"task_id":"task-1"`) ||
-								!strings.Contains(string(body), `"body":{"text":"ok"}`) {
-								t.Fatalf("send body = %s, want message and metadata", body)
-							}
-							return newHTTPResponse(
-								http.StatusAccepted,
-								`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
-							), nil
-						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/reply":
-							body, err := io.ReadAll(req.Body)
-							if err != nil {
-								t.Fatalf("io.ReadAll(reply body) error = %v", err)
-							}
-							if !strings.Contains(string(body), `"reply_to_message_id":"msg-1"`) {
-								t.Fatalf("reply body = %s, want reply_to_message_id", body)
-							}
-							return newHTTPResponse(
-								http.StatusAccepted,
-								`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
-							), nil
-						default:
-							t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
-							return nil, nil
-						}
-					}),
-				},
-			}
-			tt.run(t, client)
-		})
-	}
-}
-
 func TestUnixSocketClientLoopCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -1461,14 +1313,6 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 			want: "cli: task worktree policy request is required",
 		},
 		{
-			name: "Should reject nil bridge notification subscription request",
-			run: func() error {
-				_, err := client.CreateTaskBridgeNotificationSubscription(context.Background(), "task-1", nil)
-				return err
-			},
-			want: "cli: task bridge notification subscription request is required",
-		},
-		{
 			name: "Should reject nil task run review request",
 			run: func() error {
 				_, err := client.RequestTaskRunReview(context.Background(), "run-1", nil)
@@ -1536,7 +1380,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 						payload.RequiredCapabilities[0] != "go" {
 						t.Fatalf("claim-next body = %#v, want parsed request", payload)
 					}
-					resolved := testLiveResolvedParticipation("builders")
+
 					body := mustJSON(t, contract.AgentTaskClaimResponse{Claim: contract.AgentTaskClaimPayload{
 						Task: contract.TaskReferencePayload{
 							ID: "task-1", Title: "Run task", Status: taskpkg.TaskStatusInProgress,
@@ -1548,12 +1392,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 						},
 						Lease: contract.TaskRunLeaseSummaryPayload{
 							TaskID: "task-1", RunID: "run-1", Status: taskpkg.TaskRunStatusClaimed,
-							SessionID: "sess-1", ResolvedNetworkParticipation: resolved,
+							SessionID:      "sess-1",
 							ClaimTokenHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						},
-						CoordinationChannel: &contract.CoordinationChannelPayload{
-							ID: "builders", DisplayName: "Builders",
-							AllowedMessageKinds: []contract.CoordinationMessageKind{contract.CoordinationMessageStatus},
 						},
 					}})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
@@ -1620,11 +1460,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if !claim.Claimed || claim.Claim == nil || claim.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatalf("AgentTaskClaimNext() = %#v, want claimed session-bound lease response", claim)
 		}
-		assertResolvedParticipation(
-			t,
-			claim.Claim.Lease.ResolvedNetworkParticipation,
-			*testLiveResolvedParticipation("builders"),
-		)
 	})
 	t.Run("Should return no work", func(t *testing.T) {
 		noWork, err := client.AgentTaskClaimNext(
@@ -1649,7 +1484,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusClaimed {
 			t.Fatalf("AgentTaskHeartbeat() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should complete claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskComplete(
@@ -1661,7 +1495,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusCompleted {
 			t.Fatalf("AgentTaskComplete() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should fail claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskFail(
@@ -1676,7 +1509,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusFailed {
 			t.Fatalf("AgentTaskFail() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should release claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskRelease(
@@ -1688,7 +1520,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("AgentTaskRelease() = %#v, %v", lease, err)
 		}
-		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	if !sawClaim || !sawNoWork || !sawHeartbeat || !sawComplete || !sawFail || !sawRelease {
 		t.Fatalf(
@@ -1807,7 +1638,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			http.StatusConflict,
 			"409 Conflict",
 			[]byte(
-				`{"error":"confirmation required","code":"extension_network_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.network_confirmation_required","code":"extension_network_confirmation_required","category":"extension","title":"Network confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-network-requirement digest-current"}}`,
+				`{"error":"confirmation required","code":"extension_gateway_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.gateway_confirmation_required","code":"extension_gateway_confirmation_required","category":"extension","title":"Gateway confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-gateway-requirement digest-current"}}`,
 			),
 		)
 
@@ -1816,13 +1647,13 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			t.Fatalf("readAPIErrorBody() error = %T %v, want extensionOperationAPIError", err, err)
 		}
 		payload := operationErr.extensionOperationErrorPayload()
-		if payload.Code != diagnosticcontract.CodeExtensionNetworkConfirmRequired ||
+		if payload.Code != diagnosticcontract.CodeExtensionGatewayConfirmRequired ||
 			payload.CurrentDigest != "digest-current" || !reflect.DeepEqual(payload.Agents, []string{"writer"}) {
 			t.Fatalf("extension operation payload = %#v", payload)
 		}
 		item, ok := diagnosticspkg.ItemFromError(err)
 		if !ok || item.SuggestedCommand !=
-			"compozy extension enable alpha --confirm-network-requirement digest-current" {
+			"compozy extension enable alpha --confirm-gateway-requirement digest-current" {
 			t.Fatalf("diagnostic = %#v, %v", item, ok)
 		}
 	})
@@ -1831,11 +1662,10 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 func agentTaskLeaseHTTPResponse(t *testing.T, status taskpkg.RunStatus) *http.Response {
 	t.Helper()
 	body := mustJSON(t, contract.AgentTaskLeaseResponse{Lease: contract.TaskRunLeaseSummaryPayload{
-		TaskID:                       "task-1",
-		RunID:                        "run-1",
-		Status:                       status,
-		SessionID:                    "sess-1",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		TaskID:    "task-1",
+		RunID:     "run-1",
+		Status:    status,
+		SessionID: "sess-1",
 	}})
 	return newHTTPResponse(http.StatusOK, string(body))
 }
@@ -2469,7 +2299,7 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
 							t.Fatalf("decode task execution body: %v", err)
 						}
-						assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
+
 						if request.IdempotencyKey != "idem-1" {
 							t.Fatalf("task execution request = %#v, want idempotency", request)
 						}
@@ -2482,9 +2312,9 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 			},
 		}
 		request := TaskExecutionRequest{
-			IdempotencyKey:       "idem-1",
-			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Metadata:             json.RawMessage(`{"source":"cli-test"}`),
+			IdempotencyKey: "idem-1",
+
+			Metadata: json.RawMessage(`{"source":"cli-test"}`),
 		}
 
 		published, err := client.PublishTask(context.Background(), " task-1 ", request)
@@ -3113,8 +2943,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if got := req.URL.Query()["only"]; len(got) != 1 || got[0] != "provider" {
 						t.Fatalf("doctor only query = %#v, want provider", got)
 					}
-					if got := req.URL.Query()["exclude"]; len(got) != 1 || got[0] != "network" {
-						t.Fatalf("doctor exclude query = %#v, want network", got)
+					if got := req.URL.Query()["exclude"]; len(got) != 1 || got[0] != "terminal" {
+						t.Fatalf("doctor exclude query = %#v, want terminal", got)
 					}
 					if got := req.URL.Query().Get("quiet"); got != "true" {
 						t.Fatalf("doctor quiet query = %q, want true", got)
@@ -3444,7 +3274,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 
 	doctor, err := client.Doctor(ctx, DoctorQuery{
 		Only:    []string{"provider"},
-		Exclude: []string{"network"},
+		Exclude: []string{"terminal"},
 		Quiet:   true,
 	})
 	if err != nil || doctor.Status != "ok" {
@@ -3649,7 +3479,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[],"network_requirement_digest":"sha256:preview"}`,
+							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[],"gateway_requirement_digest":"sha256:preview"}`,
 						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
 						body, err := io.ReadAll(req.Body)
@@ -3660,8 +3490,8 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						if err := json.Unmarshal(body, &input); err != nil {
 							t.Fatalf("json.Unmarshal(extension enable body) error = %v", err)
 						}
-						if input.ConfirmNetworkDigest != "network-digest" {
-							t.Fatalf("extension enable body = %#v, want network digest", input)
+						if input.ConfirmGatewayDigest != "gateway-digest" {
+							t.Fatalf("extension enable body = %#v, want gateway digest", input)
 						}
 						return newHTTPResponse(
 							http.StatusOK,
@@ -3689,7 +3519,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/preview":
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"network_requirement_digest":"digest","network_confirmation_required":true}`,
+							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"gateway_requirement_digest":"digest","gateway_confirmation_required":true}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/secrets" &&
 						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
@@ -3730,15 +3560,6 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 							http.StatusOK,
 							`{"extension":{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}}`,
 						), nil
-					case req.Method == http.MethodPut && req.URL.Path == "/api/notifications/presets/quiet/enablement":
-						var input contract.SetNotificationPresetEnablementRequest
-						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-							t.Fatalf("decode notification preset enablement request error = %v", err)
-						}
-						if input.Profile != "work" || !input.Enabled {
-							t.Fatalf("notification preset enablement body = %#v, want work enabled", input)
-						}
-						return newHTTPResponse(http.StatusOK, `{"name":"quiet","profile":"work","enabled":true}`), nil
 					default:
 						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
 					}
@@ -3784,7 +3605,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 			Source: contract.InstallExtensionSourceLocalPath,
 			Ref:    "/tmp/ext-preview",
 		})
-		if err != nil || preview.Name != "ext-preview" || preview.NetworkRequirementDigest != "sha256:preview" {
+		if err != nil || preview.Name != "ext-preview" || preview.GatewayRequirementDigest != "sha256:preview" {
 			t.Fatalf("PreviewExtensionInstall() = %#v, %v", preview, err)
 		}
 	})
@@ -3795,7 +3616,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		enabled, err := newClient(t).EnableExtension(
 			t.Context(),
 			" ext-a ",
-			EnableExtensionRequest{ConfirmNetworkDigest: "network-digest"},
+			EnableExtensionRequest{ConfirmGatewayDigest: "gateway-digest"},
 		)
 		if err != nil || !enabled.Extension.Enabled || len(enabled.AutomationStarted) != 1 ||
 			enabled.AutomationStarted[0] != "ext-a/daily" {
@@ -3821,19 +3642,6 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("Should set notification preset profile enablement", func(t *testing.T) {
-		t.Parallel()
-
-		enablement, err := newClient(t).SetNotificationPresetEnablement(
-			t.Context(),
-			" quiet ",
-			contract.SetNotificationPresetEnablementRequest{Profile: "work", Enabled: true},
-		)
-		if err != nil || enablement.Name != "quiet" || enablement.Profile != "work" || !enablement.Enabled {
-			t.Fatalf("SetNotificationPresetEnablement() = %#v, %v", enablement, err)
-		}
-	})
-
 	t.Run("Should read the extension inventory payload", func(t *testing.T) {
 		t.Parallel()
 
@@ -3847,8 +3655,8 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		t.Parallel()
 
 		preview, err := newClient(t).PreviewExtensionEnable(t.Context(), " ext-a ")
-		if err != nil || preview.NetworkRequirementDigest != "digest" ||
-			!preview.NetworkConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
+		if err != nil || preview.GatewayRequirementDigest != "digest" ||
+			!preview.GatewayConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
 			t.Fatalf("PreviewExtensionEnable() = %#v, %v", preview, err)
 		}
 	})
@@ -4356,9 +4164,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if got := req.URL.Query().Get("worktree"); got != "wt-alpha" {
 						t.Fatalf("task worktree query = %q, want %q", got, "wt-alpha")
 					}
-					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
-						t.Fatalf("task participation_channel query = %q, want %q", got, "builders")
-					}
 					if got := req.URL.Query().Get("limit"); got != "3" {
 						t.Fatalf("task limit query = %q, want %q", got, "3")
 					}
@@ -4372,7 +4177,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(create task body) error = %v", err)
 					}
-					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "builders")
+
 					if payload.Scope != taskpkg.ScopeWorkspace ||
 						payload.Workspace != "alpha" ||
 						payload.Title != "Investigate flaky task runs" ||
@@ -4391,13 +4196,13 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(update task body) error = %v", err)
 					}
-					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "ops")
+
 					if payload.Title == nil || *payload.Title != "Investigate resolved" {
 						t.Fatalf("update task payload = %#v", payload)
 					}
 					updated := sampleTaskRecord()
 					updated.Title = "Investigate resolved"
-					updated.ResolvedNetworkParticipation = testLiveResolvedParticipation("ops")
+
 					body := mustJSON(t, contract.TaskResponse{Task: updated})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/cancel":
@@ -4444,7 +4249,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(enqueue run body) error = %v", err)
 					}
-					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "builders")
+
 					if payload.IdempotencyKey != "idem-1" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
@@ -4459,9 +4264,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					}
 					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
 						t.Fatalf("task runs session_id query = %q, want %q", got, "sess-1")
-					}
-					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
-						t.Fatalf("task runs participation_channel query = %q, want %q", got, "builders")
 					}
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("task runs limit query = %q, want %q", got, "2")
@@ -4551,15 +4353,15 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should list tasks", func(t *testing.T) {
 		tasks, err := client.ListTasks(ctx, TaskListQuery{
-			Scope:                taskpkg.CatalogScopeWorkspace,
-			Workspace:            "alpha",
-			Status:               taskpkg.TaskStatusReady,
-			OwnerKind:            taskpkg.OwnerKindPool,
-			OwnerRef:             "triage",
-			ParentTaskID:         "task-root",
-			Worktree:             "wt-alpha",
-			ParticipationChannel: "builders",
-			Limit:                3,
+			Scope:        taskpkg.CatalogScopeWorkspace,
+			Workspace:    "alpha",
+			Status:       taskpkg.TaskStatusReady,
+			OwnerKind:    taskpkg.OwnerKindPool,
+			OwnerRef:     "triage",
+			ParentTaskID: "task-root",
+			Worktree:     "wt-alpha",
+
+			Limit: 3,
 		})
 		if err != nil || len(tasks.Tasks) != 1 || tasks.Tasks[0].ID != "task-1" {
 			t.Fatalf("ListTasks() = %#v, %v", tasks, err)
@@ -4568,11 +4370,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should create get update and cancel tasks", func(t *testing.T) {
 		created, err := client.CreateTask(ctx, CreateTaskRequest{
-			Scope:                taskpkg.ScopeWorkspace,
-			Workspace:            "alpha",
-			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Title:                "Investigate flaky task runs",
-			Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+			Scope:     taskpkg.ScopeWorkspace,
+			Workspace: "alpha",
+
+			Title: "Investigate flaky task runs",
+			Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
 		})
 		if err != nil || created.ID != "task-1" {
 			t.Fatalf("CreateTask() = %#v, %v", created, err)
@@ -4584,13 +4386,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		updated, err := client.UpdateTask(ctx, "task-1", UpdateTaskRequest{
-			Title:                new("Investigate resolved"),
-			NetworkParticipation: testLiveNamedParticipationRequest("ops"),
+			Title: new("Investigate resolved"),
 		})
 		if err != nil || updated.Title != "Investigate resolved" {
 			t.Fatalf("UpdateTask() = %#v, %v", updated, err)
 		}
-		assertResolvedParticipation(t, updated.ResolvedNetworkParticipation, *testLiveResolvedParticipation("ops"))
 
 		canceled, err := client.CancelTask(ctx, "task-1", CancelTaskRequest{Reason: "operator-request"})
 		if err != nil || canceled.Status != taskpkg.TaskStatusCanceled {
@@ -4622,19 +4422,19 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
-			IdempotencyKey:       "idem-1",
-			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Metadata:             json.RawMessage(`{"schema":"compozy.harness.detached.v1"}`),
+			IdempotencyKey: "idem-1",
+
+			Metadata: json.RawMessage(`{"schema":"compozy.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)
 		}
 
 		runs, err := client.ListTaskRuns(ctx, "task-1", TaskRunListQuery{
-			Status:               taskpkg.TaskRunStatusRunning,
-			SessionID:            "sess-1",
-			ParticipationChannel: "builders",
-			Limit:                2,
+			Status:    taskpkg.TaskRunStatusRunning,
+			SessionID: "sess-1",
+
+			Limit: 2,
 		})
 		if err != nil || len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusRunning {
 			t.Fatalf("ListTaskRuns() = %#v, %v", runs, err)
@@ -4689,255 +4489,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 			t.Fatalf("CancelTaskRun() = %#v, %v", canceled, err)
 		}
 	})
-}
-
-func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize every bounded bridge catalog query parameter", func(t *testing.T) {
-		t.Parallel()
-
-		client := &daemonClient{
-			target: LocalClientTarget("/tmp/compozy.sock"),
-			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges" {
-					t.Fatalf("request = %s %s, want GET /api/bridges", req.Method, req.URL.Path)
-				}
-				want := map[string]string{
-					"scope":        "all",
-					"workspace_id": "ws-alpha",
-					"q":            "needle",
-					"platform":     "slack",
-					"status":       "error",
-					"sort":         "name",
-					"cursor":       "cursor-1",
-					"limit":        "25",
-				}
-				for key, value := range want {
-					if got := req.URL.Query().Get(key); got != value {
-						t.Fatalf("query[%s] = %q, want %q; raw=%s", key, got, value, req.URL.RawQuery)
-					}
-				}
-				return newHTTPResponse(
-					http.StatusOK,
-					`{"bridges":[],"bridge_health":{},"facets":{"platforms":{},"statuses":{"disabled":0,"starting":0,"ready":0,"degraded":0,"auth_required":0,"error":0}},"page":{"has_more":false,"total":0,"limit":25}}`,
-				), nil
-			})},
-		}
-		result, err := client.ListBridges(context.Background(), BridgeListQuery{
-			Scope:       "all",
-			WorkspaceID: "ws-alpha",
-			Search:      "needle",
-			Platform:    "slack",
-			Status:      "error",
-			Sort:        "name",
-			Cursor:      "cursor-1",
-			Limit:       25,
-		})
-		if err != nil {
-			t.Fatalf("ListBridges() error = %v", err)
-		}
-		if result.Page.Total != 0 || result.Page.Limit != 25 || result.Bridges == nil {
-			t.Fatalf("ListBridges() = %#v, want explicit empty counted page", result)
-		}
-	})
-}
-
-func TestUnixSocketClientBridgeMethods(t *testing.T) {
-	t.Parallel()
-
-	client := &daemonClient{
-		target: LocalClientTarget("/tmp/compozy.sock"),
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				switch {
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridges":[{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}],"bridge_health":{"brg-a":{"bridge_instance_id":"brg-a","status":"ready","route_count":0,"delivery_backlog":0,"delivery_dropped_total":0,"delivery_failures_total":0,"auth_failures_total":0}},"facets":{"platforms":{"telegram":1},"statuses":{"disabled":0,"starting":0,"ready":1,"degraded":0,"auth_required":0,"error":0}},"page":{"has_more":false,"total":1,"limit":50}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges":
-					var payload contract.CreateBridgeRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(create bridge body) error = %v", err)
-					}
-					if payload.Scope != bridgepkg.ScopeGlobal ||
-						payload.WorkspaceID != "" ||
-						payload.Platform != "telegram" ||
-						payload.ExtensionName != "ext-telegram" ||
-						payload.DisplayName != "Support" ||
-						!payload.Enabled ||
-						!reflect.DeepEqual(payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true}) ||
-						len(payload.DeliveryDefaults) != 0 {
-						t.Fatalf("create bridge payload = %#v", payload)
-					}
-					return newHTTPResponse(
-						http.StatusCreated,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPatch && req.URL.Path == "/api/bridges/brg-a":
-					var payload contract.UpdateBridgeRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(update bridge body) error = %v", err)
-					}
-					if payload.DisplayName == nil ||
-						*payload.DisplayName != "Support Ops" ||
-						payload.RoutingPolicy == nil ||
-						!reflect.DeepEqual(
-							*payload.RoutingPolicy,
-							bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
-						) ||
-						payload.DeliveryDefaults != nil {
-						t.Fatalf("update bridge payload = %#v, want updated display name", payload)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support Ops","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/enable":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:06:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/disable":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":false,"status":"disabled","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:07:00Z"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/restart":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:08:00Z"}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a/routes":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"routes":[{"routing_key_hash":"hash-a","scope":"global","bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","session_id":"sess-1","agent_name":"coder","last_activity_at":"2026-04-11T12:09:00Z","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:09:00Z"}]}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a/targets":
-					if req.URL.Query().Get("q") != "support" || req.URL.Query().Get("limit") != "25" {
-						t.Fatalf("bridge targets query = %s, want q=support&limit=25", req.URL.RawQuery)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bridge_id":"brg-a","targets":[{"bridge_id":"brg-a","canonical_route":"telegram:channel:support","display_name":"Support room","normalized":"support room","target_type":"channel","qualifier":"telegram","capabilities":["reply"],"updated_at":"2026-04-11T12:09:00Z","last_seen_at":"2026-04-11T12:09:00Z"}],"total":1,"cache_stale":false,"generated_at":"2026-04-11T12:09:30Z"}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/resolve":
-					var payload contract.BridgeResolveTargetRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(resolve target body) error = %v", err)
-					}
-					if payload.Name != "Support room" {
-						t.Fatalf("resolve target payload = %#v, want Support room", payload)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"result":{"step":2,"ambiguous":false,"match":{"bridge_id":"brg-a","canonical_route":"telegram:channel:support","display_name":"Support room","normalized":"support room","target_type":"channel","qualifier":"telegram","capabilities":["reply"],"updated_at":"2026-04-11T12:09:00Z","last_seen_at":"2026-04-11T12:09:00Z"}}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/test-delivery":
-					var payload contract.BridgeTestDeliveryRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(test delivery body) error = %v", err)
-					}
-					if payload.Message != "hello" || payload.Target.PeerID != "peer-1" ||
-						payload.Target.ThreadID != "thread-1" ||
-						payload.Target.Mode != bridgepkg.DeliveryModeReply {
-						t.Fatalf("test delivery payload = %#v", payload)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"status":"resolved","message":"hello","delivery_target":{"bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","mode":"reply"}}`,
-					), nil
-				default:
-					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
-				}
-			}),
-		},
-	}
-
-	ctx := context.Background()
-
-	listed, err := client.ListBridges(ctx, BridgeListQuery{})
-	if err != nil || len(listed.Bridges) != 1 || listed.Bridges[0].ID != "brg-a" || listed.Page.Total != 1 {
-		t.Fatalf("ListBridges() = %#v, %v", listed, err)
-	}
-
-	created, err := client.CreateBridge(ctx, CreateBridgeRequest{
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Support",
-		Enabled:       true,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	if err != nil || created.ID != "brg-a" {
-		t.Fatalf("CreateBridge() = %#v, %v", created, err)
-	}
-
-	status, err := client.GetBridge(ctx, "brg-a")
-	if err != nil || status.Status != bridgepkg.BridgeStatusReady {
-		t.Fatalf("GetBridge() = %#v, %v", status, err)
-	}
-
-	updated, err := client.UpdateBridge(ctx, "brg-a", UpdateBridgeRequest{
-		DisplayName: new("Support Ops"),
-		RoutingPolicy: &bridgepkg.RoutingPolicy{
-			IncludePeer:   true,
-			IncludeThread: true,
-		},
-	})
-	if err != nil || updated.DisplayName != "Support Ops" || !updated.RoutingPolicy.IncludeThread {
-		t.Fatalf("UpdateBridge() = %#v, %v", updated, err)
-	}
-
-	enabled, err := client.EnableBridge(ctx, " brg-a ")
-	if err != nil || enabled.Status != bridgepkg.BridgeStatusStarting || !enabled.Enabled {
-		t.Fatalf("EnableBridge() = %#v, %v", enabled, err)
-	}
-
-	disabled, err := client.DisableBridge(ctx, " brg-a ")
-	if err != nil || disabled.Status != bridgepkg.BridgeStatusDisabled || disabled.Enabled {
-		t.Fatalf("DisableBridge() = %#v, %v", disabled, err)
-	}
-
-	restarted, err := client.RestartBridge(ctx, " brg-a ")
-	if err != nil || restarted.Status != bridgepkg.BridgeStatusStarting || !restarted.Enabled {
-		t.Fatalf("RestartBridge() = %#v, %v", restarted, err)
-	}
-
-	routes, err := client.BridgeRoutes(ctx, "brg-a")
-	if err != nil || len(routes) != 1 || routes[0].ThreadID != "thread-1" {
-		t.Fatalf("BridgeRoutes() = %#v, %v", routes, err)
-	}
-
-	targets, err := client.BridgeTargets(ctx, "brg-a", "support", 25)
-	if err != nil || len(targets.Targets) != 1 || targets.Targets[0].CanonicalRoute != "telegram:channel:support" {
-		t.Fatalf("BridgeTargets() = %#v, %v", targets, err)
-	}
-
-	resolved, err := client.ResolveBridgeTarget(ctx, "brg-a", "Support room")
-	if err != nil || resolved.Result.Match == nil ||
-		resolved.Result.Match.CanonicalRoute != "telegram:channel:support" {
-		t.Fatalf("ResolveBridgeTarget() = %#v, %v", resolved, err)
-	}
-
-	delivery, err := client.TestBridgeDelivery(ctx, "brg-a", BridgeTestDeliveryRequest{
-		Message: "hello",
-		Target: BridgeDeliveryTargetInput{
-			PeerID:   "peer-1",
-			ThreadID: "thread-1",
-			Mode:     bridgepkg.DeliveryModeReply,
-		},
-	})
-	if err != nil || delivery.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply ||
-		delivery.DeliveryTarget.ThreadID != "thread-1" {
-		t.Fatalf("TestBridgeDelivery() = %#v, %v", delivery, err)
-	}
 }
 
 func TestReadAPIErrorAndHelpers(t *testing.T) {
@@ -5160,28 +4711,28 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 
 	if got := taskValues(TaskListQuery{
-		Scope:                taskpkg.CatalogScopeWorkspace,
-		Workspace:            "alpha",
-		Status:               taskpkg.TaskStatusReady,
-		OwnerKind:            taskpkg.OwnerKindPool,
-		OwnerRef:             "triage",
-		ParentTaskID:         "task-root",
-		Worktree:             "wt-alpha",
-		IncludeLoop:          true,
-		LoopRunID:            "looprun-alpha",
-		ParticipationChannel: "builders",
-		Limit:                3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("include_loop") != "true" || got.Get("loop_run_id") != "looprun-alpha" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
+		Scope:        taskpkg.CatalogScopeWorkspace,
+		Workspace:    "alpha",
+		Status:       taskpkg.TaskStatusReady,
+		OwnerKind:    taskpkg.OwnerKindPool,
+		OwnerRef:     "triage",
+		ParentTaskID: "task-root",
+		Worktree:     "wt-alpha",
+		IncludeLoop:  true,
+		LoopRunID:    "looprun-alpha",
+
+		Limit: 3,
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("include_loop") != "true" || got.Get("loop_run_id") != "looprun-alpha" || got.Get("limit") != "3" {
 		t.Fatalf("taskValues() = %v, want all task filters", got)
 	}
 
 	if got := taskRunValues(TaskRunListQuery{
-		Status:               taskpkg.TaskRunStatusRunning,
-		SessionID:            "sess-1",
-		ParticipationChannel: "builders",
-		Limit:                2,
+		Status:    taskpkg.TaskRunStatusRunning,
+		SessionID: "sess-1",
+
+		Limit: 2,
 	}); got.Get("status") != "running" || got.Get("session_id") != "sess-1" ||
-		got.Get("participation_channel") != "builders" || got.Get("limit") != "2" {
+		got.Get("limit") != "2" {
 		t.Fatalf("taskRunValues() = %v, want all task run filters", got)
 	}
 
@@ -5943,46 +5494,6 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			cliType: DaemonStatus{},
 			want:    contract.DaemonStatusPayload{},
 		},
-		{
-			name:    "Should alias CreateBridgeRequest to the shared contract",
-			cliType: CreateBridgeRequest{},
-			want:    contract.CreateBridgeRequest{},
-		},
-		{
-			name:    "Should alias UpdateBridgeRequest to the shared contract",
-			cliType: UpdateBridgeRequest{},
-			want:    contract.UpdateBridgeRequest{},
-		},
-		{
-			name:    "Should alias BridgeTestDeliveryRequest to the shared contract",
-			cliType: BridgeTestDeliveryRequest{},
-			want:    contract.BridgeTestDeliveryRequest{},
-		},
-		{
-			name:    "Should alias BridgeDeliveryTargetInput to the shared contract",
-			cliType: BridgeDeliveryTargetInput{},
-			want:    contract.BridgeDeliveryTargetInput{},
-		},
-		{
-			name:    "Should alias BridgeRecord to the bridge domain type",
-			cliType: BridgeRecord{},
-			want:    bridgepkg.BridgeInstance{},
-		},
-		{
-			name:    "Should alias BridgeRouteRecord to the bridge domain type",
-			cliType: BridgeRouteRecord{},
-			want:    bridgepkg.BridgeRoute{},
-		},
-		{
-			name:    "Should alias DeliveryTargetRecord to the bridge domain type",
-			cliType: DeliveryTargetRecord{},
-			want:    bridgepkg.DeliveryTarget{},
-		},
-		{
-			name:    "Should alias BridgeTestDeliveryRecord to the shared contract",
-			cliType: BridgeTestDeliveryRecord{},
-			want:    contract.BridgeTestDeliveryResponse{},
-		},
 	}
 
 	for _, tt := range tests {
@@ -6031,27 +5542,6 @@ func TestSharedContractJSONParity(t *testing.T) {
 	}
 	if !bytes.Equal(cliMemoryJSON, sharedMemoryJSON) {
 		t.Fatalf("memory request json = %s, want %s", cliMemoryJSON, sharedMemoryJSON)
-	}
-
-	bridgeRequest := CreateBridgeRequest{
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Support",
-		Enabled:       true,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}
-	cliBridgeJSON, err := json.Marshal(bridgeRequest)
-	if err != nil {
-		t.Fatalf("json.Marshal(cli bridge request) error = %v", err)
-	}
-	var sharedBridgeRequest = bridgeRequest
-	sharedBridgeJSON, err := json.Marshal(sharedBridgeRequest)
-	if err != nil {
-		t.Fatalf("json.Marshal(shared bridge request) error = %v", err)
-	}
-	if !bytes.Equal(cliBridgeJSON, sharedBridgeJSON) {
-		t.Fatalf("bridge request json = %s, want %s", cliBridgeJSON, sharedBridgeJSON)
 	}
 
 	readResponse := `{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"project","scope":"workspace","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"stored memory body"}}`
@@ -6150,22 +5640,5 @@ func TestSharedContractJSONParity(t *testing.T) {
 	}
 	if !reflect.DeepEqual(cliDaemon, sharedDaemon) {
 		t.Fatalf("daemon decode = %#v, want %#v", cliDaemon, sharedDaemon)
-	}
-
-	bridgeResponse := `{"bridge":{"id":"brg-1","scope":"workspace","workspace_id":"ws-alpha","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"delivery_defaults":{"mode":"reply"},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`
-	var cliBridge struct {
-		Bridge BridgeRecord `json:"bridge"`
-	}
-	if err := json.Unmarshal([]byte(bridgeResponse), &cliBridge); err != nil {
-		t.Fatalf("json.Unmarshal(cli bridge response) error = %v", err)
-	}
-	var sharedBridge struct {
-		Bridge bridgepkg.BridgeInstance `json:"bridge"`
-	}
-	if err := json.Unmarshal([]byte(bridgeResponse), &sharedBridge); err != nil {
-		t.Fatalf("json.Unmarshal(shared bridge response) error = %v", err)
-	}
-	if !reflect.DeepEqual(cliBridge, sharedBridge) {
-		t.Fatalf("bridge decode = %#v, want %#v", cliBridge, sharedBridge)
 	}
 }

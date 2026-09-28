@@ -171,9 +171,6 @@ func (p *AgentProcess) handleWriteTextFile(
 	if err != nil {
 		return acpsdk.WriteTextFileResponse{}, err
 	}
-	if p.isNetworkTurn() {
-		return acpsdk.WriteTextFileResponse{}, ErrToolBlockedForNetworkTurn
-	}
 	host, err := p.toolHostOrDefault()
 	if err != nil {
 		return acpsdk.WriteTextFileResponse{}, err

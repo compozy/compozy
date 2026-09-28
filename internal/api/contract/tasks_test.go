@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -16,29 +15,28 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 	lastActivity := now.Add(15 * time.Minute)
 	claimedAt := now.Add(2 * time.Minute)
 	startedAt := now.Add(3 * time.Minute)
-	liveParticipation := contractTestLiveParticipation("ws-1", "ops")
 
 	summary := TaskSummaryPayload{
-		ID:                           "task-1",
-		Identifier:                   "TSK-001",
-		Scope:                        taskpkg.ScopeWorkspace,
-		WorkspaceID:                  "ws-1",
-		ParentTaskID:                 "parent-1",
-		ResolvedNetworkParticipation: participation.CloneSpec(liveParticipation),
-		Title:                        "Review contract coverage",
-		Priority:                     taskpkg.PriorityHigh,
-		MaxAttempts:                  4,
-		Status:                       taskpkg.TaskStatusBlocked,
-		ApprovalPolicy:               taskpkg.ApprovalPolicyManual,
-		ApprovalState:                taskpkg.ApprovalStatePending,
-		Draft:                        true,
-		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
-		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"},
-		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindWeb, Ref: "compozy-web"},
-		CreatedAt:                    now,
-		UpdatedAt:                    now,
-		ChildCount:                   2,
-		DependencyCount:              1,
+		ID:           "task-1",
+		Identifier:   "TSK-001",
+		Scope:        taskpkg.ScopeWorkspace,
+		WorkspaceID:  "ws-1",
+		ParentTaskID: "parent-1",
+
+		Title:           "Review contract coverage",
+		Priority:        taskpkg.PriorityHigh,
+		MaxAttempts:     4,
+		Status:          taskpkg.TaskStatusBlocked,
+		ApprovalPolicy:  taskpkg.ApprovalPolicyManual,
+		ApprovalState:   taskpkg.ApprovalStatePending,
+		Draft:           true,
+		Owner:           &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+		CreatedBy:       taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"},
+		Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindWeb, Ref: "compozy-web"},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		ChildCount:      2,
+		DependencyCount: 1,
 		Dependencies: []TaskDependencyReferencePayload{
 			{
 				TaskID:          "task-1",
@@ -75,26 +73,26 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 	detail := TaskDetailPayload{
 		Summary: summary,
 		Task: TaskPayload{
-			ID:                           "task-1",
-			Identifier:                   "TSK-001",
-			Scope:                        taskpkg.ScopeWorkspace,
-			WorkspaceID:                  "ws-1",
-			ParentTaskID:                 "parent-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(liveParticipation),
-			Title:                        "Review contract coverage",
-			Description:                  "Expand the task contract surface",
-			Priority:                     taskpkg.PriorityHigh,
-			MaxAttempts:                  4,
-			Status:                       taskpkg.TaskStatusBlocked,
-			ApprovalPolicy:               taskpkg.ApprovalPolicyManual,
-			ApprovalState:                taskpkg.ApprovalStatePending,
-			Draft:                        true,
-			Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
-			CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"},
-			Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindWeb, Ref: "compozy-web"},
-			CreatedAt:                    now,
-			UpdatedAt:                    now,
-			Metadata:                     json.RawMessage(`{"ticket":"TASK-07"}`),
+			ID:           "task-1",
+			Identifier:   "TSK-001",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-1",
+			ParentTaskID: "parent-1",
+
+			Title:          "Review contract coverage",
+			Description:    "Expand the task contract surface",
+			Priority:       taskpkg.PriorityHigh,
+			MaxAttempts:    4,
+			Status:         taskpkg.TaskStatusBlocked,
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+			ApprovalState:  taskpkg.ApprovalStatePending,
+			Draft:          true,
+			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"},
+			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindWeb, Ref: "compozy-web"},
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			Metadata:       json.RawMessage(`{"ticket":"TASK-07"}`),
 		},
 		Children: []TaskSummaryPayload{summary},
 		Dependencies: []TaskDependencyPayload{
@@ -116,13 +114,13 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 					Kind: taskpkg.ActorKindAgentSession,
 					Ref:  "sess-1",
 				},
-				SessionID:                    "session-1",
-				Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
-				IdempotencyKey:               "idem-1",
-				ResolvedNetworkParticipation: participation.CloneSpec(liveParticipation),
-				QueuedAt:                     now,
-				ClaimedAt:                    &claimedAt,
-				StartedAt:                    &startedAt,
+				SessionID:      "session-1",
+				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
+				IdempotencyKey: "idem-1",
+
+				QueuedAt:  now,
+				ClaimedAt: &claimedAt,
+				StartedAt: &startedAt,
 			},
 		},
 		Events: []TaskEventPayload{
@@ -155,12 +153,8 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 			"runs",
 			"events",
 		)
-		assertParticipationJSON(t, nestedObject(t, taskObject, "summary"), liveParticipation)
 		nestedTask := nestedObject(t, taskObject, "task")
 		assertObjectKeys(t, nestedTask, "draft")
-		assertParticipationJSON(t, nestedTask, liveParticipation)
-		firstRun := firstObjectFromArray(t, taskObject, "runs")
-		assertParticipationJSON(t, firstRun, liveParticipation)
 	})
 
 	t.Run("Should marshal summary dependency reference keys", func(t *testing.T) {
@@ -594,41 +588,5 @@ func assertObjectKeys(t *testing.T, object map[string]any, keys ...string) {
 		if _, ok := object[key]; !ok {
 			t.Fatalf("missing key %q in object %v", key, object)
 		}
-	}
-}
-
-func contractTestLiveParticipation(workspaceID, channelID string) participation.Spec {
-	return participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     workspaceID,
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       channelID,
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         4,
-			MaxWakeWallTime:  "30s",
-			MaxTotalWallTime: "2m",
-			MaxInputTokens:   4096,
-			MaxOutputTokens:  4096,
-			MaxWakeDepth:     4,
-			CoalesceWindow:   "250ms",
-		},
-	}
-}
-
-func assertParticipationJSON(t *testing.T, object map[string]any, want participation.Spec) {
-	t.Helper()
-
-	resolved := nestedObject(t, object, "resolved_network_participation")
-	if got := resolved["channel_id"]; got != want.ChannelID {
-		t.Fatalf("resolved participation channel_id = %#v, want %q", got, want.ChannelID)
-	}
-	if got := resolved["source"]; got != string(want.Source) {
-		t.Fatalf("resolved participation source = %#v, want %q", got, want.Source)
-	}
-	bounds := nestedObject(t, resolved, "bounds")
-	if got := bounds["max_wakes"]; got != float64(want.Bounds.MaxWakes) {
-		t.Fatalf("resolved participation max_wakes = %#v, want %d", got, want.Bounds.MaxWakes)
 	}
 }

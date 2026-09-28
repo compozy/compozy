@@ -597,12 +597,6 @@ jobs:
           CI: "true"
           CGO_ENABLED: 0
           GOTMPDIR: ${{ runner.temp }}/go-tmp
-          DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
-          DAYTONA_API_URL: ${{ secrets.DAYTONA_API_URL }}
-          DAYTONA_ORGANIZATION_ID: ${{ secrets.DAYTONA_ORGANIZATION_ID }}
-          DAYTONA_SNAPSHOT: ${{ secrets.DAYTONA_SNAPSHOT }}
-          DAYTONA_IMAGE: ${{ secrets.DAYTONA_IMAGE }}
-          DAYTONA_SSH_HOST: ${{ secrets.DAYTONA_SSH_HOST }}
         run: make test-e2e-nightly
 
       - name: Upload E2E artifacts on failure

@@ -1,13 +1,8 @@
 import { Info } from "lucide-react";
 
 import { Field, FieldLabel, Input, NativeSelect, NativeSelectOption, Textarea } from "@compozy/ui";
-import {
-  networkParticipationDraftFromPayload,
-  type NetworkParticipationDraft,
-} from "@/lib/network-participation";
 
 import type { CreateAutomationJobRequest } from "../../types";
-import { NetworkParticipationFields } from "@/systems/network";
 
 type TaskDraft = NonNullable<CreateAutomationJobRequest["task"]>;
 type OwnerKind = NonNullable<TaskDraft["owner"]>["kind"];
@@ -20,7 +15,6 @@ interface TaskRunStepProps {
   onTaskDescription: (next: string) => void;
   onOwnerKind: (kind: OwnerKind | "") => void;
   onOwnerRef: (next: string) => void;
-  onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
 }
 
 const OWNER_KINDS: ReadonlyArray<{ value: OwnerKind; label: string }> = [
@@ -29,7 +23,6 @@ const OWNER_KINDS: ReadonlyArray<{ value: OwnerKind; label: string }> = [
   { value: "human", label: "Human" },
   { value: "automation", label: "Automation" },
   { value: "extension", label: "Extension" },
-  { value: "network_peer", label: "Network peer" },
 ];
 
 const OWNER_REF_PLACEHOLDER: Record<OwnerKind, string> = {
@@ -38,7 +31,6 @@ const OWNER_REF_PLACEHOLDER: Record<OwnerKind, string> = {
   human: "human handle",
   automation: "automation id",
   extension: "extension id",
-  network_peer: "peer id",
 };
 
 function ownerRefPlaceholder(kind: string): string {
@@ -57,7 +49,6 @@ export function TaskRunStep({
   onTaskDescription,
   onOwnerKind,
   onOwnerRef,
-  onNetworkParticipationChange,
 }: TaskRunStepProps) {
   const ownerKind = task.owner?.kind ?? "";
 
@@ -66,6 +57,7 @@ export function TaskRunStep({
       <Field>
         <FieldLabel htmlFor="job-task-title">Task title</FieldLabel>
         <Input
+          disabled={disabled}
           data-testid="job-task-title"
           id="job-task-title"
           onChange={event => onTaskTitle(event.target.value)}
@@ -76,6 +68,7 @@ export function TaskRunStep({
       <Field>
         <FieldLabel htmlFor="job-task-desc">Description</FieldLabel>
         <Textarea
+          disabled={disabled}
           data-testid="job-task-desc"
           id="job-task-desc"
           onChange={event => onTaskDescription(event.target.value)}
@@ -83,17 +76,12 @@ export function TaskRunStep({
           value={task.description ?? ""}
         />
       </Field>
-      <NetworkParticipationFields
-        allowedStrategies={["named", "run"]}
-        disabled={disabled}
-        onChange={onNetworkParticipationChange}
-        testIdPrefix="job-task-participation"
-        value={networkParticipationDraftFromPayload(task.network_participation)}
-      />
+
       <Field>
         <FieldLabel htmlFor="job-owner-kind">Owner</FieldLabel>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[170px_minmax(0,1fr)]">
           <NativeSelect
+            disabled={disabled}
             data-testid="job-owner-kind"
             id="job-owner-kind"
             onChange={event => onOwnerKind(event.target.value as OwnerKind | "")}
@@ -110,7 +98,7 @@ export function TaskRunStep({
             aria-label="Owner reference"
             className="font-mono text-form-label"
             data-testid="job-owner-ref"
-            disabled={ownerKind === ""}
+            disabled={disabled || ownerKind === ""}
             onChange={event => onOwnerRef(event.target.value)}
             placeholder={ownerRefPlaceholder(ownerKind)}
             value={task.owner?.ref ?? ""}

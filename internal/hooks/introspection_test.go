@@ -167,18 +167,6 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		descriptor.PatchSchema != "AutomationObservationPatch" {
 		t.Fatalf("automation.run.failed descriptor = %#v, want automation async observation schema", descriptor)
 	}
-	if descriptor := byEvent[HookSandboxPrepare]; descriptor.Family != HookEventFamilySandbox ||
-		!descriptor.SyncEligible ||
-		descriptor.PayloadSchema != "SandboxPreparePayload" ||
-		descriptor.PatchSchema != "SandboxPreparePatch" {
-		t.Fatalf("sandbox.prepare descriptor = %#v, want sync sandbox prepare descriptor", descriptor)
-	}
-	if descriptor := byEvent[HookSandboxSyncAfter]; descriptor.Family != HookEventFamilySandbox ||
-		descriptor.SyncEligible ||
-		descriptor.PayloadSchema != "SandboxSyncAfterPayload" ||
-		descriptor.PatchSchema != "SandboxSyncAfterPatch" {
-		t.Fatalf("sandbox.sync.after descriptor = %#v, want async sync-after descriptor", descriptor)
-	}
 	autonomyDescriptors := map[HookEvent]struct {
 		family       HookEventFamily
 		payload      string
@@ -271,30 +259,6 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		})
 	}
 
-	networkDescriptors := map[HookEvent]string{
-		HookNetworkPeerJoined:       "NetworkPeerJoinedPayload",
-		HookNetworkPeerLeft:         "NetworkPeerLeftPayload",
-		HookNetworkThreadOpened:     "NetworkThreadOpenedPayload",
-		HookNetworkDirectRoomOpened: "NetworkDirectRoomOpenedPayload",
-		HookNetworkMessagePersisted: "NetworkMessagePersistedPayload",
-		HookNetworkWorkOpened:       "NetworkWorkOpenedPayload",
-		HookNetworkWorkTransitioned: "NetworkWorkTransitionedPayload",
-		HookNetworkWorkClosed:       "NetworkWorkClosedPayload",
-	}
-	for event, wantPayload := range networkDescriptors {
-		t.Run("Should describe "+string(event), func(t *testing.T) {
-			t.Parallel()
-
-			descriptor := byEvent[event]
-			if descriptor.Family != HookEventFamilyNetwork ||
-				descriptor.SyncEligible ||
-				descriptor.PayloadSchema != wantPayload ||
-				descriptor.PatchSchema != "NetworkObservationPatch" {
-				t.Fatalf("%s descriptor = %#v, want async network payload=%q", event, descriptor, wantPayload)
-			}
-		})
-	}
-
 	windowManagerDescriptors := map[HookEvent]string{
 		HookWindowManagerLayoutApplied:  "WindowManagerLayoutAppliedPayload",
 		HookWindowManagerDesktopCreated: "WindowManagerDesktopCreatedPayload",
@@ -319,30 +283,6 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Should describe network.participation.pre_resolve as sync", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := byEvent[HookNetworkParticipationPreResolve]
-		if descriptor.Family != HookEventFamilyNetwork ||
-			!descriptor.SyncEligible ||
-			descriptor.PayloadSchema != "NetworkParticipationPreResolvePayload" ||
-			descriptor.PatchSchema != "NetworkParticipationPreResolvePatch" {
-			t.Fatalf("pre_resolve descriptor = %#v", descriptor)
-		}
-	})
-
-	t.Run("Should describe network.participation.resolved as async observation", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := byEvent[HookNetworkParticipationResolved]
-		if descriptor.Family != HookEventFamilyNetwork ||
-			descriptor.SyncEligible ||
-			descriptor.PayloadSchema != "NetworkParticipationResolvedPayload" ||
-			descriptor.PatchSchema != "NetworkParticipationResolvedPatch" {
-			t.Fatalf("resolved descriptor = %#v", descriptor)
-		}
-	})
 }
 
 func TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind(t *testing.T) {

@@ -31,15 +31,14 @@ func (d *Daemon) runtimeDeps(
 		heartbeat: state.heartbeatCatalog,
 	})
 	return RuntimeDeps{
-		Config:                state.cfg,
-		AgentProbeConfig:      state.agentProbeConfig,
-		HomePaths:             d.homePaths,
-		Logger:                state.logger,
-		Sessions:              sessions,
-		SessionAttachments:    state.sessionAttachments,
-		DrainController:       d,
-		Bridges:               state.bridges,
-		Notifications:         state.notificationPresets,
+		Config:             state.cfg,
+		AgentProbeConfig:   state.agentProbeConfig,
+		HomePaths:          d.homePaths,
+		Logger:             state.logger,
+		Sessions:           sessions,
+		SessionAttachments: state.sessionAttachments,
+		DrainController:    d,
+
 		Registry:              state.registry,
 		Profiles:              state.profiles,
 		SchemaStreams:         newDaemonSchemaStreamStatusReader(state.registry),

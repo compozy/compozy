@@ -15,8 +15,7 @@ audit row.
 | `<workspace>/.compozy/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.compozy/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
-Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes.<name>]`. Use only
-`[sandboxes.<name>]` for session execution boundaries.
+Unknown TOML keys are errors. Use the supported sections below.
 
 <OperatorNote>
   Workspace `.env` files are loaded before CompozyOS resolves `$COMPOZY_HOME`. This means
@@ -29,7 +28,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | Section                              | Purpose                                                                                | Default                                                                                               |
 | ------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.    | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
-| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.           | providers `5s`, MCP `10s`, bridges `30s`                                                              |
+| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider and MCP subsystem applies.                    | providers `5s`, MCP `10s`                                                                             |
 | `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
@@ -37,7 +36,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[shell.sessions]`                   | Live operator preferences for the session list.                                        | last-activity order, recent sessions                                                                  |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
-| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                       | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
+| `[defaults]`                         | Default agent and provider resolution.                                                 | `agent = "general"`, `provider = ""`                                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
 | `[roles.dream]`                      | Dream-session routing.                                                                 | disabled, builtin `dreaming-curator`                                                                  |
 | `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                    | enabled, builtin `dreaming-curator`                                                                   |
@@ -62,7 +61,6 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                       | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
 | `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                    | CompozyOS `main` catalog, 1 h TTL, 10 s timeout                                                       |
 | `[[marketplace.plugin_sources]]`     | Plugin marketplace registrations and preset choices.                                   | Preset defaults; custom registrations enabled by default                                              |
-| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                   | local backend when no profile is selected                                                             |
 | `[observability]`                    | Event summary retention and global byte cap.                                           | enabled, 7 days, 1 GiB                                                                                |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                         | enabled, 1 MiB segments, 256 MiB per session                                                          |
 | `[log]`                              | Structured log level and daemon-owned rotation.                                        | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
@@ -95,11 +93,10 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[goals]`                            | Goal defaults and durable session-event relay controls.                                | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                  | block recurrence limit 2                                                                              |
 | `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime.   | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                    |
-| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                        | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                        |
+| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                        | inherit coordinator/worker; provider overrides allowed                                                |
 | `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                                 | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                        |
 | `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                   | agents may force release, force fail, and retry                                                       |
 | `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                          | empty list                                                                                            |
-| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.               | enabled; Local remains the execution default                                                          |
 | `[gateway]`                          | Remote gateway ceiling, listener ports, and bounded security tunables.                 | disabled; both tier ports assigned by the operating system                                            |
 
 ## Load And Merge Order
@@ -139,8 +136,6 @@ subprocess_health_escalation_threshold = 3
 providers = "5s"
 # MCP runtime reload budget. Valid range: 1s to 60s.
 mcp = "10s"
-# Bridge runtime reload budget. Valid range: 1s to 300s.
-bridges = "30s"
 
 [http]
 # HTTP/SSE API bind address.
@@ -225,8 +220,6 @@ bottom_center = "reserved"
 agent = "general"
 # Provider used by AGENT.md files that omit provider.
 provider = "claude"
-# Sandbox profile used when a workspace does not set sandbox_ref.
-sandbox = "local"
 
 [roles.coordinator]
 # Coordinator is a virtual builtin when agent is omitted. It is disabled by default.
@@ -455,36 +448,6 @@ name = "github"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 secret_env = { GITHUB_TOKEN = "env:GITHUB_TOKEN" }
-
-[sandboxes.local]
-backend = "local"
-sync_mode = "none"
-persistence = "reuse"
-runtime_root = "~"
-
-[sandboxes.daytona-dev]
-backend = "daytona"
-sync_mode = "session-bidirectional"
-persistence = "reuse"
-runtime_root = "/home/daytona/workspace"
-
-[sandboxes.daytona-dev.env]
-NODE_ENV = "development"
-
-[sandboxes.daytona-dev.network]
-allow_public_ingress = false
-allow_outbound = true
-allow_list = ["api.example.test"]
-deny_list = ["metadata.google.internal"]
-
-[sandboxes.daytona-dev.daytona]
-api_url = "https://app.daytona.io/api"
-target = "team-default"
-snapshot = "snap-agent-base"
-image = "ubuntu:24.04"
-class = "cpu-2"
-auto_stop = "30m"
-auto_archive = "24h"
 
 [observability]
 enabled = true
@@ -845,26 +808,20 @@ scheduler_bad_tick_threshold = 6
 scheduler_bad_tick_cooldown = "5m"
 # Zero disables the per-task max-runtime watchdog default. Tasks may still set a per-task override.
 default_max_runtime = "0s"
-bridge_notification_timeout = "10s"
 designated_run_max = 5
 # Maximum active worker and coordinator runs per workspace. 0 disables the limit.
 max_active_runs_per_workspace = 16
 # Default wall-clock deadline for action nodes that omit their own timeout.
 action_run_timeout = "30m"
-network_status_queue_size = 64
-network_status_timeout = "5s"
 
 [task.orchestration.profile]
 # Defaults that apply when a task does not persist its own execution profile.
 default_coordinator_mode = "inherit"
 default_worker_mode = "inherit"
-default_sandbox_mode = "inherit"
 # inherit has workspace-root semantics unless a higher task policy supplies a mode.
 default_worktree_mode = "inherit"
 # Gate task-level provider/model overrides on the profile.
 allow_task_provider_override = true
-# Gate task-level sandbox = "none" selections.
-allow_task_sandbox_none = true
 
 [task.orchestration.review]
 # Defaults for the post-terminal review gate. See the review-gate docs for end-to-end behavior.
@@ -899,29 +856,6 @@ env = { HOOK_LOG = "1" }
 
 [hooks.declarations.matcher]
 agent_name = "general"
-
-[network]
-enabled = true
-max_replay_age = 300
-
-[network.live.defaults]
-max_wakes = 8
-max_wake_wall_time = "5m"
-max_total_wall_time = "0"
-max_input_tokens = 200000
-max_output_tokens = 50000
-max_wake_depth = 3
-coalesce_window = "500ms"
-
-[network.live.limits]
-max_wakes = 64
-max_wake_wall_time = "15m"
-max_total_wall_time = "2h"
-max_input_tokens = 1000000
-max_output_tokens = 200000
-max_wake_depth = 5
-min_coalesce_window = "100ms"
-max_coalesce_window = "5s"
 
 [gateway]
 enabled = false
@@ -1373,7 +1307,7 @@ authored files express bounded preferences only. See
 | `session_health_hook_min_interval` | duration | `1m`    | Positive Go duration.                                | Minimum interval between `session.health.update.after` hook fires for the same session; metadata-only touches are coalesced. |
 
 `[agents.heartbeat]` does not own task-run lease heartbeat (`task_runs` + `ClaimNextRun` +
-`HeartbeatRunLease`), `[session.supervision]` activity heartbeat, or Compozy Network `[network]`
+`HeartbeatRunLease`), `[session.supervision]` activity heartbeat, or other runtime policy
 greet presence. Those four authorities remain independent.
 
 `HEARTBEAT.md` snapshot digest covers the normalized body, canonical frontmatter JSON, and a
@@ -2235,26 +2169,25 @@ restart action through structured config apply history.
 
 Jobs are appended by overlays; they do not replace earlier jobs with the same name.
 
-| Field                        | Type    | Default                                                              | Valid values                                                         | Description                                                                       |
-| ---------------------------- | ------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `scope`                      | string  | required                                                             | `global` or `workspace`                                              | Binding scope.                                                                    |
-| `name`                       | string  | required                                                             | Non-empty.                                                           | Job name.                                                                         |
-| `agent`                      | string  | required for an Agent target without `task`; empty for a Loop target | After trimming, `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). | Agent that handles the scheduled prompt.                                          |
-| `workspace`                  | string  | required when `scope = "workspace"`, empty when `scope = "global"`   | Workspace ID or root accepted by the automation resolver.            | Workspace binding.                                                                |
-| `prompt`                     | string  | required unless `task` is configured                                 | Non-empty.                                                           | Prompt submitted when the job fires.                                              |
-| `schedule.mode`              | string  | required                                                             | `cron`, `every`, `at`                                                | Schedule mode.                                                                    |
-| `schedule.expr`              | string  | empty                                                                | Required only for `cron`; standard five-field cron.                  | Cron expression.                                                                  |
-| `schedule.interval`          | string  | empty                                                                | Required only for `every`; positive Go duration.                     | Repeating interval.                                                               |
-| `schedule.time`              | string  | empty                                                                | Required only for `at`; RFC3339 timestamp.                           | One-shot fire time.                                                               |
-| `task.title`                 | string  | empty                                                                | Any string.                                                          | Task title when the job materializes a task instead of starting an agent session. |
-| `task.description`           | string  | empty                                                                | Any string.                                                          | Task description.                                                                 |
-| `task.owner`                 | object  | empty                                                                | Task ownership object.                                               | Owner metadata validated by the task package.                                     |
-| `task.network_participation` | object  | empty                                                                | Local/Live participation request.                                    | Optional participation request resolved once when the generated task run starts.  |
-| `enabled`                    | boolean | `true`                                                               | `true` or `false`                                                    | Enables this job.                                                                 |
-| `retry.strategy`             | string  | `none`                                                               | `none` or `backoff`                                                  | Retry behavior. Must be `none` when `task` is configured.                         |
-| `retry.max_retries`          | integer | `0`                                                                  | `0` for `none`; positive for `backoff`.                              | Maximum retry count.                                                              |
-| `retry.base_delay`           | string  | empty                                                                | Empty for `none`; positive Go duration for `backoff`.                | Base backoff delay.                                                               |
-| `fire_limit`                 | object  | `[automation].default_fire_limit`                                    | `max` positive, `window` positive Go duration.                       | Per-job fire limit.                                                               |
+| Field               | Type    | Default                                                              | Valid values                                                         | Description                                                                       |
+| ------------------- | ------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `scope`             | string  | required                                                             | `global` or `workspace`                                              | Binding scope.                                                                    |
+| `name`              | string  | required                                                             | Non-empty.                                                           | Job name.                                                                         |
+| `agent`             | string  | required for an Agent target without `task`; empty for a Loop target | After trimming, `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). | Agent that handles the scheduled prompt.                                          |
+| `workspace`         | string  | required when `scope = "workspace"`, empty when `scope = "global"`   | Workspace ID or root accepted by the automation resolver.            | Workspace binding.                                                                |
+| `prompt`            | string  | required unless `task` is configured                                 | Non-empty.                                                           | Prompt submitted when the job fires.                                              |
+| `schedule.mode`     | string  | required                                                             | `cron`, `every`, `at`                                                | Schedule mode.                                                                    |
+| `schedule.expr`     | string  | empty                                                                | Required only for `cron`; standard five-field cron.                  | Cron expression.                                                                  |
+| `schedule.interval` | string  | empty                                                                | Required only for `every`; positive Go duration.                     | Repeating interval.                                                               |
+| `schedule.time`     | string  | empty                                                                | Required only for `at`; RFC3339 timestamp.                           | One-shot fire time.                                                               |
+| `task.title`        | string  | empty                                                                | Any string.                                                          | Task title when the job materializes a task instead of starting an agent session. |
+| `task.description`  | string  | empty                                                                | Any string.                                                          | Task description.                                                                 |
+| `task.owner`        | object  | empty                                                                | Task ownership object.                                               | Owner metadata validated by the task package.                                     |
+| `enabled`           | boolean | `true`                                                               | `true` or `false`                                                    | Enables this job.                                                                 |
+| `retry.strategy`    | string  | `none`                                                               | `none` or `backoff`                                                  | Retry behavior. Must be `none` when `task` is configured.                         |
+| `retry.max_retries` | integer | `0`                                                                  | `0` for `none`; positive for `backoff`.                              | Maximum retry count.                                                              |
+| `retry.base_delay`  | string  | empty                                                                | Empty for `none`; positive Go duration for `backoff`.                | Base backoff delay.                                                               |
+| `fire_limit`        | object  | `[automation].default_fire_limit`                                    | `max` positive, `window` positive Go duration.                       | Per-job fire limit.                                                               |
 
 ## `[[automation.triggers]]`
 
@@ -2453,22 +2386,19 @@ spawn-failure circuit breaker, and the per-task max-runtime default. The default
 `internal/config/task_orchestration.go` and apply when neither the global file nor a workspace
 overlay sets a value.
 
-| Field                           | Type     | Default | Valid values                                                          | Description                                                                                                                                                         |
-| ------------------------------- | -------- | ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `summary_max_bytes`             | integer  | `4096`  | Positive integer.                                                     | Maximum byte size for stored task-run summary fields used by context, web, CLI, and review surfaces.                                                                |
-| `context_body_max_bytes`        | integer  | `8192`  | Positive integer.                                                     | Maximum byte size for the rendered task context bundle attached to `/agent/context`.                                                                                |
-| `context_prior_attempts`        | integer  | `5`     | Zero or positive integer.                                             | Maximum prior-attempt summaries included in the task context bundle.                                                                                                |
-| `context_recent_events`         | integer  | `50`    | Zero or positive integer.                                             | Maximum recent task events included in the task context bundle.                                                                                                     |
-| `spawn_failure_limit`           | integer  | `5`     | Positive integer.                                                     | Spawn-failure threshold before the per-task spawn circuit breaker opens.                                                                                            |
-| `scheduler_bad_tick_threshold`  | integer  | `6`     | Positive integer.                                                     | Bad-tick count before the scheduler health watchdog flags a degraded scheduler tick.                                                                                |
-| `scheduler_bad_tick_cooldown`   | duration | `5m`    | Positive Go duration with whole-second precision.                     | Cooldown between scheduler bad-tick health emissions.                                                                                                               |
-| `default_max_runtime`           | duration | `0s`    | Zero or positive Go duration up to `24h` with whole-second precision. | Default per-task max-runtime watchdog. Zero disables the default; tasks may still set a per-task override.                                                          |
-| `bridge_notification_timeout`   | duration | `10s`   | Positive Go duration with whole-second precision.                     | Timeout budget for bridge task notification delivery.                                                                                                               |
-| `designated_run_max`            | integer  | `5`     | Positive integer up to `5`.                                           | Maximum sibling runs a single designated fan-out request may enqueue.                                                                                               |
-| `max_active_runs_per_workspace` | integer  | `16`    | Zero or positive integer.                                             | Maximum claimed, starting, or running worker and coordinator runs with live leases per workspace. Zero disables the limit; global and Network wake runs are exempt. |
-| `action_run_timeout`            | duration | `30m`   | Positive Go duration up to `24h` with whole-second precision.         | Wall-clock deadline inherited by action nodes without an explicit timeout. An explicit node timeout remains authoritative.                                          |
-| `network_status_queue_size`     | integer  | `64`    | Positive integer.                                                     | Queue depth for network-origin task status observer events.                                                                                                         |
-| `network_status_timeout`        | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the Compozy Network origin thread.                                                                        |
+| Field                           | Type     | Default | Valid values                                                          | Description                                                                                                                                        |
+| ------------------------------- | -------- | ------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `summary_max_bytes`             | integer  | `4096`  | Positive integer.                                                     | Maximum byte size for stored task-run summary fields used by context, web, CLI, and review surfaces.                                               |
+| `context_body_max_bytes`        | integer  | `8192`  | Positive integer.                                                     | Maximum byte size for the rendered task context bundle attached to `/agent/context`.                                                               |
+| `context_prior_attempts`        | integer  | `5`     | Zero or positive integer.                                             | Maximum prior-attempt summaries included in the task context bundle.                                                                               |
+| `context_recent_events`         | integer  | `50`    | Zero or positive integer.                                             | Maximum recent task events included in the task context bundle.                                                                                    |
+| `spawn_failure_limit`           | integer  | `5`     | Positive integer.                                                     | Spawn-failure threshold before the per-task spawn circuit breaker opens.                                                                           |
+| `scheduler_bad_tick_threshold`  | integer  | `6`     | Positive integer.                                                     | Bad-tick count before the scheduler health watchdog flags a degraded scheduler tick.                                                               |
+| `scheduler_bad_tick_cooldown`   | duration | `5m`    | Positive Go duration with whole-second precision.                     | Cooldown between scheduler bad-tick health emissions.                                                                                              |
+| `default_max_runtime`           | duration | `0s`    | Zero or positive Go duration up to `24h` with whole-second precision. | Default per-task max-runtime watchdog. Zero disables the default; tasks may still set a per-task override.                                         |
+| `designated_run_max`            | integer  | `5`     | Positive integer up to `5`.                                           | Maximum sibling runs a single designated fan-out request may enqueue.                                                                              |
+| `max_active_runs_per_workspace` | integer  | `16`    | Zero or positive integer.                                             | Maximum claimed, starting, or running worker and coordinator runs with live leases per workspace. Zero disables the limit; global runs are exempt. |
+| `action_run_timeout`            | duration | `30m`   | Positive Go duration up to `24h` with whole-second precision.         | Wall-clock deadline inherited by action nodes without an explicit timeout. An explicit node timeout remains authoritative.                         |
 
 `[task.orchestration]` keys are agent-mutable through the existing config tool surface
 (`compozy config set` and the `compozy__config_*` native tools). Workspace overlays apply through the
@@ -2486,28 +2416,23 @@ those writes as active runtime truth until the daemon restarts.
 ### `[task.orchestration.profile]`
 
 Defaults and gates that apply when a task does not store its own execution profile, plus the gates
-that allow or reject task-level provider/sandbox overrides. See
+that allow or reject task-level provider overrides. See
 [Task Execution Profiles](/docs/autonomy/execution-profiles) for the runtime behavior.
 
 | Field                          | Type    | Default   | Valid values                 | Description                                                                                                                |
 | ------------------------------ | ------- | --------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `default_coordinator_mode`     | string  | `inherit` | `inherit`, `guided`          | Coordinator behavior when a task profile does not set `coordinator.mode`.                                                  |
 | `default_worker_mode`          | string  | `inherit` | `inherit`                    | Worker selection mode when a task profile does not set `worker.mode`. `select` is allowed only on the per-task profile.    |
-| `default_sandbox_mode`         | string  | `inherit` | `inherit`, `none`            | Sandbox mode when a task profile does not set `sandbox.mode`.                                                              |
 | `default_worktree_mode`        | string  | `inherit` | `inherit`, `none`, `per_run` | Worktree policy resolved when a task profile keeps `worktree.mode = "inherit"`; bare `inherit` resolves to workspace root. |
 | `allow_task_provider_override` | boolean | `true`    | `true` or `false`            | When false, task profiles may not set `provider`/`model` on coordinator, worker, or review blocks.                         |
-| `allow_task_sandbox_none`      | boolean | `true`    | `true` or `false`            | When false, task profiles may not set `sandbox.mode = "none"`. Required to be `true` if `default_sandbox_mode = "none"`.   |
 
 Profile validation runs in `task.Service` when a profile is created or updated; the normalized
 profile is then stored. Session start loads the persisted profile (or the default `inherit` profile
 when none exists) without re-running validation. Updates and deletes are rejected while the task has
 an active run (`tasks.current_run_id` is set); resolve or release the run before retrying.
 
-Per-task profiles also store `sandbox.mode` and `runtime.mode`. `sandbox.mode` accepts `inherit`,
-`none`, or `ref`; `ref` requires `sandbox.sandbox_ref` and resolves a named `[sandboxes.<name>]`.
-`runtime.mode` accepts `default` or `evidence`. Evidence mode adds runtime evidence guidance and
-widens session permissions only when the same profile explicitly selects `sandbox.mode = "ref"`;
-inherited or disabled sandbox modes keep the configured permission policy.
+Per-task profiles store `runtime.mode`. `evidence` adds guidance for runtime validation while
+keeping the configured session permission policy.
 
 ### `[task.orchestration.review]`
 
@@ -2610,56 +2535,6 @@ permission.denied
 context.pre_compact
 context.post_compact
 ```
-
-## `[network]`
-
-Network config controls administrative availability, protocol-safety windows, and the defaults and
-ceilings used only after an execution explicitly selects Live. It never selects participation.
-
-| Field            | Type            | Default | Valid values              | Description                                                   |
-| ---------------- | --------------- | ------- | ------------------------- | ------------------------------------------------------------- |
-| `enabled`        | boolean         | `true`  | `true` or `false`         | Live availability kill switch. Does not opt any execution in. |
-| `max_replay_age` | integer seconds | `300`   | Positive integer seconds. | Replay/freshness window for accepted envelopes.               |
-
-### `[network.live.defaults]`
-
-Defaults fill omitted bounds only after Live is selected. They never convert Local into Live.
-The aggregate wall budget defaults to disabled. Per-wake wall time, wake count, tokens, depth, and
-configured ceilings remain enforced.
-
-| Field                 | Type     | Default  | Validation                                                                           |
-| --------------------- | -------- | -------- | ------------------------------------------------------------------------------------ |
-| `max_wakes`           | integer  | `8`      | Positive and at or below its limit.                                                  |
-| `max_wake_wall_time`  | duration | `5m`     | Positive and at or below its limit.                                                  |
-| `max_total_wall_time` | duration | `0`      | Zero disables the aggregate wall budget; positive values must stay within the limit. |
-| `max_input_tokens`    | integer  | `200000` | Positive and at or below its limit.                                                  |
-| `max_output_tokens`   | integer  | `50000`  | Positive and at or below its limit.                                                  |
-| `max_wake_depth`      | integer  | `3`      | Positive and at or below its limit.                                                  |
-| `coalesce_window`     | duration | `500ms`  | Between the configured minimum and maximum.                                          |
-
-### `[network.live.limits]`
-
-Limits are inclusive administrative ceilings. A default outside its limit fails strict config
-validation.
-
-| Field                 | Type     | Default   | Meaning                                   |
-| --------------------- | -------- | --------- | ----------------------------------------- |
-| `max_wakes`           | integer  | `64`      | Maximum requested wake count.             |
-| `max_wake_wall_time`  | duration | `15m`     | Maximum deadline for one wake.            |
-| `max_total_wall_time` | duration | `2h`      | Maximum aggregate wake wall time.         |
-| `max_input_tokens`    | integer  | `1000000` | Maximum aggregate reported input tokens.  |
-| `max_output_tokens`   | integer  | `200000`  | Maximum aggregate reported output tokens. |
-| `max_wake_depth`      | integer  | `5`       | Maximum causal wake depth.                |
-| `min_coalesce_window` | duration | `100ms`   | Minimum requested coalescing window.      |
-| `max_coalesce_window` | duration | `5s`      | Maximum requested coalescing window.      |
-
-Removed keys are rejected as unknown: `network.default_channel`, `network.port`,
-`network.max_payload`, `network.activation_top_k`, `network.digest_flush_interval`,
-`network.digest_max_envelopes`, `network.response_guidance_max_bytes`, and
-`network.delivery_structured_body_max_bytes`.
-
-Workspace coordination is not a TOML key. Manage its future-run default with
-`compozy network coordination status|enable|disable` or the equivalent HTTP/UDS surface.
 
 ## `[gateway]`
 

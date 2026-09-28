@@ -10,18 +10,15 @@ import (
 const (
 	defaultDaemonProviderReloadTimeout = 5 * time.Second
 	defaultDaemonMCPReloadTimeout      = 10 * time.Second
-	defaultDaemonBridgeReloadTimeout   = 30 * time.Second
 
 	minDaemonReloadTimeout       = time.Second
 	maxDaemonProviderReloadLimit = 60 * time.Second
 	maxDaemonMCPReloadLimit      = 60 * time.Second
-	maxDaemonBridgeReloadLimit   = 300 * time.Second
 
 	daemonMemoryReportIntervalPath                = "daemon.memory_report_interval"
 	daemonSubprocessHealthEscalationThresholdPath = "daemon.subprocess_health_escalation_threshold"
 	daemonReloadTimeoutProvidersPath              = "daemon.reload_timeouts.providers"
 	daemonReloadTimeoutMCPPath                    = "daemon.reload_timeouts.mcp"
-	daemonReloadTimeoutBridgesPath                = "daemon.reload_timeouts.bridges"
 )
 
 // DefaultDaemonMemoryReportInterval is the built-in process memory sampling cadence.
@@ -43,7 +40,6 @@ type DaemonConfig struct {
 type DaemonReloadTimeoutsConfig struct {
 	Providers time.Duration `toml:"providers"`
 	MCP       time.Duration `toml:"mcp"`
-	Bridges   time.Duration `toml:"bridges"`
 }
 
 func defaultDaemonConfig(homePaths HomePaths) DaemonConfig {
@@ -60,7 +56,6 @@ func DefaultDaemonReloadTimeoutsConfig() DaemonReloadTimeoutsConfig {
 	return DaemonReloadTimeoutsConfig{
 		Providers: defaultDaemonProviderReloadTimeout,
 		MCP:       defaultDaemonMCPReloadTimeout,
-		Bridges:   defaultDaemonBridgeReloadTimeout,
 	}
 }
 
@@ -102,11 +97,7 @@ func (c DaemonReloadTimeoutsConfig) Validate() error {
 	); err != nil {
 		return err
 	}
-	return validateDaemonReloadTimeout(
-		daemonReloadTimeoutBridgesPath,
-		c.Bridges,
-		maxDaemonBridgeReloadLimit,
-	)
+	return nil
 }
 
 func validateDaemonReloadTimeout(path string, value time.Duration, maxDuration time.Duration) error {

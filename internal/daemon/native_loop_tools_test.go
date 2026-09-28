@@ -16,7 +16,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -61,7 +60,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops:    func() core.LoopService { return service },
 		}, nativeApproveAllPolicyInputs())
 
@@ -102,7 +101,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		var capturedQuery looppkg.CatalogQuery
 		lastRunCreatedAt := time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC)
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					listLoopsFn: func(
@@ -184,7 +183,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		listCalled := false
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					listLoopsFn: func(
@@ -197,7 +196,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 					},
 				}
 			},
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -233,7 +232,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}
 		document := loopAPITestDocument(t, "release", 3, "Release safely")
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{getLoopFn: func(
 					context.Context,
@@ -267,7 +266,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		const profileID = "profile-loop-owner"
 		var captured core.LoopRunListQuery
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					listLoopRunsFn: func(
@@ -314,8 +313,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			t.Fatalf("json.Marshal(loop_create input) error = %v", err)
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Sessions:   nativeTestSessionManager("ws-alpha"),
+			Workspaces: nativeTestWorkspaceService(t),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					patchLoopFn: func(
@@ -362,8 +361,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Sessions:   nativeTestSessionManager("ws-alpha"),
+			Workspaces: nativeTestWorkspaceService(t),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					deleteLoopFn: func(context.Context, string, string) error {
@@ -438,8 +437,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 				domainErr := &looppkg.ReasonError{Code: tc.domainReason, Err: looppkg.ErrInvalidTransition}
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-					Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
-					Workspaces: nativeNetworkTestWorkspaceService(t),
+					Sessions:   nativeTestSessionManager("ws-alpha"),
+					Workspaces: nativeTestWorkspaceService(t),
 					Loops: func() core.LoopService {
 						return &nativeLoopServiceStub{
 							cancelLoopRunFn: func(context.Context, string, string) (contract.LoopMutationResponse, error) {
@@ -589,8 +588,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			),
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Sessions:   nativeTestSessionManager("ws-alpha"),
+			Workspaces: nativeTestWorkspaceService(t),
 			Loops:      func() core.LoopService { return loopSvc },
 		}, nativeApproveAllPolicyInputs())
 
@@ -669,7 +668,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			}}, nil
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops:    func() core.LoopService { return loopSvc },
 		}, nativeApproveAllPolicyInputs())
 		result, err := registry.Call(t.Context(),
@@ -698,7 +697,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		var capturedActor taskpkg.ActorContext
 		var capturedDry bool
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha", "profile-marketing"),
+			Sessions: nativeTestSessionManager("ws-alpha", "profile-marketing"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					runLoopFn: func(
@@ -736,14 +735,6 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 								request.ConfigOverrides.RuntimeRules,
 							)
 						}
-						if request.NetworkParticipation == nil ||
-							request.NetworkParticipation.Mode == nil ||
-							*request.NetworkParticipation.Mode != participation.ModeLocal {
-							t.Fatalf(
-								"RunLoop network participation = %#v, want local request",
-								request.NetworkParticipation,
-							)
-						}
 						capturedStartKind = input.StartKind
 						capturedActor = input.Actor
 						capturedDry = input.Dry
@@ -773,11 +764,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
-					`{"workspace":"ws-alpha","name":"release","inputs":{"target":"prod"},` +
-						`"config_overrides":{"environment":{"mode":"per_run"},"runtime_rules":[` +
-						`{"match":{"type":"frontend","complexity":"high"},"runtime":{"reasoning":"high"}},` +
-						`{"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}}]},` +
-						`"network_participation":{"mode":"local"},"dry":true}`,
+					`{"workspace":"ws-alpha","name":"release","inputs":{"target":"prod"},"config_overrides":{"environment":{"mode":"per_run"},"runtime_rules":[{"match":{"type":"frontend","complexity":"high"},"runtime":{"reasoning":"high"}},{"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}}]},"dry":true}`,
 				),
 			},
 		)
@@ -833,7 +820,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 				called := false
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-					Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+					Sessions: nativeTestSessionManager("ws-alpha"),
 					Loops: func() core.LoopService {
 						return &nativeLoopServiceStub{runLoopFn: func(
 							context.Context,
@@ -872,7 +859,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha", "profile-marketing"),
+			Sessions: nativeTestSessionManager("ws-alpha", "profile-marketing"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					runLoopFn: func(
@@ -912,7 +899,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha", "profile-marketing"),
+			Sessions: nativeTestSessionManager("ws-alpha", "profile-marketing"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					runLoopFn: func(
@@ -973,7 +960,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			t.Fatalf("json.Marshal(loop_validate input) error = %v", err)
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					validateLoopFn: func(
@@ -1014,7 +1001,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		validateCalled := false
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					validateLoopFn: func(
@@ -1081,7 +1068,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		var capturedWorkspaceID string
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Workspaces: apitest.StubWorkspaceService{ResolveFn: func(
 				_ context.Context,
 				ref string,
@@ -1159,8 +1146,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		var loopSvc core.LoopService
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Sessions:   nativeTestSessionManager("ws-alpha"),
+			Workspaces: nativeTestWorkspaceService(t),
 			Loops:      func() core.LoopService { return loopSvc },
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"}
@@ -1196,7 +1183,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		approveCalled := false
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					approveLoopRunFn: func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error {
@@ -1238,7 +1225,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeTestSessionManager("ws-alpha"),
 			Loops:    func() core.LoopService { return &nativeLoopServiceStub{} },
 		}, nativeApproveAllPolicyInputs())
 
@@ -1298,9 +1285,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions:   nativeTestSessionManager("ws-alpha"),
 			Loops:      func() core.LoopService { return loopSvc },
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		for _, sessionID := range []string{"session-origin", "session-bound"} {
@@ -1390,7 +1377,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-goal"),
+			Sessions: nativeTestSessionManager("ws-goal"),
 			Loops:    func() core.LoopService { return loopSvc },
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{WorkspaceID: "ws-goal", SessionID: "session-bound"}
@@ -1469,7 +1456,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-goal"),
+			Sessions: nativeTestSessionManager("ws-goal"),
 			Loops:    func() core.LoopService { return loopSvc },
 		}, nativeApproveAllPolicyInputs())
 		result, err := registry.Call(

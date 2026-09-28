@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -105,13 +106,6 @@ func deadEntityDiagnosticSpec(kind store.DeadEntityKind) (deadEntitySpec, bool) 
 			code:     contract.CodeMCPServerUnavailable,
 			title:    "MCP server is marked dead",
 		}, true
-	case store.DeadEntityKindBridge:
-		return deadEntitySpec{
-			id:       "bridge",
-			category: contract.CategoryBridge,
-			code:     contract.CodeBridgeHealthUnavailable,
-			title:    "Bridge runtime is marked dead",
-		}, true
 	case store.DeadEntityKindExtension:
 		return deadEntitySpec{
 			id:       "extension",
@@ -156,4 +150,22 @@ func deadEntityDiagnosticItem(
 			"marked_at":      markedAt,
 		}),
 	)
+}
+
+func diagnosticIDPart(value string) string {
+	var builder strings.Builder
+	separatorPending := false
+	for _, char := range strings.ToLower(strings.TrimSpace(value)) {
+		switch {
+		case unicode.IsLetter(char), unicode.IsDigit(char):
+			if separatorPending && builder.Len() > 0 {
+				builder.WriteByte('-')
+			}
+			builder.WriteRune(char)
+			separatorPending = false
+		case builder.Len() > 0:
+			separatorPending = true
+		}
+	}
+	return builder.String()
 }

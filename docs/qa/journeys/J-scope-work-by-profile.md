@@ -57,7 +57,7 @@ journey:
       origin: in-app-nav
     - url: "Deep link to /session/{id} or another item owned by a different profile"
       origin: external-share
-    - url: "CLI: compozy session|task|automation|bridge|network list, with --profile and --all-profiles"
+    - url: "CLI: compozy session|task|automation list, with --profile and --all-profiles"
       origin: direct
     - url: "HTTP and UDS: work routes with profile= / all_profiles=true, and /api/sessions/catalog-stream"
       origin: direct
@@ -101,5 +101,5 @@ journey:
     - at_step: 5
       how: "The operator declines the owner banner's switch and closes the tab."
       resume: "Nothing changed: the remembered choice still points at the profile they were in."
-  crosses: [J-operate-profiles, J-command-profiles-from-palette, J-restore-per-profile-state, store-read-scope, session-catalog-stream, list-cursors, observe-and-usage, worktrees, network, bridges, notifications, Web query caches]
+  crosses: [J-operate-profiles, J-command-profiles-from-palette, J-restore-per-profile-state, store-read-scope, session-catalog-stream, list-cursors, observe-and-usage, worktrees, notifications, Web query caches]
 ```

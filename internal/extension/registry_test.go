@@ -264,61 +264,6 @@ func TestRegistryPersistsAgentPluginInstanceMetadata(t *testing.T) {
 	})
 }
 
-func TestRegistryInstallRejectsExternalBridgeAdapters(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	env := newRegistryTestEnv(t)
-	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
-name = "bridge-fixture"
-version = "0.1.0"
-min_compozy_version = "0.6.0"
-
-[capabilities]
-provides = ["bridge.adapter"]
-
-[permissions]
-requires = ["bridges/messages/ingest"]
-
-[bridge]
-platform = "fixture"
-display_name = "Fixture"
-`)
-	manifest, err := LoadManifest(dir)
-	if err != nil {
-		t.Fatalf("LoadManifest() error = %v", err)
-	}
-	checksum, err := ComputeDirectoryChecksum(dir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
-	}
-
-	for _, tt := range []struct {
-		name   string
-		source ExtensionSource
-	}{
-		{name: "Should reject a user bridge adapter", source: SourceUser},
-		{name: "Should reject a workspace bridge adapter", source: SourceWorkspace},
-		{name: "Should reject a marketplace bridge adapter", source: SourceMarketplace},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			err := env.registry.Install(manifest, dir, checksum, WithInstallSource(tt.source))
-			if err == nil {
-				t.Fatalf("Install(source=%s) error = nil, want external bridge rejection", tt.source)
-			}
-			if !strings.Contains(err.Error(), "external bridge authoring is a planned follow-up") {
-				t.Fatalf("Install(source=%s) error = %v, want planned follow-up", tt.source, err)
-			}
-		})
-	}
-
-	t.Run("Should accept a bundled bridge adapter", func(t *testing.T) {
-		if err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceBundled)); err != nil {
-			t.Fatalf("Install(source=bundled) error = %v", err)
-		}
-	})
-}
-
 func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -330,12 +275,12 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 			field  string
 		}{
 			{
-				name: "Should reject missing network participation", slug: "missing-network-participation",
-				field: "network_participation",
+				name: "Should reject missing gateway permissions", slug: "missing-gateway-permissions",
+				field: "gateway",
 			},
 			{
-				name: "Should reject an unrelated live scope", slug: "unrelated-live-scope",
-				scopes: []string{"builders"}, field: "network_participation.channel_scopes",
+				name: "Should reject an unrelated permission", slug: "unrelated-permission",
+				scopes: []string{"unknown.permission"}, field: "gateway.permissions",
 			},
 		} {
 			t.Run(test.name, func(t *testing.T) {
@@ -344,10 +289,12 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 					t,
 					"invalid-connectivity-"+test.slug,
 					registryManifestOptions{
-						capabilities:  []string{"connectivity.provider"},
-						networkScopes: test.scopes,
+						capabilities: []string{"connectivity.provider"},
 					},
 				)
+				if test.scopes != nil {
+					manifest.Gateway = &GatewayRequirement{Permissions: test.scopes}
+				}
 				err := env.registry.Install(manifest, dir, checksum)
 				var validationErr *ManifestValidationError
 				if !errors.As(err, &validationErr) || validationErr.Field != test.field {
@@ -376,8 +323,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 	t.Run("Should reject a workspace-scoped connectivity provider [UT-077]", func(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		dir, manifest, checksum := createRegistryTestExtension(t, "workspace-connectivity", registryManifestOptions{
-			capabilities:  []string{"connectivity.provider"},
-			networkScopes: []string{"gateway.private"},
+			capabilities:       []string{"connectivity.provider"},
+			gatewayPermissions: []string{"gateway.private"},
 		})
 		err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceWorkspace))
 		if err == nil {
@@ -395,21 +342,21 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 			t,
 			"updated-connectivity",
 			registryManifestOptions{
-				capabilities:  []string{"connectivity.provider"},
-				networkScopes: []string{"gateway.private"},
+				capabilities:       []string{"connectivity.provider"},
+				gatewayPermissions: []string{"gateway.private"},
 			},
 		)
 		if err := env.registry.Install(firstManifest, firstDir, firstChecksum); err != nil {
 			t.Fatalf("Install(first) error = %v", err)
 		}
-		firstDigest, err := NetworkParticipationRequirementDigest(firstManifest.NetworkParticipation)
+		firstDigest, err := GatewayRequirementDigest(firstManifest.Gateway)
 		if err != nil {
-			t.Fatalf("NetworkParticipationRequirementDigest(first) error = %v", err)
+			t.Fatalf("GatewayRequirementDigest(first) error = %v", err)
 		}
-		if err := env.registry.ConfirmNetworkRequirement(
+		if err := env.registry.ConfirmGatewayRequirement(
 			GlobalInstanceKey(firstManifest.Name), firstDigest, "operator", env.installedAt,
 		); err != nil {
-			t.Fatalf("ConfirmNetworkRequirement(first) error = %v", err)
+			t.Fatalf("ConfirmGatewayRequirement(first) error = %v", err)
 		}
 		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
 		if err != nil {
@@ -427,8 +374,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 			t,
 			"updated-connectivity",
 			registryManifestOptions{
-				capabilities:  []string{"connectivity.provider"},
-				networkScopes: []string{"gateway.private", "gateway.public"},
+				capabilities:       []string{"connectivity.provider"},
+				gatewayPermissions: []string{"gateway.private", "gateway.public"},
 			},
 		)
 		if err := env.registry.Install(
@@ -448,8 +395,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 	t.Run("Should fail closed when the installed provider artifact changes outside the registry", func(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		dir, manifest, checksum := createRegistryTestExtension(t, "tampered-connectivity", registryManifestOptions{
-			capabilities:  []string{"connectivity.provider"},
-			networkScopes: []string{"gateway.private"},
+			capabilities:       []string{"connectivity.provider"},
+			gatewayPermissions: []string{"gateway.private"},
 		})
 		if err := env.registry.Install(manifest, dir, checksum); err != nil {
 			t.Fatalf("Install() error = %v", err)
@@ -1672,7 +1619,7 @@ min_compozy_version = "0.5.0"
 		}
 	})
 
-	t.Run("Should preserve network confirmation row inspection errors by scope", func(t *testing.T) {
+	t.Run("Should preserve gateway confirmation row inspection errors by scope", func(t *testing.T) {
 		t.Parallel()
 
 		boom := errors.New("rows affected failed")
@@ -1710,9 +1657,9 @@ min_compozy_version = "0.5.0"
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := inspectNetworkConfirmationUpdate(test.result, test.key, "test update")
+				err := inspectGatewayConfirmationUpdate(test.result, test.key, "test update")
 				if !errors.Is(err, test.wantErr) {
-					t.Fatalf("inspectNetworkConfirmationUpdate() error = %v, want %v", err, test.wantErr)
+					t.Fatalf("inspectGatewayConfirmationUpdate() error = %v, want %v", err, test.wantErr)
 				}
 			})
 		}
@@ -1778,10 +1725,10 @@ func (failingHash) Size() int                   { return 0 }
 func (failingHash) BlockSize() int              { return 0 }
 
 type registryManifestOptions struct {
-	capabilities  []string
-	permissions   []string
-	extraFiles    map[string]string
-	networkScopes []string
+	capabilities       []string
+	permissions        []string
+	extraFiles         map[string]string
+	gatewayPermissions []string
 }
 
 func newRegistryTestEnv(t *testing.T) registryTestEnv {
@@ -1894,56 +1841,56 @@ func TestRegistryDBReturnsBackingHandleAndNilSafe(t *testing.T) {
 	}
 }
 
-func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
+func TestRegistryGatewayConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
 	t.Run("Should persist actor attribution only for the exact current digest", func(t *testing.T) {
 		t.Parallel()
 		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "network-confirm", registryManifestOptions{
-			networkScopes: []string{"builders"},
+		dir, manifest, checksum := createRegistryTestExtension(t, "gateway-confirm", registryManifestOptions{
+			gatewayPermissions: []string{"gateway.private"},
 		})
 		if err := env.registry.Install(manifest, dir, checksum); err != nil {
 			t.Fatalf("Install() error = %v", err)
 		}
-		digest, err := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+		digest, err := GatewayRequirementDigest(manifest.Gateway)
 		if err != nil {
-			t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
+			t.Fatalf("GatewayRequirementDigest() error = %v", err)
 		}
 		key := GlobalInstanceKey(manifest.Name)
-		before, err := env.registry.NetworkConfirmation(key)
+		before, err := env.registry.GatewayConfirmation(key)
 		if err != nil {
-			t.Fatalf("NetworkConfirmation(before) error = %v", err)
+			t.Fatalf("GatewayConfirmation(before) error = %v", err)
 		}
 		if before.Digest != digest || before.ConfirmedBy != "" || !before.ConfirmedAt.IsZero() {
-			t.Fatalf("NetworkConfirmation(before) = %#v, want unconfirmed current digest", before)
+			t.Fatalf("GatewayConfirmation(before) = %#v, want unconfirmed current digest", before)
 		}
 
 		stale := strings.Repeat("0", 64)
-		staleConfirmationErr := env.registry.ConfirmNetworkRequirement(key, stale, "operator", env.installedAt)
+		staleConfirmationErr := env.registry.ConfirmGatewayRequirement(key, stale, "operator", env.installedAt)
 		if !errors.Is(
 			staleConfirmationErr,
-			ErrExtensionNetworkConfirmationRequired,
+			ErrExtensionGatewayConfirmationRequired,
 		) {
-			t.Fatalf("ConfirmNetworkRequirement(stale) error = %v", staleConfirmationErr)
+			t.Fatalf("ConfirmGatewayRequirement(stale) error = %v", staleConfirmationErr)
 		}
-		staleErr, staleErrMatched := errors.AsType[*NetworkConfirmationRequiredError](staleConfirmationErr)
+		staleErr, staleErrMatched := errors.AsType[*GatewayConfirmationRequiredError](staleConfirmationErr)
 		if !staleErrMatched ||
 			staleErr.CurrentDigest != digest {
 			t.Fatalf("stale confirmation error = %#v, want current digest %q", staleErr, digest)
 		}
 
 		confirmedAt := env.installedAt.Add(time.Minute)
-		if err := env.registry.ConfirmNetworkRequirement(key, digest, "agent:session-a", confirmedAt); err != nil {
-			t.Fatalf("ConfirmNetworkRequirement() error = %v", err)
+		if err := env.registry.ConfirmGatewayRequirement(key, digest, "agent:session-a", confirmedAt); err != nil {
+			t.Fatalf("ConfirmGatewayRequirement() error = %v", err)
 		}
-		confirmed, err := env.registry.NetworkConfirmation(key)
+		confirmed, err := env.registry.GatewayConfirmation(key)
 		if err != nil {
-			t.Fatalf("NetworkConfirmation(confirmed) error = %v", err)
+			t.Fatalf("GatewayConfirmation(confirmed) error = %v", err)
 		}
 		if confirmed.Digest != digest || confirmed.ConfirmedBy != "agent:session-a" ||
 			!confirmed.ConfirmedAt.Equal(confirmedAt) {
-			t.Fatalf("NetworkConfirmation(confirmed) = %#v", confirmed)
+			t.Fatalf("GatewayConfirmation(confirmed) = %#v", confirmed)
 		}
 		if err := env.registry.Disable(manifest.Name); err != nil {
 			t.Fatalf("Disable() error = %v", err)
@@ -1951,13 +1898,13 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 		if err := env.registry.Enable(manifest.Name); err != nil {
 			t.Fatalf("Enable() error = %v", err)
 		}
-		unchanged, err := env.registry.NetworkConfirmation(key)
+		unchanged, err := env.registry.GatewayConfirmation(key)
 		if err != nil {
-			t.Fatalf("NetworkConfirmation(after toggle) error = %v", err)
+			t.Fatalf("GatewayConfirmation(after toggle) error = %v", err)
 		}
 		if unchanged.ConfirmedBy != "agent:session-a" {
 			t.Fatalf(
-				"NetworkConfirmation(after toggle).ConfirmedBy = %q, want %q",
+				"GatewayConfirmation(after toggle).ConfirmedBy = %q, want %q",
 				unchanged.ConfirmedBy,
 				"agent:session-a",
 			)
@@ -1969,25 +1916,25 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		firstDir, firstManifest, firstChecksum := createRegistryTestExtension(
 			t,
-			"network-rearm",
-			registryManifestOptions{networkScopes: []string{"builders"}},
+			"gateway-rearm",
+			registryManifestOptions{gatewayPermissions: []string{"gateway.private"}},
 		)
 		if err := env.registry.Install(firstManifest, firstDir, firstChecksum); err != nil {
 			t.Fatalf("Install(first) error = %v", err)
 		}
-		firstDigest, err := NetworkParticipationRequirementDigest(firstManifest.NetworkParticipation)
+		firstDigest, err := GatewayRequirementDigest(firstManifest.Gateway)
 		if err != nil {
 			t.Fatalf("first digest error = %v", err)
 		}
 		key := GlobalInstanceKey(firstManifest.Name)
-		if err := env.registry.ConfirmNetworkRequirement(key, firstDigest, "operator", env.installedAt); err != nil {
-			t.Fatalf("ConfirmNetworkRequirement(first) error = %v", err)
+		if err := env.registry.ConfirmGatewayRequirement(key, firstDigest, "operator", env.installedAt); err != nil {
+			t.Fatalf("ConfirmGatewayRequirement(first) error = %v", err)
 		}
 
 		secondDir, secondManifest, secondChecksum := createRegistryTestExtension(
 			t,
-			"network-rearm",
-			registryManifestOptions{networkScopes: []string{"builders", "reviewers"}},
+			"gateway-rearm",
+			registryManifestOptions{gatewayPermissions: []string{"gateway.private", "gateway.public"}},
 		)
 		if err := env.registry.Install(
 			secondManifest,
@@ -1997,44 +1944,44 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 		); err != nil {
 			t.Fatalf("Install(replacement) error = %v", err)
 		}
-		secondDigest, err := NetworkParticipationRequirementDigest(secondManifest.NetworkParticipation)
+		secondDigest, err := GatewayRequirementDigest(secondManifest.Gateway)
 		if err != nil {
 			t.Fatalf("second digest error = %v", err)
 		}
-		confirmation, err := env.registry.NetworkConfirmation(key)
+		confirmation, err := env.registry.GatewayConfirmation(key)
 		if err != nil {
-			t.Fatalf("NetworkConfirmation(replacement) error = %v", err)
+			t.Fatalf("GatewayConfirmation(replacement) error = %v", err)
 		}
 		if confirmation.Digest != secondDigest || confirmation.ConfirmedBy != "" ||
 			!confirmation.ConfirmedAt.IsZero() {
-			t.Fatalf("NetworkConfirmation(replacement) = %#v, want rearmed", confirmation)
+			t.Fatalf("GatewayConfirmation(replacement) = %#v, want rearmed", confirmation)
 		}
 	})
 
-	t.Run("Should leave confirmation columns empty without a network requirement", func(t *testing.T) {
+	t.Run("Should leave confirmation columns empty without a gateway requirement", func(t *testing.T) {
 		t.Parallel()
 		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "network-none", registryManifestOptions{})
+		dir, manifest, checksum := createRegistryTestExtension(t, "gateway-none", registryManifestOptions{})
 		if err := env.registry.Install(manifest, dir, checksum); err != nil {
 			t.Fatalf("Install() error = %v", err)
 		}
 		key := GlobalInstanceKey(manifest.Name)
-		if err := env.registry.ConfirmNetworkRequirement(key, "", "operator", env.installedAt); err != nil {
-			t.Fatalf("ConfirmNetworkRequirement(empty) error = %v", err)
+		if err := env.registry.ConfirmGatewayRequirement(key, "", "operator", env.installedAt); err != nil {
+			t.Fatalf("ConfirmGatewayRequirement(empty) error = %v", err)
 		}
 		info, err := env.registry.Get(manifest.Name)
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
-		if info.NetworkRequirementDigest != "" || info.NetworkConfirmedBy != "" || !info.NetworkConfirmedAt.IsZero() {
-			t.Fatalf("network columns = %#v", info)
+		if info.GatewayRequirementDigest != "" || info.GatewayConfirmedBy != "" || !info.GatewayConfirmedAt.IsZero() {
+			t.Fatalf("gateway columns = %#v", info)
 		}
 	})
 
 	t.Run("Should persist an inspected development candidate before activation", func(t *testing.T) {
 		t.Parallel()
 		env := newRegistryTestEnv(t)
-		key := InstanceKey{Name: "network-dev-candidate", WorkspaceID: "workspace-a"}
+		key := InstanceKey{Name: "gateway-dev-candidate", WorkspaceID: "workspace-a"}
 		origin := t.TempDir()
 		initialDigest := strings.Repeat("1", 64)
 		if _, err := env.registry.LinkDev(DevLinkRequest{
@@ -2042,28 +1989,28 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 			WorkspaceID:              key.WorkspaceID,
 			OriginPath:               origin,
 			GenerationHash:           strings.Repeat("a", 64),
-			NetworkRequirementDigest: initialDigest,
+			GatewayRequirementDigest: initialDigest,
 		}); err != nil {
 			t.Fatalf("LinkDev(initial) error = %v", err)
 		}
 		candidateDigest := strings.Repeat("2", 64)
 		confirmedAt := env.installedAt.Add(2 * time.Minute)
-		if err := env.registry.ConfirmDevelopmentNetworkCandidate(
+		if err := env.registry.ConfirmDevelopmentGatewayCandidate(
 			key,
 			candidateDigest,
 			"agent:session-dev",
 			confirmedAt,
 		); err != nil {
-			t.Fatalf("ConfirmDevelopmentNetworkCandidate() error = %v", err)
+			t.Fatalf("ConfirmDevelopmentGatewayCandidate() error = %v", err)
 		}
 		beforeActivation, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
 		if err != nil {
 			t.Fatalf("GetDevLink(before activation) error = %v", err)
 		}
 		if beforeActivation.BundleGeneration != strings.Repeat("a", 64) ||
-			beforeActivation.NetworkRequirementDigest != candidateDigest ||
-			beforeActivation.NetworkConfirmedBy != "agent:session-dev" ||
-			!beforeActivation.NetworkConfirmedAt.Equal(confirmedAt) {
+			beforeActivation.GatewayRequirementDigest != candidateDigest ||
+			beforeActivation.GatewayConfirmedBy != "agent:session-dev" ||
+			!beforeActivation.GatewayConfirmedAt.Equal(confirmedAt) {
 			t.Fatalf("development confirmation before activation = %#v", beforeActivation)
 		}
 		linkedCandidate, err := env.registry.LinkDev(DevLinkRequest{
@@ -2071,21 +2018,21 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 			WorkspaceID:              key.WorkspaceID,
 			OriginPath:               origin,
 			GenerationHash:           strings.Repeat("b", 64),
-			NetworkRequirementDigest: candidateDigest,
+			GatewayRequirementDigest: candidateDigest,
 		})
 		if err != nil {
 			t.Fatalf("LinkDev(candidate) error = %v", err)
 		}
-		if linkedCandidate.NetworkConfirmedBy != "agent:session-dev" ||
-			!linkedCandidate.NetworkConfirmedAt.Equal(confirmedAt) {
+		if linkedCandidate.GatewayConfirmedBy != "agent:session-dev" ||
+			!linkedCandidate.GatewayConfirmedAt.Equal(confirmedAt) {
 			t.Fatalf("LinkDev(candidate) = %#v, want preserved confirmation tuple", linkedCandidate)
 		}
 		afterActivation, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
 		if err != nil {
 			t.Fatalf("GetDevLink(after activation) error = %v", err)
 		}
-		if afterActivation.NetworkConfirmedBy != "agent:session-dev" ||
-			!afterActivation.NetworkConfirmedAt.Equal(confirmedAt) {
+		if afterActivation.GatewayConfirmedBy != "agent:session-dev" ||
+			!afterActivation.GatewayConfirmedAt.Equal(confirmedAt) {
 			t.Fatalf("development confirmation after activation = %#v, want preserved tuple", afterActivation)
 		}
 	})
@@ -2094,14 +2041,14 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 		t.Parallel()
 
 		env := newRegistryTestEnv(t)
-		err := env.registry.ConfirmDevelopmentNetworkCandidate(
+		err := env.registry.ConfirmDevelopmentGatewayCandidate(
 			InstanceKey{Name: "missing-dev", WorkspaceID: "workspace-a"},
 			strings.Repeat("3", 64),
 			"agent:session-dev",
 			env.installedAt,
 		)
 		if !errors.Is(err, ErrExtensionNotDevLinked) {
-			t.Fatalf("ConfirmDevelopmentNetworkCandidate() error = %v, want ErrExtensionNotDevLinked", err)
+			t.Fatalf("ConfirmDevelopmentGatewayCandidate() error = %v, want ErrExtensionNotDevLinked", err)
 		}
 	})
 }
@@ -2143,14 +2090,12 @@ func registryManifestTOML(name string, opts registryManifestOptions) string {
 		permissions = []string{"sessions/list"}
 	}
 
-	networkBlock := ""
-	if len(opts.networkScopes) > 0 {
-		networkBlock = fmt.Sprintf(`
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = %s
-`, tomlStringArray(opts.networkScopes))
+	gatewayBlock := ""
+	if len(opts.gatewayPermissions) > 0 {
+		gatewayBlock = fmt.Sprintf(`
+[gateway]
+permissions = %s
+`, tomlStringArray(opts.gatewayPermissions))
 	}
 	return fmt.Sprintf(
 		`[extension]
@@ -2168,7 +2113,7 @@ requires = %s
 		name,
 		tomlStringArray(capabilities),
 		tomlStringArray(permissions),
-		networkBlock,
+		gatewayBlock,
 	)
 }
 

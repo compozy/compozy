@@ -30,7 +30,6 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	"github.com/compozy/compozy/internal/resources"
-	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -40,15 +39,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func nativeNetworkExtensionDownloadResult(
+func nativeGatewayExtensionDownloadResult(
 	t *testing.T,
 	version string,
-	channelScope string,
+	permission string,
 ) *registrypkg.DownloadResult {
 	t.Helper()
 
 	return &registrypkg.DownloadResult{
-		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithNetwork(t, version, channelScope))),
+		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithGateway(t, version, permission))),
 		Slug:        "acme/tool-ext",
 		Version:     version,
 		ContentSize: -1,
@@ -80,8 +79,8 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		})
 
 		deps.ExtensionRuntime = func() extensionRuntime { return inspectionRuntime }
-		source.downloads["1.0.0"] = nativeNetworkExtensionDownloadResult(t, "1.0.0", "builders")
-		source.downloads["2.0.0"] = nativeNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
+		source.downloads["1.0.0"] = nativeGatewayExtensionDownloadResult(t, "1.0.0", "gateway.private")
+		source.downloads["2.0.0"] = nativeGatewayExtensionDownloadResult(t, "2.0.0", "gateway.public")
 		source.latestVersion = "1.0.0"
 		automation, ok := deps.Automation.(extensionAutomationPreviewer)
 		if !ok {
@@ -112,23 +111,23 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			ActorKind:   string(taskpkg.ActorKindAgentSession),
 		}
 
-		firstDigest := nativeIntegrationNetworkDigest(t, "builders")
+		firstDigest := nativeIntegrationGatewayDigest(t, "gateway.private")
 		_, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input:  json.RawMessage(`{"source":"github","ref":"acme/tool-ext","allow_unverified":true}`),
 		})
-		if !errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired) {
+		if !errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired) {
 			t.Fatalf("Registry.Call(extensions_install without confirmation) error = %v", err)
 		}
 		if _, err := extRegistry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("registry after unconfirmed install error = %v, want not found", err)
 		}
-		source.downloads["1.0.0"] = nativeNetworkExtensionDownloadResult(t, "1.0.0", "builders")
+		source.downloads["1.0.0"] = nativeGatewayExtensionDownloadResult(t, "1.0.0", "gateway.private")
 		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input: json.RawMessage(
 				fmt.Sprintf(
-					`{"source":"github","ref":"acme/tool-ext","allow_unverified":true,"confirm_network_digest":%q}`,
+					`{"source":"github","ref":"acme/tool-ext","allow_unverified":true,"confirm_gateway_digest":%q}`,
 					firstDigest,
 				),
 			),
@@ -164,19 +163,19 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				Input:  json.RawMessage("{\"name\":\"tool-ext\",\"allow_unverified\":true}"),
 			},
 		)
-		if !errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired) {
+		if !errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired) {
 			t.Fatalf("Registry.Call(extensions_update without confirmation) error = %v", err)
 		}
 		unchanged, err := extRegistry.Get("tool-ext")
 		if err != nil || unchanged.Version != "1.0.0" {
 			t.Fatalf("extension after refused update = %#v, %v, want version 1.0.0", unchanged, err)
 		}
-		source.downloads["2.0.0"] = nativeNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
-		secondDigest := nativeIntegrationNetworkDigest(t, "reviewers")
+		source.downloads["2.0.0"] = nativeGatewayExtensionDownloadResult(t, "2.0.0", "gateway.public")
+		secondDigest := nativeIntegrationGatewayDigest(t, "gateway.public")
 		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsUpdate,
 			Input: json.RawMessage(fmt.Sprintf(
-				`{"name":"tool-ext","allow_unverified":true,"confirm_network_digest":%q}`,
+				`{"name":"tool-ext","allow_unverified":true,"confirm_gateway_digest":%q}`,
 				secondDigest,
 			)),
 		}); err != nil {
@@ -189,10 +188,10 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if updated.Version != "2.0.0" {
 			t.Fatalf("updated version = %q, want 2.0.0", updated.Version)
 		}
-		confirmation, err := extRegistry.NetworkConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
+		confirmation, err := extRegistry.GatewayConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
 		if err != nil || confirmation.Digest != secondDigest ||
 			confirmation.ConfirmedBy != "agent:native-agent-session" {
-			t.Fatalf("updated network confirmation = %#v, %v", confirmation, err)
+			t.Fatalf("updated gateway confirmation = %#v, %v", confirmation, err)
 		}
 
 		disabledResult, err := registry.Call(
@@ -582,15 +581,15 @@ func assertNativeExtensionInventoryParity(
 	}
 }
 
-func nativeIntegrationNetworkDigest(t *testing.T, channelScope string) string {
+func nativeIntegrationGatewayDigest(t *testing.T, permission string) string {
 	t.Helper()
-	digest, err := extensionpkg.NetworkParticipationRequirementDigest(
-		&extensionpkg.NetworkParticipationRequirement{
-			Required: true, Mode: "live", ChannelScopes: []string{channelScope},
+	digest, err := extensionpkg.GatewayRequirementDigest(
+		&extensionpkg.GatewayRequirement{
+			Permissions: []string{permission},
 		},
 	)
 	if err != nil {
-		t.Fatalf("NetworkParticipationRequirementDigest() error = %v", err)
+		t.Fatalf("GatewayRequirementDigest() error = %v", err)
 	}
 	return digest
 }
@@ -917,14 +916,9 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	}); err != nil {
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
-	sandboxRegistry, err := sandboxlocal.NewRegistry()
-	if err != nil {
-		t.Fatal(err)
-	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(deps.HomePaths),
 		session.WithDriver(newHarnessIntegrationDriver()),
-		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolved}),
 		session.WithSessionIDGenerator(func() (string, error) { return id, nil }),
 	)

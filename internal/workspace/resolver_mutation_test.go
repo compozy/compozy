@@ -1038,8 +1038,7 @@ func TestUnregisterFinalizationRecovery(t *testing.T) {
 
 		workspace := Workspace{
 			ID: "ws_restart_finalization", RootDir: t.TempDir(), Name: "restart",
-			AdditionalDirs: []string{t.TempDir()}, DefaultAgent: "coder", SandboxRef: "sandbox-a",
-		}
+			AdditionalDirs: []string{t.TempDir()}, DefaultAgent: "coder"}
 		store := newMockWorkspaceStore(workspace)
 		commitErr := errors.New("daemon stopped during finalization")
 		firstPreparation := &recordingUnregisterPreparation{commitErr: commitErr}
@@ -1070,7 +1069,7 @@ func TestUnregisterFinalizationRecovery(t *testing.T) {
 		}
 		if recovered.ID != workspace.ID || recovered.RootDir != workspace.RootDir ||
 			!slices.Equal(recovered.AdditionalDirs, workspace.AdditionalDirs) ||
-			recovered.DefaultAgent != workspace.DefaultAgent || recovered.SandboxRef != workspace.SandboxRef {
+			recovered.DefaultAgent != workspace.DefaultAgent {
 			t.Fatalf("recovered workspace = %#v, want durable snapshot %#v", recovered, workspace)
 		}
 		if secondPreparation.beforeDeletes != 1 || secondPreparation.commits != 1 {

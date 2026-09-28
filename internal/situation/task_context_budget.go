@@ -114,7 +114,7 @@ func runReviewSummary(
 }
 
 func reviewReviewerLabel(review taskpkg.RunReview) string {
-	return firstTrimmed(review.ReviewerAgentName, review.ReviewerPeerID, review.ReviewerSessionID)
+	return firstTrimmed(review.ReviewerAgentName, review.ReviewerSessionID)
 }
 
 func formatOptionalTime(value time.Time) string {

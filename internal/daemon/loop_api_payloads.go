@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func loopDefinitionPayload(
@@ -105,37 +104,36 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		return contract.LoopRunPayload{}, err
 	}
 	payload := contract.LoopRunPayload{
-		ID:                           string(run.ID),
-		ProfileID:                    run.ProfileID,
-		WorkspaceID:                  string(run.WorkspaceID),
-		LoopName:                     run.LoopName,
-		Status:                       contract.LoopRunStatus(run.Status),
-		Historical:                   run.Historical,
-		CompletionState:              contract.LoopCompletionState(run.CompletionStateSnapshot()),
-		Generation:                   int64(run.Generation),
-		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
-		CreatedAt:                    run.CreatedAt,
-		StartedAt:                    run.StartedAt,
-		LastProgressAt:               run.LastProgressAt,
-		CompletedAt:                  cloneOptional(run.CompletedAt),
-		StartedByKind:                string(run.StartedBy.Kind),
-		StartedByRef:                 run.StartedBy.Ref,
-		StartedOriginKind:            string(run.StartedOrigin.Kind),
-		StartedOriginRef:             run.StartedOrigin.Ref,
-		DefinitionVersion:            run.DefinitionVersion,
-		DefinitionDigest:             run.DefinitionDigest,
-		ActiveGateID:                 string(run.ActiveGateID),
-		BudgetApprovalSeq:            run.BudgetApprovalSeq,
-		StartMetadata:                startMetadata,
-		IterationCap:                 run.IterationCap,
-		BudgetTokens:                 run.BudgetTokens,
-		BudgetWallSec:                run.BudgetWallSec,
-		BudgetOnExceeded:             contract.LoopBudgetExceeded(run.BudgetOnExceeded),
-		TokensUsed:                   run.TokensUsed,
-		ParentLoopRunID:              string(run.ParentLoopRunID),
-		PauseRequested:               run.PauseRequested,
-		Inputs:                       inputs,
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		ID:                string(run.ID),
+		ProfileID:         run.ProfileID,
+		WorkspaceID:       string(run.WorkspaceID),
+		LoopName:          run.LoopName,
+		Status:            contract.LoopRunStatus(run.Status),
+		Historical:        run.Historical,
+		CompletionState:   contract.LoopCompletionState(run.CompletionStateSnapshot()),
+		Generation:        int64(run.Generation),
+		ReattemptStrategy: contract.LoopReattemptStrategy(run.ReattemptStrategy),
+		CreatedAt:         run.CreatedAt,
+		StartedAt:         run.StartedAt,
+		LastProgressAt:    run.LastProgressAt,
+		CompletedAt:       cloneOptional(run.CompletedAt),
+		StartedByKind:     string(run.StartedBy.Kind),
+		StartedByRef:      run.StartedBy.Ref,
+		StartedOriginKind: string(run.StartedOrigin.Kind),
+		StartedOriginRef:  run.StartedOrigin.Ref,
+		DefinitionVersion: run.DefinitionVersion,
+		DefinitionDigest:  run.DefinitionDigest,
+		ActiveGateID:      string(run.ActiveGateID),
+		BudgetApprovalSeq: run.BudgetApprovalSeq,
+		StartMetadata:     startMetadata,
+		IterationCap:      run.IterationCap,
+		BudgetTokens:      run.BudgetTokens,
+		BudgetWallSec:     run.BudgetWallSec,
+		BudgetOnExceeded:  contract.LoopBudgetExceeded(run.BudgetOnExceeded),
+		TokensUsed:        run.TokensUsed,
+		ParentLoopRunID:   string(run.ParentLoopRunID),
+		PauseRequested:    run.PauseRequested,
+		Inputs:            inputs,
 	}
 	payload.BestGeneration = cloneOptional(run.BestGeneration)
 	payload.BestScore = cloneOptional(run.BestScore)

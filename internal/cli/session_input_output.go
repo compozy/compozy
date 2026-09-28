@@ -16,7 +16,7 @@ func sessionInputListBundle(response SessionInputListRecord) outputBundle {
 		[]string{"ID", "MODE", cliStatusHeader, "DELIVERY", "TARGET TURN", "TEXT", "QUEUED AT"},
 		"session_inputs",
 		[]string{
-			"id", bridgeModeKey, automationStatusKey, cliDeliveryKey, "target_turn_id", sessionClarifyTextFlag,
+			"id", cliOutputModeKey, automationStatusKey, cliDeliveryKey, "target_turn_id", sessionClarifyTextFlag,
 			"enqueued_at",
 		},
 		func(input SessionInputRecord) []string {
@@ -73,8 +73,8 @@ func sessionInputRows(input SessionInputRecord) []keyValue {
 
 func sessionInputFields() []string {
 	return []string{
-		"id", bridgeSessionIDKey, "message_id", "idempotency_key", "target_turn_id", automationStatusKey,
-		bridgeModeKey, cliDeliveryKey,
+		"id", cliOutputSessionIDKey, "message_id", "idempotency_key", "target_turn_id", automationStatusKey,
+		cliOutputModeKey, cliDeliveryKey,
 		sessionClarifyTextFlag, "queue_generation", "enqueued_at", cliRuntimeKey,
 	}
 }

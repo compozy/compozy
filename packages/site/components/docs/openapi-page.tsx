@@ -13,7 +13,7 @@ import { createOpenAPIPage } from "fumadocs-openapi/ui";
 
 export type { OpenAPIPageProps_Preloaded } from "fumadocs-openapi/ui";
 
-// CompozyOS's operator stack: curl for anyone, JS/TS for bridge SDK users, Go
+// CompozyOS's operator stack: curl for anyone, JS/TS for extension SDK users, Go
 // for runtime developers, Python for agent tooling. The full default registry
 // (7 languages) overflows the example column and adds noise.
 function goString(value: string): string {

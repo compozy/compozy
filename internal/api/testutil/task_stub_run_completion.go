@@ -28,17 +28,6 @@ func (s *StubTaskManager) FailRunLease(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s *StubTaskManager) SettleNetworkWake(
-	ctx context.Context,
-	settlement taskpkg.NetworkWakeSettlement,
-	actor taskpkg.ActorContext,
-) (*taskpkg.NetworkWakeSettlementResult, error) {
-	if s.SettleNetworkWakeFn != nil {
-		return s.SettleNetworkWakeFn(ctx, settlement, actor)
-	}
-	return nil, taskpkg.ErrTaskRunNotFound
-}
-
 func (s *StubTaskManager) LookupActiveRunForSession(
 	ctx context.Context,
 	sessionID string,

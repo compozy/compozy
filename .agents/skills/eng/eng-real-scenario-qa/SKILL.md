@@ -7,7 +7,7 @@ argument-hint: "[playbook-ref]"
 
 # Real Scenario QA
 
-Execute release-grade QA by running an entire fictional startup project on the Compozy runtime and observing the result. The runtime drives the work; the observer never tells agents they are being evaluated. The auditor enforces real deliverables (compiled/parsed/runnable artifacts) and real collaboration (peer messages, review cycles, disagreement resolution).
+Execute release-grade QA by running an entire fictional startup project on the Compozy runtime and observing the result. The runtime drives the work; the observer never tells agents they are being evaluated. The auditor enforces real deliverables (compiled/parsed/runnable artifacts) and real collaboration (review cycles, disagreement resolution).
 
 The skill rejects any prompt that frames the work as QA. See `references/forbidden-prompt-phrases.md`.
 
@@ -47,7 +47,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 **Step 4: Post the Operator Kickoff**
 
-1. After runtime agents, sessions, channels, and the deterministic task ids from `.compozy/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
+1. After runtime agents, sessions, and the deterministic task ids from `.compozy/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --compozy-bin "${COMPOZY_BIN:-compozy}"`
 2. Render and validate the kickoff payload (mutating only the inspectable payload file):
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
@@ -67,7 +67,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/observe-runtime.py --scenario-workspace "$WORKSPACE_PATH" --runtime-workspace "$RUNTIME_WORKSPACE_PATH" --workspace-id "$RUNTIME_WORKSPACE_ID" --api-base-url "$COMPOZY_WEB_API_PROXY_TARGET" --compozy-home "$COMPOZY_HOME" --compozy-bin "${COMPOZY_BIN:-compozy}" --qa-output-path "$QA_OUTPUT_PATH" --duration-sec 1800 --stall-threshold-sec 300`
 2. Before polling, the observer requires `workspace info "$RUNTIME_WORKSPACE_ID"` to resolve to `RUNTIME_WORKSPACE_PATH`. It then derives progress only from public Task catalog/detail, Loop runs, `loop why`, and `loop events` reads. It records only durable state transitions in `observation-summary.json`; `journey-log.jsonl` remains supporting evidence and never controls the stall clock.
 3. While the observer polls, capture cross-surface evidence without directing agents:
-   - CLI: independently capture `compozy task list --workspace "$RUNTIME_WORKSPACE_ID" -o json`, plus agent, channel, and session lists against the same isolated `COMPOZY_HOME`.
+   - CLI: independently capture `compozy task list --workspace "$RUNTIME_WORKSPACE_ID" -o json`, plus agent and session lists against the same isolated `COMPOZY_HOME`.
    - API: read endpoints that intersect the playbook's primary domain.
    - Web: open the Compozy web app via `browser-use:browser` (or the `agent-browser` fallback) against `$COMPOZY_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
    - Runtime: compare the independent Task catalog capture with the observer's Task account for the same window.
@@ -87,7 +87,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 5. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All durable bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
    - **C15** forbidden phrase in a prompt → rewrite the playbook source (system_prompt or kickoff_brief), not the auditor or the regex list.
    - **C16** deliverable count short → file a runtime bug (which Compozy agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
-   - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
+   - **C17** collaboration loop short → file a runtime bug describing which agent or review cycle did not complete. Cite journey-log timestamps.
    - **C18** stall → the registry bug is mandatory and must name the silent agent and stalled task.
 6. After a fix, rerun affected checks and the failed journey, then refresh invalidated gate/audit evidence. Unchanged passing evidence remains valid; a final PASS still requires the strict auditor to accept the resulting execution.
    Observer changes use the read-only verification helper:

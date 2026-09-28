@@ -179,7 +179,7 @@ func newHTTPModelCatalogRouter(
 ) http.Handler {
 	t.Helper()
 
-	cfg := testConfigWithDisabledNetwork(newTestHomePaths(t))
+	cfg := testConfigForTest(newTestHomePaths(t))
 	cfg.HTTP.Host = boundHost
 	cfg.HTTP.Port = 2123
 	handlers := newHandlers(&handlerConfig{

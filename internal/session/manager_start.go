@@ -14,11 +14,10 @@ import (
 )
 
 type sessionStartRuntime struct {
-	startupManifest     acp.StartupManifest
-	agent               compozyconfig.ResolvedAgent
-	agentDef            compozyconfig.AgentDef
-	mcpServers          []compozyconfig.MCPServer
-	networkCapabilities []NetworkPeerCapability
+	startupManifest acp.StartupManifest
+	agent           compozyconfig.ResolvedAgent
+	agentDef        compozyconfig.AgentDef
+	mcpServers      []compozyconfig.MCPServer
 }
 
 type sessionStartStorage struct {
@@ -57,9 +56,6 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve resume workspace for %q: %w", meta.ID, err)
-	}
-	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), resolvedWorkspace.ID); err != nil {
-		return sessionStartSpec{}, fmt.Errorf("session: validate resume participation for %q: %w", meta.ID, err)
 	}
 	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, resolvedWorkspace.ID, meta.WorktreeIDValue())
 	if err != nil {
@@ -115,23 +111,18 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 func (m *Manager) startAgentProcess(
 	ctx context.Context,
 	spec *sessionStartSpec,
-	session *Session,
 	startOpts acp.StartOpts,
 ) (*AgentProcess, error) {
 	logger := spec.startLogger(m).With("resolved_provider", startOpts.ProviderName)
 	logger.Info("session.provider_route.selected", "phase", spec.startAction)
-	transportStarted := time.Now()
 	proc, err := m.driver.Start(ctx, startOpts)
 	if err != nil {
 		logger.Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
-		m.logSandboxTransport(session, sandboxEventTransportError, err, time.Since(transportStarted))
 		return proc, startupFailure(
 			"agent runtime startup failed",
 			fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err),
 		)
 	}
-	m.logSandboxTransport(session, sandboxEventTransportConnect, nil, time.Since(transportStarted))
-	proc.configureRuntime(session.CurrentTurnSource)
 	return proc, nil
 }
 
@@ -162,19 +153,18 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupPromptContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	return StartupPromptContext{
-		SessionID:            strings.TrimSpace(s.sessionID),
-		ProfileID:            strings.TrimSpace(s.profileID),
-		SessionName:          strings.TrimSpace(s.sessionName),
-		AgentName:            strings.TrimSpace(s.agentName),
-		Provider:             strings.TrimSpace(s.provider),
-		WorkspaceID:          ref.WorkspaceID,
-		Workspace:            ref.Workspace,
-		WorktreeID:           strings.TrimSpace(s.worktreeID),
-		NetworkParticipation: s.networkParticipation,
-		SessionType:          normalizeSessionType(s.sessionType),
-		SpawnRole:            store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole,
-		SoulSnapshot:         cloneSoulSnapshotPointer(s.soulSnapshot),
-		CreatedAt:            s.createdAt,
-		UpdatedAt:            updatedAt,
+		SessionID:    strings.TrimSpace(s.sessionID),
+		ProfileID:    strings.TrimSpace(s.profileID),
+		SessionName:  strings.TrimSpace(s.sessionName),
+		AgentName:    strings.TrimSpace(s.agentName),
+		Provider:     strings.TrimSpace(s.provider),
+		WorkspaceID:  ref.WorkspaceID,
+		Workspace:    ref.Workspace,
+		WorktreeID:   strings.TrimSpace(s.worktreeID),
+		SessionType:  normalizeSessionType(s.sessionType),
+		SpawnRole:    store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole,
+		SoulSnapshot: cloneSoulSnapshotPointer(s.soulSnapshot),
+		CreatedAt:    s.createdAt,
+		UpdatedAt:    updatedAt,
 	}
 }

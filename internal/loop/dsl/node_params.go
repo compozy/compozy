@@ -173,11 +173,8 @@ type RetrySpec struct {
 
 // HarvestSpec configures action output harvest semantics.
 type HarvestSpec struct {
-	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"`
-	Window      string         `json:"window,omitempty"       yaml:"window,omitempty"`
-	Responder   string         `json:"responder,omitempty"    yaml:"responder,omitempty"`
-	ContentRule string         `json:"content_rule,omitempty" yaml:"content_rule,omitempty"`
-	Extra       map[string]any `json:"-"                      yaml:",inline"`
+	Kind  string         `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Extra map[string]any `json:"-"              yaml:",inline"`
 }
 
 // FileParseKind is the closed file-import parse mode vocabulary.

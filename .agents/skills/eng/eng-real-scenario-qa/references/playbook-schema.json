@@ -12,7 +12,6 @@
     "kickoff_brief",
     "workspaces",
     "agents",
-    "channels",
     "knowledge_files",
     "open_tasks",
     "required_deliverables",
@@ -102,20 +101,6 @@
         }
       }
     },
-    "channels": {
-      "type": "array",
-      "minItems": 4,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "purpose"],
-        "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "purpose": { "type": "string", "minLength": 1 },
-          "primary_workspace": { "type": "string", "pattern": "^ws_[a-z0-9_]+$" }
-        }
-      }
-    },
     "knowledge_files": {
       "type": "array",
       "minItems": 3,
@@ -164,8 +149,7 @@
             ]
           },
           "deliverable_path_hint": { "type": "string" },
-          "review_required_by": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "channel": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+          "review_required_by": { "type": "string", "pattern": "^[a-z0-9-]+$" }
         }
       }
     },
@@ -177,12 +161,10 @@
     "required_collaboration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["peer_messages_min", "review_cycles_min", "disagreements_resolved_min"],
+      "required": ["review_cycles_min", "disagreements_resolved_min"],
       "properties": {
-        "peer_messages_min": { "type": "integer", "minimum": 1 },
         "review_cycles_min": { "type": "integer", "minimum": 1 },
-        "disagreements_resolved_min": { "type": "integer", "minimum": 0 },
-        "channels_active_min": { "type": "integer", "minimum": 1 }
+        "disagreements_resolved_min": { "type": "integer", "minimum": 0 }
       }
     },
     "disruption_probe_seeds": {
@@ -196,7 +178,7 @@
           "seed_at_minute": { "type": "integer", "minimum": 0 },
           "delivery": {
             "type": "string",
-            "enum": ["knowledge_file", "channel_message", "task_event", "config_change"],
+            "enum": ["knowledge_file", "task_event", "config_change"],
             "description": "How the disruption is introduced into the runtime state. Never as a direct prompt to an agent."
           },
           "expected_recovery": { "type": "string", "minLength": 1 }

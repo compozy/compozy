@@ -2,8 +2,6 @@ package hooks
 
 import (
 	"strings"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // ContextCompactPayload is shared by context compaction hooks.
@@ -42,19 +40,21 @@ type AutonomyObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
+// AuthoredContextObservationPatch captures labels on soul and heartbeat observations.
+type AuthoredContextObservationPatch = AutonomyObservationPatch
+
 // CoordinatorContext carries the coordinator identifiers shared across coordinator hooks.
 type CoordinatorContext struct {
-	ProfileID                    string              `json:"profile_id,omitempty"`
-	WorkspaceID                  string              `json:"workspace_id,omitempty"`
-	Workspace                    string              `json:"workspace,omitempty"`
-	AgentName                    string              `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string              `json:"coordinator_session_id,omitempty"`
-	TaskID                       string              `json:"task_id,omitempty"`
-	RunID                        string              `json:"run_id,omitempty"`
-	WorkflowID                   string              `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
-	Provider                     string              `json:"provider,omitempty"`
-	Model                        string              `json:"model,omitempty"`
+	ProfileID            string `json:"profile_id,omitempty"`
+	WorkspaceID          string `json:"workspace_id,omitempty"`
+	Workspace            string `json:"workspace,omitempty"`
+	AgentName            string `json:"agent_name,omitempty"`
+	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
+	TaskID               string `json:"task_id,omitempty"`
+	RunID                string `json:"run_id,omitempty"`
+	WorkflowID           string `json:"workflow_id,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model,omitempty"`
 }
 
 // HookProfileID returns the durable owner used to isolate profile-scoped declarations.

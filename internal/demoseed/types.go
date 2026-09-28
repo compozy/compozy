@@ -18,25 +18,23 @@ type Options struct {
 
 // Counts summarizes the durable records created by a seed run.
 type Counts struct {
-	Workspaces          int `json:"workspaces"`
-	Agents              int `json:"agents"`
-	Sessions            int `json:"sessions"`
-	Tasks               int `json:"tasks"`
-	TaskRuns            int `json:"task_runs"`
-	NetworkMessages     int `json:"network_messages"`
-	LoopDefinitions     int `json:"loop_definitions"`
-	LoopRuns            int `json:"loop_runs"`
-	LoopGenerations     int `json:"loop_generations"`
-	LoopRunEvents       int `json:"loop_run_events"`
-	GoalTurns           int `json:"goal_turns"`
-	Memories            int `json:"memories"`
-	EventSummaries      int `json:"event_summaries"`
-	TokenUsageDays      int `json:"token_usage_days"`
-	Worktrees           int `json:"worktrees"`
-	NotificationPresets int `json:"notification_presets"`
-	AutomationJobs      int `json:"automation_jobs"`
-	AutomationRuns      int `json:"automation_runs"`
-	TranscriptEvents    int `json:"transcript_events"`
+	Workspaces       int `json:"workspaces"`
+	Agents           int `json:"agents"`
+	Sessions         int `json:"sessions"`
+	Tasks            int `json:"tasks"`
+	TaskRuns         int `json:"task_runs"`
+	LoopDefinitions  int `json:"loop_definitions"`
+	LoopRuns         int `json:"loop_runs"`
+	LoopGenerations  int `json:"loop_generations"`
+	LoopRunEvents    int `json:"loop_run_events"`
+	GoalTurns        int `json:"goal_turns"`
+	Memories         int `json:"memories"`
+	EventSummaries   int `json:"event_summaries"`
+	TokenUsageDays   int `json:"token_usage_days"`
+	Worktrees        int `json:"worktrees"`
+	AutomationJobs   int `json:"automation_jobs"`
+	AutomationRuns   int `json:"automation_runs"`
+	TranscriptEvents int `json:"transcript_events"`
 }
 
 // Result identifies the seeded workspaces and the shortest useful demo routes.
@@ -49,8 +47,6 @@ type Result struct {
 	WorkspaceIDs     []string `json:"workspace_ids"`
 	SessionIDs       []string `json:"session_ids"`
 	TaskIDs          []string `json:"task_ids"`
-	NetworkChannel   string   `json:"network_channel"`
-	NetworkThreadID  string   `json:"network_thread_id"`
 	LoopName         string   `json:"loop_name"`
 	LoopNames        []string `json:"loop_names"`
 	LoopRunID        string   `json:"loop_run_id"`

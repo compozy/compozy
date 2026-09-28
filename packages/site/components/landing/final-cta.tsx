@@ -28,11 +28,11 @@ export function FinalCta() {
             Install the beta
           </CtaButton>
           <CtaButton
-            href="/docs/network/protocol"
+            href="/docs/getting-started/installation"
             variant="ghost"
             className="w-full justify-center sm:w-auto"
           >
-            Read compozy-network/v0 spec
+            Read the installation guide
           </CtaButton>
           <a
             href={baseOptions.githubUrl}

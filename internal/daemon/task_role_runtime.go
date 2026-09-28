@@ -11,7 +11,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -23,7 +22,7 @@ const (
 	// nothing cannot pile up; released work re-queues and re-escalates from the durable budget.
 	defaultStarvationWorkerTTL = 15 * time.Minute
 	// defaultStarvationMaxActivePerWorkspace is advisory metadata on the spawn budget; the real
-	// per-(agent, channel, scope) cap is the role-session dedup in activeRoleSession.
+	// per-(agent, scope) cap is the role-session dedup in activeRoleSession.
 	defaultStarvationMaxActivePerWorkspace = 3
 )
 
@@ -68,21 +67,21 @@ type taskRoleRuntime struct {
 }
 
 type taskRoleActivation struct {
-	TaskID               string
-	RunID                string
-	Scope                taskpkg.Scope
-	WorkspaceID          string
-	WorkspacePath        string
-	AgentName            string
-	Provider             string
-	Model                string
-	NetworkParticipation *participation.Spec
-	Title                string
-	Profile              *taskpkg.ExecutionProfile
-	Worktree             taskpkg.WorktreePolicy
-	Capabilities         []string
-	Designation          taskpkg.RunDesignation
-	HasDesignation       bool
+	TaskID        string
+	RunID         string
+	Scope         taskpkg.Scope
+	WorkspaceID   string
+	WorkspacePath string
+	AgentName     string
+	Provider      string
+	Model         string
+
+	Title          string
+	Profile        *taskpkg.ExecutionProfile
+	Worktree       taskpkg.WorktreePolicy
+	Capabilities   []string
+	Designation    taskpkg.RunDesignation
+	HasDesignation bool
 }
 
 var _ taskRunEnqueuedObserver = (*taskRoleRuntime)(nil)
@@ -193,10 +192,9 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 		if err != nil {
 			r.logTaskRoleError("daemon: load task for role recovery", err, hookspkg.TaskRunEnqueuedPayload{
 				TaskRunContext: hookspkg.TaskRunContext{
-					ProfileID:                    strings.TrimSpace(run.ProfileID),
-					RunID:                        run.ID,
-					TaskID:                       run.TaskID,
-					ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+					ProfileID: strings.TrimSpace(run.ProfileID),
+					RunID:     run.ID,
+					TaskID:    run.TaskID,
 				},
 			})
 			continue
@@ -207,11 +205,10 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
 					TaskRunContext: hookspkg.TaskRunContext{
-						ProfileID:                    strings.TrimSpace(run.ProfileID),
-						RunID:                        run.ID,
-						TaskID:                       run.TaskID,
-						WorkspaceID:                  taskRecord.WorkspaceID,
-						ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+						ProfileID:   strings.TrimSpace(run.ProfileID),
+						RunID:       run.ID,
+						TaskID:      run.TaskID,
+						WorkspaceID: taskRecord.WorkspaceID,
 					},
 				},
 			)
@@ -247,7 +244,6 @@ func (r *taskRoleRuntime) activateRun(
 			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			"run_id", activation.RunID,
 			"agent_name", activation.AgentName,
-			"channel", activation.NetworkParticipation.ChannelID,
 			"reason", reason,
 		)
 		return nil
@@ -258,7 +254,6 @@ func (r *taskRoleRuntime) activateRun(
 		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		"run_id", activation.RunID,
 		"agent_name", activation.AgentName,
-		"channel", activation.NetworkParticipation.ChannelID,
 		"reason", reason,
 	)
 	return nil
@@ -292,16 +287,16 @@ func (r *taskRoleRuntime) activationForRun(
 	}
 
 	activation := taskRoleActivation{
-		TaskID:               strings.TrimSpace(taskRecord.ID),
-		RunID:                strings.TrimSpace(run.ID),
-		Scope:                taskRecord.Scope.Normalize(),
-		WorkspaceID:          strings.TrimSpace(taskRecord.WorkspaceID),
-		AgentName:            agentName,
-		Provider:             provider,
-		Model:                model,
-		NetworkParticipation: new(run.NetworkSpecSnapshot()),
-		Title:                strings.TrimSpace(taskRecord.Title),
-		Profile:              profile,
+		TaskID:      strings.TrimSpace(taskRecord.ID),
+		RunID:       strings.TrimSpace(run.ID),
+		Scope:       taskRecord.Scope.Normalize(),
+		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:   agentName,
+		Provider:    provider,
+		Model:       model,
+
+		Title:   strings.TrimSpace(taskRecord.Title),
+		Profile: profile,
 		Worktree: taskpkg.WorktreePolicy{
 			Mode:        run.ResolvedWorktreeModeValue(),
 			WorktreeRef: run.ResolvedWorktreeRefValue(),

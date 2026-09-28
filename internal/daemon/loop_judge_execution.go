@@ -18,6 +18,7 @@ type loopJudgeExecution struct {
 	done       chan struct{}
 	cleanupErr error
 	sessionID  string
+	loopRunID  looppkg.RunID
 	revoked    bool
 }
 
@@ -106,7 +107,7 @@ func (r *loopJudgeExecutionRegistry) begin(
 	return judgeCtx, finish, nil
 }
 
-func (r *loopJudgeExecutionRegistry) bind(correlationID string, sessionID string) error {
+func (r *loopJudgeExecutionRegistry) bind(correlationID string, sessionID string, loopRunID looppkg.RunID) error {
 	id := strings.TrimSpace(correlationID)
 	if id == "" {
 		return nil
@@ -118,6 +119,7 @@ func (r *loopJudgeExecutionRegistry) bind(correlationID string, sessionID string
 		return fmt.Errorf("daemon: loop judge execution %q is not active", id)
 	}
 	execution.sessionID = strings.TrimSpace(sessionID)
+	execution.loopRunID = looppkg.RunID(strings.TrimSpace(string(loopRunID)))
 	if execution.revoked {
 		execution.cancel()
 		return context.Canceled
@@ -125,14 +127,29 @@ func (r *loopJudgeExecutionRegistry) bind(correlationID string, sessionID string
 	return nil
 }
 
-func (r *loopGateJudgeRunner) bindExecution(correlationID string, sessionID string) error {
+// loopRunForSession retains revoked judges until their session cleanup finishes.
+func (r *loopJudgeExecutionRegistry) loopRunForSession(sessionID string) looppkg.RunID {
+	if r == nil || strings.TrimSpace(sessionID) == "" {
+		return ""
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, execution := range r.active {
+		if execution.sessionID == sessionID {
+			return execution.loopRunID
+		}
+	}
+	return ""
+}
+
+func (r *loopGateJudgeRunner) bindExecution(correlationID string, sessionID string, loopRunID looppkg.RunID) error {
 	if strings.TrimSpace(correlationID) == "" {
 		return nil
 	}
 	if r == nil || r.executions == nil {
 		return errors.New("daemon: loop judge execution registry is unavailable")
 	}
-	return r.executions.bind(correlationID, sessionID)
+	return r.executions.bind(correlationID, sessionID, loopRunID)
 }
 
 func (r *loopGateJudgeRunner) revokeExecution(ctx context.Context, correlationID string) error {

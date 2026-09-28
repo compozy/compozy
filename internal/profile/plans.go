@@ -220,17 +220,11 @@ func (m *Manager) archivePlan(ctx context.Context, q queryer, profile Profile) (
 	}
 	plan.AutomationsToPause = slices.Concat(jobs, triggers)
 	sort.Strings(plan.AutomationsToPause)
-	var permits int
-	if err := q.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE profile_id = ?`, profile.ID,
-	).Scan(&permits); err != nil {
-		return ArchivePlan{}, fmt.Errorf("profile: count notification delivery permits: %w", err)
-	}
+
 	plan.Revision, err = fingerprint(struct {
 		Profile Profile
 		Plan    ArchivePlan
-		Permits int
-	}{profile, plan, permits})
+	}{profile, plan})
 	if err != nil {
 		return ArchivePlan{}, err
 	}

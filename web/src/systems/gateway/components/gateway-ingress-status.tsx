@@ -7,13 +7,13 @@ import { GatewayStatusChip } from "./gateway-status-chip";
 
 export interface GatewayIngressStatusProps {
   ingress: GatewayIngressBinding | null | undefined;
-  /** What the URL would deliver to, e.g. "this trigger" or "this bridge". */
+  /** What the URL would deliver to, e.g. "this trigger". */
   subject: string;
   "data-testid"?: string;
 }
 
 /**
- * Honest delivery reachability for one webhook trigger or bridge instance.
+ * Honest delivery reachability for one webhook trigger.
  *
  * The URL is shown only when the daemon actually published one, and it is never
  * shown without the reachability state beside it: a URL that exists is not a

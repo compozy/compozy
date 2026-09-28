@@ -27,7 +27,7 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
@@ -46,7 +46,7 @@ repository layer `<workspace>/.compozy/profiles/<name>/config.toml` is read-only
 layer write may return `ok_overridden`; inspect `winning_layer` before claiming the value is active.
 
 Profile overlays reject `http`, `daemon`, `log`, `database`, `gateway`, `shell`, `marketplace`,
-`observability`, `network`, `sandboxes`, and `window_manager.global_shortcuts` with
+`observability`, and `window_manager.global_shortcuts` with
 `profile_config_key_denied`; write machine-only keys with `--scope user`.
 
 Write provider credentials with `compozy --profile <name> secret set
@@ -218,7 +218,7 @@ Scalar values and partial runtime objects are writable through
 Entity existence is checked when the effective value is used, not when config is written. Resolution
 order and the rest of the lifecycle live in `references/loops.md`.
 
-Loop observability is durable runtime state, not a transient UI stream. `loop_run_events` persists replayable workspace-scoped events for status changes, node running/terminal outcomes, gate verdicts, generation starts, channel messages, token ticks, and needs-approval pauses. Payloads are redacted and bounded before persistence; token ticks preserve only usage counters and terminal markers.
+Loop observability is durable runtime state, not a transient UI stream. `loop_run_events` persists replayable workspace-scoped events for status changes, node running/terminal outcomes, gate verdicts, generation starts, token ticks, and needs-approval pauses. Payloads are redacted and bounded before persistence; token ticks preserve only usage counters and terminal markers.
 
 ## Goals
 
@@ -260,11 +260,10 @@ Other `[roles]` routing keys and the fallback-chain rules live in `references/ru
 
 ## Persona Defaults
 
-Persona defaults select the agent, provider, and sandbox used for new work. Read them through
+Persona defaults select the agent and provider used for new work. Read them through
 `GET /api/settings/persona` and update them through `PATCH /api/settings/persona`. Omit `scope` for
 the user layer; use `scope=profile&profile=<name>` for a personal profile layer. The response names
-the effective scope, profile owner, available scopes, write target, and the `agent`, `provider`, and
-`sandbox` defaults. Profile updates affect only later work started under that profile.
+the effective scope, profile owner, available scopes, write target, and the `agent` and `provider` defaults. Profile updates affect only later work started under that profile.
 
 ## Command Palette
 

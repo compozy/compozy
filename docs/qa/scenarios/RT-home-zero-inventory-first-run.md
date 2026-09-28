@@ -6,10 +6,10 @@ persona: Lea
 journey: J-operate-home-dashboard
 expected: When `GET /api/observe/overview` reports no work at all — every counter zero, `has_live_work` false, no pulse bucket, busiest and longest_session absent — Home replaces the seven zones with one heading ("No agent work yet", or "No agent work yet in <workspace>" in a project scope) and exactly three actions that really exist: Start a session (opens the session-create dialog in place), Create a task (`/tasks/new`), Browse the marketplace (`/marketplace/skills`); no zero-filled panels, no subtitle paragraph, and the seven zones return as soon as any counter, live work, or pulse bucket is non-zero.
 entry_points: web `/` (dashboard OS window) on a fresh install or an empty project workspace; `GET /api/observe/overview` (HTTP+UDS)
-qa_status: fail
+qa_status: untested
 bug_ids: BUG-20260820-global-home-deleted-onboarding; BUG-20260826-onboarding-pulse-hides-empty-home
 fix_status: pending
-retest_status: pending
+retest_status:
 fix_commits: e520f3fe
 evidence: docs/qa/evidence/2026-08-26-pr-484-global-desktop/CH-home-zero-inventory-first-start-no-empty-state.png; /Users/pedronauck/dev/qa-labs/compozy-pr-484-global-home-canary-20260826-120414-672594-lab/qa-artifacts/qa/api-overview-first-home.json
 last_report: docs/qa/reports/2026-08-26-pr-484-global-desktop.md
@@ -53,7 +53,7 @@ they do not read as covered:
 - **Responsiveness** — covered on J-operate-desktop-shell and J-operate-home-dashboard, the two
   layout-dense surfaces the 13.5px→15px baseline reflows. Skipped on J-14 and
   J-answer-agent-requests: full-bleed single-column transcript, no breakpoint logic touched.
-- **The `daemon` → `CompozyOS` word sweep** across gateway, vault, marketplace, bridges, and network
+- **The `daemon` → `CompozyOS` word sweep** across gateway, vault, and marketplace
   surfaces did not reset those scenarios. It is a COPY.md §6 surface-alias swap; the canonical noun
   is unchanged in code, wire, CLI, and API, and no scenario's `expected:` asserts the word.
 - **The docs site** (`packages/site` eyebrow 11→12px, micro, icon-well radius, and the Fumadocs dark
@@ -62,3 +62,6 @@ they do not read as covered:
   ramp. `--audit-site` wired into `codegen-check` is the mechanical gate. Recorded as a follow-up.
 - No `automation-backlog/` entry — this cycle changes presentation, not a journey's stability
   profile.
+
+
+2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.

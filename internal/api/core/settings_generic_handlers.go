@@ -5,8 +5,6 @@ import (
 
 	"net/http"
 
-	"strings"
-
 	"github.com/compozy/compozy/internal/api/contract"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -151,21 +149,6 @@ func (h *BaseHandlers) getSettingsCollectionItem(c *gin.Context, collection sett
 			return
 		}
 		c.JSON(http.StatusOK, contract.SettingsProviderResponse{Provider: settingsProviderItemPayload(&item)})
-	case settingspkg.CollectionSandboxes:
-		item, found := findSettingsSandbox(envelope.Sandboxes, name)
-		if !found {
-			notFound := NewSettingsNotFoundError(fmt.Errorf("sandbox %q not found", name))
-			h.respondError(c, StatusForSettingsError(notFound), notFound)
-			return
-		}
-		c.JSON(http.StatusOK, contract.SettingsSandboxResponse{
-			Sandbox: contract.SettingsSandboxItemPayload{
-				Name:                strings.TrimSpace(item.Name),
-				Profile:             settingsSandboxProfilePayload(item.Profile),
-				WorkspaceUsageCount: item.WorkspaceUsageCount,
-				SourceMetadata:      settingsSourceMetadataPayload(item.SourceMetadata),
-			},
-		})
 	default:
 		h.respondError(
 			c,

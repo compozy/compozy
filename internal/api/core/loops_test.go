@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -30,6 +29,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		t.Parallel()
 
 		service := happyLoopService(t)
+
 		service.runLoopFn = func(
 			_ context.Context,
 			workspaceID string,
@@ -51,11 +51,6 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			}
 			if got := req.Inputs["ticket"]; got != "Compozy-14" {
 				t.Fatalf("RunLoop() input ticket = %#v, want Compozy-14", got)
-			}
-			if req.NetworkParticipation == nil ||
-				req.NetworkParticipation.Mode == nil ||
-				*req.NetworkParticipation.Mode != participation.ModeLocal {
-				t.Fatalf("RunLoop() network participation = %#v, want local request", req.NetworkParticipation)
 			}
 			if input.Dry {
 				return contract.RunLoopResponse{DryRun: &contract.LoopPlanPayload{
@@ -165,7 +160,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loops/alpha/run",
-			[]byte(`{"inputs":{"ticket":"Compozy-14"},"network_participation":{"mode":"local"}}`),
+			[]byte(`{"inputs":{"ticket":"Compozy-14"}}`),
 		)
 		assertLoopStatus(t, runResp.Code, http.StatusCreated, runResp.Body.String())
 		var runPayload contract.RunLoopResponse
@@ -179,7 +174,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loops/alpha/run?dry=true",
-			[]byte(`{"inputs":{"ticket":"Compozy-14"},"network_participation":{"mode":"local"}}`),
+			[]byte(`{"inputs":{"ticket":"Compozy-14"}}`),
 		)
 		assertLoopStatus(t, dryResp.Code, http.StatusOK, dryResp.Body.String())
 		var dryPayload contract.RunLoopResponse
@@ -2604,18 +2599,17 @@ func loopLifecycleValidateRequestBody() []byte {
 
 func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {
 	return &contract.LoopRunPayload{
-		ID:                           id,
-		ProfileID:                    store.DefaultProfileID,
-		WorkspaceID:                  "ws-1",
-		LoopName:                     "alpha",
-		Status:                       contract.LoopRunStatus(status),
-		Generation:                   1,
-		ReattemptStrategy:            contract.LoopReattemptStrategy(looppkg.ReattemptFailedOnly),
-		CreatedAt:                    fixedLoopTime(),
-		LastProgressAt:               fixedLoopTime(),
-		IterationCap:                 3,
-		Inputs:                       map[string]any{"ticket": "Compozy-14"},
-		ResolvedNetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		ID:                id,
+		ProfileID:         store.DefaultProfileID,
+		WorkspaceID:       "ws-1",
+		LoopName:          "alpha",
+		Status:            contract.LoopRunStatus(status),
+		Generation:        1,
+		ReattemptStrategy: contract.LoopReattemptStrategy(looppkg.ReattemptFailedOnly),
+		CreatedAt:         fixedLoopTime(),
+		LastProgressAt:    fixedLoopTime(),
+		IterationCap:      3,
+		Inputs:            map[string]any{"ticket": "Compozy-14"},
 	}
 }
 

@@ -23,7 +23,6 @@
       "required": [
         "agents",
         "differentiated_roles",
-        "channels",
         "tasks",
         "provider_backed_sessions",
         "cross_surface_objects",
@@ -37,10 +36,6 @@
           "minimum": 0
         },
         "differentiated_roles": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "channels": {
           "type": "integer",
           "minimum": 0
         },
@@ -100,10 +95,8 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "peer_messages_min": { "type": "integer", "minimum": 1 },
             "review_cycles_min": { "type": "integer", "minimum": 1 },
-            "disagreements_resolved_min": { "type": "integer", "minimum": 0 },
-            "channels_active_min": { "type": "integer", "minimum": 1 }
+            "disagreements_resolved_min": { "type": "integer", "minimum": 0 }
           }
         }
       }

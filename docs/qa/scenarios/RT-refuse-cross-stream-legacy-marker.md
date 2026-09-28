@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: RT-refuse-legacy-database;RT-refuse-legacy-cli-open
+overlaps: RT-refuse-legacy-database; RT-refuse-legacy-cli-open
 ---
 
 Implementation peer review found that each migration stream only recognized its own pre-Goose marker even

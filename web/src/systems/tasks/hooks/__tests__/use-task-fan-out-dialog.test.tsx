@@ -125,7 +125,6 @@ describe("useTaskFanOutDialog", () => {
     expect(onFanOut).toHaveBeenCalledWith({
       designations: [{ brief: "Investigate checkout" }, { brief: "Validate staging" }],
       idempotency_key: expect.any(String),
-      network_participation: { mode: "local" },
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(result.current.designationsText).toBe("");

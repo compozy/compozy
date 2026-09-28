@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -818,93 +817,6 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			t.Fatalf("session new resolution source = %q, want cross_workspace_attempt", output.ResolutionSource)
 		}
 	})
-}
-
-func TestSessionNewPassesNetworkParticipationFlags(t *testing.T) {
-	t.Parallel()
-
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
-			return SessionRecord{
-				ID:                           "sess-1",
-				AgentName:                    "general",
-				WorkspaceID:                  "ws-1",
-				WorkspacePath:                request.WorkspacePath,
-				ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
-				State:                        session.StateActive,
-				CreatedAt:                    fixedTestNow,
-				UpdatedAt:                    fixedTestNow,
-			}, nil
-		},
-	})
-
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"session",
-		"new",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		"builders",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(session new --network*) error = %v", err)
-	}
-
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new --network*) error = %v", err)
-	}
-	assertResolvedParticipation(t, decoded.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
-}
-
-func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should advertise only the named channel strategy", func(t *testing.T) {
-		t.Parallel()
-
-		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "session", "new", "--help")
-		if err != nil {
-			t.Fatalf("executeRootCommand(session new --help) error = %v", err)
-		}
-		if !strings.Contains(stdout, "Live channel strategy: named") ||
-			strings.Contains(stdout, "named, run, or loop_run") {
-			t.Fatalf("session new help = %q, want named-only channel strategy", stdout)
-		}
-	})
-
-	for _, strategy := range []participation.ChannelStrategy{
-		participation.StrategyRun,
-		participation.StrategyLoopRun,
-	} {
-		t.Run("Should reject unsupported "+string(strategy)+" strategy", func(t *testing.T) {
-			t.Parallel()
-
-			deps := newWorkspaceTestDeps(t, &stubClient{
-				createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
-					t.Fatal("CreateSession should not be called for an unsupported session strategy")
-					return SessionRecord{}, nil
-				},
-			})
-			_, _, err := executeRootCommand(
-				t,
-				deps,
-				"session", "new",
-				"--network", "live",
-				"--network-channel-strategy", string(strategy),
-			)
-			if err == nil || !strings.Contains(err.Error(), "must be named for session creation") {
-				t.Fatalf("session new %s strategy error = %v, want named-only rejection", strategy, err)
-			}
-		})
-	}
 }
 
 func TestSessionNewRejectsRemovedFlags(t *testing.T) {
@@ -3778,10 +3690,10 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
 			Provider: "fake",
 		}},
-		WorkspaceID:                  "ws-1",
-		WorkspacePath:                "/workspace/project",
-		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
-		State:                        session.StateActive,
+		WorkspaceID:   "ws-1",
+		WorkspacePath: "/workspace/project",
+
+		State: session.StateActive,
 		Health: &contract.SessionHealthPayload{
 			State:  contract.SessionHealthStateIdle,
 			Health: contract.SessionHealthHealthy,
@@ -3810,10 +3722,9 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		!strings.Contains(strings.ToLower(human), "provider") ||
 		!strings.Contains(human, "fake") ||
 		!strings.Contains(human, "/workspace/project") ||
-		!strings.Contains(strings.ToLower(human), "channel") ||
-		!strings.Contains(human, "builders") || !strings.Contains(human, "idle") ||
+		!strings.Contains(human, "idle") ||
 		!strings.Contains(human, "healthy") || !strings.Contains(human, "cursor-next") {
-		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, channel, and health output", human)
+		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, provider, and health output", human)
 	}
 
 	toon, err := bundle.toon()
@@ -3825,11 +3736,10 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		!strings.Contains(toon, "default") ||
 		!strings.Contains(strings.ToLower(toon), "provider") ||
 		!strings.Contains(toon, "fake") ||
-		!strings.Contains(strings.ToLower(toon), "channel") ||
-		!strings.Contains(toon, "builders") || !strings.Contains(toon, "idle") ||
+		!strings.Contains(toon, "idle") ||
 		!strings.Contains(toon, "healthy") || !strings.Contains(toon, "cursor-next") ||
 		!strings.Contains(toon, "has_more") {
-		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with provider, channel, and health", toon)
+		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with provider and health", toon)
 	}
 }
 

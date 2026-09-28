@@ -388,11 +388,18 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 	t.Run("Should reject unsupported vault namespaces", func(t *testing.T) {
 		t.Parallel()
 
-		if err := ValidateSecretRef("vault:unknown/sess-1/github-token"); !errors.Is(err, ErrUnsupportedSecretRef) {
-			t.Fatalf("ValidateSecretRef() error = %v, want ErrUnsupportedSecretRef", err)
-		}
-		if err := ValidateSecretRefPrefix("vault:unknown/sess-1/"); !errors.Is(err, ErrUnsupportedSecretRef) {
-			t.Fatalf("ValidateSecretRefPrefix() error = %v, want ErrUnsupportedSecretRef", err)
+		for _, namespace := range []string{"unknown", "bridges", "sandbox"} {
+			if err := ValidateNamespace(namespace); !errors.Is(err, ErrUnsupportedSecretRef) {
+				t.Fatalf("ValidateNamespace(%q) error = %v, want ErrUnsupportedSecretRef", namespace, err)
+			}
+			ref := "vault:" + namespace + "/owner/token"
+			if err := ValidateSecretRef(ref); !errors.Is(err, ErrUnsupportedSecretRef) {
+				t.Fatalf("ValidateSecretRef(%q) error = %v, want ErrUnsupportedSecretRef", ref, err)
+			}
+			prefix := "vault:" + namespace + "/owner/"
+			if err := ValidateSecretRefPrefix(prefix); !errors.Is(err, ErrUnsupportedSecretRef) {
+				t.Fatalf("ValidateSecretRefPrefix(%q) error = %v, want ErrUnsupportedSecretRef", prefix, err)
+			}
 		}
 	})
 }

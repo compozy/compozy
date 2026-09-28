@@ -192,12 +192,6 @@ func replaceExecutionProfileSelectors(
 	if err := insertTaskProfileAgentSelectors(ctx, exec, profile); err != nil {
 		return err
 	}
-	if err := insertTaskProfileChannelSelectors(ctx, exec, profile); err != nil {
-		return err
-	}
-	if err := insertTaskProfilePeerSelectors(ctx, exec, profile); err != nil {
-		return err
-	}
 	return insertTaskProfileCapabilitySelectors(ctx, exec, profile)
 }
 
@@ -208,8 +202,6 @@ func deleteExecutionProfileSelectors(ctx context.Context, exec taskSQLExecutor, 
 		apply func(context.Context, string) error
 	}{
 		{label: "task_profile_agents", apply: queries.DeleteTaskProfileAgents},
-		{label: "task_profile_channels", apply: queries.DeleteTaskProfileChannels},
-		{label: "task_profile_peers", apply: queries.DeleteTaskProfilePeers},
 		{label: "task_profile_capabilities", apply: queries.DeleteTaskProfileCapabilities},
 	}
 	for _, deletion := range deletes {
@@ -240,54 +232,6 @@ func insertTaskProfileAgentSelectors(
 				TaskID: profile.TaskID, Role: row.role, Preference: row.preference, Value: value,
 			}); err != nil {
 				return fmt.Errorf("store: insert task_profile_agents selector for task %q: %w", profile.TaskID, err)
-			}
-		}
-	}
-	return nil
-}
-
-func insertTaskProfileChannelSelectors(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	profile *taskpkg.ExecutionProfile,
-) error {
-	rows := []profileSelectorRow{
-		{profileRoleReview, profilePreferenceAllowed, profile.Review.AllowedChannelIDs},
-		{profileRoleReview, profilePreferencePreferred, profile.Review.PreferredChannelIDs},
-		{profileRoleParticipant, profilePreferenceAllowed, profile.Participants.AllowedChannelIDs},
-		{profileRoleParticipant, profilePreferencePreferred, profile.Participants.PreferredChannelIDs},
-	}
-	queries := sqlcgen.New(exec)
-	for _, row := range rows {
-		for _, value := range row.values {
-			if err := queries.InsertTaskProfileChannel(ctx, sqlcgen.InsertTaskProfileChannelParams{
-				TaskID: profile.TaskID, Role: row.role, Preference: row.preference, Value: value,
-			}); err != nil {
-				return fmt.Errorf("store: insert task_profile_channels selector for task %q: %w", profile.TaskID, err)
-			}
-		}
-	}
-	return nil
-}
-
-func insertTaskProfilePeerSelectors(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	profile *taskpkg.ExecutionProfile,
-) error {
-	rows := []profileSelectorRow{
-		{profileRoleReview, profilePreferenceAllowed, profile.Review.AllowedPeerIDs},
-		{profileRoleReview, profilePreferencePreferred, profile.Review.PreferredPeerIDs},
-		{profileRoleParticipant, profilePreferenceAllowed, profile.Participants.AllowedPeerIDs},
-		{profileRoleParticipant, profilePreferencePreferred, profile.Participants.PreferredPeerIDs},
-	}
-	queries := sqlcgen.New(exec)
-	for _, row := range rows {
-		for _, value := range row.values {
-			if err := queries.InsertTaskProfilePeer(ctx, sqlcgen.InsertTaskProfilePeerParams{
-				TaskID: profile.TaskID, Role: row.role, Preference: row.preference, Value: value,
-			}); err != nil {
-				return fmt.Errorf("store: insert task_profile_peers selector for task %q: %w", profile.TaskID, err)
 			}
 		}
 	}
@@ -338,12 +282,6 @@ func loadExecutionProfileSelectors(
 	if err := loadTaskProfileAgentSelectors(ctx, exec, profile); err != nil {
 		return err
 	}
-	if err := loadTaskProfileChannelSelectors(ctx, exec, profile); err != nil {
-		return err
-	}
-	if err := loadTaskProfilePeerSelectors(ctx, exec, profile); err != nil {
-		return err
-	}
 	return loadTaskProfileCapabilitySelectors(ctx, exec, profile)
 }
 
@@ -371,56 +309,6 @@ func loadTaskProfileAgentSelectors(
 			profile.Participants.AllowedAgentNames = append(profile.Participants.AllowedAgentNames, row.value)
 		case row.matches(profileRoleParticipant, profilePreferencePreferred):
 			profile.Participants.PreferredAgentNames = append(profile.Participants.PreferredAgentNames, row.value)
-		}
-	}
-	return nil
-}
-
-func loadTaskProfileChannelSelectors(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	profile *taskpkg.ExecutionProfile,
-) error {
-	rows, err := sqlcgen.New(exec).ListTaskProfileChannels(ctx, profile.TaskID)
-	if err != nil {
-		return fmt.Errorf("store: query task_profile_channels selectors for task %q: %w", profile.TaskID, err)
-	}
-	for _, generated := range rows {
-		row := loadedProfileSelectorRow{generated.Role, generated.Preference, generated.Value}
-		switch {
-		case row.matches(profileRoleReview, profilePreferenceAllowed):
-			profile.Review.AllowedChannelIDs = append(profile.Review.AllowedChannelIDs, row.value)
-		case row.matches(profileRoleReview, profilePreferencePreferred):
-			profile.Review.PreferredChannelIDs = append(profile.Review.PreferredChannelIDs, row.value)
-		case row.matches(profileRoleParticipant, profilePreferenceAllowed):
-			profile.Participants.AllowedChannelIDs = append(profile.Participants.AllowedChannelIDs, row.value)
-		case row.matches(profileRoleParticipant, profilePreferencePreferred):
-			profile.Participants.PreferredChannelIDs = append(profile.Participants.PreferredChannelIDs, row.value)
-		}
-	}
-	return nil
-}
-
-func loadTaskProfilePeerSelectors(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	profile *taskpkg.ExecutionProfile,
-) error {
-	rows, err := sqlcgen.New(exec).ListTaskProfilePeers(ctx, profile.TaskID)
-	if err != nil {
-		return fmt.Errorf("store: query task_profile_peers selectors for task %q: %w", profile.TaskID, err)
-	}
-	for _, generated := range rows {
-		row := loadedProfileSelectorRow{generated.Role, generated.Preference, generated.Value}
-		switch {
-		case row.matches(profileRoleReview, profilePreferenceAllowed):
-			profile.Review.AllowedPeerIDs = append(profile.Review.AllowedPeerIDs, row.value)
-		case row.matches(profileRoleReview, profilePreferencePreferred):
-			profile.Review.PreferredPeerIDs = append(profile.Review.PreferredPeerIDs, row.value)
-		case row.matches(profileRoleParticipant, profilePreferenceAllowed):
-			profile.Participants.AllowedPeerIDs = append(profile.Participants.AllowedPeerIDs, row.value)
-		case row.matches(profileRoleParticipant, profilePreferencePreferred):
-			profile.Participants.PreferredPeerIDs = append(profile.Participants.PreferredPeerIDs, row.value)
 		}
 	}
 	return nil

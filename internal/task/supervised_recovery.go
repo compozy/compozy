@@ -138,7 +138,7 @@ func supervisedWorkCandidates(runs []Run, stop SupervisedStop) []Run {
 	var candidates []Run
 	for _, run := range runs {
 		if run.SessionID != stop.SessionID || (run.WorkspaceID != "" && run.WorkspaceID != stop.WorkspaceID) ||
-			!run.IsTaskAnchored() || run.RunKind.Normalize() != RunKindWorker {
+			run.RunKind.Normalize() != RunKindWorker {
 			continue
 		}
 		switch run.Status.Normalize() {

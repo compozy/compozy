@@ -21,20 +21,6 @@ func (m HookMatcher) matchSessionContext(payload SessionContext, includeSessionT
 	return true
 }
 
-func (m HookMatcher) matchSandbox(
-	session SessionContext,
-	sandboxID string,
-	backend string,
-	profile string,
-	direction string,
-) bool {
-	return m.matchSessionContext(session, false) &&
-		matchStringField(m.SandboxID, sandboxID) &&
-		matchStringField(m.SandboxBackend, backend) &&
-		matchStringField(m.SandboxProfile, profile) &&
-		matchStringField(m.SyncDirection, direction)
-}
-
 func (m HookMatcher) matchToolCall(payload ToolCallRef) bool {
 	if !matchStringField(m.ToolID, payload.ToolID) {
 		return false
@@ -58,10 +44,6 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		WorktreeID:       strings.TrimSpace(matcher.WorktreeID),
 		WorkspaceRoot:    strings.TrimSpace(matcher.WorkspaceRoot),
 		SessionType:      strings.TrimSpace(matcher.SessionType),
-		SandboxID:        strings.TrimSpace(matcher.SandboxID),
-		SandboxBackend:   strings.TrimSpace(matcher.SandboxBackend),
-		SandboxProfile:   strings.TrimSpace(matcher.SandboxProfile),
-		SyncDirection:    strings.TrimSpace(matcher.SyncDirection),
 		InputClass:       strings.TrimSpace(matcher.InputClass),
 		ACPEventType:     strings.TrimSpace(matcher.ACPEventType),
 		TurnID:           strings.TrimSpace(matcher.TurnID),
@@ -71,7 +53,6 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		MessageRole:      strings.TrimSpace(matcher.MessageRole),
 		MessageDeltaType: strings.TrimSpace(matcher.MessageDeltaType),
 	}
-	normalized.NetworkMatcher = normalizeNetworkMatcher(matcher.NetworkMatcher)
 	normalized.CompactionMatcher = normalizeCompactionMatcher(matcher.CompactionMatcher)
 	normalized.Autonomy = normalizeAutonomyMatcher(matcher.Autonomy)
 	if matcher.ToolReadOnly != nil {
@@ -106,7 +87,6 @@ func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
 		LoopName:             strings.TrimSpace(matcher.LoopName),
 		NodeID:               strings.TrimSpace(matcher.NodeID),
 		WorkflowID:           strings.TrimSpace(matcher.WorkflowID),
-		ParticipationChannel: strings.TrimSpace(matcher.ParticipationChannel),
 		CoordinatorSessionID: strings.TrimSpace(matcher.CoordinatorSessionID),
 		ParentSessionID:      strings.TrimSpace(matcher.ParentSessionID),
 		RootSessionID:        strings.TrimSpace(matcher.RootSessionID),
@@ -132,7 +112,6 @@ func (m *AutonomyMatcher) empty() bool {
 		m.LoopName == "" &&
 		m.NodeID == "" &&
 		m.WorkflowID == "" &&
-		m.ParticipationChannel == "" &&
 		m.CoordinatorSessionID == "" &&
 		m.ParentSessionID == "" &&
 		m.RootSessionID == "" &&

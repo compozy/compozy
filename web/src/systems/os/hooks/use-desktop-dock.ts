@@ -72,7 +72,7 @@ export function useDesktopDock(
     },
   ];
   groups.forEach((group, index) => {
-    // Catalog seams: Home+Terminal | Agents…Triggers | Marketplace…Knowledge | Sandbox+Vault.
+    // Catalog seams: Home+Terminal | Agents…Triggers | Marketplace…Knowledge | Vault.
     if (index > 0) entries.push({ id: `sep-${index}`, sep: true });
     for (const app of group) {
       const state = windowStates[app.id];

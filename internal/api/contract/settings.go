@@ -40,13 +40,13 @@ const (
 type SettingsSectionName string
 
 const (
-	SettingsSectionGeneral         SettingsSectionName = "general"
-	SettingsSectionPersona         SettingsSectionName = "persona"
-	SettingsSectionMemory          SettingsSectionName = "memory"
-	SettingsSectionRoles           SettingsSectionName = "roles"
-	SettingsSectionSkills          SettingsSectionName = "skills"
-	SettingsSectionAutomation      SettingsSectionName = "automation"
-	SettingsSectionNetwork         SettingsSectionName = "network"
+	SettingsSectionGeneral    SettingsSectionName = "general"
+	SettingsSectionPersona    SettingsSectionName = "persona"
+	SettingsSectionMemory     SettingsSectionName = "memory"
+	SettingsSectionRoles      SettingsSectionName = "roles"
+	SettingsSectionSkills     SettingsSectionName = "skills"
+	SettingsSectionAutomation SettingsSectionName = "automation"
+
 	SettingsSectionWindowManager   SettingsSectionName = "window-manager"
 	SettingsSectionCmdPalette      SettingsSectionName = "cmd-palette"
 	SettingsSectionAttention       SettingsSectionName = "attention"
@@ -61,20 +61,20 @@ type SettingsCollectionName string
 const (
 	SettingsCollectionProviders  SettingsCollectionName = "providers"
 	SettingsCollectionMCPServers SettingsCollectionName = "mcp-servers"
-	SettingsCollectionSandboxes  SettingsCollectionName = "sandboxes"
-	SettingsCollectionHooks      SettingsCollectionName = "hooks"
+
+	SettingsCollectionHooks SettingsCollectionName = "hooks"
 )
 
 type SettingsApplyTargetName string
 
 const (
-	SettingsApplyTargetGeneral         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionGeneral)
-	SettingsApplyTargetPersona         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionPersona)
-	SettingsApplyTargetMemory          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMemory)
-	SettingsApplyTargetRoles           SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionRoles)
-	SettingsApplyTargetSkills          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionSkills)
-	SettingsApplyTargetAutomation      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAutomation)
-	SettingsApplyTargetNetwork         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionNetwork)
+	SettingsApplyTargetGeneral    SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionGeneral)
+	SettingsApplyTargetPersona    SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionPersona)
+	SettingsApplyTargetMemory     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMemory)
+	SettingsApplyTargetRoles      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionRoles)
+	SettingsApplyTargetSkills     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionSkills)
+	SettingsApplyTargetAutomation SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAutomation)
+
 	SettingsApplyTargetWindowManager   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionWindowManager)
 	SettingsApplyTargetCmdPalette      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionCmdPalette)
 	SettingsApplyTargetAttention       SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAttention)
@@ -84,8 +84,8 @@ const (
 	SettingsApplyTargetMarketplace     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMarketplace)
 	SettingsApplyTargetProviders       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionProviders)
 	SettingsApplyTargetMCPServers      SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionMCPServers)
-	SettingsApplyTargetSandboxes       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionSandboxes)
-	SettingsApplyTargetHooks           SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionHooks)
+
+	SettingsApplyTargetHooks SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionHooks)
 )
 
 type SettingsWriteTargetKind string

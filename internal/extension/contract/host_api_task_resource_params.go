@@ -5,8 +5,6 @@ import (
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
-
 	"github.com/compozy/compozy/internal/resources"
 )
 
@@ -128,12 +126,3 @@ type ResourcesSnapshotParams struct {
 	SourceVersion int64                    `json:"source_version"`
 	Records       []ResourceSnapshotRecord `json:"records"`
 }
-
-// BridgesMessagesIngestParams carries one normalized inbound bridge message.
-type BridgesMessagesIngestParams = bridgepkg.InboundMessageEnvelope
-
-// BridgeInstanceTargetParams identifies one provider-owned bridge instance.
-type BridgeInstanceTargetParams = bridgepkg.BridgeInstanceTargetParams
-
-// BridgesInstancesReportStateParams reports one adapter-observed instance status update.
-type BridgesInstancesReportStateParams = bridgepkg.BridgesInstancesReportStateParams

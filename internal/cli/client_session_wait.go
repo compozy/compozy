@@ -24,11 +24,11 @@ func (c *daemonClient) WaitSession(
 	sessionID string,
 	request SessionWaitRequest,
 ) (SessionWaitRecord, error) {
-	workspaceRef, err := requireNetworkPathValue("workspace_id", workspaceID)
+	workspaceRef, err := requirePathValue("workspace_id", workspaceID)
 	if err != nil {
 		return SessionWaitRecord{}, err
 	}
-	sessionRef, err := requireNetworkPathValue("session_id", sessionID)
+	sessionRef, err := requirePathValue("session_id", sessionID)
 	if err != nil {
 		return SessionWaitRecord{}, err
 	}

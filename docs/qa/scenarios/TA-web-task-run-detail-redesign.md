@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
-overlaps: TA-019; TA-terminal-run-inspect; NB-run-conversation-bounds-usage
+overlaps: TA-019; TA-terminal-run-inspect
 ---
 
 Introduced by the opendesign tasks redesign (docs/design/opendesign/tasks/task-run-detail.html, implemented 2026-07-21). Visual contract evidence: .compozy/tasks/os-shell/evidence/visual/opendesign-redesigns/VC-T2/.

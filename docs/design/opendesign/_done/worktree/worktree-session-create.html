@@ -18,16 +18,11 @@
                             (EntityDialogHeader copy "Start a durable session…", simple/advanced mode
                             toolbar, footer hint "Choose a runtime when you send the first message.",
                             submit disabled while invalid) and session-create-advanced-section.tsx:38-84
-                            (advanced order: Workspace → session name → network fields); prototype
                             precedent _done/modals/start-session.html (agent select, workspace select,
-                            name, network channel)
     spec worktree-support — Environment select DIRECTLY UNDER Workspace: Workspace root (default) ·
                             ready worktrees only · "New worktree…" (opens S4). Resets when the
                             workspace changes — precedent session-create-store.ts:102-111
                             (workspaceSelected replaces the draft with ADVANCED_DEFAULTS)
-    authorized delta      — dialog chrome re-set on worktree.css bare tokens; network participation
-                            fields condensed to the single channel select from start-session.html
-                            (full NetworkParticipationFields grammar is out of S7 scope)
   Shared story: workspace compozy (four READY worktrees) · branas-site (zero worktrees) ·
   notes (not git-backed → the Environment control is ABSENT, never disabled).
 -->
@@ -77,7 +72,7 @@
                 <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
               </header>
               <div class="modetools">
-                <!-- gating: Simple/Advanced is view state only — Advanced reveals workspace · environment · name · network; no payload field -->
+                <!---->
                 <div class="pill-group" role="group" aria-label="Editor mode">
                   <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
                   <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
@@ -117,14 +112,7 @@
                   <label class="flabel" for="sc-name-1">Session name<span class="opt">optional</span></label>
                   <input class="input" id="sc-name-1" placeholder="Investigate checkout latency">
                 </div>
-                <div class="fgroup">
-                  <!-- gating: {network_channel} optional — None joins no channel -->
-                  <span class="flabel" id="sc-net-1">Network channel<span class="opt">optional</span></span>
-                  <button class="command-select" type="button" aria-labelledby="sc-net-1">
-                    <span class="command-select__label" style="color:var(--muted)">None</span>
-                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
-                  </button>
-                </div>
+
               </div>
               <footer class="dialog__foot">
                 <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
@@ -418,13 +406,7 @@
                   <label class="flabel" for="sc-name-5">Session name<span class="opt">optional</span></label>
                   <input class="input" id="sc-name-5" placeholder="Investigate checkout latency">
                 </div>
-                <div class="fgroup">
-                  <span class="flabel" id="sc-net-5">Network channel<span class="opt">optional</span></span>
-                  <button class="command-select" type="button" aria-labelledby="sc-net-5">
-                    <span class="command-select__label" style="color:var(--muted)">None</span>
-                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
-                  </button>
-                </div>
+
               </div>
               <footer class="dialog__foot">
                 <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>

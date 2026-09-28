@@ -187,16 +187,15 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		StopDetail:               meta.StopDetail,
 		Failure:                  store.CloneSessionFailure(meta.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(meta.Liveness),
-		Sandbox:                  cloneSessionSandboxMeta(meta.Sandbox),
-		SoulSnapshotID:           strings.TrimSpace(meta.SoulSnapshotID),
-		SoulDigest:               strings.TrimSpace(meta.SoulDigest),
-		ParentSoulDigest:         strings.TrimSpace(meta.ParentSoulDigest),
-		CreatedAt:                meta.CreatedAt,
-		UpdatedAt:                meta.UpdatedAt,
+
+		SoulSnapshotID:   strings.TrimSpace(meta.SoulSnapshotID),
+		SoulDigest:       strings.TrimSpace(meta.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(meta.ParentSoulDigest),
+		CreatedAt:        meta.CreatedAt,
+		UpdatedAt:        meta.UpdatedAt,
 	}}
 	recovered.SetACPOptions(meta.ACPOptionsValue())
 	recovered.SetRuntimeRecovery(meta.RuntimeRecoveryValue())
-	recovered.SetNetworkSpec(meta.NetworkSpecSnapshot())
 	if meta.CreationProfile != nil {
 		profile := store.NormalizeSessionCreationProfile(*meta.CreationProfile)
 		identity := store.SessionCreationIdentity{

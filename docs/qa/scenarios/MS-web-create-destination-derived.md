@@ -4,8 +4,8 @@ area: MS
 title: Create and install surfaces inherit menubar destination
 persona: Dora
 journey: J-31
-expected: Agent, session, task, job, trigger, bridge, MCP install, knowledge create, and task-bridge subscribe surfaces show a `workspace-scope-statement` footer note derived from the menubar Global switch. There are no destination pills, RadioCards, or `config_scope` search params. Global create omits `workspace` (sessions bind the hidden home id or `workspace_path` without flipping the menubar). Workspace create sends the project id. Knowledge list tabs stay filters; create follows the menubar unless the Agent tab is selected. Settings → Skills Global|Agent is a different axis and stays local.
-entry_points: web New agent; New session; New task; New job/trigger; New bridge; Marketplace MCP install; Knowledge create
+expected: Agent, session, task, job, trigger, MCP install, and knowledge create surfaces show a `workspace-scope-statement` footer note derived from the menubar Global switch. There are no destination pills, RadioCards, or `config_scope` search params. Global create omits `workspace` (sessions bind the hidden home id or `workspace_path` without flipping the menubar). Workspace create sends the project id. Knowledge list tabs stay filters; create follows the menubar unless the Agent tab is selected. Settings → Skills Global|Agent is a different axis and stays local.
+entry_points: web New agent; New session; New task; New job/trigger; Marketplace MCP install; Knowledge create
 qa_status: untested
 bug_ids:
 fix_status:
@@ -27,3 +27,5 @@ src: web/src/systems/workspace/components/workspace-scope-statement.tsx; web/src
 2026-08-13 re-walk: a project-scoped Knowledge draft named `draft-project` was abandoned. After switching Global, the reopened form was clean and stated "Creates in Global — visible to every workspace." The Global MCP install dialog likewise started clean and stated its Global destination. Remaining submission paths stay blocked-verify for a broader creation charter.
 
 2026-08-20 qa-impact: job, trigger, and task destination chips left the body toolbar; every create/install surface now states destination in the footer hint. Reset to untested.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

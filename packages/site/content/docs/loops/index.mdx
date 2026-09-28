@@ -55,13 +55,9 @@ not replace capabilities:
 
 - A **Loop** is a **deterministic runtime program** the daemon owns and runs. It rides CompozyOS's
   existing durable foundations — the work queue, sessions, [automation](/docs/automation),
-  [network](/docs/network), and [memory](/docs/memory) — rather than adding a
+  and [memory](/docs/memory) — rather than adding a
   second execution engine.
-- A **capability** is an **interpretive network artifact** — what an agent offers to peers over
-  Compozy Network. Capabilities stay interpretive; the network protocol does not carry Loop execution.
-
-Compozy Network remains, by design, not a workflow engine: envelopes do not carry loop execution. The
-Loop domain lives entirely in the runtime.
+- A **capability** describes an agent outcome for local task selection and inspection.
 
 ## Arrive and use
 

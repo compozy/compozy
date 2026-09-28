@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	shellquote "github.com/kballard/go-shellquote"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/kballard/go-shellquote"
 )
 
 func TestStopTerminatesWrappedProcessTree(t *testing.T) {

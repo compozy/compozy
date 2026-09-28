@@ -54,15 +54,15 @@ func TestDescribeExtension(t *testing.T) {
 			name: "Should report active subprocess runtime",
 			extension: &Extension{
 				Info: ExtensionInfo{
-					Name:    "telegram-adapter",
+					Name:    "task-provider",
 					Version: "1.2.3",
 					Source:  SourceUser,
 					Enabled: true,
 					Capabilities: CapabilitiesConfig{
-						Provides: []string{"bridge.adapter"},
+						Provides: []string{"tool.provider"},
 					},
 					Permissions: PermissionsConfig{
-						Requires: []string{"bridges/messages/ingest"},
+						Requires: []string{"tasks/create"},
 					},
 				},
 				Status: ExtensionStatus{
@@ -247,17 +247,16 @@ func TestDescribeExtensionProjectsCuratedArchiveIdentity(t *testing.T) {
 // Owner: extension snapshot projection; canonical suite: describe_test.go (UT-023).
 func TestExtensionContents(t *testing.T) {
 	t.Parallel()
-	t.Run("Should count the illustrative bridge kit without counting resource directories", func(t *testing.T) {
+	t.Run("Should count the illustrative skill kit without counting resource directories", func(t *testing.T) {
 		t.Parallel()
 		manifest := &Manifest{
-			Bridge:    BridgeConfig{Platform: "herdr"},
 			Resources: ResourcesConfig{Skills: []ManifestResourcePath{{Path: "skills"}}},
 		}
 		kit := []KitItem{
 			{Kind: skillspkg.SkillResourceKind, Name: "orchestration"},
 			{Kind: skillspkg.SkillResourceKind, Name: "terminal"},
 		}
-		want := contract.ExtensionContentsPayload{Skills: 2, Bridges: 1}
+		want := contract.ExtensionContentsPayload{Skills: 2}
 		if got := ContentsFor(manifest, kit); got != want {
 			t.Fatalf("ContentsFor() = %#v, want %#v", got, want)
 		}

@@ -4,66 +4,20 @@ area: MS
 title: Start session separates launch details from the prompt composer
 persona: Dora
 journey: J-17
-expected: Opening Start session without an explicit agent preselects the active workspace's default agent; starting from a worktree uses that worktree's workspace default, while an explicit agent choice wins. The dialog shows agent selection, with workspace, optional name, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
+expected: Opening Start session without an explicit agent preselects the active workspace's default agent; starting from a worktree uses that worktree's workspace default, while an explicit agent choice wins. The dialog shows agent selection, with workspace and optional name in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 entry_points: web desktop shell → Start session (dock, command palette, agent catalog, agent detail, dashboard)
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260730-session-create-window-intent; BUG-20260827-session-create-first-message-regression; BUG-20260827-unbound-session-fast-inheritance
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-logs/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/01-create-simple.png;docs/qa/evidence/2026-07-30-session-runtime-selector/02-create-advanced.png;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-no-first-message.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-advanced-no-first-message.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png
 last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
-overlaps: MS-web-entity-modal-shell; NB-participation-controls-serialize
+overlaps: MS-web-entity-modal-shell
 ---
 
-story: As a person running agent work I choose who runs and where, launch one durable session, then write the first prompt in its composer without losing access to runtime or advanced launch controls.
+Opening Start session without an explicit agent preselects the active workspace's default agent; starting from a worktree uses that worktree's workspace default, while an explicit agent choice wins. The dialog shows agent selection, with workspace and optional name in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 
-Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.2), task_02, implemented 2026-07-25. Before this change the dialog was runtime-first: it had no workspace picker and no session name, and it always sent the active workspace.
+Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
-The workspace picker and session name are new writes against `CreateSessionRequest` fields the daemon already accepted (`internal/api/contract/session_runtime_payloads.go`). Network participation keeps its existing control (mode, channel id, strategy) rather than the single channel select in the artboard, because `network_participation` is the only channel-bearing field on the contract.
-
-QA impact 2026-07-26: first-message creation is atomic and RuntimeSelector lives in the composer. The modal shell keeps Simple/Advanced disclosure, while Network participation remains hidden in Advanced. Scenario remains untested; flag only.
-
-QA impact 2026-07-31: Working path removed from Start session Advanced; create always targets the selected workspace root. Status reset to untested.
-
-src: web/src/systems/session/components/session-create-dialog.tsx; web/src/systems/session/components/session-create-simple-section.tsx; web/src/systems/session/components/session-create-advanced-section.tsx; web/src/systems/session/hooks/use-session-create-dialog.ts
-
-inventory: Needs QA
-
-QA impact 2026-07-26: opening the create flow without an explicit agent now resolves against the
-live Query-backed agent catalog, including the first available agent after an initially empty read.
-Status remains untested; no QA replay ran.
-
-2026-08-20 qa-impact: density cleanup removed the Agent and Session name helper paragraphs. Status
-lines while creating an environment or starting the session stay visible. Status remains untested.
-
-2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.
-
-2026-08-27 qa-impact: the destination composer Runtime Selector now includes catalog-backed Fast,
-advanced ACP options, and provider-managed state. Status remains untested for the launch-to-composer
-handoff.
-
-2026-08-27 qa-impact: targeted QA found a regressed First message field in Start session. The field
-was removed and the launch/composer boundary was restored.
-
-QA 2026-08-27: Simple and Advanced were prompt-free. Start created one durable session and opened
-its composer; the separate first prompt completed once with the agent's Grok 4.5 High/Fast runtime.
-
-QA impact 2026-09-23: Start session should preselect the active workspace default agent, and a
-worktree launch should use its owning workspace default. An explicit agent launch must retain its
-selection. Check a workspace with no configured default separately; the existing `general`
-fallback may be unavailable and must not silently start a different agent. Issue #667 tracks the
-change. The focused hook suite (19 tests) and the isolated daemon-served browser replay of the
-registered default passed on 2026-09-23. The daemon-served browser E2E replay then created a
-session from the generic New session action with that default, confirmed the returned agent and
-destination route, and reached the destination composer. The earlier 2026-08-27 walk covered the
-Simple/Advanced launch controls and the separate first prompt. The 2026-09-23 default-agent
-launch-to-composer retest passed (`web/e2e/__tests__/session-onboarding.spec.ts`).
-
-QA impact 2026-09-24: Launching from a worktree while Global or another project is active must
-activate the worktree's owning workspace before the dialog resolves its agent catalog and
-destination. Verify the selected worktree, default agent, and resulting session-create request
-through the worktree browser journey (`web/e2e/__tests__/worktrees.spec.ts`).
-The isolated daemon-served Chromium replay passed: Global changed to the owning workspace,
-the dialog selected its default agent and ready worktree, and POST /api/sessions carried that
-workspace, worktree, and agent.
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

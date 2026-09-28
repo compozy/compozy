@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: e40dc76
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/extension-host-api.json;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/daemon-restart.json
 last_report: docs/qa/reports/2026-08-04-session-archive.md
-overlaps: RT-011;RT-042;RT-session-delete-owned-history
+overlaps: RT-011; RT-042; RT-session-delete-owned-history
 ---
 
 Archive must never delete or rewrite session-owned metadata, events, transcript, ledger, permissions,

@@ -8,7 +8,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -48,7 +48,7 @@ func (s *daemonLoopAPIService) startSessionGoal(
 		ctx,
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
-		goalStartInputs(prepared.profileID, runtime, prepared.network),
+		goalStartInputs(prepared.profileID, runtime),
 		prepared.origin,
 		actor,
 	)
@@ -98,7 +98,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 		looppkg.RunID(strings.TrimSpace(expectedRunID)),
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
-		goalStartInputs(prepared.profileID, runtime, prepared.network),
+		goalStartInputs(prepared.profileID, runtime),
 		prepared.origin,
 		actor,
 	)
@@ -124,14 +124,12 @@ type sessionGoalDefinitionInput struct {
 	agentName      string
 	judgeModel     string
 	maxTurns       int
-	network        participation.Spec
 }
 
 type sessionGoalOriginDetails struct {
 	origin      looppkg.RunOrigin
 	profile     store.SessionCreationProfile
 	activeModel string
-	network     participation.Spec
 }
 
 func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
@@ -171,7 +169,6 @@ func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 		agentName:      details.profile.AgentName,
 		judgeModel:     judgeModel,
 		maxTurns:       cfg.Goals.MaxTurns,
-		network:        details.network,
 	}, session.GoalDispatchDecision{}, nil
 }
 
@@ -309,18 +306,16 @@ func (s *daemonLoopAPIService) sessionGoalOrigin(
 		},
 		profile:     profile,
 		activeModel: info.Model,
-		network:     participationSnapshotValue(&info.NetworkParticipation),
 	}, "", nil
 }
 
 func goalStartInputs(
 	profileID string,
 	runtime *looppkg.RuntimeSpec,
-	network participation.Spec,
+
 ) looppkg.Inputs {
 	inputs := looppkg.Inputs{
-		ProfileID:                    profileID,
-		NetworkParticipationSnapshot: participation.CloneSpec(network),
+		ProfileID: profileID,
 	}
 	if runtime != nil {
 		worker := *runtime

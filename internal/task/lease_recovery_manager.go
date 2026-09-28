@@ -35,12 +35,6 @@ func (m *Service) handleExpiredRunLeaseRecovery(
 	result *ExpiredLeaseRecoveryResult,
 	actor ActorContext,
 ) error {
-	defer m.restoreTaskRunNetworkBestEffort(ctx, result.PreviousSessionID, result.Run.ID)
-	if result.Run.IsNetworkWake() {
-		m.dispatchTaskRunLeaseExpired(ctx, result.Run, Task{}, actor, result)
-		m.dispatchTaskRunLeaseRecoveredFromExpiration(ctx, result.Run, Task{}, actor, result)
-		return nil
-	}
 	reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
 	if err != nil {
 		return err

@@ -32,7 +32,6 @@ def main() -> int:
     parser.add_argument("--target", required=True, help="Target object or route")
     parser.add_argument("--ids", default="[]", help="JSON array of relevant persisted IDs")
     parser.add_argument("--evidence-path", default="", help="Path to command output, screenshot, transcript, or artifact")
-    parser.add_argument("--channel", default="", help="Channel id when applicable")
     parser.add_argument("--task-kind", default="", choices=["", "root", "subtask", "dependency", "run"])
     parser.add_argument("--probe-id", default="", help="Disruption probe id when applicable")
     parser.add_argument("--phase", default="", help="trigger, observed, or result for disruption probes")
@@ -118,8 +117,6 @@ def main() -> int:
         "ids": ids,
         "evidence_path": args.evidence_path.strip(),
     }
-    if args.channel:
-        entry["channel"] = args.channel.strip()
     if args.task_kind:
         entry["task_kind"] = args.task_kind
     if args.probe_id:

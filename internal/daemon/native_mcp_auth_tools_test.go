@@ -34,7 +34,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-auth"),
+			Sessions: nativeTestSessionManager("ws-auth"),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
 			},
@@ -119,7 +119,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 				},
 			}}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-				Sessions: nativeNetworkTestSessionManager("ws-owned"),
+				Sessions: nativeTestSessionManager("ws-owned"),
 				MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return provider },
 				Settings: func() core.SettingsService { return settingsService },
 			}, nativeApproveAllPolicyInputs())
@@ -173,7 +173,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			Status:     "unconfigured",
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-dead"),
+			Sessions: nativeTestSessionManager("ws-dead"),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
 			},
@@ -214,7 +214,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager(""),
+			Sessions: nativeTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{}
 			},
@@ -249,7 +249,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			},
 		}}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager(""),
+			Sessions: nativeTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
 			},
@@ -301,7 +301,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 
 		sentinelErr := errors.New("status failed")
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager(""),
+			Sessions: nativeTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{err: sentinelErr}
 			},
@@ -324,7 +324,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager(""),
+			Sessions: nativeTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{
 					status: toolspkg.MCPAuthStatus{

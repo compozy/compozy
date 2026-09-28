@@ -114,3 +114,19 @@ func cliExitCodeForError(err error) int {
 	}
 	return code
 }
+
+func requireAgentCommandIdentity(
+	ctx context.Context,
+	deps commandDeps,
+	client agentSessionClient,
+	originRef string,
+) (agentidentity.Credentials, error) {
+	if _, err := resolveAgentCallerFromEnv(ctx, deps, client, originRef); err != nil {
+		return agentidentity.Credentials{}, err
+	}
+	return agentCredentialsFromEnv(deps), nil
+}
+
+func agentActionCLI(action string) string {
+	return "agent." + strings.TrimSpace(action)
+}

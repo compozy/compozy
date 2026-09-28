@@ -597,43 +597,6 @@ func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 			)
 		}
 	})
-
-	t.Run("Should reject unknown workspace sandbox refs as client errors", func(t *testing.T) {
-		t.Parallel()
-
-		workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
-		workspaces := testutil.StubWorkspaceService{
-			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
-				return workspace, nil
-			},
-			UpdateFn: func(context.Context, string, workspacepkg.UpdateOptions) error {
-				return compozyconfig.ErrSandboxProfileNotFound
-			},
-		}
-		fixture := newFixture(t, workspaces)
-
-		badUpdate := performRequest(
-			t,
-			fixture.Engine,
-			http.MethodPatch,
-			"/workspaces/ws_alpha",
-			[]byte(`{"sandbox_ref":"missing-profile"}`),
-		)
-		if badUpdate.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"bad update status = %d, want %d; body=%s",
-				badUpdate.Code,
-				http.StatusBadRequest,
-				badUpdate.Body.String(),
-			)
-		}
-		if !strings.Contains(badUpdate.Body.String(), "sandbox profile not found") {
-			t.Fatalf(
-				"bad update body = %s, want sandbox profile validation message",
-				badUpdate.Body.String(),
-			)
-		}
-	})
 }
 
 func TestWorkspaceValidationBranches(t *testing.T) {

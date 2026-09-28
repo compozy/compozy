@@ -1,11 +1,6 @@
 import type { FormEvent } from "react";
 
 import {
-  isNetworkParticipationDraftValid,
-  networkParticipationDraftFromPayload,
-} from "@/lib/network-participation";
-
-import {
   automationTargetMode,
   retryDraftForStrategy,
   setTriggerTargetMode,
@@ -61,13 +56,7 @@ function computeCanSubmit(
     (draft.scope === "global" || loopWorkspaceId === (draft.workspace_id ?? ""));
   const targetValid =
     automationTargetMode(draft) === "loop"
-      ? Boolean(draft.loop_target?.loop_name.trim()) &&
-        loopTargetCompatible &&
-        loopWorkspaceValid &&
-        isNetworkParticipationDraftValid(
-          networkParticipationDraftFromPayload(draft.loop_target?.network_participation),
-          ["named", "loop_run"]
-        )
+      ? Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible && loopWorkspaceValid
       : draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
   const baseValid =
     draft.name.trim() !== "" &&

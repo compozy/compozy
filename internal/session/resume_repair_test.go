@@ -186,21 +186,16 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 			name    string
 			started time.Time
 			want    State
-			remote  bool
 		}{
-			{"Should retain a matching live process", started, StateStopping, false},
-			{"Should retain an unverifiable identity", time.Time{}, StateStopping, false},
-			{"Should recognize an exited identity when the PID is reused", started.Add(-time.Hour), StateStopped, false},
-			{"Should not treat a reused local PID as remote exit proof", started.Add(-time.Hour), StateStopping, true},
+			{"Should retain a matching live process", started, StateStopping},
+			{"Should retain an unverifiable identity", time.Time{}, StateStopping},
+			{"Should recognize an exited identity when the PID is reused", started.Add(-time.Hour), StateStopped},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				meta := store.SessionMeta{State: string(StateActive), Liveness: &store.SessionLivenessMeta{
 					SubprocessPID: os.Getpid(), SubprocessStartedAt: &tc.started,
 				}}
-				if tc.remote {
-					meta.Sandbox = &store.SessionSandboxMeta{Backend: "daytona"}
-				}
 				recovered, changed := ClassifyInactiveMetaForRecovery(started.Add(time.Hour), meta)
 				if !changed || recovered.State != string(tc.want) ||
 					recovered.StopVerificationFailed != (tc.want == StateStopping) {
@@ -404,14 +399,13 @@ func TestValidateInfrastructure(t *testing.T) {
 
 func validResumeMeta(h *harness, sessionID string) store.SessionMeta {
 	return store.SessionMeta{
-		ID:                   sessionID,
-		Name:                 "resume-session",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		SessionType:          string(SessionTypeUser),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
+		ID:            sessionID,
+		Name:          "resume-session",
+		AgentName:     "coder",
+		WorkspaceID:   h.workspaceID,
+		SessionType:   string(SessionTypeUser),
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
 	}
 }
 

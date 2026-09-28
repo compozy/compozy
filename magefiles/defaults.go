@@ -4,7 +4,6 @@ package main
 
 import (
 	"errors"
-	"path/filepath"
 
 	"github.com/compozy/compozy/internal/codegen/openapits"
 )
@@ -38,16 +37,7 @@ const (
 	fontSizeSyncScriptPath    = "scripts/sync-font-size-classes.mjs"
 	lucideIconsSyncScriptPath = "scripts/sync-lucide-icons.mjs"
 	emojibaseSyncScriptPath   = "scripts/sync-emojibase.mjs"
-	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
-	daytonaSidecarToolchain   = "1.26.4"
-	daytonaSidecarRegenHint   = "go run github.com/magefile/mage@v1.17.2 " +
-		"daytonaSidecars"
 )
-
-type daytonaSidecarAsset struct {
-	arch string
-	path string
-}
 
 type mageStep struct {
 	name string
@@ -63,29 +53,6 @@ var (
 		},
 	}
 )
-
-var daytonaSidecarAssets = []daytonaSidecarAsset{
-	{
-		arch: "amd64",
-		path: filepath.Join(
-			"internal",
-			"sandbox",
-			"daytona",
-			"sidecar_assets",
-			"compozy-daytona-sidecar-linux-amd64.gz",
-		),
-	},
-	{
-		arch: "arm64",
-		path: filepath.Join(
-			"internal",
-			"sandbox",
-			"daytona",
-			"sidecar_assets",
-			"compozy-daytona-sidecar-linux-arm64.gz",
-		),
-	},
-}
 
 var (
 	errLaneBinaryOverrideDirectory     = errors.New("lane binary override points to directory")

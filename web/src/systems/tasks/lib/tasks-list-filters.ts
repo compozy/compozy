@@ -44,14 +44,7 @@ export const TASK_LIST_SORT_OPTIONS = [
   "recent",
   "priority",
 ] as const satisfies readonly TaskListSortKey[];
-const OWNER_KINDS: TaskOwnerKind[] = [
-  "agent_session",
-  "automation",
-  "extension",
-  "human",
-  "network_peer",
-  "pool",
-];
+const OWNER_KINDS: TaskOwnerKind[] = ["agent_session", "automation", "extension", "human", "pool"];
 
 export function taskOwnerFilterValue(owner: TaskFilterOwnerOption): string {
   return `${encodeURIComponent(owner.kind)}:${encodeURIComponent(owner.ref)}`;

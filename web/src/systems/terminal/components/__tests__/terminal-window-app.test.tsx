@@ -81,7 +81,6 @@ function renderWindow(overrides: Partial<TerminalWindowAppProps> = {}) {
       actions={actions}
       engineLoader={stubEngineLoader}
       inputRequests={[]}
-      interactiveAvailable
       journal={<div data-testid="journal-slot">journal</div>}
       limit={TERMINAL_LIMIT}
       profile={TERMINAL_FIXTURE_PROFILE}
@@ -304,7 +303,6 @@ describe("TerminalWindowApp — S1 states", () => {
         actions={actions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={remaining.length}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -323,22 +321,6 @@ describe("TerminalWindowApp — S1 states", () => {
     await userEvent.click(close);
     expect(actions.onCloseTerminal).toHaveBeenCalledTimes(2);
     expect(actions.onCloseTerminal).toHaveBeenLastCalledWith(remaining[0].id);
-  });
-
-  it("Should state an execute-only platform instead of offering a screen", async () => {
-    renderWindow({ interactiveAvailable: false, terminals: [] });
-
-    expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-new")).not.toBeInTheDocument();
-    expect(screen.getByTestId("terminal-execute-only")).not.toHaveTextContent("On this platform");
-
-    await userEvent.click(screen.getByRole("button", { name: "View journal" }));
-    expect(screen.queryByTestId("terminal-execute-only")).not.toBeInTheDocument();
-    expect(screen.getByTestId("journal-slot")).toBeVisible();
-
-    await userEvent.click(screen.getByTestId("terminal-journal-back"));
-    expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.getByTestId("journal-slot")).not.toBeVisible();
   });
 
   it("Should publish identity into the OS head instead of drawing a second row", async () => {
@@ -364,7 +346,6 @@ describe("TerminalWindowApp — S1 states", () => {
           actions={stubWindowActions()}
           engineLoader={stubEngineLoader}
           inputRequests={[]}
-          interactiveAvailable
           journal={<div>Marketing journal</div>}
           profile={TERMINAL_FIXTURE_PROFILE}
           socketFactory={silentSocketFactory}
@@ -376,7 +357,6 @@ describe("TerminalWindowApp — S1 states", () => {
           actions={stubWindowActions()}
           engineLoader={stubEngineLoader}
           inputRequests={[]}
-          interactiveAvailable
           journal={<div>Operations journal</div>}
           profile="operations"
           socketFactory={silentSocketFactory}
@@ -510,7 +490,6 @@ describe("TerminalWindowApp — S1 states", () => {
         actions={view.actions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -529,7 +508,6 @@ describe("TerminalWindowApp — S1 states", () => {
         actions={view.actions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -796,7 +774,6 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
         actions={renderedActions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}
@@ -830,7 +807,6 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
         actions={renderedActions}
         engineLoader={stubEngineLoader}
         inputRequests={[]}
-        interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
         profile={TERMINAL_FIXTURE_PROFILE}

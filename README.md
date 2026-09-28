@@ -54,10 +54,8 @@ OpenClaw, and Hermes). Built first for developers and technical operators.
   operator's machine unless a configured provider or extension owns an external boundary.
 - **Remote access stays explicit.** The [Gateway](https://compozy.com/docs/gateway)
   pairs devices and exposes only the private or public surfaces an operator enables.
-- **Built to extend.** Agents, skills, capabilities, hooks, bridges, and extension kits plug into
+- **Built to extend.** Agents, skills, capabilities, hooks, and extension kits plug into
   explicit runtime contracts.
-- **Compozy Network.** Sessions can discover peers, exchange typed messages, delegate work, and close
-  it with receipts over `compozy-network/v0`.
 
 ## 📦 Installation
 
@@ -115,7 +113,7 @@ parallel model.
 
 `compozy daemon start`, `compozy status`, and `compozy daemon stop` manage the local daemon.
 Sessions, tasks, Loop runs, memory,
-automation, tools, and Compozy Network activity keep explicit owners and workspace boundaries. Use
+automation and tools keep explicit owners and workspace boundaries. Use
 structured CLI output (`-o json`), HTTP/SSE, UDS, MCP, or native tools when another agent or program
 needs to manage the same resources.
 
@@ -252,7 +250,6 @@ compozy doctor -o json
 - [Quick Start](https://compozy.com/docs/getting-started/quick-start)
 - [Migrate from v0.2.15](MIGRATION_GUIDE.md)
 - [CLI reference](https://compozy.com/docs/cli-reference)
-- [Compozy Network protocol](https://compozy.com/protocol)
 - [GitHub releases](https://github.com/compozy/compozy/releases)
 
 ## 🛠️ Development

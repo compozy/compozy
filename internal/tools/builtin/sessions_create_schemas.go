@@ -12,8 +12,7 @@ var sessionCreateInputSchema = `{
 			"type":"object",
 			"properties":{"name":{"type":"string"}},
 			"additionalProperties":false
-		},
-		"network_participation":` + networkParticipationRequestSchema + `
+		}
 	},
 	"additionalProperties":false
 }`

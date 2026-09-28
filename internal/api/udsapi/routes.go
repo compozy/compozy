@@ -9,7 +9,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerStatusRoutes(api, handlers)
 	registerOnboardingRoutes(api, handlers)
 	registerFilesystemRoutes(api, handlers)
-	registerBridgeRoutes(api, handlers)
 	registerNotificationRoutes(api, handlers)
 	registerProfileRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
@@ -34,7 +33,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerMarketplaceRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
-	registerNetworkRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
@@ -72,13 +70,6 @@ func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
 	notifications := api.Group("/notifications")
 	notifications.GET("/attention", handlers.AttentionNotifications)
 	notifications.POST("/attention/acknowledge", handlers.AcknowledgeAttentionNotifications)
-	presets := notifications.Group("/presets")
-	presets.GET("", handlers.ListNotificationPresets)
-	presets.POST("", handlers.CreateNotificationPreset)
-	presets.GET("/:name", handlers.GetNotificationPreset)
-	presets.PUT("/:name", handlers.UpdateNotificationPreset)
-	presets.DELETE("/:name", handlers.DeleteNotificationPreset)
-	presets.PUT("/:name/enablement", handlers.SetNotificationPresetEnablement)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
@@ -103,10 +94,6 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 		agent.GET("/coordinator/config", handlers.AgentCoordinatorRole)
 		agent.POST("/spawn", handlers.AgentSpawn)
 		agent.POST("/notify", handlers.AgentNotify)
-		agent.GET("/channels", handlers.AgentChannels)
-		agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)
-		agent.POST("/channels/:channel/send", handlers.AgentChannelSend)
-		agent.POST("/channels/reply", handlers.AgentChannelReply)
 		tasks := agent.Group("/tasks")
 		{
 			tasks.POST("/claim-next", handlers.AgentTaskClaimNext)
@@ -214,11 +201,6 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 		tasks.PUT("/:id/execution-profile", handlers.SetTaskExecutionProfile)
 		tasks.PATCH("/:id/execution-profile/worktree", handlers.SetTaskWorktreePolicy)
 		tasks.DELETE("/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
-		tasks.POST("/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
-		tasks.GET("/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
-		tasks.GET("/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
-		deleteBridgeNotificationSubscription := handlers.DeleteTaskBridgeNotificationSubscription
-		tasks.DELETE("/:id/notifications/bridges/:subscription_id", deleteBridgeNotificationSubscription)
 		tasks.GET("/:id/reviews", handlers.ListTaskReviews)
 		tasks.POST("/:id/publish", handlers.PublishTask)
 		tasks.POST("/:id/start", handlers.StartTask)
@@ -251,7 +233,6 @@ func registerTaskRunRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		taskRuns.GET("/:id", handlers.GetTaskRun)
 		taskRuns.GET("/:id/result", handlers.ReadTaskRunResult)
-		taskRuns.GET("/:id/conversation/stream", handlers.StreamTaskRunConversation)
 		taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
 		taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
 		taskRuns.POST("/:id/start", handlers.StartTaskRun)
@@ -365,45 +346,6 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	}
 }
 
-func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
-	network := api.Group("/network")
-	{
-		network.GET("/status", handlers.NetworkStatus)
-	}
-	workspaceNetwork := api.Group("/workspaces/:workspace_id/network")
-	workspaceNetwork.Use(handlers.AuthorizeNetworkWorkspaceAccess)
-	{
-		workspaceNetwork.GET("/peers", handlers.NetworkPeers)
-		workspaceNetwork.GET("/peers/:peer_id", handlers.NetworkPeer)
-		workspaceNetwork.GET("/channels", handlers.NetworkChannels)
-		workspaceNetwork.POST("/channels", handlers.CreateNetworkChannel)
-		workspaceNetwork.GET("/channels/:channel", handlers.NetworkChannel)
-		workspaceNetwork.PATCH("/channels/:channel", handlers.UpdateNetworkChannel)
-		workspaceNetwork.GET("/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
-		workspaceNetwork.PUT("/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
-		workspaceNetwork.DELETE("/channels/:channel/subscriptions/:session_id", handlers.DeleteNetworkSubscription)
-		workspaceNetwork.GET("/channels/:channel/threads", handlers.NetworkThreads)
-		workspaceNetwork.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
-		workspaceNetwork.POST("/channels/:channel/threads/:thread_id/promote-task", handlers.PromoteNetworkThreadTask)
-		workspaceNetwork.GET("/channels/:channel/threads/:thread_id/messages", handlers.NetworkThreadMessages)
-		workspaceNetwork.GET("/channels/:channel/directs", handlers.NetworkDirectRooms)
-		workspaceNetwork.POST("/channels/:channel/directs/resolve", handlers.ResolveNetworkDirectRoom)
-		workspaceNetwork.GET("/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
-		workspaceNetwork.GET("/channels/:channel/directs/:direct_id/messages", handlers.NetworkDirectRoomMessages)
-		workspaceNetwork.GET("/work/:work_id", handlers.NetworkWork)
-		workspaceNetwork.POST("/send", handlers.NetworkSend)
-		workspaceNetwork.GET("/inbox", handlers.NetworkInbox)
-		workspaceNetwork.GET("/usage", handlers.GetNetworkUsage)
-	}
-	workspaceCoordination := api.Group("/workspaces/:workspace_id/network-coordination")
-	workspaceCoordination.Use(handlers.AuthorizeNetworkWorkspaceAccess)
-	{
-		workspaceCoordination.GET("", handlers.GetNetworkCoordination)
-		workspaceCoordination.PUT("", handlers.PutNetworkCoordination)
-		workspaceCoordination.PUT("/invitation", handlers.PutNetworkCoordinationInvitation)
-	}
-}
-
 func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings := api.Group("/settings")
 
@@ -424,8 +366,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/skills", handlers.UpdateSettingsSkills)
 	settings.GET("/automation", handlers.GetSettingsAutomation)
 	settings.PATCH("/automation", handlers.UpdateSettingsAutomation)
-	settings.GET("/network", handlers.GetSettingsNetwork)
-	settings.PATCH("/network", handlers.UpdateSettingsNetwork)
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", handlers.UpdateSettingsWindowManager)
 	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
@@ -458,11 +398,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.POST("/mcp-servers/:name/auth/logout", handlers.LogoutSettingsMCPAuth)
 	settings.PUT("/mcp-servers/:name", handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", handlers.DeleteSettingsMCPServer)
-
-	settings.GET("/sandboxes", handlers.ListSettingsSandboxes)
-	settings.GET("/sandboxes/:name", handlers.GetSettingsSandbox)
-	settings.PUT("/sandboxes/:name", handlers.PutSettingsSandbox)
-	settings.DELETE("/sandboxes/:name", handlers.DeleteSettingsSandbox)
 
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", handlers.PutSettingsHook)

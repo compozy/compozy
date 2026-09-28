@@ -96,13 +96,6 @@ type AutomationSection struct {
 	Links   []OperationalLink
 }
 
-// NetworkSection is the network section read model.
-type NetworkSection struct {
-	Config  compozyconfig.NetworkConfig
-	Runtime NetworkRuntimeStatus
-	Links   []OperationalLink
-}
-
 // GatewaySection is the remote gateway section read model.
 type GatewaySection struct {
 	Config compozyconfig.GatewayConfig
@@ -228,18 +221,6 @@ type AutomationRuntimeStatus struct {
 	TriggerEnabled   int
 	NextFire         *time.Time
 	LastSyncedAt     *time.Time
-}
-
-// NetworkRuntimeStatus summarizes network runtime state.
-type NetworkRuntimeStatus struct {
-	Available         bool
-	Enabled           bool
-	Status            string
-	LocalPeers        int
-	Channels          int
-	MessagesReceived  int64
-	MessagesDelivered int64
-	MessagesRejected  int64
 }
 
 // ObservabilityRuntimeStatus summarizes observability runtime state.

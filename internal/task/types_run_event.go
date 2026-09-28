@@ -63,7 +63,6 @@ type Run struct {
 	SessionID      string         `json:"session_id,omitempty"`
 	Origin         Origin         `json:"origin"`
 	IdempotencyKey string         `json:"idempotency_key,omitempty"`
-	*RunNetworkState
 	*RunWorktreeState
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`

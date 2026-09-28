@@ -64,7 +64,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.agentFilter, "agent", "", "Filter by exact agent definition name")
 	cmd.Flags().StringVar(&flags.parentFilter, "parent", "", "Filter by exact parent session id")
 	cmd.Flags().StringVar(&flags.rootFilter, "root", "", "Filter by exact root session id (includes the root itself)")
-	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, provider, or channel")
+	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, or provider")
 	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
 	cmd.Flags().BoolVar(&flags.attention, "attention", false, "Show only sessions that need operator attention")
 	cmd.Flags().StringSliceVar(&flags.badgeFilters, "badge", nil, "Filter by exact badge (repeat or comma-separate)")
@@ -219,16 +219,16 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 func sessionListHumanHeaders() []string {
 	return []string{
 		"ID", sessionProfileValue, sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue,
-		sessionBackendValue, sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue,
-		sessionChannelValue, "Health State", "Health", sessionUpdatedValue,
+		sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue,
+		"Health State", "Health", sessionUpdatedValue,
 	}
 }
 
 func sessionListToonFields() []string {
 	return []string{
 		"id", profileNameOutputKey, sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey,
-		"sandbox_backend", sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource,
-		sessionChannelKey, "health_state", extensionHealthKey, sessionUpdatedAtKey,
+		sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource,
+		"health_state", extensionHealthKey, sessionUpdatedAtKey,
 	}
 }
 
@@ -237,10 +237,10 @@ func sessionListHumanRow(now func() time.Time) func(SessionRecord) []string {
 		return []string{
 			stringOrDash(item.ID), stringOrDash(item.ProfileName), stringOrDash(item.Name),
 			stringOrDash(item.AgentName), stringOrDash(sessionParentID(&item)),
-			stringOrDash(sessionRuntimeProvider(&item)), stringOrDash(sessionSandboxBackend(&item)),
+			stringOrDash(sessionRuntimeProvider(&item)),
 			stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
 			stringOrDash(sessionFailureKind(&item)), stringOrDash(displaySessionWorkspace(&item)),
-			stringOrDash(sessionResolvedChannelRaw(&item)), stringOrDash(sessionHealthState(&item)),
+			stringOrDash(sessionHealthState(&item)),
 			stringOrDash(sessionHealthStatus(&item)), stringOrDash(formatAge(now, item.UpdatedAt)),
 		}
 	}
@@ -250,8 +250,8 @@ func sessionListHumanRow(now func() time.Time) func(SessionRecord) []string {
 func sessionListToonRow(item SessionRecord) []string {
 	return []string{
 		item.ID, item.ProfileName, item.Name, item.AgentName, sessionParentID(&item),
-		sessionRuntimeProvider(&item), sessionSandboxBackend(&item), string(item.State), string(item.Badge),
-		sessionFailureKind(&item), displaySessionWorkspace(&item), sessionResolvedChannelRaw(&item),
+		sessionRuntimeProvider(&item), string(item.State), string(item.Badge),
+		sessionFailureKind(&item), displaySessionWorkspace(&item),
 		sessionHealthState(&item), sessionHealthStatus(&item), formatTime(item.UpdatedAt),
 	}
 }

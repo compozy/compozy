@@ -7,7 +7,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -40,15 +40,15 @@ func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, erro
 	return kernel, nil
 }
 
-func (d *Daemon) buildResourceCodecs(bridges *bridgeRuntime) (*resources.CodecRegistry, error) {
+func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
 	registry := resources.NewCodecRegistry()
-	if err := registerDaemonResourceCodecs(registry, bridges); err != nil {
+	if err := registerDaemonResourceCodecs(registry); err != nil {
 		return nil, err
 	}
 	return registry, nil
 }
 
-func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *bridgeRuntime) error {
+func registerDaemonResourceCodecs(registry *resources.CodecRegistry) error {
 	if err := registerDaemonResourceCodec(registry, "hook binding", newHookBindingCodec); err != nil {
 		return err
 	}
@@ -88,14 +88,6 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 		"automation trigger",
 		automationpkg.NewTriggerResourceCodec,
 	); err != nil {
-		return err
-	}
-	if err := registerDaemonResourceCodec(registry, "bridge instance", func() (
-		resources.KindCodec[bridgepkg.BridgeInstanceSpec],
-		error,
-	) {
-		return bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(bridges))
-	}); err != nil {
 		return err
 	}
 	return nil
@@ -192,7 +184,6 @@ func (d *Daemon) bootResourceReconcile(
 		WindowLayoutCatalog: state.windowLayoutCatalog,
 		SkillsRegistry:      state.skillsRegistry,
 		Automation:          automationResourceTarget(state.automation),
-		Bridges:             bridgeResourceTarget(state.bridges),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)

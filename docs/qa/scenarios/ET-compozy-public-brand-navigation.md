@@ -28,7 +28,7 @@ redirect. The next QA cycle owns route and metadata verification.
 
 QA impact 2026-07-29: the launch URL now names CompozyOS directly, and the homepage, blog metadata,
 search, RSS, OpenGraph, and internal links must expose `/blog/introducing-compozyos` with no old
-Network-first route. The scenario remains `untested`.
+retired product route. The scenario remains `untested`.
 
 QA impact 2026-08-10: the product-language hard cut now covers site, Web display strings, CLI help,
 release copy, SDK metadata, and generated references. Reset to `untested`; Task 07 owns the walk.
@@ -82,3 +82,6 @@ Acceptance for this replacement slice:
 Validation status is recorded in the rework report and the [SEO follow-up](../reports/2026-09-11-blog-seo.md).
 This slice does not reclassify historical
 brand journeys or claim real-provider execution or a comparative coding-agent benchmark.
+
+
+2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.

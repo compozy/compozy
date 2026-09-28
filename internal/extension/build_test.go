@@ -126,10 +126,8 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["builders"]
+[gateway]
+permissions = ["gateway.private"]
 
 [[resources.skills]]
 path = "skills"
@@ -147,13 +145,11 @@ path = "skills"
 		if !strings.Contains(string(copied), "# Writer") {
 			t.Fatalf("copied skill = %q, want Writer content", copied)
 		}
-		if result.Manifest.NetworkParticipation == nil ||
-			!result.Manifest.NetworkParticipation.Required ||
-			result.Manifest.NetworkParticipation.Mode != "live" ||
-			!reflect.DeepEqual(result.Manifest.NetworkParticipation.ChannelScopes, []string{"builders"}) {
+		if result.Manifest.Gateway == nil ||
+			!reflect.DeepEqual(result.Manifest.Gateway.Permissions, []string{"gateway.private"}) {
 			t.Fatalf(
-				"generated NetworkParticipation = %#v, want required live builders scope",
-				result.Manifest.NetworkParticipation,
+				"generated Gateway = %#v, want gateway.private permission",
+				result.Manifest.Gateway,
 			)
 		}
 		if len(runner.Commands()) != 0 {
@@ -192,26 +188,24 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["release"]
+[gateway]
+permissions = ["gateway.public"]
 
 [[resources.skills]]
 path = "skills"
 `)
-		networkChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
+		gatewayChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
-			t.Fatalf("buildBundle(network changed) error = %v", err)
+			t.Fatalf("buildBundle(gateway changed) error = %v", err)
 		}
-		if networkChanged.GenerationHash == changed.GenerationHash {
-			t.Fatalf("network-changed generation hash = %q, want a new hash", networkChanged.GenerationHash)
+		if gatewayChanged.GenerationHash == changed.GenerationHash {
+			t.Fatalf("gateway-changed generation hash = %q, want a new hash", gatewayChanged.GenerationHash)
 		}
-		if networkChanged.Manifest.NetworkParticipation == nil ||
-			!reflect.DeepEqual(networkChanged.Manifest.NetworkParticipation.ChannelScopes, []string{"release"}) {
+		if gatewayChanged.Manifest.Gateway == nil ||
+			!reflect.DeepEqual(gatewayChanged.Manifest.Gateway.Permissions, []string{"gateway.public"}) {
 			t.Fatalf(
-				"network-changed participation = %#v, want release scope",
-				networkChanged.Manifest.NetworkParticipation,
+				"gateway-changed permissions = %#v, want gateway.public permission",
+				gatewayChanged.Manifest.Gateway,
 			)
 		}
 	})
@@ -770,14 +764,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve normalized network participation", func(t *testing.T) {
+	t.Run("Should preserve normalized gateway permissions", func(t *testing.T) {
 		t.Parallel()
 
 		payload := validDescribePayload()
-		payload.NetworkParticipation = &extensioncontract.DescribeNetworkParticipation{
-			Required: true,
-			Mode:     " LIVE ",
-			ChannelScopes: []string{
+		payload.Gateway = &extensioncontract.DescribeGatewayRequirement{
+			Permissions: []string{
 				" gateway.public ",
 				"gateway.private",
 				"gateway.public",
@@ -787,13 +779,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
-		if manifest.NetworkParticipation == nil || !manifest.NetworkParticipation.Required ||
-			manifest.NetworkParticipation.Mode != "live" ||
+		if manifest.Gateway == nil ||
 			!slices.Equal(
-				manifest.NetworkParticipation.ChannelScopes,
+				manifest.Gateway.Permissions,
 				[]string{"gateway.private", "gateway.public"},
 			) {
-			t.Fatalf("NetworkParticipation = %#v, want normalized live gateway scopes", manifest.NetworkParticipation)
+			t.Fatalf("Gateway = %#v, want normalized gateway permissions", manifest.Gateway)
 		}
 	})
 }

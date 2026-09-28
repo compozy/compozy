@@ -7,87 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
-
-func TestAutonomyPayloadsCarryResolvedNetworkParticipation(t *testing.T) {
-	t.Parallel()
-
-	coordinatorPayloads := make(chan CoordinatorPreSpawnPayload, 1)
-	taskRunPayloads := make(chan TaskRunEnqueuedPayload, 1)
-	hooks := newTestHooks(
-		t,
-		WithNativeDeclarations([]HookDecl{
-			{
-				Name:         "coordinator-channel",
-				Event:        HookCoordinatorPreSpawn,
-				Mode:         HookModeSync,
-				ExecutorKind: HookExecutorNative,
-			},
-			{
-				Name:         "task-run-channel",
-				Event:        HookTaskRunEnqueued,
-				Mode:         HookModeSync,
-				ExecutorKind: HookExecutorNative,
-			},
-		}),
-		WithExecutorResolver(testExecutorResolver(map[string]Executor{
-			"coordinator-channel": NewTypedNativeExecutor(
-				func(
-					_ context.Context,
-					_ RegisteredHook,
-					payload CoordinatorPreSpawnPayload,
-				) (CoordinatorSpawnPatch, error) {
-					coordinatorPayloads <- payload
-					return CoordinatorSpawnPatch{}, nil
-				},
-			),
-			"task-run-channel": NewTypedNativeExecutor(
-				func(
-					_ context.Context,
-					_ RegisteredHook,
-					payload TaskRunEnqueuedPayload,
-				) (TaskRunObservationPatch, error) {
-					taskRunPayloads <- payload
-					return TaskRunObservationPatch{}, nil
-				},
-			),
-		})),
-	)
-	if err := hooks.Rebuild(t.Context()); err != nil {
-		t.Fatalf("Rebuild() error = %v", err)
-	}
-
-	channelID := "coord-ch-1"
-	if _, err := hooks.DispatchCoordinatorPreSpawn(t.Context(), CoordinatorPreSpawnPayload{
-		PayloadBase: PayloadBase{Event: HookCoordinatorPreSpawn, Timestamp: time.Now().UTC()},
-		CoordinatorContext: CoordinatorContext{
-			WorkspaceID: "ws-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: channelID,
-			}),
-		},
-	}); err != nil {
-		t.Fatalf("DispatchCoordinatorPreSpawn() error = %v", err)
-	}
-	if _, err := hooks.DispatchTaskRunEnqueued(t.Context(), TaskRunEnqueuedPayload{
-		PayloadBase: PayloadBase{Event: HookTaskRunEnqueued, Timestamp: time.Now().UTC()},
-		TaskRunContext: TaskRunContext{
-			TaskID:      "task-1",
-			RunID:       "run-1",
-			WorkspaceID: "ws-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: channelID,
-			}),
-		},
-	}); err != nil {
-		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
-	}
-
-	assertCoordinatorChannelPayload(t, coordinatorPayloads, channelID)
-	assertTaskRunChannelPayload(t, taskRunPayloads, channelID)
-}
 
 func TestTaskRunPreClaimDenyAndNarrowCriteriaOnly(t *testing.T) {
 	t.Parallel()
@@ -494,8 +414,7 @@ func TestSpawnPreCreatePatchRejectsPermissionWidening(t *testing.T) {
 				) (SpawnCreatePatch, error) {
 					return SpawnCreatePatch{
 						ChildPermissions: &PermissionSet{
-							Tools:           []string{"read", "write"},
-							NetworkChannels: []string{"coord-main", "coord-other"},
+							Tools: []string{"read", "write"},
 						},
 					}, nil
 				},
@@ -540,8 +459,7 @@ func TestSpawnPreCreateAllowsPermissionNarrowing(t *testing.T) {
 						SpawnRole:  &role,
 						TTLSeconds: &ttlSeconds,
 						ChildPermissions: &PermissionSet{
-							Tools:           []string{"read"},
-							NetworkChannels: []string{"coord-main"},
+							Tools: []string{"read"},
 						},
 					}, nil
 				},
@@ -563,8 +481,7 @@ func TestSpawnPreCreateAllowsPermissionNarrowing(t *testing.T) {
 		t.Fatalf("TTLSeconds = %d, want %d", got, want)
 	}
 	wantPermissions := PermissionSet{
-		Tools:           []string{"read"},
-		NetworkChannels: []string{"coord-main"},
+		Tools: []string{"read"},
 	}
 	if result.ChildPermissions == nil || !reflect.DeepEqual(*result.ChildPermissions, wantPermissions) {
 		t.Fatalf("ChildPermissions = %#v, want %#v", result.ChildPermissions, wantPermissions)
@@ -581,9 +498,6 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 		CoordinatorContext: CoordinatorContext{
 			WorkspaceID:          "ws-1",
 			CoordinatorSessionID: "coord-sess-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 	}
 	taskRunLease := TaskRunLeasePayload{
@@ -592,9 +506,6 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 			TaskID:      "task-1",
 			RunID:       "run-1",
 			WorkspaceID: "ws-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 	}
 	spawn := SpawnLifecyclePayload{
@@ -603,9 +514,6 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 			ParentSessionID: "parent-1",
 			ChildSessionID:  "child-1",
 			WorkspaceID:     "ws-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 	}
 
@@ -690,9 +598,6 @@ func baseTaskRunPreClaimPayload() TaskRunPreClaimPayload {
 			TaskID:      "task-1",
 			RunID:       "run-1",
 			WorkspaceID: "ws-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 		Criteria: TaskRunClaimCriteria{
 			WorkspaceID:          "ws-1",
@@ -712,9 +617,6 @@ func baseLoopGenerationPayload() LoopGenerationPrePayload {
 			Generation:  1,
 			TaskID:      "task-1",
 			RunID:       "run-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 		Status: "running",
 	}
@@ -730,9 +632,6 @@ func baseLoopGatePayload() LoopGatePrePayload {
 			Generation:  1,
 			TaskID:      "task-1",
 			RunID:       "run-1",
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 		GateID: "contract",
 		Status: "done",
@@ -741,8 +640,7 @@ func baseLoopGatePayload() LoopGatePrePayload {
 
 func baseSpawnPreCreatePayload() SpawnPreCreatePayload {
 	parentPermissions := PermissionSet{
-		Tools:           []string{"read", "write"},
-		NetworkChannels: []string{"coord-main"},
+		Tools: []string{"read", "write"},
 	}
 	childPermissions := parentPermissions
 	return SpawnPreCreatePayload{
@@ -754,9 +652,6 @@ func baseSpawnPreCreatePayload() SpawnPreCreatePayload {
 			AgentName:       "worker",
 			SpawnRole:       "coder",
 			TTLSeconds:      3600,
-			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
-				ChannelID: "coord-ch-1",
-			}),
 		},
 		ParentPermissions: &parentPermissions,
 		ChildPermissions:  &childPermissions,
@@ -776,43 +671,4 @@ func withTaskRunLeaseEvent(payload TaskRunLeasePayload, event HookEvent) TaskRun
 func withSpawnEvent(payload SpawnLifecyclePayload, event HookEvent) SpawnLifecyclePayload {
 	payload.Event = event
 	return payload
-}
-
-func assertCoordinatorChannelPayload(
-	t *testing.T,
-	payloads <-chan CoordinatorPreSpawnPayload,
-	wantChannelID string,
-) {
-	t.Helper()
-
-	select {
-	case payload := <-payloads:
-		if payload.ResolvedNetworkParticipation == nil ||
-			payload.ResolvedNetworkParticipation.ChannelID != wantChannelID {
-			t.Fatalf(
-				"Coordinator ResolvedNetworkParticipation = %#v, want channel %q",
-				payload.ResolvedNetworkParticipation,
-				wantChannelID,
-			)
-		}
-	default:
-		t.Fatal("coordinator hook did not receive payload")
-	}
-}
-
-func assertTaskRunChannelPayload(t *testing.T, payloads <-chan TaskRunEnqueuedPayload, wantChannelID string) {
-	t.Helper()
-
-	select {
-	case payload := <-payloads:
-		if payload.ResolvedNetworkParticipation.ChannelID != wantChannelID {
-			t.Fatalf(
-				"TaskRun ResolvedNetworkParticipation.ChannelID = %q, want %q",
-				payload.ResolvedNetworkParticipation.ChannelID,
-				wantChannelID,
-			)
-		}
-	default:
-		t.Fatal("task-run hook did not receive payload")
-	}
 }

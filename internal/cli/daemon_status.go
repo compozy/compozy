@@ -6,7 +6,6 @@ import (
 
 	"os"
 
-	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -98,11 +97,6 @@ func daemonInfo(homePaths compozyconfig.HomePaths, deps commandDeps) (compozydae
 }
 
 func daemonStatusWithState(runtime *runtimeContext, info compozydaemon.Info, status string) DaemonStatus {
-	networkStatus := daemonNetworkStatusFromInfo(&runtime.Config, info.Network)
-	if strings.EqualFold(strings.TrimSpace(status), "stopped") {
-		networkStatus = nil
-	}
-
 	return DaemonStatus{
 		Status:         status,
 		PID:            info.PID,
@@ -113,6 +107,5 @@ func daemonStatusWithState(runtime *runtimeContext, info compozydaemon.Info, sta
 		ActiveSessions: 0,
 		TotalSessions:  0,
 		Version:        version.Current().Version,
-		Network:        networkStatus,
 	}
 }

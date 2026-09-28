@@ -15,7 +15,6 @@ type ToolCallActionExecutor struct {
 	runtime               tools.Registry
 	toolID                tools.ToolID
 	eventReader           ActionEventRangeReader
-	channel               ChannelResultHarvester
 	workspaceRootResolver ActionToolWorkspaceRootResolver
 	maxResultBytes        int64
 }
@@ -40,10 +39,6 @@ func (e *ToolCallActionExecutor) Execute(
 	defer cancel()
 
 	params, err := actionParams(node, in)
-	if err != nil {
-		return ActionRawResult{}, err
-	}
-	harvest, err := renderHarvestSpec(node, in.Namespace)
 	if err != nil {
 		return ActionRawResult{}, err
 	}
@@ -77,12 +72,11 @@ func (e *ToolCallActionExecutor) Execute(
 		return ActionRawResult{}, actionResultTooLargeError(node, e.toolID, result, e.maxResultBytes)
 	}
 	raw := ActionRawResult{
-		ToolResult:      result,
-		Structured:      cloneRawMessage(result.Structured),
-		WorkspaceID:     scope.WorkspaceID,
-		SessionID:       firstNonEmpty(metadataString(result.Metadata, watchEventsFieldSessionID), scope.SessionID),
-		RenderedParams:  cloneRawMessage(input),
-		RenderedHarvest: harvest,
+		ToolResult:     result,
+		Structured:     cloneRawMessage(result.Structured),
+		WorkspaceID:    scope.WorkspaceID,
+		SessionID:      firstNonEmpty(metadataString(result.Metadata, watchEventsFieldSessionID), scope.SessionID),
+		RenderedParams: cloneRawMessage(input),
 	}
 	raw.EventStartSeq = firstNonZero(
 		metadataInt64(result.Metadata, "event_start_seq"),
@@ -107,8 +101,6 @@ func (e *ToolCallActionExecutor) Harvest(
 		return outputFromRaw(raw)
 	case harvestKindEventRange, harvestKindAsync:
 		return e.harvestEventRange(ctx, raw, node)
-	case harvestKindChannelResult:
-		return e.harvestChannelResult(ctx, raw, node)
 	default:
 		return ActionOutput{}, fmt.Errorf("%w: unsupported harvest kind %q", ErrValidation, kind)
 	}
@@ -155,54 +147,5 @@ func (e *ToolCallActionExecutor) harvestEventRange(
 	}
 	out := raw
 	out.Structured = structured
-	return outputFromRaw(out)
-}
-
-func (e *ToolCallActionExecutor) harvestChannelResult(
-	ctx context.Context,
-	raw ActionRawResult,
-	node dsl.Node,
-) (ActionOutput, error) {
-	if e == nil || e.toolID != tools.ToolIDNetworkSend {
-		return ActionOutput{}, fmt.Errorf(
-			"%w: channel_result harvest requires %s action kind",
-			ErrValidation,
-			tools.ToolIDNetworkSend,
-		)
-	}
-	if e == nil || e.channel == nil {
-		return ActionOutput{}, reasonError(
-			ReasonCodeActionDependencyMissing,
-			ErrActionDependencyMissing,
-			map[string]string{actionDependencyMetaKey: "channel_result_harvester"},
-		)
-	}
-	harvest := raw.RenderedHarvest
-	if harvest == nil {
-		harvest = node.Harvest
-	}
-	if harvest == nil {
-		return ActionOutput{}, fmt.Errorf("%w: channel_result harvest spec is required", ErrValidation)
-	}
-	result, err := e.channel.HarvestChannelResult(ctx, &ChannelResultHarvestRequest{
-		Window:      harvest.Window,
-		Responder:   harvest.Responder,
-		ContentRule: harvest.ContentRule,
-		Raw:         raw,
-		Node:        node,
-	})
-	if err != nil {
-		return ActionOutput{}, fmt.Errorf("harvest channel_result: %w", err)
-	}
-	if !result.Found {
-		return ActionOutput{}, reasonError(
-			ReasonCodeActionStalled,
-			ErrActionStalled,
-			map[string]string{actionKindMetaKey: harvestKindChannelResult},
-		)
-	}
-	out := raw
-	out.Structured = cloneRawMessage(result.Structured)
-	out.Text = result.Text
 	return outputFromRaw(out)
 }

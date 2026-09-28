@@ -167,12 +167,6 @@ func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets *shutdownT
 	if targets.supportBundles != nil {
 		appendWrappedError(errs, "daemon: shutdown support bundles", targets.supportBundles.Shutdown(ctx))
 	}
-	if targets.bridges != nil {
-		targets.bridges.Close()
-	}
-	if targets.network != nil {
-		appendWrappedError(errs, "daemon: shutdown network runtime", targets.network.Shutdown(ctx))
-	}
 	if targets.hooks != nil {
 		targets.hooks.Close()
 	}

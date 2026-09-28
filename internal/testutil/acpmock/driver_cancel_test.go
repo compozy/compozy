@@ -14,10 +14,10 @@ import (
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
-func TestDriverSandboxCancellationCleanup(t *testing.T) {
+func TestDriverCommandCancellationCleanup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should release terminal after canceled sandbox exec", func(t *testing.T) {
+	t.Run("Should release terminal after canceled command exec", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("POSIX shell process lifecycle test")
@@ -27,22 +27,22 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DefaultDriverPath() error = %v", err)
 		}
-		fixturePath := writeDriverCancelFixture(t, "sandbox-cancel-fixture.json", `{
+		fixturePath := writeDriverCancelFixture(t, "command-cancel-fixture.json", `{
 			"version": 2,
 			"agents": [
 				{
-					"name": "sandboxer",
+					"name": "commander",
 					"provider": "claude",
 					"turns": [
 						{
-							"name": "long-sandbox",
+							"name": "long-command",
 							"match": {
 								"turn_source": "user",
-								"user_text": "run long sandbox"
+								"user_text": "run long command"
 							},
 							"steps": [
 								{
-									"kind": "sandbox_exec",
+									"kind": "command_exec",
 									"tool_call_id": "cmd-sleep",
 									"title": "Run sleepy terminal",
 									"command": "/bin/sh",
@@ -61,12 +61,12 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 			acp.WithTerminalManager(newDriverTerminalManager(t, registry)),
 		)
 		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
-			AgentName: "sandboxer",
+			AgentName: "commander",
 			Command: BuildCommand(
 				driverPath,
 				fixturePath,
-				"sandboxer",
-				filepath.Join(t.TempDir(), "sandbox-diagnostics.jsonl"),
+				"commander",
+				filepath.Join(t.TempDir(), "command-diagnostics.jsonl"),
 			),
 			Cwd:         t.TempDir(),
 			Permissions: compozyconfig.PermissionModeApproveAll,
@@ -80,10 +80,10 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		eventsCh, err := driver.Prompt(ctx, proc, acp.PromptRequest{
-			TurnID:     "turn-sandbox-cancel",
-			RunID:      "run-sandbox-cancel",
+			TurnID:     "turn-command-cancel",
+			RunID:      "run-command-cancel",
 			Generation: 1,
-			Message:    "run long sandbox",
+			Message:    "run long command",
 			Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 		})
 		if err != nil {
@@ -98,7 +98,7 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 		if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
 			"type": acp.EventTypeError,
 		}) {
-			t.Fatalf("events = %#v, want prompt error after sandbox cancellation", events)
+			t.Fatalf("events = %#v, want prompt error after command cancellation", events)
 		}
 
 		records := waitForTerminalRecords(t, store, func(records []toolruntime.ProcessRecord) bool {

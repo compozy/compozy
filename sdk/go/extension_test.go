@@ -353,7 +353,7 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		host := compozysdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
 			context.Background(),
-			compozysdk.HostAPIMethodNetworkSend,
+			compozysdk.HostAPIMethodSessionsPrompt,
 			map[string]any{"claim_token": "compozy_claim_secret"},
 			&json.RawMessage{},
 		)
@@ -372,7 +372,7 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		host := compozysdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
 			context.Background(),
-			compozysdk.HostAPIMethodNetworkSend,
+			compozysdk.HostAPIMethodSessionsPrompt,
 			map[string]any{"note": "COMPOZY_CLAIM_EXTENSION_SECRET"},
 			&json.RawMessage{},
 		)

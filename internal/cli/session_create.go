@@ -27,9 +27,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		parentID     string
 		worktreeRef  string
 		newWorktree  string
-		networkFlags networkParticipationFlags
 	)
-
 	cmd := &cobra.Command{
 		Use:     sessionNewKey,
 		Short:   "Create a new session",
@@ -39,23 +37,17 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			workspace, workspacePath, err := resolveSessionCreateWorkspace(cmd, deps, client, workspaceRef, cwd)
 			if err != nil {
 				return err
 			}
-			participationRequest, err := networkFlags.namedRequest()
-			if err != nil {
-				return err
-			}
 			request := CreateSessionRequest{
-				AgentName:            agentName,
-				Name:                 name,
-				Workspace:            workspace,
-				WorkspacePath:        workspacePath,
-				Worktree:             strings.TrimSpace(worktreeRef),
-				ParentSessionID:      strings.TrimSpace(parentID),
-				NetworkParticipation: participationRequest,
+				AgentName:       agentName,
+				Name:            name,
+				Workspace:       workspace,
+				WorkspacePath:   workspacePath,
+				Worktree:        strings.TrimSpace(worktreeRef),
+				ParentSessionID: strings.TrimSpace(parentID),
 			}
 			if cmd.Flags().Changed("new-worktree") {
 				name := strings.TrimSpace(newWorktree)
@@ -81,7 +73,6 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().Lookup("new-worktree").NoOptDefVal = sessionNewWorktreeAutoValue
 	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
 	cmd.Flags().StringVar(&parentID, "parent", "", "Record a same-workspace parent session as creation provenance")
-	bindNamedNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.MarkFlagsMutuallyExclusive("cwd", "worktree", "new-worktree")
 	return cmd
 }

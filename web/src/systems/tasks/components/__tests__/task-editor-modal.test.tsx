@@ -10,14 +10,9 @@ import {
   type TaskEditorModalMode,
   type TaskEditorModalStatus,
 } from "../task-editor-modal";
-import {
-  createTaskEditorDraft,
-  taskEditorDraftFromTask,
-  type TaskEditorDraft,
-} from "../../lib/task-editor";
+import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
 import type { TaskTemplateId } from "../../lib/task-templates";
-import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
-import type { TaskOwnerKind, TaskRecord } from "../../types";
+import type { TaskOwnerKind } from "../../types";
 import { QueueOwnershipSection } from "../task-form/queue-ownership-section";
 
 vi.mock("@/systems/status", () => ({
@@ -32,19 +27,6 @@ interface RenderModalOptions {
   isSubmitting?: boolean;
   status?: TaskEditorModalStatus;
 }
-
-const editTask = {
-  id: "task_42",
-  identifier: "TASK-42",
-  title: "Summarize review feedback",
-  status: "in_progress",
-  scope: "workspace",
-  origin: { kind: "cli", ref: "op" },
-  workspace_id: "ws_alpha",
-  created_at: "2026-04-11T09:00:00Z",
-  updated_at: "2026-04-11T09:30:00Z",
-  created_by: { kind: "human", ref: "pedro" },
-} as unknown as TaskRecord;
 
 const workspaces = [
   { id: "ws_alpha", name: "launch-hq" },
@@ -202,12 +184,6 @@ describe("TaskEditorModal", () => {
     expect(
       screen.queryByText("Describe the expected outcome, constraints, and completion criteria.")
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Local by default. Live requires an explicit channel strategy.")
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("button", { name: "About network participation" }).length
-    ).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "About parent task" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About owner" })).toBeInTheDocument();
     expect(screen.queryByText(/makes this a child in an epic/)).not.toBeInTheDocument();
@@ -322,7 +298,7 @@ describe("TaskEditorModal", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ title: "Ship it" }), false);
   });
 
-  it("Should render edit mode without the toolbar, templates, or network channel input", () => {
+  it("Should render edit mode without the toolbar or templates", () => {
     const draft: TaskEditorDraft = {
       ...createTaskEditorDraft("blank", "ws_alpha"),
       title: "Summarize review feedback",
@@ -339,7 +315,6 @@ describe("TaskEditorModal", () => {
     expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
-    expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Lives in launch-hq");
     expect(
@@ -386,41 +361,6 @@ describe("TaskEditorModal", () => {
     // Dismissal stays reachable so the host can navigate back to the task.
     await user.click(screen.getByRole("button", { name: /close/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Should submit persisted Live participation inherited from a Loop run", () => {
-    const loopTask = {
-      ...editTask,
-      execution_mode: "loop_run",
-    } as TaskRecord;
-    const draft = taskEditorDraftFromTask(
-      loopTask,
-      buildTaskExecutionProfileFixture({
-        task_id: loopTask.id,
-        network_participation: {
-          mode: "live",
-          channel_strategy: "loop_run",
-        },
-      })
-    );
-
-    const { onSubmit } = renderModal({ mode: "edit", draft });
-
-    expect(screen.getByTestId("task-editor-participation-mode")).toHaveValue("live");
-    expect(screen.getByTestId("task-editor-participation-strategy")).toHaveValue("loop_run");
-    expect(screen.queryByTestId("task-editor-participation-channel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-modal-submit")).toBeEnabled();
-
-    fireEvent.submit(screen.getByTestId("task-editor-modal-form"));
-
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        networkParticipationMode: "live",
-        networkChannelId: "",
-        networkChannelStrategy: "loop_run",
-      }),
-      false
-    );
   });
 });
 

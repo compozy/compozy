@@ -182,7 +182,6 @@ func appendTargetBreakerTransitionEventWithExecutor(
 			loopRunEventPayloadKeyGeneration: generation,
 			"family":                         event.TargetFamily,
 			loopRunEventPayloadKeyTarget:     event.Target,
-			networkWakeEventStateKey:         event.BreakerState,
 		},
 		at,
 	)

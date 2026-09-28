@@ -360,7 +360,7 @@ func TestBundledManagedInstall(t *testing.T) {
 		t.Fatalf("Registry.Get() error = %v", err)
 	}
 	if installed.Source != extensionpkg.SourceBundled || !installed.Enabled ||
-		installed.NetworkRequirementDigest == "" {
+		installed.GatewayRequirementDigest == "" {
 		t.Fatalf("installed provider = %#v, want enabled bundled live provider", installed)
 	}
 }
@@ -521,13 +521,12 @@ func TestBundledProviderDefinitionCarriesStateAndCredentialContract(t *testing.T
 	) {
 		t.Fatalf("Capabilities.Provides = %#v, want connectivity provider", definition.Capabilities.Provides)
 	}
-	if definition.NetworkParticipation == nil || !definition.NetworkParticipation.Required ||
-		definition.NetworkParticipation.Mode != "live" ||
+	if definition.Gateway == nil ||
 		!slices.Equal(
-			definition.NetworkParticipation.ChannelScopes,
+			definition.Gateway.Permissions,
 			[]string{"gateway.private", "gateway.public"},
 		) {
-		t.Fatalf("NetworkParticipation = %#v, want live gateway scopes", definition.NetworkParticipation)
+		t.Fatalf("Gateway = %#v, want live gateway scopes", definition.Gateway)
 	}
 
 	manifestData, err := fs.ReadFile(FS(), "extension.json")
@@ -551,17 +550,15 @@ func TestBundledProviderDefinitionCarriesStateAndCredentialContract(t *testing.T
 		!maps.Equal(definition.Subprocess.Env, manifest.Subprocess.Env) {
 		t.Fatalf("providerDefinition() = %#v, want parity with extension.json %#v", definition, manifest)
 	}
-	if manifest.NetworkParticipation == nil || definition.NetworkParticipation == nil ||
-		definition.NetworkParticipation.Required != manifest.NetworkParticipation.Required ||
-		definition.NetworkParticipation.Mode != manifest.NetworkParticipation.Mode ||
+	if manifest.Gateway == nil || definition.Gateway == nil ||
 		!slices.Equal(
-			definition.NetworkParticipation.ChannelScopes,
-			manifest.NetworkParticipation.ChannelScopes,
+			definition.Gateway.Permissions,
+			manifest.Gateway.Permissions,
 		) {
 		t.Fatalf(
 			"providerDefinition network participation = %#v, manifest = %#v",
-			definition.NetworkParticipation,
-			manifest.NetworkParticipation,
+			definition.Gateway,
+			manifest.Gateway,
 		)
 	}
 }

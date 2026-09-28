@@ -47,7 +47,7 @@ fi
 cd "$repo_root"
 
 set +e
-matches="$(rg --line-number --no-heading --pcre2 '(?<!X-)\bCompozy\b(?! Network)' -- "${paths[@]}" 2>&1)"
+matches="$(rg --line-number --no-heading --pcre2 '(?<!X-)\bCompozy\b' -- "${paths[@]}" 2>&1)"
 status=$?
 set -e
 
@@ -62,5 +62,5 @@ if ((status != 0)); then
 fi
 
 echo "$matches" >&2
-echo "Retired product-language 'Compozy' found. Use 'CompozyOS'; preserve only 'Compozy Network' and X-Compozy-* headers." >&2
+echo "Retired product-language 'Compozy' found. Use 'CompozyOS'; preserve X-Compozy-* headers." >&2
 exit 1

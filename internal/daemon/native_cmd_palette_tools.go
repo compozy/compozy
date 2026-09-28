@@ -159,7 +159,7 @@ func (n *daemonNativeTools) nativeCmdPaletteWorkspaceID(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return "", nativeNetworkInputError(id, err)
+		return "", nativeInputError(id, err)
 	}
 	if bound != nil && workspaceID != bound.workspaceID {
 		return "", nativeScopeMismatchError(id, nativeWorkspaceInputKey)

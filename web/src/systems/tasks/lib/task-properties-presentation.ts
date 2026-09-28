@@ -22,12 +22,8 @@ export function taskPriorityPresentation(priority: TaskPriority): {
 export function taskExecutionProfileSummary(profile?: TaskExecutionProfile | null): {
   worker: string | null;
   model: string | null;
-  sandbox: string | null;
-  channel: string | null;
 } {
   const worker = profile?.worker;
-  const sandbox = profile?.sandbox;
-  const participation = profile?.network_participation;
   const allowedAgents = worker?.allowed_agent_names ?? [];
   const [firstAllowed, ...remainingAllowed] = allowedAgents;
 
@@ -46,17 +42,6 @@ export function taskExecutionProfileSummary(profile?: TaskExecutionProfile | nul
         ? `${worker.provider} · ${worker.model}`
         : worker.model
       : null,
-    sandbox: !sandbox
-      ? null
-      : sandbox.mode === "ref"
-        ? (sandbox.sandbox_ref ?? null)
-        : sandbox.mode === "none"
-          ? "None"
-          : "Inherited",
-    channel:
-      participation?.mode === "live" && "channel_id" in participation
-        ? (participation.channel_id ?? null)
-        : null,
   };
 }
 

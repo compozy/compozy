@@ -112,14 +112,6 @@ type taskRunStory struct {
 	Error      string
 }
 
-type networkMessageStory struct {
-	ID        string
-	SessionID string
-	ReplyTo   string
-	Text      string
-	At        time.Time
-}
-
 type memoryStory struct {
 	Name         string
 	Scope        string

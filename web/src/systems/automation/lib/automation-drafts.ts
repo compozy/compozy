@@ -85,7 +85,6 @@ export function emptyJobTask(): NonNullable<CreateAutomationJobRequest["task"]> 
     title: "",
     description: "",
     owner: null,
-    network_participation: { mode: "local" },
   };
 }
 
@@ -186,7 +185,6 @@ export function emptyLoopTarget(workspaceId?: string | null, loopName = ""): Aut
     workspace_id: workspaceId ?? "",
     inputs: {},
     input_mapping: {},
-    network_participation: { mode: "local" },
   };
 }
 

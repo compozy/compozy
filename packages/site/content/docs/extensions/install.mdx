@@ -33,7 +33,7 @@ the argument:
 compozy extension install ./hello
 compozy extension install github:acme/hello@v0.1.0
 compozy extension install git:https://github.com/acme/hello@v0.1.0
-compozy extension install acme/linear-bridge
+compozy extension install acme/review-tools
 ```
 
 A path that does not exist fails naming that path instead of degrading into a slug lookup, and a git
@@ -160,7 +160,7 @@ and workspace instances are preserved.
 A [profile](/docs/profiles) is a named working context that decides which extensions are on for it.
 Install preview acquires and validates the package without changing state. It names every profile the
 manifest will create or bind, its credential requirements, resource placements, and the exact Live
-Network digest when one needs confirmation. The web install flow shows this summary before the final
+Gateway digest when one needs confirmation. The web install flow shows this summary before the final
 action. HTTP and UDS use `POST /api/extensions/preview-install` with the same install-source request.
 
 When the install succeeds, declared profiles are created without becoming active. Existing names are
@@ -321,7 +321,7 @@ workspace, or through `compozy extension logs <name>`. See
 | `dev`, `overrides_published`, `origin_path`, `generation_hash`, `workspace_id` | Dev-overlay identity when one is active.                                                                 |
 | `update_available`, `remote_version`                                           | Passive update projection.                                                                               |
 | `requires_env`, `missing_env`, `bound_env_keys`                                | Declared names, currently missing names, and names bound through Vault.                                  |
-| `network_requirement_digest`, `network_confirmation_required`                  | The exact Live requirement digest and whether lifecycle consent is pending.                              |
+| `gateway_requirement_digest`, `gateway_confirmation_required`                  | The exact gateway permission digest and whether lifecycle consent is pending.                            |
 | `provenance`, `trust`                                                          | Install source, checksums, registry tier, `allow_unverified`, installer identity, decision, diagnostics. |
 | `diagnostics`                                                                  | Deterministically ordered ingest and runtime issues; portable component skips remain visible here.       |
 
@@ -384,9 +384,9 @@ means enabled. Disable stores one exception and removes extension resources from
 enable deletes the exception and republishes resources whose placement matches the profile. Each
 change writes `extension.enablement_changed`.
 
-When the manifest requires Live Network participation, install or update returns
-`extension_network_confirmation_required` before changing package state. Review the exact digest,
-then retry with `--confirm-network-requirement <digest>`.
+When the manifest declares gateway permissions, install or update returns
+`extension_gateway_confirmation_required` before changing package state. Review the exact digest,
+then retry with `--confirm-gateway-requirement <digest>`.
 
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and
@@ -460,10 +460,10 @@ Extensions declare the environment variable **names** they need:
 
 ```toml
 [extension]
-name = "daytona"
+name = "deployment-tools"
 version = "1.2.3"
 min_compozy_version = "0.3.0-beta.1"
-requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
+requires_env = ["DEPLOY_API_KEY", "DEPLOY_ORGANIZATION_ID"]
 ```
 
 CompozyOS validates `requires_env` at install and status load. Diagnostics report names, never values.
@@ -638,8 +638,7 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 | `extension_git_version_unsupported`             | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
 | `extension_agent_plugin_schema_unsupported`     | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
 | Extension is `enabled` but not `active`         | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
-| Install or update asks for Network confirmation | The candidate declares an unconfirmed or changed Live requirement digest.         | Review the exact digest, then retry with `--confirm-network-requirement`.   |
-| `bridge.adapter` install rejected               | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |
+| Install or update asks for Gateway confirmation | The candidate declares an unconfirmed or changed gateway requirement digest.      | Review the exact digest, then retry with `--confirm-gateway-requirement`.   |
 | Daemon-required error on a marketplace verb     | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
 
 Related references:

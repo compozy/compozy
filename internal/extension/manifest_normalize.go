@@ -6,8 +6,6 @@ import (
 
 	"strings"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
-
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -42,19 +40,18 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		return Manifest{}, err
 	}
 	manifest := Manifest{
-		Inputs:               inputs,
-		Name:                 name,
-		Version:              versionValue,
-		Description:          description,
-		MinCompozyVersion:    minVersion,
-		RequiresEnv:          manifestRequiredEnv(requiresEnv, inputs),
-		NetworkParticipation: d.NetworkParticipation.Normalize(),
-		Resources:            normalizeResourcesConfig(d.Resources),
-		Capabilities:         normalizeCapabilitiesConfig(d.Capabilities),
-		Permissions:          normalizePermissionsConfig(d.Permissions),
-		Subprocess:           normalizeSubprocessConfig(d.Subprocess),
-		Bridge:               normalizeBridgeConfig(d.Bridge),
-		Profiles:             normalizeManifestProfiles(d.Profiles),
+		Inputs:            inputs,
+		Name:              name,
+		Version:           versionValue,
+		Description:       description,
+		MinCompozyVersion: minVersion,
+		RequiresEnv:       manifestRequiredEnv(requiresEnv, inputs),
+		Gateway:           d.Gateway.Normalize(),
+		Resources:         normalizeResourcesConfig(d.Resources),
+		Capabilities:      normalizeCapabilitiesConfig(d.Capabilities),
+		Permissions:       normalizePermissionsConfig(d.Permissions),
+		Subprocess:        normalizeSubprocessConfig(d.Subprocess),
+		Profiles:          normalizeManifestProfiles(d.Profiles),
 	}
 	return manifest, nil
 }
@@ -166,7 +163,6 @@ func normalizeManifestProfiles(values []ManifestProfile) []ManifestProfile {
 			Defaults: ManifestProfileDefaults{
 				Agent:    strings.TrimSpace(value.Defaults.Agent),
 				Provider: strings.TrimSpace(value.Defaults.Provider),
-				Sandbox:  strings.TrimSpace(value.Defaults.Sandbox),
 			},
 			Credentials: make([]ManifestProfileCredential, 0, len(value.Credentials)),
 		}
@@ -214,58 +210,6 @@ func normalizeSubprocessConfig(cfg SubprocessConfig) SubprocessConfig {
 		HealthCheckInterval: cfg.HealthCheckInterval,
 		ShutdownTimeout:     cfg.ShutdownTimeout,
 	}
-}
-
-func normalizeBridgeConfig(cfg BridgeConfig) BridgeConfig {
-	var configSchema *bridgepkg.BridgeProviderConfigSchema
-	if cfg.ConfigSchema != nil {
-		normalized := cfg.ConfigSchema.Normalize()
-		if !normalized.IsZero() {
-			configSchema = &normalized
-		}
-	}
-
-	return BridgeConfig{
-		Platform:     strings.TrimSpace(cfg.Platform),
-		DisplayName:  strings.TrimSpace(cfg.DisplayName),
-		SecretSlots:  normalizeBridgeSecretSlots(cfg.SecretSlots),
-		ConfigSchema: configSchema,
-	}
-}
-
-func normalizeBridgeSecretSlots(src []bridgepkg.BridgeSecretSlot) []bridgepkg.BridgeSecretSlot {
-	if len(src) == 0 {
-		return nil
-	}
-
-	dst := make([]bridgepkg.BridgeSecretSlot, 0, len(src))
-	for _, slot := range src {
-		dst = append(dst, slot.Normalize())
-	}
-	return dst
-}
-
-func validateBridgeSecretSlots(slots []bridgepkg.BridgeSecretSlot) error {
-	seen := make(map[string]struct{}, len(slots))
-	for idx, slot := range slots {
-		normalized := slot.Normalize()
-		if err := normalized.Validate(); err != nil {
-			return &ManifestValidationError{
-				Field:   fmt.Sprintf("bridge.secret_slots[%d]", idx),
-				Message: err.Error(),
-			}
-		}
-		key := normalized.Name
-		if _, ok := seen[key]; ok {
-			return &ManifestValidationError{
-				Field:   fmt.Sprintf("bridge.secret_slots[%d].name", idx),
-				Value:   key,
-				Message: "duplicate secret slot name",
-			}
-		}
-		seen[key] = struct{}{}
-	}
-	return nil
 }
 
 func validateEnvRequirements(field string, values []string) error {

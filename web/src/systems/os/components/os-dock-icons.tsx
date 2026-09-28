@@ -66,16 +66,6 @@ const DOCK_ICON_GLYPHS = {
       <path d="M7 13h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </DockGlyph>
   ),
-  network: (props: GlyphProps) => (
-    <DockGlyph {...props}>
-      <circle cx="10" cy="10" r="6.6" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M3.4 10h13.2M10 3.4c-3.6 3.8-3.6 9.4 0 13.2 3.6-3.8 3.6-9.4 0-13.2Z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-    </DockGlyph>
-  ),
   tasks: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <path
@@ -131,19 +121,6 @@ const DOCK_ICON_GLYPHS = {
       />
     </DockGlyph>
   ),
-  bridges: (props: GlyphProps) => (
-    <DockGlyph {...props}>
-      <circle cx="4.5" cy="15.5" r="2" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="15.5" cy="4.5" r="2" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="15.5" cy="15.5" r="2" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M6.5 15.5h7M15.5 6.5v7M6 14 14 6"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </DockGlyph>
-  ),
   knowledge: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <path
@@ -152,29 +129,6 @@ const DOCK_ICON_GLYPHS = {
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-    </DockGlyph>
-  ),
-  sandbox: (props: GlyphProps) => (
-    <DockGlyph {...props}>
-      <rect
-        x="2.5"
-        y="11"
-        width="6.5"
-        height="6.5"
-        rx="1"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <rect x="11" y="11" width="6.5" height="6.5" rx="1" stroke="currentColor" strokeWidth="1.5" />
-      <rect
-        x="6.75"
-        y="2.5"
-        width="6.5"
-        height="6.5"
-        rx="1"
-        stroke="currentColor"
-        strokeWidth="1.5"
       />
     </DockGlyph>
   ),

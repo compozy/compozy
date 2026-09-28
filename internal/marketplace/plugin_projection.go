@@ -25,7 +25,6 @@ type PluginContents struct {
 	Hooks      int `json:"hooks"`
 	Loops      int `json:"loops"`
 	Agents     int `json:"agents"`
-	Bridges    int `json:"bridges"`
 }
 
 type PluginInspection struct {

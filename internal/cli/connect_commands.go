@@ -47,7 +47,7 @@ func newConnectAddCommand(deps commandDeps) *cobra.Command {
 
 func newConnectListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   bridgeListKey,
+		Use:   cliOutputListKey,
 		Short: "List connection profiles without reading credentials",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) (returnErr error) {

@@ -28,18 +28,17 @@ func (s *Scheduler) claimScheduledJob(
 	claimedAt := s.now()
 	nextRun := nextRunAfter(job, scheduledAt, s.location)
 	claim := SchedulerClaim{
-		ProfileID:            job.ProfileID,
-		JobID:                job.ID,
-		RunID:                scheduledRunID(job.ID, scheduledAt),
-		FireID:               scheduledFireID(job.ID, scheduledAt),
-		ScheduledAt:          scheduledAt,
-		NextRunAt:            cloneTimePointer(nextRun),
-		ClaimedAt:            claimedAt,
-		ScheduleHash:         scheduleHash(job.Schedule),
-		CatchUpPolicy:        registration.state.CatchUpPolicy,
-		MisfireGraceSeconds:  registration.state.MisfireGraceSeconds,
-		CatchUp:              scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
-		NetworkParticipation: (DispatchRequest{Job: &job}).networkParticipation(),
+		ProfileID:           job.ProfileID,
+		JobID:               job.ID,
+		RunID:               scheduledRunID(job.ID, scheduledAt),
+		FireID:              scheduledFireID(job.ID, scheduledAt),
+		ScheduledAt:         scheduledAt,
+		NextRunAt:           cloneTimePointer(nextRun),
+		ClaimedAt:           claimedAt,
+		ScheduleHash:        scheduleHash(job.Schedule),
+		CatchUpPolicy:       registration.state.CatchUpPolicy,
+		MisfireGraceSeconds: registration.state.MisfireGraceSeconds,
+		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
 	}
 	if s.store != nil {
 		persistCtx1, cancelPersist1 := persistenceContext(ctx)

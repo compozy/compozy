@@ -5,7 +5,7 @@ title: Preserve profile ownership on aggregate deep links
 persona: Ada
 journey: J-scope-work-by-profile
 expected: A direct read cannot expose foreign-profile work in scoped mode, while the explicit aggregate form returns the item with its profile_name owner.
-entry_points: task get|inspect; task run show; automation job|trigger|run get; bridge get; network detail routes
+entry_points: task get|inspect; task run show; automation job|trigger|run get;
 qa_status: untested
 bug_ids:
 fix_status:
@@ -20,7 +20,7 @@ Flagged by Profiles task 06. The final QA tasks own the real-user walk, evidence
 
 Walk:
 
-1. Capture identifiers for task, task-run, automation, bridge, and network records owned by a second
+1. Capture identifiers for task, task-run, automation records owned by a second
    profile.
 2. Open each identifier from the first profile and verify it returns not found without disclosing owner
    data.
@@ -29,3 +29,5 @@ Walk:
 
 Expected evidence: scoped and aggregate response pairs for every detail surface plus transport-parity
 captures for the representative item.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

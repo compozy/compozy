@@ -19,7 +19,6 @@ type configOverlay struct {
 	Providers     map[string]providerOverlay `toml:"providers"`
 	ModelCatalog  modelCatalogOverlay        `toml:"model_catalog"`
 	Marketplace   *marketplaceRuntimeOverlay `toml:"marketplace"`
-	Sandboxes     map[string]sandboxOverlay  `toml:"sandboxes"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
 	Redact        redactOverlay              `toml:"redact"`
@@ -33,7 +32,6 @@ type configOverlay struct {
 	Goals         goalsOverlay               `toml:"goals"`
 	Task          taskOverlay                `toml:"task"`
 	Hooks         hooksOverlay               `toml:"hooks"`
-	Network       networkOverlay             `toml:"network"`
 	Gateway       *gatewayOverlay            `toml:"gateway"`
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
 	Worktrees     worktreesOverlay           `toml:"worktrees"`
@@ -64,7 +62,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 	if o.Marketplace != nil {
 		o.Marketplace.Apply(&dst.Marketplace)
 	}
-	applySandboxOverlays(dst, o.Sandboxes)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Redact.Apply(&dst.Redact)
@@ -79,7 +76,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Loops.Apply(&dst.Loops)
 	o.Goals.Apply(&dst.Goals)
 	o.Task.Apply(&dst.Task)
-	o.Network.Apply(&dst.Network)
 	if o.Gateway != nil {
 		o.Gateway.Apply(&dst.Gateway)
 	}

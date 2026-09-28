@@ -26,21 +26,6 @@ func applyProviderOverlays(dst *Config, overlays map[string]providerOverlay) {
 	}
 }
 
-func applySandboxOverlays(dst *Config, overlays map[string]sandboxOverlay) {
-	if len(overlays) == 0 {
-		return
-	}
-	if dst.Sandboxes == nil {
-		dst.Sandboxes = make(map[string]SandboxProfile, len(overlays))
-	}
-
-	for name, overlay := range overlays {
-		profile := dst.Sandboxes[name]
-		overlay.Apply(&profile)
-		dst.Sandboxes[name] = profile
-	}
-}
-
 func applyMCPServerOverlays(base []MCPServer, overlays []mcpServerOverlay) []MCPServer {
 	merged := cloneMCPServers(base)
 	index := indexMCPServersByName(merged)

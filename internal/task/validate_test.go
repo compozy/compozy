@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -22,7 +21,7 @@ func TestOwnerKindForActor(t *testing.T) {
 		{"Should map agent-session actor to agent-session owner", ActorKindAgentSession, OwnerKindAgentSession},
 		{"Should map automation actor to automation owner", ActorKindAutomation, OwnerKindAutomation},
 		{"Should map extension actor to extension owner", ActorKindExtension, OwnerKindExtension},
-		{"Should map network-peer actor to network-peer owner", ActorKindNetworkPeer, OwnerKindNetworkPeer},
+
 		{"Should map an unknown actor kind to an empty owner kind", ActorKind("mystery"), ""},
 		{"Should map an empty actor kind to an empty owner kind", ActorKind(""), ""},
 	}
@@ -170,7 +169,7 @@ func TestValidateImmutableRunFields(t *testing.T) {
 	current.PreviousRunID = "run-0"
 	current.IdempotencyKey = "idem-1"
 	current.DesignationGroupID = "group-1"
-	current.SetNetworkState(participation.LocalSpec(), "", "", "")
+
 	tests := []struct {
 		name      string
 		mutate    func(*Run)
@@ -193,26 +192,11 @@ func TestValidateImmutableRunFields(t *testing.T) {
 			mutate:    func(next *Run) { next.IdempotencyKey = "idem-2" },
 			wantField: runFieldIdempotencyKey,
 		},
-		{
-			name: "network spec",
-			mutate: func(next *Run) {
-				next.SetNetworkState(participation.Spec{
-					Version: participation.SpecVersion,
-					Mode:    participation.ModeLive,
-					Source:  participation.SourceExplicitRequest,
-				}, "", "", "")
-			},
-			wantField: runFieldNetworkSpec,
-		},
+
 		{
 			name:      "designation group",
 			mutate:    func(next *Run) { next.DesignationGroupID = "group-2" },
 			wantField: runFieldDesignationGroupID,
-		},
-		{
-			name:      "network wake correlation",
-			mutate:    func(next *Run) { next.SetNetworkState(next.NetworkSpecSnapshot(), "wake-1", "sess-1", "owner-1") },
-			wantField: runFieldNetworkWake,
 		},
 	}
 
@@ -221,7 +205,7 @@ func TestValidateImmutableRunFields(t *testing.T) {
 			t.Parallel()
 
 			next := current
-			next.RunNetworkState = cloneRunNetworkStateForImmutabilityTest(current.RunNetworkState)
+
 			tt.mutate(&next)
 			err := ValidateImmutableRunFields(current, next)
 			if tt.wantField == "" {
@@ -235,14 +219,6 @@ func TestValidateImmutableRunFields(t *testing.T) {
 			}
 		})
 	}
-}
-
-func cloneRunNetworkStateForImmutabilityTest(state *RunNetworkState) *RunNetworkState {
-	if state == nil {
-		return nil
-	}
-	cloned := *state
-	return &cloned
 }
 
 func TestPayloadSizeGuards(t *testing.T) {
@@ -1693,19 +1669,13 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "task run query valid",
 			run: func() error {
 				return RunQuery{
-					Status:               TaskRunStatusRunning,
-					ParticipationChannel: "builders",
-					Limit:                2,
+					Status: TaskRunStatusRunning,
+
+					Limit: 2,
 				}.Validate("runs")
 			},
 		},
-		{
-			name: "Should reject invalid task run participation channel",
-			run: func() error {
-				return RunQuery{ParticipationChannel: "invalid channel"}.Validate("runs")
-			},
-			wantErr: ErrValidation,
-		},
+
 		{
 			name: "Should reject unsupported task run query status",
 			run: func() error {

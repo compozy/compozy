@@ -231,7 +231,7 @@ revision returns `409`; read the session again before deciding what to save.
 ### Workspace knowledge on live turns
 
 Put workspace-owned reference material under `<workspace>/knowledge/` as Markdown files. Before an
-accepted user, Network, or synthetic turn reaches the agent, CompozyOS reopens that tree and adds a
+accepted user or synthetic turn reaches the agent, CompozyOS reopens that tree and adds a
 bounded `<workspace-knowledge-snapshot>` to the prompt. The snapshot carries the current file bytes,
 workspace-relative paths, a revision digest, and omission metadata when a safety limit is reached.
 

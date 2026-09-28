@@ -11,7 +11,7 @@ import (
 
 func availableCollectionScopes(collection CollectionName) ([]ScopeKind, error) {
 	switch collection {
-	case CollectionProviders, CollectionSandboxes:
+	case CollectionProviders:
 		return []ScopeKind{ScopeUser}, nil
 	case CollectionMCPServers, CollectionHooks:
 		return []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}, nil

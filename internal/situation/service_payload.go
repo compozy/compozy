@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/soul"
-	taskpkg "github.com/compozy/compozy/internal/task"
+
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -49,14 +49,14 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 		return contract.AgentSessionPayload{}
 	}
 	return contract.AgentSessionPayload{
-		ID:                           strings.TrimSpace(info.ID),
-		Name:                         strings.TrimSpace(info.Name),
-		Type:                         info.Type,
-		State:                        info.State,
-		ResolvedNetworkParticipation: normalizedSessionParticipation(info.NetworkParticipation),
-		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt:                    info.CreatedAt.UTC(),
-		UpdatedAt:                    info.UpdatedAt.UTC(),
+		ID:    strings.TrimSpace(info.ID),
+		Name:  strings.TrimSpace(info.Name),
+		Type:  info.Type,
+		State: info.State,
+
+		Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt: info.CreatedAt.UTC(),
+		UpdatedAt: info.UpdatedAt.UTC(),
 	}
 }
 
@@ -122,29 +122,4 @@ func workspacePayload(
 		ID:      strings.TrimSpace(workspaceID),
 		RootDir: strings.TrimSpace(rootDir),
 	}
-}
-
-func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
-	metadata := runMetadata(run.Metadata)
-	networkSpec := run.NetworkSpecSnapshot()
-	channelID := strings.TrimSpace(networkSpec.ChannelID)
-	channelName := firstTrimmed(networkSpec.ChannelID, channelID)
-	lastActivity := latestTime(
-		run.QueuedAt,
-		run.ClaimedAt,
-		run.StartedAt,
-		taskRecord.UpdatedAt,
-	)
-	return contract.NormalizeCoordinationChannelPayload(contract.CoordinationChannelPayload{
-		ID:          channelID,
-		DisplayName: firstTrimmed(channelName, channelID),
-		Purpose:     "task_run_coordination",
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
-		TaskID:      strings.TrimSpace(taskRecord.ID),
-		RunID:       strings.TrimSpace(run.ID),
-		WorkflowID:  firstTrimmed(metadata["workflow_id"]),
-		LastActivityAt: optionalTimePtr(
-			lastActivity,
-		),
-	})
 }

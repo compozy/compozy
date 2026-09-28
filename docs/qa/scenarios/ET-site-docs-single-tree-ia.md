@@ -4,12 +4,12 @@ area: ET
 title: Single /docs tree hard-cuts /runtime and /protocol with journey groups
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: The top nav reads Home · Docs · Marketplace · Blog · Changelog. /docs renders one sidebar with the eight journey groups (Start here, Guides & examples, Core concepts, Automation, Compozy Network, Extensibility, Operations, Reference) and no sub-tab bar; the protocol spec nests under Network as a collapsed "Protocol spec (compozy-network/v0)" folder with its internal groups intact; legacy /runtime and /protocol URLs return 404 while canonical /docs pages resolve directly.
-entry_points: compozy.com /docs; /docs/loops; /docs/network/protocol/envelope; legacy /runtime/*, /protocol/*
-qa_status: pass
+expected: The top nav reads Home · Docs · Marketplace · Blog · Changelog. /docs renders one sidebar with seven groups: Start here, Guides & examples, Core concepts, Automation, Extensibility, Operations, Reference. Canonical pages resolve directly without a sub-tab bar. Retired /runtime and /protocol URLs return 404.
+entry_points: compozy.com /docs; /docs/loops; /docs/extensions; legacy /runtime/* and /protocol/*
+qa_status: untested
 bug_ids: BUG-20260730-docs-index-invalid-hydration
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: working-tree
 evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc01-docs-landing; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/raw/implementation/protocol-envelope.png
 last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
@@ -30,3 +30,5 @@ links, a group index replacing the markdown table, and the page heading now read
 `Guides & examples` group gained an `Examples` folder between Guides and Use cases. Re-walk the eight
 groups, the landing's own links, and the legacy 404 set; reset to `untested` because the landing and the
 root sidebar row both changed.
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

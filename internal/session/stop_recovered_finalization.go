@@ -15,7 +15,6 @@ func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause Stop
 		return err
 	}
 	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, meta))
-	sandboxErr := m.finalizeRecoveredSandbox(cleanupCtx, snapshot, &meta)
 	m.cancelSessionCompaction(id)
 	m.clearResumeReplay(id)
 	if m.hostedMCP != nil {
@@ -28,12 +27,11 @@ func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause Stop
 			ledgerErr = errors.Join(ledgerErr, m.recordStoppedCleanupFailure(ctx, snapshot, "ledger", ledgerErr))
 		}
 	}
-	networkErr := m.leaveSessionNetwork(cleanupCtx, snapshot)
 	m.dispatchSessionPostStop(cleanupCtx, snapshot)
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(cleanupCtx, snapshot)
 	}
-	return errors.Join(sandboxErr, ledgerErr, networkErr)
+	return ledgerErr
 }
 
 // settleRecoveredStop replays persistence, Goal cancellation and task recovery

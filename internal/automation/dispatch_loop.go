@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -42,21 +41,20 @@ type LoopCatchUpPolicyRequest struct {
 
 // LoopStartRequest starts one loop target from an automation fire.
 type LoopStartRequest struct {
-	ProfileID            string
-	WorkspaceID          string
-	LoopName             string
-	Kind                 LoopStartKind
-	Inputs               map[string]any
-	InputMapping         map[string]string
-	TriggerPayload       map[string]any
-	NetworkParticipation *participation.Request
-	Actor                taskpkg.ActorContext
-	AutomationRunID      string
-	ScheduledAt          *time.Time
-	CatchUp              bool
-	CatchUpPolicy        SchedulerCatchUpPolicy
-	SourceKey            string
-	EventKey             string
+	ProfileID       string
+	WorkspaceID     string
+	LoopName        string
+	Kind            LoopStartKind
+	Inputs          map[string]any
+	InputMapping    map[string]string
+	TriggerPayload  map[string]any
+	Actor           taskpkg.ActorContext
+	AutomationRunID string
+	ScheduledAt     *time.Time
+	CatchUp         bool
+	CatchUpPolicy   SchedulerCatchUpPolicy
+	SourceKey       string
+	EventKey        string
 }
 
 // LoopStartResult returns the observable loop_run correlation for an automation fire.
@@ -111,21 +109,20 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
 	result, err := d.loopStarter.StartLoop(ctx, LoopStartRequest{
-		ProfileID:            req.profileID(),
-		WorkspaceID:          strings.TrimSpace(target.WorkspaceID),
-		LoopName:             strings.TrimSpace(target.LoopName),
-		Kind:                 req.loopStartKind(),
-		Inputs:               cloneJSONMap(target.Inputs),
-		InputMapping:         cloneStringMap(target.InputMapping),
-		TriggerPayload:       cloneJSONMap(req.envelopeData()),
-		NetworkParticipation: cloneParticipationRequest(target.NetworkParticipation),
-		Actor:                actor,
-		AutomationRunID:      strings.TrimSpace(scheduledRun.ID),
-		ScheduledAt:          cloneTimePointer(req.ScheduledAt),
-		CatchUp:              req.CatchUp,
-		CatchUpPolicy:        req.CatchUpPolicy,
-		SourceKey:            req.definitionID(),
-		EventKey:             loopAdmissionEventKey(req.Envelope),
+		ProfileID:       req.profileID(),
+		WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
+		LoopName:        strings.TrimSpace(target.LoopName),
+		Kind:            req.loopStartKind(),
+		Inputs:          cloneJSONMap(target.Inputs),
+		InputMapping:    cloneStringMap(target.InputMapping),
+		TriggerPayload:  cloneJSONMap(req.envelopeData()),
+		Actor:           actor,
+		AutomationRunID: strings.TrimSpace(scheduledRun.ID),
+		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
+		CatchUp:         req.CatchUp,
+		CatchUpPolicy:   req.CatchUpPolicy,
+		SourceKey:       req.definitionID(),
+		EventKey:        loopAdmissionEventKey(req.Envelope),
 	})
 	if err != nil {
 		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {

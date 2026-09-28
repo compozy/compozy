@@ -357,10 +357,7 @@ func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawM
 	); err != nil {
 		return nil, err
 	}
-	profileID, err := hostAPIProfileID(ctx)
-	if err != nil {
-		return nil, err
-	}
+	profileID := hostAPIProfileID(ctx)
 
 	return automation.ListRuns(ctx, automationpkg.RunQuery{
 		ReadScope: store.ReadScope{ProfileID: profileID},

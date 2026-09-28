@@ -38,11 +38,11 @@ func updateAutomationJob(
 
 // AutomationJobFromCreateRequest converts the shared create payload into the
 // canonical automation job model.
-func AutomationJobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, error) {
+func AutomationJobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	return jobFromCreateRequest(req)
 }
 
-func jobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, error) {
+func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -59,10 +59,6 @@ func jobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, err
 	}
 
 	schedule := req.Schedule
-	taskConfig, err := cloneAutomationJobTaskConfig(req.Task)
-	if err != nil {
-		return automationpkg.Job{}, err
-	}
 	return automationpkg.Job{
 		Scope:       req.Scope,
 		Name:        strings.TrimSpace(req.Name),
@@ -71,13 +67,13 @@ func jobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, err
 		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
 		Prompt:      strings.TrimSpace(req.Prompt),
 		Schedule:    &schedule,
-		Task:        taskConfig,
+		Task:        cloneAutomationJobTaskConfig(req.Task),
 		LoopTarget:  cloneAutomationLoopTarget(req.LoopTarget),
 		Enabled:     enabled,
 		Retry:       retry,
 		FireLimit:   fireLimit,
 		Source:      automationpkg.JobSourceDynamic,
-	}, nil
+	}
 }
 
 // ApplyAutomationJobPatch applies the shared patch payload to an automation job model.
@@ -101,11 +97,7 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (au
 		next.Schedule = &schedule
 	}
 	if req.Task != nil {
-		taskConfig, err := cloneAutomationJobTaskConfig(req.Task)
-		if err != nil {
-			return automationpkg.Job{}, err
-		}
-		next.Task = taskConfig
+		next.Task = cloneAutomationJobTaskConfig(req.Task)
 	}
 	if req.LoopTarget != nil {
 		next.LoopTarget = cloneAutomationLoopTarget(req.LoopTarget)

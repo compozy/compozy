@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -184,9 +184,6 @@ func loopAPIServiceOptions(
 		looppkg.WithInputEntityCatalog(daemonLoopInputEntityCatalog{state: state}),
 		looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: state.sessions}),
 		looppkg.WithResponderPolicy(responderPolicy),
-	}
-	if state.participationResolver != nil {
-		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))
 	}
 	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {
 		var judges *loopGateJudgeRunner
@@ -426,10 +423,9 @@ func (s *daemonLoopAPIService) RunLoop(
 		return contract.RunLoopResponse{}, err
 	}
 	inputs := looppkg.Inputs{
-		ProfileID:            strings.TrimSpace(input.ProfileID),
-		Values:               values,
-		ParentLoopRunID:      looppkg.RunID(strings.TrimSpace(input.Request.ParentLoopRunID)),
-		NetworkParticipation: participation.CloneRequest(input.Request.NetworkParticipation),
+		ProfileID:       strings.TrimSpace(input.ProfileID),
+		Values:          values,
+		ParentLoopRunID: looppkg.RunID(strings.TrimSpace(input.Request.ParentLoopRunID)),
 	}
 	if input.Request.ConfigOverrides != nil {
 		config, err := loopConfigDomain(*input.Request.ConfigOverrides)

@@ -21,7 +21,6 @@ const (
 
 const (
 	defaultTerminalOutputLimit = 64 * 1024
-	networkCommandName         = "network"
 	localToolHostActorID       = "local-tool-host"
 )
 
@@ -44,7 +43,6 @@ type managedTerminal struct {
 }
 
 type terminalOwnership struct {
-	networkOwned    bool
 	systemOwned     bool
 	ownerSessionID  string
 	ownerTurnID     string
@@ -68,22 +66,6 @@ func (p *AgentProcess) handleCreateTerminal(
 		ownerRunID:      runID,
 		ownerGeneration: generation,
 	}
-	if p.isNetworkTurn() {
-		argv, err := terminalArgv(request)
-		if err != nil {
-			return acpsdk.CreateTerminalResponse{}, fmt.Errorf("%w: %s", ErrToolBlockedForNetworkTurn, err)
-		}
-		if !isAllowedNetworkTerminalArgv(argv) {
-			return acpsdk.CreateTerminalResponse{}, ErrToolBlockedForNetworkTurn
-		}
-		ownership = terminalOwnership{
-			networkOwned:    true,
-			ownerSessionID:  p.SessionID,
-			ownerTurnID:     p.activeTurnID(),
-			ownerRunID:      runID,
-			ownerGeneration: generation,
-		}
-	}
 
 	host, err := p.toolHostOrDefault()
 	if err != nil {
@@ -96,9 +78,7 @@ func (p *AgentProcess) handleCreateTerminal(
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
-	p.recordTerminalOwnership(response.TerminalId, ownership)
 	if err := p.registerExternalTerminalProcess(ctx, host, response.TerminalId, request, ownership); err != nil {
-		p.deleteTerminalOwnership(response.TerminalId)
 		if killErr := host.KillTerminal(response.TerminalId); killErr != nil {
 			slog.Default().Warn(
 				"acp: cleanup unregistered terminal",
@@ -109,32 +89,6 @@ func (p *AgentProcess) handleCreateTerminal(
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 	return response, nil
-}
-
-func (p *AgentProcess) recordTerminalOwnership(id string, ownership terminalOwnership) {
-	if strings.TrimSpace(id) == "" || !ownership.networkOwned {
-		return
-	}
-
-	p.terminalOwnershipMu.Lock()
-	defer p.terminalOwnershipMu.Unlock()
-	if p.terminalOwnership == nil {
-		p.terminalOwnership = make(map[string]terminalOwnership)
-	}
-	p.terminalOwnership[id] = ownership
-}
-
-func (p *AgentProcess) deleteTerminalOwnership(id string) {
-	if strings.TrimSpace(id) == "" {
-		return
-	}
-
-	p.terminalOwnershipMu.Lock()
-	defer p.terminalOwnershipMu.Unlock()
-	if p.terminalOwnership == nil {
-		return
-	}
-	delete(p.terminalOwnership, id)
 }
 
 func (p *AgentProcess) registerExternalTerminalProcess(
@@ -159,7 +113,7 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 	}
 	var handle *toolruntime.Handle
 	handle, err = p.processRegistry.Register(registerCtx, toolruntime.RegisterConfig{
-		Source: toolruntime.ProcessSourceSandboxTerminal,
+		Source: toolruntime.ProcessSourceACPTerminal,
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  ownership.ownerSessionID,
 			TurnID:     ownership.ownerTurnID,
@@ -235,9 +189,6 @@ func (p *AgentProcess) handleKillTerminal(
 	if err := terminalRequestContextError(ctx, "kill"); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
-	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
-		return acpsdk.KillTerminalResponse{}, err
-	}
 	host, err := p.toolHostOrDefault()
 	if err != nil {
 		return acpsdk.KillTerminalResponse{}, err
@@ -271,9 +222,6 @@ func (p *AgentProcess) handleTerminalOutput(
 	request acpsdk.TerminalOutputRequest,
 ) (acpsdk.TerminalOutputResponse, error) {
 	if err := terminalRequestContextError(ctx, "output"); err != nil {
-		return acpsdk.TerminalOutputResponse{}, err
-	}
-	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
 	host, err := p.toolHostOrDefault()
@@ -312,9 +260,6 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	ctx context.Context,
 	request acpsdk.WaitForTerminalExitRequest,
 ) (acpsdk.WaitForTerminalExitResponse, error) {
-	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
-		return acpsdk.WaitForTerminalExitResponse{}, err
-	}
 	host, err := p.toolHostOrDefault()
 	if err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
@@ -355,9 +300,6 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err := terminalRequestContextError(ctx, "release"); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
-	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
-		return acpsdk.ReleaseTerminalResponse{}, err
-	}
 	host, err := p.toolHostOrDefault()
 	if err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
@@ -365,7 +307,6 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err := releaseTerminalWithRequestContext(ctx, host, request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
-	p.deleteTerminalOwnership(request.TerminalId)
 	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
 	defer cancelComplete()
 	p.completeExternalTerminalProcess(

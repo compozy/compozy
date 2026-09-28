@@ -8,8 +8,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/sandbox"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -35,9 +34,7 @@ type SessionManagerDeps struct {
 	MCPResolver             session.MCPResolver
 	WorkspaceResolver       workspacepkg.RuntimeResolver
 	WorktreeResolver        session.WorktreeResolver
-	ParticipationResolver   participation.Resolver
 	WindowReconciler        session.WindowReconciler
-	SandboxRegistry         *sandbox.Registry
 	SessionSupervision      compozyconfig.SessionSupervisionConfig
 	SessionStop             compozyconfig.SessionStopConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
@@ -71,7 +68,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		Hooks: session.HookSet{
 			Session:         state.notifier,
 			RuntimeRecovery: state.notifier,
-			Sandbox:         state.notifier,
 			Prompt:          state.notifier,
 			Events:          state.notifier,
 			Agent:           state.notifier,
@@ -97,9 +93,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		MCPResolver:             mcpResolverDependency(state.mcpResolver),
 		WorkspaceResolver:       state.workspaceResolver,
 		WorktreeResolver:        daemonSessionWorktreeResolver{state: state},
-		ParticipationResolver:   state.participationResolver,
 		WindowReconciler:        reconciler,
-		SandboxRegistry:         state.sandboxRegistry,
 		SessionSupervision:      state.cfg.Session.Supervision,
 		SessionStop:             state.cfg.Session.Stop,
 		SessionBusyInput:        state.cfg.Session.BusyInput,

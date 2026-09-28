@@ -85,10 +85,6 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	if err := m.persistSessionLifecycleState(ctx, accepted.session, true); err != nil {
 		return m.discardLogicalSessionStart(accepted, err)
 	}
-	if err := m.joinNetworkPeer(ctx, accepted.session, runtime.networkCapabilities); err != nil {
-		leaveErr := m.leaveNetworkPeer(m.fallbackLifecycleContext(), accepted.session)
-		return m.discardLogicalSessionStart(accepted, errors.Join(err, leaveErr))
-	}
 
 	switch accepted.spec.postEvent {
 	case hookspkg.HookSessionPostCreate:
@@ -106,7 +102,6 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 			err,
 		)
 	}
-	m.observeCommittedParticipation(ctx, accepted.spec.participationObservation)
 	return nil
 }
 

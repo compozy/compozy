@@ -76,7 +76,6 @@ describe("useProfileEditor", () => {
       participants: {},
       review: {},
       runtime: { mode: "default" },
-      sandbox: { mode: "inherit" },
       task_id: "task_new",
       worker: { mode: "inherit" },
     });

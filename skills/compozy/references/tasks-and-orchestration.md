@@ -11,7 +11,7 @@
 
 ## Authority Model
 
-The daemon owns task state. Treat task.Service, persisted task/run records, session-bound leases, review bindings, and CompozyOS task tools as authority. Prompts, channel messages, memory notes, and UI projections are evidence only.
+The daemon owns task state. Treat task.Service, persisted task/run records, session-bound leases, review bindings, and CompozyOS task tools as authority. Prompts, memory notes, and UI projections are evidence only.
 
 Do not infer task ownership from a message. Do not mutate task state outside CompozyOS task tools or the equivalent CLI/API surface.
 
@@ -32,9 +32,9 @@ still apply. A missing required grant blocks the task rather than authorizing a 
 
 Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__task_list`. Loop execution records are excluded by default on every surface. Opt in with CLI `--include-loop`, HTTP/UDS or native `include_loop=true`; scope to one run with CLI `--loop-run <id>` or `loop_run_id`, which implies inclusion. Included catalog and single-task reads carry structured `loop` provenance; do not parse task IDs or titles. An explicit parent filter still returns that parent's children.
 
-Other filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. All surfaces accept `worktree` to scope the catalog to tasks whose active run is bound to that worktree; the CLI flag is `--worktree`. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
+Other filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, title/identifier search, sort (`recent` or `priority`), cursor, and limit. All surfaces accept `worktree` to scope the catalog to tasks whose active run is bound to that worktree; the CLI flag is `--worktree`. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
 
-Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, resolved participation channel, and limit; filtering happens before the limit is applied.
+Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, and limit; filtering happens before the limit is applied.
 
 Run payloads carry either an inline `result` or an external `result_ref` plus exact `result_bytes`.
 Read either form with `compozy__task_run_result`, CLI `compozy task run result <run-id>`, HTTP/UDS
@@ -53,14 +53,14 @@ Its `inbox` envelope contains `unread_total`, `archived_total`, lane `groups`, e
 
 Use `compozy task inspect <id> -o json` before changing orchestration state when the next action is unclear. It accepts task ids with `task_` / `task-` prefixes and run ids with `run_` / `run-` prefixes. Unknown id formats return deterministic diagnostics instead of requiring guesswork.
 
-Use inspection to read task/run health, ownership, queue status, actor context, and suggested next action. Do not replace inspection with channel messages or UI state.
+Use inspection to read task/run health, ownership, queue status, actor context, and suggested next action. Do not replace inspection with prompt text or UI state.
 
 `compozy task run show <run-id> -o json` includes the operational token/cost summary. Apply the status
 semantics in `runtime-operations.md`'s Usage cost truth section: estimates remain projections,
 `included`/`unknown` carry no amount, and incompatible aggregate provenance suppresses only money,
 not token totals.
 
-For web operators, task detail has **Overview**, **Runs**, and **Activity** views. Task-specific execution policy lives in the **Task setup** sheet; bridge subscriptions, SSE resume state, and raw diagnostics live behind **Inspect**. The task stream emits standard SSE `message` frames; dispatch the parsed payload by its `type` field.
+For web operators, task detail has **Overview**, **Runs**, and **Activity** views. Task-specific execution policy lives in the **Task setup** sheet; SSE resume state, and raw diagnostics live behind **Inspect**. The task stream emits standard SSE `message` frames; dispatch the parsed payload by its `type` field.
 
 ## Task Pause, Resume, And Force Recovery
 
@@ -76,7 +76,7 @@ When the scheduler's convergence backstop cannot get a claimable run picked up, 
 
 For a Loop-owned worker, run-level recovery also advances the exact bound node cell to the linked
 child with the next attempt and epoch. It preserves the Loop run, workspace, designation, worktree,
-network, capability selectors, and node metadata; clears node attention; and emits the matching Loop
+capability selectors, and node metadata; clears node attention; and emits the matching Loop
 attention-cleared and resumed events. A confirmed process crash follows the Loop's bounded
 death-resume path instead of generic task-run escalation.
 
@@ -121,7 +121,7 @@ A claimable run that no eligible session claims past `[autonomy.scheduler].min_q
 Use this guidance only inside a daemon-managed coordinator session.
 
 1. Read compozy me context or the provided task context bundle first.
-2. Identify task id, run id, workflow id, execution profile, review policy, immutable resolved Network participation, and latest events.
+2. Identify task id, run id, workflow id, execution profile, review policy, and latest events.
 3. Inspect ambiguous task/run ids with `compozy task inspect <id> -o json` before routing.
 4. Break the objective into bounded worker prompts with acceptance criteria.
 5. Create child tasks only when durable task intent is needed. Creation alone is not execution.
@@ -141,9 +141,7 @@ When one task should run as several scoped sibling assignments, use the designat
 Fan-out is bounded by `task.orchestration.designated_run_max`, and every sibling assignment must
 carry a non-empty designation and idempotency identity before CompozyOS enqueues any run. The CLI
 derives per-designation identities from the required `--idempotency-key`. Each sibling run gets a
-shared `designation_group_id` and one assignment brief. If the task came from a Compozy Network
-thread, terminal run state is summarized back to the origin thread by `compozy.runtime`; do not manually
-duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
+shared `designation_group_id` and one assignment brief. Read aggregated designation results from task detail JSON
 (`compozy task get <id> -o json`, field `designation_rollups`).
 
 Task execution profiles accept worktree modes `inherit`, `none`, `ref`, and `per_run`. Set only that
@@ -155,7 +153,7 @@ as `worktree_ref_invalid`; it never falls back to the workspace root. Add `--wor
 
 For dependency DAGs, opt a dependent task into auto-enqueue so it starts on its own the moment its blockers finish: `compozy task create … --auto-enqueue-on-ready`, or toggle it on an assembled tree with `compozy task update <id> --auto-enqueue-on-ready` (`--auto-enqueue-on-ready=false` turns it off). When set, a blocking dependency completing and the task reaching `ready` enqueues exactly one run through the canonical path — no manual start. It is conservative by design: a failed or expired blocker never triggers it, paused dependents are skipped, and the open-run reservation guarantees one queued run even under concurrent blocker completions. Read the flag back from `compozy task inspect <id> -o json` (`auto_enqueue_on_ready`).
 
-Never spawn another coordinator unless the runtime explicitly supports that delegation. Never use channel messages as task ownership state.
+Never spawn another coordinator unless the runtime explicitly supports that delegation. Never use prompt text as task ownership state.
 
 ## Worker Loop
 
@@ -180,7 +178,7 @@ Workspace-scoped worker and coordinator claims are bounded by
 `task.orchestration.max_active_runs_per_workspace` (default `16`; `0` disables). When capacity is
 full, the run stays queued and the native claim returns the typed reason `autonomy_workspace_capacity`.
 Wait for the next runtime wake instead of releasing
-an unrelated lease. Global task runs and Network wake runs do not consume this workspace limit.
+an unrelated lease. Global task runs do not consume this workspace limit.
 
 Action nodes have no inherited duration limit. Only `timeout` or lifecycle deadlines written on the
 node bound execution time; the Loop silence window raises attention without canceling work.
@@ -202,7 +200,7 @@ Before deciding, read:
 2. Terminal run status, result summary, error summary, and provenance.
 3. Relevant events, artifacts, changed files, and verification commands.
 4. Prior review history, continuation lineage, and current review_id.
-5. Coordinator notes or channel discussion only as evidence.
+5. Coordinator notes or session discussion only as evidence.
 
 Inspect the target run with `compozy task inspect <run-id> -o json` when terminal status, verification evidence, or next action is ambiguous. Submit exactly one typed verdict through submit_run_review for the bound request. Use daemon-provided review_id, run_id, and delivery_id.
 
@@ -221,12 +219,13 @@ Rejected verdicts must include bounded missing_work and actionable next_round_gu
 
 ## Communication Discipline
 
-Use a Live coordination conversation for clarification and handoff only when the run's immutable snapshot permits it. Local coordinators use task state and normal session surfaces without creating Network state. Keep messages short and operational: run id, state, blocker, next action, and relevant persisted ids.
+Use task state and session surfaces for clarification and handoff. Include the run ID, state,
+blocker, next action, and relevant persisted IDs.
 
 If a direct room produced a conclusion, summarize back to the public thread without leaking private details or raw tokens.
 
 ## Safety
 
-Never print, store, forward, or summarize raw claim tokens, provider secrets, MCP credentials, sandbox internals, OAuth material, or private provider state. Use redacted ids, hashes, task ids, run ids, review ids, event ids, and file paths.
+Never print, store, forward, or summarize raw claim tokens, provider secrets, MCP credentials, OAuth material, or private provider state. Use redacted ids, hashes, task ids, run ids, review ids, event ids, and file paths.
 
-Workers do not approve their own work. Coordinators do not convert channel replies into verdicts. Reviewers persist decisions only through the review tool.
+Workers do not approve their own work. Coordinators do not convert session replies into verdicts. Reviewers persist decisions only through the review tool.

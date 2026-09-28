@@ -163,31 +163,6 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			expected: session,
 		},
 		{
-			name:     "Should return session context for sandbox prepare payload",
-			payload:  SandboxPreparePayload{SessionContext: session},
-			expected: session,
-		},
-		{
-			name:     "Should return session context for sandbox ready payload",
-			payload:  SandboxReadyPayload{SessionContext: session},
-			expected: session,
-		},
-		{
-			name:     "Should return session context for sandbox sync-before payload",
-			payload:  SandboxSyncBeforePayload{SessionContext: session},
-			expected: session,
-		},
-		{
-			name:     "Should return session context for sandbox sync-after payload",
-			payload:  SandboxSyncAfterPayload{SessionContext: session},
-			expected: session,
-		},
-		{
-			name:     "Should return session context for sandbox stop payload",
-			payload:  SandboxStopPayload{SessionContext: session},
-			expected: session,
-		},
-		{
 			name:     "Should return session context for input payload",
 			payload:  InputPreSubmitPayload{SessionContext: session},
 			expected: session,
@@ -386,7 +361,7 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should return empty session context for unsupported payloads",
-			payload:  NetworkPayload{SessionID: "network-session"},
+			payload:  struct{}{},
 			expected: SessionContext{},
 		},
 	}
@@ -537,27 +512,6 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:    "Should derive correlation from network peer payload",
-			payload: NetworkPayload{PeerFrom: " peer-a ", SessionID: " session-a "},
-			expected: DispatchCorrelation{
-				ActorKind: "network_peer",
-				ActorID:   "peer-a",
-			},
-		},
-		{
-			name:    "Should fall back to session ID for network correlation",
-			payload: NetworkPayload{SessionID: " network-session "},
-			expected: DispatchCorrelation{
-				ActorKind: "network_peer",
-				ActorID:   "network-session",
-			},
-		},
-		{
-			name:     "Should return empty correlation for empty network payload",
-			payload:  NetworkPayload{},
-			expected: DispatchCorrelation{},
-		},
-		{
 			name:    "Should fall back to session context when no specialized actor exists",
 			payload: PromptPayload{SessionContext: SessionContext{SessionID: " prompt-session "}},
 			expected: DispatchCorrelation{
@@ -636,8 +590,8 @@ func TestHookTypeValidationBranches(t *testing.T) {
 		t.Parallel()
 
 		hook := RegisteredHook{
-			Name:    "network-observer",
-			Event:   HookNetworkMessagePersisted,
+			Name:    "session-observer",
+			Event:   HookSessionMessagePersisted,
 			Source:  HookSourceConfig,
 			Mode:    HookModeAsync,
 			Timeout: time.Second,
@@ -651,8 +605,8 @@ func TestHookTypeValidationBranches(t *testing.T) {
 		t.Parallel()
 
 		hook := RegisteredHook{
-			Name:     "network-observer",
-			Event:    HookNetworkMessagePersisted,
+			Name:     "session-observer",
+			Event:    HookSessionMessagePersisted,
 			Source:   HookSourceConfig,
 			Mode:     HookModeAsync,
 			Timeout:  time.Second,
@@ -661,9 +615,6 @@ func TestHookTypeValidationBranches(t *testing.T) {
 		err := hook.Validate()
 		if err == nil {
 			t.Fatal("RegisteredHook.Validate(required async) error = nil, want error")
-		}
-		if got, want := err.Error(), `hooks: required hook "network-observer" must use sync mode`; got != want {
-			t.Fatalf("RegisteredHook.Validate(required async) error = %q, want %q", got, want)
 		}
 	})
 

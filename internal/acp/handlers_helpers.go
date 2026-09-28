@@ -58,8 +58,7 @@ func requestError(err error) *acpsdk.RequestError {
 		return acpsdk.NewInternalError(data)
 	}
 	if errors.Is(err, ErrPermissionDenied) || errors.Is(err, ErrInvalidPath) ||
-		errors.Is(err, ErrPathOutsideWorkspace) ||
-		errors.Is(err, ErrToolBlockedForNetworkTurn) {
+		errors.Is(err, ErrPathOutsideWorkspace) {
 		return acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
 	}
 	return acpsdk.NewInternalError(map[string]any{EventTypeError: err.Error()})

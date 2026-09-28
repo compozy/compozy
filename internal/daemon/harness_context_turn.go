@@ -35,9 +35,6 @@ func (r *HarnessContextResolver) normalizeHarnessTurnContext(
 	if err != nil {
 		return HarnessTurnContext{}, err
 	}
-	// Network turn origin is provenance only. Live participation remains gated by
-	// session.PromptNetwork; bridge ingress uses PromptWithOpts with network meta
-	// on Local sessions and must still resolve harness policy.
 
 	if request.Synthetic != nil && origin != TurnOriginSynthetic {
 		return HarnessTurnContext{}, errors.New(
@@ -71,8 +68,6 @@ func normalizePromptMetaForHarnessTurn(
 	switch origin {
 	case TurnOriginUser:
 		return normalizePromptMetaForExpectedTurnSource(origin, meta, acp.PromptTurnSourceUser)
-	case TurnOriginNetwork:
-		return normalizePromptMetaForExpectedTurnSource(origin, meta, acp.PromptTurnSourceNetwork)
 	default:
 		return acp.PromptMeta{}, fmt.Errorf("daemon: invalid harness turn origin %q", origin)
 	}
@@ -114,11 +109,6 @@ func (r *HarnessContextResolver) normalizeSyntheticHarnessTurnContext(
 			sessionCtx.Type,
 		)
 	}
-	if meta.Network != nil {
-		return HarnessTurnContext{}, errors.New(
-			"daemon: synthetic harness turns cannot include network prompt metadata",
-		)
-	}
 	synthetic, err := normalizeSyntheticTurnMetadata(syntheticInput)
 	if err != nil {
 		return HarnessTurnContext{}, err
@@ -136,8 +126,6 @@ func turnOriginFromSource(source session.TurnSource) (TurnOrigin, error) {
 	switch session.TurnSource(strings.TrimSpace(string(source))) {
 	case "", session.TurnSourceUser:
 		return TurnOriginUser, nil
-	case session.TurnSourceNetwork:
-		return TurnOriginNetwork, nil
 	case session.TurnSourceSynthetic:
 		return TurnOriginSynthetic, nil
 	default:

@@ -1,4 +1,4 @@
-import { Copy, Globe, ListChecks, RefreshCcw, UserCheck, Zap } from "lucide-react";
+import { Copy, ListChecks, RefreshCcw, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyPanel, CatalogEmptyState } from "@/components/catalog-empty-state";
@@ -15,13 +15,12 @@ interface TemplateSlot {
 
 /**
  * Curated zero-inventory templates — `accent / info / warning / neutral`
- * only. Six template definitions remain available to the editor.
+ * only. Five template definitions remain available to the editor.
  */
 const TEMPLATE_SLOTS: TemplateSlot[] = [
   { id: "one_shot", tone: "accent", icon: <Zap className="size-3.5" /> },
   { id: "recurring", tone: "info", icon: <RefreshCcw className="size-3.5" /> },
   { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-3.5" /> },
-  { id: "remote_peer", tone: "neutral", icon: <Globe className="size-3.5" /> },
 ];
 
 export interface TasksEmptyStateProps {

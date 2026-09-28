@@ -36,20 +36,11 @@ const TasksWindow = lazy(() =>
 const AgentsWindow = lazy(() =>
   import("../apps/agents/agents-window").then(m => ({ default: m.AgentsWindow }))
 );
-const NetworkWindow = lazy(() =>
-  import("../apps/network/network-window").then(m => ({ default: m.NetworkWindow }))
-);
-const SandboxWindow = lazy(() =>
-  import("../apps/sandbox/sandbox-window").then(m => ({ default: m.SandboxWindow }))
-);
 const VaultWindow = lazy(() =>
   import("../apps/vault/vault-window").then(m => ({ default: m.VaultWindow }))
 );
 const KnowledgeWindow = lazy(() =>
   import("../apps/knowledge/knowledge-window").then(m => ({ default: m.KnowledgeWindow }))
-);
-const BridgesWindow = lazy(() =>
-  import("../apps/bridges/bridges-window").then(m => ({ default: m.BridgesWindow }))
 );
 const LoopsWindow = lazy(() =>
   import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow }))
@@ -86,16 +77,6 @@ async function preloadAgents(qc: QueryClient): Promise<void> {
   await preloadAgentsRoute(qc, { limit: 50 });
 }
 
-async function preloadNetwork(qc: QueryClient, ctx: { workspaceId: string }): Promise<void> {
-  const { preloadNetworkWindowRoute } = await import("@/routes/_app/-network-preload");
-  await preloadNetworkWindowRoute(qc, ctx.workspaceId);
-}
-
-async function preloadSandbox(qc: QueryClient): Promise<void> {
-  const { preloadSandboxRoute } = await import("@/routes/_app/-settings-preload");
-  await preloadSandboxRoute(qc);
-}
-
 async function preloadVault(qc: QueryClient): Promise<void> {
   const { preloadVaultRoute } = await import("@/routes/_app/-vault-preload");
   await preloadVaultRoute(qc);
@@ -104,11 +85,6 @@ async function preloadVault(qc: QueryClient): Promise<void> {
 async function preloadKnowledge(qc: QueryClient): Promise<void> {
   const { preloadKnowledgeRoute } = await import("@/routes/_app/-knowledge-preload");
   await preloadKnowledgeRoute(qc);
-}
-
-async function preloadBridges(qc: QueryClient): Promise<void> {
-  const { preloadBridgesRoute } = await import("@/routes/_app/-bridges-preload");
-  await preloadBridgesRoute(qc, { scope: "all" });
 }
 
 async function preloadLoops(qc: QueryClient): Promise<void> {
@@ -149,11 +125,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     preload: preloadAgents,
     Controller: AgentsWindow,
   },
-  network: {
-    ...OS_APP_DESCRIPTORS.network,
-    preload: preloadNetwork,
-    Controller: NetworkWindow,
-  },
   tasks: {
     ...OS_APP_DESCRIPTORS.tasks,
     preload: preloadTasks,
@@ -178,20 +149,10 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.marketplace,
     Controller: MarketplaceWindow,
   },
-  bridges: {
-    ...OS_APP_DESCRIPTORS.bridges,
-    preload: preloadBridges,
-    Controller: BridgesWindow,
-  },
   knowledge: {
     ...OS_APP_DESCRIPTORS.knowledge,
     preload: preloadKnowledge,
     Controller: KnowledgeWindow,
-  },
-  sandbox: {
-    ...OS_APP_DESCRIPTORS.sandbox,
-    preload: preloadSandbox,
-    Controller: SandboxWindow,
   },
   vault: {
     ...OS_APP_DESCRIPTORS.vault,

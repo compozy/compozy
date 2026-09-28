@@ -161,7 +161,7 @@ func (m *Manager) replacePromptRuntime(
 	if err != nil {
 		return nil, m.restorePromptRuntime(session, snapshot, err)
 	}
-	candidate, err := m.startAgentProcess(ctx, &plan.spec, session, startOpts)
+	candidate, err := m.startAgentProcess(ctx, &plan.spec, startOpts)
 	if err != nil {
 		return nil, m.restorePromptRuntime(session, snapshot, err)
 	}
@@ -258,9 +258,6 @@ func (m *Manager) preparePromptRuntimePlan(
 	workspace, err := m.resolveResumeWorkspace(ctx, meta)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve runtime workspace: %w", err)
-	}
-	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), workspace.ID); err != nil {
-		return nil, err
 	}
 	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, workspace.ID, meta.WorktreeIDValue())
 	if err != nil {

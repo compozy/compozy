@@ -10,7 +10,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -143,74 +142,6 @@ func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
 		if got, want := boundTrigger.WorkspaceID, "ws-resource"; got != want {
 			t.Fatalf("boundTrigger.WorkspaceID = %q, want %q", got, want)
 		}
-	})
-
-	t.Run("Should canonicalize authored participation for every resource target", func(t *testing.T) {
-		t.Parallel()
-
-		channelID := "  resource-channel  "
-		mode := participation.Mode(" live ")
-		strategy := participation.ChannelStrategy(" named ")
-		request := &participation.Request{
-			Mode:            &mode,
-			ChannelStrategy: &strategy,
-			ChannelID:       &channelID,
-		}
-
-		taskJob := validJob
-		taskJob.AgentName = ""
-		taskJob.Prompt = ""
-		taskJob.Task = &JobTaskConfig{
-			Title:                "Run task-backed automation",
-			NetworkParticipation: request,
-		}
-		canonicalTaskJob, err := jobCodec.DecodeAndValidate(
-			ctx,
-			workspaceScope,
-			mustAutomationJSON(t, taskJob),
-		)
-		if err != nil {
-			t.Fatalf("jobCodec.DecodeAndValidate(task participation) error = %v", err)
-		}
-		assertNamedParticipation(t, canonicalTaskJob.Task.NetworkParticipation, "resource-channel")
-
-		loopJob := validJob
-		loopJob.TargetKind = TargetKindLoop
-		loopJob.AgentName = ""
-		loopJob.Prompt = ""
-		loopJob.LoopTarget = &LoopTarget{
-			WorkspaceID:          "ws-resource",
-			LoopName:             "release-loop",
-			NetworkParticipation: request,
-		}
-		canonicalLoopJob, err := jobCodec.DecodeAndValidate(
-			ctx,
-			workspaceScope,
-			mustAutomationJSON(t, loopJob),
-		)
-		if err != nil {
-			t.Fatalf("jobCodec.DecodeAndValidate(loop participation) error = %v", err)
-		}
-		assertNamedParticipation(t, canonicalLoopJob.LoopTarget.NetworkParticipation, "resource-channel")
-
-		loopTrigger := validTrigger
-		loopTrigger.TargetKind = TargetKindLoop
-		loopTrigger.AgentName = ""
-		loopTrigger.Prompt = ""
-		loopTrigger.LoopTarget = &LoopTarget{
-			WorkspaceID:          "ws-resource",
-			LoopName:             "release-loop",
-			NetworkParticipation: request,
-		}
-		canonicalLoopTrigger, err := triggerCodec.DecodeAndValidate(
-			ctx,
-			workspaceScope,
-			mustAutomationJSON(t, loopTrigger),
-		)
-		if err != nil {
-			t.Fatalf("triggerCodec.DecodeAndValidate(loop participation) error = %v", err)
-		}
-		assertNamedParticipation(t, canonicalLoopTrigger.LoopTarget.NetworkParticipation, "resource-channel")
 	})
 }
 
@@ -1359,10 +1290,9 @@ func TestAutomationResourceSyncManagedDefinitionsSkipsUnchangedTaskBackedJob(t *
 	job.Prompt = ""
 	job.Retry = RetryConfig{Strategy: RetryStrategyNone}
 	job.Task = &JobTaskConfig{
-		Title:                "Run task-backed automation",
-		Description:          "Exercise task equality in managed resource sync",
-		NetworkParticipation: testNamedParticipation("builders"),
-		Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "ops"},
+		Title:       "Run task-backed automation",
+		Description: "Exercise task equality in managed resource sync",
+		Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "ops"},
 	}
 
 	if _, err := manager.SyncManagedDefinitions(h.ctx, JobSourceConfig, []Job{job}, nil); err != nil {

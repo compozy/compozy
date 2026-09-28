@@ -1,7 +1,6 @@
 import type { VaultSecret } from "@/systems/vault";
 import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import type { WorkspaceScopeMode } from "@/systems/workspace";
-import { networkChannelLocation } from "@/systems/network/lib/network-window-location";
 
 import { compareStatusAttentionFirst } from "@/lib/status-tone";
 
@@ -108,10 +107,6 @@ export function triggerRoute(id: string): OsWindowRoute {
   return { pathname: `/triggers/${encodedSegment(id)}`, search: {} };
 }
 
-export function bridgeRoute(id: string): OsWindowRoute {
-  return { pathname: `/bridges/${encodedSegment(id)}`, search: {} };
-}
-
 export function agentRoute(name: string): OsWindowRoute {
   return { pathname: `/agents/${encodedSegment(name)}`, search: {} };
 }
@@ -153,10 +148,6 @@ export function marketplaceEntryRoute(input: {
 
 export function vaultRoute(ref: string): OsWindowRoute {
   return { pathname: "/vault", search: { ref: ref.trim() } };
-}
-
-export function networkChannelRoute(workspaceId: string, channel: string): OsWindowRoute {
-  return networkChannelLocation(workspaceId, channel, "threads");
 }
 
 export function knowledgeRoute(input: {

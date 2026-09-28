@@ -19,11 +19,10 @@ export const API_SECTIONS: ApiSection[] = [
       "bundles",
       "automation",
       "loops",
-      "bridges",
       "notifications",
     ],
   },
-  { label: "Network", ids: ["network", "observe", "hooks"] },
+  { label: "Observation", ids: ["observe", "hooks"] },
   {
     label: "Operations",
     ids: [

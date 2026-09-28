@@ -17,7 +17,6 @@ func toolBackendKindValues() []string {
 		string(tools.BackendNativeGo),
 		string(tools.BackendExtensionHost),
 		string(tools.BackendMCP),
-		string(tools.BackendBridge),
 	}
 }
 

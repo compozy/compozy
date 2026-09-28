@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
@@ -34,10 +33,6 @@ type BaseHandlerConfig struct {
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
-	Network                      NetworkService
-	NetworkStore                 NetworkStore
-	NetworkUsage                 store.NetworkUsageStore
-	Coordination                 workspacepkg.CoordinationCommands
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -53,9 +48,8 @@ type BaseHandlerConfig struct {
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
+	TaskDesignations             TaskDesignationStore
 	Tasks                        TaskService
-	Bridges                      BridgeService
-	Notifications                NotificationPresetService
 	Profiles                     ProfileService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
@@ -125,10 +119,6 @@ type BaseHandlers struct {
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
-	Network                      NetworkService
-	NetworkStore                 NetworkStore
-	NetworkUsage                 store.NetworkUsageStore
-	Coordination                 workspacepkg.CoordinationCommands
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -144,9 +134,8 @@ type BaseHandlers struct {
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
+	TaskDesignations             TaskDesignationStore
 	Tasks                        TaskService
-	Bridges                      BridgeService
-	Notifications                NotificationPresetService
 	Profiles                     ProfileService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
@@ -240,10 +229,6 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,
 		SessionCatalog:               cfg.SessionCatalog,
-		Network:                      cfg.Network,
-		NetworkStore:                 cfg.NetworkStore,
-		NetworkUsage:                 cfg.NetworkUsage,
-		Coordination:                 cfg.Coordination,
 		Observer:                     cfg.Observer,
 		SchemaStreams:                cfg.SchemaStreams,
 		Resources:                    cfg.Resources,
@@ -259,9 +244,8 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Clarify:                      cfg.Clarify,
 		Automation:                   cfg.Automation,
 		Loops:                        cfg.Loops,
+		TaskDesignations:             cfg.TaskDesignations,
 		Tasks:                        cfg.Tasks,
-		Bridges:                      cfg.Bridges,
-		Notifications:                cfg.Notifications,
 		Profiles:                     cfg.Profiles,
 		SupportBundles:               cfg.SupportBundles,
 		Settings:                     cfg.Settings,

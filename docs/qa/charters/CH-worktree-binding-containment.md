@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Create sessions with --worktree and --new-worktree, HTTP/UDS, and compozy__session_create, then compare filtered CLI/API/native reads for the exact persisted binding."
-      - "Attempt parent, sibling, symlinked, relative, and hook-rewritten cwd values through ACP launch, sandbox restart, local tools, direct prompts, and inherited child spawn; every gate must resolve the same ready worktree root."
+      - "Attempt parent, sibling, symlinked, relative, and hook-rewritten cwd values through ACP launch, session restart, local tools, direct prompts, and inherited child spawn; every gate must resolve the same ready worktree root."
       - "Fork an idle live session to ready and newly created targets, cancel once, repeat once, and invoke mid-turn; prove the original session and files never change and each confirmation creates at most one fresh session."
       - "Remove the checkout out of band, then resume and spawn; require the named missing refusal, preserved transcript, and zero root fallback."
     must_avoid:
@@ -25,7 +25,7 @@ charter:
       - "Changing a live session's binding; the only supported move is a fresh fork."
   coverage:
     tier: targeted
-    surfaces: [session-CLI, HTTP, UDS, native-tools, ACP, sandbox, local-tool-host, web-S7-S9-S16]
+    surfaces: [session-CLI, HTTP, UDS, native-tools, ACP, local-tool-host, web-S7-S9-S16]
     invariants: [1, 2, 7, 20]
     hot_spots:
       - "The four cwd gates, child inheritance, and reuse fingerprint must agree on one immutable binding."

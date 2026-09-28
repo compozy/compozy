@@ -329,7 +329,7 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return nil, nativeNetworkInputError(toolspkg.ToolIDSkillView, err)
+		return nil, nativeInputError(toolspkg.ToolIDSkillView, err)
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, toolspkg.ToolIDSkillView, workspaceID, sessionID)
 	if err != nil {

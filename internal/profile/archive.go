@@ -87,7 +87,7 @@ func (m *Manager) archiveProfileWrite(
 	if err != nil {
 		return err
 	}
-	if err := validateArchivePlan(ctx, exec, profile, plan, name, planRevision); err != nil {
+	if err := validateArchivePlan(plan, name, planRevision); err != nil {
 		return err
 	}
 	now := formatTimestamp(m.now())
@@ -117,16 +117,10 @@ func (m *Manager) archiveProfileWrite(
 }
 
 func validateArchivePlan(
-	ctx context.Context,
-	exec globaldb.ProfileWriteExecutor,
-	profile Profile,
 	plan ArchivePlan,
 	name string,
 	planRevision string,
 ) error {
-	if err := validateNoDeliveryPermits(ctx, exec, profile.ID, name); err != nil {
-		return err
-	}
 	if plan.Revision != planRevision {
 		return stalePlanError("archive")
 	}
@@ -150,29 +144,6 @@ func validateArchivePlan(
 		return approvalsPendingError(plan.ApprovalBlockers)
 	}
 	return nil
-}
-
-func validateNoDeliveryPermits(
-	ctx context.Context,
-	exec globaldb.ProfileWriteExecutor,
-	profileID string,
-	name string,
-) error {
-	var permits int
-	if err := exec.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE profile_id = ?`, profileID,
-	).Scan(&permits); err != nil {
-		return fmt.Errorf("profile: count delivery permits: %w", err)
-	}
-	if permits == 0 {
-		return nil
-	}
-	return domainError(
-		"profile_deliveries_in_flight",
-		fmt.Sprintf("profile %q has %d notification deliveries in flight", name, permits),
-		"retry after the deliveries settle",
-		ErrDeliveriesInFlight,
-	)
 }
 
 func pauseProfileAutomations(

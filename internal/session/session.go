@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -79,8 +78,6 @@ type Info struct {
 	WorkspaceID              string
 	Workspace                string
 	WorktreeID               string
-	NetworkParticipation     participation.Spec
-	NetworkOwnerKey          string
 	Type                     Type
 	Lineage                  *store.SessionLineage
 	State                    State
@@ -96,7 +93,6 @@ type Info struct {
 	ACPCapsKnown             bool
 	AdvertisedCommands       []store.SessionAdvertisedCommand
 	Liveness                 *store.SessionLivenessMeta
-	Sandbox                  *store.SessionSandboxMeta
 	SoulSnapshotID           string
 	SoulDigest               string
 	ParentSoulDigest         string
@@ -140,7 +136,6 @@ type Session struct {
 	steerDelivery              store.SteerDeliveryMode
 	mu                         sync.RWMutex
 	persistMu                  sync.Mutex
-	networkPeerMu              sync.Mutex
 	conversationRewindReserved bool
 
 	ID                        string
@@ -167,8 +162,6 @@ type Session struct {
 	Workspace                 string
 	WorktreeID                string
 	CWD                       string
-	NetworkParticipation      participation.Spec
-	NetworkOwnerKey           string
 	Type                      Type
 	Lineage                   *store.SessionLineage
 	State                     State
@@ -183,7 +176,6 @@ type Session struct {
 	ACPCapsKnown              bool
 	AdvertisedCommands        []store.SessionAdvertisedCommand
 	Liveness                  *store.SessionLivenessMeta
-	Sandbox                   *store.SessionSandboxMeta
 	SoulSnapshotID            string
 	SoulDigest                string
 	ParentSoulDigest          string
@@ -207,13 +199,11 @@ type Session struct {
 	agentDef                  compozyconfig.AgentDef
 	startupManifest           acp.StartupManifest
 
-	sessionDir string
-	metaPath   string
-	dbPath     string
-	recorder   EventRecorder
-	process    *AgentProcess
-
-	sandboxDestroyOnStop    bool
+	sessionDir              string
+	metaPath                string
+	dbPath                  string
+	recorder                EventRecorder
+	process                 *AgentProcess
 	worktreeForkReserved    bool
 	promptSetupCount        int
 	promptSetupDone         chan struct{}

@@ -5,8 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   agentContextFixture,
-  taskBridgeNotificationSubscriptionFixture,
-  taskBridgeNotificationSubscriptionsFixture,
   taskContextBundleFixture,
   taskExecutionProfileFixture,
   taskRunReviewFixture,
@@ -15,14 +13,10 @@ import {
 } from "@/systems/tasks/mocks/fixtures";
 import {
   useAgentContext,
-  useCreateTaskBridgeNotificationSubscription,
-  useDeleteTaskBridgeNotificationSubscription,
   useDeleteTaskExecutionProfile,
   useRequestTaskRunReview,
   useSetTaskExecutionProfile,
   useSubmitTaskRunReviewVerdict,
-  useTaskBridgeNotificationSubscription,
-  useTaskBridgeNotificationSubscriptions,
   useTaskContextBundle,
   useTaskExecutionProfile,
   useTaskReviews,
@@ -46,21 +40,13 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   forceReleaseTaskRun: vi.fn(),
   retryTaskRun: vi.fn(),
   getAgentContext: vi.fn(),
-  listTaskBridgeNotificationSubscriptions: vi.fn(),
-  createTaskBridgeNotificationSubscription: vi.fn(),
-  getTaskBridgeNotificationSubscription: vi.fn(),
-  deleteTaskBridgeNotificationSubscription: vi.fn(),
 }));
 
 import {
-  createTaskBridgeNotificationSubscription,
-  deleteTaskBridgeNotificationSubscription,
   deleteTaskExecutionProfile,
   getAgentContext,
-  getTaskBridgeNotificationSubscription,
   getTaskExecutionProfile,
   getTaskRunReview,
-  listTaskBridgeNotificationSubscriptions,
   listTaskReviews,
   listTaskRunReviews,
   requestTaskRunReview,
@@ -291,88 +277,5 @@ describe("agent context hooks", () => {
     });
     expect(vi.mocked(getAgentContext).mock.calls[0]?.[0]).toEqual(identity);
     expect(getAgentContext).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("bridge notification hooks", () => {
-  it("Should list subscriptions with filters and disable on empty task id", async () => {
-    vi.mocked(listTaskBridgeNotificationSubscriptions).mockResolvedValue(
-      taskBridgeNotificationSubscriptionsFixture
-    );
-
-    const { result } = renderHook(
-      () =>
-        useTaskBridgeNotificationSubscriptions("task_001", {
-          bridge_instance_id: "bridge_alpha",
-        }),
-      { wrapper: createWrapper() }
-    );
-
-    await waitFor(() => {
-      expect(result.current.data).toHaveLength(2);
-    });
-
-    renderHook(() => useTaskBridgeNotificationSubscriptions(""), {
-      wrapper: createWrapper(),
-    });
-    expect(listTaskBridgeNotificationSubscriptions).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should fetch a subscription by id", async () => {
-    vi.mocked(getTaskBridgeNotificationSubscription).mockResolvedValue(
-      taskBridgeNotificationSubscriptionFixture
-    );
-
-    const { result } = renderHook(
-      () => useTaskBridgeNotificationSubscription("task_001", "bsub_001"),
-      { wrapper: createWrapper() }
-    );
-
-    await waitFor(() => {
-      expect(result.current.data?.subscription_id).toBe("bsub_001");
-    });
-  });
-
-  it("Should create a subscription via mutation", async () => {
-    vi.mocked(createTaskBridgeNotificationSubscription).mockResolvedValue(
-      taskBridgeNotificationSubscriptionFixture
-    );
-
-    const { result } = renderHook(() => useCreateTaskBridgeNotificationSubscription(), {
-      wrapper: createWrapper(),
-    });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        taskId: "task_001",
-        data: {
-          bridge_instance_id: "bridge_alpha",
-          delivery_mode: "direct-send",
-          scope: "workspace",
-        },
-      });
-    });
-
-    expect(createTaskBridgeNotificationSubscription).toHaveBeenCalledWith(
-      "task_001",
-      expect.objectContaining({ bridge_instance_id: "bridge_alpha" })
-    );
-  });
-
-  it("Should delete a subscription via mutation", async () => {
-    vi.mocked(deleteTaskBridgeNotificationSubscription).mockResolvedValue(undefined);
-
-    const { result } = renderHook(() => useDeleteTaskBridgeNotificationSubscription(), {
-      wrapper: createWrapper(),
-    });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        taskId: "task_001",
-        subscriptionId: "bsub_001",
-      });
-    });
-
-    expect(deleteTaskBridgeNotificationSubscription).toHaveBeenCalledWith("task_001", "bsub_001");
   });
 });

@@ -206,7 +206,7 @@ export function RemoveExtensionDialog({
  * One affordance for both enable and update: the daemon refuses either until the operator ratifies
  * the exact digest it returned, so the digest is shown rather than summarised.
  */
-export function ExtensionNetworkConfirmDialog({
+export function ExtensionGatewayConfirmDialog({
   digest,
   error,
   extensionName,
@@ -226,24 +226,24 @@ export function ExtensionNetworkConfirmDialog({
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
-      confirmButtonProps={{ "data-testid": "extension-network-confirm-accept" }}
+      confirmButtonProps={{ "data-testid": "extension-gateway-confirm-accept" }}
       confirmIcon={Radio}
       confirmLabel="Confirm and continue"
-      contentProps={{ "data-testid": "extension-network-confirm-dialog" }}
-      description={`Updating ${extensionName} applies the Live Compozy Network participation it declares. CompozyOS records this decision against the digest below.`}
+      contentProps={{ "data-testid": "extension-gateway-confirm-dialog" }}
+      description={`Updating ${extensionName} applies the gateway control permissions it declares. CompozyOS records this decision against the digest below.`}
       error={error}
       isPending={pending}
       note={
         <div className="space-y-1">
           <p>Requirement digest</p>
-          <MonoId data-testid="extension-network-confirm-digest" value={digest} />
+          <MonoId data-testid="extension-gateway-confirm-digest" value={digest} />
         </div>
       }
       noteTone="warning"
       onConfirm={onConfirm}
       onOpenChange={onOpenChange}
       open={open}
-      title={`Confirm network participation for ${extensionName}`}
+      title={`Confirm gateway permissions for ${extensionName}`}
       tone="warning"
     />
   );

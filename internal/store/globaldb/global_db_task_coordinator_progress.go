@@ -42,8 +42,8 @@ func (g *TaskRepo) reserveCoordinatorConcurrentProgressWithExecutor(
 		loopRunID:      current.LoopRunID,
 		idempotencyKey: coordinatorConcurrentProgressWakeKey(current.LoopRunID, current.ID),
 		origin:         completion.Actor.Origin,
-		networkSpec:    current.NetworkSpecSnapshot(),
-		queuedAt:       completion.Now,
+
+		queuedAt: completion.Now,
 	}
 	_, run, existing, err := g.reserveQueuedRunWithExecutor(ctx, exec, reservation)
 	if err != nil {

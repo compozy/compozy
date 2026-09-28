@@ -273,10 +273,6 @@ func coordinatorPlanRunReservation(
 	queuedAt time.Time,
 ) (queuedRunReservationInput, error) {
 	normalized := spec.Normalize()
-	networkSpec := current.NetworkSpecSnapshot()
-	if normalized.ResolvedNetworkParticipation != nil {
-		networkSpec = *normalized.ResolvedNetworkParticipation
-	}
 	runID := strings.TrimSpace(normalized.RunID)
 	if runID == "" {
 		generatedID, err := store.NewID("run")
@@ -289,13 +285,13 @@ func coordinatorPlanRunReservation(
 		normalized.LoopRunID = current.LoopRunID
 	}
 	return queuedRunReservationInput{
-		taskID:             normalized.TaskID,
-		runID:              runID,
-		runKind:            normalized.RunKind,
-		loopRunID:          normalized.LoopRunID,
-		idempotencyKey:     normalized.IdempotencyKey,
-		origin:             origin,
-		networkSpec:        networkSpec,
+		taskID:         normalized.TaskID,
+		runID:          runID,
+		runKind:        normalized.RunKind,
+		loopRunID:      normalized.LoopRunID,
+		idempotencyKey: normalized.IdempotencyKey,
+		origin:         origin,
+
 		designationGroupID: normalized.DesignationGroupID,
 		metadata:           normalizeTaskJSON(normalized.Metadata),
 		queuedAt:           queuedAt,

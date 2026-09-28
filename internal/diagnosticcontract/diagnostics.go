@@ -41,24 +41,17 @@ const (
 	CategoryConfig     = "config"
 	CategoryVault      = "vault"
 	CategoryMCP        = "mcp"
-	CategoryBridge     = "bridge"
 	CategoryExtension  = "extension"
 	CategorySession    = "session"
 	CategoryTask       = "task"
 	CategoryHome       = "home"
 	CategorySecrets    = "secrets"
 	CategoryMigrations = "migrations"
-	CategoryNetwork    = "network"
 )
 
 const (
 	CodeAgentNameReserved                  = "agent_name_reserved"
 	CodeBinaryVersionMismatch              = "binary_version_mismatch"
-	CodeBridgeHealthUnavailable            = "bridge_health_unavailable"
-	CodeBridgeNotFound                     = "bridge_not_found"
-	CodeBridgeNotificationSuppressed       = "bridge_notification_suppressed"
-	CodeBridgeReady                        = "bridge_ready"
-	CodeBridgeTargetUnavailable            = "bridge_target_unavailable"
 	CodeBulkTooLarge                       = "bulk_too_large"
 	CodeBundleConsentRequired              = "bundle_consent_required"
 	CodeBundlePartialFailure               = "bundle_partial_failure"
@@ -119,13 +112,6 @@ const (
 	CodeMCPServerReady                     = "mcp_server_ready"
 	CodeMCPServerUnavailable               = "mcp_server_unavailable"
 	CodeMigrationsPending                  = "migrations_pending"
-	CodeNetworkDisabled                    = "network_disabled"
-	CodeNetworkReady                       = "network_ready"
-	CodeNetworkUnavailable                 = "network_unavailable"
-	CodePresetBuiltinProtected             = "preset_builtin_protected"
-	CodePresetDuplicateName                = "preset_duplicate_name"
-	CodePresetFilterInvalid                = "preset_filter_invalid"
-	CodePresetNotFound                     = "preset_not_found"
 	CodeProbeFailed                        = "probe_failed"
 	CodeProbeTimeout                       = "probe_timeout"
 	CodePromptDispatchIndeterminate        = "prompt_dispatch_indeterminate"
@@ -160,8 +146,6 @@ const (
 	CodeSkillRegistryReady     = "skill_registry_ready"
 	CodeSkillNotFound          = "skill_not_found"
 	CodeSocketPathUnwritable   = "socket_path_unwritable"
-	CodeTargetAmbiguous        = "target_ambiguous"
-	CodeTargetUnknown          = "target_unknown"
 	CodeTaskRunAlreadyTerminal = "task_run_already_terminal"
 	CodeTaskRunCrashed         = "task_run_crashed"
 	CodeTaskRunNotRecoverable  = "task_run_not_recoverable"
@@ -194,7 +178,7 @@ const (
 	CodeExtensionEnvBindingDangling      = "extension_env_binding_dangling"
 	CodeExtensionEnvBindingInvalid       = "extension_env_binding_invalid"
 	CodeExtensionEnvBindingUndeclared    = "extension_env_binding_undeclared"
-	CodeExtensionNetworkConfirmRequired  = "extension_network_confirmation_required"
+	CodeExtensionGatewayConfirmRequired  = "extension_gateway_confirmation_required"
 	CodeExtensionRegistryTierUnverified  = "extension_registry_tier_unverified"
 	CodeExtensionUnverifiedPolicyBlocked = "extension_unverified_policy_blocked"
 )
@@ -208,11 +192,6 @@ type DiagnosticCodeSpec struct {
 var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeAgentNameReserved, Category: CategoryConfig},
 	{Code: CodeBinaryVersionMismatch, Category: CategoryHome},
-	{Code: CodeBridgeHealthUnavailable, Category: CategoryBridge},
-	{Code: CodeBridgeNotFound, Category: CategoryBridge},
-	{Code: CodeBridgeNotificationSuppressed, Category: CategoryBridge},
-	{Code: CodeBridgeReady, Category: CategoryBridge},
-	{Code: CodeBridgeTargetUnavailable, Category: CategoryBridge},
 	{Code: CodeBulkTooLarge, Category: CategoryTask},
 	{Code: CodeBundleConsentRequired, Category: CategoryDaemon},
 	{Code: CodeBundlePartialFailure, Category: CategoryDaemon},
@@ -247,7 +226,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionEnvBindingUndeclared, Category: CategoryExtension},
 	{Code: CodeExtensionGitUnavailable, Category: CategoryExtension},
 	{Code: CodeExtensionGitVersionUnsupported, Category: CategoryExtension},
-	{Code: CodeExtensionNetworkConfirmRequired, Category: CategoryExtension},
+	{Code: CodeExtensionGatewayConfirmRequired, Category: CategoryExtension},
 	{Code: CodeExtensionRegistryTierUnverified, Category: CategoryExtension},
 	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},
@@ -290,13 +269,6 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeMCPServerReady, Category: CategoryMCP},
 	{Code: CodeMCPServerUnavailable, Category: CategoryMCP},
 	{Code: CodeMigrationsPending, Category: CategoryMigrations},
-	{Code: CodeNetworkDisabled, Category: CategoryNetwork},
-	{Code: CodeNetworkReady, Category: CategoryNetwork},
-	{Code: CodeNetworkUnavailable, Category: CategoryNetwork},
-	{Code: CodePresetBuiltinProtected, Category: CategoryBridge},
-	{Code: CodePresetDuplicateName, Category: CategoryBridge},
-	{Code: CodePresetFilterInvalid, Category: CategoryBridge},
-	{Code: CodePresetNotFound, Category: CategoryBridge},
 	{Code: CodeProbeFailed, Category: CategoryDaemon},
 	{Code: CodeProbeTimeout, Category: CategoryDaemon},
 	{Code: CodePromptDispatchIndeterminate, Category: CategorySession},
@@ -330,8 +302,6 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeSkillRegistryReady, Category: CategoryExtension},
 	{Code: CodeSkillNotFound, Category: CategoryExtension},
 	{Code: CodeSocketPathUnwritable, Category: CategoryDaemon},
-	{Code: CodeTargetAmbiguous, Category: CategoryBridge},
-	{Code: CodeTargetUnknown, Category: CategoryBridge},
 	{Code: CodeTaskRunAlreadyTerminal, Category: CategoryTask},
 	{Code: CodeTaskRunCrashed, Category: CategoryTask},
 	{Code: CodeTaskRunNotRecoverable, Category: CategoryTask},
@@ -355,14 +325,12 @@ var (
 		CategoryConfig,
 		CategoryVault,
 		CategoryMCP,
-		CategoryBridge,
 		CategoryExtension,
 		CategorySession,
 		CategoryTask,
 		CategoryHome,
 		CategorySecrets,
 		CategoryMigrations,
-		CategoryNetwork,
 	)
 	diagnosticCodeCategoryMap = categoryMapFromCodeSpecs(diagnosticCodeSpecs)
 )

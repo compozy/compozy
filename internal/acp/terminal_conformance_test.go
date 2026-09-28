@@ -2,7 +2,7 @@ package acp
 
 // Suite: ACP terminal behavioral conformance.
 // Invariant: terminal adapters preserve output bounds, request cancellation,
-// independent cleanup budgets, polling, permissions, and network-turn ownership.
+// independent cleanup budgets, polling, and permissions.
 // Boundary IN: ACP terminal requests. Boundary OUT: shared terminal core.
 
 import (
@@ -24,11 +24,6 @@ func TestTerminalBehavioralConformance(t *testing.T) {
 	t.Run("Should preserve the polled terminal lifecycle [IT-011]", assertTerminalLifecycleHandlers)
 	t.Run("Should retain a UTF-8-safe 64 KiB output window [IT-011]", assertTerminalOutputWindow)
 	t.Run("Should apply the terminal permission gate [IT-011]", assertTerminalPermissionGate)
-	t.Run(
-		"Should reject non-allowlisted commands during network turns [IT-011]",
-		assertTerminalNetworkTurnRejectsNonAllowlistedCommands,
-	)
-	t.Run("Should enforce network-turn terminal ownership [IT-011]", assertNetworkTurnTerminalOwnershipGuards)
 	t.Run("Should bound detached terminal lifecycle work", assertBoundedTerminalLifecycleContext)
 	t.Run("Should reject canceled kill output and release before host access", assertCanceledTerminalRequests)
 	t.Run("Should isolate every terminal cleanup and core shutdown budget", assertIndependentCloseAllBudgets)

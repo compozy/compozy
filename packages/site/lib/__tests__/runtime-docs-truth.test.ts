@@ -234,11 +234,6 @@ describe("runtime docs truth", () => {
         nativeCell: 3,
       },
       {
-        path: "packages/site/content/docs/autonomy/notification-cursors.mdx",
-        headers: ["Native tool", "Purpose"],
-        nativeCell: 0,
-      },
-      {
         path: "packages/site/content/docs/agents/model-catalog.mdx",
         headers: ["Native tool", "Purpose"],
         nativeCell: 0,

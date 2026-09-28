@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-gateway-live-revocation
-  mission: "As Iris, run the Multi-Tab Tour while a paired device has live session, task, loop, bridge, extension, and window streams, then revoke it from the trusted local surface and prove no tab can finish in-flight work or retain cached product data."
+  mission: "As Iris, run the Multi-Tab Tour while a paired device has live session, task, loop, extension, and window streams, then revoke it from the trusted local surface and prove no tab can finish in-flight work or retain cached product data."
   mode: charter-with-tour
   persona:
     name: Iris

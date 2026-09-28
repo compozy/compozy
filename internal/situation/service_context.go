@@ -126,7 +126,8 @@ func (s *Service) ContextForSession(
 		Provenance:   s.provenance(),
 	}
 
-	if err := s.populateSessionRuntimeContext(ctx, info, workspaceSnapshot, workspaceSection.ID, &payload); err != nil {
+	payload.Task, err = s.taskContext(ctx, info.ProfileID, info.ID, workspaceSnapshot)
+	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
 

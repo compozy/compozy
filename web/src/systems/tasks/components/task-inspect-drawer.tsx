@@ -14,13 +14,7 @@ import {
 } from "@compozy/ui";
 
 import { taskRunStatusLabel } from "../lib/task-formatters";
-import type {
-  TaskBridgeNotificationSubscription,
-  TaskBridgeNotificationSubscriptionCreateRequest,
-  TaskDetailView,
-  TaskInspectView,
-} from "../types";
-import { TaskBridgeSubscriptionsPane } from "./task-bridge-subscriptions-pane";
+import type { TaskDetailView, TaskInspectView } from "../types";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
 import { TaskInspectLoadingSkeleton } from "./task-loading-skeletons";
 import { TaskRawPane } from "./task-raw-pane";
@@ -45,21 +39,11 @@ export interface TaskInspectDrawerProps {
     seedSequence: number;
     latestEventSeq: number | null;
   };
-  bridges: {
-    subscriptions: TaskBridgeNotificationSubscription[];
-    isLoading?: boolean;
-    errorMessage?: string | null;
-    isCreatePending?: boolean;
-    isDeletePending?: boolean;
-    onCreate: (request: TaskBridgeNotificationSubscriptionCreateRequest) => Promise<void> | void;
-    onDelete: (subscriptionId: string) => Promise<void> | void;
-  };
 }
 
 const TABS: ReadonlyArray<LaneTabsItem<TaskInspectDrawerTab>> = [
   { value: "diagnostics", label: "Diagnostics", testId: "tasks-inspect-tab-diagnostics" },
   { value: "stream", label: "Stream", testId: "tasks-inspect-tab-stream" },
-  { value: "bridges", label: "Bridges", testId: "tasks-inspect-tab-bridges" },
   { value: "raw", label: "Raw", testId: "tasks-inspect-tab-raw" },
 ];
 
@@ -238,7 +222,7 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
   );
 }
 
-/** Operator drawer with Diagnostics, Stream, Bridges, and Raw panes. */
+/** Operator drawer with Diagnostics, Stream, and Raw panes. */
 export function TaskInspectDrawer({
   open,
   onOpenChange,
@@ -249,7 +233,6 @@ export function TaskInspectDrawer({
   inspectLoading = false,
   inspectErrorMessage = null,
   stream,
-  bridges,
 }: TaskInspectDrawerProps) {
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
@@ -287,18 +270,7 @@ export function TaskInspectDrawer({
             <TabsContent value="stream">
               <StreamPane stream={stream} />
             </TabsContent>
-            <TabsContent value="bridges">
-              <TaskBridgeSubscriptionsPane
-                errorMessage={bridges.errorMessage}
-                isCreatePending={bridges.isCreatePending}
-                isDeletePending={bridges.isDeletePending}
-                isLoading={bridges.isLoading}
-                onCreate={bridges.onCreate}
-                onDelete={bridges.onDelete}
-                subscriptions={bridges.subscriptions}
-                workspaceId={detail.task.workspace_id ?? null}
-              />
-            </TabsContent>
+
             <TabsContent value="raw">
               <TaskRawPane detail={detail} />
             </TabsContent>

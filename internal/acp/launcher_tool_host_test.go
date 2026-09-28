@@ -22,7 +22,6 @@ import (
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -34,7 +33,7 @@ func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
 
 	root := t.TempDir()
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	handle, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
+	handle, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "sh -c 'read line; printf \"%s\\n\" \"$line\"; sleep 0.1'",
 		Cwd:     root,
 		Env:     os.Environ(),
@@ -108,7 +107,7 @@ func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	t.Parallel()
 
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	if _, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
+	if _, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "definitely-not-an-compozy-test-command",
 		Cwd:     t.TempDir(),
 	}); err == nil {
@@ -120,7 +119,7 @@ func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 	t.Parallel()
 
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	spec := sandbox.LaunchSpec{Command: "sh -c 'sleep 1'", Cwd: t.TempDir()}
+	spec := LaunchSpec{Command: "sh -c 'sleep 1'", Cwd: t.TempDir()}
 	var missingContext context.Context
 	if _, err := launcher.PrepareLaunch(missingContext, spec); err == nil {
 		t.Fatal("PrepareLaunch(nil) error = nil, want context validation failure")
@@ -170,11 +169,8 @@ func TestDriverStartUsesFinalEnvironmentForProviderExecutable(t *testing.T) {
 		probeEnv := &providers.ProbeEnv{
 			ProviderName: "provider-a",
 			PreStartScope: providers.PreStartScope{
-				WorkspaceID:    "workspace-a",
-				HomeIdentity:   t.TempDir(),
-				SandboxID:      "sandbox-a",
-				SandboxBackend: "local",
-				SandboxProfile: "default",
+				WorkspaceID:  "workspace-a",
+				HomeIdentity: t.TempDir(),
 			},
 			LookPath: func(command string) (string, error) {
 				candidate := filepath.Join(providerBin, command)
@@ -254,7 +250,7 @@ func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 	t.Parallel()
 
 	launcher := newLocalLauncher(testDiscardLogger(), 10*time.Millisecond)
-	handle, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
+	handle, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "sh -c 'while :; do sleep 1; done'",
 		Cwd:     t.TempDir(),
 		Env:     os.Environ(),
@@ -393,10 +389,10 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	t.Parallel()
 
 	approveAll, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
-	for _, op := range []sandbox.PermissionOperation{
-		sandbox.PermissionOperationReadTextFile,
-		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationRequestToolGrant,
+	for _, op := range []PermissionOperation{
+		PermissionOperationReadTextFile,
+		PermissionOperationWriteTextFile,
+		PermissionOperationRequestToolGrant,
 	} {
 		if err := approveAll.Authorize(op); err != nil {
 			t.Fatalf("Authorize(%s) with approve-all error = %v", op, err)
@@ -404,10 +400,10 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	}
 
 	denyAll, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeDenyAll)
-	for _, op := range []sandbox.PermissionOperation{
-		sandbox.PermissionOperationReadTextFile,
-		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationRequestToolGrant,
+	for _, op := range []PermissionOperation{
+		PermissionOperationReadTextFile,
+		PermissionOperationWriteTextFile,
+		PermissionOperationRequestToolGrant,
 	} {
 		if err := denyAll.Authorize(op); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("Authorize(%s) with deny-all error = %v, want ErrPermissionDenied", op, err)
@@ -1004,13 +1000,13 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 }
 
 type recordingLauncher struct {
-	delegate sandbox.Launcher
-	handle   sandbox.Handle
+	delegate Launcher
+	handle   Handle
 	err      error
 
 	mu     sync.Mutex
 	called bool
-	spec   sandbox.LaunchSpec
+	spec   LaunchSpec
 }
 
 type terminalPreparingLauncher struct {
@@ -1021,16 +1017,16 @@ type terminalPreparingLauncher struct {
 
 func (l *terminalPreparingLauncher) PrepareLaunch(
 	_ context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.LaunchSpec, error) {
+	spec LaunchSpec,
+) (LaunchSpec, error) {
 	l.prepareCalls++
 	return spec, l.prepareErr
 }
 
 func (l *terminalPreparingLauncher) Launch(
 	context.Context,
-	sandbox.LaunchSpec,
-) (sandbox.Handle, error) {
+	LaunchSpec,
+) (Handle, error) {
 	l.launchCalls++
 	return nil, errors.New("terminalPreparingLauncher: Launch must not run after prepare failure")
 }
@@ -1059,8 +1055,8 @@ func (s *recordingProviderPreStarter) PreStart(
 
 func (l *recordingLauncher) Launch(
 	ctx context.Context,
-	spec sandbox.LaunchSpec,
-) (sandbox.Handle, error) {
+	spec LaunchSpec,
+) (Handle, error) {
 	l.mu.Lock()
 	l.called = true
 	l.spec = spec
@@ -1074,7 +1070,7 @@ func (l *recordingLauncher) Launch(
 	return l.delegate.Launch(ctx, spec)
 }
 
-func (l *recordingLauncher) lastSpec() (sandbox.LaunchSpec, bool) {
+func (l *recordingLauncher) lastSpec() (LaunchSpec, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.spec, l.called

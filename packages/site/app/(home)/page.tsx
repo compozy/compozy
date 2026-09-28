@@ -1,7 +1,6 @@
 import {
   AutonomyKernelSection,
   BentoSection,
-  BridgesSection,
   Comparison,
   ExtensibilitySection,
   FeaturesSection,
@@ -9,7 +8,6 @@ import {
   Hero,
   InstallSection,
   MemoryDreamSection,
-  NetworkSection,
   SupportedAgents,
 } from "@/components/landing";
 import { WebSiteJsonLd } from "@/components/seo/structured-data";
@@ -43,8 +41,6 @@ export default async function HomePage() {
       <FeaturesSection />
       <ExtensibilitySection />
       <SupportedAgents />
-      <NetworkSection />
-      <BridgesSection />
       <InstallSection goInstallCommand={goInstallCommand(release.tag)} />
       <Comparison />
       <FinalCta />

@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
-
-import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { StorySurface } from "@/storybook/story-layout";
 import { agentFixtures } from "@/systems/agent/mocks";
 import type { WorktreeMaterialization, WorktreePayload } from "@/systems/workspace";
@@ -156,12 +154,8 @@ export const NonGitWorkspaceFieldAbsent: Story = {
         isSubmitting={false}
         mode="advanced"
         onCancelEnvironment={fn()}
-        networkParticipation={
-          { mode: "local", channelStrategy: "", channelId: "" } satisfies NetworkParticipationDraft
-        }
         onAgentChange={fn()}
         onModeChange={fn()}
-        onNetworkParticipationChange={fn()}
         onOpenChange={fn()}
         onSessionNameChange={fn()}
         onSubmit={fn()}

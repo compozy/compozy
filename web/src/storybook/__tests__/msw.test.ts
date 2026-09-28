@@ -17,27 +17,10 @@ function handlerSignature(handler: { info: { method: unknown; path: unknown } })
 
 describe("storybook msw helpers", () => {
   it("creates grouped story overrides without requiring untouched domains to be repeated", () => {
-    const bridgesOverride = [
-      compozyApiMock.get("/api/bridges", () =>
-        HttpResponse.json({
-          bridge_health: {},
-          bridges: [],
-          facets: {
-            platforms: {},
-            statuses: {
-              auth_required: 0,
-              degraded: 0,
-              disabled: 0,
-              error: 0,
-              ready: 0,
-              starting: 0,
-            },
-          },
-          page: { has_more: false, limit: 50, total: 0 },
-        })
-      ),
+    const agentsOverride = [
+      compozyApiMock.get("/api/agents", () => HttpResponse.json({ agents: [] })),
     ];
-    const parameters = storybookMswParameters({ bridges: bridgesOverride });
+    const parameters = storybookMswParameters({ agent: agentsOverride });
     const mergedGroups = {
       ...storybookSystemHandlerGroups,
       ...parameters.msw.handlers,
@@ -46,43 +29,26 @@ describe("storybook msw helpers", () => {
     expect(parameters).toEqual({
       msw: {
         handlers: {
-          bridges: composeStorybookHandlerGroup("bridges", bridgesOverride),
+          agent: composeStorybookHandlerGroup("agent", agentsOverride),
         },
       },
     });
-    expect(mergedGroups.bridges).toEqual(composeStorybookHandlerGroup("bridges", bridgesOverride));
-    expect(mergedGroups.network).toBe(storybookSystemHandlerGroups.network);
+    expect(mergedGroups.agent).toEqual(composeStorybookHandlerGroup("agent", agentsOverride));
+    expect(mergedGroups.knowledge).toBe(storybookSystemHandlerGroups.knowledge);
     expect(mergedGroups.settings).toBe(storybookSystemHandlerGroups.settings);
     expect(mergedGroups.tasks).toBe(storybookSystemHandlerGroups.tasks);
   });
 
   it("preserves untouched handlers inside an overridden group while replacing matching endpoints", () => {
-    const bridgesOverride = [
-      compozyApiMock.get("/api/bridges", () =>
-        HttpResponse.json({
-          bridge_health: {},
-          bridges: [],
-          facets: {
-            platforms: {},
-            statuses: {
-              auth_required: 0,
-              degraded: 0,
-              disabled: 0,
-              error: 0,
-              ready: 0,
-              starting: 0,
-            },
-          },
-          page: { has_more: false, limit: 50, total: 0 },
-        })
-      ),
+    const agentsOverride = [
+      compozyApiMock.get("/api/agents", () => HttpResponse.json({ agents: [] })),
     ];
-    const composedGroup = composeStorybookHandlerGroup("bridges", bridgesOverride);
+    const composedGroup = composeStorybookHandlerGroup("agent", agentsOverride);
     const signatures = composedGroup.map(handlerSignature);
 
-    expect(composedGroup[0]).toBe(bridgesOverride[0]);
-    expect(signatures).toContain("GET /api/bridges/providers");
-    expect(signatures.filter(signature => signature === "GET /api/bridges")).toHaveLength(1);
+    expect(composedGroup[0]).toBe(agentsOverride[0]);
+    expect(signatures).toContain("GET /api/agents/catalog");
+    expect(signatures.filter(signature => signature === "GET /api/agents")).toHaveLength(1);
   });
 
   it("Should keep concrete catalog routes ahead of param overrides that would shadow them", () => {

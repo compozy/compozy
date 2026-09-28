@@ -12,12 +12,6 @@ func cloneSessionContext(payload SessionContext) SessionContext {
 	return payload
 }
 
-func cloneSandboxProfilePayload(payload SandboxProfilePayload) SandboxProfilePayload {
-	payload.Env = cloneStringMap(payload.Env)
-	payload.SecretEnv = cloneStringMap(payload.SecretEnv)
-	return payload
-}
-
 func cloneAutomationSchedulePayload(payload *AutomationSchedulePayload) *AutomationSchedulePayload {
 	if payload == nil {
 		return nil

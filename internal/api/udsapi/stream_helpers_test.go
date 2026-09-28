@@ -12,10 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -346,7 +343,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 				SessionID: "sess-harness",
 				Type:      "harness.context_resolved",
 				AgentName: "coder",
-				Summary:   "surface=startup sections=memory|skills|network",
+				Summary:   "surface=startup sections=memory|skills",
 				Timestamp: time.Date(2026, 4, 18, 13, 0, 0, 0, time.UTC),
 			}}, nil
 		},
@@ -379,7 +376,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	if got, want := payload.SessionID, "sess-harness"; got != want {
 		t.Fatalf("payload.SessionID = %q, want %q", got, want)
 	}
-	if !bytes.Contains(records[0].Data, []byte("sections=memory|skills|network")) {
+	if !bytes.Contains(records[0].Data, []byte("sections=memory|skills")) {
 		t.Fatalf("payload = %s, want harness summary content", string(records[0].Data))
 	}
 }
@@ -452,84 +449,6 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 			t.Fatalf("payload.Content = %s, want snake_case profile payload", string(payload.Content))
 		}
 	})
-}
-
-func TestStreamBridgeHealthPollsForChangedSnapshots(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	done := make(chan struct{})
-	callCount := 0
-	observer := stubObserver{
-		QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
-			callCount++
-			switch callCount {
-			case 1, 2:
-				return []observe.BridgeInstanceHealth{{
-					BridgeInstanceID: "brg-123",
-					Status:           bridgepkg.BridgeStatusAuthRequired,
-				}}, nil
-			case 3:
-				close(done)
-				return []observe.BridgeInstanceHealth{{
-					BridgeInstanceID:      "brg-123",
-					Status:                bridgepkg.BridgeStatusReady,
-					RouteCount:            3,
-					DeliveryBacklog:       1,
-					AuthFailuresTotal:     1,
-					DeliveryFailuresTotal: 2,
-				}}, nil
-			default:
-				return nil, nil
-			}
-		},
-	}
-	handlers := newTestHandlersWithBridges(
-		t,
-		stubSessionManager{},
-		observer,
-		stubBridgeService{
-			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
-				t.Fatal("ListInstances() must not run for the bounded stream")
-				return nil, nil
-			},
-			ListInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
-				return []bridgepkg.BridgeInstance{{
-					ID: "brg-123", Scope: bridgepkg.ScopeGlobal, Enabled: true, Status: bridgepkg.BridgeStatusReady,
-				}}, nil
-			},
-		},
-		stubWorkspaceService{},
-		homePaths,
-	)
-	handlers.setStreamDone(done)
-	engine := newTestRouter(t, handlers)
-
-	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/api/bridges/health/stream?bridge_ids=brg-123",
-		http.NoBody,
-	)
-	engine.ServeHTTP(recorder, req)
-
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 2 {
-		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
-	}
-	if records[0].Event != "snapshot" || records[1].Event != "snapshot" {
-		t.Fatalf("events = %#v, want snapshot events", records)
-	}
-
-	var second contract.BridgeHealthStreamPayload
-	if err := json.Unmarshal(records[1].Data, &second); err != nil {
-		t.Fatalf("json.Unmarshal(second snapshot) error = %v", err)
-	}
-	if got, want := second.BridgeHealth["brg-123"].Status, bridgepkg.BridgeStatusReady; got != want {
-		t.Fatalf("second status = %q, want %q", got, want)
-	}
-	if got, want := second.BridgeHealth["brg-123"].RouteCount, 3; got != want {
-		t.Fatalf("second route_count = %d, want %d", got, want)
-	}
 }
 
 func TestHelperBuildersCoverRemainingBranches(t *testing.T) {

@@ -37,7 +37,6 @@ const (
 	durableMemoryClose            = "</turn-recall>"
 	workspaceKnowledgeOpen        = "<workspace-knowledge-snapshot>"
 	workspaceKnowledgeClose       = "</workspace-knowledge-snapshot>"
-	inboundBridgePromptPrefix     = "Inbound bridge message"
 )
 
 // LoadFixture parses and validates one fixture file.
@@ -206,20 +205,16 @@ func (o SessionConfigOptionFixture) Validate(path string) error {
 func (m TurnMatch) Validate(path string) error {
 	normalized := m.Normalize()
 	switch normalized.TurnSource {
-	case "", acp.PromptTurnSourceUser, acp.PromptTurnSourceNetwork, acp.PromptTurnSourceSynthetic:
+	case "", acp.PromptTurnSourceUser, acp.PromptTurnSourceSynthetic:
 	default:
 		return fmt.Errorf("acpmock: %s.turn_source %q is invalid", path, normalized.TurnSource)
 	}
 	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.UserTextContains == "" &&
 		normalized.RawUserTextContains == "" &&
-		normalized.Network == nil && normalized.Goal == nil && normalized.Judge == nil {
+		normalized.Goal == nil && normalized.Judge == nil {
 		return fmt.Errorf("acpmock: %s requires at least one stable selector", path)
 	}
-	if normalized.Network != nil {
-		if err := normalized.Network.Validate(path + ".network"); err != nil {
-			return err
-		}
-	}
+
 	if normalized.Goal != nil {
 		if err := normalized.Goal.Validate(path + ".goal"); err != nil {
 			return err
@@ -253,12 +248,7 @@ func (m TurnMatch) Normalize() TurnMatch {
 			normalized.Judge = &judge
 		}
 	}
-	if m.Network != nil {
-		network := m.Network.Normalize()
-		if !network.IsZero() {
-			normalized.Network = &network
-		}
-	}
+
 	return normalized
 }
 
@@ -284,14 +274,7 @@ func (m TurnMatch) matches(input turnMatchInput) bool {
 		!strings.Contains(input.UserText, normalized.RawUserTextContains) {
 		return false
 	}
-	if normalized.Network != nil {
-		if input.Meta.Network == nil {
-			return false
-		}
-		if !normalized.Network.matches(*input.Meta.Network) {
-			return false
-		}
-	}
+
 	if normalized.Goal != nil {
 		meta := input.Meta.Normalize()
 		if meta.Synthetic == nil || meta.Synthetic.Goal == nil ||

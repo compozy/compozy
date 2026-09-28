@@ -7,7 +7,6 @@ type HookEventFamily string
 
 const (
 	HookEventFamilySession       HookEventFamily = "session"
-	HookEventFamilySandbox       HookEventFamily = "sandbox"
 	HookEventFamilyInput         HookEventFamily = "input"
 	HookEventFamilyPrompt        HookEventFamily = "prompt"
 	HookEventFamilyEvent         HookEventFamily = "event"
@@ -23,7 +22,6 @@ const (
 	HookEventFamilyTaskRun       HookEventFamily = "task.run"
 	HookEventFamilyLoop          HookEventFamily = "loop"
 	HookEventFamilySpawn         HookEventFamily = "spawn"
-	HookEventFamilyNetwork       HookEventFamily = "network"
 	HookEventFamilyWindowManager HookEventFamily = "window_manager"
 	HookEventFamilyWorktree      HookEventFamily = "worktree"
 	HookEventFamilyTerminal      HookEventFamily = "terminal"
@@ -33,7 +31,6 @@ const (
 func (f HookEventFamily) Validate() error {
 	switch f {
 	case HookEventFamilySession,
-		HookEventFamilySandbox,
 		HookEventFamilyInput,
 		HookEventFamilyPrompt,
 		HookEventFamilyEvent,
@@ -49,7 +46,6 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyTaskRun,
 		HookEventFamilyLoop,
 		HookEventFamilySpawn,
-		HookEventFamilyNetwork,
 		HookEventFamilyWindowManager,
 		HookEventFamilyWorktree,
 		HookEventFamilyTerminal:
@@ -73,12 +69,6 @@ const (
 	HookSessionRuntimeRecoveryStarted   HookEvent = "session.runtime_recovery.started"
 	HookSessionRuntimeRecoverySucceeded HookEvent = "session.runtime_recovery.succeeded"
 	HookSessionRuntimeRecoveryExhausted HookEvent = "session.runtime_recovery.exhausted"
-
-	HookSandboxPrepare    HookEvent = "sandbox.prepare"
-	HookSandboxReady      HookEvent = "sandbox.ready"
-	HookSandboxSyncBefore HookEvent = "sandbox.sync.before"
-	HookSandboxSyncAfter  HookEvent = "sandbox.sync.after"
-	HookSandboxStop       HookEvent = "sandbox.stop"
 
 	HookInputPreSubmit HookEvent = "input.pre_submit"
 
@@ -180,26 +170,6 @@ var baseHookEventDefinitions = []hookEventDefinition{
 	{event: HookSessionRuntimeRecoveryStarted, family: HookEventFamilySession, syncEligible: false},
 	{event: HookSessionRuntimeRecoverySucceeded, family: HookEventFamilySession, syncEligible: false},
 	{event: HookSessionRuntimeRecoveryExhausted, family: HookEventFamilySession, syncEligible: false},
-	{event: HookSandboxPrepare,
-		family:       HookEventFamilySandbox,
-		syncEligible: true,
-	},
-	{event: HookSandboxReady,
-		family:       HookEventFamilySandbox,
-		syncEligible: false,
-	},
-	{event: HookSandboxSyncBefore,
-		family:       HookEventFamilySandbox,
-		syncEligible: true,
-	},
-	{event: HookSandboxSyncAfter,
-		family:       HookEventFamilySandbox,
-		syncEligible: false,
-	},
-	{event: HookSandboxStop,
-		family:       HookEventFamilySandbox,
-		syncEligible: true,
-	},
 	{event: HookInputPreSubmit, family: HookEventFamilyInput, syncEligible: true},
 	{event: HookPromptPostAssemble,
 		family:       HookEventFamilyPrompt,

@@ -10,7 +10,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -27,7 +26,6 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 		AddDirs:      addDirs,
 		Name:         workspace.Name,
 		DefaultAgent: workspace.DefaultAgent,
-		SandboxRef:   workspace.SandboxRef,
 		CreatedAt:    workspace.CreatedAt,
 		UpdatedAt:    workspace.UpdatedAt,
 	}
@@ -182,12 +180,4 @@ func payloadJSONBytes(raw []byte) json.RawMessage {
 		return json.RawMessage("null")
 	}
 	return json.RawMessage(encoded)
-}
-
-func cloneBridgeDegradation(value *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }

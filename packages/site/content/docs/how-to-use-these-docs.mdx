@@ -6,20 +6,19 @@ icon: Compass
 
 You do not need to learn all of CompozyOS before you get value from it. Use this page to pick the
 shortest path for the job in front of you: running your first session, operating a daemon day to
-day, extending the runtime, or implementing the coordination protocol.
+day, extending the runtime, or integrating with the daemon.
 
 ## Choose by goal
 
-| Goal                                       | Start here                                           | What you should have after reading                                              |
-| ------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Try CompozyOS for the first time           | [Quick Start](/docs/getting-started/quick-start)     | One daemon, one workspace, one durable session.                                 |
-| Understand what CompozyOS is               | [Overview](/docs)                                    | What comes built in, and when CompozyOS is the right fit.                       |
-| Solve an operational problem               | [Guides](/docs/guides)                               | A decision path or debugging flow.                                              |
-| See CompozyOS in a realistic scenario      | [Use Cases](/docs/use-cases)                         | Concrete commands, checkpoints, and failure paths.                              |
-| Learn the runtime model                    | [Overview](/docs)                                    | Mental models for sessions, agents, memory, network, resources, and extensions. |
-| Look up an exact CLI flag                  | [CLI Reference](/docs/cli)                           | Generated command syntax and options.                                           |
-| Integrate with the daemon over HTTP or UDS | [API Reference](/docs/api)                           | Route families, stream surfaces, and caveats.                                   |
-| Implement the open agent network protocol  | [Protocol Overview](/docs/network/protocol/overview) | Wire-level protocol concepts and conformance path.                              |
+| Goal                                       | Start here                                       | What you should have after reading                                     |
+| ------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| Try CompozyOS for the first time           | [Quick Start](/docs/getting-started/quick-start) | One daemon, one workspace, one durable session.                        |
+| Understand what CompozyOS is               | [Overview](/docs)                                | What comes built in, and when CompozyOS is the right fit.              |
+| Solve an operational problem               | [Guides](/docs/guides)                           | A decision path or debugging flow.                                     |
+| See CompozyOS in a realistic scenario      | [Use Cases](/docs/use-cases)                     | Concrete commands, checkpoints, and failure paths.                     |
+| Learn the runtime model                    | [Overview](/docs)                                | Mental models for sessions, agents, memory, resources, and extensions. |
+| Look up an exact CLI flag                  | [CLI Reference](/docs/cli)                       | Generated command syntax and options.                                  |
+| Integrate with the daemon over HTTP or UDS | [API Reference](/docs/api)                       | Route families, stream surfaces, and caveats.                          |
 
 ## Recommended reading paths
 
@@ -46,22 +45,21 @@ day, extending the runtime, or implementing the coordination protocol.
 
 ### I am coordinating multiple agents
 
-1. [Coordinate Agents over Network](/docs/guides/coordinate-agents-over-network)
-2. [Network](/docs/network)
+1. [Autonomy](/docs/autonomy)
+2. [Task Runs and Leases](/docs/autonomy/task-runs-and-leases)
 3. [Handoff Between Agents](/docs/use-cases/handoff-between-agents)
-4. [Protocol Implementation Status](/docs/network/protocol/implementation-status)
+4. [Review Gate](/docs/autonomy/review-gate)
 
 ## How the sections differ
 
-| Section       | Best for                                               | Avoid using it for                     |
-| ------------- | ------------------------------------------------------ | -------------------------------------- |
-| Tutorials     | First successful run.                                  | Exhaustive reference.                  |
-| Guides        | Choosing what to do next for one problem.              | Learning every subsystem detail.       |
-| Use cases     | Seeing complete operator scenarios.                    | Exact flag lookup.                     |
-| Core concepts | Understanding the model behind a feature.              | Copy-paste-only command runs.          |
-| CLI Reference | Flags, syntax, output formats, and generated commands. | Product explanation.                   |
-| API Reference | Route families and streaming surfaces.                 | Product explanation.                   |
-| Protocol spec | Implementing Compozy Network outside CompozyOS.        | Operating the local daemon day to day. |
+| Section       | Best for                                               | Avoid using it for               |
+| ------------- | ------------------------------------------------------ | -------------------------------- |
+| Tutorials     | First successful run.                                  | Exhaustive reference.            |
+| Guides        | Choosing what to do next for one problem.              | Learning every subsystem detail. |
+| Use cases     | Seeing complete operator scenarios.                    | Exact flag lookup.               |
+| Core concepts | Understanding the model behind a feature.              | Copy-paste-only command runs.    |
+| CLI Reference | Flags, syntax, output formats, and generated commands. | Product explanation.             |
+| API Reference | Route families and streaming surfaces.                 | Product explanation.             |
 
 ## When docs disagree
 
@@ -70,8 +68,6 @@ Runtime truth wins:
 1. Generated CLI reference wins for command names and flags.
 2. Implemented code and generated contracts win for API behavior.
 3. Core concept pages explain intent, but should not override generated references.
-4. Protocol pages define wire contracts for interoperable runtimes, not necessarily every
-   CompozyOS runtime feature.
 
 If a guide and a generated reference disagree, follow the generated contract for the immediate
 operation and report the conflicting guide. A failed documented step is a documentation defect, not

@@ -27,10 +27,6 @@ type UpdateSettingsAutomationRequest struct {
 	Config SettingsAutomationConfigPayload `json:"config"`
 }
 
-type UpdateSettingsNetworkRequest struct {
-	Config SettingsNetworkConfigPayload `json:"config"`
-}
-
 type UpdateSettingsObservabilityRequest struct {
 	Config SettingsObservabilityConfigPayload `json:"config"`
 }
@@ -50,10 +46,6 @@ type PutSettingsMCPServerRequest struct {
 	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitempty"`
 	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitempty"`
 	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
-}
-
-type PutSettingsSandboxRequest struct {
-	Profile SettingsSandboxProfilePayload `json:"profile"`
 }
 
 type PutSettingsHookRequest struct {
@@ -104,13 +96,6 @@ type SettingsAutomationResponse struct {
 	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 
-type SettingsNetworkResponse struct {
-	SettingsUserSectionResponseMetaPayload
-	Config  SettingsNetworkConfigPayload     `json:"config"`
-	Runtime SettingsNetworkRuntimePayload    `json:"runtime"`
-	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
-}
-
 type SettingsObservabilityResponse struct {
 	SettingsUserSectionResponseMetaPayload
 	Config  SettingsObservabilityConfigPayload  `json:"config"`
@@ -142,15 +127,6 @@ type SettingsMCPServerResponse struct {
 type SettingsMCPServersResponse struct {
 	SettingsLayeredCollectionResponseMetaPayload
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`
-}
-
-type SettingsSandboxesResponse struct {
-	SettingsUserCollectionResponseMetaPayload
-	Sandboxes []SettingsSandboxItemPayload `json:"sandboxes"`
-}
-
-type SettingsSandboxResponse struct {
-	Sandbox SettingsSandboxItemPayload `json:"sandbox"`
 }
 
 type SettingsHooksResponse struct {

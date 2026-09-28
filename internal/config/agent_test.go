@@ -83,7 +83,7 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 			Speed:      speedpkg.SpeedFast,
 			ACPOptions: []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 			Tools:      []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
-			Toolsets:   []string{"compozy__network", "compozy__catalog"},
+			Toolsets:   []string{"compozy__tasks", "compozy__catalog"},
 			DenyTools:  []string{"compozy__write_*", "compozy__delete_*"},
 			Skills:     AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
 			MCPServers: []MCPServer{{

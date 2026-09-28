@@ -5,11 +5,7 @@ import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { appWindow, switchWorkspace } from "../fixtures/os-navigation";
-import {
-  profilesOperatorSelectors,
-  settingsOperatorSelectors,
-  sessionLifecycleSelectors,
-} from "../fixtures/selectors";
+import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import {
   browserSettingsOperatorFlowScenario,
   cleanupBrowserSettingsFixtures,
@@ -76,7 +72,6 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Skills",
       "MCP servers",
       "Automation",
-      "Network",
       "Notifications",
       "Diagnostics",
       "Remote access",
@@ -89,9 +84,9 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect(settingsUI.shell.sectionLink("general")).toHaveAttribute("aria-current", "page");
   await expect(settingsUI.general.page).toBeVisible();
 
-  await settingsUI.shell.sectionLink("network").click();
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/network");
-  await expect(settingsUI.shell.sectionLink("network")).toHaveAttribute("aria-current", "page");
+  await settingsUI.shell.sectionLink("automation").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/automation");
+  await expect(settingsUI.shell.sectionLink("automation")).toHaveAttribute("aria-current", "page");
 
   await settingsUI.shell.sectionLink("hooks").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/hooks");
@@ -287,69 +282,6 @@ test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies 
       body: JSON.stringify({ config: before.config }),
     });
   }
-});
-
-// Invariant: preset definitions are shared, but each active profile reads and
-// persists its own default-on enablement exception.
-// Owner: notification Settings browser journey.
-// Canonical suite: Settings Playwright tests.
-test("E2E-026: notification preset enablement follows the active profile", async ({
-  appPage,
-  runtime,
-}) => {
-  await runtime.requestJSON("/api/profiles", {
-    body: JSON.stringify({ color: "#c26ad6", icon: "megaphone", name: "marketing" }),
-    method: "POST",
-  });
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(appPage);
-  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
-
-  const settingsWin = appWindow(appPage, "settings");
-  const profileLabel = settingsWin.getByTestId("settings-page-hooks-notification-preset-profile");
-  const taskTerminalToggle = settingsWin.getByTestId(
-    "settings-page-hooks-notification-preset-row-task_terminal-toggle"
-  );
-  await expect(profileLabel).toContainText("default");
-  await expect(taskTerminalToggle).toBeChecked();
-
-  const disabled = appPage.waitForResponse(
-    response =>
-      response.request().method() === "PUT" &&
-      new URL(response.url()).pathname === "/api/notifications/presets/task_terminal/enablement"
-  );
-  await taskTerminalToggle.click();
-  expect((await disabled).ok()).toBe(true);
-  await expect(taskTerminalToggle).not.toBeChecked();
-
-  const profiles = profilesOperatorSelectors(appPage);
-  await profiles.switcher.click();
-  await profiles.switcherOption("marketing").click();
-  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
-  const marketingSettingsWin = appWindow(appPage, "settings");
-  await expect(marketingSettingsWin).toBeVisible();
-  const marketingProfileLabel = marketingSettingsWin.getByTestId(
-    "settings-page-hooks-notification-preset-profile"
-  );
-  const marketingTaskTerminalToggle = marketingSettingsWin.getByTestId(
-    "settings-page-hooks-notification-preset-row-task_terminal-toggle"
-  );
-  await expect(marketingProfileLabel).toContainText("marketing");
-  await expect(marketingTaskTerminalToggle).toBeChecked();
-
-  await profiles.switcher.click();
-  await profiles.switcherOption("default").click();
-  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
-  const defaultSettingsWin = appWindow(appPage, "settings");
-  await expect(defaultSettingsWin).toBeVisible();
-  await expect(
-    defaultSettingsWin.getByTestId("settings-page-hooks-notification-preset-profile")
-  ).toContainText("default");
-  await expect(
-    defaultSettingsWin.getByTestId(
-      "settings-page-hooks-notification-preset-row-task_terminal-toggle"
-    )
-  ).not.toBeChecked();
 });
 
 test("operator can distinguish skills actions that apply now from policy changes that require restart", async ({

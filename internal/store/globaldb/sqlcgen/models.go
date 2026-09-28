@@ -125,27 +125,26 @@ type AttentionWorkspaceMute struct {
 }
 
 type AutomationJob struct {
-	ID                       string         `json:"id"`
-	ProfileID                string         `json:"profile_id"`
-	Scope                    string         `json:"scope"`
-	Name                     string         `json:"name"`
-	AgentName                string         `json:"agent_name"`
-	WorkspaceID              sql.NullString `json:"workspace_id"`
-	Prompt                   string         `json:"prompt"`
-	Schedule                 sql.NullString `json:"schedule"`
-	Task                     sql.NullString `json:"task"`
-	Enabled                  bool           `json:"enabled"`
-	Retry                    string         `json:"retry"`
-	FireLimit                string         `json:"fire_limit"`
-	Source                   string         `json:"source"`
-	TargetKind               string         `json:"target_kind"`
-	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
-	LoopName                 sql.NullString `json:"loop_name"`
-	LoopInputs               sql.NullString `json:"loop_inputs"`
-	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
-	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
-	CreatedAt                string         `json:"created_at"`
-	UpdatedAt                string         `json:"updated_at"`
+	ID               string         `json:"id"`
+	ProfileID        string         `json:"profile_id"`
+	Scope            string         `json:"scope"`
+	Name             string         `json:"name"`
+	AgentName        string         `json:"agent_name"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	Prompt           string         `json:"prompt"`
+	Schedule         sql.NullString `json:"schedule"`
+	Task             sql.NullString `json:"task"`
+	Enabled          bool           `json:"enabled"`
+	Retry            string         `json:"retry"`
+	FireLimit        string         `json:"fire_limit"`
+	Source           string         `json:"source"`
+	TargetKind       string         `json:"target_kind"`
+	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
+	LoopName         sql.NullString `json:"loop_name"`
+	LoopInputs       sql.NullString `json:"loop_inputs"`
+	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
 }
 
 type AutomationJobCatalogEntry struct {
@@ -175,25 +174,24 @@ type AutomationJobOverlay struct {
 }
 
 type AutomationRun struct {
-	ID                   string         `json:"id"`
-	ProfileID            sql.NullString `json:"profile_id"`
-	JobID                sql.NullString `json:"job_id"`
-	TriggerID            sql.NullString `json:"trigger_id"`
-	SessionID            sql.NullString `json:"session_id"`
-	TaskID               sql.NullString `json:"task_id"`
-	TaskRunID            sql.NullString `json:"task_run_id"`
-	Status               string         `json:"status"`
-	Attempt              int64          `json:"attempt"`
-	StartedAt            sql.NullString `json:"started_at"`
-	EndedAt              sql.NullString `json:"ended_at"`
-	Error                sql.NullString `json:"error"`
-	LoopRunID            sql.NullString `json:"loop_run_id"`
-	FireID               sql.NullString `json:"fire_id"`
-	ScheduledAt          sql.NullString `json:"scheduled_at"`
-	DeliveryError        sql.NullString `json:"delivery_error"`
-	DeliveryErrorAt      sql.NullString `json:"delivery_error_at"`
-	NetworkParticipation sql.NullString `json:"network_participation"`
-	MetadataJson         string         `json:"metadata_json"`
+	ID              string         `json:"id"`
+	ProfileID       sql.NullString `json:"profile_id"`
+	JobID           sql.NullString `json:"job_id"`
+	TriggerID       sql.NullString `json:"trigger_id"`
+	SessionID       sql.NullString `json:"session_id"`
+	TaskID          sql.NullString `json:"task_id"`
+	TaskRunID       sql.NullString `json:"task_run_id"`
+	Status          string         `json:"status"`
+	Attempt         int64          `json:"attempt"`
+	StartedAt       sql.NullString `json:"started_at"`
+	EndedAt         sql.NullString `json:"ended_at"`
+	Error           sql.NullString `json:"error"`
+	LoopRunID       sql.NullString `json:"loop_run_id"`
+	FireID          sql.NullString `json:"fire_id"`
+	ScheduledAt     sql.NullString `json:"scheduled_at"`
+	DeliveryError   sql.NullString `json:"delivery_error"`
+	DeliveryErrorAt sql.NullString `json:"delivery_error_at"`
+	MetadataJson    string         `json:"metadata_json"`
 }
 
 type AutomationSchedulerState struct {
@@ -225,30 +223,29 @@ type AutomationSuggestion struct {
 }
 
 type AutomationTrigger struct {
-	ID                       string         `json:"id"`
-	ProfileID                string         `json:"profile_id"`
-	Scope                    string         `json:"scope"`
-	Name                     string         `json:"name"`
-	AgentName                string         `json:"agent_name"`
-	WorkspaceID              sql.NullString `json:"workspace_id"`
-	Prompt                   string         `json:"prompt"`
-	Event                    string         `json:"event"`
-	Filter                   sql.NullString `json:"filter"`
-	Enabled                  bool           `json:"enabled"`
-	Retry                    string         `json:"retry"`
-	FireLimit                string         `json:"fire_limit"`
-	Source                   string         `json:"source"`
-	WebhookID                sql.NullString `json:"webhook_id"`
-	EndpointSlug             sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef         sql.NullString `json:"webhook_secret_ref"`
-	TargetKind               string         `json:"target_kind"`
-	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
-	LoopName                 sql.NullString `json:"loop_name"`
-	LoopInputs               sql.NullString `json:"loop_inputs"`
-	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
-	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
-	CreatedAt                string         `json:"created_at"`
-	UpdatedAt                string         `json:"updated_at"`
+	ID               string         `json:"id"`
+	ProfileID        string         `json:"profile_id"`
+	Scope            string         `json:"scope"`
+	Name             string         `json:"name"`
+	AgentName        string         `json:"agent_name"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	Prompt           string         `json:"prompt"`
+	Event            string         `json:"event"`
+	Filter           sql.NullString `json:"filter"`
+	Enabled          bool           `json:"enabled"`
+	Retry            string         `json:"retry"`
+	FireLimit        string         `json:"fire_limit"`
+	Source           string         `json:"source"`
+	WebhookID        sql.NullString `json:"webhook_id"`
+	EndpointSlug     sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
+	TargetKind       string         `json:"target_kind"`
+	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
+	LoopName         sql.NullString `json:"loop_name"`
+	LoopInputs       sql.NullString `json:"loop_inputs"`
+	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
 }
 
 type AutomationTriggerCatalogEntry struct {
@@ -296,122 +293,6 @@ type AutomationWatchEvent struct {
 	AgentName   string         `json:"agent_name"`
 	WorkspaceID string         `json:"workspace_id"`
 	RetryJson   string         `json:"retry_json"`
-}
-
-type BridgeDelivery struct {
-	DeliveryID       string         `json:"delivery_id"`
-	SessionID        string         `json:"session_id"`
-	TurnID           string         `json:"turn_id"`
-	RoutingKey       string         `json:"routing_key"`
-	BridgeInstanceID string         `json:"bridge_instance_id"`
-	Scope            string         `json:"scope"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	State            string         `json:"state"`
-	LastSentSeq      int64          `json:"last_sent_seq"`
-	LastAckedSeq     int64          `json:"last_acked_seq"`
-	RemoteMessageID  sql.NullString `json:"remote_message_id"`
-	TerminalError    sql.NullString `json:"terminal_error"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
-}
-
-type BridgeDeliveryMetric struct {
-	BridgeInstanceID            string         `json:"bridge_instance_id"`
-	Scope                       string         `json:"scope"`
-	WorkspaceID                 sql.NullString `json:"workspace_id"`
-	DeliveryDroppedTotal        int64          `json:"delivery_dropped_total"`
-	DeliveryDroppedByReasonJson string         `json:"delivery_dropped_by_reason_json"`
-	DeliveryFailuresTotal       int64          `json:"delivery_failures_total"`
-	LastError                   sql.NullString `json:"last_error"`
-	LastErrorAt                 sql.NullString `json:"last_error_at"`
-	LastSuccessAt               sql.NullString `json:"last_success_at"`
-	UpdatedAt                   string         `json:"updated_at"`
-}
-
-type BridgeIngestDedup struct {
-	IdempotencyKey   string `json:"idempotency_key"`
-	BridgeInstanceID string `json:"bridge_instance_id"`
-	ReceivedAt       string `json:"received_at"`
-	ExpiresAt        string `json:"expires_at"`
-}
-
-type BridgeInstance struct {
-	ID                   string         `json:"id"`
-	ProfileID            string         `json:"profile_id"`
-	Scope                string         `json:"scope"`
-	WorkspaceID          sql.NullString `json:"workspace_id"`
-	Platform             string         `json:"platform"`
-	ExtensionName        string         `json:"extension_name"`
-	DisplayName          string         `json:"display_name"`
-	Source               string         `json:"source"`
-	Enabled              bool           `json:"enabled"`
-	Status               string         `json:"status"`
-	DmPolicy             string         `json:"dm_policy"`
-	RoutingPolicy        string         `json:"routing_policy"`
-	ProviderConfig       sql.NullString `json:"provider_config"`
-	DeliveryDefaults     sql.NullString `json:"delivery_defaults"`
-	NotificationSuppress bool           `json:"notification_suppress"`
-	DegradationReason    sql.NullString `json:"degradation_reason"`
-	DegradationMessage   sql.NullString `json:"degradation_message"`
-	CreatedAt            string         `json:"created_at"`
-	UpdatedAt            string         `json:"updated_at"`
-}
-
-type BridgeRoute struct {
-	RoutingKeyHash   string         `json:"routing_key_hash"`
-	Scope            string         `json:"scope"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	BridgeInstanceID string         `json:"bridge_instance_id"`
-	PeerID           sql.NullString `json:"peer_id"`
-	ThreadID         sql.NullString `json:"thread_id"`
-	GroupID          sql.NullString `json:"group_id"`
-	SessionID        string         `json:"session_id"`
-	AgentName        string         `json:"agent_name"`
-	LastActivityAt   string         `json:"last_activity_at"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
-}
-
-type BridgeSecretBinding struct {
-	BridgeInstanceID string `json:"bridge_instance_id"`
-	BindingName      string `json:"binding_name"`
-	SecretRef        string `json:"secret_ref"`
-	Kind             string `json:"kind"`
-	CreatedAt        string `json:"created_at"`
-	UpdatedAt        string `json:"updated_at"`
-}
-
-type BridgeTargetDirectory struct {
-	BridgeID       string         `json:"bridge_id"`
-	CanonicalRoute string         `json:"canonical_route"`
-	DisplayName    string         `json:"display_name"`
-	Normalized     string         `json:"normalized"`
-	TargetType     string         `json:"target_type"`
-	Qualifier      string         `json:"qualifier"`
-	Capabilities   string         `json:"capabilities"`
-	UpdatedAt      string         `json:"updated_at"`
-	LastSeenAt     sql.NullString `json:"last_seen_at"`
-}
-
-type BridgeTargetDirectoryRefresh struct {
-	BridgeID                string `json:"bridge_id"`
-	LastSuccessfulRefreshAt string `json:"last_successful_refresh_at"`
-}
-
-type BridgeTaskSubscription struct {
-	SubscriptionID   string         `json:"subscription_id"`
-	TaskID           string         `json:"task_id"`
-	BridgeInstanceID string         `json:"bridge_instance_id"`
-	Scope            string         `json:"scope"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	PeerID           sql.NullString `json:"peer_id"`
-	ThreadID         sql.NullString `json:"thread_id"`
-	GroupID          sql.NullString `json:"group_id"`
-	DeliveryMode     string         `json:"delivery_mode"`
-	CreatedByKind    string         `json:"created_by_kind"`
-	CreatedByRef     string         `json:"created_by_ref"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
 }
 
 type CmdPalettePin struct {
@@ -512,9 +393,9 @@ type Extension struct {
 	RegistryName             sql.NullString `json:"registry_name"`
 	RemoteVersion            sql.NullString `json:"remote_version"`
 	ProvenanceJson           string         `json:"provenance_json"`
-	NetworkRequirementDigest string         `json:"network_requirement_digest"`
-	NetworkConfirmedBy       sql.NullString `json:"network_confirmed_by"`
-	NetworkConfirmedAt       sql.NullString `json:"network_confirmed_at"`
+	GatewayRequirementDigest string         `json:"gateway_requirement_digest"`
+	GatewayConfirmedBy       sql.NullString `json:"gateway_confirmed_by"`
+	GatewayConfirmedAt       sql.NullString `json:"gateway_confirmed_at"`
 }
 
 type ExtensionDevLink struct {
@@ -525,9 +406,9 @@ type ExtensionDevLink struct {
 	LinkedAt                 time.Time      `json:"linked_at"`
 	Format                   string         `json:"format"`
 	IngestDiagnosticsJson    string         `json:"ingest_diagnostics_json"`
-	NetworkRequirementDigest string         `json:"network_requirement_digest"`
-	NetworkConfirmedBy       sql.NullString `json:"network_confirmed_by"`
-	NetworkConfirmedAt       sql.NullString `json:"network_confirmed_at"`
+	GatewayRequirementDigest string         `json:"gateway_requirement_digest"`
+	GatewayConfirmedBy       sql.NullString `json:"gateway_confirmed_by"`
+	GatewayConfirmedAt       sql.NullString `json:"gateway_confirmed_at"`
 }
 
 type ExtensionEnvBinding struct {
@@ -1047,10 +928,6 @@ type LoopRun struct {
 	OriginCreationProfileRef sql.NullString  `json:"origin_creation_profile_ref"`
 	OriginPolicySpecDigest   sql.NullString  `json:"origin_policy_spec_digest"`
 	OriginCreationDigest     sql.NullString  `json:"origin_creation_digest"`
-	NetworkSpecJson          string          `json:"network_spec_json"`
-	NetworkMode              string          `json:"network_mode"`
-	NetworkChannel           sql.NullString  `json:"network_channel"`
-	NetworkSource            string          `json:"network_source"`
 	BestGeneration           sql.NullInt64   `json:"best_generation"`
 	BestScore                sql.NullFloat64 `json:"best_score"`
 }
@@ -1332,287 +1209,6 @@ type ModelCatalogTransportBindingSelection struct {
 	BoolValue        sql.NullInt64  `json:"bool_value"`
 }
 
-type NetworkAuditLog struct {
-	ID          string         `json:"id"`
-	ProfileID   string         `json:"profile_id"`
-	SessionID   string         `json:"session_id"`
-	WorkspaceID string         `json:"workspace_id"`
-	Direction   string         `json:"direction"`
-	Kind        string         `json:"kind"`
-	Channel     string         `json:"channel"`
-	Surface     sql.NullString `json:"surface"`
-	ThreadID    sql.NullString `json:"thread_id"`
-	DirectID    sql.NullString `json:"direct_id"`
-	WorkID      sql.NullString `json:"work_id"`
-	PeerFrom    string         `json:"peer_from"`
-	PeerTo      sql.NullString `json:"peer_to"`
-	MessageID   string         `json:"message_id"`
-	Reason      sql.NullString `json:"reason"`
-	Size        int64          `json:"size"`
-	Timestamp   string         `json:"timestamp"`
-}
-
-type NetworkAvailability struct {
-	ID        int64  `json:"id"`
-	Enabled   int64  `json:"enabled"`
-	Epoch     int64  `json:"epoch"`
-	UpdatedAt string `json:"updated_at"`
-	UpdatedBy string `json:"updated_by"`
-}
-
-type NetworkChannel struct {
-	ProfileID         string `json:"profile_id"`
-	WorkspaceID       string `json:"workspace_id"`
-	Channel           string `json:"channel"`
-	Purpose           string `json:"purpose"`
-	CreatedBy         string `json:"created_by"`
-	CreatedAt         string `json:"created_at"`
-	UpdatedAt         string `json:"updated_at"`
-	FanoutPolicy      string `json:"fanout_policy"`
-	CoordinatorPeerID string `json:"coordinator_peer_id"`
-}
-
-type NetworkChannelKindCount struct {
-	WorkspaceID  string `json:"workspace_id"`
-	Channel      string `json:"channel"`
-	Kind         string `json:"kind"`
-	MessageCount int64  `json:"message_count"`
-}
-
-type NetworkChannelParticipant struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	SessionID   string `json:"session_id"`
-}
-
-type NetworkChannelStat struct {
-	WorkspaceID                string         `json:"workspace_id"`
-	Channel                    string         `json:"channel"`
-	MessageCount               int64          `json:"message_count"`
-	PresenceCount              int64          `json:"presence_count"`
-	HistoricalParticipantCount int64          `json:"historical_participant_count"`
-	LastActivityAt             sql.NullString `json:"last_activity_at"`
-	LastPresenceAt             sql.NullString `json:"last_presence_at"`
-	LastMessageID              string         `json:"last_message_id"`
-	LastMessagePreview         string         `json:"last_message_preview"`
-	LastActivitySequence       int64          `json:"last_activity_sequence"`
-	LastPresenceSequence       int64          `json:"last_presence_sequence"`
-	LastMessageSequence        int64          `json:"last_message_sequence"`
-}
-
-type NetworkCoordinationInvitation struct {
-	WorkspaceID string `json:"workspace_id"`
-	ScopeKind   string `json:"scope_kind"`
-	ScopeID     string `json:"scope_id"`
-	DismissedAt string `json:"dismissed_at"`
-	DismissedBy string `json:"dismissed_by"`
-}
-
-type NetworkDirectRoom struct {
-	ProfileID            string `json:"profile_id"`
-	WorkspaceID          string `json:"workspace_id"`
-	Channel              string `json:"channel"`
-	DirectID             string `json:"direct_id"`
-	SessionA             string `json:"session_a"`
-	SessionB             string `json:"session_b"`
-	OpenedAt             string `json:"opened_at"`
-	LastActivityAt       string `json:"last_activity_at"`
-	MessageCount         int64  `json:"message_count"`
-	OpenWorkCount        int64  `json:"open_work_count"`
-	LastMessagePreview   string `json:"last_message_preview"`
-	OpenedSequence       int64  `json:"opened_sequence"`
-	LastActivitySequence int64  `json:"last_activity_sequence"`
-}
-
-type NetworkLiveWake struct {
-	WakeID         string         `json:"wake_id"`
-	TaskRunID      string         `json:"task_run_id"`
-	OwnerKey       string         `json:"owner_key"`
-	WorkspaceID    string         `json:"workspace_id"`
-	Channel        string         `json:"channel"`
-	RootID         string         `json:"root_id"`
-	Depth          int64          `json:"depth"`
-	State          string         `json:"state"`
-	CoalesceUntil  string         `json:"coalesce_until"`
-	ReservedWallMs int64          `json:"reserved_wall_ms"`
-	ActualWallMs   sql.NullInt64  `json:"actual_wall_ms"`
-	ReservedAt     string         `json:"reserved_at"`
-	SettledAt      sql.NullString `json:"settled_at"`
-	InputTokens    sql.NullInt64  `json:"input_tokens"`
-	OutputTokens   sql.NullInt64  `json:"output_tokens"`
-	UsageState     string         `json:"usage_state"`
-	Reason         string         `json:"reason"`
-}
-
-type NetworkMessageDisposition struct {
-	WorkspaceID        string `json:"workspace_id"`
-	MessageID          string `json:"message_id"`
-	RecipientSessionID string `json:"recipient_session_id"`
-	Decision           string `json:"decision"`
-	DecidedAt          string `json:"decided_at"`
-	AcceptanceSeq      int64  `json:"acceptance_seq"`
-}
-
-type NetworkParticipationBudget struct {
-	WorkspaceID      string `json:"workspace_id"`
-	OwnerKey         string `json:"owner_key"`
-	WakesUsed        int64  `json:"wakes_used"`
-	WallMsUsed       int64  `json:"wall_ms_used"`
-	InputTokensUsed  int64  `json:"input_tokens_used"`
-	OutputTokensUsed int64  `json:"output_tokens_used"`
-	ExhaustedReason  string `json:"exhausted_reason"`
-	UpdatedAt        string `json:"updated_at"`
-}
-
-type NetworkSubscription struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	ThreadID    string `json:"thread_id"`
-	SessionID   string `json:"session_id"`
-	Mode        string `json:"mode"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
-}
-
-type NetworkTaskStatusProjection struct {
-	EventID            string `json:"event_id"`
-	RecipientSessionID string `json:"recipient_session_id"`
-	WorkspaceID        string `json:"workspace_id"`
-	Channel            string `json:"channel"`
-	ThreadID           string `json:"thread_id"`
-	TaskID             string `json:"task_id"`
-	RunID              string `json:"run_id"`
-	EventType          string `json:"event_type"`
-	ProjectionJson     string `json:"projection_json"`
-	ProjectedAt        string `json:"projected_at"`
-}
-
-type NetworkTaskThreadOrigin struct {
-	TaskID               string `json:"task_id"`
-	WorkspaceID          string `json:"workspace_id"`
-	Channel              string `json:"channel"`
-	ThreadID             string `json:"thread_id"`
-	OriginMessageID      string `json:"origin_message_id"`
-	Digest               string `json:"digest"`
-	SourceMessageIdsJson string `json:"source_message_ids_json"`
-	CreatedAt            string `json:"created_at"`
-	UpdatedAt            string `json:"updated_at"`
-}
-
-type NetworkThread struct {
-	ProfileID            string `json:"profile_id"`
-	WorkspaceID          string `json:"workspace_id"`
-	Channel              string `json:"channel"`
-	ThreadID             string `json:"thread_id"`
-	RootMessageID        string `json:"root_message_id"`
-	Title                string `json:"title"`
-	OpenedByPeerID       string `json:"opened_by_peer_id"`
-	OpenedSessionID      string `json:"opened_session_id"`
-	OpenedAt             string `json:"opened_at"`
-	LastActivityAt       string `json:"last_activity_at"`
-	MessageCount         int64  `json:"message_count"`
-	ParticipantCount     int64  `json:"participant_count"`
-	OpenWorkCount        int64  `json:"open_work_count"`
-	LastMessagePreview   string `json:"last_message_preview"`
-	OpenedSequence       int64  `json:"opened_sequence"`
-	LastActivitySequence int64  `json:"last_activity_sequence"`
-}
-
-type NetworkThreadParticipant struct {
-	WorkspaceID    string `json:"workspace_id"`
-	Channel        string `json:"channel"`
-	ThreadID       string `json:"thread_id"`
-	SessionID      string `json:"session_id"`
-	FirstMessageID string `json:"first_message_id"`
-	FirstSeenAt    string `json:"first_seen_at"`
-	LastSeenAt     string `json:"last_seen_at"`
-}
-
-type NetworkThreadSessionTokenStat struct {
-	WorkspaceID           string `json:"workspace_id"`
-	Channel               string `json:"channel"`
-	ThreadID              string `json:"thread_id"`
-	SessionID             string `json:"session_id"`
-	DeliveredCount        int64  `json:"delivered_count"`
-	PromptSizeBytes       int64  `json:"prompt_size_bytes"`
-	EstimatedPromptTokens int64  `json:"estimated_prompt_tokens"`
-	FirstDeliveredAt      string `json:"first_delivered_at"`
-	LastDeliveredAt       string `json:"last_delivered_at"`
-	UpdatedAt             string `json:"updated_at"`
-}
-
-type NetworkTimelineLog struct {
-	Sequence         int64          `json:"sequence"`
-	MessageID        string         `json:"message_id"`
-	SessionID        sql.NullString `json:"session_id"`
-	WorkspaceID      string         `json:"workspace_id"`
-	Channel          string         `json:"channel"`
-	Surface          sql.NullString `json:"surface"`
-	ThreadID         sql.NullString `json:"thread_id"`
-	DirectID         sql.NullString `json:"direct_id"`
-	Direction        string         `json:"direction"`
-	PeerFrom         string         `json:"peer_from"`
-	PeerTo           sql.NullString `json:"peer_to"`
-	Kind             string         `json:"kind"`
-	WorkID           sql.NullString `json:"work_id"`
-	ReplyTo          sql.NullString `json:"reply_to"`
-	TraceID          sql.NullString `json:"trace_id"`
-	CausationID      sql.NullString `json:"causation_id"`
-	Intent           sql.NullString `json:"intent"`
-	Text             sql.NullString `json:"text"`
-	PreviewText      string         `json:"preview_text"`
-	BodyJson         string         `json:"body_json"`
-	Timestamp        string         `json:"timestamp"`
-	ExtJson          string         `json:"ext_json"`
-	MentionsJson     string         `json:"mentions_json"`
-	WorkOpened       int64          `json:"work_opened"`
-	WorkTransitioned int64          `json:"work_transitioned"`
-	WorkState        string         `json:"work_state"`
-}
-
-type NetworkWakeEvent struct {
-	Sequence        int64         `json:"sequence"`
-	WorkspaceID     string        `json:"workspace_id"`
-	WakeID          string        `json:"wake_id"`
-	TaskRunID       string        `json:"task_run_id"`
-	OwnerKey        string        `json:"owner_key"`
-	TargetSessionID string        `json:"target_session_id"`
-	EventType       string        `json:"event_type"`
-	State           string        `json:"state"`
-	ClaimTokenHash  string        `json:"claim_token_hash"`
-	UsageState      string        `json:"usage_state"`
-	ActualWallMs    sql.NullInt64 `json:"actual_wall_ms"`
-	InputTokens     sql.NullInt64 `json:"input_tokens"`
-	OutputTokens    sql.NullInt64 `json:"output_tokens"`
-	Reason          string        `json:"reason"`
-	ActorKind       string        `json:"actor_kind"`
-	ActorRef        string        `json:"actor_ref"`
-	Timestamp       string        `json:"timestamp"`
-}
-
-type NetworkWakeSource struct {
-	WorkspaceID string `json:"workspace_id"`
-	OwnerKey    string `json:"owner_key"`
-	EnvelopeID  string `json:"envelope_id"`
-	WakeID      string `json:"wake_id"`
-}
-
-type NetworkWork struct {
-	WorkID            string         `json:"work_id"`
-	ProfileID         string         `json:"profile_id"`
-	WorkspaceID       string         `json:"workspace_id"`
-	Channel           string         `json:"channel"`
-	Surface           string         `json:"surface"`
-	ThreadID          sql.NullString `json:"thread_id"`
-	DirectID          sql.NullString `json:"direct_id"`
-	OpenedBySessionID string         `json:"opened_by_session_id"`
-	TargetSessionID   sql.NullString `json:"target_session_id"`
-	State             string         `json:"state"`
-	OpenedAt          string         `json:"opened_at"`
-	LastActivityAt    string         `json:"last_activity_at"`
-	TerminalAt        sql.NullString `json:"terminal_at"`
-}
-
 type NotificationCursor struct {
 	ScopeKind       string         `json:"scope_kind"`
 	ProfileID       string         `json:"profile_id"`
@@ -1625,37 +1221,6 @@ type NotificationCursor struct {
 	LastDeliveredAt sql.NullString `json:"last_delivered_at"`
 	LastError       string         `json:"last_error"`
 	UpdatedAt       string         `json:"updated_at"`
-}
-
-type NotificationDeliveryPermit struct {
-	ScopeKind   string `json:"scope_kind"`
-	ProfileID   string `json:"profile_id"`
-	WorkspaceID string `json:"workspace_id"`
-	ConsumerID  string `json:"consumer_id"`
-	StreamName  string `json:"stream_name"`
-	SubjectID   string `json:"subject_id"`
-	DeliveryID  string `json:"delivery_id"`
-	AcquiredAt  string `json:"acquired_at"`
-}
-
-type NotificationPreset struct {
-	Name                   string `json:"name"`
-	Events                 string `json:"events"`
-	Targets                string `json:"targets"`
-	Filter                 string `json:"filter"`
-	BuiltIn                bool   `json:"built_in"`
-	DefaultVersion         string `json:"default_version"`
-	DefaultHash            string `json:"default_hash"`
-	UserModified           bool   `json:"user_modified"`
-	DefaultUpdateAvailable bool   `json:"default_update_available"`
-	CreatedAt              string `json:"created_at"`
-	UpdatedAt              string `json:"updated_at"`
-}
-
-type NotificationPresetEnablement struct {
-	PresetName string `json:"preset_name"`
-	ProfileID  string `json:"profile_id"`
-	Enabled    int64  `json:"enabled"`
 }
 
 type PermissionLog struct {
@@ -1717,7 +1282,6 @@ type ProfileLifecycleOpSeed struct {
 	Emoji             sql.NullString `json:"emoji"`
 	DefaultAgent      sql.NullString `json:"default_agent"`
 	DefaultProvider   sql.NullString `json:"default_provider"`
-	DefaultSandbox    sql.NullString `json:"default_sandbox"`
 	DeclarationDigest string         `json:"declaration_digest"`
 }
 
@@ -1820,14 +1384,6 @@ type Session struct {
 	LastSeenRevision         int64          `json:"last_seen_revision"`
 	LastSeenAt               sql.NullString `json:"last_seen_at"`
 	AttentionChangedAt       sql.NullString `json:"attention_changed_at"`
-	SandboxID                string         `json:"sandbox_id"`
-	SandboxBackend           string         `json:"sandbox_backend"`
-	SandboxProfile           string         `json:"sandbox_profile"`
-	SandboxInstanceID        string         `json:"sandbox_instance_id"`
-	SandboxState             string         `json:"sandbox_state"`
-	SandboxProviderStateJson string         `json:"sandbox_provider_state_json"`
-	SandboxLastSyncAt        sql.NullString `json:"sandbox_last_sync_at"`
-	SandboxLastSyncError     string         `json:"sandbox_last_sync_error"`
 	CreatedAt                string         `json:"created_at"`
 	UpdatedAt                string         `json:"updated_at"`
 	FailureKind              sql.NullString `json:"failure_kind"`
@@ -1849,10 +1405,6 @@ type Session struct {
 	CreationDigest           sql.NullString `json:"creation_digest"`
 	PolicySpecDigest         sql.NullString `json:"policy_spec_digest"`
 	CreationProfileRef       sql.NullString `json:"creation_profile_ref"`
-	NetworkSpecJson          string         `json:"network_spec_json"`
-	NetworkMode              string         `json:"network_mode"`
-	NetworkChannel           sql.NullString `json:"network_channel"`
-	NetworkSource            string         `json:"network_source"`
 }
 
 type SessionCreationProfile struct {
@@ -2104,45 +1656,30 @@ type TaskEvent struct {
 }
 
 type TaskExecutionProfile struct {
-	TaskID                 string         `json:"task_id"`
-	CoordinatorMode        string         `json:"coordinator_mode"`
-	CoordinatorAgentName   string         `json:"coordinator_agent_name"`
-	CoordinatorProvider    string         `json:"coordinator_provider"`
-	CoordinatorModel       string         `json:"coordinator_model"`
-	CoordinatorGuidance    string         `json:"coordinator_guidance"`
-	WorkerMode             string         `json:"worker_mode"`
-	WorkerAgentName        string         `json:"worker_agent_name"`
-	WorkerProvider         string         `json:"worker_provider"`
-	WorkerModel            string         `json:"worker_model"`
-	WorkerReasoningEffort  string         `json:"worker_reasoning_effort"`
-	WorkerSpeed            string         `json:"worker_speed"`
-	WorkerAcpOptionsJson   string         `json:"worker_acp_options_json"`
-	ReviewAgentName        string         `json:"review_agent_name"`
-	ReviewProvider         string         `json:"review_provider"`
-	ReviewModel            string         `json:"review_model"`
-	ReviewReasoningEffort  string         `json:"review_reasoning_effort"`
-	ReviewSpeed            string         `json:"review_speed"`
-	ReviewAcpOptionsJson   string         `json:"review_acp_options_json"`
-	SandboxMode            string         `json:"sandbox_mode"`
-	SandboxRef             string         `json:"sandbox_ref"`
-	WorktreeMode           string         `json:"worktree_mode"`
-	WorktreeRef            string         `json:"worktree_ref"`
-	CreatedAt              string         `json:"created_at"`
-	UpdatedAt              string         `json:"updated_at"`
-	RuntimeMode            string         `json:"runtime_mode"`
-	NetworkMode            string         `json:"network_mode"`
-	NetworkChannelStrategy sql.NullString `json:"network_channel_strategy"`
-	NetworkChannel         sql.NullString `json:"network_channel"`
-	NetworkBoundsJson      sql.NullString `json:"network_bounds_json"`
-}
-
-type TaskNetworkCoordination struct {
-	TaskID      string `json:"task_id"`
-	WorkspaceID string `json:"workspace_id"`
-	Enabled     int64  `json:"enabled"`
-	Revision    int64  `json:"revision"`
-	UpdatedAt   string `json:"updated_at"`
-	UpdatedBy   string `json:"updated_by"`
+	TaskID                string `json:"task_id"`
+	CoordinatorMode       string `json:"coordinator_mode"`
+	CoordinatorAgentName  string `json:"coordinator_agent_name"`
+	CoordinatorProvider   string `json:"coordinator_provider"`
+	CoordinatorModel      string `json:"coordinator_model"`
+	CoordinatorGuidance   string `json:"coordinator_guidance"`
+	WorkerMode            string `json:"worker_mode"`
+	WorkerAgentName       string `json:"worker_agent_name"`
+	WorkerProvider        string `json:"worker_provider"`
+	WorkerModel           string `json:"worker_model"`
+	WorkerReasoningEffort string `json:"worker_reasoning_effort"`
+	WorkerSpeed           string `json:"worker_speed"`
+	WorkerAcpOptionsJson  string `json:"worker_acp_options_json"`
+	ReviewAgentName       string `json:"review_agent_name"`
+	ReviewProvider        string `json:"review_provider"`
+	ReviewModel           string `json:"review_model"`
+	ReviewReasoningEffort string `json:"review_reasoning_effort"`
+	ReviewSpeed           string `json:"review_speed"`
+	ReviewAcpOptionsJson  string `json:"review_acp_options_json"`
+	WorktreeMode          string `json:"worktree_mode"`
+	WorktreeRef           string `json:"worktree_ref"`
+	CreatedAt             string `json:"created_at"`
+	UpdatedAt             string `json:"updated_at"`
+	RuntimeMode           string `json:"runtime_mode"`
 }
 
 type TaskProfileAgent struct {
@@ -2159,23 +1696,9 @@ type TaskProfileCapability struct {
 	CapabilityID string `json:"capability_id"`
 }
 
-type TaskProfileChannel struct {
-	TaskID     string `json:"task_id"`
-	Role       string `json:"role"`
-	Preference string `json:"preference"`
-	ChannelID  string `json:"channel_id"`
-}
-
-type TaskProfilePeer struct {
-	TaskID     string `json:"task_id"`
-	Role       string `json:"role"`
-	Preference string `json:"preference"`
-	PeerID     string `json:"peer_id"`
-}
-
 type TaskRun struct {
 	ID                      string         `json:"id"`
-	TaskID                  sql.NullString `json:"task_id"`
+	TaskID                  string         `json:"task_id"`
 	WorkspaceID             sql.NullString `json:"workspace_id"`
 	WorktreeID              sql.NullString `json:"worktree_id"`
 	Status                  string         `json:"status"`
@@ -2189,10 +1712,6 @@ type TaskRun struct {
 	OriginKind              string         `json:"origin_kind"`
 	OriginRef               string         `json:"origin_ref"`
 	IdempotencyKey          sql.NullString `json:"idempotency_key"`
-	NetworkSpecJson         string         `json:"network_spec_json"`
-	NetworkMode             string         `json:"network_mode"`
-	NetworkChannel          sql.NullString `json:"network_channel"`
-	NetworkSource           string         `json:"network_source"`
 	DesignationGroupID      string         `json:"designation_group_id"`
 	ResolvedWorktreeMode    string         `json:"resolved_worktree_mode"`
 	ResolvedWorktreeRef     string         `json:"resolved_worktree_ref"`
@@ -2205,10 +1724,8 @@ type TaskRun struct {
 	ResultJson              sql.NullString `json:"result_json"`
 	Summary                 string         `json:"summary"`
 	ClaimedAgentName        string         `json:"claimed_agent_name"`
-	ClaimedPeerID           string         `json:"claimed_peer_id"`
 	TerminalizedBySessionID string         `json:"terminalized_by_session_id"`
 	TerminalizedByAgentName string         `json:"terminalized_by_agent_name"`
-	TerminalizedByPeerID    string         `json:"terminalized_by_peer_id"`
 	TerminalizedByActorKind string         `json:"terminalized_by_actor_kind"`
 	TerminalizedByActorRef  string         `json:"terminalized_by_actor_ref"`
 	ReviewRequired          bool           `json:"review_required"`
@@ -2228,9 +1745,6 @@ type TaskRun struct {
 	RunKind                 string         `json:"run_kind"`
 	LoopRunID               sql.NullString `json:"loop_run_id"`
 	TokensUsed              int64          `json:"tokens_used"`
-	NetworkWakeID           sql.NullString `json:"network_wake_id"`
-	NetworkTargetSessionID  sql.NullString `json:"network_target_session_id"`
-	NetworkOwnerKey         sql.NullString `json:"network_owner_key"`
 }
 
 type TaskRunIdempotency struct {
@@ -2269,8 +1783,6 @@ type TaskRunReview struct {
 	ReviewText        string          `json:"review_text"`
 	ReviewerSessionID sql.NullString  `json:"reviewer_session_id"`
 	ReviewerAgentName string          `json:"reviewer_agent_name"`
-	ReviewerPeerID    string          `json:"reviewer_peer_id"`
-	ReviewerChannelID string          `json:"reviewer_channel_id"`
 	ReviewedByKind    string          `json:"reviewed_by_kind"`
 	ReviewedByRef     string          `json:"reviewed_by_ref"`
 	RequestedAt       string          `json:"requested_at"`
@@ -2397,7 +1909,6 @@ type ToolProcess struct {
 	TerminalID     string         `json:"terminal_id"`
 	ExtensionName  string         `json:"extension_name"`
 	HookName       string         `json:"hook_name"`
-	SandboxID      string         `json:"sandbox_id"`
 	Pid            int64          `json:"pid"`
 	ProcessGroupID int64          `json:"process_group_id"`
 	Command        string         `json:"command"`
@@ -2427,7 +1938,6 @@ type Workspace struct {
 	AddDirs      string         `json:"add_dirs"`
 	Name         string         `json:"name"`
 	DefaultAgent sql.NullString `json:"default_agent"`
-	SandboxRef   string         `json:"sandbox_ref"`
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 }
@@ -2438,18 +1948,9 @@ type WorkspaceDeletionIntent struct {
 	AddDirs      string         `json:"add_dirs"`
 	Name         string         `json:"name"`
 	DefaultAgent sql.NullString `json:"default_agent"`
-	SandboxRef   string         `json:"sandbox_ref"`
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 	RequestedAt  string         `json:"requested_at"`
-}
-
-type WorkspaceNetworkCoordination struct {
-	WorkspaceID string `json:"workspace_id"`
-	Enabled     int64  `json:"enabled"`
-	Revision    int64  `json:"revision"`
-	UpdatedAt   string `json:"updated_at"`
-	UpdatedBy   string `json:"updated_by"`
 }
 
 type Worktree struct {

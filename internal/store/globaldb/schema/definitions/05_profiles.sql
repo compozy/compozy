@@ -57,7 +57,6 @@ CREATE TABLE profile_lifecycle_op_seed (
 	emoji TEXT,
 	default_agent TEXT,
 	default_provider TEXT,
-	default_sandbox TEXT,
 	declaration_digest TEXT NOT NULL CHECK (trim(declaration_digest) <> ''),
 	CHECK ((icon IS NULL) <> (emoji IS NULL))
 );
@@ -79,19 +78,6 @@ CREATE TABLE profile_credential_requirements (
 	PRIMARY KEY (profile_id, provider, slot)
 );
 
-CREATE TABLE notification_delivery_permits (
-	scope_kind TEXT NOT NULL CHECK (scope_kind IN ('global', 'workspace')),
-	profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-	workspace_id TEXT NOT NULL DEFAULT '',
-	consumer_id TEXT NOT NULL CHECK (consumer_id <> ''),
-	stream_name TEXT NOT NULL CHECK (stream_name <> ''),
-	subject_id TEXT NOT NULL DEFAULT '',
-	delivery_id TEXT NOT NULL CHECK (delivery_id <> ''),
-	acquired_at TEXT NOT NULL,
-	PRIMARY KEY (scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id, delivery_id),
-	CHECK ((scope_kind = 'global' AND workspace_id = '') OR (scope_kind = 'workspace' AND workspace_id <> ''))
-);
-
 CREATE TABLE extension_profile_enablement (
 	extension_name TEXT NOT NULL,
 	profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -105,13 +91,6 @@ CREATE TABLE extension_profile_markers (
 	created_profile_id TEXT NOT NULL CHECK (trim(created_profile_id) <> ''),
 	created_at TEXT NOT NULL,
 	PRIMARY KEY (extension_name, profile_name)
-);
-
-CREATE TABLE notification_preset_enablement (
-	preset_name TEXT NOT NULL REFERENCES notification_presets(name) ON DELETE CASCADE,
-	profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-	enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-	PRIMARY KEY (preset_name, profile_id)
 );
 
 CREATE TABLE attention_workspace_mutes (

@@ -19,7 +19,6 @@ const (
 var importPaths = map[string]string{
 	"apicontract":   "github.com/compozy/compozy/internal/api/contract",
 	"automationpkg": "github.com/compozy/compozy/internal/automation",
-	"bridgepkg":     "github.com/compozy/compozy/internal/bridges/contract",
 	"toolspkg":      "github.com/compozy/compozy/internal/tools",
 }
 

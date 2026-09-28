@@ -12,7 +12,6 @@ export type SettingsUpdatePersonaRequest = OperationRequestBody<"updateSettingsP
 export type SettingsMemorySection = OperationResponse<"getSettingsMemory", 200>;
 export type SettingsSkillsSection = OperationResponse<"getSettingsSkills", 200>;
 export type SettingsAutomationSection = OperationResponse<"getSettingsAutomation", 200>;
-export type SettingsNetworkSection = OperationResponse<"getSettingsNetwork", 200>;
 export type SettingsAttentionSection = OperationResponse<"getSettingsAttention", 200>;
 export type SettingsAttentionFilter = NonNullable<OperationQuery<"getSettingsAttention">>;
 export type SettingsUpdateAttentionFilter = NonNullable<OperationQuery<"updateSettingsAttention">>;
@@ -41,21 +40,6 @@ export type RoleStatus = RolesStatusResponse["roles"][number];
 export type RoleResolutionMode = RoleStatus["resolution_mode"];
 export type RoleDiagnostic = RoleStatus["diagnostics"][number];
 export type RoleFallbackStatus = RoleStatus["fallback_chain"][number];
-
-export type SettingsNotificationPresetCollection = OperationResponse<
-  "listNotificationPresets",
-  200
->;
-export type SettingsNotificationPresetEntry =
-  SettingsNotificationPresetCollection["presets"][number];
-export type SettingsNotificationPresetTarget = SettingsNotificationPresetEntry["targets"][number];
-export type SettingsNotificationPresetFilter = NonNullable<
-  OperationQuery<"listNotificationPresets">
->;
-export type SettingsCreateNotificationPresetRequest =
-  OperationRequestBody<"createNotificationPreset">;
-export type SettingsUpdateNotificationPresetRequest =
-  OperationRequestBody<"updateNotificationPreset">;
 
 export type SettingsProviderCollection = OperationResponse<"listSettingsProviders", 200>;
 export type SettingsProviderEntry = SettingsProviderCollection["providers"][number];
@@ -109,11 +93,6 @@ export type ProviderDraft = {
   credential_secret_values: string[];
 };
 
-export type SettingsSandboxCollection = OperationResponse<"listSettingsSandboxes", 200>;
-export type SettingsSandboxEntry = SettingsSandboxCollection["sandboxes"][number];
-export type SettingsSandboxDetail = OperationResponse<"getSettingsSandbox", 200>["sandbox"];
-export type SettingsSandboxRequest = OperationRequestBody<"putSettingsSandbox">;
-
 export type SettingsHookCollection = OperationResponse<"listSettingsHooks", 200>;
 export type SettingsHookEntry = SettingsHookCollection["hooks"][number];
 export type SettingsHookRequest = OperationRequestBody<"putSettingsHook">;
@@ -152,7 +131,6 @@ export type SettingsSkillSourceInherits = NonNullable<SettingsSkillsSection["inh
 /** Presence-aware workspace override body: absent = untouched, null = inherit, array = set. */
 export type SettingsSkillSourcesOverride = NonNullable<SettingsUpdateSkillsRequest["override"]>;
 export type SettingsUpdateAutomationRequest = OperationRequestBody<"updateSettingsAutomation">;
-export type SettingsUpdateNetworkRequest = OperationRequestBody<"updateSettingsNetwork">;
 export type SettingsUpdateAttentionRequest = OperationRequestBody<"updateSettingsAttention">;
 export type SettingsUpdateShellRequest = OperationRequestBody<"updateSettingsShell">;
 export type SettingsUpdateObservabilityRequest =
@@ -207,7 +185,6 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsSkills", 200>
   | OperationResponse<"updateSettingsMarketplace", 200>
   | OperationResponse<"updateSettingsAutomation", 200>
-  | OperationResponse<"updateSettingsNetwork", 200>
   | OperationResponse<"updateSettingsAttention", 200>
   | OperationResponse<"updateSettingsShell", 200>
   | OperationResponse<"updateSettingsObservability", 200>
@@ -217,8 +194,6 @@ export type SettingsMutationResult =
   | OperationResponse<"deleteSettingsProvider", 200>
   | OperationResponse<"putSettingsMCPServer", 200>
   | OperationResponse<"deleteSettingsMCPServer", 200>
-  | OperationResponse<"putSettingsSandbox", 200>
-  | OperationResponse<"deleteSettingsSandbox", 200>
   | OperationResponse<"putSettingsHook", 200>
   | OperationResponse<"deleteSettingsHook", 200>;
 export type SettingsScope = SettingsMutationResult["scope"];
@@ -231,7 +206,6 @@ export type SettingsSectionName =
   | SettingsSkillsSection["section"]
   | SettingsMarketplaceSection["section"]
   | SettingsAutomationSection["section"]
-  | SettingsNetworkSection["section"]
   | SettingsAttentionSection["section"]
   | SettingsShellSection["section"]
   | SettingsObservabilitySection["section"]
@@ -242,7 +216,7 @@ export type SettingsSource = SettingsProviderEntry["source_metadata"]["effective
 export type SettingsSourceKind = SettingsSource["kind"];
 export type SettingsMCPServerTarget = NonNullable<SettingsMCPServerPutFilter["target"]>;
 
-export type SettingsCollectionName = "providers" | "mcp-servers" | "sandboxes" | "hooks";
+export type SettingsCollectionName = "providers" | "mcp-servers" | "hooks";
 
 export type SettingsSectionGroup = "workspace" | "runtime" | "operator" | "system";
 
@@ -265,13 +239,11 @@ export type SettingsSectionSlug =
   | "palette"
   | "profiles"
   | "providers"
-  | "sandboxes"
   | "memory"
   | "roles"
   | "skills"
   | "mcp"
   | "automation"
-  | "network"
   | "gateway"
   | "attention"
   | "observability"

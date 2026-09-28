@@ -79,7 +79,7 @@ type SectionName string
 const (
 	// SectionGeneral exposes daemon-wide runtime and machine settings.
 	SectionGeneral SectionName = "general"
-	// SectionPersona exposes profile-layerable agent, provider, and sandbox defaults.
+	// SectionPersona exposes profile-layerable agent and provider defaults.
 	SectionPersona SectionName = "persona"
 	// SectionMemory exposes memory and dream settings.
 	SectionMemory SectionName = "memory"
@@ -89,8 +89,6 @@ const (
 	SectionSkills SectionName = "skills"
 	// SectionAutomation exposes automation engine settings.
 	SectionAutomation SectionName = "automation"
-	// SectionNetwork exposes embedded network settings.
-	SectionNetwork SectionName = "network"
 	// SectionGateway exposes remote gateway configuration.
 	SectionGateway SectionName = "gateway"
 	// SectionWindowManager exposes daemon-owned window behavior defaults.
@@ -116,8 +114,6 @@ const (
 	CollectionProviders CollectionName = "providers"
 	// CollectionMCPServers exposes the scoped MCP server catalog.
 	CollectionMCPServers CollectionName = "mcp-servers"
-	// CollectionSandboxes exposes execution sandboxes.
-	CollectionSandboxes CollectionName = "sandboxes"
 	// CollectionHooks exposes config-defined hook declarations.
 	CollectionHooks CollectionName = "hooks"
 )
@@ -217,7 +213,6 @@ type SectionUpdateRequest struct {
 	Skills                         *compozyconfig.SkillsConfig
 	SkillSourcesOverride           *SkillSourcesOverride
 	Automation                     *AutomationSettings
-	Network                        *compozyconfig.NetworkConfig
 	Gateway                        *compozyconfig.GatewayConfig
 	WindowManager                  *compozyconfig.WindowManagerConfig
 	WindowManagerPreserveShortcuts bool
@@ -267,7 +262,6 @@ type CollectionItemPutRequest struct {
 	MCPSecrets            MCPSecretValues
 	MCPSecretPreservation MCPSecretPreservation
 	MCPEnvPreservation    []string
-	Sandbox               *compozyconfig.SandboxProfile
 	Hook                  *hookspkg.HookDecl
 }
 
@@ -294,7 +288,6 @@ type SectionEnvelope struct {
 	Roles           *RolesSection
 	Skills          *SkillsSection
 	Automation      *AutomationSection
-	Network         *NetworkSection
 	Gateway         *GatewaySection
 	WindowManager   *WindowManagerSection
 	CmdPalette      *CmdPaletteSection
@@ -313,7 +306,6 @@ type CollectionEnvelope struct {
 	AvailableScopes []ScopeKind
 	Providers       []ProviderItem
 	MCPServers      []MCPServerItem
-	Sandboxes       []SandboxItem
 	Hooks           []HookItem
 }
 

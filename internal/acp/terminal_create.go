@@ -50,10 +50,8 @@ func (m *terminalManager) create(
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 	env := make(map[string]string, len(request.Env))
-	if !ownership.networkOwned {
-		for _, variable := range request.Env {
-			env[variable.Name] = variable.Value
-		}
+	for _, variable := range request.Env {
+		env[variable.Name] = variable.Value
 	}
 	actor := m.actor(ownership)
 	handle, err := m.core.OpenPipe(ctx, terminalpkg.PipeRequest{

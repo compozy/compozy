@@ -14,7 +14,6 @@ type ObserveOverviewPayload struct {
 	Outcomes      OverviewOutcomesPayload       `json:"outcomes"`
 	Usage         OverviewUsagePayload          `json:"usage"`
 	Pulse         OverviewPulsePayload          `json:"pulse"`
-	Network       OverviewNetworkPayload        `json:"network"`
 	System        OverviewSystemPayload         `json:"system"`
 	Freshness     TaskDashboardFreshnessPayload `json:"freshness"`
 }
@@ -124,11 +123,6 @@ type OverviewLongestSessionPayload struct {
 	AgentName       string `json:"agent_name"`
 	DurationSeconds int64  `json:"duration_seconds"`
 	Date            string `json:"date"`
-}
-
-// OverviewNetworkPayload carries today-windowed network counters.
-type OverviewNetworkPayload struct {
-	MessagesToday int `json:"messages_today"`
 }
 
 // OverviewSystemPayload carries today-windowed system counters plus retention truth.

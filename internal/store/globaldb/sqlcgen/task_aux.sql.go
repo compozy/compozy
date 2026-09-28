@@ -51,11 +51,11 @@ LIMIT 1
 `
 
 type GetOpenTaskRunIDParams struct {
-	TaskID             sql.NullString `json:"task_id"`
-	CompletedStatus    string         `json:"completed_status"`
-	FailedStatus       string         `json:"failed_status"`
-	CanceledStatus     string         `json:"canceled_status"`
-	DesignationGroupID string         `json:"designation_group_id"`
+	TaskID             string `json:"task_id"`
+	CompletedStatus    string `json:"completed_status"`
+	FailedStatus       string `json:"failed_status"`
+	CanceledStatus     string `json:"canceled_status"`
+	DesignationGroupID string `json:"designation_group_id"`
 }
 
 func (q *Queries) GetOpenTaskRunID(ctx context.Context, arg GetOpenTaskRunIDParams) (string, error) {
@@ -171,9 +171,9 @@ const getTaskRunTaskID = `-- name: GetTaskRunTaskID :one
 SELECT task_id FROM task_runs WHERE id = ?1
 `
 
-func (q *Queries) GetTaskRunTaskID(ctx context.Context, id string) (sql.NullString, error) {
+func (q *Queries) GetTaskRunTaskID(ctx context.Context, id string) (string, error) {
 	row := q.db.QueryRowContext(ctx, getTaskRunTaskID, id)
-	var task_id sql.NullString
+	var task_id string
 	err := row.Scan(&task_id)
 	return task_id, err
 }
@@ -635,7 +635,7 @@ FROM task_runs
 WHERE task_id = ?1
 `
 
-func (q *Queries) MaxTaskRunAttempt(ctx context.Context, taskID sql.NullString) (int64, error) {
+func (q *Queries) MaxTaskRunAttempt(ctx context.Context, taskID string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, maxTaskRunAttempt, taskID)
 	var column_1 int64
 	err := row.Scan(&column_1)

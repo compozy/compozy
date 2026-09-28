@@ -386,7 +386,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
                   <option value="human">Human</option>
                   <option value="automation">Automation</option>
                   <option value="extension">Extension</option>
-                  <option value="network_peer">Network peer</option>
+
                 </select>
                 <input class="input mono" id="owner-ref" value="" placeholder="select an owner kind first" disabled>
               </div>
@@ -413,18 +413,15 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
             <p class="hint" id="approval-hint">A run is retried up to its max attempts before the task is marked failed.</p>
           </div>
 
-          <!-- ingress & identity -->
+          <!-- identity -->
           <div class="sec">
             <div class="sec__head">
               <span class="sec__num">06</span>
-              <span class="sec__title">Ingress &amp; identity</span>
-              <span class="sec__sub">Optional — for peer ingress and stable references.</span>
+              <span class="sec__title">Identity</span>
+              <span class="sec__sub">Optional — for stable references.</span>
             </div>
             <div class="grid2">
-              <div class="field" style="margin-bottom:0">
-                <label class="label" for="t-channel">Network channel <span class="opt">— peer ingress</span></label>
-                <input id="t-channel" class="input mono" value="" placeholder="ingress channel id">
-              </div>
+
               <div class="field" style="margin-bottom:0">
                 <label class="label" for="t-identifier">Identifier <span class="opt">— override</span></label>
                 <input id="t-identifier" class="input mono" value="" placeholder="TASK-123">
@@ -494,7 +491,6 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
     oneshot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
     recurring:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
     epic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
-    remote:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.2 10.8 16.8 7.2M7.2 13.2 16.8 16.8"/></svg>',
     human:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11l2 2 4-4"/><path d="M14 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="8" cy="7" r="4"/></svg>',
     blank:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
     check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -524,10 +520,6 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
       advDesc:"Bind a schedule from Automation — re-enqueues a run every tick. Configure it from Automation after the draft is saved.",
       simpleDesc:"",
       preset:{ priority:"medium", approval:"none", draft:true }, enqueue:false },
-    remote_peer: { label:"Remote",          advLabel:"Remote from peer",         icon:"remote",    simple:false, badge:["Network","b-info"],
-      advDesc:"Ingress from a network channel. Remote peers enqueue; the local owner claims when ready.",
-      simpleDesc:"",
-      preset:{ priority:"medium", approval:"none", draft:false }, enqueue:true },
     blank:       { label:"Blank",           advLabel:"Blank task",               icon:"blank",     simple:false, badge:["Custom","b-neutral"],
       advDesc:"Start with an empty form. Full control over owner, origin, and identity.",
       simpleDesc:"",
@@ -537,7 +529,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
 
   const OWNER_PH = {
     pool:"worker-pool id or agent name", agent_session:"sess-…", human:"human id or handle",
-    automation:"automation id", extension:"extension id", network_peer:"peer id"
+    automation:"automation id", extension:"extension id"
   };
 
   /* ── state ── */
@@ -552,7 +544,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
     parentTaskId:"",
     maxAttempts:1,
     approval:"none",
-    networkChannel:"", identifier:"",
+    identifier:"",
     draft:false, autoEnqueue:false,
     priorityTouched:false   // templates set priority unless the user overrode it
   };
@@ -653,7 +645,6 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
   $("t-title").addEventListener("input",e=>{ state.title=e.target.value; });
   $("t-desc").addEventListener("input",e=>{ state.description=e.target.value; });
   $("t-parent").addEventListener("input",e=>{ state.parentTaskId=e.target.value.trim(); });
-  $("t-channel").addEventListener("input",e=>{ state.networkChannel=e.target.value.trim(); });
   $("t-identifier").addEventListener("input",e=>{ state.identifier=e.target.value.trim(); });
 
   $("priority-group").querySelectorAll(".pill").forEach(p=>{

@@ -17,7 +17,6 @@ type taskUpdateInput struct {
 	ClearOwner         bool
 	AutoEnqueueOnReady bool
 	AutoEnqueueSet     bool
-	NetworkFlags       networkParticipationFlags
 }
 
 func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
@@ -30,9 +29,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 		ownerRef     string
 		clearOwner   bool
 		autoEnqueue  bool
-		networkFlags networkParticipationFlags
 	)
-
 	cmd := &cobra.Command{
 		Use:   taskUpdateIDValue,
 		Short: "Update mutable task fields",
@@ -42,7 +39,6 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			request, err := buildTaskUpdateRequest(cmd, taskUpdateInput{
 				Title:              title,
 				Description:        description,
@@ -53,7 +49,6 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 				ClearOwner:         clearOwner,
 				AutoEnqueueOnReady: autoEnqueue,
 				AutoEnqueueSet:     cmd.Flags().Changed(taskAutoEnqueueOnReadyFlag),
-				NetworkFlags:       networkFlags,
 			})
 			if err != nil {
 				return err
@@ -61,7 +56,6 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 			if !request.HasChanges() {
 				return errors.New("cli: task update requires at least one change flag")
 			}
-
 			updated, err := client.UpdateTask(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
@@ -79,7 +73,6 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&clearOwner, "clear-owner", false, "Remove the current owner")
 	cmd.Flags().
 		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Toggle auto-enqueue once blocking dependencies complete")
-	bindNetworkParticipationFlags(cmd, &networkFlags)
 	return cmd
 }
 
@@ -129,10 +122,5 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 	if input.ClearOwner {
 		request.ClearOwner = true
 	}
-	participationRequest, err := input.NetworkFlags.request()
-	if err != nil {
-		return UpdateTaskRequest{}, err
-	}
-	request.NetworkParticipation = participationRequest
 	return request, nil
 }

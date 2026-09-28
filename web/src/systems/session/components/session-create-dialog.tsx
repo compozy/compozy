@@ -13,11 +13,6 @@ import {
   type EntityMode,
 } from "@compozy/ui";
 
-import {
-  isNetworkParticipationDraftValid,
-  type NetworkParticipationDraft,
-} from "@/lib/network-participation";
-
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
 import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
@@ -40,9 +35,7 @@ export interface SessionCreateDialogProps {
   sessionName: string;
   onSessionNameChange: (next: string) => void;
   selectedAgentName: string;
-  networkParticipation: NetworkParticipationDraft;
   onAgentChange: (agentName: string) => void;
-  onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   /** Absent when the selected workspace is not git-backed. */
   environment?: React.ComponentProps<typeof SessionEnvironmentField>;
   environmentListingState?: "loading" | "ready" | "error" | "unsupported";
@@ -69,9 +62,7 @@ function SessionCreateDialog({
   sessionName,
   onSessionNameChange,
   selectedAgentName,
-  networkParticipation,
   onAgentChange,
-  onNetworkParticipationChange,
   environment,
   environmentListingState = "unsupported",
   environmentListingError,
@@ -91,12 +82,7 @@ function SessionCreateDialog({
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const canSubmit =
-    !isSubmitting &&
-    destinationReady &&
-    !isAwaitingEnvironment &&
-    hasAgents &&
-    hasSelectedAgent &&
-    isNetworkParticipationDraftValid(networkParticipation, ["named"]);
+    !isSubmitting && destinationReady && !isAwaitingEnvironment && hasAgents && hasSelectedAgent;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -153,8 +139,6 @@ function SessionCreateDialog({
                 environmentListingError={environmentListingError}
                 environmentListingState={environmentListingState}
                 isSubmitting={isSubmitting || isAwaitingEnvironment}
-                networkParticipation={networkParticipation}
-                onNetworkParticipationChange={onNetworkParticipationChange}
                 onSessionNameChange={onSessionNameChange}
                 sessionName={sessionName}
               />

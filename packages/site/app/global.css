@@ -164,18 +164,6 @@
     color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
     transparent 68%
   );
-  --site-bento-overlay-network: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 94%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 78%, transparent) 21%,
-    transparent 48%
-  );
-  --site-bento-overlay-bridges: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 84%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 40%, transparent) 30%,
-    transparent 64%
-  );
   --site-bento-overlay-memory: linear-gradient(
     180deg,
     color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,

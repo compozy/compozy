@@ -40,13 +40,6 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		hostAPIResourcesListPath:                                       handler.handleResourcesList,
 		hostAPIResourcesGetPath:                                        handler.handleResourcesGet,
 		hostAPIResourcesSnapshotPath:                                   handler.handleResourcesSnapshot,
-		hostAPIBridgesInstancesListPath:                                handler.handleBridgesInstancesList,
-		hostAPIBridgesInstancesGetPath:                                 handler.handleBridgesInstancesGet,
-		hostAPIBridgesInstancesReportStatePath:                         handler.handleBridgesInstancesReportState,
-		hostAPIBridgesMessagesIngestPath:                               handler.handleBridgesMessagesIngest,
-		hostAPISandboxExecPath:                                         handler.handleSandboxExec,
-		hostAPISandboxInfoPath:                                         handler.handleSandboxInfo,
-		hostAPISandboxListPath:                                         handler.handleSandboxList,
 		hostAPIMemoryForgetPath:                                        handler.handleMemoryForget,
 		hostAPIMemoryRecallPath:                                        handler.handleMemoryRecall,
 		hostAPIMemoryStorePath:                                         handler.handleMemoryStore,
@@ -72,7 +65,6 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		hostAPISkillsListPath:                                          handler.handleSkillsList,
 	}
 	registerHostAPISessionMethodHandlers(handler, handlers)
-	registerHostAPINetworkMethodHandlers(handler, handlers)
 	registerHostAPIClarifyMethodHandler(handler, handlers)
 	registerHostAPIViewMethodHandler(handler, handlers)
 	return handlers

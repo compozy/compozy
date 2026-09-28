@@ -105,7 +105,7 @@ var WeightsV1 = Weights{
 	GroupOrder: []string{
 		"Pinned", "Recents", "Curated", "Views", "Shell", "Window", "Tabs", "Tiling", "Layout",
 		"Sessions", "Desktops", "Workspaces", "Agents", "Tasks", "Loops", "Jobs", "Triggers",
-		"Bridges", "Knowledge", "Vault", "Network channels", "Marketplace", "Extensions", "Apps",
+		"Knowledge", "Vault", "Marketplace", "Extensions", "Apps",
 		"Settings", "Commands",
 	},
 }

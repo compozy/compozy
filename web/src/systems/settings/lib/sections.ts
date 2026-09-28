@@ -5,7 +5,6 @@ import {
   Cable,
   Command,
   Cpu,
-  Network,
   Palette,
   PanelTop,
   Puzzle,
@@ -54,7 +53,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Defaults",
     icon: UserRoundCog,
     group: "workspace",
-    keywords: "profile agent provider sandbox defaults new sessions",
+    keywords: "profile agent provider defaults new sessions",
   },
   {
     slug: "appearance",
@@ -130,13 +129,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     keywords: "jobs triggers scheduler engine timezone cron",
   },
   {
-    slug: "network",
-    label: "Network",
-    icon: Network,
-    group: "runtime",
-    keywords: "peers channels listener delivery embedded port",
-  },
-  {
     slug: "gateway",
     label: "Remote access",
     icon: Radio,
@@ -163,7 +155,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Hooks",
     icon: Webhook,
     group: "system",
-    keywords: "lifecycle notifications presets events",
+    keywords: "lifecycle events",
   },
   {
     slug: "extensions",

@@ -88,7 +88,7 @@ describe("HomeHeader", () => {
   });
 
   it("renders the five public navigation links in desktop and mobile headers (D1)", () => {
-    mocks.pathname = "/docs/network/protocol/delivery";
+    mocks.pathname = "/docs/loops/reference/delivery";
 
     render(<HomeHeader />);
 

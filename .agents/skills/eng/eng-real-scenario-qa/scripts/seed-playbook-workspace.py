@@ -55,7 +55,7 @@ def materialize_workspaces(workspace_root: Path, playbook: dict) -> list[str]:
             write_text(
                 readme,
                 f"# {ws['name']}\n\n{ws['purpose']}\n\nWorkspace id: `{ws['id']}`. "
-                f"Owned channels and tasks for this workspace are seeded by the playbook "
+                f"Owned tasks for this workspace are seeded by the playbook "
                 f"`{playbook['playbook_ref']}`.\n",
             )
         notes.append(str(ws_dir))
@@ -182,7 +182,6 @@ def materialize_open_tasks(
                 "deliverable_type": task["deliverable_type"],
                 "deliverable_path": deliverable_path,
                 "review_required_by": task.get("review_required_by", ""),
-                "channel": task.get("channel", ""),
                 "playbook_ref": playbook["playbook_ref"],
             }
         )

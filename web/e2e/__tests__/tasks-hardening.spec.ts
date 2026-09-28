@@ -210,13 +210,7 @@ test("operator retries failed work and sees an auditable run review gate", async
     title: uniqueTitle("Retry and review hardening"),
     workspace: seeded.session.workspace_id,
   });
-  const failedRun = await failNewRun(
-    runtime,
-    task.id,
-    workerSession.id,
-    tasksSessionAgentName,
-    workerSession.channel
-  );
+  const failedRun = await failNewRun(runtime, task.id, workerSession.id, tasksSessionAgentName);
   await expect
     .poll(async () => (await getTaskRun(runtime, failedRun.id)).run.status)
     .toBe("failed");
@@ -872,7 +866,6 @@ interface TaskRun {
 }
 
 interface SessionPayload {
-  channel?: string | null;
   id: string;
   workspace_id?: string | null;
 }
@@ -1099,17 +1092,12 @@ async function getTaskRun(runtime: BrowserRuntime, runID: string): Promise<TaskR
   ).run;
 }
 
-async function enqueueRun(
-  runtime: BrowserRuntime,
-  taskID: string,
-  networkChannel?: string | null
-): Promise<TaskRun> {
+async function enqueueRun(runtime: BrowserRuntime, taskID: string): Promise<TaskRun> {
   return (
     await runtime.requestJSON<TaskRunEnvelope>(`/api/tasks/${encodeURIComponent(taskID)}/runs`, {
       method: "POST",
       body: JSON.stringify({
         idempotency_key: uniqueID("enqueue"),
-        network_channel: networkChannel ?? undefined,
       }),
     })
   ).run;
@@ -1119,10 +1107,9 @@ async function failNewRun(
   runtime: BrowserRuntime,
   taskID: string,
   sessionID: string,
-  agentName: string,
-  networkChannel?: string | null
+  agentName: string
 ): Promise<TaskRun> {
-  const run = await enqueueRun(runtime, taskID, networkChannel);
+  const run = await enqueueRun(runtime, taskID);
   const next = await agentTaskCLI<AgentTaskNextRecord>(runtime, sessionID, agentName, [
     "task",
     "next",

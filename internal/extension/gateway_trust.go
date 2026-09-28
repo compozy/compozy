@@ -66,25 +66,25 @@ func (r *ConnectivityProviderTrustResolver) ResolveProviderTrust(
 			gateway.ErrExposureRefused,
 		)
 	}
-	liveRequirement := manifest.NetworkParticipation.Normalize()
-	liveDigest, err := NetworkParticipationRequirementDigest(liveRequirement)
+	liveRequirement := manifest.Gateway.Normalize()
+	liveDigest, err := GatewayRequirementDigest(liveRequirement)
 	if err != nil {
 		return gateway.ProviderTrust{}, fmt.Errorf("extension: derive live connectivity control digest: %w", err)
 	}
-	if liveDigest == "" || liveDigest != info.NetworkRequirementDigest {
+	if liveDigest == "" || liveDigest != info.GatewayRequirementDigest {
 		return gateway.ProviderTrust{}, fmt.Errorf(
 			"%w: live provider control digest changed",
 			gateway.ErrProviderTrustStale,
 		)
 	}
-	confirmation, err := r.registry.NetworkConfirmation(GlobalInstanceKey(trimmed))
+	confirmation, err := r.registry.GatewayConfirmation(GlobalInstanceKey(trimmed))
 	if err != nil {
 		return gateway.ProviderTrust{}, fmt.Errorf("extension: derive connectivity control digest: %w", err)
 	}
 	trust := gateway.ProviderTrust{
 		InstallSource: info.Source.String(), ControlDigest: confirmation.Digest,
 		ConfirmedBy: confirmation.ConfirmedBy, ConfirmedAt: confirmation.ConfirmedAt,
-		ChannelScopes: slices.Clone(liveRequirement.ChannelScopes),
+		Permissions: slices.Clone(liveRequirement.Permissions),
 	}
 	if confirmation.ConfirmedBy != "" && !confirmation.ConfirmedAt.IsZero() {
 		trust.ConfirmedDigest = confirmation.Digest

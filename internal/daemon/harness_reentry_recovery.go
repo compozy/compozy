@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -22,7 +23,7 @@ func (b *harnessReentryBridge) loadRecoveredDetachedHarnessRuns(
 
 	recovered := make([]recoveredDetachedHarnessRun, 0, len(runs))
 	for _, run := range runs {
-		if !run.IsTaskAnchored() {
+		if strings.TrimSpace(run.TaskID) == "" {
 			continue
 		}
 		metadata, ok, err := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)

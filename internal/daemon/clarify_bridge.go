@@ -266,13 +266,13 @@ func (b *clarifyBridge) awaitClarifyResolution(
 // closes. At most one sender runs per wait; on a wedged write it stays parked
 // until the write resolves instead of stalling terminal handling.
 func (b *clarifyBridge) runKeepalive(handle *clarifyHandle, done <-chan struct{}) {
-	b.sendKeepalivePing(handle)
 	newTicker := b.newPingTicker
 	if newTicker == nil {
 		newTicker = realClarifyPingTicker
 	}
 	tick, stop := newTicker(clarifyKeepaliveInterval)
 	defer stop()
+	b.sendKeepalivePing(handle)
 	for {
 		select {
 		case <-done:

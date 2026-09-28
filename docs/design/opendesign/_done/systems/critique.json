@@ -1,11 +1,14 @@
 {
   "kind": "critique-panel",
-  "scope": ["vault.html", "mcp-servers.html", "sandbox.html"],
+  "scope": [
+    "vault.html",
+    "mcp-servers.html"
+  ],
   "score": 4,
   "axes": {
     "clarity": {
       "score": 4,
-      "notes": "Each page answers one operator question per zone: breadcrumb (where), PH1 head (what), toolbar (how). Sandbox now exposes the canonical Rows|Cards PillGroup so scan vs browse density is explicit."
+      "notes": "Each page answers one operator question per zone: breadcrumb (where), PH1 head (what), toolbar (how)."
     },
     "hierarchy": {
       "score": 5,

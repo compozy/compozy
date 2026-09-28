@@ -200,9 +200,6 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 	if o.Provider != nil {
 		dst.Provider = *o.Provider
 	}
-	if o.Sandbox != nil {
-		dst.Sandbox = *o.Sandbox
-	}
 }
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {

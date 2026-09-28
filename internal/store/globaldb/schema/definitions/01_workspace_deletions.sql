@@ -4,7 +4,6 @@ CREATE TABLE workspace_deletion_intents (
     add_dirs      TEXT NOT NULL,
     name          TEXT NOT NULL,
     default_agent TEXT,
-    sandbox_ref   TEXT NOT NULL,
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL,
     requested_at  TEXT NOT NULL

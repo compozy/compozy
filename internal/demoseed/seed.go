@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/notifications/presets"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -77,11 +75,6 @@ func seedDatabase(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (
 	}
 	counts.EventSummaries = observability.eventSummaries
 	counts.TokenUsageDays = observability.tokenUsageDays
-	notificationPresets, err := db.ListPresetsForProfile(ctx, presets.Query{}, store.DefaultProfileID)
-	if err != nil {
-		return Result{}, fmt.Errorf("demo seed: list notification presets: %w", err)
-	}
-	counts.NotificationPresets = len(notificationPresets)
 	for _, story := range state.workspaces {
 		if err := writeSeedMarker(state.workspaceRoot(story), story.Key); err != nil {
 			return Result{}, err
@@ -113,10 +106,6 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 	if err != nil {
 		return Counts{}, err
 	}
-	messages := scenarioNetworkMessages(state.clock)
-	if err := seedNetwork(ctx, db, state, messages); err != nil {
-		return Counts{}, err
-	}
 	if err := seedAutomation(ctx, db, state); err != nil {
 		return Counts{}, err
 	}
@@ -132,8 +121,8 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 		Workspaces: len(state.workspaces), Agents: len(scenarioAgents()),
 		Sessions: len(sessions), TranscriptEvents: transcriptEvents,
 		Tasks: len(tasks), TaskRuns: taskRuns,
-		NetworkMessages: len(messages), LoopDefinitions: loops,
-		LoopRuns: loopCounts.runs, LoopGenerations: loopCounts.generations,
+		LoopDefinitions: loops,
+		LoopRuns:        loopCounts.runs, LoopGenerations: loopCounts.generations,
 		LoopRunEvents: loopCounts.events, GoalTurns: loopCounts.goalTurns,
 		Memories: memories, Worktrees: worktrees,
 		AutomationJobs: automationJobCount, AutomationRuns: automationRunCount,
@@ -154,19 +143,18 @@ func buildResult(state *scenario, counts Counts) Result {
 		HomeDir:      state.paths.HomeDir,
 		DatabaseFile: state.paths.DatabaseFile,
 		WorkspaceID:  primary.ID, WorkspaceRoot: primary.RootDir, WorkspaceName: primary.Name,
-		WorkspaceIDs:   workspaceIDs,
-		SessionIDs:     append([]string(nil), scenarioSessionIDs...),
-		TaskIDs:        taskIDs,
-		NetworkChannel: launchChannel, NetworkThreadID: launchThreadID,
-		LoopName: loopLaunchReadiness, LoopNames: scenarioLoopNames(),
+		WorkspaceIDs: workspaceIDs,
+		SessionIDs:   append([]string(nil), scenarioSessionIDs...),
+		TaskIDs:      taskIDs,
+		LoopName:     loopLaunchReadiness, LoopNames: scenarioLoopNames(),
 		LoopRunID: loopApprovalRunID, LoopRunIDs: scenarioLoopRunIDs(),
 		AutomationJobID:  launchAutomationID,
-		SuggestedWebPath: suggestedWebPaths(primary.ID),
+		SuggestedWebPath: suggestedWebPaths(),
 		Counts:           counts,
 	}
 }
 
-func suggestedWebPaths(workspaceID string) []string {
+func suggestedWebPaths() []string {
 	return []string{
 		"/",
 		"/loop-runs",
@@ -175,7 +163,6 @@ func suggestedWebPaths(workspaceID string) []string {
 		"/knowledge",
 		"/tasks?mode=dashboard",
 		fmt.Sprintf("/agents/%s/sessions/%s", agentProductLead, sessionLaunchDecisionID),
-		fmt.Sprintf("/network/%s/%s/threads/%s", workspaceID, launchChannel, launchThreadID),
 	}
 }
 

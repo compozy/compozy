@@ -93,18 +93,18 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 	})
 
 	payload := contract.ExtensionOperationErrorPayload{
-		Error:         "network confirmation required",
-		Code:          "extension_network_confirmation_required",
+		Error:         "gateway confirmation required",
+		Code:          "extension_gateway_confirmation_required",
 		CurrentDigest: "digest-current",
 		Diagnostic: &contract.DiagnosticItem{
-			ID:               "extension.network_confirmation_required",
-			Code:             "extension_network_confirmation_required",
+			ID:               "extension.gateway_confirmation_required",
+			Code:             "extension_gateway_confirmation_required",
 			Category:         "extension",
-			Title:            "Network confirmation is required",
+			Title:            "Gateway confirmation is required",
 			Message:          "Confirm the current extension digest.",
 			Severity:         "error",
 			DataFreshness:    "live",
-			SuggestedCommand: "compozy extension enable alpha --confirm-network-requirement digest-current",
+			SuggestedCommand: "compozy extension enable alpha --confirm-gateway-requirement digest-current",
 		},
 	}
 	body, err := json.Marshal(payload)
@@ -181,9 +181,9 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 			t.Fatal("writeExecutionError() exit code = 0, want failure")
 		}
 		for _, want := range []string{
-			"Network confirmation is required",
+			"Gateway confirmation is required",
 			"Confirm the current extension digest.",
-			"compozy extension enable alpha --confirm-network-requirement digest-current",
+			"compozy extension enable alpha --confirm-gateway-requirement digest-current",
 		} {
 			if !strings.Contains(stderr.String(), want) {
 				t.Fatalf("human error = %q, want %q", stderr.String(), want)
@@ -225,8 +225,8 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 					}
 				case "toon":
 					want := "error{code,current_digest,agents,env_name,declared_env,message}:\n" +
-						"  extension_network_confirmation_required,digest-current,\"\",\"\",\"\"," +
-						"network confirmation required"
+						"  extension_gateway_confirmation_required,digest-current,\"\",\"\",\"\"," +
+						"gateway confirmation required"
 					if strings.TrimSpace(stderr.String()) != want {
 						t.Fatalf("TOON error = %q, want exact named fields %q", stderr.String(), want)
 					}

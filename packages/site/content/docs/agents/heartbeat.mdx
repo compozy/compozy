@@ -85,7 +85,7 @@ preferences exceed config bounds, the resolver clamps to config and emits a
 
 ### Forbidden fields
 
-`HEARTBEAT.md` cannot define liveness, claim authority, scheduler intervals, network membership,
+`HEARTBEAT.md` cannot define liveness, claim authority, scheduler intervals,
 provider configuration, capabilities, lease duration, raw claim tokens, recurring model loops, or
 queue ownership. Use the linked surface instead:
 
@@ -94,7 +94,6 @@ queue ownership. Use the linked surface instead:
 | Raw claim tokens, lease duration overrides             | `task_runs` + `ClaimNextRun` runtime APIs |
 | Task status transitions, queue ownership               | `task_runs` + task CLI/API                |
 | Scheduler sweep cadence, claim cadence                 | Scheduler config                          |
-| Network membership, peer presence, `greet` interval    | `[network]` and Compozy Network protocol  |
 | Provider config, model selection, tool grants          | `AGENT.md` and `[providers]`              |
 | Capabilities, hooks, MCP servers, permissions          | `AGENT.md` and `config.toml`              |
 | Recurring model pings or persistent heartbeat sessions | Not supported in MVP                      |
@@ -170,10 +169,8 @@ Wake guarantees:
    inspect `/agent/context`, session state, inbox, and task APIs before acting, and never implies
    claimable work exists.
 5. A delivered wake uses the same [live-turn workspace knowledge
-   snapshot](/docs/sessions/lifecycle#workspace-knowledge-on-live-turns) as user and Network turns.
+   snapshot](/docs/sessions/lifecycle#workspace-knowledge-on-live-turns) as user turns.
    Changing a knowledge file does not create a wake by itself.
-6. Compozy Network `greet` presence is independent. A peer's derived activity state does not make a
-   session wake-eligible.
 
 Manual operator/agent wake:
 
@@ -191,7 +188,7 @@ deterministic enum value: `wake_sent`, `heartbeat_disabled`, `heartbeat_invalid`
 
 Mutating `HEARTBEAT.md` always goes through the managed authoring service. CLI, HTTP, UDS, and
 Host API share the same DTOs, validation, CAS, and revision audit. Direct file writes from hooks,
-extensions, tools, MCP sidecars, bridge adapters, or web code are forbidden.
+extensions, tools, MCP sidecars, or web code are forbidden.
 
 | Action   | CLI                                | HTTP                                         | UDS                        | Host API                    |
 | -------- | ---------------------------------- | -------------------------------------------- | -------------------------- | --------------------------- |
@@ -252,9 +249,6 @@ transcripts, and use workspace-relative paths.
   [Session Lifecycle → Runtime activity supervision](/docs/sessions/lifecycle).
 - `HEARTBEAT.md` is **not** session health. Health is metadata-only and lives in
   `session_health`. `HEARTBEAT.md` consumes health; it never implements it.
-- `HEARTBEAT.md` is **not** Compozy Network membership. Network membership is daemon-local and belongs
-  to the [protocol model](/docs/network/protocol-model). Membership cannot make a session
-  wake-eligible.
 - `HEARTBEAT.md` is **not** a scheduler. Scheduler eligibility runs first; the wake service is
   consulted afterward and never claims work.
 - `HEARTBEAT.md` does **not** create work. Wake state and wake events are audit and coalescing
@@ -276,7 +270,5 @@ transcripts, and use workspace-relative paths.
 - [`config.toml` → `[agents.heartbeat]`](/docs/configuration/config-toml) for cadence,
   rate limits, retention, and stale thresholds.
 - [Session Lifecycle](/docs/sessions/lifecycle) for activity supervision and stop reasons.
-- [Network → Protocol](/docs/network/protocol-model) for Compozy Network `greet` presence
-  separation.
 - [`compozy agent heartbeat`](/docs/cli/agent/heartbeat) and
   [`compozy session`](/docs/cli/session) generated CLI references.

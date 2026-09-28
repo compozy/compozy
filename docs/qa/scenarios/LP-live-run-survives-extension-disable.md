@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: Task 08 checkpoint
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-operator-lifecycle-ui-20260803-044343-123901-lab/qa-artifacts/qa/screenshots/task08/29-disabled-extension-resume.json
 last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle-task08.md
-overlaps: LP-operator-lifecycle-ui;ET-021
+overlaps: LP-operator-lifecycle-ui; ET-021
 ---
 
 story: As an operator, I can finish an already-open wait even if the extension used by a later node is temporarily unavailable.

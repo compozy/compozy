@@ -206,7 +206,7 @@ export function installedExtension(
 ): ExtensionEntry {
   return {
     ...extensionBase,
-    contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
+    contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
     enabled: true,
     marketplace: listing,
     name: listing.installed_name ?? listing.entry_id,
@@ -229,7 +229,7 @@ export function localExtension(
 ): ExtensionEntry {
   return {
     ...extensionBase,
-    contents: { agents: 1, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
+    contents: { agents: 1, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
     enabled: true,
     marketplace: null,
     name,
@@ -380,7 +380,7 @@ export function marketplaceStoryHandlers(options: {
           entry,
           extension: {
             artifact_url: `https://example.test/${entry.entry_id}.tar.gz`,
-            contents: { agents: 0, bridges: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
+            contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
             digest_sha256: entry.digest_sha256,
             inputs: [],
             install_slug: entry.install_slug ?? "",

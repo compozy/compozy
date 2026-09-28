@@ -215,7 +215,7 @@ func vaultRecordsBundle(items []VaultRecord, now func() time.Time) outputBundle 
 		"Vault Secrets",
 		[]string{vaultRefValue, "Namespace", vaultKindValue, authoredContextPresentValue, authoredContextUpdatedValue},
 		"vault_secrets",
-		[]string{vaultRefKey, "namespace", vaultKindKey, providerAuthStatePresent, bridgeUpdatedAtKey},
+		[]string{vaultRefKey, "namespace", vaultKindKey, providerAuthStatePresent, cliOutputUpdatedAtKey},
 		func(item VaultRecord) []string {
 			return []string{
 				item.Ref,
@@ -259,7 +259,7 @@ func vaultRecordBundle(item VaultRecord) outputBundle {
 					vaultKindKey,
 					providerAuthStatePresent,
 					vaultCreatedAtKey,
-					bridgeUpdatedAtKey,
+					cliOutputUpdatedAtKey,
 				},
 				[]string{
 					item.Ref,

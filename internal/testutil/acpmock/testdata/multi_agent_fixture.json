@@ -19,8 +19,8 @@
                             "chunks": ["alpha ", "says hi"]
                         },
                         {
-                            "kind": "bridge_response",
-                            "text": "bridge-alpha"
+                            "kind": "assistant",
+                            "text": "alpha follow-up"
                         }
                     ]
                 }

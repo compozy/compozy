@@ -36,11 +36,6 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootTerminal(ctx, state, cleanup); err != nil {
 		return err
 	}
-	sandboxRegistry, err := d.buildSandboxRegistry(state)
-	if err != nil {
-		return err
-	}
-	state.sandboxRegistry = sandboxRegistry
 	providerVault, err := d.buildProviderVault(state)
 	if err != nil {
 		return err
@@ -50,10 +45,6 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	if err := d.bootMarketplace(ctx, state, cleanup); err != nil {
-		return err
-	}
-	state.bridges = d.composeBridgeRuntime(state, cleanup)
-	if err := d.bootNotificationPresets(ctx, state); err != nil {
 		return err
 	}
 	hostedMCP, err := d.buildHostedMCPService(state)

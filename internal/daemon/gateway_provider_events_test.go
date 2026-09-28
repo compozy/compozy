@@ -138,7 +138,7 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 		}
 		binding := gateway.IngressBinding{
 			Subject: gateway.IngressSubjectRef{
-				Kind: gateway.IngressSubjectBridgeInstance,
+				Kind: gateway.IngressSubjectWebhookTrigger,
 				ID:   "api_key=sk-ingress-audit-secret",
 			},
 			Scope: gateway.IngressScopeWorkspace, WorkspaceID: "ws-1", EndpointGeneration: 7,

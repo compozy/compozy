@@ -28,12 +28,10 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLinea
 			MaxActivePerWorkspace: normalized.SpawnBudget.MaxActivePerWorkspace,
 		},
 		PermissionPolicy: SpawnPermissionPolicyPayload{
-			Tools:           append([]string(nil), normalized.PermissionPolicy.Tools...),
-			Skills:          append([]string(nil), normalized.PermissionPolicy.Skills...),
-			MCPServers:      append([]string(nil), normalized.PermissionPolicy.MCPServers...),
-			WorkspacePaths:  append([]string(nil), normalized.PermissionPolicy.WorkspacePaths...),
-			NetworkChannels: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
-			SandboxProfiles: append([]string(nil), normalized.PermissionPolicy.SandboxProfiles...),
+			Tools:          append([]string(nil), normalized.PermissionPolicy.Tools...),
+			Skills:         append([]string(nil), normalized.PermissionPolicy.Skills...),
+			MCPServers:     append([]string(nil), normalized.PermissionPolicy.MCPServers...),
+			WorkspacePaths: append([]string(nil), normalized.PermissionPolicy.WorkspacePaths...),
 		},
 	}
 	return NormalizeSessionLineagePayload(payload)

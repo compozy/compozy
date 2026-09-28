@@ -372,7 +372,7 @@ export function matchesTaskQuery(
 
 /**
  * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier
- * in DESIGN.md §3.5. Agent sessions, automation runs, extensions, network peers,
+ * in DESIGN.md §3.5. Agent sessions, automation runs, extensions,
  * and worker pools all read as `agent` for color selection; humans get the
  * `human` slot ladder; unassigned tasks fall back to the system palette.
  */
@@ -385,7 +385,6 @@ export function ownerAvatarKindFor(
     case "agent_session":
     case "automation":
     case "extension":
-    case "network_peer":
     case "pool":
       return "agent";
     default:
@@ -398,7 +397,6 @@ const TASK_OWNER_KIND_LABELS: Record<TaskOwnerKind, string> = {
   agent_session: "Agent",
   automation: "Automation",
   extension: "Extension",
-  network_peer: "Peer",
   pool: "Pool",
 };
 
@@ -429,8 +427,6 @@ export {
 
 export {
   countTasksByStatus,
-  runCoordinationChannelLabel,
-  runIsCoordinated,
   taskHandoffActionCopy,
   taskLifecyclePhase,
   taskLifecyclePhaseDescription,

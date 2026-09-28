@@ -23,7 +23,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
-	"github.com/compozy/compozy/internal/network/participation"
+
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
@@ -986,76 +986,6 @@ func claimRunForDaemonTest(
 	return &claim.Run, claim.ClaimToken
 }
 
-func networkWakeIntegrationAcceptance(
-	t *testing.T,
-	now time.Time,
-) store.AcceptNetworkMessageRequest {
-	t.Helper()
-
-	directID, _, _, err := store.NetworkDirectRoomIdentity(
-		"workspace-network",
-		"builders",
-		"session-sender",
-		"session-target",
-	)
-	if err != nil {
-		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
-	}
-	spec := participation.Spec{
-		Version:         participation.SpecVersion,
-		Mode:            participation.ModeLive,
-		WorkspaceID:     "workspace-network",
-		ChannelStrategy: participation.StrategyNamed,
-		ChannelID:       "builders",
-		Source:          participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes:         1,
-			MaxWakeWallTime:  "1s",
-			MaxTotalWallTime: "1s",
-			MaxInputTokens:   100,
-			MaxOutputTokens:  100,
-			MaxWakeDepth:     1,
-			CoalesceWindow:   "100ms",
-		},
-	}
-	return store.AcceptNetworkMessageRequest{
-		Message: store.NetworkConversationMessage{
-			ProfileID:   store.DefaultProfileID,
-			MessageID:   "message-network-runner",
-			SessionID:   "session-sender",
-			WorkspaceID: "workspace-network",
-			Channel:     "builders",
-			Surface:     store.NetworkSurfaceDirect,
-			DirectID:    directID,
-			Direction:   "sent",
-			PeerFrom:    "session-sender",
-			PeerTo:      "session-target",
-			Kind:        store.NetworkKindSay,
-			Text:        "Review the durable wake",
-			PreviewText: "Review the durable wake",
-			Body:        []byte(`{"text":"Review the durable wake"}`),
-			Timestamp:   now,
-		},
-		Dispositions: []store.NetworkMessageDisposition{{
-			RecipientSessionID: "session-target",
-			Decision:           store.NetworkDispositionDeliver,
-		}},
-		Admissions: []store.NetworkWakeAdmissionInput{{
-			WorkspaceID:        "workspace-network",
-			RecipientSessionID: "session-target",
-			OwnerKey:           "session:session-target",
-			Spec:               spec,
-			Trigger:            store.NetworkWakeTriggerDirect,
-			Eligible:           true,
-			Addressed:          true,
-			RootID:             "message-network-runner",
-			Depth:              0,
-			WakeID:             "wake-network-runner",
-			TaskRunID:          "run-network-runner",
-		}},
-	}
-}
-
 func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing.T) {
 	t.Parallel()
 
@@ -1066,9 +996,8 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 		run           taskpkg.Run
 		wantWorkspace string
 		wantPath      string
-		wantChannel   string
+
 		wantAgentName string
-		wantOwnerKey  string
 	}{
 		{
 			name: "Should use the workspace identifier for workspace-scoped tasks",
@@ -1088,9 +1017,8 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-123",
-			wantChannel:   "coord-builders",
+
 			wantAgentName: "frontend-engineer-agent",
-			wantOwnerKey:  "task_run:run-1",
 		},
 		{
 			name: "Should use the global workspace path for global tasks",
@@ -1107,12 +1035,10 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
-			wantPath:     globalPath,
-			wantChannel:  "builders",
-			wantOwnerKey: "task_run:run-1",
+			wantPath: globalPath,
 		},
 		{
-			name: "Should bind a loop-correlated task session to the loop owner",
+			name: "Should start a loop-correlated task session in its workspace",
 			taskRecord: taskpkg.Task{
 				ID:          "task-loop-worker",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1129,8 +1055,6 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				QueuedAt:  time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-loop-owner",
-			wantChannel:   "loop-builders",
-			wantOwnerKey:  "loop_run:loop-run-owner",
 		},
 	}
 
@@ -1145,12 +1069,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			}
 
 			run := tc.run
-			run.SetNetworkState(
-				daemonTestLiveParticipation(tc.taskRecord.WorkspaceID, tc.wantChannel),
-				"",
-				"",
-				"",
-			)
+
 			ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
 				Task: tc.taskRecord,
 				Run:  run,
@@ -1173,17 +1092,11 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			if got := createCall.Provider; got != "" {
 				t.Fatalf("createCall.Provider = %q, want explicit empty provider", got)
 			}
-			if got, want := participationSnapshotValue(
-				createCall.ResolvedNetworkParticipation,
-			).ChannelID, tc.wantChannel; got != want {
-				t.Fatalf("createCall resolved participation channel = %q, want %q", got, want)
-			}
+
 			if got, want := createCall.AgentName, tc.wantAgentName; got != want {
 				t.Fatalf("createCall.AgentName = %q, want %q", got, want)
 			}
-			if got := createCall.NetworkOwnerKey; got != tc.wantOwnerKey {
-				t.Fatalf("createCall.NetworkOwnerKey = %q, want %q", got, tc.wantOwnerKey)
-			}
+
 			if got, want := createCall.Workspace, tc.wantWorkspace; got != want {
 				t.Fatalf("createCall.Workspace = %q, want %q", got, want)
 			}
@@ -1195,92 +1108,6 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			}
 		})
 	}
-}
-
-func TestTaskSessionBridgeBindsClaimedRunsToTheirNetworkOwner(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		run          taskpkg.Run
-		wantOwnerKey string
-	}{
-		{
-			name: "Should bind a task run to its task-run owner",
-			run: taskpkg.Run{
-				ID:     "run-network-task",
-				TaskID: "task-network",
-			},
-			wantOwnerKey: "task_run:run-network-task",
-		},
-		{
-			name: "Should bind a loop worker to its loop-run owner",
-			run: taskpkg.Run{
-				ID:        "run-network-loop",
-				TaskID:    "task-network-loop",
-				LoopRunID: "loop-network-owner",
-			},
-			wantOwnerKey: "loop_run:loop-network-owner",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			sessions := &recordingTaskBridgeSessionManager{fakeSessionManager: &fakeSessionManager{}}
-			bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
-			if err != nil {
-				t.Fatalf("newTaskSessionBridge() error = %v", err)
-			}
-			run := test.run
-			run.SetNetworkState(
-				daemonTestLiveParticipation("ws-network", "lifecycle-cadence"),
-				"",
-				"",
-				"",
-			)
-
-			if err := bridge.BindTaskRunNetwork(
-				context.Background(),
-				"sess-network-worker",
-				run,
-			); err != nil {
-				t.Fatalf("BindTaskRunNetwork() error = %v", err)
-			}
-			if got, want := len(sessions.bindCalls), 1; got != want {
-				t.Fatalf("BindNetworkPeer() calls = %d, want %d", got, want)
-			}
-			call := sessions.bindCalls[0]
-			if call.sessionID != "sess-network-worker" ||
-				call.spec.ChannelID != "lifecycle-cadence" ||
-				call.ownerKey != test.wantOwnerKey {
-				t.Fatalf("BindNetworkPeer() call = %#v, want session/channel/owner binding", call)
-			}
-
-			if err := bridge.RestoreTaskRunNetwork(
-				context.Background(),
-				"sess-network-worker",
-			); err != nil {
-				t.Fatalf("RestoreTaskRunNetwork() error = %v", err)
-			}
-			if got, want := sessions.restoreCalls, []string{"sess-network-worker"}; !slices.Equal(got, want) {
-				t.Fatalf("RestoreNetworkPeer() calls = %v, want %v", got, want)
-			}
-		})
-	}
-}
-
-type taskBridgeNetworkBindCall struct {
-	sessionID string
-	spec      participation.Spec
-	ownerKey  string
-}
-
-type recordingTaskBridgeSessionManager struct {
-	*fakeSessionManager
-	bindCalls    []taskBridgeNetworkBindCall
-	restoreCalls []string
 }
 
 type taskBridgeWorktreeMaterializeCall struct {
@@ -1368,28 +1195,6 @@ func (w *recordingTaskBridgeWorktrees) RollbackRunMaterialization(
 	return w.rollbackErr
 }
 
-func (m *recordingTaskBridgeSessionManager) BindNetworkPeer(
-	_ context.Context,
-	sessionID string,
-	spec participation.Spec,
-	ownerKey string,
-) error {
-	m.bindCalls = append(m.bindCalls, taskBridgeNetworkBindCall{
-		sessionID: sessionID,
-		spec:      spec,
-		ownerKey:  ownerKey,
-	})
-	return nil
-}
-
-func (m *recordingTaskBridgeSessionManager) RestoreNetworkPeer(
-	_ context.Context,
-	sessionID string,
-) error {
-	m.restoreCalls = append(m.restoreCalls, sessionID)
-	return nil
-}
-
 func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -1452,142 +1257,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		}
 	})
 
-	t.Run("Should pass sandbox ref selection to session creation", func(t *testing.T) {
-		t.Parallel()
-
-		sessions := &fakeSessionManager{}
-		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
-		if err != nil {
-			t.Fatalf("newTaskSessionBridge() error = %v", err)
-		}
-
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
-			Task: taskpkg.Task{
-				ID:          "task-sandbox-ref",
-				Scope:       taskpkg.ScopeWorkspace,
-				WorkspaceID: "ws-profile",
-				Title:       "Sandbox Ref Task",
-			},
-			Run: taskpkg.Run{
-				ID:       "run-sandbox-ref",
-				TaskID:   "task-sandbox-ref",
-				Status:   taskpkg.TaskRunStatusStarting,
-				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
-				QueuedAt: time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC),
-			},
-			ExecutionProfile: &taskpkg.ExecutionProfile{
-				TaskID: "task-sandbox-ref",
-				Sandbox: taskpkg.SandboxPolicy{
-					Mode:       taskpkg.SandboxModeRef,
-					SandboxRef: "task-runtime",
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("StartTaskSession() error = %v", err)
-		}
-		createCall := sessions.createCall(0)
-		if got, want := createCall.SandboxRef, "task-runtime"; got != want {
-			t.Fatalf("createCall.SandboxRef = %q, want %q", got, want)
-		}
-		if createCall.DisableSandbox {
-			t.Fatal("createCall.DisableSandbox = true, want false")
-		}
-	})
-
-	t.Run("Should pass no sandbox selection to session creation", func(t *testing.T) {
-		t.Parallel()
-
-		sessions := &fakeSessionManager{}
-		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
-		if err != nil {
-			t.Fatalf("newTaskSessionBridge() error = %v", err)
-		}
-
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
-			Task: taskpkg.Task{
-				ID:          "task-sandbox-none",
-				Scope:       taskpkg.ScopeWorkspace,
-				WorkspaceID: "ws-profile",
-				Title:       "Sandbox None Task",
-			},
-			Run: taskpkg.Run{
-				ID:       "run-sandbox-none",
-				TaskID:   "task-sandbox-none",
-				Status:   taskpkg.TaskRunStatusStarting,
-				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
-				QueuedAt: time.Date(2026, 5, 5, 12, 5, 0, 0, time.UTC),
-			},
-			ExecutionProfile: &taskpkg.ExecutionProfile{
-				TaskID: "task-sandbox-none",
-				Sandbox: taskpkg.SandboxPolicy{
-					Mode: taskpkg.SandboxModeNone,
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("StartTaskSession() error = %v", err)
-		}
-		createCall := sessions.createCall(0)
-		if !createCall.DisableSandbox {
-			t.Fatal("createCall.DisableSandbox = false, want true")
-		}
-		if got := createCall.SandboxRef; got != "" {
-			t.Fatalf("createCall.SandboxRef = %q, want empty", got)
-		}
-	})
-
-	t.Run("Should grant evidence permissions only with an explicit sandbox ref", func(t *testing.T) {
-		t.Parallel()
-
-		sessions := &fakeSessionManager{}
-		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
-		if err != nil {
-			t.Fatalf("newTaskSessionBridge() error = %v", err)
-		}
-
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
-			Task: taskpkg.Task{
-				ID:          "task-evidence-sandbox",
-				Scope:       taskpkg.ScopeWorkspace,
-				WorkspaceID: "ws-profile",
-				Title:       "Evidence Sandbox Task",
-			},
-			Run: taskpkg.Run{
-				ID:       "run-evidence-sandbox",
-				TaskID:   "task-evidence-sandbox",
-				Status:   taskpkg.TaskRunStatusStarting,
-				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
-				QueuedAt: time.Date(2026, 5, 5, 12, 20, 0, 0, time.UTC),
-			},
-			ExecutionProfile: &taskpkg.ExecutionProfile{
-				TaskID: "task-evidence-sandbox",
-				Sandbox: taskpkg.SandboxPolicy{
-					Mode:       taskpkg.SandboxModeRef,
-					SandboxRef: "evidence-lab",
-				},
-				Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
-			},
-		})
-		if err != nil {
-			t.Fatalf("StartTaskSession() error = %v", err)
-		}
-		createCall := sessions.createCall(0)
-		if got, want := createCall.Permissions, compozyconfig.PermissionModeApproveAll; got != want {
-			t.Fatalf("createCall.Permissions = %q, want %q", got, want)
-		}
-		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
-			t.Fatalf("createCall.SandboxRef = %q, want %q", got, want)
-		}
-		if !strings.Contains(createCall.PromptOverlay, "Runtime evidence mode is enabled") {
-			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", createCall.PromptOverlay)
-		}
-	})
-
-	t.Run("Should keep configured permissions when evidence runtime does not select a sandbox", func(t *testing.T) {
+	t.Run("Should preserve configured permissions in evidence runtime", func(t *testing.T) {
 		t.Parallel()
 
 		sessions := &fakeSessionManager{}
@@ -1623,7 +1293,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if got := createCall.Permissions; got == compozyconfig.PermissionModeApproveAll {
 			t.Fatalf("createCall.Permissions = %q, want configured permission fallback", got)
 		}
-		if !strings.Contains(createCall.PromptOverlay, "Compozy keeps the configured permission mode") {
+		if !strings.Contains(createCall.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing permission boundary guidance:\n%s", createCall.PromptOverlay)
 		}
 	})
@@ -2743,9 +2413,9 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 	}
 	state := &bootState{
 		cfg: compozyconfig.Config{
-			Network: compozyconfig.DefaultNetworkConfig(),
-			Task:    compozyconfig.DefaultTaskConfig(),
-			Loops:   compozyconfig.DefaultLoopsConfig(),
+
+			Task:  compozyconfig.DefaultTaskConfig(),
+			Loops: compozyconfig.DefaultLoopsConfig(),
 		},
 		logger:   discardLogger(),
 		registry: db,
@@ -3090,31 +2760,15 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("InsertWorkspace(global) error = %v", err)
 	}
-	if err := db.CreateNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
-		ProfileID: store.DefaultProfileID, WorkspaceID: "global", Channel: "builders",
-		Purpose: "Boot recovery fixture", FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("CreateNetworkChannel(builders) error = %v", err)
-	}
-	for _, sessionID := range []string{"sess-wake-live", "sess-wake-sender"} {
-		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
-			ProfileID: store.DefaultProfileID, ID: sessionID, AgentName: "coder", Provider: "test",
-			WorkspaceID: "global", State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
-			RuntimeStatus: store.SessionRuntimeUnbound,
-		}); err != nil {
-			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
-		}
-	}
+
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:                   "sess-live",
-				Type:                 session.SessionTypeSystem,
-				State:                session.StateActive,
-				WorkspaceID:          "global",
-				Workspace:            homePaths.HomeDir,
-				NetworkParticipation: daemonTestLiveParticipation("global", "builders"),
+				ID:          "sess-live",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "global",
+				Workspace:   homePaths.HomeDir,
 			},
 		},
 	}
@@ -3152,74 +2806,15 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if _, err := seedManager.AttachRunSession(context.Background(), runRecord.ID, "sess-live", seedActor); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
-	const wakeRunID = "run-wake-boot-recovery"
-	acceptance := networkWakeIntegrationAcceptance(t, now)
-	acceptance.Message.MessageID = "message-wake-boot-recovery"
-	acceptance.Message.SessionID = "sess-wake-sender"
-	acceptance.Message.WorkspaceID = "global"
-	acceptance.Message.PeerFrom = "sess-wake-sender"
-	acceptance.Message.PeerTo = "sess-wake-live"
-	directID, _, _, err := store.NetworkDirectRoomIdentity(
-		"global",
-		acceptance.Message.Channel,
-		"sess-wake-sender",
-		"sess-wake-live",
-	)
-	if err != nil {
-		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
-	}
-	acceptance.Message.DirectID = directID
-	acceptance.Dispositions[0].RecipientSessionID = "sess-wake-live"
-	acceptance.Admissions[0].WorkspaceID = "global"
-	acceptance.Admissions[0].RecipientSessionID = "sess-wake-live"
-	acceptance.Admissions[0].OwnerKey = "session:sess-wake-live"
-	acceptance.Admissions[0].Spec.WorkspaceID = "global"
-	acceptance.Admissions[0].Spec.Bounds.MaxWakes = 2
-	acceptance.Admissions[0].Spec.Bounds.MaxTotalWallTime = "2s"
-	acceptance.Admissions[0].WakeID = "wake-boot-recovery"
-	acceptance.Admissions[0].TaskRunID = wakeRunID
-	wantWakeParticipation := acceptance.Admissions[0].Spec
-	acceptedWake, err := db.AcceptNetworkMessage(context.Background(), &acceptance)
-	if err != nil {
-		t.Fatalf("AcceptNetworkMessage(network wake) error = %v", err)
-	}
-	if got, want := len(acceptedWake.Notify), 1; got != want {
-		t.Fatalf("len(AcceptNetworkMessage(network wake).Notify) = %d, want %d", got, want)
-	}
-	wakeActor, err := taskpkg.DeriveAgentSessionActorContext("sess-wake-live", "global")
-	if err != nil {
-		t.Fatalf("DeriveAgentSessionActorContext(network wake) error = %v", err)
-	}
-	wakeClaim, err := seedManager.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
-		RunID: wakeRunID, RunKind: taskpkg.RunKindNetworkWake,
-		Scope: taskpkg.ScopeWorkspace, WorkspaceID: "global",
-		TargetSessionID: "sess-wake-live", ClaimerSessionID: "sess-wake-live",
-	}, wakeActor)
-	if err != nil {
-		t.Fatalf("ClaimNextRun(network wake) error = %v", err)
-	}
-	recoveryActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
-	if err != nil {
-		t.Fatalf("DeriveDaemonActorContext(network wake recovery) error = %v", err)
-	}
-	if _, err := seedManager.RecoverRunOnBoot(context.Background(), wakeClaim.Run.ID, taskpkg.RunBootRecovery{
-		Action:         taskpkg.RunBootRecoveryMarkRunning,
-		Reason:         "scheduler boot fixture",
-		SessionState:   "active",
-		Classification: "live",
-	}, recoveryActor); err != nil {
-		t.Fatalf("RecoverRunOnBoot(running network wake) error = %v", err)
-	}
-
 	daemon := &Daemon{
 		homePaths: homePaths,
 		readyCh:   make(chan struct{}),
 	}
 	state := &bootState{
 		cfg: compozyconfig.Config{
-			Network: compozyconfig.DefaultNetworkConfig(),
-			Task:    compozyconfig.DefaultTaskConfig(),
-			Loops:   compozyconfig.DefaultLoopsConfig(),
+
+			Task:  compozyconfig.DefaultTaskConfig(),
+			Loops: compozyconfig.DefaultLoopsConfig(),
 		},
 		logger:   discardLogger(),
 		registry: db,
@@ -3253,79 +2848,6 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	}
 	if got, want := recoveredRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("recovered run status = %q, want %q", got, want)
-	}
-	recoveredWake, err := db.GetTaskRun(context.Background(), wakeRunID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(recovered network wake) error = %v", err)
-	}
-	if recoveredWake.Status != taskpkg.TaskRunStatusQueued || recoveredWake.TaskID != "" ||
-		recoveredWake.SessionID != "" || recoveredWake.ClaimTokenHash != "" {
-		t.Fatalf("recovered network wake = %#v, want taskless queued run", recoveredWake)
-	}
-	if got := recoveredWake.NetworkSpecSnapshot(); got != wantWakeParticipation {
-		t.Fatalf("recovered network wake participation = %#v, want %#v", got, wantWakeParticipation)
-	}
-	wakeID, targetSessionID, ownerKey := recoveredWake.NetworkWakeCorrelation()
-	if wakeID != "wake-boot-recovery" || targetSessionID != "sess-wake-live" || ownerKey != "session:sess-wake-live" {
-		t.Fatalf(
-			"recovered network wake correlation = (%q, %q, %q), want exact admission tuple",
-			wakeID,
-			targetSessionID,
-			ownerKey,
-		)
-	}
-
-	missingRecipientPrompter := &networkWakePrompterStub{
-		resume: func(context.Context, string, int) (*session.Session, error) {
-			return nil, session.ErrSessionNotFound
-		},
-	}
-	wakeRunner, err := newNetworkWakeRunner(
-		state.tasks.manager,
-		missingRecipientPrompter,
-		db,
-		nil,
-		1,
-	)
-	if err != nil {
-		t.Fatalf("newNetworkWakeRunner() error = %v", err)
-	}
-	if _, err := wakeRunner.processNotification(
-		context.Background(),
-		wakeActor,
-		acceptedWake.Notify[0],
-	); !errors.Is(
-		err,
-		session.ErrSessionNotFound,
-	) {
-		t.Fatalf("processNotification(missing recipient) error = %v, want %v", err, session.ErrSessionNotFound)
-	}
-	settledWake, err := db.GetTaskRun(context.Background(), wakeRunID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(settled network wake) error = %v", err)
-	}
-	if settledWake.Status != taskpkg.TaskRunStatusFailed || !settledWake.LeaseUntil.IsZero() {
-		t.Fatalf("settled network wake = %#v, want failed terminal run with no active lease", settledWake)
-	}
-
-	followUp := acceptance
-	followUp.Message.MessageID = "message-wake-after-boot-recovery"
-	followUp.Message.Text = "Verify the recovered wake released its reservation"
-	followUp.Message.PreviewText = followUp.Message.Text
-	followUp.Message.Body = []byte(`{"text":"Verify the recovered wake released its reservation"}`)
-	followUp.Message.Timestamp = now.Add(time.Second)
-	followUp.Admissions[0].RootID = followUp.Message.MessageID
-	followUp.Admissions[0].WakeID = "wake-after-boot-recovery"
-	followUp.Admissions[0].TaskRunID = "run-wake-after-boot-recovery"
-	followUpResult, err := db.AcceptNetworkMessage(context.Background(), &followUp)
-	if err != nil {
-		t.Fatalf("AcceptNetworkMessage(after boot recovery) error = %v", err)
-	}
-	if got := len(followUpResult.Admitted); got != 0 {
-		t.Fatalf("len(AcceptNetworkMessage(after boot recovery).Admitted) = %d, want 0", got)
-	}
-	if got := followUpResult.Skipped; len(got) != 1 || got[0].Reason != store.NetworkWakeSkipBudgetExhausted {
-		t.Fatalf("AcceptNetworkMessage(after boot recovery).Skipped = %#v, want conservative budget exhaustion", got)
 	}
 }
 
@@ -3504,22 +3026,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:                   "sess-owner",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-owner",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 		{
-			ID:                   "sess-wake",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-wake",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 	}
 
@@ -3530,7 +3050,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		WorkspaceID:    workspace.ID,
 		Summary:        "Workspace detached audit",
 		Description:    "Review the queued harness work.",
-		TurnSource:     session.TurnSourceNetwork,
+		TurnSource:     session.TurnSourceUser,
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -3608,7 +3128,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		Kind:                 harnessDetachedTaskMetadataKey,
 		SubmissionKey:        "detached-work-1",
 		Summary:              "Workspace detached audit",
-		SubmissionTurnSource: string(session.TurnSourceNetwork),
+		SubmissionTurnSource: string(session.TurnSourceUser),
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
@@ -3647,7 +3167,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		Kind:                 harnessDetachedRunMetadataKey,
 		SubmissionKey:        "detached-work-1",
 		Summary:              "Workspace detached audit",
-		SubmissionTurnSource: string(session.TurnSourceNetwork),
+		SubmissionTurnSource: string(session.TurnSourceUser),
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
@@ -3686,20 +3206,18 @@ func TestTaskRuntimeDetachedHarnessSubmissionValidationErrors(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:                   "sess-owner",
-				Type:                 session.SessionTypeSystem,
-				State:                session.StateActive,
-				WorkspaceID:          "ws-owner",
-				Workspace:            "/tmp/ws-owner",
-				NetworkParticipation: daemonTestLiveParticipation("ws-owner", "builders"),
+				ID:          "sess-owner",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "ws-owner",
+				Workspace:   "/tmp/ws-owner",
 			},
 			{
-				ID:                   "sess-other-workspace",
-				Type:                 session.SessionTypeSystem,
-				State:                session.StateActive,
-				WorkspaceID:          "ws-other",
-				Workspace:            "/tmp/ws-other",
-				NetworkParticipation: daemonTestLiveParticipation("ws-other", "builders"),
+				ID:          "sess-other-workspace",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "ws-other",
+				Workspace:   "/tmp/ws-other",
 			},
 		},
 	}
@@ -3809,31 +3327,28 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:                   "sess-owner",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-owner",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 		{
-			ID:                   "sess-wake",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-wake",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 		{
-			ID:                   "sess-runtime",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-runtime",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 	}
 
@@ -3906,40 +3421,36 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 
 	ownerInfo := &session.Info{
-		ID:                   "sess-owner",
-		ProfileID:            store.DefaultProfileID,
-		Type:                 session.SessionTypeSystem,
-		State:                session.StateActive,
-		WorkspaceID:          workspace.ID,
-		Workspace:            workspace.RootDir,
-		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+		ID:          "sess-owner",
+		ProfileID:   store.DefaultProfileID,
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
 	}
 	wakeInfo := &session.Info{
-		ID:                   "sess-wake",
-		ProfileID:            store.DefaultProfileID,
-		Type:                 session.SessionTypeSystem,
-		State:                session.StateActive,
-		WorkspaceID:          workspace.ID,
-		Workspace:            workspace.RootDir,
-		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+		ID:          "sess-wake",
+		ProfileID:   store.DefaultProfileID,
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
 	}
 	liveInfo := &session.Info{
-		ID:                   "sess-live",
-		ProfileID:            store.DefaultProfileID,
-		Type:                 session.SessionTypeSystem,
-		State:                session.StateActive,
-		WorkspaceID:          workspace.ID,
-		Workspace:            workspace.RootDir,
-		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+		ID:          "sess-live",
+		ProfileID:   store.DefaultProfileID,
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
 	}
 	failedInfo := &session.Info{
-		ID:                   "sess-fail",
-		ProfileID:            store.DefaultProfileID,
-		Type:                 session.SessionTypeSystem,
-		State:                session.StateActive,
-		WorkspaceID:          workspace.ID,
-		Workspace:            workspace.RootDir,
-		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+		ID:          "sess-fail",
+		ProfileID:   store.DefaultProfileID,
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
 	}
 	sessions.infos = []*session.Info{ownerInfo, wakeInfo, liveInfo, failedInfo}
 
@@ -4012,9 +3523,6 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("requeued run status = %q, want %q", got, want)
 	}
-	if got, want := requeuedRun.NetworkSpec, participation.LocalSpec(); got != want {
-		t.Fatalf("requeued run NetworkSpec = %#v, want %#v", got, want)
-	}
 
 	markedRun, err := runtime.store.GetTaskRun(context.Background(), markSubmission.Run.ID)
 	if err != nil {
@@ -4023,9 +3531,6 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("marked run status = %q, want %q", got, want)
 	}
-	if got, want := markedRun.NetworkSpec, participation.LocalSpec(); got != want {
-		t.Fatalf("marked run NetworkSpec = %#v, want %#v", got, want)
-	}
 
 	failedRun, err := runtime.store.GetTaskRun(context.Background(), failSubmission.Run.ID)
 	if err != nil {
@@ -4033,9 +3538,6 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	}
 	if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
 		t.Fatalf("failed run status = %q, want %q", got, want)
-	}
-	if got, want := failedRun.NetworkSpec, participation.LocalSpec(); got != want {
-		t.Fatalf("failed run NetworkSpec = %#v, want %#v", got, want)
 	}
 }
 
@@ -4111,22 +3613,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:                   "sess-owner",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-owner",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 		{
-			ID:                   "sess-wake",
-			ProfileID:            store.DefaultProfileID,
-			Type:                 session.SessionTypeSystem,
-			State:                session.StateActive,
-			WorkspaceID:          workspace.ID,
-			Workspace:            workspace.RootDir,
-			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
+			ID:          "sess-wake",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
 		},
 	}
 
@@ -5406,7 +4906,7 @@ func newDetachedHarnessTaskRuntimeForTest(
 			CreatedAt:     time.Now().UTC(),
 			UpdatedAt:     time.Now().UTC(),
 		}
-		storedInfo.SetNetworkSpec(info.NetworkParticipation)
+
 		if err := db.RegisterSession(testutil.Context(t), storedInfo); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}

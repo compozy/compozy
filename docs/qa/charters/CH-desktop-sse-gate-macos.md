@@ -25,7 +25,7 @@ charter:
     teardown: "eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every terminal path; cite teardown.json \"clean\": true (L-029)"
   guidance:
     must_try:
-      - "Open the most stream-heavy screens (live session follow, runs watch, network/home dashboards) with multiple live producers; hold for a continuous 10-minute window."
+      - "Open the most stream-heavy screens (live session follow, runs watch, Home dashboard) with multiple live producers; hold for a continuous 10-minute window."
       - "Measure the per-origin concurrent SSE/WS connection profile (daemon-side connection accounting + app logs) and record it into the release evidence — this number is the shipped truth for WKWebView."
       - "Assert UI liveness through the window: no starved stream, no dead pane, no silently stopped updates; interact mid-window (scroll, switch screens, return) and confirm streams survive."
       - "Record verdict as a release-gate result (pass/fail + profile), not a scenario verdict — this charter settles no tracker scenario; its evidence lands in the run report and release record."

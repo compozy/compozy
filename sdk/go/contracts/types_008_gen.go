@@ -2,175 +2,185 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
-type DeliveryAckOutcome string
-
-type DeliveryErrorDetail struct {
-	Message string `json:"message"`
+type ExtensionToolWorkspaceScope struct {
+	ID   string `json:"id"`
+	Root string `json:"root"`
 }
 
-type DeliveryEvent struct {
-	DeliveryID       string                    `json:"delivery_id"`
-	BridgeInstanceID string                    `json:"bridge_instance_id"`
-	RoutingKey       RoutingKey                `json:"routing_key"`
-	DeliveryTarget   DeliveryTarget            `json:"delivery_target"`
-	Seq              int64                     `json:"seq"`
-	EventType        DeliveryEventType         `json:"event_type"`
-	Content          MessageContent            `json:"content"`
-	Final            bool                      `json:"final"`
-	Operation        DeliveryOperation         `json:"operation,omitempty"`
-	Reference        *DeliveryMessageReference `json:"reference,omitempty"`
-	Error            *DeliveryErrorDetail      `json:"error,omitempty"`
-	Resume           *DeliveryResumeState      `json:"resume,omitempty"`
-	Progress         *ToolProgress             `json:"progress,omitempty"`
-	ProviderMetadata json.RawMessage           `json:"provider_metadata,omitempty"`
+type ExtensionValidatePayload struct {
+	Status       string                         `json:"status"`
+	Format       string                         `json:"format"`
+	Name         string                         `json:"name,omitempty"`
+	Version      string                         `json:"version,omitempty"`
+	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
+	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
+	Issues       []ValidationIssue              `json:"issues"`
+	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
 }
 
-type DeliveryEventType string
-
-type DeliveryMessageReference struct {
-	DeliveryID      string `json:"delivery_id,omitempty"`
-	RemoteMessageID string `json:"remote_message_id,omitempty"`
+type ExtensionValidationComponent struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Transport string `json:"transport,omitempty"`
 }
 
-type DeliveryMode string
-
-type DeliveryOperation string
-
-type DeliveryRequest struct {
-	Event    DeliveryEvent     `json:"event"`
-	Snapshot *DeliverySnapshot `json:"snapshot,omitempty"`
+type FailureHealth struct {
+	Status string                 `json:"status"`
+	Total  int                    `json:"total"`
+	ByKind map[FailureKind]int    `json:"by_kind,omitempty"`
+	Recent []SessionFailureHealth `json:"recent,omitempty"`
 }
 
-type DeliveryResumeState struct {
-	LatestEventType DeliveryEventType `json:"latest_event_type"`
+type FailureKind string
+
+type FireLimitConfig struct {
+	Max    int    `json:"max"`
+	Window string `json:"window"`
 }
 
-type DeliverySnapshot struct {
-	DeliveryID             string                    `json:"delivery_id"`
-	SessionID              string                    `json:"session_id"`
-	TurnID                 string                    `json:"turn_id"`
-	BridgeInstanceID       string                    `json:"bridge_instance_id"`
-	RoutingKey             RoutingKey                `json:"routing_key"`
-	DeliveryTarget         DeliveryTarget            `json:"delivery_target"`
-	LatestSeq              int64                     `json:"latest_seq"`
-	LatestEventType        DeliveryEventType         `json:"latest_event_type"`
-	CurrentContent         MessageContent            `json:"current_content"`
-	Operation              DeliveryOperation         `json:"operation,omitempty"`
-	Reference              *DeliveryMessageReference `json:"reference,omitempty"`
-	ProviderMetadata       json.RawMessage           `json:"provider_metadata,omitempty"`
-	LastSentSeq            int64                     `json:"last_sent_seq,omitempty"`
-	LastAckedSeq           int64                     `json:"last_acked_seq,omitempty"`
-	RemoteMessageID        string                    `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string                    `json:"replace_remote_message_id,omitempty"`
-	Final                  bool                      `json:"final"`
-	Error                  string                    `json:"error,omitempty"`
-	UpdatedAt              time.Time                 `json:"updated_at"`
+type ForgeCapabilitiesRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
 }
 
-type DeliveryTarget struct {
-	BridgeInstanceID string       `json:"bridge_instance_id"`
-	PeerID           string       `json:"peer_id,omitempty"`
-	ThreadID         string       `json:"thread_id,omitempty"`
-	GroupID          string       `json:"group_id,omitempty"`
-	Mode             DeliveryMode `json:"mode,omitempty"`
+type ForgeCapabilitiesResponse struct {
+	Served             bool     `json:"served"`
+	Available          bool     `json:"available"`
+	Winner             string   `json:"winner,omitempty"`
+	Provider           string   `json:"provider,omitempty"`
+	ServedRemote       string   `json:"served_remote,omitempty"`
+	RequestNoun        string   `json:"request_noun,omitempty"`
+	OpenActionLabel    string   `json:"open_action_label,omitempty"`
+	ViewActionLabel    string   `json:"view_action_label,omitempty"`
+	SupportsDraft      bool     `json:"supports_draft,omitempty"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	Cause              string   `json:"cause,omitempty"`
 }
 
-type DependencyKind string
-
-type DescribeHookEvent struct {
-	Event   HookEvent `json:"event"`
-	Profile string    `json:"profile,omitempty"`
+type ForgePRCreateRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Head       string   `json:"head"`
+	Base       string   `json:"base"`
+	Title      string   `json:"title"`
+	Body       string   `json:"body,omitempty"`
+	Draft      bool     `json:"draft,omitempty"`
 }
 
-type DescribeNetworkParticipation struct {
-	Required      bool     `json:"required"`
-	Mode          string   `json:"mode"`
-	ChannelScopes []string `json:"channel_scopes,omitempty"`
+type ForgePRCreateResponse struct {
+	Status string `json:"status"`
+	Number int    `json:"number,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Cause  string `json:"cause,omitempty"`
 }
 
-type DescribePayload struct {
-	Name                 string                           `json:"name"`
-	Version              string                           `json:"version"`
-	Description          string                           `json:"description,omitempty"`
-	Provides             []string                         `json:"provides"`
-	Permissions          []string                         `json:"permissions"`
-	RequiresEnv          []string                         `json:"requires_env,omitempty"`
-	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
-	Resources            DescribeResources                `json:"resources"`
-	Subprocess           DescribeSubprocess               `json:"subprocess"`
-	NetworkParticipation *DescribeNetworkParticipation    `json:"network_participation,omitempty"`
-	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents           []DescribeHookEvent              `json:"hook_events,omitempty"`
-	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                         `json:"cmd_palette_views,omitempty"`
-	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
-	SDK                  DescribeSDKInfo                  `json:"sdk"`
+type ForgeStatusRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Branch     string   `json:"branch"`
 }
 
-type DescribeProfile struct {
-	Name        string                      `json:"name"`
-	Color       string                      `json:"color,omitempty"`
-	Icon        string                      `json:"icon,omitempty"`
-	Emoji       string                      `json:"emoji,omitempty"`
-	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
-	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
+type ForgeStatusResponse struct {
+	Provider  string    `json:"provider"`
+	PRNumber  *int      `json:"pr_number,omitempty"`
+	PRState   *string   `json:"pr_state,omitempty"`
+	PRURL     string    `json:"pr_url,omitempty"`
+	Merged    *bool     `json:"merged,omitempty"`
+	FetchedAt time.Time `json:"fetched_at"`
+	Cause     string    `json:"cause,omitempty"`
 }
 
-type DescribeProfileCredential struct {
-	Provider string `json:"provider"`
-	Slot     string `json:"slot"`
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
 }
 
-type DescribeProfileDefaults struct {
-	Agent    string `json:"agent,omitempty"`
-	Provider string `json:"provider,omitempty"`
-	Sandbox  string `json:"sandbox,omitempty"`
+type FormField struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Label       string            `json:"label"`
+	Placeholder string            `json:"placeholder,omitempty"`
+	Required    bool              `json:"required,omitempty"`
+	Options     []string          `json:"options,omitempty"`
+	Directories bool              `json:"directories,omitempty"`
+	Default     any               `json:"default,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	EmptyHint   string            `json:"empty_hint,omitempty"`
+	OnChange    string            `json:"on_change,omitempty"`
+	OnBlur      string            `json:"on_blur,omitempty"`
+	EventCount  int64             `json:"event_count,omitempty"`
+	Requires    map[string]string `json:"requires,omitempty"`
+	Fallback    string            `json:"fallback,omitempty"`
 }
 
-type DescribeResourcePath struct {
-	Path    string `json:"path"`
-	Profile string `json:"profile,omitempty"`
+type GatewayIngressPayload struct {
+	SubjectKind                 string     `json:"subject_kind"`
+	SubjectID                   string     `json:"subject_id"`
+	ScopeKind                   string     `json:"scope_kind"`
+	WorkspaceID                 string     `json:"workspace_id,omitempty"`
+	URL                         string     `json:"url,omitempty"`
+	Reachability                string     `json:"reachability"`
+	EndpointGeneration          uint64     `json:"endpoint_generation"`
+	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
+	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
+	EnablePath                  string     `json:"enable_path,omitempty"`
 }
 
-type DescribeResources struct {
-	Skills     []DescribeResourcePath `json:"skills,omitempty"`
-	Loops      []DescribeResourcePath `json:"loops,omitempty"`
-	Agents     []DescribeResourcePath `json:"agents,omitempty"`
-	Automation []DescribeResourcePath `json:"automation,omitempty"`
-	Layouts    []DescribeResourcePath `json:"layouts,omitempty"`
-	CmdPalette CmdPaletteConfig       `json:"cmd_palette,omitzero"`
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
 }
 
-type DescribeSDKInfo struct {
-	Name              string `json:"name"`
-	Version           string `json:"version"`
-	ProtocolVersion   string `json:"protocol_version"`
-	MinCompozyVersion string `json:"min_compozy_version"`
+type GridSection struct {
+	Title string     `json:"title,omitempty"`
+	Tiles []GridTile `json:"tiles"`
 }
 
-type DescribeSubprocess struct {
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
+type GridTile struct {
+	ID       string            `json:"id"`
+	Title    string            `json:"title"`
+	Image    Image             `json:"image"`
+	Badge    *ViewBadge        `json:"badge,omitempty"`
+	Actions  []RowAction       `json:"actions,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
 }
 
-type DetailBody struct {
-	IsLoading bool        `json:"is_loading,omitempty"`
-	Markdown  string      `json:"markdown,omitempty"`
-	Metadata  []MetaField `json:"metadata,omitempty"`
-	Actions   []RowAction `json:"actions,omitempty"`
+type HeartbeatActorKind string
+
+type HeartbeatActorPayload struct {
+	Kind HeartbeatActorKind `json:"kind"`
+	Ref  string             `json:"ref,omitempty"`
 }
 
-type Disposition string
+type HeartbeatConfigProvenancePayload struct {
+	Digest string                       `json:"digest"`
+	Subset HeartbeatConfigSubsetPayload `json:"subset"`
+}
 
-const (
-	DispositionDirect       Disposition = "direct"
-	DispositionSteering     Disposition = "steering"
-	DispositionQueued       Disposition = "queued"
-	DispositionInterrupting Disposition = "interrupting"
-)
+type HeartbeatConfigSubsetPayload struct {
+	Enabled                      bool   `json:"enabled"`
+	MaxBodyBytes                 int64  `json:"max_body_bytes"`
+	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
+	MinInterval                  string `json:"min_interval"`
+	DefaultInterval              string `json:"default_interval"`
+	WakeCooldown                 string `json:"wake_cooldown"`
+	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool   `json:"active_session_only"`
+	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
+	WakeEventRetention           string `json:"wake_event_retention"`
+	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
+	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
+}
+
+type HeartbeatContextProjectionPayload struct {
+	Include []string `json:"include,omitempty"`
+}
+
+type HeartbeatDeleteRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	ExpectedDigest string `json:"expected_digest"`
+}

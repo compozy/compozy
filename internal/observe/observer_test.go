@@ -14,10 +14,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1291,7 +1290,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 			SessionID: sess.ID,
 			Type:      "harness.context_resolved",
 			AgentName: sess.AgentName,
-			Summary:   "surface=startup sections=memory|skills|network",
+			Summary:   "surface=startup sections=memory|skills|tools",
 			Timestamp: base,
 		},
 		{
@@ -1299,7 +1298,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 			SessionID: sess.ID,
 			Type:      "harness.section_selected",
 			AgentName: sess.AgentName,
-			Summary:   "selected=memory|skills|network count=3",
+			Summary:   "selected=memory|skills|tools count=3",
 			Timestamp: base.Add(time.Second),
 		},
 		{
@@ -1665,7 +1664,6 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 type harness struct {
 	observer    *Observer
 	registry    *globaldb.GlobalDB
-	bridges     *observeBridgeSource
 	home        compozyconfig.HomePaths
 	source      *stubSessionSource
 	now         time.Time
@@ -1726,11 +1724,6 @@ func (r listSessionsFailingRegistry) ListSessions(
 	return nil, errors.New("registry fallback disabled")
 }
 
-type observeBridgeSource struct {
-	*bridgepkg.Service
-	broker *bridgepkg.Broker
-}
-
 func (s *stubSessionSource) List() []*session.Info {
 	return s.sessions
 }
@@ -1743,37 +1736,6 @@ func (s *stubMemoryEventSource) ListMemoryEventSummaries(
 	s.workspaces = append([]string(nil), workspaces...)
 	s.query = query
 	return append([]store.EventSummary(nil), s.events...), nil
-}
-
-func (s *observeBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
-	if s == nil || s.broker == nil {
-		return nil
-	}
-	return s.broker.DeliveryMetrics()
-}
-
-func (s *observeBridgeSource) DeliveryMetricsFor(
-	bridgeInstanceIDs []string,
-) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
-	if s == nil || s.broker == nil {
-		return nil, nil
-	}
-	return s.broker.DeliveryMetricsFor(bridgeInstanceIDs)
-}
-
-func (s *observeBridgeSource) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	counts := make(map[string]int, len(bridgeInstanceIDs))
-	for _, bridgeInstanceID := range bridgeInstanceIDs {
-		routes, err := s.ListRoutes(ctx, bridgeInstanceID)
-		if err != nil {
-			return nil, err
-		}
-		counts[bridgeInstanceID] = len(routes)
-	}
-	return counts, nil
 }
 
 func newHarness(t *testing.T) *harness {
@@ -1803,11 +1765,6 @@ func newHarness(t *testing.T) *harness {
 
 	now := time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)
 	source := &stubSessionSource{}
-	bridges := &observeBridgeSource{
-		Service: bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return now })),
-		broker:  bridgepkg.NewBroker(nil, bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now })),
-	}
-	t.Cleanup(bridges.broker.Close)
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
@@ -1843,7 +1800,6 @@ func newHarness(t *testing.T) *harness {
 		WithRegistry(registry),
 		WithHomePaths(home),
 		WithSessionSource(source),
-		WithBridgeSource(bridges),
 		WithWorkspaceResolver(workspaceResolver),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithNow(func() time.Time { return now.Add(time.Hour) }),
@@ -1859,7 +1815,6 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		observer:    observer,
 		registry:    registry,
-		bridges:     bridges,
 		home:        home,
 		source:      source,
 		now:         now,
@@ -1923,7 +1878,6 @@ func newSession(id string, state session.State, workspace string, now time.Time)
 		Provider:             "claude",
 		EffectivePermissions: "approve-all",
 		RuntimeStatus:        session.RuntimeStatusReady,
-		NetworkParticipation: participation.LocalSpec(),
 		WorkspaceID:          observerWorkspaceID,
 		Workspace:            workspace,
 		State:                state,

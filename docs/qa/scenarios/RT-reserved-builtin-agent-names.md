@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-08-02-bundles-removal.md
-overlaps: RT-081;MS-inspect-background-role-routing
+overlaps: RT-081; MS-inspect-background-role-routing
 ---
 
 QA impact 2026-07-23: builtin identities are newly reserved across every authoring surface. Planning flag only; the next QA cycle owns the real-user rejection sweep.

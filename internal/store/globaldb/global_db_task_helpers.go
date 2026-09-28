@@ -110,13 +110,6 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	wakeID, targetSessionID, ownerKey := normalized.NetworkWakeCorrelation()
-	normalized.SetNetworkState(
-		normalized.NetworkSpecSnapshot(),
-		wakeID,
-		targetSessionID,
-		ownerKey,
-	)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	resolvedWorktreeMode := normalized.ResolvedWorktreeModeValue().Normalize()
 	if resolvedWorktreeMode == "" {
@@ -262,7 +255,6 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 	normalized.Status = normalized.Status.Normalize()
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
-	normalized.ParticipationChannel = strings.TrimSpace(normalized.ParticipationChannel)
 	return normalized
 }
 

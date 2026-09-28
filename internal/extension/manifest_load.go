@@ -110,31 +110,6 @@ func (m *Manifest) validateModelSourceCapability() error {
 	return nil
 }
 
-func (m *Manifest) validateBridgeAdapterCapability() error {
-	if !providesCapability(m.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
-		return nil
-	}
-	if err := requireField("bridge.platform", m.Bridge.Platform); err != nil {
-		return err
-	}
-	if err := requireField("bridge.display_name", m.Bridge.DisplayName); err != nil {
-		return err
-	}
-	if err := validateBridgeSecretSlots(m.Bridge.SecretSlots); err != nil {
-		return err
-	}
-	if m.Bridge.ConfigSchema == nil {
-		return nil
-	}
-	if err := m.Bridge.ConfigSchema.Validate(); err != nil {
-		return &ManifestValidationError{
-			Field:   "bridge.config_schema",
-			Message: err.Error(),
-		}
-	}
-	return nil
-}
-
 // IsZero reports whether the duration is unset.
 func (d Duration) IsZero() bool {
 	return time.Duration(d) == 0

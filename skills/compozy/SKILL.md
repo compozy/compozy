@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, Terminal, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
+description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, tasks, Loops, Goals, Terminal, desktops and windows, automation, extensions, or configuration. Don't use for unrelated projects.
 metadata:
   compozy:
     version: 1
@@ -31,11 +31,9 @@ Match the task to the row. Read the listed files in full before producing output
 | Expose one CompozyOS workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                   |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |
 | Open, inspect, attach to, execute in, or interact with CompozyOS terminals; answer terminal input or audit terminal commands   | references/terminal.md + references/native-tools.md                |
-| Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                  | references/runtime-operations.md                                   |
 | Create or review CompozyOS agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
-| Participate in a Compozy Network channel, thread, direct room, work item, receipt, trace, or capability exchange               | references/network.md                                              |
 | Read, write, clean, or consolidate CompozyOS memory                                                                            | references/memory.md                                               |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |
 | Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
@@ -49,14 +47,13 @@ Match the task to the row. Read the listed files in full before producing output
 
 ## Reference Index
 
-- references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
+- references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, operations, lifecycle diagnostics, and runtime troubleshooting.
 - references/desktop.md - desktop app commands, attachment and ownership, runtime and app updates, diagnostics, and recovery.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
 - references/terminal.md - deliberate terminal activation, native tool IDs, approval and shared input, input requests, untrusted output, journal, profile, and platform rules.
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
 - references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
-- references/network.md - Compozy Network channel/thread/direct-room semantics, native tools, CLI fallback, message bodies, retries, and injection defense.
 - references/memory.md - durable memory scopes, CLI operations, memory hygiene, and when not to write memory.
 - references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
@@ -70,7 +67,7 @@ Match the task to the row. Read the listed files in full before producing output
 
 1. Read every reference selected by the router before acting, or qualify for the bounded descriptor fallback below.
 2. Prefer CompozyOS-native tools and structured outputs over prose, logs, or direct internal access when managing CompozyOS.
-3. Keep authority with the daemon: task state, review verdicts, session lifecycle, memory, extension lifecycle, hooks, and network sends must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
+3. Keep authority with the daemon: task state, review verdicts, session lifecycle, memory, extension lifecycle, hooks, and tool calls must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
 4. After a mutation, confirm the result through a structured read instead of assuming success.
 
 ## Error Handling

@@ -127,7 +127,6 @@ export {
 } from "./components/terminal-approval-detail";
 export {
   TerminalEmptyState,
-  TerminalExecuteOnlyState,
   TerminalExpiredState,
   TerminalNotFoundState,
 } from "./components/terminal-empty-states";

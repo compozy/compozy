@@ -3,7 +3,6 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,8 +18,6 @@ import (
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/notifications"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -440,45 +437,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "ShouldDescribeBridgeProfileContracts",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
 
-				for _, path := range []string{
-					"/api/bridges",
-					"/api/bridges/{id}",
-					"/api/bridges/{id}/routes",
-					"/api/bridges/{id}/targets",
-					"/api/bridges/health/stream",
-				} {
-					operation := operationFor(t, doc, path, http.MethodGet)
-					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
-					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
-				}
-				resolveTarget := operationFor(t, doc, "/api/bridges/{id}/resolve", http.MethodPost)
-				assertParameter(t, resolveTarget, "profile", openapi3.ParameterInQuery, false)
-				assertParameter(t, resolveTarget, "all_profiles", openapi3.ParameterInQuery, false)
-
-				create := operationFor(t, doc, "/api/bridges", http.MethodPost)
-				assertParameter(t, create, "profile", openapi3.ParameterInQuery, false)
-				assertParameterAbsent(t, create, "all_profiles", openapi3.ParameterInQuery)
-
-				for _, endpoint := range []struct {
-					path   string
-					method string
-				}{
-					{path: "/api/bridges/{id}", method: http.MethodPatch},
-					{path: "/api/bridges/{id}/enable", method: http.MethodPost},
-					{path: "/api/bridges/{id}/disable", method: http.MethodPost},
-					{path: "/api/bridges/{id}/restart", method: http.MethodPost},
-				} {
-					operation := operationFor(t, doc, endpoint.path, endpoint.method)
-					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
-					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
-				}
-			},
-		},
 		{
 			name: "ShouldDescribeAutomationProfileContracts",
 			check: func(t *testing.T, doc *openapi3.T) {
@@ -523,7 +482,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeSessionAndNetworkProfileContracts",
+			name: "ShouldDescribeSessionProfileContracts",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
@@ -532,32 +491,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					method string
 				}{
 					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}", method: http.MethodGet},
-					{path: "/api/workspaces/{workspace_id}/network/peers/{peer_id}", method: http.MethodGet},
-					{path: "/api/workspaces/{workspace_id}/network/channels", method: http.MethodGet},
-					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}", method: http.MethodGet},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
-						method: http.MethodGet,
-					},
-					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/threads", method: http.MethodGet},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
-						method: http.MethodGet,
-					},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages",
-						method: http.MethodGet,
-					},
-					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/directs", method: http.MethodGet},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}",
-						method: http.MethodGet,
-					},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages",
-						method: http.MethodGet,
-					},
-					{path: "/api/workspaces/{workspace_id}/network/work/{work_id}", method: http.MethodGet},
 				}
 				for _, endpoint := range profileReads {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)
@@ -568,26 +501,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				profileMutations := []struct {
 					path   string
 					method string
-				}{
-					{path: "/api/workspaces/{workspace_id}/network/channels", method: http.MethodPost},
-					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}", method: http.MethodPatch},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
-						method: http.MethodPut,
-					},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
-						method: http.MethodDelete,
-					},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
-						method: http.MethodPost,
-					},
-					{
-						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve",
-						method: http.MethodPost,
-					},
-				}
+				}{}
 				for _, endpoint := range profileMutations {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
@@ -967,94 +881,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, historyOperation, "limit", openapi3.ParameterInQuery, false)
 			},
 		},
-		{
-			name: "ShouldDescribeNetworkSubscriptionFilters",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
 
-				listSubscriptions := operationFor(
-					t,
-					doc,
-					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
-					"GET",
-				)
-				assertParameter(t, listSubscriptions, "session_id", openapi3.ParameterInQuery, false)
-				assertParameter(t, listSubscriptions, "thread_id", openapi3.ParameterInQuery, false)
-				assertParameter(t, listSubscriptions, "limit", openapi3.ParameterInQuery, false)
-			},
-		},
-		{
-			name: "Should describe the network send conversation contract",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
-
-				send := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/send", "POST")
-				request := jsonRequestSchema(t, send)
-				assertSchemaHasAdditionalProperties(t, request, false)
-				assertEnumValues(
-					t,
-					propertySchema(t, request, "kind"),
-					"greet",
-					"whois",
-					"say",
-					"capability",
-					"receipt",
-					"trace",
-				)
-				assertEnumValues(t, propertySchema(t, request, "surface"), "thread", "direct")
-
-				threadID := propertySchema(t, request, "thread_id")
-				const threadIDPattern = `^thread_[a-z0-9][a-z0-9_-]{2,95}$`
-				if threadID.Pattern != threadIDPattern {
-					t.Fatalf("network send thread_id pattern = %q, want %q", threadID.Pattern, threadIDPattern)
-				}
-				if !strings.Contains(threadID.Description, "first valid send creates the public thread") {
-					t.Fatalf(
-						"network send thread_id description = %q, want implicit-create contract",
-						threadID.Description,
-					)
-				}
-				directID := propertySchema(t, request, "direct_id")
-				const directIDPattern = `^direct_[a-f0-9]{32}$`
-				if directID.Pattern != directIDPattern {
-					t.Fatalf("network send direct_id pattern = %q, want %q", directID.Pattern, directIDPattern)
-				}
-				body := propertySchema(t, request, "body")
-				assertSchemaIncludesType(t, body, openapi3.TypeObject)
-				if !strings.Contains(body.Description, "say requires a non-empty text field") {
-					t.Fatalf("network send body description = %q, want say body contract", body.Description)
-				}
-				workID := propertySchema(t, request, "work_id")
-				if !strings.Contains(workID.Description, "Required for capability, receipt, and trace") {
-					t.Fatalf("network send work_id description = %q, want required-kind contract", workID.Description)
-				}
-				target := propertySchema(t, request, "to")
-				if !strings.Contains(target.Description, "Required for capability and for say carrying work_id") {
-					t.Fatalf("network send to description = %q, want lifecycle target contract", target.Description)
-				}
-				if !strings.Contains(request.Description, "greet and whois omit conversation and work fields") {
-					t.Fatalf(
-						"network send request description = %q, want discovery omission contract",
-						request.Description,
-					)
-				}
-
-				upsertSubscription := operationFor(
-					t,
-					doc,
-					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
-					"PUT",
-				)
-				assertSchemaHasAdditionalProperties(t, jsonRequestSchema(t, upsertSubscription), false)
-				promoteThread := operationFor(
-					t,
-					doc,
-					"/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
-					"POST",
-				)
-				assertSchemaHasAdditionalProperties(t, jsonRequestSchema(t, promoteThread), false)
-			},
-		},
 		{
 			name: "ShouldDescribeCreateSessionOptionalFields",
 			check: func(t *testing.T, doc *openapi3.T) {
@@ -1651,272 +1478,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, disableSkill, "for_agent", openapi3.ParameterInQuery, false)
 			},
 		},
-		{
-			name: "ShouldDescribeBridgeCreateRequiredFieldsAndEnums",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
 
-				createBridge := operationFor(t, doc, "/api/bridges", "POST")
-				createBridgeSchema := jsonRequestSchema(t, createBridge)
-				assertRequired(
-					t,
-					createBridgeSchema,
-					"scope",
-					"platform",
-					"extension_name",
-					"display_name",
-					"enabled",
-					"routing_policy",
-				)
-				assertNotRequired(
-					t,
-					createBridgeSchema,
-					"workspace_id",
-					"dm_policy",
-					"provider_config",
-					"delivery_defaults",
-				)
-				assertEnumValues(t, propertySchema(t, createBridgeSchema, "scope"), "global", "workspace")
-				assertEnumValues(t, propertySchema(t, createBridgeSchema, "dm_policy"), "open", "allowlist", "pairing")
-
-				providerConfigSchema := propertySchema(t, createBridgeSchema, "provider_config")
-				assertSchemaIncludesType(t, providerConfigSchema, openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, providerConfigSchema, true)
-
-				deliveryDefaultsSchema := propertySchema(t, createBridgeSchema, "delivery_defaults")
-				assertSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, true)
-				assertAdditionalPropertiesSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeString)
-				if got := deliveryDefaultsSchema.Extensions[openapiTSWidenAdditionalPropertiesExtension]; got != true {
-					t.Fatalf(
-						"delivery defaults %s = %#v, want true",
-						openapiTSWidenAdditionalPropertiesExtension,
-						got,
-					)
-				}
-				assertEnumValues(t, propertySchema(t, deliveryDefaultsSchema, "mode"), "direct-send", "reply")
-
-				progressSchema := propertySchema(t, deliveryDefaultsSchema, "progress")
-				assertRequired(t, progressSchema, "tool_progress", "grouping")
-				assertNotRequired(t, progressSchema, "typing", "reactions")
-				assertSchemaHasAdditionalProperties(t, progressSchema, false)
-				assertEnumValues(t, propertySchema(t, progressSchema, "tool_progress"), "off", "new", "all", "verbose")
-				assertEnumValues(t, propertySchema(t, progressSchema, "grouping"), "accumulate", "separate")
-				assertSchemaIncludesType(t, propertySchema(t, progressSchema, "typing"), openapi3.TypeBoolean)
-				assertSchemaIncludesType(t, propertySchema(t, progressSchema, "reactions"), openapi3.TypeBoolean)
-
-				updateBridge := operationFor(t, doc, "/api/bridges/{id}", "PATCH")
-				updateDefaultsSchema := propertySchema(t, jsonRequestSchema(t, updateBridge), "delivery_defaults")
-				updateProgressSchema := propertySchema(t, updateDefaultsSchema, "progress")
-				assertEnumValues(
-					t,
-					propertySchema(t, updateProgressSchema, "tool_progress"),
-					"off",
-					"new",
-					"all",
-					"verbose",
-				)
-			},
-		},
-		{
-			name: "ShouldDescribeBridgeTestDeliveryTypedTargetShape",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
-
-				testDelivery := operationFor(t, doc, "/api/bridges/{id}/test-delivery", "POST")
-				testDeliverySchema := jsonRequestSchema(t, testDelivery)
-				assertRequired(t, testDeliverySchema, "target")
-				assertNotRequired(t, testDeliverySchema, "message")
-
-				targetSchema := propertySchema(t, testDeliverySchema, "target")
-				assertNotRequired(t, targetSchema, "bridge_instance_id", "peer_id", "thread_id", "group_id", "mode")
-				assertEnumValues(t, propertySchema(t, targetSchema, "mode"), "direct-send", "reply")
-
-				responseSchema := jsonResponseSchema(t, testDelivery, 200)
-				assertRequired(t, responseSchema, "status", "delivery_target")
-			},
-		},
-		{
-			name: "ShouldDescribeBridgeProvidersAndHealthTelemetry",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
-
-				listBridges := operationFor(t, doc, "/api/bridges", "GET")
-				assertParameter(t, listBridges, "scope", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "workspace_id", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "workspace", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "q", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "platform", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "status", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "sort", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "cursor", openapi3.ParameterInQuery, false)
-				assertParameter(t, listBridges, "limit", openapi3.ParameterInQuery, false)
-				listSchema := jsonResponseSchema(t, listBridges, 200)
-				assertRequired(t, listSchema, "bridges", "bridge_health", "facets", "page")
-				streamHealth := operationFor(t, doc, "/api/bridges/health/stream", "GET")
-				assertParameter(t, streamHealth, "bridge_ids", openapi3.ParameterInQuery, true)
-
-				providers := operationFor(t, doc, "/api/bridges/providers", "GET")
-				providersSchema := jsonResponseSchema(t, providers, 200)
-				assertRequired(t, providersSchema, "providers")
-
-				providerItems := propertySchema(t, providersSchema, "providers")
-				if providerItems.Items == nil || providerItems.Items.Value == nil {
-					t.Fatal("expected providers to define an items schema")
-				}
-				providerSchema := providerItems.Items.Value
-				assertRequired(
-					t,
-					providerSchema,
-					"platform",
-					"extension_name",
-					"display_name",
-					"enabled",
-					"state",
-					"health",
-				)
-				assertNotRequired(t, providerSchema, "description", "health_message", "secret_slots", "config_schema")
-
-				getBridge := operationFor(t, doc, "/api/bridges/{id}", "GET")
-				getBridgeSchema := jsonResponseSchema(t, getBridge, 200)
-				bridgeSchema := propertySchema(t, getBridgeSchema, "bridge")
-				assertEnumValues(t, propertySchema(t, bridgeSchema, "dm_policy"), "open", "allowlist", "pairing")
-				assertEnumValues(t, propertySchema(t, bridgeSchema, "source"), "dynamic", "package")
-				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "provider_config"), openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "provider_config"), true)
-				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "delivery_defaults"), openapi3.TypeObject)
-				bridgeDefaultsSchema := propertySchema(t, bridgeSchema, "delivery_defaults")
-				assertSchemaHasAdditionalProperties(t, bridgeDefaultsSchema, true)
-				assertAdditionalPropertiesSchemaIncludesType(t, bridgeDefaultsSchema, openapi3.TypeString)
-
-				healthSchema := propertySchema(t, getBridgeSchema, "health")
-				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at", "degradation")
-				assertEnumValues(t, propertySchema(t, propertySchema(t, healthSchema, "degradation"), "reason"),
-					"auth_failed",
-					"rate_limited",
-					"webhook_invalid",
-					"provider_timeout",
-					"tenant_config_invalid",
-				)
-				diagnosticsSchema := propertySchema(t, healthSchema, "diagnostics")
-				if diagnosticsSchema.Items == nil || diagnosticsSchema.Items.Value == nil {
-					t.Fatal("expected bridge diagnostics to define an items schema")
-				}
-				diagnosticSchema := diagnosticsSchema.Items.Value
-				assertRequired(t, diagnosticSchema, "kind", "severity", "source", "message")
-				assertEnumValues(t, propertySchema(t, diagnosticSchema, "kind"),
-					"unknown_destination",
-					"missing_token",
-					"permission_denied",
-					"unsupported_capability",
-					"transient_delivery_failure",
-				)
-				assertEnumValues(t, propertySchema(t, diagnosticSchema, "severity"), "info", "warning", "error")
-			},
-		},
-		{
-			name: "Should describe the Slack manifest route and typed artifact",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
-
-				operation := operationFor(t, doc, "/api/bridges/providers/slack/manifest", "GET")
-				assertParameter(t, operation, "instance", openapi3.ParameterInQuery, true)
-				responseSchema := jsonResponseSchema(t, operation, 200)
-				assertRequired(t, responseSchema, "manifest")
-				manifestSchema := propertySchema(t, responseSchema, "manifest")
-				assertRequired(
-					t,
-					manifestSchema,
-					"_metadata",
-					"display_information",
-					"features",
-					"oauth_config",
-					"settings",
-				)
-				settingsSchema := propertySchema(t, manifestSchema, "settings")
-				assertRequired(
-					t,
-					settingsSchema,
-					"event_subscriptions",
-					"interactivity",
-					"org_deploy_enabled",
-					"socket_mode_enabled",
-					"token_rotation_enabled",
-				)
-				assertSchemaIncludesType(
-					t,
-					propertySchema(t, settingsSchema, "socket_mode_enabled"),
-					openapi3.TypeBoolean,
-				)
-			},
-		},
-		{
-			name: "ShouldDescribeTypedBridgeControlRoutesAndResponses",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
-
-				verify := operationFor(t, doc, "/api/bridges/{id}/verify", "POST")
-				verifySchema := jsonResponseSchema(t, verify, http.StatusOK)
-				assertRequired(t, verifySchema, "bridge_instance_id", "checks")
-				checksSchema := propertySchema(t, verifySchema, "checks")
-				if checksSchema.Items == nil || checksSchema.Items.Value == nil {
-					t.Fatal("expected verify checks to define an items schema")
-				}
-				checkSchema := checksSchema.Items.Value
-				assertRequired(t, checkSchema, "check", "status", "remediation")
-				assertEnumValues(
-					t,
-					propertySchema(t, checkSchema, "status"),
-					"pass",
-					"warn",
-					"fail",
-					"skipped",
-				)
-				assertRequired(t, jsonResponseSchema(t, verify, http.StatusServiceUnavailable), "error")
-
-				sendTest := operationFor(t, doc, "/api/bridges/{id}/send-test", "POST")
-				sendTestRequest := jsonRequestSchema(t, sendTest)
-				assertRequired(t, sendTestRequest, "message", "target")
-				targetSchema := propertySchema(t, sendTestRequest, "target")
-				assertNotRequired(t, targetSchema, "peer_id", "thread_id", "group_id", "mode")
-				assertEnumValues(t, propertySchema(t, targetSchema, "mode"), "direct-send", "reply")
-				sendTestResponse := jsonResponseSchema(t, sendTest, http.StatusOK)
-				assertRequired(
-					t,
-					sendTestResponse,
-					"status",
-					"bridge_instance_id",
-					"delivery_id",
-					"delivery_target",
-				)
-				assertNotRequired(t, sendTestResponse, "remote_message_id", "error")
-				assertEnumValues(
-					t,
-					propertySchema(t, sendTestResponse, "status"),
-					"delivered",
-					"committed_result_unavailable",
-				)
-				assertRequired(t, propertySchema(t, sendTestResponse, "error"), "message")
-				assertRequired(t, jsonResponseSchema(t, sendTest, http.StatusBadRequest), "error")
-
-				registerWebhook := operationFor(t, doc, "/api/bridges/{id}/webhook/register", "POST")
-				registerSchema := jsonResponseSchema(t, registerWebhook, http.StatusOK)
-				assertRequired(t, registerSchema, "bridge_instance_id", "status", "remediation")
-				assertEnumValues(
-					t,
-					propertySchema(t, registerSchema, "status"),
-					"pass",
-					"warn",
-					"fail",
-					"skipped",
-				)
-				assertRequired(
-					t,
-					jsonResponseSchema(t, registerWebhook, http.StatusServiceUnavailable),
-					"error",
-				)
-			},
-		},
 		{
 			name: "ShouldDescribeToolRegistryContractsAndRoutes",
 			check: func(t *testing.T, doc *openapi3.T) {
@@ -1997,7 +1559,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					propertySchema(t, propertySchema(t, descriptorSchema, "backend"), "kind"),
-					"bridge",
 					"extension_host",
 					"mcp",
 					"native_go",
@@ -2121,46 +1682,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, propertySchema(t, toolsetResponse, "toolset"), "id", "status")
 			},
 		},
-		{
-			name: "ShouldDescribeBridgeSecretBindingContracts",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
 
-				listBindings := operationFor(t, doc, "/api/bridges/{id}/secret-bindings", "GET")
-				assertParameter(t, listBindings, "id", openapi3.ParameterInPath, true)
-				listBindingsSchema := jsonResponseSchema(t, listBindings, 200)
-				assertRequired(t, listBindingsSchema, "bindings")
-
-				bindingsSchema := propertySchema(t, listBindingsSchema, "bindings")
-				if bindingsSchema.Items == nil || bindingsSchema.Items.Value == nil {
-					t.Fatal("expected bindings to define an items schema")
-				}
-				bindingSchema := bindingsSchema.Items.Value
-				assertRequired(
-					t,
-					bindingSchema,
-					"bridge_instance_id",
-					"binding_name",
-					"secret_ref",
-					"kind",
-					"created_at",
-					"updated_at",
-				)
-
-				putBinding := operationFor(t, doc, "/api/bridges/{id}/secret-bindings/{binding_name}", "PUT")
-				assertParameter(t, putBinding, "id", openapi3.ParameterInPath, true)
-				assertParameter(t, putBinding, "binding_name", openapi3.ParameterInPath, true)
-				putBindingSchema := jsonRequestSchema(t, putBinding)
-				assertRequired(t, putBindingSchema, "secret_ref", "kind")
-
-				putBindingResponseSchema := jsonResponseSchema(t, putBinding, 200)
-				assertRequired(t, putBindingResponseSchema, "binding")
-
-				deleteBinding := operationFor(t, doc, "/api/bridges/{id}/secret-bindings/{binding_name}", "DELETE")
-				assertParameter(t, deleteBinding, "id", openapi3.ParameterInPath, true)
-				assertParameter(t, deleteBinding, "binding_name", openapi3.ParameterInPath, true)
-			},
-		},
 		{
 			name: "ShouldRegisterExpandedTaskAndObserveOperations",
 			check: func(t *testing.T, doc *openapi3.T) {
@@ -2182,10 +1704,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks/{id}/execution-profile", method: "PUT"},
 					{path: "/api/tasks/{id}/execution-profile/worktree", method: "PATCH"},
 					{path: "/api/tasks/{id}/execution-profile", method: "DELETE"},
-					{path: "/api/tasks/{id}/notifications/bridges", method: "POST"},
-					{path: "/api/tasks/{id}/notifications/bridges", method: "GET"},
-					{path: "/api/tasks/{id}/notifications/bridges/{subscription_id}", method: "GET"},
-					{path: "/api/tasks/{id}/notifications/bridges/{subscription_id}", method: "DELETE"},
+
 					{path: "/api/tasks/{id}/reviews", method: "GET"},
 					{path: "/api/tasks/{id}/publish", method: "POST"},
 					{path: "/api/tasks/{id}/start", method: "POST"},
@@ -2258,10 +1777,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}{
 					{path: "/api/agent/me", method: "GET"},
 					{path: "/api/agent/context", method: "GET"},
-					{path: "/api/agent/channels", method: "GET"},
-					{path: "/api/agent/channels/{channel}/recv", method: "GET"},
-					{path: "/api/agent/channels/{channel}/send", method: "POST"},
-					{path: "/api/agent/channels/reply", method: "POST"},
+
 					{path: "/api/agent/tasks/claim-next", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/start", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/heartbeat", method: "POST"},
@@ -2310,33 +1826,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"workspace",
 					"session",
 					"task",
-					"coordination_channel",
-					"inbox_summary",
-					"peer_roster",
 					"capabilities",
 					"limits",
 					"provenance",
-				)
-
-				channelContext := propertySchema(t, contextPayload, "coordination_channel")
-				assertRequired(t, channelContext, "available")
-				assertNotRequired(t, channelContext, "channel")
-				channelSchema := propertySchema(t, channelContext, "channel")
-				assertRequired(t, channelSchema, "id", "display_name", "allowed_message_kinds")
-				kindsSchema := propertySchema(t, channelSchema, "allowed_message_kinds")
-				if kindsSchema.Items == nil || kindsSchema.Items.Value == nil {
-					t.Fatal("allowed_message_kinds should define item schema")
-				}
-				assertEnumValues(
-					t,
-					kindsSchema.Items.Value,
-					"status",
-					"request",
-					"reply",
-					"blocker",
-					"handoff",
-					"result",
-					"review_request",
 				)
 
 				claimOperation := operationFor(t, doc, "/api/agent/tasks/claim-next", "POST")
@@ -2359,7 +1851,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 				leaseSchema := propertySchema(t, claimPayload, "lease")
 				assertRequired(t, leaseSchema, "task_id", "run_id", "status")
-				assertNotRequired(t, leaseSchema, "claim_token_hash", "coordination_channel")
+				assertNotRequired(t, leaseSchema, "claim_token_hash")
 
 				startOperation := operationFor(t, doc, "/api/agent/tasks/{run_id}/start", "POST")
 				assertParameter(t, startOperation, "run_id", openapi3.ParameterInPath, true)
@@ -2375,35 +1867,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, heartbeatSchema, "lease_seconds")
 				if _, exists := heartbeatSchema.Properties["claim_token"]; exists {
 					t.Fatalf("agent heartbeat schema exposes raw claim_token")
-				}
-
-				sendOperation := operationFor(t, doc, "/api/agent/channels/{channel}/send", "POST")
-				assertParameter(t, sendOperation, "channel", openapi3.ParameterInPath, true)
-				sendSchema := jsonRequestSchema(t, sendOperation)
-				assertRequired(t, sendSchema, "body", "metadata")
-				metadataSchema := propertySchema(t, sendSchema, "metadata")
-				assertRequired(
-					t,
-					metadataSchema,
-					"task_id",
-					"run_id",
-					"channel_id",
-					"message_kind",
-					"correlation_id",
-				)
-				assertEnumValues(
-					t,
-					propertySchema(t, metadataSchema, "message_kind"),
-					"status",
-					"request",
-					"reply",
-					"blocker",
-					"handoff",
-					"result",
-					"review_request",
-				)
-				if _, exists := metadataSchema.Properties["claim_token"]; exists {
-					t.Fatalf("coordination metadata schema exposes raw claim_token")
 				}
 
 				spawnOperation := operationFor(t, doc, "/api/agent/spawn", "POST")
@@ -2459,7 +1922,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"id",
 					"identifier",
 					"workspace",
-					"network_participation",
 					"description",
 					"priority",
 					"max_attempts",
@@ -2503,7 +1965,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.OwnerKindAgentSession),
 					string(taskpkg.OwnerKindAutomation),
 					string(taskpkg.OwnerKindExtension),
-					string(taskpkg.OwnerKindNetworkPeer),
 					string(taskpkg.OwnerKindPool),
 				)
 				assertEnumValues(t, propertySchema(t, propertySchema(t, taskSchema, "created_by"), "kind"),
@@ -2511,7 +1972,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.ActorKindAgentSession),
 					string(taskpkg.ActorKindAutomation),
 					string(taskpkg.ActorKindExtension),
-					string(taskpkg.ActorKindNetworkPeer),
 					string(taskpkg.ActorKindDaemon),
 				)
 				assertEnumValues(t, propertySchema(t, propertySchema(t, taskSchema, "origin"), "kind"),
@@ -2521,7 +1981,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.OriginKindHTTP),
 					string(taskpkg.OriginKindAutomation),
 					string(taskpkg.OriginKindExtension),
-					string(taskpkg.OriginKindNetwork),
 					string(taskpkg.OriginKindAgentSession),
 					string(taskpkg.OriginKindDaemon),
 				)
@@ -2583,7 +2042,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listRunSchema := propertySchema(t, listItemSchema, "active_run")
 				for _, field := range []string{
 					"claim_token_hash",
-					"coordination_channel",
 					"designation_group_id",
 					"designation",
 				} {
@@ -2672,7 +2130,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
 				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTaskRuns, "session_id", openapi3.ParameterInQuery, false)
-				assertParameter(t, listTaskRuns, "participation_channel", openapi3.ParameterInQuery, false)
 
 				completeTaskRun := operationFor(t, doc, "/api/task-runs/{id}/complete", "POST")
 				completeTaskRunSchema := jsonRequestSchema(t, completeTaskRun)
@@ -2687,18 +2144,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, getRunSchema, "run")
 				runDetailSchema := propertySchema(t, getRunSchema, "run")
 				assertRequired(t, runDetailSchema, "run", "summary")
-				assertNotRequired(t, runDetailSchema, "task", "session", "network")
-				runNetworkSchema := propertySchema(t, runDetailSchema, "network")
-				assertRequired(t, runNetworkSchema, "conversation", "usage")
-				assertRequired(
-					t,
-					propertySchema(t, runNetworkSchema, "conversation"),
-					"workspace_id",
-					"channel",
-					"surface",
-					"thread_id",
-					"stream_url",
-				)
+				assertNotRequired(t, runDetailSchema, "task", "session")
 
 				runSchema := propertySchema(t, runDetailSchema, "run")
 				assertEnumValues(t, propertySchema(t, runSchema, "status"),
@@ -2718,7 +2164,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.OriginKindHTTP),
 					string(taskpkg.OriginKindAutomation),
 					string(taskpkg.OriginKindExtension),
-					string(taskpkg.OriginKindNetwork),
 					string(taskpkg.OriginKindAgentSession),
 					string(taskpkg.OriginKindDaemon),
 				)
@@ -2740,7 +2185,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				publishTask := operationFor(t, doc, "/api/tasks/{id}/publish", "POST")
 				assertParameter(t, publishTask, "id", openapi3.ParameterInPath, true)
 				publishTaskSchema := jsonRequestSchema(t, publishTask)
-				assertNotRequired(t, publishTaskSchema, "idempotency_key", "network_participation", "metadata")
+				assertNotRequired(t, publishTaskSchema, "idempotency_key", "metadata")
 				publishTaskResponse := jsonResponseSchema(t, publishTask, 200)
 				assertRequired(t, publishTaskResponse, "task", "run")
 				assertResponseStatus(t, publishTask, 409)
@@ -2749,7 +2194,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				startTask := operationFor(t, doc, "/api/tasks/{id}/start", "POST")
 				assertParameter(t, startTask, "id", openapi3.ParameterInPath, true)
 				startTaskSchema := jsonRequestSchema(t, startTask)
-				assertNotRequired(t, startTaskSchema, "idempotency_key", "network_participation", "metadata")
+				assertNotRequired(t, startTaskSchema, "idempotency_key", "metadata")
 				startTaskResponse := jsonResponseSchema(t, startTask, 201)
 				assertRequired(t, startTaskResponse, "task", "run")
 				assertResponseStatus(t, startTask, 409)
@@ -2941,7 +2386,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t.Fatal("approve task request body is required, want optional")
 				}
 				approveSchema := jsonRequestSchema(t, approve)
-				assertNotRequired(t, approveSchema, "idempotency_key", "network_participation", "metadata")
+				assertNotRequired(t, approveSchema, "idempotency_key", "metadata")
 				approveResponse := jsonResponseSchema(t, approve, 201)
 				assertRequired(t, approveResponse, "task", "run")
 				assertResponseStatus(t, approve, 409)
@@ -2954,7 +2399,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, dashboard, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_kind", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_ref", openapi3.ParameterInQuery, false)
-				assertParameter(t, dashboard, "participation_channel", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "origin_kind", openapi3.ParameterInQuery, false)
 				dashboardSchema := jsonResponseSchema(t, dashboard, 200)
 				assertRequired(t, dashboardSchema, "dashboard")
@@ -3003,7 +2447,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				inboxRunSchema := propertySchema(t, inboxItemSchema, "run")
 				for _, field := range []string{
 					"claim_token_hash",
-					"coordination_channel",
 					"designation_group_id",
 					"designation",
 				} {
@@ -3135,11 +2578,6 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
 		{name: "ToolSource", typ: tools.ToolSourceBuiltin},
 		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("memory.read")},
-		{name: "ParticipationMode", typ: participation.ModeLive},
-		{name: "ParticipationChannelStrategy", typ: participation.StrategyNamed},
-		{name: "ParticipationSource", typ: participation.SourceExplicitRequest},
-		{name: "ParticipationOwnerKind", typ: participation.OwnerKindTaskRun},
-		{name: "NotificationScopeKind", typ: notifications.ScopeKindGlobal},
 	}
 
 	for _, tt := range tests {
@@ -3155,18 +2593,6 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Should close notification scope kinds to the durable ownership values", func(t *testing.T) {
-		t.Parallel()
-
-		schema := openapi3.NewStringSchema()
-		if err := schemaCustomizer("", reflect.TypeFor[notifications.ScopeKind](), "", schema); err != nil {
-			t.Fatalf("schemaCustomizer() error = %v", err)
-		}
-		if got, want := schema.Enum, []any{"global", "workspace"}; !reflect.DeepEqual(got, want) {
-			t.Fatalf("notification scope enum = %v, want %v", got, want)
-		}
-	})
 }
 
 func TestStopWhenSpecSchemaShouldMatchTheDualWireFormat(t *testing.T) {
@@ -3221,224 +2647,6 @@ func TestExtensionAuthoringComponentSchemas(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestParticipationSchemaCustomizerRepresentsRuntimeVariants(t *testing.T) {
-	t.Parallel()
-
-	requestSchema := openapi3.NewObjectSchema()
-	customizeParticipationRequestSchema(requestSchema)
-	if got, want := len(requestSchema.OneOf), 4; got != want {
-		t.Fatalf("participation request oneOf branches = %d, want %d", got, want)
-	}
-	requestCases := []struct {
-		name      string
-		payload   string
-		wantValid bool
-	}{
-		{name: "Should accept omitted Local intent", payload: `{}`, wantValid: true},
-		{name: "Should accept explicit Local intent", payload: `{"mode":"local"}`, wantValid: true},
-		{
-			name: "Should accept bounded named Live intent",
-			payload: `{
-				"mode":"live",
-				"channel_strategy":"named",
-				"channel_id":"builders",
-				"bounds":{"max_wakes":2,"max_input_tokens":1024}
-			}`,
-			wantValid: true,
-		},
-		{
-			name:      "Should accept derived run intent without channel",
-			payload:   `{"mode":"live","channel_strategy":"run"}`,
-			wantValid: true,
-		},
-		{
-			name:      "Should accept derived Loop run intent without channel",
-			payload:   `{"mode":"live","channel_strategy":"loop_run"}`,
-			wantValid: true,
-		},
-		{name: "Should reject Local channel data", payload: `{"mode":"local","channel_id":"builders"}`},
-		{name: "Should reject Live without strategy", payload: `{"mode":"live"}`},
-		{name: "Should reject named without channel", payload: `{"mode":"live","channel_strategy":"named"}`},
-		{
-			name:    "Should reject derived strategy with channel",
-			payload: `{"mode":"live","channel_strategy":"run","channel_id":"builders"}`,
-		},
-		{
-			name:    "Should reject invalid named channel",
-			payload: `{"mode":"live","channel_strategy":"named","channel_id":"Invalid channel"}`,
-		},
-		{
-			name:    "Should reject nonpositive bounds",
-			payload: `{"mode":"live","channel_strategy":"run","bounds":{"max_wakes":0}}`,
-		},
-		{name: "Should reject unknown participation fields", payload: `{"mode":"local","legacy":true}`},
-	}
-	for _, testCase := range requestCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			assertOpenAPISchemaJSONValidity(t, requestSchema, testCase.payload, testCase.wantValid)
-		})
-	}
-
-	specSchema := openapi3.NewObjectSchema()
-	customizeParticipationSpecSchema(specSchema)
-	if got, want := len(specSchema.OneOf), 2; got != want {
-		t.Fatalf("participation spec oneOf branches = %d, want %d", got, want)
-	}
-	liveSpec := `{
-		"version":"network-participation/v1",
-		"mode":"live",
-		"workspace_id":"ws-alpha",
-		"channel_strategy":"named",
-		"channel_id":"builders",
-		"source":"explicit_request",
-		"bounds":{
-			"max_wakes":2,
-			"max_wake_wall_time":"30s",
-			"max_total_wall_time":"2m",
-			"max_input_tokens":4096,
-			"max_output_tokens":2048,
-			"max_wake_depth":2,
-			"coalesce_window":"250ms"
-		}
-	}`
-	assertOpenAPISchemaJSONValidity(
-		t,
-		specSchema,
-		`{"version":"network-participation/v1","mode":"local","source":"built_in_local"}`,
-		true,
-	)
-	assertOpenAPISchemaJSONValidity(t, specSchema, liveSpec, true)
-	assertOpenAPISchemaJSONValidity(
-		t,
-		specSchema,
-		`{"version":"network-participation/v1","mode":"local","source":"built_in_local","bounds":{}}`,
-		false,
-	)
-	assertOpenAPISchemaJSONValidity(
-		t,
-		specSchema,
-		`{"version":"network-participation/v1","mode":"live","workspace_id":"ws-alpha","channel_strategy":"run","channel_id":"run-1","source":"explicit_request"}`,
-		false,
-	)
-}
-
-func TestNetworkCoordinationMutationSchemaMatchesRuntimeValidation(t *testing.T) {
-	t.Parallel()
-
-	doc, err := Document()
-	if err != nil {
-		t.Fatalf("Document() error = %v", err)
-	}
-
-	tests := []struct {
-		name             string
-		operationID      string
-		mutationProperty string
-	}{
-		{
-			name:             "Should describe coordination setting variants",
-			operationID:      "putNetworkCoordination",
-			mutationProperty: "enabled",
-		},
-		{
-			name:             "Should describe invitation variants",
-			operationID:      "putNetworkCoordinationInvitation",
-			mutationProperty: "dismissed",
-		},
-	}
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			var operation *openapi3.Operation
-			for _, candidate := range doc.Paths.Map() {
-				for _, method := range []string{http.MethodPut} {
-					if current := candidate.GetOperation(method); current != nil &&
-						current.OperationID == testCase.operationID {
-						operation = current
-					}
-				}
-			}
-			if operation == nil {
-				t.Fatalf("missing operation %q", testCase.operationID)
-			}
-
-			schema := jsonRequestSchema(t, operation)
-			if got, want := len(schema.OneOf), 2; got != want {
-				t.Fatalf("coordination request oneOf branches = %d, want %d", got, want)
-			}
-			assertOpenAPISchemaJSONValidity(
-				t,
-				schema,
-				fmt.Sprintf(`{"scope":"workspace",%q:true,"expected_revision":0}`, testCase.mutationProperty),
-				true,
-			)
-			assertOpenAPISchemaJSONValidity(
-				t,
-				schema,
-				fmt.Sprintf(
-					`{"scope":"task","task_id":"task-1",%q:false,"expected_revision":2}`,
-					testCase.mutationProperty,
-				),
-				true,
-			)
-			assertOpenAPISchemaJSONValidity(
-				t,
-				schema,
-				fmt.Sprintf(`{"scope":"workspace",%q:null,"expected_revision":0}`, testCase.mutationProperty),
-				false,
-			)
-			assertOpenAPISchemaJSONValidity(
-				t,
-				schema,
-				fmt.Sprintf(
-					`{"scope":"workspace","task_id":"task-1",%q:true,"expected_revision":0}`,
-					testCase.mutationProperty,
-				),
-				false,
-			)
-			assertOpenAPISchemaJSONValidity(
-				t,
-				schema,
-				fmt.Sprintf(`{"scope":"task",%q:true,"expected_revision":0}`, testCase.mutationProperty),
-				false,
-			)
-			assertResponseStatus(t, operation, http.StatusServiceUnavailable)
-		})
-	}
-
-	getCoordination := operationFor(
-		t,
-		doc,
-		"/api/workspaces/{workspace_id}/network-coordination",
-		http.MethodGet,
-	)
-	usage := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/usage", http.MethodGet)
-	assertResponseStatus(t, getCoordination, http.StatusServiceUnavailable)
-	assertResponseStatus(t, usage, http.StatusServiceUnavailable)
-}
-
-func assertOpenAPISchemaJSONValidity(
-	t *testing.T,
-	schema *openapi3.Schema,
-	payload string,
-	wantValid bool,
-) {
-	t.Helper()
-	var value any
-	if err := json.Unmarshal([]byte(payload), &value); err != nil {
-		t.Fatalf("json.Unmarshal(schema payload) error = %v", err)
-	}
-	err := schema.VisitJSON(value)
-	if wantValid && err != nil {
-		t.Fatalf("schema rejected valid payload %s: %v", payload, err)
-	}
-	if !wantValid && err == nil {
-		t.Fatalf("schema accepted invalid payload %s", payload)
-	}
 }
 
 func TestEnumHelpersReturnStableValues(t *testing.T) {
@@ -3526,12 +2734,12 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 		{
 			name: "task actor kind values",
 			got:  taskActorKindValues(),
-			want: []string{"human", "agent_session", "automation", "extension", "network_peer", "daemon"},
+			want: []string{"human", "agent_session", "automation", "extension", "daemon"},
 		},
 		{
 			name: "task owner kind values",
 			got:  taskOwnerKindValues(),
-			want: []string{"human", "agent_session", "automation", "extension", "network_peer", "pool"},
+			want: []string{"human", "agent_session", "automation", "extension", "pool"},
 		},
 		{
 			name: "task origin kind values",
@@ -3543,7 +2751,6 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 				"http",
 				"automation",
 				"extension",
-				"network",
 				"agent_session",
 				"daemon",
 			},
@@ -3591,7 +2798,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 		if !slices.IsSorted(got) {
 			t.Fatalf("values are not sorted: %v", got)
 		}
-		for _, want := range []string{"bridges/messages/ingest", "bridges/instances/get", "bridges/instances/report_state"} {
+		for _, want := range []string{"tasks/runs/complete", "sessions/health/get", "agents/soul/get"} {
 			if !contains(got, want) {
 				t.Fatalf("expected %q in host api method values %v", want, got)
 			}

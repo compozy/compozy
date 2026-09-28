@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -555,12 +554,11 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 	if err := store.WriteSessionMeta(
 		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
 		store.SessionMeta{
-			ID:                   sessionID,
-			AgentName:            "coder",
-			WorkspaceID:          "ws-http-hooks",
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+			ID:            sessionID,
+			AgentName:     "coder",
+			WorkspaceID:   "ws-http-hooks",
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
 		},
 	); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)

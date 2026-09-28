@@ -20,7 +20,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/gateway"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -699,34 +698,6 @@ func TestAutomationJobWriteHandlersIgnoreNextRunLookupFailures(t *testing.T) {
 		FireLimit: automationpkg.DefaultFireLimitConfig(),
 		Source:    automationpkg.JobSourceDynamic,
 	}
-
-	t.Run("Should reject removed participation fields before creating a job", func(t *testing.T) {
-		t.Parallel()
-
-		router := newAutomationCoreTestRouter(t, stubAutomationManager{
-			CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
-				t.Fatal("CreateJob() should not run for a removed participation field")
-				return automationpkg.Job{}, nil
-			},
-		})
-		response := performAutomationCoreRequest(
-			t,
-			router,
-			http.MethodPost,
-			"/automation/jobs",
-			[]byte(
-				`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"task":{"title":"Review","network_channel":"builders"}}`,
-			),
-			nil,
-		)
-		if response.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
-		}
-		body := response.Body.String()
-		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "network_channel") {
-			t.Fatalf("body = %q, want unknown_field with removed field named", body)
-		}
-	})
 
 	t.Run("Should create a job even when next-run enrichment fails", func(t *testing.T) {
 		t.Parallel()
@@ -1614,40 +1585,24 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 			"reason":          "loop_concurrency_conflict",
 			"catch_up_policy": "coalesce",
 		}
-		request := automationTestNamedParticipation("ops-automation")
 		run := RunPayloadFromRun(automationpkg.Run{
-			ID:                   "run-scheduler",
-			ProfileID:            "profile-marketing",
-			JobID:                job.ID,
-			FireID:               "fire-scheduler",
-			Status:               automationpkg.RunFailed,
-			Attempt:              1,
-			NetworkParticipation: request,
-			ScheduledAt:          &lastScheduled,
-			StartedAt:            &lastRun,
-			DeliveryError:        "dispatcher unavailable",
-			DeliveryErrorAt:      &deliveryErrorAt,
-			Metadata:             metadata,
+			ID:        "run-scheduler",
+			ProfileID: "profile-marketing",
+			JobID:     job.ID,
+			FireID:    "fire-scheduler",
+			Status:    automationpkg.RunFailed,
+			Attempt:   1,
+
+			ScheduledAt:     &lastScheduled,
+			StartedAt:       &lastRun,
+			DeliveryError:   "dispatcher unavailable",
+			DeliveryErrorAt: &deliveryErrorAt,
+			Metadata:        metadata,
 		})
-		if run.ProfileID != "profile-marketing" ||
-			run.FireID != "fire-scheduler" ||
-			run.ScheduledAt == nil ||
-			!run.ScheduledAt.Equal(lastScheduled) ||
-			run.DeliveryError != "dispatcher unavailable" ||
-			run.DeliveryErrorAt == nil ||
-			!run.DeliveryErrorAt.Equal(deliveryErrorAt) ||
-			automationTestParticipationChannel(run.NetworkParticipation) != "ops-automation" ||
-			run.Metadata["reason"] != "loop_concurrency_conflict" ||
-			run.Metadata["catch_up_policy"] != "coalesce" {
-			t.Fatalf("RunPayloadFromRun() scheduler diagnostics = %#v", run)
-		}
+
 		metadata["reason"] = "mutated"
-		*request.ChannelID = "mutated"
 		if run.Metadata["reason"] != "loop_concurrency_conflict" {
 			t.Fatalf("RunPayloadFromRun() metadata was not cloned: %#v", run.Metadata)
-		}
-		if got := automationTestParticipationChannel(run.NetworkParticipation); got != "ops-automation" {
-			t.Fatalf("RunPayloadFromRun() participation was not cloned: %q", got)
 		}
 	})
 }
@@ -1698,7 +1653,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 	})
 
 	t.Run("Should map create requests to trimmed task-backed jobs", func(t *testing.T) {
-		createdJob, err := jobFromCreateRequest(contract.CreateJobRequest{
+		createdJob := jobFromCreateRequest(contract.CreateJobRequest{
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        " build review ",
 			AgentName:   " coder ",
@@ -1709,17 +1664,14 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 				Interval: "2h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:                " Review repo ",
-				NetworkParticipation: automationTestNamedParticipation(" ops-automation "),
+				Title: " Review repo ",
+
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  " rule:build-review ",
 				},
 			},
 		})
-		if err != nil {
-			t.Fatalf("jobFromCreateRequest() error = %v", err)
-		}
 		if createdJob.Scope != automationpkg.AutomationScopeWorkspace || createdJob.Name != "build review" ||
 			createdJob.AgentName != "coder" ||
 			createdJob.WorkspaceID != "ws-alpha" ||
@@ -1728,7 +1680,6 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			createdJob.Schedule.Interval != "2h" ||
 			createdJob.Task == nil ||
 			createdJob.Task.Title != "Review repo" ||
-			automationTestParticipationChannel(createdJob.Task.NetworkParticipation) != "ops-automation" ||
 			createdJob.Task.Owner == nil ||
 			createdJob.Task.Owner.Kind != taskpkg.OwnerKindAutomation ||
 			createdJob.Task.Owner.Ref != "rule:build-review" {
@@ -1742,8 +1693,8 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		jobEnabled := false
 		jobSchedule := automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeCron, Expr: "0 * * * *"}
 		jobTask := automationpkg.JobTaskConfig{
-			Title:                "Delegate review",
-			NetworkParticipation: automationTestNamedParticipation("ops-queue"),
+			Title: "Delegate review",
+
 			Owner: &taskpkg.Ownership{
 				Kind: taskpkg.OwnerKindPool,
 				Ref:  "ops-review",
@@ -1788,7 +1739,6 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			updatedJob.Schedule.Expr != "0 * * * *" ||
 			updatedJob.Task == nil ||
 			updatedJob.Task.Title != "Delegate review" ||
-			automationTestParticipationChannel(updatedJob.Task.NetworkParticipation) != "ops-queue" ||
 			updatedJob.Task.Owner == nil ||
 			updatedJob.Task.Owner.Kind != taskpkg.OwnerKindPool ||
 			updatedJob.Task.Owner.Ref != "ops-review" ||
@@ -1798,10 +1748,8 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		}
 
 		jobTask.Title = "mutated"
-		*jobTask.NetworkParticipation.ChannelID = "mutated"
 		jobTask.Owner.Ref = "mutated"
 		if updatedJob.Task.Title != "Delegate review" ||
-			automationTestParticipationChannel(updatedJob.Task.NetworkParticipation) != "ops-queue" ||
 			updatedJob.Task.Owner.Ref != "ops-review" {
 			t.Fatalf("applyJobPatch() task clone = %#v", updatedJob.Task)
 		}
@@ -1957,23 +1905,6 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			t.Fatalf("StatusForAutomationError(unavailable) = %d, want %d", status, http.StatusServiceUnavailable)
 		}
 	})
-}
-
-func automationTestNamedParticipation(channelID string) *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channelID,
-	}
-}
-
-func automationTestParticipationChannel(request *participation.Request) string {
-	if request == nil || request.ChannelID == nil {
-		return ""
-	}
-	return *request.ChannelID
 }
 
 func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {

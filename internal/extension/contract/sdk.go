@@ -2,7 +2,6 @@ package contract
 
 import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/hooks"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -37,7 +36,6 @@ const (
 	sdkAutomationTriggerPreFirePayloadValue     = "AutomationTriggerPreFirePayload"
 	sdkAutonomyMatcherValue                     = "AutonomyMatcher"
 	sdkAutonomyObservationPatchValue            = "AutonomyObservationPatch"
-	sdkBridgeInstanceValue                      = "BridgeInstance"
 	sdkContextBlockValue                        = "ContextBlock"
 	sdkContextCompactPayloadValue               = "ContextCompactPayload"
 	sdkContextCompactionPatchValue              = "ContextCompactionPatch"
@@ -67,10 +65,6 @@ const (
 	sdkLoopTerminalPayloadValue                 = "LoopTerminalPayload"
 	sdkMessagePatchValue                        = "MessagePatch"
 	sdkMessagePayloadValue                      = "MessagePayload"
-	sdkNetworkMessagePersistedPayloadValue      = "NetworkMessagePersistedPayload"
-	sdkNetworkObservationPatchValue             = "NetworkObservationPatch"
-	sdkNetworkPayloadValue                      = "NetworkPayload"
-	sdkNetworkWorkClosedPayloadValue            = "NetworkWorkClosedPayload"
 	sdkPayloadBaseValue                         = "PayloadBase"
 	sdkPermissionOptionValue                    = "PermissionOption"
 	sdkPermissionRequestPatchValue              = "PermissionRequestPatch"
@@ -81,16 +75,6 @@ const (
 	sdkPromptPatchValue                         = "PromptPatch"
 	sdkPromptPayloadValue                       = "PromptPayload"
 	sdkResourceRecordValue                      = "ResourceRecord"
-	sdkSandboxObservationPatchValue             = "SandboxObservationPatch"
-	sdkSandboxPreparePatchValue                 = "SandboxPreparePatch"
-	sdkSandboxPreparePayloadValue               = "SandboxPreparePayload"
-	sdkSandboxProfilePayloadValue               = "SandboxProfilePayload"
-	sdkSandboxReadyPayloadValue                 = "SandboxReadyPayload"
-	sdkSandboxStopPatchValue                    = "SandboxStopPatch"
-	sdkSandboxStopPayloadValue                  = "SandboxStopPayload"
-	sdkSandboxSyncAfterPayloadValue             = "SandboxSyncAfterPayload"
-	sdkSandboxSyncBeforePatchValue              = "SandboxSyncBeforePatch"
-	sdkSandboxSyncBeforePayloadValue            = "SandboxSyncBeforePayload"
 	sdkSessionContextValue                      = "SessionContext"
 	sdkSessionAttentionChangedPayloadValue      = "SessionAttentionChangedPayload"
 	sdkSessionAttentionObservationPatchValue    = "SessionAttentionObservationPatch"
@@ -146,8 +130,6 @@ var sdkRootTypes = []NamedType{
 	{Name: "InitializeCapabilities", Value: subprocess.InitializeCapabilities{}},
 	{Name: "InitializeMethods", Value: subprocess.InitializeMethods{}},
 	{Name: "InitializeRuntime", Value: subprocess.InitializeRuntime{}},
-	{Name: "InitializeBridgeRuntime", Value: subprocess.InitializeBridgeRuntime{}},
-	{Name: "InitializeBridgeBoundSecret", Value: subprocess.InitializeBridgeBoundSecret{}},
 	{Name: "InitializeResponse", Value: subprocess.InitializeResponse{}},
 	{Name: "InitializeExtensionInfo", Value: subprocess.InitializeExtensionInfo{}},
 	{Name: "AcceptedCapabilities", Value: subprocess.AcceptedCapabilities{}},
@@ -198,35 +180,6 @@ var sdkRootTypes = []NamedType{
 	{Name: "HeartbeatWakeDecisionPayload", Value: apicontract.HeartbeatWakeDecisionPayload{}},
 	{Name: "ShutdownRequest", Value: subprocess.ShutdownRequest{}},
 	{Name: "ShutdownResponse", Value: subprocess.ShutdownResponse{}},
-	{Name: sdkBridgeInstanceValue, Value: bridgepkg.BridgeInstance{}},
-	{Name: "BridgeStatus", Value: bridgepkg.BridgeStatus("")},
-	{Name: "BridgeScope", Value: bridgepkg.Scope("")},
-	{Name: "RoutingPolicy", Value: bridgepkg.RoutingPolicy{}},
-	{Name: "RoutingKey", Value: bridgepkg.RoutingKey{}},
-	{Name: "InboundEventFamily", Value: bridgepkg.InboundEventFamily("")},
-	{Name: inboundMessageEnvelopeTypeName, Value: bridgepkg.InboundMessageEnvelope{}},
-	{Name: "InboundCommand", Value: bridgepkg.InboundCommand{}},
-	{Name: "InboundAction", Value: bridgepkg.InboundAction{}},
-	{Name: "InboundReaction", Value: bridgepkg.InboundReaction{}},
-	{Name: "InboundEditOperation", Value: bridgepkg.InboundEditOperation("")},
-	{Name: "InboundEdit", Value: bridgepkg.InboundEdit{}},
-	{Name: "DeliveryEvent", Value: bridgepkg.DeliveryEvent{}},
-	{Name: "DeliveryRequest", Value: bridgepkg.DeliveryRequest{}},
-	{Name: "DeliveryAck", Value: bridgepkg.DeliveryAck{}},
-	{Name: "DeliverySnapshot", Value: bridgepkg.DeliverySnapshot{}},
-	{Name: "DeliveryTarget", Value: bridgepkg.DeliveryTarget{}},
-	{Name: "BridgeTargetSnapshotRequest", Value: bridgepkg.BridgeTargetSnapshotRequest{}},
-	{Name: "BridgeTargetSnapshotResponse", Value: bridgepkg.BridgeTargetSnapshotResponse{}},
-	{Name: "BridgeTargetSnapshot", Value: bridgepkg.BridgeTargetSnapshot{}},
-	{Name: "BridgeTargetType", Value: bridgepkg.BridgeTargetType("")},
-	{Name: "DeliveryMode", Value: bridgepkg.DeliveryMode("")},
-	{Name: "DeliveryOperation", Value: bridgepkg.DeliveryOperation("")},
-	{Name: "DeliveryMessageReference", Value: bridgepkg.DeliveryMessageReference{}},
-	{Name: "DeliveryErrorDetail", Value: bridgepkg.DeliveryErrorDetail{}},
-	{Name: "DeliveryResumeState", Value: bridgepkg.DeliveryResumeState{}},
-	{Name: "MessageSender", Value: bridgepkg.MessageSender{}},
-	{Name: "MessageContent", Value: bridgepkg.MessageContent{}},
-	{Name: "MessageAttachment", Value: bridgepkg.MessageAttachment{}},
 	{Name: "Tool", Value: tools.Tool{}},
 	{Name: "ToolID", Value: tools.ToolID("")},
 	{Name: "RiskClass", Value: tools.RiskClass("")},
@@ -273,16 +226,6 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkControlPatchValue, Value: hooks.ControlPatch{}},
 	{Name: sdkSessionLifecyclePayloadValue, Value: hooks.SessionLifecyclePayload{}},
 	{Name: sdkSessionCreatePatchValue, Value: hooks.SessionCreatePatch{}},
-	{Name: sdkSandboxProfilePayloadValue, Value: hooks.SandboxProfilePayload{}},
-	{Name: sdkSandboxPreparePayloadValue, Value: hooks.SandboxPreparePayload{}},
-	{Name: sdkSandboxReadyPayloadValue, Value: hooks.SandboxReadyPayload{}},
-	{Name: sdkSandboxSyncBeforePayloadValue, Value: hooks.SandboxSyncBeforePayload{}},
-	{Name: sdkSandboxSyncAfterPayloadValue, Value: hooks.SandboxSyncAfterPayload{}},
-	{Name: sdkSandboxStopPayloadValue, Value: hooks.SandboxStopPayload{}},
-	{Name: sdkSandboxPreparePatchValue, Value: hooks.SandboxPreparePatch{}},
-	{Name: sdkSandboxSyncBeforePatchValue, Value: hooks.SandboxSyncBeforePatch{}},
-	{Name: sdkSandboxObservationPatchValue, Value: hooks.SandboxObservationPatch{}},
-	{Name: sdkSandboxStopPatchValue, Value: hooks.SandboxStopPatch{}},
 	{Name: sdkInputPreSubmitPayloadValue, Value: hooks.InputPreSubmitPayload{}},
 	{Name: sdkInputPreSubmitPatchValue, Value: hooks.InputPreSubmitPatch{}},
 	{Name: sdkPromptPayloadValue, Value: hooks.PromptPayload{}},
@@ -313,8 +256,6 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkSessionAttentionChangedPayloadValue, Value: hooks.SessionAttentionChangedPayload{}},
 	{Name: sdkSessionAttentionObservationPatchValue, Value: hooks.SessionAttentionObservationPatch{}},
 	{Name: sdkAuthoredContextObservationPatchValue, Value: hooks.AuthoredContextObservationPatch{}},
-	{Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
-	{Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
 	{Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
 	{Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
 	{Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
@@ -368,7 +309,6 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkTaskStatusChangedPayloadValue, Value: hooks.TaskStatusChangedPayload{}},
 	{Name: sdkTaskObservationPatchValue, Value: hooks.TaskObservationPatch{}},
 	{Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
-	{Name: "NetworkMatcher", Value: hooks.NetworkMatcher{}},
 	{Name: "CompactionMatcher", Value: hooks.CompactionMatcher{}},
 	{Name: "HookMatcher", Value: hooks.HookMatcher{}},
 	{Name: "HookDecl", Value: hooks.HookDecl{}},

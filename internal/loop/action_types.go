@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
@@ -20,7 +19,6 @@ const (
 	harvestKindSync                   = "sync"
 	harvestKindEventRange             = "event_range"
 	harvestKindAsync                  = "async"
-	harvestKindChannelResult          = "channel_result"
 	actionDependencyMetaKey           = "dependency"
 	actionKindMetaKey                 = "kind"
 	outputSchemaParamKey              = "output_schema"
@@ -113,7 +111,6 @@ type ActionExecutionInput struct {
 	UsageReporter             ActionUsageReporter
 	PersistedTaskTokensUsed   int64
 	GoalSegmentEpoch          int64
-	NetworkParticipation      *participation.Spec
 	AdmittedParams            dsl.NodeParams
 }
 
@@ -176,7 +173,6 @@ type ActionRawResult struct {
 	ChildLoopRunID  RunID
 	Status          string
 	RenderedParams  json.RawMessage
-	RenderedHarvest *dsl.HarvestSpec
 	Control         *ActionControl
 	ResolvedRuntime *ResolvedRuntime
 }
@@ -208,7 +204,7 @@ type ActionAppliedRuntimeRecorder interface {
 	) error
 }
 
-// ActionEvent is a stable projection of one ACP/network event harvested by sequence.
+// ActionEvent is a stable projection of one ACP event harvested by sequence.
 type ActionEvent struct {
 	Sequence int64           `json:"sequence"`
 	Type     string          `json:"type,omitempty"`
@@ -231,31 +227,9 @@ type ActionEventRangeResult struct {
 	Structured json.RawMessage
 }
 
-// ActionEventRangeReader reads ACP/network events by stable sequence.
+// ActionEventRangeReader reads ACP events by stable sequence.
 type ActionEventRangeReader interface {
 	ReadActionEventRange(ctx context.Context, req ActionEventRangeRequest) (ActionEventRangeResult, error)
-}
-
-// ChannelResultHarvestRequest asks for the designated result message after a network send.
-type ChannelResultHarvestRequest struct {
-	Window      string
-	Responder   string
-	ContentRule string
-	Raw         ActionRawResult
-	Node        dsl.Node
-}
-
-// ChannelResultHarvestResult is the designated result coordination message.
-type ChannelResultHarvestResult struct {
-	Found      bool
-	MessageID  string
-	Structured json.RawMessage
-	Text       string
-}
-
-// ChannelResultHarvester harvests the ADR-021 channel_result semantics.
-type ChannelResultHarvester interface {
-	HarvestChannelResult(ctx context.Context, req *ChannelResultHarvestRequest) (ChannelResultHarvestResult, error)
 }
 
 // ActionLoopStarter is the run-loop seam implemented by loop.Service.
@@ -310,7 +284,6 @@ type ActionSessionBindRequest struct {
 	AllowedTools                   []string
 	MaxTurns                       int
 	ContractBlock                  string
-	NetworkParticipation           *participation.Spec
 }
 
 // RuntimeValue returns the requested runtime or the zero-value intent when none was supplied.

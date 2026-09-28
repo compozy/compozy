@@ -440,7 +440,7 @@
         <button class="pal-item" type="button" data-start-kind="schedule" title="Declare schedule in start[] and attach a Job"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg></span><span class="pn">Schedule</span></button>
         <button class="pal-item" type="button" data-start-kind="trigger" title="Declare trigger in start[] and attach a Trigger"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span><span class="pn">Trigger</span></button>
         <button class="pal-item" type="button" data-start-kind="webhook" id="palWebhook" title="Declare webhook in start[] and attach a signed ingress Trigger"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7a4 4 0 1 0-6.6 3"/><path d="M10.6 10 7 17a3 3 0 1 0 2.9 2"/><path d="M13 7l3.9 6.8A3 3 0 1 1 14.5 19h-4"/></svg></span><span class="pn">Webhook</span></button>
-        <button class="pal-item" type="button" data-start-kind="network" title="Declare network in start[]"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V10"/><path d="M8 22h8"/><path d="M8.5 6.5a5 5 0 0 1 7 0"/><path d="M5.6 3.6a9 9 0 0 1 12.8 0"/><circle cx="12" cy="9" r="1"/></svg></span><span class="pn">Network</span></button>
+
         <button class="pal-item" type="button" data-start-kind="extension" title="Declare extension in start[]"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4v3a2 2 0 0 0 4 0V5h3v4h-3a2 2 0 0 0 0 4h3v4h-4v3a2 2 0 0 1-4 0v-3H6v-4h3a2 2 0 0 0 0-4H6V5h4z"/></svg></span><span class="pn">Extension</span></button>
       </div>
       <div class="pal-group">
@@ -449,7 +449,6 @@
         <button class="pal-item" type="button" title="A goal node iterates an agent against judge criteria until done"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pn">Goal</span></button>
         <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg></span><span class="pn">Run loop</span></button>
         <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg></span><span class="pn">Transform</span></button>
-        <button class="pal-item" type="button" title="Inserts a pre-filled compozy__network_send node"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></span><span class="pn">Channel post</span></button>
         <button class="pal-item" type="button" title="Any registry ToolID: params form renders from the tool's input schema"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="pn">Call tool…</span></button>
       </div>
       <div class="pal-group">
@@ -493,7 +492,7 @@
             <span class="schip" data-kind="schedule">schedule</span>
             <span class="schip" data-kind="webhook" hidden>webhook</span>
             <span class="schip" data-kind="trigger" hidden>trigger</span>
-            <span class="schip" data-kind="network" hidden>network</span>
+
             <span class="schip" data-kind="extension" hidden>extension</span>
             <span class="ssnote">declared in start[]</span>
           </div>
@@ -678,9 +677,6 @@
 <div>  goal: "Ship every authored task under .compozy/tasks/{{ .inputs.slug }}"</div>
 <div>  definition_of_done: "All tasks terminal, judge approved with evidence, project checks pass."</div>
 <div>  iteration_cap: 50</div>
-<div>  on_failed:                         # contract terminal triggers: plain effect lists, once per run</div>
-<div>    - tool: compozy__network_send</div>
-<div>      with: { channel: ops, body: "software-delivery ended: failed" }</div>
 <div>  on_canceled:                       # fires exactly once on the canceled terminal — kill included</div>
 <div>    - emit: { kind: delivery_canceled }</div>
 <div>graph:</div>
@@ -709,9 +705,6 @@
 <div>      result_contract: { failure_field: err, message_field: err.message }</div>
 <div>      on_retry:                      # plain effect list · effects are fail-open, observe-only</div>
 <div>        - emit: { kind: task_retrying }</div>
-<div>      on_quarantine:                 # each entry exactly one of emit | tool (effect_shape_invalid)</div>
-<div>        - tool: compozy__network_send</div>
-<div>          with: { channel: ops, body: "{{ .item.id }} quarantined: {{ effect.failure.cause }}" }</div>
 <div>    - { id: collect, class: control, kind: collect }</div>
 <div>    - id: review</div>
 <div>      class: control</div>
@@ -735,9 +728,6 @@
 <div>      on_result: { pass: await_deploy_ack, fail: next_generation }</div>
 <div>      expires:                       # human gates may expire + escalate (ADR-017)</div>
 <div>        after: 72h</div>
-<div>        escalate:</div>
-<div>          - tool: compozy__network_send</div>
-<div>            with: { channel: ops, body: "still waiting: {{ effect.wait.link }}" }</div>
 <div>    - id: await_deploy_ack           # NEW · lifecycle — wait kind (ADR-017)</div>
 <div>      class: control</div>
 <div>      kind: wait</div>
@@ -774,7 +764,7 @@
 <div data-dsl-kind="webhook" data-wh style="display:none">  - kind: webhook                  # attached automation trigger: sd-deploys (HMAC-signed ingress)</div>
 <div data-dsl-kind="webhook" data-wh style="display:none">    input_mapping: { slug: "{{ .trigger.payload.slug }}" }</div>
 <div data-dsl-kind="trigger" style="display:none">  - { kind: trigger }</div>
-<div data-dsl-kind="network" style="display:none">  - { kind: network }</div>
+
 <div data-dsl-kind="extension" style="display:none">  - { kind: extension }</div></pre>
         </div>
       </div>
@@ -984,17 +974,7 @@
                 </div>
               </div>
 
-              <div class="allow" data-kind="network" data-on="false" id="allow-network" hidden>
-                <div class="allow__row">
-                  <div class="switch" role="switch" aria-checked="false" tabindex="0" aria-label="Allow network"></div>
-                  <div class="allow__meta"><b>network</b><span>A network peer starts this loop.</span></div>
-                </div>
-                <div class="allow__extra">
-                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
-                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
-                  </div>
-                </div>
-              </div>
+
 
               <div class="allow" data-kind="extension" data-on="false" id="allow-extension" hidden>
                 <div class="allow__row">
@@ -1011,7 +991,7 @@
               <div class="start-add">
                 <button class="btn-sm btn-neutral" type="button" data-start-kind="webhook" id="addWebhookBtn">+ Webhook</button>
                 <button class="btn-sm btn-neutral" type="button" data-start-kind="trigger">+ Trigger</button>
-                <button class="btn-sm btn-neutral" type="button" data-start-kind="network">+ Network</button>
+
                 <button class="btn-sm btn-neutral" type="button" data-start-kind="extension">+ Extension</button>
               </div>
             </div>
@@ -1088,7 +1068,7 @@
         {t:"effects", k:"on_pause", rows:[]},
         {t:"effects", k:"on_timeout", rows:[]},
         {t:"effects", k:"on_cancel", rows:[]},
-        {t:"effects", k:"on_quarantine", rows:[{kind:"tool", v:"compozy__network_send", with:"channel: ops · body: {{ .item.id }} quarantined: {{ effect.failure.cause }}"}]}
+        {t:"effects", k:"on_quarantine", rows:[]}
       ]},
       {t:"static", k:"Produces", v:"nodes.execute_task.output", tag:"from schema"}
     ]},
@@ -1121,7 +1101,7 @@
       {t:"text", k:"On fail → target", v:"next_generation", mono:true},
       {t:"fold", k:"Expiry & escalation", sub:"expires.after · escalate", tag:"new · lifecycle", fields:[
         {t:"text", k:"expires.after", v:"72h", mono:true, hint:"With neither escalate nor route, expiry flags needs-attention (<code>wait_expiry_without_path</code> warns)."},
-        {t:"text", k:"escalate", v:"compozy__network_send → ops", mono:true, hint:"Reminder ladder while waiting; the run page shows the ladder position. The same <code>expires</code> block is valid on wait nodes."}
+        {t:"effects", k:"escalate", rows:[], hint:"Reminder ladder while waiting; the run page shows the ladder position. The same <code>expires</code> block is valid on wait nodes."}
       ]},
       {t:"hint", v:"A live needs-approval pause, not a terminal: the run parks here until a decision."}
     ]},
@@ -1207,7 +1187,7 @@
     {t:"effects", k:"on_done", rows:[]},
     {t:"effects", k:"on_noop", rows:[]},
     {t:"effects", k:"on_blocked", rows:[]},
-    {t:"effects", k:"on_failed", rows:[{kind:"tool", v:"compozy__network_send", with:"channel: ops · body: software-delivery ended: failed"}]},
+    {t:"effects", k:"on_failed", rows:[]},
     {t:"effects", k:"on_exhausted", rows:[]},
     {t:"effects", k:"on_stalled", rows:[]},
     {t:"effects", k:"on_canceled", rows:[{kind:"emit", v:"delivery_canceled"}]}

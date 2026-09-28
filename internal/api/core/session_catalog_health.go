@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
+
+	"github.com/compozy/compozy/internal/api/contract"
+
 	"github.com/compozy/compozy/internal/session"
 )
 

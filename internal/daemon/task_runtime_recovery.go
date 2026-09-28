@@ -30,9 +30,6 @@ func (r *taskRuntime) shutdown(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
-	if r.bridgeNotifications != nil {
-		r.bridgeNotifications.shutdown()
-	}
 	if r.taskStatusProjection != nil {
 		r.taskStatusProjection.shutdown()
 	}
@@ -191,9 +188,6 @@ func planTaskRunRecovery(
 	if sessions == nil {
 		return nil, errors.New("daemon: task recovery requires a session manager")
 	}
-	if run.IsNetworkWake() {
-		return planNetworkWakeRunRecovery(run), nil
-	}
 
 	evidence, err := inspectTaskSessionRecovery(ctx, sessions, strings.TrimSpace(run.SessionID))
 	if err != nil {
@@ -201,23 +195,6 @@ func planTaskRunRecovery(
 	}
 
 	return planSessionRunRecovery(run.Status.Normalize(), evidence), nil
-}
-
-func planNetworkWakeRunRecovery(run taskpkg.Run) *taskpkg.RunBootRecovery {
-	switch run.Status.Normalize() {
-	case taskpkg.TaskRunStatusClaimed,
-		taskpkg.TaskRunStatusStarting,
-		taskpkg.TaskRunStatusRunning:
-		return &taskpkg.RunBootRecovery{
-			Action:         taskpkg.RunBootRecoveryRequeue,
-			Reason:         taskRecoveryReasonBoot,
-			SessionState:   "network_wake",
-			Classification: taskRecoveryClassificationOrphaned,
-			Detail:         "network wake recovered through the durable task queue",
-		}
-	default:
-		return nil
-	}
 }
 
 func planSessionRunRecovery(

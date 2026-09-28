@@ -21,7 +21,7 @@ func TestAPIStateTransitionCommandsExposeExactLeaves(t *testing.T) {
 		args []string
 	}{
 		{name: "ShouldExposeSessionApprove", args: []string{"session", "approve"}},
-		{name: "ShouldExposeBridgeSecretBindingDelete", args: []string{"bridge", "secret-bindings", "delete"}},
+
 		{name: "ShouldExposeResourceDelete", args: []string{"resource", "delete"}},
 		{name: "ShouldExposeTaskDelete", args: []string{"task", "delete"}},
 		{name: "ShouldExposeTaskReject", args: []string{"task", "reject"}},
@@ -103,42 +103,6 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		if payload.SessionID != "sess-1" || payload.Outcome != "applied" ||
 			payload.RequestID != "req-1" || payload.Decision != "allow-once" {
 			t.Fatalf("session approval payload = %#v", payload)
-		}
-	})
-
-	t.Run("ShouldDeleteBridgeSecretBindingThroughUDSClient", func(t *testing.T) {
-		t.Parallel()
-
-		client := &stubClient{
-			deleteBridgeSecretBindingFn: func(_ context.Context, id string, bindingName string) error {
-				if id != "bridge-1" || bindingName != "bot-token" {
-					t.Fatalf("delete binding = %q/%q, want bridge-1/bot-token", id, bindingName)
-				}
-				return nil
-			},
-		}
-		stdout, stderr, err := executeRootCommand(
-			t,
-			newWorkspaceTestDeps(t, client),
-			"bridge",
-			"secret-bindings",
-			"delete",
-			"bridge-1",
-			"bot-token",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("bridge secret binding delete error = %v; stderr=%s", err, stderr)
-		}
-		var payload struct {
-			Status string `json:"status"`
-		}
-		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-			t.Fatalf("decode stdout %q: %v", stdout, err)
-		}
-		if payload.Status != "deleted" {
-			t.Fatalf("delete payload = %#v", payload)
 		}
 	})
 

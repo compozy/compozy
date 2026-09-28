@@ -448,7 +448,7 @@
         desc:"Cap token spend per workspace and pause agents that breach the budget." },
       { id:"session-trace", name:"session-trace", author:"@community", version:"1.0.1", updateTo:"1.1.0", downloads:"120", type:"tool", trust:"unverified", state:"installed", enabled:false, source:"local", installedAgo:"1w ago",
         desc:"Attach trace IDs to session events for downstream collectors." },
-      { id:"otel-bridge", name:"otel-bridge", author:"@compozy", version:"0.6.0", downloads:"1.2k", type:"bridge", trust:"verified", state:"available",
+      { id:"otel-bridge", name:"otel-bridge", author:"@compozy", version:"0.6.0", downloads:"1.2k", type:"hook", trust:"verified", state:"available",
         desc:"Export session and tool spans to an OpenTelemetry collector." },
       { id:"slack-notify", name:"slack-notify", author:"@community", version:"1.1.4", downloads:"840", type:"hook", trust:"unverified", warnings:2, state:"available",
         desc:"Post run summaries to a Slack channel when a loop finishes." },
@@ -459,9 +459,9 @@
       { id:"ops-starter", name:"ops-starter", version:"0.8.0", contents:"2 skills · 1 extension · 1 mcp", state:"installed", profile:"triage", scope:"workspace", activatedAgo:"5d ago",
         desc:"MCP servers and skills for incident triage and status page updates.",
         profiles:[
-          { name:"triage", description:"Triage-only: the incident skill plus GitHub and Postgres MCP.", summary:"1 agent · 1 trigger · Slack bridge",
+          { name:"triage", description:"Triage-only: the incident skill plus GitHub and Postgres MCP.", summary:"1 agent · 1 trigger",
             inventory:[{kind:"skill",name:"incident-triage",version:"0.6.0",action:"add"},{kind:"mcp",name:"github",version:"—",action:"already"},{kind:"mcp",name:"postgres",version:"—",action:"add"}] },
-          { name:"oncall", description:"Triage plus scheduled status-page updates and a weekly review job.", summary:"1 agent · 1 job · 1 trigger · Slack bridge",
+          { name:"oncall", description:"Triage plus scheduled status-page updates and a weekly review job.", summary:"1 agent · 1 job · 1 trigger",
             inventory:[{kind:"skill",name:"incident-triage",version:"0.6.0",action:"add"},{kind:"skill",name:"status-page",version:"0.3.1",action:"add"},{kind:"mcp",name:"github",version:"—",action:"already"},{kind:"mcp",name:"postgres",version:"—",action:"add"}] }
         ] },
       { id:"qa-pack", name:"qa-pack", version:"0.2.0", updateTo:"0.3.0", contents:"2 skills", state:"installed", profile:"default", scope:"global", activatedAgo:"3w ago",
@@ -470,7 +470,7 @@
             inventory:[{kind:"skill",name:"flake-triage",version:"0.1.2",action:"add"},{kind:"skill",name:"regression-bisect",version:"0.2.0",action:"add"}] } ] },
       { id:"dep-kit", name:"dep-kit", version:"1.2.0", contents:"3 items", state:"available",
         desc:"Skills and extensions for dependency review, lockfile hygiene, and release notes.",
-        profiles:[ { name:"default", description:"Dependency review with a weekly audit job and a lockfile-change trigger.", summary:"1 agent · 1 job · 1 trigger · GitHub bridge",
+        profiles:[ { name:"default", description:"Dependency review with a weekly audit job and a lockfile-change trigger.", summary:"1 agent · 1 job · 1 trigger",
             inventory:[{kind:"skill",name:"dep-audit",version:"1.0.0",action:"add"},{kind:"skill",name:"lockfile-hygiene",version:"0.4.1",action:"add"},{kind:"extension",name:"release-notes",version:"1.2.0",action:"already"}] } ] },
       { id:"design-handoff", name:"design-handoff", version:"1.0.1", contents:"2 items", state:"available",
         desc:"Activate the Open Design handoff skill plus screenshot capture helpers.",
@@ -811,9 +811,9 @@
   };
 
   // ---- bundle activation -------------------------------------------------
-  var bundleItem=null, bundleProfileIdx=0, bundleBind=false;
+  var bundleItem=null, bundleProfileIdx=0;
   function openBundle(it){
-    bundleItem=it; bundleProfileIdx=0; bundleBind=false;
+    bundleItem=it; bundleProfileIdx=0;
     document.getElementById("bundle-title").textContent="Activate "+it.name;
     document.getElementById("bundle-scrim").classList.remove("hide");
     renderBundleBody();
@@ -833,16 +833,12 @@
     var rows=pf.inventory.map(function(r){
       return '<tr><td>'+pillHtml(r.kind)+'</td><td><b style="font-weight:500">'+esc(r.name)+'</b></td><td style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">'+(r.version==="—"?"—":"v"+r.version)+'</td><td>'+pillHtml(r.action==="add"?"add":"already present")+'</td></tr>';
     }).join("");
-    var bindField='<div class="field"><div class="switch-field"><div class="switch-field__txt"><b>Bind primary channel as default</b><span>Route new sessions from this bundle through its primary channel.</span></div>'
-      +'<button type="button" class="switch" role="switch" id="bundle-bind" aria-checked="'+(bundleBind?"true":"false")+'" aria-label="Bind primary channel as default"></button></div></div>';
-    body.innerHTML=profField+scopeField+bindField
+    body.innerHTML=profField+scopeField
       +'<div class="field__label" style="margin:4px 0 10px">What changes</div>'
       +'<table class="preview-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table>'
       +'<p class="field__desc" style="margin-top:10px">Also configures: '+esc(pf.summary)+'.</p>';
     submit.disabled=false;
     body.querySelectorAll('[name="bprof"]').forEach(function(r){ r.addEventListener("change", function(){ bundleProfileIdx=parseInt(this.value,10); renderBundleBody(); }); });
-    var bind=document.getElementById("bundle-bind");
-    if(bind) bind.addEventListener("click", function(){ bundleBind=!bundleBind; this.setAttribute("aria-checked", bundleBind?"true":"false"); });
   }
   function closeBundle(){ document.getElementById("bundle-scrim").classList.add("hide"); bundleItem=null; }
   document.getElementById("bundle-close").onclick=closeBundle;

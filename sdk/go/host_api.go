@@ -72,28 +72,7 @@ const (
 	HostAPIMethodListLogs HostAPIMethod = "logs/list"
 	// HostAPIMethodSkillsList lists skills.
 	HostAPIMethodSkillsList HostAPIMethod = "skills/list"
-	// HostAPIMethodNetworkStatus returns network runtime status.
-	HostAPIMethodNetworkStatus HostAPIMethod = "network/status"
-	// HostAPIMethodNetworkChannels lists network channels.
-	HostAPIMethodNetworkChannels HostAPIMethod = "network/channels"
-	// HostAPIMethodNetworkPeers lists visible network peers.
-	HostAPIMethodNetworkPeers HostAPIMethod = "network/peers"
-	// HostAPIMethodNetworkThreads lists public network threads.
-	HostAPIMethodNetworkThreads HostAPIMethod = "network/threads"
-	// HostAPIMethodNetworkThreadGet returns one public network thread.
-	HostAPIMethodNetworkThreadGet HostAPIMethod = "network/thread/get"
-	// HostAPIMethodNetworkThreadMessages lists messages inside one public network thread.
-	HostAPIMethodNetworkThreadMessages HostAPIMethod = "network/thread/messages"
-	// HostAPIMethodNetworkDirects lists network direct rooms.
-	HostAPIMethodNetworkDirects HostAPIMethod = "network/directs"
-	// HostAPIMethodNetworkDirectResolve resolves a deterministic two-party direct room.
-	HostAPIMethodNetworkDirectResolve HostAPIMethod = "network/direct/resolve"
-	// HostAPIMethodNetworkDirectMessages lists messages inside one direct room.
-	HostAPIMethodNetworkDirectMessages HostAPIMethod = "network/direct/messages"
-	// HostAPIMethodNetworkWorkGet returns one network work row.
-	HostAPIMethodNetworkWorkGet HostAPIMethod = "network/work/get"
-	// HostAPIMethodNetworkSend sends one network message.
-	HostAPIMethodNetworkSend HostAPIMethod = "network/send"
+
 	// HostAPIMethodResourcesList lists resources.
 	HostAPIMethodResourcesList HostAPIMethod = "resources/list"
 	// HostAPIMethodResourcesGet fetches one resource.

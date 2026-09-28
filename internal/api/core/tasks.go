@@ -60,11 +60,7 @@ const (
 	taskActionListReviews      = "list_reviews"
 	taskActionGetReview        = "get_review"
 	taskActionSubmitReview     = "submit_review"
-	taskActionCreateBridgeSub  = "create_bridge_notification_subscription"
-	taskActionListBridgeSubs   = "list_bridge_notification_subscriptions"
-	taskActionGetBridgeSub     = "get_bridge_notification_subscription"
-	taskActionDeleteBridgeSub  = "delete_bridge_notification_subscription"
-	taskActionPromoteNetwork   = "promote_network_thread"
+
 	taskActionDashboard        = "dashboard"
 	taskActionInbox            = "inbox"
 	taskActionOverview         = "overview"
@@ -179,8 +175,6 @@ func isTaskReadAction(action string) bool {
 		taskActionGetProfile,
 		taskActionListReviews,
 		taskActionGetReview,
-		taskActionListBridgeSubs,
-		taskActionGetBridgeSub,
 		taskActionDashboard,
 		taskActionInbox,
 		taskActionOverview,

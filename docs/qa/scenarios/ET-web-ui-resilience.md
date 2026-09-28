@@ -5,15 +5,15 @@ title: Preserve truthful and accessible async UI across Web systems
 persona: Bruno
 journey: J-operate-desktop-shell
 expected: Known-geometry first loads render stable Skeleton geometry for the selected rows or cards view; action-pending feedback remains local while conflicting mutations are serialized; controls backed by unavailable data stay disabled; custom filter menus expose each supported comparison exactly once; schedule previews refresh on their second or minute boundary, including after invalid input becomes valid; focus remains visible on revealed actions and disclosures; operational errors do not invalidate unrelated form fields; errors are announced; and motion is interruptible, composited, and reduced-motion safe.
-entry_points: Web Agents, Bridges, Jobs, Triggers, Loops, Marketplace, Network, Notifications, Onboarding, Sandbox, Scheduler, Settings, Tasks, Vault, and Session surfaces; shared Filters and Stepper; Web and UI Storybook
-qa_status: blocked-verify
+entry_points: Web Agents, Jobs, Triggers, Loops, Marketplace, Notifications, Onboarding, Scheduler, Settings, Tasks, Vault, and Session surfaces; shared Filters and Stepper; Web and UI Storybook
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /tmp/eng-ui-screenshot.EdZjtp/evidence; /tmp/eng-ui-screenshot.batch-d.X6X6Rq/out;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: TA-039; NB-045; ET-web-loop-editor-topbar; ET-web-marketplace-landing-browse; ET-window-manager-layout-gestures; ET-web-settings-hooks; ET-web-vault-opendesign-listing; RT-021
+overlaps: TA-039; ET-web-loop-editor-topbar; ET-web-marketplace-landing-browse; ET-window-manager-layout-gestures; ET-web-settings-hooks; ET-web-vault-opendesign-listing; RT-021
 ---
 
 Added by the 2026-07-21 full frontend systems audit. Flag only: the next QA cycle owns live
@@ -24,3 +24,5 @@ draft after failure, while invalid drafts remain unsavable. Verify error announc
 network recovery, edit-after-failure, and discard in Layouts; keep saving actions disabled in flight.
 Targeted evidence: `docs/qa/reports/2026-09-10-issue-593-layout-settings-save.md` (does not rerun the
 entire resilience scenario).
+
+2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.

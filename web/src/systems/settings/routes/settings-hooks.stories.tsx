@@ -17,7 +17,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     layout: "fullscreen",
     docs: {
       description: {
-        component: "Hook declarations and notification presets on the dedicated Hooks route.",
+        component: "Hook declarations on the dedicated Hooks route.",
       },
     },
   },

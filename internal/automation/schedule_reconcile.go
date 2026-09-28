@@ -125,19 +125,18 @@ func (s *Scheduler) reconcileMissedSchedulerState(
 	persistCtx1, cancelPersist1 := persistenceContext(ctx)
 	defer cancelPersist1()
 	result, err := s.store.ClaimScheduledRun(persistCtx1, SchedulerClaim{
-		ProfileID:            job.ProfileID,
-		JobID:                job.ID,
-		RunID:                scheduledRunID(job.ID, missedAt),
-		FireID:               scheduledFireID(job.ID, missedAt),
-		ScheduledAt:          missedAt,
-		NextRunAt:            cloneTimePointer(state.NextRunAt),
-		ClaimedAt:            now,
-		ScheduleHash:         state.ScheduleHash,
-		CatchUpPolicy:        state.CatchUpPolicy,
-		MisfireGraceSeconds:  state.MisfireGraceSeconds,
-		Misfire:              true,
-		SkipReason:           skipReason,
-		NetworkParticipation: (DispatchRequest{Job: &job}).networkParticipation(),
+		ProfileID:           job.ProfileID,
+		JobID:               job.ID,
+		RunID:               scheduledRunID(job.ID, missedAt),
+		FireID:              scheduledFireID(job.ID, missedAt),
+		ScheduledAt:         missedAt,
+		NextRunAt:           cloneTimePointer(state.NextRunAt),
+		ClaimedAt:           now,
+		ScheduleHash:        state.ScheduleHash,
+		CatchUpPolicy:       state.CatchUpPolicy,
+		MisfireGraceSeconds: state.MisfireGraceSeconds,
+		Misfire:             true,
+		SkipReason:          skipReason,
 	})
 	if errors.Is(err, ErrScheduledFireAlreadyClaimed) {
 		return s.store.GetSchedulerState(ctx, job.ID)

@@ -10,8 +10,8 @@ prompt and a compact projection in `/agent/context`.
 
 <OperatorNote>
   `SOUL.md` is persona only. It cannot define provider, command, model, tools, capabilities, MCP
-  servers, hooks, permissions, tasks, leases, scheduler behavior, or Compozy Network presence —
-  those authorities belong to `AGENT.md`, capabilities, `config.toml`, and the runtime.
+  servers, hooks, permissions, tasks, leases, or scheduler behavior — those authorities belong to
+  `AGENT.md`, capabilities, `config.toml`, and the runtime.
 </OperatorNote>
 
 ## Where SOUL.md lives
@@ -82,7 +82,6 @@ the correct surface.
 | `capabilities`                                                           | `capabilities.toml` or `capabilities/*` |
 | `tasks`, `task_runs`, `scheduler`, `lease`                               | Runtime task APIs                       |
 | `heartbeat`                                                              | `HEARTBEAT.md` and `[agents.heartbeat]` |
-| `network`, `channels`                                                    | Compozy Network protocol                |
 | `spawn`, `env`, `config`, operational memory-store fields                | Runtime config                          |
 
 A `SOUL.md` that contains any of these fields is invalid; new sessions for the affected agent fail
@@ -113,7 +112,7 @@ new claims see the latest valid resolved persona.
 ## Managed authoring
 
 Mutating `SOUL.md` always goes through the managed authoring service. Direct file writes from
-hooks, extensions, tools, resources, MCP sidecars, bridge adapters, or web code are
+hooks, extensions, tools, resources, MCP sidecars, or web code are
 explicitly forbidden. Every write/delete/rollback against an existing file requires
 `expected_digest`; stale writes fail without persistence and never partially replace the file.
 
@@ -196,8 +195,6 @@ expansions are stripped before logging.
 - `SOUL.md` is **not** liveness or session health. Session presence is metadata-only and lives in
   the runtime; see [Sessions](/docs/sessions/lifecycle) and the session health/inspect
   CLI commands.
-- `SOUL.md` is **not** Compozy Network identity. Peer presence, peer cards, and `greet` interval are
-  governed by the [protocol model](/docs/network/protocol-model) and remain independent.
 - `SOUL.md` does **not** appear in capability catalogs, registry metadata, or extension manifests
   as an authority surface; extensions can manage `SOUL.md` only through Host API grants.
 

@@ -15,7 +15,7 @@ import (
 func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
 	session.SelectedRuntime = store.NormalizeSessionRuntimeSelection(session.SelectedRuntime)
-	speedResolutionJSON, network, acpOptionsJSON, selectedACPOptionsJSON, err :=
+	speedResolutionJSON, acpOptionsJSON, selectedACPOptionsJSON, err :=
 		sessionCatalogRuntimeProjections(session)
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
@@ -27,7 +27,6 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 	params := newSessionUpsertParams(
 		session,
 		speedResolutionJSON,
-		network,
 		runtimeRecoveryJSON,
 		acpOptionsJSON,
 		selectedACPOptionsJSON,
@@ -40,7 +39,6 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 func newSessionUpsertParams(
 	session store.SessionInfo,
 	speedResolutionJSON string,
-	network participationSnapshotFields,
 	runtimeRecoveryJSON string,
 	acpOptionsJSON string,
 	selectedACPOptionsJSON string,
@@ -71,10 +69,6 @@ func newSessionUpsertParams(
 		WorkspaceID:              session.WorkspaceID,
 		WorktreeID:               nullableSessionString(session.WorktreeID),
 		SessionType:              store.NormalizeSessionType(session.SessionType),
-		NetworkSpecJson:          network.JSON,
-		NetworkMode:              network.Mode,
-		NetworkChannel:           network.Channel,
-		NetworkSource:            network.Source,
 		State:                    session.State,
 		AcpSessionID:             nullableSessionStringPointer(session.ACPSessionID),
 		StopReason:               nullableSessionString(string(session.StopReason)),
@@ -96,16 +90,6 @@ func newSessionUpsertParams(
 		),
 		SoulDigest:       strings.TrimSpace(session.SoulDigest),
 		ParentSoulDigest: strings.TrimSpace(session.ParentSoulDigest),
-		SandboxID:        sessionSandboxID(session.Sandbox),
-		SandboxBackend:   sessionSandboxBackend(session.Sandbox),
-		SandboxProfile:   sessionSandboxProfile(session.Sandbox),
-		SandboxInstanceID: sessionSandboxInstanceID(
-			session.Sandbox,
-		),
-		SandboxState:             sessionSandboxState(session.Sandbox),
-		SandboxProviderStateJson: sessionSandboxProviderStateJSON(session.Sandbox),
-		SandboxLastSyncAt:        nullableSessionSandboxLastSyncAt(session.Sandbox),
-		SandboxLastSyncError:     sessionSandboxLastSyncError(session.Sandbox),
 		CreatedAt: store.FormatTimestamp(
 			session.CreatedAt,
 		),
@@ -128,24 +112,20 @@ func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *ses
 
 func sessionCatalogRuntimeProjections(
 	session store.SessionInfo,
-) (string, participationSnapshotFields, string, string, error) {
+) (string, string, string, error) {
 	speedResolutionJSON, err := encodeSessionSpeedResolution(session.SpeedResolution)
 	if err != nil {
-		return "", participationSnapshotFields{}, "", "", err
-	}
-	network, err := encodeParticipationSnapshot(session.WorkspaceID, session.NetworkSpecSnapshot())
-	if err != nil {
-		return "", participationSnapshotFields{}, "", "", err
+		return "", "", "", err
 	}
 	acpOptionsJSON, err := encodeSessionACPOptions(session.ACPOptionsValue(), "session ACP options")
 	if err != nil {
-		return "", participationSnapshotFields{}, "", "", err
+		return "", "", "", err
 	}
 	selectedACPOptionsJSON, err := encodeCanonicalSelectedRuntimeACPOptions(session.SelectedRuntime)
 	if err != nil {
-		return "", participationSnapshotFields{}, "", "", err
+		return "", "", "", err
 	}
-	return speedResolutionJSON, network, acpOptionsJSON, selectedACPOptionsJSON, nil
+	return speedResolutionJSON, acpOptionsJSON, selectedACPOptionsJSON, nil
 }
 
 func encodeSessionSpeedResolution(value *speedpkg.Resolution) (string, error) {
@@ -214,11 +194,4 @@ func nullableSessionLivenessLastUpdateAt(meta *store.SessionLivenessMeta) sql.Nu
 		return sql.NullString{}
 	}
 	return nullableSessionTime(*meta.LastUpdateAt)
-}
-
-func nullableSessionSandboxLastSyncAt(meta *store.SessionSandboxMeta) sql.NullString {
-	if meta == nil || meta.LastSyncAt == nil {
-		return sql.NullString{}
-	}
-	return nullableSessionTime(*meta.LastSyncAt)
 }

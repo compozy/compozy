@@ -4,11 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"strconv"
 	"testing"
-	"time"
-
-	bridges "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 type discardWriteCloser struct {
@@ -60,27 +56,6 @@ func BenchmarkParseRPCIDNumeric(b *testing.B) {
 	}
 }
 
-func BenchmarkCloneInitializeBridgeRuntime(b *testing.B) {
-	runtime := benchmarkBridgeRuntime(8, 3)
-
-	b.ReportAllocs()
-
-	for b.Loop() {
-		cloned := CloneInitializeBridgeRuntime(runtime)
-		if cloned == nil {
-			b.Fatal("CloneInitializeBridgeRuntime() = nil")
-			return
-		}
-		if len(cloned.ManagedInstances) != len(runtime.ManagedInstances) {
-			b.Fatalf(
-				"len(cloned.ManagedInstances) = %d, want %d",
-				len(cloned.ManagedInstances),
-				len(runtime.ManagedInstances),
-			)
-		}
-	}
-}
-
 func BenchmarkBoundedBufferWriteOverflow(b *testing.B) {
 	prefill := bytes.Repeat([]byte("a"), 6*1024)
 	payload := bytes.Repeat([]byte("x"), 4*1024)
@@ -101,53 +76,4 @@ func BenchmarkBoundedBufferWriteOverflow(b *testing.B) {
 			b.Fatalf("len(buffer.buf) = %d, want %d", got, want)
 		}
 	}
-}
-
-func benchmarkBridgeRuntime(instances int, secretsPerInstance int) *InitializeBridgeRuntime {
-	now := time.Unix(1, 0).UTC()
-	managed := make([]InitializeBridgeManagedInstance, 0, instances)
-	for i := range instances {
-		managed = append(managed, InitializeBridgeManagedInstance{
-			Instance: bridges.BridgeInstance{
-				ID:               "brg-" + strconv.Itoa(i),
-				Scope:            bridges.ScopeWorkspace,
-				WorkspaceID:      "ws-" + strconv.Itoa(i),
-				Platform:         "telegram",
-				ExtensionName:    "telegram-reference",
-				DisplayName:      "Telegram " + strconv.Itoa(i),
-				Enabled:          true,
-				Status:           bridges.BridgeStatusReady,
-				RoutingPolicy:    bridges.RoutingPolicy{IncludePeer: true},
-				ProviderConfig:   json.RawMessage(`{"mode":"bot","token_kind":"secret"}`),
-				DeliveryDefaults: json.RawMessage(`{"peer_id":"peer-1"}`),
-				CreatedAt:        now,
-				UpdatedAt:        now,
-			},
-			BoundSecrets: benchmarkSecrets(secretsPerInstance),
-		})
-	}
-
-	return &InitializeBridgeRuntime{
-		RuntimeVersion:   InitializeBridgeRuntimeVersion2,
-		Purpose:          BridgeRuntimePurposeService,
-		Provider:         "telegram-reference",
-		Platform:         "telegram",
-		ManagedInstances: managed,
-	}
-}
-
-func benchmarkSecrets(count int) []InitializeBridgeBoundSecret {
-	if count <= 0 {
-		return nil
-	}
-
-	secrets := make([]InitializeBridgeBoundSecret, 0, count)
-	for i := range count {
-		secrets = append(secrets, InitializeBridgeBoundSecret{
-			BindingName: "secret_" + strconv.Itoa(i),
-			Kind:        "token",
-			Value:       "value-" + strconv.Itoa(i),
-		})
-	}
-	return secrets
 }

@@ -60,7 +60,7 @@ export function TaskPropertiesRail({
   const activeRun = detail.summary?.active_run ?? null;
   const owner = record.owner ?? null;
   const ownerName = owner ? taskOwnerLabel(owner) : "Unassigned";
-  const { worker, model, sandbox, channel } = taskExecutionProfileSummary(profile);
+  const { worker, model } = taskExecutionProfileSummary(profile);
   const { attemptsLabel, lastFailedRun, stuckRun } = taskPropertiesRunSummary(detail, runs);
   const approvalBusy = Boolean(approvalPending.approve || approvalPending.reject);
 
@@ -221,7 +221,7 @@ export function TaskPropertiesRail({
             {model}
           </PropertyRow>
         ) : null}
-        {sandbox ? <PropertyRow label="Sandbox">{sandbox}</PropertyRow> : null}
+
         <PropertyRow label="Attempts">{attemptsLabel}</PropertyRow>
         <PropertyRow
           editor={
@@ -233,11 +233,6 @@ export function TaskPropertiesRail({
           }
           label="Auto-enqueue"
         />
-        {channel ? (
-          <PropertyRow label="Channel" mono>
-            {channel}
-          </PropertyRow>
-        ) : null}
       </RailSection>
 
       <RailSection label="Activity">

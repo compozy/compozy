@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: MS-042;MS-055;MS-056
+overlaps: MS-042; MS-055; MS-056
 ---
 
 Register a local extension with `model.source` and `model.read`. Return one model row whose five rates

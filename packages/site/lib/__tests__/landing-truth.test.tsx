@@ -18,7 +18,6 @@ const deepCitationTargets = new Map([
   ["hooks catalog", "/docs/hooks"],
   ["skills guide", "/docs/skills"],
   ["automation", "/docs/automation"],
-  ["sandbox profiles", "/docs/sandbox/profiles"],
   ["sessions lifecycle", "/docs/sessions/lifecycle"],
   ["daemon surfaces", "/docs/operations/daemon"],
   ["permissions", "/docs/sessions/permissions"],
@@ -115,17 +114,6 @@ function runtimeRouteExists(route: string): boolean {
 }
 
 describe("landing truth", () => {
-  it("does not imply v0 signature verification before the runtime verifies trust proofs", () => {
-    const violations = listFiles(landingRoot, ".tsx").flatMap(file => {
-      const source = readFileSync(file, "utf8");
-      return [...source.matchAll(/\b(?:signed|verified identity|Ed25519)\b/gi)].map(
-        match => `${relative(siteRoot, file)}: ${match[0]}`
-      );
-    });
-
-    expect(violations).toEqual([]);
-  });
-
   it("keeps provider names aligned with the runtime built-in registry", () => {
     const runtimeProviders = builtinProviderNames();
     const landingProviders = new Map(

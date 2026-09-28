@@ -12,7 +12,6 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 }));
 
 import { createMswFetch } from "@/test/msw-fetch";
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
@@ -211,7 +210,6 @@ describe("LoopRunForm", () => {
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
-    await expect(runRequestBody()).resolves.not.toHaveProperty("network_participation");
     // A run is owned work: it is started as the acting profile, never left for
     // the daemon to resolve to `default`.
     expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
@@ -240,100 +238,6 @@ describe("LoopRunForm", () => {
     renderForm();
     // A scoped view already answers "where does this land" on screen.
     expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
-  });
-
-  it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {
-    const dryResponse = await fetch(
-      `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run?dry=true`,
-      {
-        body: JSON.stringify({
-          inputs: { slug: "snapshot-round-trip" },
-          network_participation: { mode: "local" },
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
-    const dryBody = (await dryResponse.json()) as {
-      dry_run: {
-        resolved_network_participation: {
-          bounds: { max_wakes: number };
-          mode: string;
-          source: string;
-        };
-      };
-    };
-    expect(dryBody.dry_run.resolved_network_participation).toEqual(
-      buildLocalNetworkParticipationFixture()
-    );
-
-    const runResponse = await fetch(
-      `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run`,
-      {
-        body: JSON.stringify({
-          inputs: { slug: "snapshot-round-trip" },
-          network_participation: {
-            channel_id: " release-room ",
-            channel_strategy: "named",
-            mode: "live",
-          },
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
-    const runBody = (await runResponse.json()) as {
-      run: {
-        resolved_network_participation: {
-          bounds: { max_wakes: number };
-          channel_id: string;
-          channel_strategy: string;
-          mode: string;
-          source: string;
-          workspace_id: string;
-        };
-      };
-    };
-    expect(runBody.run.resolved_network_participation).toMatchObject({
-      bounds: { max_wakes: 8 },
-      channel_id: "release-room",
-      channel_strategy: "named",
-      mode: "live",
-      source: "explicit_request",
-      workspace_id: WS,
-    });
-  });
-
-  it("Should serialize an explicit Live run without legacy participation fields", async () => {
-    renderForm();
-    openSection(/Participation/);
-    expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("local");
-    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
-      target: { value: "billing-webhooks" },
-    });
-    fireEvent.change(screen.getByTestId("loop-run-participation-mode"), {
-      target: { value: "live" },
-    });
-    fireEvent.change(screen.getByTestId("loop-run-participation-channel"), {
-      target: { value: "release-room" },
-    });
-    fireEvent.change(screen.getByTestId("loop-run-participation-strategy"), {
-      target: { value: "named" },
-    });
-    expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("live");
-    expect(screen.getByTestId("loop-run-participation-channel")).toHaveValue("release-room");
-
-    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    await expect(runRequestBody()).resolves.toEqual({
-      inputs: expect.any(Object),
-      config_overrides: null,
-      network_participation: {
-        mode: "live",
-        channel_id: "release-room",
-        channel_strategy: "named",
-      },
-    });
   });
 
   it("Should start a run for the selected Loop, not the fixture default", async () => {

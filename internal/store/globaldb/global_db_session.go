@@ -288,9 +288,6 @@ func (g *SessionRepo) ReconcileSessions(
 				if prior.WorkspaceID != normalized.WorkspaceID {
 					return fmt.Errorf("%w: %s", store.ErrSessionWorkspaceMismatch, normalized.ID)
 				}
-				if prior.NetworkSpecSnapshot() != normalized.NetworkSpecSnapshot() {
-					return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, normalized.ID)
-				}
 				continue
 			}
 			seen[normalized.ID] = normalized
@@ -350,7 +347,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 		if existingWorkspaceID != params.WorkspaceID {
 			return fmt.Errorf("%w: %s", store.ErrSessionWorkspaceMismatch, session.ID)
 		}
-		return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, session.ID)
+		return fmt.Errorf("store: session worktree owner does not match: %s", session.ID)
 	}
 	return nil
 }

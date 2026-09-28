@@ -58,7 +58,7 @@ export function VaultEditor({
       description="Stores a write-only secret value and returns redacted metadata."
       hint={
         <>
-          Bind it from providers, bridges, or sandboxes as{" "}
+          Bind it from providers or extensions as{" "}
           <b className="font-medium text-muted">vault:&lt;reference&gt;</b>.
         </>
       }
@@ -73,7 +73,7 @@ export function VaultEditor({
     >
       <div className="flex flex-col">
         <FormSection
-          help="Providers, bridges, and sandboxes bind this value by its reference, so the reference is the only part of a secret that stays readable."
+          help="Providers and extensions bind this value by its reference, so the reference is the only part of a secret that stays readable."
           title="The reference"
         >
           <div className="flex flex-col gap-4.5">

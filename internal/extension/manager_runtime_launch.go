@@ -68,7 +68,7 @@ func (m *Manager) launchStartupRuntime(
 	resourceSession.Actor.ID = capabilityGrantID
 	resourceSession.Actor.GrantedKinds = slices.Clone(registeredGrant.ResourceKinds)
 	resourceSession.Actor.GrantedScopes = slices.Clone(registeredGrant.ResourceScopes)
-	if err := m.registerRuntimeHostMethods(process, ext, runtime, resourceSession); err != nil {
+	if err := m.registerRuntimeHostMethods(process, ext, resourceSession); err != nil {
 		return launchedRuntime{}, nil, err
 	}
 
@@ -94,7 +94,6 @@ func (m *Manager) launchStartupRuntime(
 func (m *Manager) registerRuntimeHostMethods(
 	process processHandle,
 	ext *managedExtension,
-	runtime subprocess.InitializeRuntime,
 	resourceSession *hostAPIResourceSession,
 ) error {
 	for method, handler := range m.hostMethods {
@@ -103,7 +102,6 @@ func (m *Manager) registerRuntimeHostMethods(
 			m.wrapHostHandler(
 				ext.instanceKey(),
 				method,
-				runtime.Bridge,
 				resourceSession,
 				handler,
 			),
@@ -192,18 +190,12 @@ func (m *Manager) launchConfigFor(
 
 	healthInterval := durationOr(ext.manifest.Subprocess.HealthCheckInterval, defaultHealthCheckInterval)
 	shutdownTimeout := durationOr(ext.manifest.Subprocess.ShutdownTimeout, m.defaultShutdownTimeout)
-	bridgeRuntime, err := m.resolveBridgeRuntime(ctx, ext)
-	if err != nil {
-		runExtensionRedactionCleanups(cleanups)
-		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, err
-	}
 	runtime := subprocess.InitializeRuntime{
 		HealthCheckIntervalMS: healthInterval.Milliseconds(),
 		HealthCheckTimeoutMS:  m.healthCheckTimeout.Milliseconds(),
 		ShutdownTimeoutMS:     shutdownTimeout.Milliseconds(),
 		DefaultHookTimeoutMS:  m.defaultHookTimeout.Milliseconds(),
 		DefaultViewTimeoutMS:  m.defaultViewTimeout.Milliseconds(),
-		Bridge:                bridgeRuntime,
 	}
 
 	launchCfg := subprocess.LaunchConfig{
@@ -233,7 +225,6 @@ func (m *Manager) launchConfigFor(
 func (m *Manager) wrapHostHandler(
 	instance any,
 	method string,
-	bridgeRuntime *subprocess.InitializeBridgeRuntime,
 	resourceSession *hostAPIResourceSession,
 	handler subprocess.HandlerFunc,
 ) subprocess.HandlerFunc {
@@ -250,9 +241,6 @@ func (m *Manager) wrapHostHandler(
 		hostCtx := withHostAPIExtensionName(ctx, key.Name)
 		hostCtx = withHostAPIInstanceKey(hostCtx, key)
 		hostCtx = withHostAPICapabilityGrantID(hostCtx, capabilityGrantID)
-		if bridgeRuntime != nil {
-			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)
-		}
 		if resourceSession != nil {
 			hostCtx = withHostAPIResourceSession(hostCtx, resourceSession)
 		}

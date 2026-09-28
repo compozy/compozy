@@ -3,10 +3,9 @@ package e2elane
 import "fmt"
 
 const (
-	lanesInternalDaemonPath         = "./internal/daemon"
-	lanesInternalCLIPath            = "./internal/cli"
-	lanesInternalSandboxDaytonaPath = "./internal/sandbox/daytona"
-	lanesInternalTestutilE2ePath    = "./internal/testutil/e2e"
+	lanesInternalDaemonPath      = "./internal/daemon"
+	lanesInternalCLIPath         = "./internal/cli"
+	lanesInternalTestutilE2ePath = "./internal/testutil/e2e"
 )
 
 type Lane string
@@ -28,8 +27,6 @@ const (
 	UDSTransportE2EPattern   = "^TestUDSTransport"
 	HarnessRuntimeE2EPattern = "^TestStartRuntimeHarness"
 	RemoteGatewayE2EPattern  = "^TestRemoteGatewayE2E"
-	DaytonaNightlyE2EPattern = "^TestDaytona(" +
-		"ProviderIntegrationFullLifecycle|LauncherTransportValidation|SSHNonPTYValidation)$"
 )
 
 type GoSuite struct {
@@ -127,10 +124,6 @@ var nightlyGoSuites = []GoSuite{
 	{
 		Packages: []string{lanesInternalDaemonPath},
 		Run:      NightlyRuntimeE2EPattern,
-	},
-	{
-		Packages: []string{lanesInternalSandboxDaytonaPath},
-		Run:      DaytonaNightlyE2EPattern,
 	},
 }
 

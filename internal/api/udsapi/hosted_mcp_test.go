@@ -476,7 +476,7 @@ func newDeniedHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 		Risk:            toolspkg.RiskRead,
 		ReadOnly:        true,
 		ConcurrencySafe: true,
-		Toolsets:        []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		Toolsets:        []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,
@@ -525,7 +525,7 @@ func newTerminalFailureHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 		Risk:             toolspkg.RiskRead,
 		ReadOnly:         true,
 		ConcurrencySafe:  true,
-		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,
@@ -561,7 +561,7 @@ func newApprovalRequiredHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 		Visibility:       toolspkg.VisibilityModel,
 		Risk:             toolspkg.RiskMutating,
 		ConcurrencySafe:  true,
-		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,

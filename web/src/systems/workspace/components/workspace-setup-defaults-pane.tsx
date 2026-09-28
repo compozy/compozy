@@ -1,24 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
-import {
-  Button,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
-  CommandSelect,
-  CommandSelectGroup,
-  CommandSelectShell,
-  CommandSelectTrigger,
-  Field,
-  FieldHeader,
-  FieldLabel,
-  FieldTitle,
-  FormSection,
-  HelpTip,
-  Input,
-  Pill,
-} from "@compozy/ui";
+import { Button, Field, FieldHeader, FieldLabel, FormSection, HelpTip, Input } from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import type {
@@ -80,12 +63,9 @@ function CollectionStateMessage<T>({
  */
 export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDefaultsPaneProps) {
   const [pendingDir, setPendingDir] = useState("");
-  const [sandboxOpen, setSandboxOpen] = useState(false);
   const disabled = setup.submissionMode !== null;
   const agents = defaults.agents.state === "ready" ? defaults.agents.entries : [];
-  const sandboxes = defaults.sandboxes.state === "ready" ? defaults.sandboxes.entries : [];
   const agentsUnavailable = defaults.agents.state !== "ready";
-  const sandboxesUnavailable = defaults.sandboxes.state !== "ready";
 
   const commitDir = () => {
     setup.addDir(pendingDir);
@@ -118,74 +98,6 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
             error="Could not load agents"
             loading="Loading agents…"
             testId="workspace-setup-default-agent"
-          />
-        </Field>
-
-        <Field>
-          <FieldHeader>
-            <FieldTitle id="workspace-setup-sandbox-label">Sandbox profile</FieldTitle>
-            <HelpTip label="About sandbox profile">
-              Isolation applied to sessions in this workspace.
-            </HelpTip>
-          </FieldHeader>
-          <CommandSelect onOpenChange={setSandboxOpen} open={sandboxOpen}>
-            <CommandSelectTrigger
-              aria-labelledby="workspace-setup-sandbox-label"
-              data-testid="workspace-setup-sandbox-select"
-              disabled={disabled || sandboxesUnavailable}
-              placeholder={collectionPlaceholder(
-                defaults.sandboxes,
-                "Loading sandbox profiles…",
-                "No sandbox profiles",
-                "Sandbox profiles unavailable",
-                "No sandbox"
-              )}
-              selected={setup.draft.sandboxRef !== ""}
-            >
-              {setup.draft.sandboxRef || null}
-            </CommandSelectTrigger>
-            <CommandSelectShell inputPlaceholder="Search sandbox profiles…">
-              <CommandList>
-                <CommandEmpty>No sandbox profiles match.</CommandEmpty>
-                <CommandSelectGroup>
-                  <CommandItem
-                    data-checked={setup.draft.sandboxRef === "" ? "true" : "false"}
-                    data-testid="workspace-setup-sandbox-none"
-                    onSelect={() => {
-                      setup.setSandboxRef("");
-                      setSandboxOpen(false);
-                    }}
-                    value="No sandbox"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-muted">No sandbox</span>
-                  </CommandItem>
-                  {sandboxes.map(sandbox => (
-                    <CommandItem
-                      data-testid={`workspace-setup-sandbox-${sandbox.name}`}
-                      key={sandbox.name}
-                      onSelect={() => {
-                        setup.setSandboxRef(sandbox.name);
-                        setSandboxOpen(false);
-                      }}
-                      value={sandbox.name}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{sandbox.name}</span>
-                      {sandbox.backend ? (
-                        <Pill mono size="xs">
-                          {sandbox.backend}
-                        </Pill>
-                      ) : null}
-                    </CommandItem>
-                  ))}
-                </CommandSelectGroup>
-              </CommandList>
-            </CommandSelectShell>
-          </CommandSelect>
-          <CollectionStateMessage
-            collection={defaults.sandboxes}
-            error="Could not load sandbox profiles"
-            loading="Loading sandbox profiles…"
-            testId="workspace-setup-sandbox"
           />
         </Field>
 

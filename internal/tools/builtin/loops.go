@@ -404,7 +404,6 @@ const loopRunInputSchema = `{
 		"inputs":{"type":"object","additionalProperties":true},
 		"parent_loop_run_id":{"type":"string"},
 		"config_overrides":` + loopConfigInputSchema + `,
-		"network_participation":` + networkParticipationRequestSchema + `,
 		"dry":{"type":"boolean"}
 	}
 }`
@@ -453,8 +452,7 @@ const loopConfigureInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"name":{"type":"string","minLength":1},
-		"config":` + loopConfigInputSchema + `
-	}
+		"config":` + loopConfigInputSchema + `	}
 }`
 
 const loopApproveInputSchema = `{

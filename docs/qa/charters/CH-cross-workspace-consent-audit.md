@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Bootstrap a fresh isolated lab with unique COMPOZY_HOME/ports/provider home/tmux socket, register PIDs, and run eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every pass/fail/blocked/abort exit; cite clean teardown.json."
       - "From an approve-reads session, trigger the native-tool crossing and confirm exactly one pending permission appears with the four daemon-computed options, labeled as once versus for-this-session — then answer allow_once and reject_once and confirm each governs only its own call."
-      - "Answer allow_session, then cross at the task-claim, spawn, and coordination seams — which never prompt — and confirm they now succeed on the cached answer, with no approval visible in any list or revoke surface."
+      - "Answer allow_session, then cross at the task-claim, and spawn seams — which never prompt — and confirm they now succeed on the cached answer, with no approval visible in any list or revoke surface."
       - "Interrupt the holder: stop the session and start a new one for the same agent, then separately restart the daemon mid-session. The first crossing after each interruption must prompt again — a surviving answer is the headline finding."
       - "Answer reject_session and confirm every later crossing at every seam denies with no prompt; then leave one prompt unanswered past the approval timeout and confirm it denies and stores nothing."
       - "Answer through both operator surfaces (compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always> and the HTTP approve route) and confirm identical option ids and identical resulting behavior."
@@ -30,7 +30,7 @@ charter:
       - "Parallel config writes against the shared isolated home."
   coverage:
     tier: targeted
-    surfaces: [native-tools, ACP-approval-bridge, session-approve-CLI, HTTP-approve-route, task-claim, spawn, network-coordination, compozy-logs, GET-/api/logs, compozy__logs, compozy__observe_search, site-docs]
+    surfaces: [native-tools, ACP-approval-bridge, session-approve-CLI, HTTP-approve-route, task-claim, spawn, compozy-logs, GET-/api/logs, compozy__logs, compozy__observe_search, site-docs]
     invariants: [9, 8, 10]
     hot_spots:
       - "Invariant 9 consent volatility: the answer lives only in daemon memory, applies to every seam, and must not survive a session stop or a daemon restart — the interruptions in this charter exist to attack exactly that."

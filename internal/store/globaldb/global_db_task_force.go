@@ -242,7 +242,6 @@ func (g *TaskRunRepo) insertRetryTaskRun(
 		Metadata:      args.metadata,
 		QueuedAt:      args.queuedAt,
 	}
-	run.SetNetworkState(source.NetworkSpecSnapshot(), "", "", "")
 	normalizedRun, err := g.tasks.normalizeTaskRunForCreate(run)
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err

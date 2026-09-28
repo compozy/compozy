@@ -7,43 +7,8 @@ import (
 
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/tools"
 )
-
-func TestCompilerShouldCanonicalizeDefinitionNetworkParticipation(t *testing.T) {
-	t.Parallel()
-
-	def := validDefinition()
-	def.Start = []dsl.StartBinding{}
-	def.Graph.Nodes[2].Kind = "compozy__network_send"
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	channel := " builders "
-	def.NetworkParticipation = &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &channel,
-	}
-
-	resolved, err := loop.NewCompiler(loop.WithCompilerToolSchemaSource(fakeToolSchemas{
-		"compozy__network_send": {ToolID: "compozy__network_send"},
-	})).Compile(def)
-	if err != nil {
-		t.Fatalf("Compile() error = %v", err)
-	}
-	request := resolved.Definition.NetworkParticipation
-	if request == nil || request.ChannelID == nil || *request.ChannelID != "builders" {
-		t.Fatalf("resolved NetworkParticipation = %#v, want canonical named builders", request)
-	}
-	if def.NetworkParticipation == nil || def.NetworkParticipation.ChannelID == nil ||
-		*def.NetworkParticipation.ChannelID != " builders " {
-		t.Fatalf("Compile() mutated input NetworkParticipation = %#v", def.NetworkParticipation)
-	}
-	if resolved.Definition.Start == nil {
-		t.Fatal("resolved Start = nil, want compiler-normalized empty slice")
-	}
-}
 
 func TestCompilerShouldBuildResolvedFormWithParsedReferencesAndSchemaDigests(t *testing.T) {
 	t.Parallel()

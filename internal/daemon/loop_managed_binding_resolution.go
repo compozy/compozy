@@ -7,7 +7,6 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (b *loopActionSessionBinder) bindFromActiveSession(
@@ -18,14 +17,9 @@ func (b *loopActionSessionBinder) bindFromActiveSession(
 ) (looppkg.ActionSessionBinding, bool, error) {
 	if active.Ownership == goalpkg.BindingOwnershipOriginBorrowed &&
 		strings.TrimSpace(req.OriginSessionID) != "" {
-		matches, err := b.originParticipationMatches(ctx, req)
+		err := b.validateOriginWorkspace(ctx, req)
 		if err != nil {
 			return looppkg.ActionSessionBinding{}, true, err
-		}
-		if !matches {
-			return looppkg.ActionSessionBinding{}, true, bindingMismatch(
-				"origin session network participation differs from the Loop Run snapshot",
-			)
 		}
 		binding, err := b.adoptOriginBinding(ctx, req, key)
 		return binding, true, err
@@ -54,40 +48,29 @@ func (b *loopActionSessionBinder) bindMissingOrAdvancedSession(
 	activeFound bool,
 ) (looppkg.ActionSessionBinding, error) {
 	if !activeFound && strings.TrimSpace(req.OriginSessionID) != "" {
-		matches, err := b.originParticipationMatches(ctx, req)
+		err := b.validateOriginWorkspace(ctx, req)
 		if err != nil {
 			return looppkg.ActionSessionBinding{}, err
 		}
-		if matches {
-			return b.adoptOriginBinding(ctx, req, key)
-		}
-		req.OriginSessionID = ""
+		return b.adoptOriginBinding(ctx, req, key)
 	}
 	return b.ensureRunOwnedBinding(ctx, creator, req, key, active, activeFound)
 }
 
-func (b *loopActionSessionBinder) originParticipationMatches(
+func (b *loopActionSessionBinder) validateOriginWorkspace(
 	ctx context.Context,
 	req looppkg.ActionSessionBindRequest,
-) (bool, error) {
+) error {
 	sessionID := strings.TrimSpace(req.OriginSessionID)
 	info, err := b.sessions.Status(ctx, sessionID)
 	if err != nil {
-		return false, fmt.Errorf("daemon: load origin session %q: %w", sessionID, err)
+		return fmt.Errorf("daemon: load origin session %q: %w", sessionID, err)
 	}
 	if info == nil {
-		return false, fmt.Errorf("daemon: load origin session %q: empty session info", sessionID)
+		return fmt.Errorf("daemon: load origin session %q: empty session info", sessionID)
 	}
 	if strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(string(req.WorkspaceID)) {
-		return false, bindingMismatch("origin session workspace differs from the Loop Run workspace")
+		return bindingMismatch("origin session workspace differs from the Loop Run workspace")
 	}
-	want := participationSnapshotValue(req.NetworkParticipation)
-	if err := participation.ValidateSpec(want); err != nil {
-		return false, fmt.Errorf("daemon: validate Loop Run network participation: %w", err)
-	}
-	got := participationSnapshotValue(&info.NetworkParticipation)
-	if err := participation.ValidateSpec(got); err != nil {
-		return false, fmt.Errorf("daemon: validate origin session network participation: %w", err)
-	}
-	return got == want, nil
+	return nil
 }

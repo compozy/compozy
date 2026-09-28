@@ -64,7 +64,7 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 			browseCalled := false
 			detailEntryID := ""
 			homePaths := testutil.NewTestHomePaths(t)
-			cfg := testConfigWithDisabledNetwork(homePaths)
+			cfg := testConfigForTest(homePaths)
 			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 				TransportName: "http",
 				Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
@@ -166,7 +166,7 @@ func TestListExtensionsJoinsMarketplaceByExactOrigin(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "http",
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
@@ -225,13 +225,13 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			req contract.ExtensionSearchRequest,
 		) (contract.ExtensionSearchResponse, error) {
 			want := contract.ExtensionSearchRequest{
-				Query: "bridge", Sources: []string{"curated", "github"}, Limit: 7, Cursor: "next",
+				Query: "sample", Sources: []string{"curated", "github"}, Limit: 7, Cursor: "next",
 			}
 			if !reflect.DeepEqual(req, want) {
 				t.Fatalf("Search() request = %#v, want %#v", req, want)
 			}
 			return contract.ExtensionSearchResponse{
-				Items:           []contract.ExtensionSearchItem{{Slug: "acme/bridge", Source: "github"}},
+				Items:           []contract.ExtensionSearchItem{{Slug: "acme/sample", Source: "github"}},
 				SourcesDegraded: []string{"curated"},
 			}, nil
 		}}
@@ -242,7 +242,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			t,
 			engine,
 			http.MethodGet,
-			"/extensions/search?q=bridge&sources=curated,github&limit=7&cursor=next",
+			"/extensions/search?q=sample&sources=curated,github&limit=7&cursor=next",
 			nil,
 		)
 		if response.Code != http.StatusOK {
@@ -252,7 +252,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(search) error = %v", err)
 		}
-		if len(payload.Items) != 1 || payload.Items[0].Slug != "acme/bridge" ||
+		if len(payload.Items) != 1 || payload.Items[0].Slug != "acme/sample" ||
 			!reflect.DeepEqual(payload.SourcesDegraded, []string{"curated"}) {
 			t.Fatalf("search response = %#v", payload)
 		}
@@ -316,8 +316,8 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			taskpkg.ActorContext,
 		) (contract.ExtensionPayload, error) {
 			return contract.ExtensionPayload{}, &extensionpkg.ManifestValidationError{
-				Field: "capabilities.provides", Value: "bridge.adapter",
-				Message: "external bridge authoring is a planned follow-up",
+				Field: "capabilities.provides", Value: "invalid.capability",
+				Message: "unsupported capability declaration",
 			}
 		}}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
@@ -328,7 +328,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/extensions",
-			[]byte(`{"source":"local_path","ref":"/tmp/bridge","allow_unverified":true}`),
+			[]byte(`{"source":"local_path","ref":"/tmp/sample-extension","allow_unverified":true}`),
 		)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
@@ -338,7 +338,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			t.Fatalf("json.Unmarshal(validation error) error = %v", err)
 		}
 		if len(payload.Issues) != 1 || payload.Issues[0].Field != "capabilities.provides" ||
-			!strings.Contains(payload.Issues[0].Message, "planned follow-up") {
+			!strings.Contains(payload.Issues[0].Message, "unsupported capability declaration") {
 			t.Fatalf("validation issues = %#v", payload.Issues)
 		}
 	})
@@ -482,7 +482,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			Placements: []contract.ExtensionPlacementPayload{{
 				Kind: "skill", Resource: "tweet-writer", Profile: "growth",
 			}},
-			NetworkRequirementDigest: "sha256:growth-kit",
+			GatewayRequirementDigest: "sha256:growth-kit",
 		}
 		installCalled := false
 		service := extensionServiceStub{
@@ -820,7 +820,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an invalid Git repository URL to bad request", err: registrygit.ErrInvalidRepositoryRef, want: http.StatusBadRequest},
 		{name: "Should map a blocked Git repository destination to forbidden", err: registrygit.ErrRepositoryDestinationBlocked, want: http.StatusForbidden},
 		{name: "Should map manifest validation to bad request", err: extensionpkg.ErrManifestInvalid, want: http.StatusBadRequest},
-		{name: "Should map bridge authoring rejection to bad request", err: &extensionpkg.ManifestValidationError{Field: "capabilities.provides", Value: "bridge.adapter", Message: "external bridge authoring is a planned follow-up"}, want: http.StatusBadRequest},
+
 		{name: "Should map incompatible manifests to bad request", err: extensionpkg.ErrManifestIncompatible, want: http.StatusBadRequest},
 		{name: "Should map missing manifests to bad request", err: extensionpkg.ErrManifestNotFound, want: http.StatusBadRequest},
 		{name: "Should map a missing development origin to conflict", err: extensionpkg.ErrExtensionDevOriginMissing, want: http.StatusConflict},
@@ -832,7 +832,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an unavailable git binary to unavailable", err: registrygit.ErrGitUnavailable, want: http.StatusServiceUnavailable},
 		{name: "Should map an unsupported git version to unavailable", err: registrygit.ErrGitVersionUnsupported, want: http.StatusServiceUnavailable},
 		{name: "Should map invalid search cursors to bad request", err: extensionpkg.ErrExtensionSearchInvalid, want: http.StatusBadRequest},
-		{name: "Should map network confirmation to conflict", err: extensionpkg.ErrExtensionNetworkConfirmationRequired, want: http.StatusConflict},
+		{name: "Should map gateway confirmation to conflict", err: extensionpkg.ErrExtensionGatewayConfirmationRequired, want: http.StatusConflict},
 		{name: "Should map agent conflicts to conflict", err: extensionpkg.ErrExtensionAgentConflict, want: http.StatusConflict},
 		{name: "Should map invalid bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingInvalid, want: http.StatusBadRequest},
 		{name: "Should map undeclared bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingUndeclared, want: http.StatusBadRequest},
@@ -951,7 +951,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			req contract.EnableExtensionRequest,
 			actor taskpkg.ActorContext,
 		) (contract.ExtensionEnableResult, error) {
-			if name != "kit" || req.ConfirmNetworkDigest != "digest-current" || !actor.Authority.Write {
+			if name != "kit" || req.ConfirmGatewayDigest != "digest-current" || !actor.Authority.Write {
 				t.Fatalf("Enable() name=%q req=%#v actor=%#v", name, req, actor)
 			}
 			return want, nil
@@ -964,7 +964,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/extensions/kit/enable",
-			[]byte(`{"confirm_network_digest":"digest-current"}`),
+			[]byte(`{"confirm_gateway_digest":"digest-current"}`),
 		)
 		if response.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
@@ -1096,7 +1096,7 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 		})
 	}
 
-	t.Run("Should return current digest and retry command for network confirmation", func(t *testing.T) {
+	t.Run("Should return current digest and retry command for gateway confirmation", func(t *testing.T) {
 		t.Parallel()
 
 		service := extensionServiceStub{enableFn: func(
@@ -1105,7 +1105,7 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			contract.EnableExtensionRequest,
 			taskpkg.ActorContext,
 		) (contract.ExtensionEnableResult, error) {
-			return contract.ExtensionEnableResult{}, &extensionpkg.NetworkConfirmationRequiredError{
+			return contract.ExtensionEnableResult{}, &extensionpkg.GatewayConfirmationRequiredError{
 				CurrentDigest: "digest-current",
 			}
 		}}
@@ -1120,11 +1120,11 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(error) error = %v", err)
 		}
-		if payload.Code != diagnosticcontract.CodeExtensionNetworkConfirmRequired ||
+		if payload.Code != diagnosticcontract.CodeExtensionGatewayConfirmRequired ||
 			payload.CurrentDigest != "digest-current" || payload.Diagnostic == nil ||
 			payload.Diagnostic.SuggestedCommand !=
-				"compozy extension enable kit --confirm-network-requirement digest-current" {
-			t.Fatalf("network error payload = %#v", payload)
+				"compozy extension enable kit --confirm-gateway-requirement digest-current" {
+			t.Fatalf("gateway error payload = %#v", payload)
 		}
 	})
 
@@ -1777,7 +1777,7 @@ func TestListExtensionsErrorResponses(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "api-core-test",
 			HomePaths:     homePaths,
@@ -1813,7 +1813,7 @@ func TestListExtensionsErrorResponses(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			MaskInternalErrors: true,
@@ -1857,7 +1857,7 @@ func TestInstallExtensionReturnsDiagnosticsOverHTTP(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg := testConfigForTest(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "http",
 			Extensions: extensionServiceStub{installFn: func(
@@ -1925,7 +1925,7 @@ func TestInstallExtensionReturnsDiagnosticsOverHTTP(t *testing.T) {
 			t.Parallel()
 
 			homePaths := testutil.NewTestHomePaths(t)
-			cfg := testConfigWithDisabledNetwork(homePaths)
+			cfg := testConfigForTest(homePaths)
 			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 				TransportName: "http",
 				Extensions: extensionServiceStub{installFn: func(

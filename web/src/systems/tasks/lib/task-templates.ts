@@ -6,7 +6,6 @@ export const TASK_TEMPLATE_IDS = [
   "one_shot",
   "recurring",
   "epic",
-  "remote_peer",
   "human_in_loop",
   "blank",
 ] as const;
@@ -96,19 +95,6 @@ const EPIC_TEMPLATE: TaskTemplate = {
   preview: { enqueueOnSubmit: true },
 };
 
-const REMOTE_PEER_TEMPLATE: TaskTemplate = {
-  id: "remote_peer",
-  label: "Remote from peer",
-  description:
-    "Ingress from a network channel. Remote peers enqueue; local owner claims when ready.",
-  simple: false,
-  simpleLabel: "Remote",
-  simpleDescription: "",
-  defaults: { draft: false, priority: "medium" },
-  badges: [{ label: "Network", tone: "info" }],
-  preview: { enqueueOnSubmit: true, facts: ["enqueued by remote peer"] },
-};
-
 const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {
   id: "human_in_loop",
   label: "Human-in-the-loop",
@@ -140,7 +126,6 @@ const TEMPLATE_BY_ID: Record<TaskTemplateId, TaskTemplate> = {
   one_shot: ONE_SHOT_TEMPLATE,
   recurring: RECURRING_TEMPLATE,
   epic: EPIC_TEMPLATE,
-  remote_peer: REMOTE_PEER_TEMPLATE,
   human_in_loop: HUMAN_IN_LOOP_TEMPLATE,
   blank: BLANK_TEMPLATE,
 };
@@ -149,7 +134,6 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   ONE_SHOT_TEMPLATE,
   RECURRING_TEMPLATE,
   EPIC_TEMPLATE,
-  REMOTE_PEER_TEMPLATE,
   HUMAN_IN_LOOP_TEMPLATE,
   BLANK_TEMPLATE,
 ];

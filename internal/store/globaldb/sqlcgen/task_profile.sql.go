@@ -7,7 +7,6 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
 )
 
 const deleteTaskExecutionProfile = `-- name: DeleteTaskExecutionProfile :execrows
@@ -40,68 +39,43 @@ func (q *Queries) DeleteTaskProfileCapabilities(ctx context.Context, taskID stri
 	return err
 }
 
-const deleteTaskProfileChannels = `-- name: DeleteTaskProfileChannels :exec
-DELETE FROM task_profile_channels WHERE task_id = ?1
-`
-
-func (q *Queries) DeleteTaskProfileChannels(ctx context.Context, taskID string) error {
-	_, err := q.db.ExecContext(ctx, deleteTaskProfileChannels, taskID)
-	return err
-}
-
-const deleteTaskProfilePeers = `-- name: DeleteTaskProfilePeers :exec
-DELETE FROM task_profile_peers WHERE task_id = ?1
-`
-
-func (q *Queries) DeleteTaskProfilePeers(ctx context.Context, taskID string) error {
-	_, err := q.db.ExecContext(ctx, deleteTaskProfilePeers, taskID)
-	return err
-}
-
 const getTaskExecutionProfile = `-- name: GetTaskExecutionProfile :one
 SELECT task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
        coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
        worker_provider, worker_model, worker_reasoning_effort, worker_speed,
        worker_acp_options_json, review_agent_name, review_provider, review_model,
        review_reasoning_effort, review_speed, review_acp_options_json,
-       sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
-       runtime_mode, created_at, updated_at,
-       network_mode, network_channel_strategy, network_channel, network_bounds_json
+       worktree_mode, worktree_ref,
+       runtime_mode, created_at, updated_at
 FROM task_execution_profiles
 WHERE task_id = ?1
 `
 
 type GetTaskExecutionProfileRow struct {
-	TaskID                 string         `json:"task_id"`
-	CoordinatorMode        string         `json:"coordinator_mode"`
-	CoordinatorAgentName   string         `json:"coordinator_agent_name"`
-	CoordinatorProvider    string         `json:"coordinator_provider"`
-	CoordinatorModel       string         `json:"coordinator_model"`
-	CoordinatorGuidance    string         `json:"coordinator_guidance"`
-	WorkerMode             string         `json:"worker_mode"`
-	WorkerAgentName        string         `json:"worker_agent_name"`
-	WorkerProvider         string         `json:"worker_provider"`
-	WorkerModel            string         `json:"worker_model"`
-	WorkerReasoningEffort  string         `json:"worker_reasoning_effort"`
-	WorkerSpeed            string         `json:"worker_speed"`
-	WorkerAcpOptionsJson   string         `json:"worker_acp_options_json"`
-	ReviewAgentName        string         `json:"review_agent_name"`
-	ReviewProvider         string         `json:"review_provider"`
-	ReviewModel            string         `json:"review_model"`
-	ReviewReasoningEffort  string         `json:"review_reasoning_effort"`
-	ReviewSpeed            string         `json:"review_speed"`
-	ReviewAcpOptionsJson   string         `json:"review_acp_options_json"`
-	SandboxMode            string         `json:"sandbox_mode"`
-	SandboxRef             string         `json:"sandbox_ref"`
-	WorktreeMode           string         `json:"worktree_mode"`
-	WorktreeRef            string         `json:"worktree_ref"`
-	RuntimeMode            string         `json:"runtime_mode"`
-	CreatedAt              string         `json:"created_at"`
-	UpdatedAt              string         `json:"updated_at"`
-	NetworkMode            string         `json:"network_mode"`
-	NetworkChannelStrategy sql.NullString `json:"network_channel_strategy"`
-	NetworkChannel         sql.NullString `json:"network_channel"`
-	NetworkBoundsJson      sql.NullString `json:"network_bounds_json"`
+	TaskID                string `json:"task_id"`
+	CoordinatorMode       string `json:"coordinator_mode"`
+	CoordinatorAgentName  string `json:"coordinator_agent_name"`
+	CoordinatorProvider   string `json:"coordinator_provider"`
+	CoordinatorModel      string `json:"coordinator_model"`
+	CoordinatorGuidance   string `json:"coordinator_guidance"`
+	WorkerMode            string `json:"worker_mode"`
+	WorkerAgentName       string `json:"worker_agent_name"`
+	WorkerProvider        string `json:"worker_provider"`
+	WorkerModel           string `json:"worker_model"`
+	WorkerReasoningEffort string `json:"worker_reasoning_effort"`
+	WorkerSpeed           string `json:"worker_speed"`
+	WorkerAcpOptionsJson  string `json:"worker_acp_options_json"`
+	ReviewAgentName       string `json:"review_agent_name"`
+	ReviewProvider        string `json:"review_provider"`
+	ReviewModel           string `json:"review_model"`
+	ReviewReasoningEffort string `json:"review_reasoning_effort"`
+	ReviewSpeed           string `json:"review_speed"`
+	ReviewAcpOptionsJson  string `json:"review_acp_options_json"`
+	WorktreeMode          string `json:"worktree_mode"`
+	WorktreeRef           string `json:"worktree_ref"`
+	RuntimeMode           string `json:"runtime_mode"`
+	CreatedAt             string `json:"created_at"`
+	UpdatedAt             string `json:"updated_at"`
 }
 
 func (q *Queries) GetTaskExecutionProfile(ctx context.Context, taskID string) (GetTaskExecutionProfileRow, error) {
@@ -127,17 +101,11 @@ func (q *Queries) GetTaskExecutionProfile(ctx context.Context, taskID string) (G
 		&i.ReviewReasoningEffort,
 		&i.ReviewSpeed,
 		&i.ReviewAcpOptionsJson,
-		&i.SandboxMode,
-		&i.SandboxRef,
 		&i.WorktreeMode,
 		&i.WorktreeRef,
 		&i.RuntimeMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.NetworkMode,
-		&i.NetworkChannelStrategy,
-		&i.NetworkChannel,
-		&i.NetworkBoundsJson,
 	)
 	return i, err
 }
@@ -178,50 +146,6 @@ type InsertTaskProfileCapabilityParams struct {
 
 func (q *Queries) InsertTaskProfileCapability(ctx context.Context, arg InsertTaskProfileCapabilityParams) error {
 	_, err := q.db.ExecContext(ctx, insertTaskProfileCapability,
-		arg.TaskID,
-		arg.Role,
-		arg.Preference,
-		arg.Value,
-	)
-	return err
-}
-
-const insertTaskProfileChannel = `-- name: InsertTaskProfileChannel :exec
-INSERT INTO task_profile_channels (task_id, role, preference, channel_id)
-VALUES (?1, ?2, ?3, ?4)
-`
-
-type InsertTaskProfileChannelParams struct {
-	TaskID     string `json:"task_id"`
-	Role       string `json:"role"`
-	Preference string `json:"preference"`
-	Value      string `json:"value"`
-}
-
-func (q *Queries) InsertTaskProfileChannel(ctx context.Context, arg InsertTaskProfileChannelParams) error {
-	_, err := q.db.ExecContext(ctx, insertTaskProfileChannel,
-		arg.TaskID,
-		arg.Role,
-		arg.Preference,
-		arg.Value,
-	)
-	return err
-}
-
-const insertTaskProfilePeer = `-- name: InsertTaskProfilePeer :exec
-INSERT INTO task_profile_peers (task_id, role, preference, peer_id)
-VALUES (?1, ?2, ?3, ?4)
-`
-
-type InsertTaskProfilePeerParams struct {
-	TaskID     string `json:"task_id"`
-	Role       string `json:"role"`
-	Preference string `json:"preference"`
-	Value      string `json:"value"`
-}
-
-func (q *Queries) InsertTaskProfilePeer(ctx context.Context, arg InsertTaskProfilePeerParams) error {
-	_, err := q.db.ExecContext(ctx, insertTaskProfilePeer,
 		arg.TaskID,
 		arg.Role,
 		arg.Preference,
@@ -302,78 +226,6 @@ func (q *Queries) ListTaskProfileCapabilities(ctx context.Context, taskID string
 	return items, nil
 }
 
-const listTaskProfileChannels = `-- name: ListTaskProfileChannels :many
-SELECT role, preference, channel_id AS value
-FROM task_profile_channels
-WHERE task_id = ?1
-ORDER BY role ASC, preference ASC, channel_id ASC
-`
-
-type ListTaskProfileChannelsRow struct {
-	Role       string `json:"role"`
-	Preference string `json:"preference"`
-	Value      string `json:"value"`
-}
-
-func (q *Queries) ListTaskProfileChannels(ctx context.Context, taskID string) ([]ListTaskProfileChannelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTaskProfileChannels, taskID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListTaskProfileChannelsRow{}
-	for rows.Next() {
-		var i ListTaskProfileChannelsRow
-		if err := rows.Scan(&i.Role, &i.Preference, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listTaskProfilePeers = `-- name: ListTaskProfilePeers :many
-SELECT role, preference, peer_id AS value
-FROM task_profile_peers
-WHERE task_id = ?1
-ORDER BY role ASC, preference ASC, peer_id ASC
-`
-
-type ListTaskProfilePeersRow struct {
-	Role       string `json:"role"`
-	Preference string `json:"preference"`
-	Value      string `json:"value"`
-}
-
-func (q *Queries) ListTaskProfilePeers(ctx context.Context, taskID string) ([]ListTaskProfilePeersRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTaskProfilePeers, taskID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListTaskProfilePeersRow{}
-	for rows.Next() {
-		var i ListTaskProfilePeersRow
-		if err := rows.Scan(&i.Role, &i.Preference, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const upsertTaskExecutionProfile = `-- name: UpsertTaskExecutionProfile :exec
 INSERT INTO task_execution_profiles (
   task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
@@ -381,9 +233,8 @@ INSERT INTO task_execution_profiles (
   worker_provider, worker_model, worker_reasoning_effort, worker_speed,
   worker_acp_options_json, review_agent_name, review_provider, review_model,
   review_reasoning_effort, review_speed, review_acp_options_json,
-  sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
-  runtime_mode, created_at, updated_at,
-  network_mode, network_channel_strategy, network_channel, network_bounds_json
+  worktree_mode, worktree_ref,
+  runtime_mode, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3,
   ?4, ?5, ?6,
@@ -391,11 +242,8 @@ INSERT INTO task_execution_profiles (
   ?10, ?11, ?12,
   ?13, ?14, ?15,
   ?16, ?17, ?18,
-  ?19, ?20, ?21,
-  ?22, ?23, ?24,
-  ?25, ?26,
-  ?27, ?28, ?29,
-  ?30
+  ?19, ?20, ?21, ?22,
+  ?23, ?24
 )
 ON CONFLICT(task_id) DO UPDATE SET
   coordinator_mode = excluded.coordinator_mode,
@@ -416,49 +264,37 @@ ON CONFLICT(task_id) DO UPDATE SET
   review_reasoning_effort = excluded.review_reasoning_effort,
   review_speed = excluded.review_speed,
   review_acp_options_json = excluded.review_acp_options_json,
-  sandbox_mode = excluded.sandbox_mode,
-  sandbox_ref = excluded.sandbox_ref,
   worktree_mode = excluded.worktree_mode,
   worktree_ref = excluded.worktree_ref,
   runtime_mode = excluded.runtime_mode,
-  network_mode = excluded.network_mode,
-  network_channel_strategy = excluded.network_channel_strategy,
-  network_channel = excluded.network_channel,
-  network_bounds_json = excluded.network_bounds_json,
   updated_at = excluded.updated_at
 `
 
 type UpsertTaskExecutionProfileParams struct {
-	TaskID                 string         `json:"task_id"`
-	CoordinatorMode        string         `json:"coordinator_mode"`
-	CoordinatorAgentName   string         `json:"coordinator_agent_name"`
-	CoordinatorProvider    string         `json:"coordinator_provider"`
-	CoordinatorModel       string         `json:"coordinator_model"`
-	CoordinatorGuidance    string         `json:"coordinator_guidance"`
-	WorkerMode             string         `json:"worker_mode"`
-	WorkerAgentName        string         `json:"worker_agent_name"`
-	WorkerProvider         string         `json:"worker_provider"`
-	WorkerModel            string         `json:"worker_model"`
-	WorkerReasoningEffort  string         `json:"worker_reasoning_effort"`
-	WorkerSpeed            string         `json:"worker_speed"`
-	WorkerAcpOptionsJson   string         `json:"worker_acp_options_json"`
-	ReviewAgentName        string         `json:"review_agent_name"`
-	ReviewProvider         string         `json:"review_provider"`
-	ReviewModel            string         `json:"review_model"`
-	ReviewReasoningEffort  string         `json:"review_reasoning_effort"`
-	ReviewSpeed            string         `json:"review_speed"`
-	ReviewAcpOptionsJson   string         `json:"review_acp_options_json"`
-	SandboxMode            string         `json:"sandbox_mode"`
-	SandboxRef             string         `json:"sandbox_ref"`
-	WorktreeMode           string         `json:"worktree_mode"`
-	WorktreeRef            string         `json:"worktree_ref"`
-	RuntimeMode            string         `json:"runtime_mode"`
-	CreatedAt              string         `json:"created_at"`
-	UpdatedAt              string         `json:"updated_at"`
-	NetworkMode            string         `json:"network_mode"`
-	NetworkChannelStrategy sql.NullString `json:"network_channel_strategy"`
-	NetworkChannel         sql.NullString `json:"network_channel"`
-	NetworkBoundsJson      sql.NullString `json:"network_bounds_json"`
+	TaskID                string `json:"task_id"`
+	CoordinatorMode       string `json:"coordinator_mode"`
+	CoordinatorAgentName  string `json:"coordinator_agent_name"`
+	CoordinatorProvider   string `json:"coordinator_provider"`
+	CoordinatorModel      string `json:"coordinator_model"`
+	CoordinatorGuidance   string `json:"coordinator_guidance"`
+	WorkerMode            string `json:"worker_mode"`
+	WorkerAgentName       string `json:"worker_agent_name"`
+	WorkerProvider        string `json:"worker_provider"`
+	WorkerModel           string `json:"worker_model"`
+	WorkerReasoningEffort string `json:"worker_reasoning_effort"`
+	WorkerSpeed           string `json:"worker_speed"`
+	WorkerAcpOptionsJson  string `json:"worker_acp_options_json"`
+	ReviewAgentName       string `json:"review_agent_name"`
+	ReviewProvider        string `json:"review_provider"`
+	ReviewModel           string `json:"review_model"`
+	ReviewReasoningEffort string `json:"review_reasoning_effort"`
+	ReviewSpeed           string `json:"review_speed"`
+	ReviewAcpOptionsJson  string `json:"review_acp_options_json"`
+	WorktreeMode          string `json:"worktree_mode"`
+	WorktreeRef           string `json:"worktree_ref"`
+	RuntimeMode           string `json:"runtime_mode"`
+	CreatedAt             string `json:"created_at"`
+	UpdatedAt             string `json:"updated_at"`
 }
 
 func (q *Queries) UpsertTaskExecutionProfile(ctx context.Context, arg UpsertTaskExecutionProfileParams) error {
@@ -482,17 +318,11 @@ func (q *Queries) UpsertTaskExecutionProfile(ctx context.Context, arg UpsertTask
 		arg.ReviewReasoningEffort,
 		arg.ReviewSpeed,
 		arg.ReviewAcpOptionsJson,
-		arg.SandboxMode,
-		arg.SandboxRef,
 		arg.WorktreeMode,
 		arg.WorktreeRef,
 		arg.RuntimeMode,
 		arg.CreatedAt,
 		arg.UpdatedAt,
-		arg.NetworkMode,
-		arg.NetworkChannelStrategy,
-		arg.NetworkChannel,
-		arg.NetworkBoundsJson,
 	)
 	return err
 }

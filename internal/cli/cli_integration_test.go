@@ -26,21 +26,20 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bridgepkg "github.com/compozy/compozy/internal/bridges"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/network"
+
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
-	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -2114,85 +2113,9 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,health_state,health,updated_at}:",
+		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,state,badge,failure_kind,workspace,health_state,health,updated_at}:",
 	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
 		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
-	}
-}
-
-func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	newOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"demo",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		"builders",
-		"--cwd",
-		h.workspace,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("session new --channel error = %v", err)
-	}
-	var created SessionRecord
-	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
-	}
-	if resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != "builders" {
-		t.Fatalf(
-			"created.ResolvedNetworkParticipation = %#v, want channel %q",
-			created.ResolvedNetworkParticipation,
-			"builders",
-		)
-	}
-
-	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
-	if err != nil {
-		t.Fatalf("session list error = %v", err)
-	}
-	var listed SessionListPage
-	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
-		t.Fatalf("json.Unmarshal(session list) error = %v", err)
-	}
-	if got, want := len(listed.Sessions), 1; got != want {
-		t.Fatalf("len(listed) = %d, want %d", got, want)
-	}
-	if resolvedParticipationChannelID(listed.Sessions[0].ResolvedNetworkParticipation) != "builders" {
-		t.Fatalf(
-			"listed[0].ResolvedNetworkParticipation = %#v, want channel %q",
-			listed.Sessions[0].ResolvedNetworkParticipation,
-			"builders",
-		)
-	}
-
-	stopOut := stopIntegrationSessionAndRead(t, h.deps, created.ID)
-	var stopped SessionRecord
-	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
-		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
-	}
-	if resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != "builders" ||
-		stopped.State != session.StateStopped {
-		t.Fatalf("stopped = %#v, want stopped builders session", stopped)
-	}
-
-	if _, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json"); err == nil {
-		t.Fatal("session resume stopped error = nil, want attach rejection")
-	} else if !strings.Contains(err.Error(), "session not attachable") {
-		t.Fatalf("session resume stopped error = %v, want not attachable", err)
 	}
 }
 
@@ -2555,628 +2478,6 @@ func TestCLIAgentAuthoredContextIntegration(t *testing.T) {
 	}
 }
 
-func TestCLINetworkRoundTripIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	newOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"net-demo",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		"builders",
-		"--cwd",
-		h.workspace,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("session new --channel error = %v", err)
-	}
-	var created SessionRecord
-	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
-	}
-	seedIntegrationNetworkChannel(t, h, created, "builders")
-	senderOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"net-sender",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		"builders",
-		"--cwd",
-		h.workspace,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("sender session new --channel error = %v", err)
-	}
-	var sender SessionRecord
-	if err := json.Unmarshal([]byte(senderOut), &sender); err != nil {
-		t.Fatalf("json.Unmarshal(sender session new --channel) error = %v", err)
-	}
-
-	statusOut, _, err := executeRootCommand(t, h.deps, "network", "status", "-o", "json")
-	if err != nil {
-		t.Fatalf("network status error = %v", err)
-	}
-	var status NetworkStatusRecord
-	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
-		t.Fatalf("json.Unmarshal(network status) error = %v", err)
-	}
-	if !status.Enabled || status.Status != network.StatusActive {
-		t.Fatalf("network status = %#v, want enabled active", status)
-	}
-
-	peersOut, _, err := executeRootCommand(t, h.deps, "network", "peers", "builders", "-o", "json")
-	if err != nil {
-		t.Fatalf("network peers error = %v", err)
-	}
-	var peers []NetworkPeerRecord
-	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
-		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
-	}
-	peerSessions := make(map[string]struct{}, len(peers))
-	var receiverPeerID string
-	for _, peer := range peers {
-		if peer.SessionID != nil {
-			peerSessions[*peer.SessionID] = struct{}{}
-			if *peer.SessionID == created.ID {
-				receiverPeerID = peer.PeerID
-			}
-		}
-	}
-	if _, ok := peerSessions[created.ID]; !ok {
-		t.Fatalf("network peers = %#v, want blocked receiver session peer", peers)
-	}
-	if receiverPeerID == "" {
-		t.Fatalf("network peers = %#v, want receiver peer id for mention targeting", peers)
-	}
-	if _, ok := peerSessions[sender.ID]; !ok {
-		t.Fatalf("network peers = %#v, want sender session peer", peers)
-	}
-
-	channelsOut, _, err := executeRootCommand(t, h.deps, "network", "channels", "-o", "json")
-	if err != nil {
-		t.Fatalf("network channels error = %v", err)
-	}
-	var channels []NetworkChannelRecord
-	if err := json.Unmarshal([]byte(channelsOut), &channels); err != nil {
-		t.Fatalf("json.Unmarshal(network channels) error = %v", err)
-	}
-	if len(channels) != 1 || channels[0].Channel != "builders" || channels[0].PeerCount != 2 {
-		t.Fatalf("network channels = %#v, want builders peer_count=2", channels)
-	}
-
-	events, err := h.runner.blockSession(created.ID)
-	if err != nil {
-		t.Fatalf("blockSession() error = %v", err)
-	}
-	if events == nil {
-		t.Fatal("blockSession() events = nil, want event stream")
-	}
-	if !h.runner.waitForBlocked(created.ID, 2*time.Second) {
-		t.Fatal("timed out waiting for blocked session prompt")
-	}
-
-	agentDeps := h.deps
-	agentDeps.getenv = func(key string) string {
-		switch key {
-		case agentidentity.EnvSessionID:
-			return sender.ID
-		case agentidentity.EnvAgent:
-			return sender.AgentName
-		default:
-			return ""
-		}
-	}
-	const channelRawToken = "compozy_claim_CLI_CHANNEL_INTEGRATION_123"
-	stdout, stderr, err := executeRootCommand(
-		t,
-		agentDeps,
-		"ch", "send", "builders",
-		"--body", `{"claim_token":"`+channelRawToken+`"}`,
-		"--task-id", "task-security",
-		"--run-id", "run-security",
-		"--kind", string(contract.CoordinationMessageStatus),
-		"-o", "json",
-	)
-	if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
-		t.Fatalf("ch send raw claim-token error = %v, want ErrRawClaimTokenMetadata", err)
-	}
-	for _, output := range []string{stdout, stderr, err.Error()} {
-		if strings.Contains(output, channelRawToken) {
-			t.Fatalf("ch send validation output leaked raw claim token: %s", output)
-		}
-	}
-	if _, _, err := executeRootCommand(
-		t,
-		agentDeps,
-		"ch", "send", "builders",
-		"--body", `{"text":"spoof"}`,
-		"--task-id", "task-security",
-		"--run-id", "run-security",
-		"--from", "alice@39f713d0a644253f04529421b9f51b9b",
-	); err == nil || !strings.Contains(err.Error(), "unknown flag: --from") {
-		t.Fatalf("ch send caller identity error = %v, want unsupported identity field rejection", err)
-	}
-
-	if _, _, err := executeRootCommand(t, h.deps,
-		"network", "send",
-		"--session", sender.ID,
-		"--channel", "builders",
-		"--surface", "thread",
-		"--thread", "thread_claim_rejected",
-		"--kind", "say",
-		"--body", `{"claim_token":"compozy_claim_cli"}`,
-		"-o", "json",
-	); err == nil || !strings.Contains(err.Error(), "network_raw_token_rejected") {
-		t.Fatalf("network send raw claim-token error = %v, want network_raw_token_rejected", err)
-	}
-
-	// The default channel fanout policy is capability_match, which digests
-	// non-activating broadcasts. Mention the blocked receiver so the message is
-	// fully delivered and queued in its inbox while its prompt is blocked.
-	sendOut, _, err := executeRootCommand(t, h.deps,
-		"network", "send",
-		"--session", sender.ID,
-		"--channel", "builders",
-		"--surface", "thread",
-		"--thread", "thread_cli_queued",
-		"--kind", "say",
-		"--body", `{"text":"queued hello"}`,
-		"--ext", `{"compozy.workflow_id":"wf-1","compozy.handoff_version":3}`,
-		"--mention", receiverPeerID,
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("network send error = %v", err)
-	}
-	var sent NetworkSendRecord
-	if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
-		t.Fatalf("json.Unmarshal(network send) error = %v", err)
-	}
-	if sent.ID == "" || string(sent.Ext["compozy.workflow_id"]) != `"wf-1"` {
-		t.Fatalf("sent = %#v, want message id and ext metadata", sent)
-	}
-	if sent.Surface != "thread" || sent.ThreadID != "thread_cli_queued" {
-		t.Fatalf("sent = %#v, want thread surface response", sent)
-	}
-
-	threadsOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"threads",
-		"list",
-		"--channel",
-		"builders",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network threads list error = %v", err)
-	}
-	var threads contract.NetworkThreadsResponse
-	if err := json.Unmarshal([]byte(threadsOut), &threads); err != nil {
-		t.Fatalf("json.Unmarshal(network threads list) error = %v", err)
-	}
-	if len(threads.Threads) != 1 || threads.Threads[0].ThreadID != "thread_cli_queued" {
-		t.Fatalf("network threads = %#v, want queued thread", threads)
-	}
-
-	threadOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"threads",
-		"show",
-		"--channel",
-		"builders",
-		"--thread",
-		"thread_cli_queued",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network threads show error = %v", err)
-	}
-	var thread contract.NetworkThreadResponse
-	if err := json.Unmarshal([]byte(threadOut), &thread); err != nil {
-		t.Fatalf("json.Unmarshal(network threads show) error = %v", err)
-	}
-	if thread.Thread.ThreadID != "thread_cli_queued" || thread.Thread.MessageCount != 1 {
-		t.Fatalf("network thread = %#v, want one queued message", thread)
-	}
-
-	threadMessagesOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"threads",
-		"messages",
-		"--channel",
-		"builders",
-		"--thread",
-		"thread_cli_queued",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network threads messages error = %v", err)
-	}
-	var threadMessages contract.NetworkThreadMessagesResponse
-	if err := json.Unmarshal([]byte(threadMessagesOut), &threadMessages); err != nil {
-		t.Fatalf("json.Unmarshal(network threads messages) error = %v", err)
-	}
-	if len(threadMessages.Messages) != 1 || threadMessages.Messages[0].MessageID != sent.ID {
-		t.Fatalf("network thread messages = %#v, want sent message", threadMessages)
-	}
-
-	var inbox []NetworkEnvelopeRecord
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		inboxOut, _, inboxErr := executeRootCommand(
-			t,
-			h.deps,
-			"network",
-			"inbox",
-			"--session",
-			created.ID,
-			"-o",
-			"json",
-		)
-		if inboxErr != nil {
-			t.Fatalf("network inbox error = %v", inboxErr)
-		}
-		if err := json.Unmarshal([]byte(inboxOut), &inbox); err != nil {
-			t.Fatalf("json.Unmarshal(network inbox) error = %v", err)
-		}
-		if len(inbox) > 0 {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if len(inbox) == 0 {
-		t.Fatal("network inbox = empty, want queued message while prompt is blocked")
-	}
-	if string(inbox[0].Ext["compozy.workflow_id"]) != `"wf-1"` ||
-		string(inbox[0].Ext["compozy.handoff_version"]) != `3` {
-		t.Fatalf("network inbox = %#v, want workflow metadata", inbox)
-	}
-
-	h.runner.releaseBlocked(created.ID)
-}
-
-func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	newSession := func(name string) SessionRecord {
-		t.Helper()
-
-		out, _, err := executeRootCommand(
-			t,
-			h.deps,
-			"session",
-			"new",
-			"--agent",
-			"coder",
-			"--name",
-			name,
-			"--network",
-			"live",
-			"--network-channel-strategy",
-			"named",
-			"--network-channel",
-			"builders",
-			"--cwd",
-			h.workspace,
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("session new %s error = %v", name, err)
-		}
-		var created SessionRecord
-		if err := json.Unmarshal([]byte(out), &created); err != nil {
-			t.Fatalf("json.Unmarshal(session new %s) error = %v", name, err)
-		}
-		return created
-	}
-
-	sender := newSession("sender")
-	seedIntegrationNetworkChannel(t, h, sender, "builders")
-	receiver := newSession("receiver")
-	receiverPeerID := "coder." + receiver.ID
-
-	resolveDirect := func() contract.NetworkDirectRoomResponse {
-		t.Helper()
-
-		out, _, err := executeRootCommand(
-			t,
-			h.deps,
-			"network",
-			"directs",
-			"resolve",
-			"--session",
-			sender.ID,
-			"--channel",
-			"builders",
-			"--peer",
-			receiverPeerID,
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("network directs resolve error = %v", err)
-		}
-		var resolved contract.NetworkDirectRoomResponse
-		if err := json.Unmarshal([]byte(out), &resolved); err != nil {
-			t.Fatalf("json.Unmarshal(network directs resolve) error = %v", err)
-		}
-		return resolved
-	}
-
-	resolvedDirect := resolveDirect()
-	directID := strings.TrimSpace(resolvedDirect.Direct.DirectID)
-	if directID == "" {
-		t.Fatalf("resolved direct = %#v, want non-empty direct id", resolvedDirect)
-	}
-	resolvedDirectAgain := resolveDirect()
-	if resolvedDirectAgain.Direct.DirectID != directID {
-		t.Fatalf("resolved direct again = %#v, want same direct id %q", resolvedDirectAgain, directID)
-	}
-
-	events, err := h.runner.blockSession(receiver.ID)
-	if err != nil {
-		t.Fatalf("blockSession() error = %v", err)
-	}
-	if events == nil {
-		t.Fatal("blockSession() events = nil, want event stream")
-	}
-	if !h.runner.waitForBlocked(receiver.ID, 2*time.Second) {
-		t.Fatal("timed out waiting for blocked receiver prompt")
-	}
-
-	sendDirect := func(messageID string, workID string, text string) {
-		t.Helper()
-
-		out, _, err := executeRootCommand(t, h.deps,
-			"network", "send",
-			"--session", sender.ID,
-			"--channel", "builders",
-			"--surface", "direct",
-			"--direct", directID,
-			"--kind", "say",
-			"--to", receiverPeerID,
-			"--work", workID,
-			"--id", messageID,
-			"--body", fmt.Sprintf(`{"text":%q}`, text),
-			"-o", "json",
-		)
-		if err != nil {
-			t.Fatalf("network send direct error = %v", err)
-		}
-		var sent NetworkSendRecord
-		if err := json.Unmarshal([]byte(out), &sent); err != nil {
-			t.Fatalf("json.Unmarshal(network send direct) error = %v", err)
-		}
-		if sent.ID != messageID {
-			t.Fatalf("sent.ID = %q, want %q", sent.ID, messageID)
-		}
-	}
-
-	readInbox := func(sessionID string) []NetworkEnvelopeRecord {
-		t.Helper()
-
-		out, _, err := executeRootCommand(t, h.deps, "network", "inbox", "--session", sessionID, "-o", "json")
-		if err != nil {
-			t.Fatalf("network inbox error = %v", err)
-		}
-		var inbox []NetworkEnvelopeRecord
-		if err := json.Unmarshal([]byte(out), &inbox); err != nil {
-			t.Fatalf("json.Unmarshal(network inbox) error = %v", err)
-		}
-		return inbox
-	}
-
-	sendDirect("msg-direct-retry-1", "work_review_1", "please review auth.go")
-	sendDirect("msg-direct-retry-1", "work_review_1", "please review auth.go")
-
-	waitForCondition(t, 2*time.Second, func() bool {
-		inbox := readInbox(receiver.ID)
-		return len(inbox) == 1 && inbox[0].ID == "msg-direct-retry-1"
-	})
-	directsOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"directs",
-		"list",
-		"--channel",
-		"builders",
-		"--session",
-		receiver.ID,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network directs list error = %v", err)
-	}
-	var directs contract.NetworkDirectRoomsResponse
-	if err := json.Unmarshal([]byte(directsOut), &directs); err != nil {
-		t.Fatalf("json.Unmarshal(network directs list) error = %v", err)
-	}
-	if len(directs.Directs) != 1 || directs.Directs[0].DirectID != directID {
-		t.Fatalf("network directs = %#v, want direct room", directs)
-	}
-
-	directOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"directs",
-		"show",
-		"--channel",
-		"builders",
-		"--direct",
-		directID,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network directs show error = %v", err)
-	}
-	var direct contract.NetworkDirectRoomResponse
-	if err := json.Unmarshal([]byte(directOut), &direct); err != nil {
-		t.Fatalf("json.Unmarshal(network directs show) error = %v", err)
-	}
-	if direct.Direct.DirectID != directID || direct.Direct.MessageCount != 1 {
-		t.Fatalf("network direct = %#v, want one accepted message", direct)
-	}
-
-	directMessagesOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"directs",
-		"messages",
-		"--channel",
-		"builders",
-		"--direct",
-		directID,
-		"--work",
-		"work_review_1",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network directs messages error = %v", err)
-	}
-	var directMessages contract.NetworkDirectRoomMessagesResponse
-	if err := json.Unmarshal([]byte(directMessagesOut), &directMessages); err != nil {
-		t.Fatalf("json.Unmarshal(network directs messages) error = %v", err)
-	}
-	if len(directMessages.Messages) != 1 || directMessages.Messages[0].MessageID != "msg-direct-retry-1" {
-		t.Fatalf("network direct messages = %#v, want accepted direct message", directMessages)
-	}
-
-	workOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"network",
-		"work",
-		"lookup",
-		"--work",
-		"work_review_1",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("network work lookup error = %v", err)
-	}
-	var work contract.NetworkWorkResponse
-	if err := json.Unmarshal([]byte(workOut), &work); err != nil {
-		t.Fatalf("json.Unmarshal(network work lookup) error = %v", err)
-	}
-	if work.Work.WorkID != "work_review_1" || work.Work.DirectID != directID {
-		t.Fatalf("network work = %#v, want direct-bound work", work)
-	}
-
-	h.runner.releaseBlocked(receiver.ID)
-	inbox := readInbox(receiver.ID)
-	if len(inbox) != 1 || inbox[0].ID != "msg-direct-retry-1" {
-		t.Fatalf("network inbox after prompt completion = %#v, want immutable delivered message", inbox)
-	}
-
-	stopOut := stopIntegrationSessionAndRead(t, h.deps, receiver.ID)
-	var stopped SessionRecord
-	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
-		t.Fatalf("json.Unmarshal(session stop receiver) error = %v", err)
-	}
-	if stopped.State != session.StateStopped {
-		t.Fatalf("stopped receiver = %#v, want stopped state", stopped)
-	}
-
-	if _, _, err := executeRootCommand(t, h.deps, "session", "resume", receiver.ID, "-o", "json"); err == nil {
-		t.Fatal("session resume stopped receiver error = nil, want attach rejection")
-	} else if !strings.Contains(err.Error(), "session not attachable") {
-		t.Fatalf("session resume stopped receiver error = %v, want not attachable", err)
-	}
-	receiver = newSession("receiver-reconnect")
-	receiverPeerID = "coder." + receiver.ID
-	reconnectedDirect := resolveDirect()
-	directID = strings.TrimSpace(reconnectedDirect.Direct.DirectID)
-	if directID == "" {
-		t.Fatalf("resolved reconnected direct = %#v, want non-empty direct id", reconnectedDirect)
-	}
-
-	resumedEvents, err := h.runner.blockSession(receiver.ID)
-	if err != nil {
-		t.Fatalf("blockSession(resumed) error = %v", err)
-	}
-	if resumedEvents == nil {
-		t.Fatal("blockSession(resumed) events = nil, want event stream")
-	}
-	if !h.runner.waitForBlocked(receiver.ID, 2*time.Second) {
-		t.Fatal("timed out waiting for blocked resumed receiver prompt")
-	}
-
-	sendDirect("msg-direct-resume-1", "work_review_2", "please review after resume")
-
-	waitForCondition(t, 2*time.Second, func() bool {
-		inbox := readInbox(receiver.ID)
-		return len(inbox) == 1 && inbox[0].ID == "msg-direct-resume-1"
-	})
-
-	peersOut, _, err := executeRootCommand(t, h.deps, "network", "peers", "builders", "-o", "json")
-	if err != nil {
-		t.Fatalf("network peers error = %v", err)
-	}
-	var peers []NetworkPeerRecord
-	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
-		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
-	}
-	var receiverPresent bool
-	for _, peer := range peers {
-		if peer.SessionID != nil && *peer.SessionID == receiver.ID && peer.PeerID == receiverPeerID {
-			receiverPresent = true
-			break
-		}
-	}
-	if !receiverPresent {
-		t.Fatalf("network peers = %#v, want resumed receiver peer", peers)
-	}
-
-	h.runner.releaseBlocked(receiver.ID)
-	inbox = readInbox(receiver.ID)
-	if len(inbox) != 1 || inbox[0].ID != "msg-direct-resume-1" {
-		t.Fatalf("network inbox after resumed prompt completion = %#v, want immutable delivered message", inbox)
-	}
-}
-
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should require install consent and round-trip profile enablement", func(t *testing.T) {
@@ -3201,10 +2502,8 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 			filepath.Join(dir, "extension.toml"),
 			extensionFixtureManifest("integration-ext", extensionFixtureOptions{})+`
 
-[network_participation]
-required = true
-mode = "live"
-channel_scopes = ["team/*"]
+[gateway]
+permissions = ["gateway.private"]
 `,
 		)
 
@@ -3221,11 +2520,11 @@ channel_scopes = ["team/*"]
 		)
 		operationErr, operationErrMatched := errors.AsType[*extensionOperationAPIError](installErr)
 		if !operationErrMatched {
-			t.Fatalf("extension install error = %v, want structured network-consent error", installErr)
+			t.Fatalf("extension install error = %v, want structured gateway-consent error", installErr)
 		}
 		operationPayload := operationErr.extensionOperationErrorPayload()
-		if operationPayload.Code != "extension_network_confirmation_required" || operationPayload.CurrentDigest == "" {
-			t.Fatalf("extension install error payload = %#v, want current network digest", operationPayload)
+		if operationPayload.Code != "extension_gateway_confirmation_required" || operationPayload.CurrentDigest == "" {
+			t.Fatalf("extension install error payload = %#v, want current gateway digest", operationPayload)
 		}
 
 		installOut := mustExecuteRoot(
@@ -3236,7 +2535,7 @@ channel_scopes = ["team/*"]
 			dir,
 			"--allow-unverified",
 			"--yes",
-			"--"+extensionConfirmNetworkFlagName,
+			"--"+extensionConfirmGatewayFlagName,
 			operationPayload.CurrentDigest,
 			"-o",
 			"json",
@@ -3247,9 +2546,9 @@ channel_scopes = ["team/*"]
 		}
 		if installed.Name != "integration-ext" || installed.State != "active" || !installed.Enabled ||
 			!installed.DaemonRunning ||
-			installed.NetworkRequirementDigest == "" || installed.NetworkConfirmationRequired {
+			installed.GatewayRequirementDigest == "" || installed.GatewayConfirmationRequired {
 			t.Fatalf(
-				"installed extension = %#v, want active default-on extension with recorded network consent",
+				"installed extension = %#v, want active default-on extension with recorded gateway consent",
 				installed,
 			)
 		}
@@ -3283,7 +2582,7 @@ channel_scopes = ["team/*"]
 		if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
 			t.Fatalf("json.Unmarshal(extension status) error = %v", err)
 		}
-		if status.Name != "integration-ext" || status.State != "active" || status.NetworkConfirmationRequired ||
+		if status.Name != "integration-ext" || status.State != "active" || status.GatewayConfirmationRequired ||
 			!status.Enabled {
 			t.Fatalf("extension status = %#v, want active extension with recorded consent", status)
 		}
@@ -3723,166 +3022,6 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	})
 }
 
-func TestBridgeCreateAndGetIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	if _, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"workspace",
-		"add",
-		h.workspace,
-		"--name",
-		"alpha",
-		"-o",
-		"json",
-	); err != nil {
-		t.Fatalf("workspace add error = %v", err)
-	}
-
-	createOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"bridge", "create",
-		"--scope", "global",
-		"--platform", "telegram",
-		"--extension", "ext-telegram",
-		"--display-name", "Support",
-		"--include-peer",
-		"-o", "json",
-	)
-
-	var created BridgeRecord
-	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
-	}
-	if created.ID == "" || created.Platform != "telegram" || created.Status != bridgepkg.BridgeStatusStarting {
-		t.Fatalf("created bridge = %#v", created)
-	}
-
-	getOut := mustExecuteRoot(t, h.deps, "bridge", "get", created.ID, "-o", "json")
-
-	var fetched BridgeRecord
-	if err := json.Unmarshal([]byte(getOut), &fetched); err != nil {
-		t.Fatalf("json.Unmarshal(bridge get) error = %v", err)
-	}
-	if fetched.ID != created.ID || fetched.DisplayName != "Support" || fetched.ExtensionName != "ext-telegram" {
-		t.Fatalf("fetched bridge = %#v, want created record", fetched)
-	}
-}
-
-func TestBridgeLifecycleCommandsIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	createOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"bridge", "create",
-		"--scope", "global",
-		"--platform", "telegram",
-		"--extension", "ext-telegram",
-		"--display-name", "Ops",
-		"--enabled=false",
-		"--include-peer",
-		"-o", "json",
-	)
-
-	var created BridgeRecord
-	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
-	}
-	if created.Status != bridgepkg.BridgeStatusDisabled || created.Enabled {
-		t.Fatalf("created lifecycle = %#v, want disabled false", created)
-	}
-
-	enableOut := mustExecuteRoot(t, h.deps, "bridge", "enable", created.ID, "-o", "json")
-	var enabled BridgeRecord
-	if err := json.Unmarshal([]byte(enableOut), &enabled); err != nil {
-		t.Fatalf("json.Unmarshal(bridge enable) error = %v", err)
-	}
-	if enabled.Status != bridgepkg.BridgeStatusStarting || !enabled.Enabled {
-		t.Fatalf("enabled bridge = %#v, want starting true", enabled)
-	}
-
-	disableOut := mustExecuteRoot(t, h.deps, "bridge", "disable", created.ID, "-o", "json")
-	var disabled BridgeRecord
-	if err := json.Unmarshal([]byte(disableOut), &disabled); err != nil {
-		t.Fatalf("json.Unmarshal(bridge disable) error = %v", err)
-	}
-	if disabled.Status != bridgepkg.BridgeStatusDisabled || disabled.Enabled {
-		t.Fatalf("disabled bridge = %#v, want disabled false", disabled)
-	}
-
-	restartOut := mustExecuteRoot(t, h.deps, "bridge", "restart", created.ID, "-o", "json")
-	var restarted BridgeRecord
-	if err := json.Unmarshal([]byte(restartOut), &restarted); err != nil {
-		t.Fatalf("json.Unmarshal(bridge restart) error = %v", err)
-	}
-	if restarted.Status != bridgepkg.BridgeStatusStarting || !restarted.Enabled {
-		t.Fatalf("restarted bridge = %#v, want starting true", restarted)
-	}
-}
-
-func TestBridgeRoutesIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	createOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"bridge", "create",
-		"--scope", "global",
-		"--platform", "telegram",
-		"--extension", "ext-telegram",
-		"--display-name", "Support",
-		"--include-peer",
-		"--include-thread",
-		"-o", "json",
-	)
-
-	var created BridgeRecord
-	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
-	}
-
-	bridges := h.runner.bridgeService()
-	if bridges == nil {
-		t.Fatal("bridge service = nil, want running integration bridge service")
-	}
-	if _, err := bridges.UpsertRoute(context.Background(), bridgepkg.BridgeRoute{
-		BridgeInstanceID: created.ID,
-		Scope:            created.Scope,
-		WorkspaceID:      created.WorkspaceID,
-		PeerID:           "peer-1",
-		ThreadID:         "thread-1",
-		SessionID:        "sess-1",
-		AgentName:        "coder",
-		LastActivityAt:   fixedTestNow,
-	}); err != nil {
-		t.Fatalf("UpsertRoute() error = %v", err)
-	}
-
-	routesOut := mustExecuteRoot(t, h.deps, "bridge", "routes", created.ID, "-o", "json")
-
-	var routes []BridgeRouteRecord
-	if err := json.Unmarshal([]byte(routesOut), &routes); err != nil {
-		t.Fatalf("json.Unmarshal(bridge routes) error = %v", err)
-	}
-	if len(routes) != 1 || routes[0].PeerID != "peer-1" || routes[0].ThreadID != "thread-1" {
-		t.Fatalf("routes = %#v, want one inserted route", routes)
-	}
-
-	_, _, err := executeRootCommand(t, h.deps, "bridge", "routes", "missing-bridge", "-o", "json")
-	if err == nil || !strings.Contains(err.Error(), "bridge instance not found") {
-		t.Fatalf("bridge routes missing error = %v, want bridge instance not found", err)
-	}
-}
-
 func TestCLITaskCreateListGetIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -3908,9 +3047,7 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 		"task", "create",
 		"--scope", "workspace",
 		"--workspace", "alpha",
-		"--network", "live",
-		"--network-channel-strategy", "named",
-		"--network-channel", "builders",
+
 		"--title", "Investigate flaky task runs",
 		"--description", "Capture root cause",
 		"--priority", "high",
@@ -4022,12 +3159,7 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		created.ID,
 		"--idempotency-key",
 		"idem-1",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		"builders",
+
 		"--metadata",
 		`{"schema":"compozy.harness.detached.v1"}`,
 		"-o",
@@ -4042,7 +3174,7 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	assertDetachedHarnessMetadata(t, "enqueued metadata", enqueued.Metadata)
 
-	agentDeps, worker := newIntegrationAgentCommandDeps(t, h, "task-run-lifecycle-worker", "alpha", "builders")
+	agentDeps, worker := newIntegrationAgentCommandDeps(t, h, "task-run-lifecycle-worker", "alpha")
 	claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
 	var next AgentTaskNextRecord
 	if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
@@ -4119,187 +3251,6 @@ func assertDetachedHarnessMetadata(t *testing.T, label string, metadata json.Raw
 	if got, want := decoded["schema"], "compozy.harness.detached.v1"; got != want || len(decoded) != 1 {
 		t.Fatalf("%s = %#v, want schema %q only", label, decoded, want)
 	}
-}
-
-func TestCLIHistoricalChannelTaskLeaseAfterDaemonRestartIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	if _, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"workspace",
-		"add",
-		h.workspace,
-		"--name",
-		"alpha",
-		"-o",
-		"json",
-	); err != nil {
-		t.Fatalf("workspace add error = %v", err)
-	}
-
-	const channel = "history-run-start"
-	createOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"task",
-		"create",
-		"--scope",
-		"workspace",
-		"--workspace",
-		"alpha",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		channel,
-		"--title",
-		"CLI historical lease restart",
-		"-o",
-		"json",
-	)
-	var created TaskRecord
-	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(task create) error = %v", err)
-	}
-	if created.ID == "" {
-		t.Fatalf("created = %#v, want historical task id", created)
-	}
-
-	enqueueOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"task",
-		"run",
-		"enqueue",
-		created.ID,
-		"--idempotency-key",
-		"idem-history-run-start",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		channel,
-		"-o",
-		"json",
-	)
-	var enqueued TaskRunRecord
-	if err := json.Unmarshal([]byte(enqueueOut), &enqueued); err != nil {
-		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
-	}
-	if enqueued.Status != taskpkg.TaskRunStatusQueued ||
-		resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
-		t.Fatalf("enqueued = %#v, want queued historical run", enqueued)
-	}
-
-	var worker SessionRecord
-	t.Run(
-		"Should claim and complete the historical run through one agent lease after daemon restart",
-		func(t *testing.T) {
-			if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-				t.Fatalf("daemon stop before restart error = %v", err)
-			}
-			if err := h.runner.waitForExit(); err != nil {
-				t.Fatalf("waitForExit(before restart) error = %v", err)
-			}
-			mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-
-			agentDeps, claimedWorker := newIntegrationAgentCommandDeps(
-				t,
-				h,
-				"history-lease-worker",
-				"alpha",
-				channel,
-			)
-			worker = claimedWorker
-			claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
-			var next AgentTaskNextRecord
-			if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
-				t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
-			}
-			if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
-				next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed ||
-				resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
-				t.Fatalf("task next = %#v, want exact claimed historical run", next)
-			}
-
-			getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
-			var detail TaskDetailRecord
-			if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
-				t.Fatalf("json.Unmarshal(task get) error = %v", err)
-			}
-			if detail.Task.Status != taskpkg.TaskStatusReady {
-				t.Fatalf(
-					"detail.Task.Status = %q, want %q while the lease is claimed",
-					detail.Task.Status,
-					taskpkg.TaskStatusReady,
-				)
-			}
-			if got, want := len(detail.Runs), 1; got != want {
-				t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
-			}
-			if detail.Runs[0].SessionID != worker.ID ||
-				resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
-				t.Fatalf("detail.Runs[0] = %#v, want claimed historical lease persisted", detail.Runs[0])
-			}
-
-			completeOut := mustExecuteRoot(
-				t,
-				agentDeps,
-				"task",
-				"complete",
-				enqueued.ID,
-				"--result",
-				`{"ok":true,"path":"cli-historical-run-start-restart"}`,
-				"-o",
-				"json",
-			)
-			var completed AgentTaskLeaseRecord
-			if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
-				t.Fatalf("json.Unmarshal(task complete) error = %v", err)
-			}
-			if completed.Status != taskpkg.TaskRunStatusCompleted ||
-				completed.RunID != enqueued.ID ||
-				completed.SessionID != worker.ID ||
-				resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
-				t.Fatalf("completed = %#v, want completed historical lease", completed)
-			}
-
-			stopOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
-			var stoppedWorker SessionRecord
-			if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
-				t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
-			}
-			if stoppedWorker.State != session.StateStopped {
-				t.Fatalf("stopped worker = %#v, want stopped", stoppedWorker)
-			}
-
-		},
-	)
-
-	t.Run("Should persist the completed manual run and leave no active sessions", func(t *testing.T) {
-		getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
-		var detail TaskDetailRecord
-		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
-			t.Fatalf("json.Unmarshal(task get after complete) error = %v", err)
-		}
-		if detail.Task.Status != taskpkg.TaskStatusCompleted {
-			t.Fatalf("detail.Task = %#v, want completed historical task", detail.Task)
-		}
-		if got, want := len(detail.Runs), 1; got != want {
-			t.Fatalf("len(detail.Runs after complete) = %d, want %d", got, want)
-		}
-		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
-			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
-			t.Fatalf("detail.Runs[0] = %#v, want completed historical run", detail.Runs[0])
-		}
-
-		assertNoActiveSessions(t, h.deps)
-	})
 }
 
 func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
@@ -4411,9 +3362,8 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if !next.Claimed ||
 			next.Claim == nil ||
 			next.Claim.Lease.ClaimTokenHash == "" ||
-			next.Claim.Run.ID != enqueued.ID ||
-			next.Claim.CoordinationChannel != nil {
-			t.Fatalf("next = %#v, want claimed local run with lease hash and no channel", next)
+			next.Claim.Run.ID != enqueued.ID {
+			t.Fatalf("next = %#v, want claimed run with lease hash", next)
 		}
 		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "compozy_claim_") {
 			t.Fatal("task next output exposed raw claim token")
@@ -4606,265 +3556,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 	})
 }
 
-func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	if _, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"workspace",
-		"add",
-		h.workspace,
-		"--name",
-		"alpha",
-		"-o",
-		"json",
-	); err != nil {
-		t.Fatalf("workspace add error = %v", err)
-	}
-
-	const channel = "history-builders"
-	sessionOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"history-worker",
-		"--workspace",
-		"alpha",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		channel,
-		"-o",
-		"json",
-	)
-	var worker SessionRecord
-	if err := json.Unmarshal([]byte(sessionOut), &worker); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
-	if worker.ID == "" || worker.State != session.StateActive ||
-		resolvedParticipationChannelID(worker.ResolvedNetworkParticipation) != channel {
-		t.Fatalf("worker = %#v, want active worker on %q", worker, channel)
-	}
-	agentSessionID := worker.ID
-
-	stopOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
-	var stopped SessionRecord
-	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
-		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
-	}
-	if stopped.State != session.StateStopped ||
-		resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != channel {
-		t.Fatalf("stopped = %#v, want stopped worker on %q", stopped, channel)
-	}
-
-	t.Run("Should keep stopped participation historical without listing an active channel", func(t *testing.T) {
-		assertCLIHistoricalChannelNotActive(t, h.deps, "", channel)
-	})
-
-	createOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"task",
-		"create",
-		"--scope",
-		"workspace",
-		"--workspace",
-		"alpha",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		channel,
-		"--title",
-		"CLI historical restart claim",
-		"-o",
-		"json",
-	)
-	var created TaskRecord
-	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(task create) error = %v", err)
-	}
-	if created.ID == "" {
-		t.Fatalf("created = %#v, want historical task id", created)
-	}
-
-	enqueueOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"task",
-		"run",
-		"enqueue",
-		created.ID,
-		"--idempotency-key",
-		"idem-cli-historical-restart",
-		"--network",
-		"live",
-		"--network-channel-strategy",
-		"named",
-		"--network-channel",
-		channel,
-		"-o",
-		"json",
-	)
-	var enqueued TaskRunRecord
-	if err := json.Unmarshal([]byte(enqueueOut), &enqueued); err != nil {
-		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
-	}
-	if enqueued.Status != taskpkg.TaskRunStatusQueued ||
-		resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
-		t.Fatalf("enqueued = %#v, want queued run bound to historical channel", enqueued)
-	}
-
-	agentDeps := h.deps
-	agentDeps.getenv = func(key string) string {
-		switch key {
-		case agentidentity.EnvSessionID:
-			return agentSessionID
-		case agentidentity.EnvAgent:
-			return worker.AgentName
-		default:
-			return ""
-		}
-	}
-
-	t.Run("Should reclaim and complete the historical run after daemon restart", func(t *testing.T) {
-		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-			t.Fatalf("daemon stop before restart error = %v", err)
-		}
-		if err := h.runner.waitForExit(); err != nil {
-			t.Fatalf("waitForExit(before restart) error = %v", err)
-		}
-		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-
-		resumeOut := mustExecuteRoot(
-			t,
-			h.deps,
-			"session",
-			"new",
-			"--agent",
-			"coder",
-			"--name",
-			"history-worker-restarted",
-			"--workspace",
-			"alpha",
-			"--network",
-			"live",
-			"--network-channel-strategy",
-			"named",
-			"--network-channel",
-			channel,
-			"-o",
-			"json",
-		)
-		var resumed SessionRecord
-		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-			t.Fatalf("json.Unmarshal(session new after restart) error = %v", err)
-		}
-		if resumed.State != session.StateActive ||
-			resolvedParticipationChannelID(resumed.ResolvedNetworkParticipation) != channel {
-			t.Fatalf("resumed = %#v, want active restarted worker on %q", resumed, channel)
-		}
-		agentSessionID = resumed.ID
-
-		nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "--lease-seconds", "60", "-o", "json")
-		var next AgentTaskNextRecord
-		if err := json.Unmarshal([]byte(nextOut), &next); err != nil {
-			t.Fatalf("json.Unmarshal(task next) error = %v", err)
-		}
-		if !next.Claimed || next.Claim == nil {
-			t.Fatalf("next = %#v, want claimed historical run", next)
-		}
-		if got, want := next.Claim.Run.ID, enqueued.ID; got != want {
-			t.Fatalf("next.Claim.Run.ID = %q, want %q", got, want)
-		}
-		if resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
-			t.Fatalf("next.Claim.Run = %#v, want historical channel preserved", next.Claim.Run)
-		}
-		if next.Claim.CoordinationChannel == nil {
-			t.Fatal("next.Claim.CoordinationChannel = nil, want historical coordination channel")
-		}
-		if got, want := firstCLIValue(
-			next.Claim.CoordinationChannel.ID,
-			next.Claim.CoordinationChannel.ID,
-		), channel; got != want {
-			t.Fatalf("coordination channel = %q, want %q", got, want)
-		}
-		if next.Claim.Lease.ClaimTokenHash == "" {
-			t.Fatal("next.Claim.Lease.ClaimTokenHash = empty, want observability hash")
-		}
-		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "compozy_claim_") {
-			t.Fatal("task next output exposed raw claim token")
-		}
-
-		completeOut := mustExecuteRoot(
-			t,
-			agentDeps,
-			"task",
-			"complete",
-			enqueued.ID,
-			"--result",
-			`{"ok":true,"path":"cli-historical-restart"}`,
-			"-o",
-			"json",
-		)
-		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "compozy_claim_") {
-			t.Fatal("task complete output exposed raw claim token")
-		}
-		var completed AgentTaskLeaseRecord
-		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
-			t.Fatalf("json.Unmarshal(task complete) error = %v", err)
-		}
-		if completed.Status != taskpkg.TaskRunStatusCompleted ||
-			completed.RunID != enqueued.ID ||
-			resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
-			t.Fatalf("completed = %#v, want completed historical lease", completed)
-		}
-	})
-
-	t.Run("Should persist the completed historical run and leave no active sessions", func(t *testing.T) {
-		getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
-		var detail TaskDetailRecord
-		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
-			t.Fatalf("json.Unmarshal(task get) error = %v", err)
-		}
-		if detail.Task.Status != taskpkg.TaskStatusCompleted {
-			t.Fatalf("detail.Task = %#v, want completed task", detail.Task)
-		}
-		if got, want := len(detail.Runs), 1; got != want {
-			t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
-		}
-		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
-			detail.Runs[0].SessionID != agentSessionID ||
-			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
-			t.Fatalf("detail.Runs[0] = %#v, want completed persisted historical run", detail.Runs[0])
-		}
-
-		stopOut := stopIntegrationSessionAndRead(t, h.deps, agentSessionID)
-		var stoppedAfterResume SessionRecord
-		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
-			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
-		}
-		if stoppedAfterResume.State != session.StateStopped ||
-			resolvedParticipationChannelID(stoppedAfterResume.ResolvedNetworkParticipation) != channel {
-			t.Fatalf("stoppedAfterResume = %#v, want stopped resumed worker on %q", stoppedAfterResume, channel)
-		}
-
-		assertCLIHistoricalChannelNotActive(t, h.deps, "", channel)
-
-		assertNoActiveSessions(t, h.deps)
-	})
-}
-
 func assertNoActiveSessions(t *testing.T, deps commandDeps) {
 	t.Helper()
 
@@ -4947,7 +3638,6 @@ func newIntegrationAgentCommandDeps(
 	h integrationHarness,
 	name string,
 	workspace string,
-	channel string,
 ) (commandDeps, SessionRecord) {
 	t.Helper()
 
@@ -4956,14 +3646,6 @@ func newIntegrationAgentCommandDeps(
 		args = append(args, "--workspace", workspace)
 	} else {
 		args = append(args, "--cwd", h.workspace)
-	}
-	if channel != "" {
-		args = append(
-			args,
-			"--network", "live",
-			"--network-channel-strategy", "named",
-			"--network-channel", channel,
-		)
 	}
 	args = append(args, "-o", "json")
 
@@ -5028,8 +3710,6 @@ type integrationDaemon struct {
 	exitDone chan struct{}
 	exitErr  error
 
-	bridges          *integrationBridgeService
-	bridgeProviders  []bridgepkg.BridgeProvider
 	driver           *integrationDriver
 	manager          *session.Manager
 	tasks            core.TaskService
@@ -5081,33 +3761,6 @@ func (s *integrationExtensionService) UpdateBatch(
 	return nil, nil
 }
 
-type integrationBridgeSecretStore interface {
-	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
-	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error
-	DeleteBridgeSecretBinding(context.Context, string, string) error
-}
-
-type integrationBridgeCatalogStore interface {
-	CountBridgeRoutes(context.Context, []string) (map[string]int, error)
-	ListBridgeSecretBindingsForInstances(
-		context.Context,
-		[]string,
-	) (map[string][]bridgepkg.BridgeSecretBinding, error)
-}
-
-type integrationBridgeService struct {
-	*bridgepkg.Service
-	store             integrationBridgeSecretStore
-	catalogStore      integrationBridgeCatalogStore
-	taskSubscriptions bridgepkg.BridgeTaskSubscriptionStore
-	providers         []bridgepkg.BridgeProvider
-	checkBridgeFn     func(context.Context, string, bridgepkg.BridgeCheckRequest) (bridgepkg.BridgeCheckResponse, error)
-	registerWebhookFn func(context.Context, string, bridgepkg.BridgeWebhookRegistrationRequest) (bridgepkg.BridgeWebhookRegistrationResponse, error)
-	deliverBridgeFn   func(context.Context, string, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
-}
-
-var _ core.BridgeService = (*integrationBridgeService)(nil)
-
 type integrationNotifierFanout struct {
 	notifiers []session.Notifier
 }
@@ -5130,197 +3783,6 @@ type integrationTaskExecutor struct {
 type lockedBuffer struct {
 	mu     sync.Mutex
 	buffer bytes.Buffer
-}
-
-func newIntegrationBridgeService(
-	store bridgepkg.RegistryStore,
-	providers []bridgepkg.BridgeProvider,
-) *integrationBridgeService {
-	secretStore, ok := store.(integrationBridgeSecretStore)
-	if !ok {
-		secretStore = nil
-	}
-	catalogStore, catalogStoreOK := store.(integrationBridgeCatalogStore)
-	if !catalogStoreOK {
-		catalogStore = nil
-	}
-	taskSubscriptions, taskSubscriptionsOK := store.(bridgepkg.BridgeTaskSubscriptionStore)
-	if !taskSubscriptionsOK {
-		taskSubscriptions = nil
-	}
-	return &integrationBridgeService{
-		Service:           bridgepkg.NewRegistry(store),
-		store:             secretStore,
-		catalogStore:      catalogStore,
-		taskSubscriptions: taskSubscriptions,
-		providers:         append([]bridgepkg.BridgeProvider(nil), providers...),
-	}
-}
-
-func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
-	if s == nil {
-		return nil
-	}
-	return nil
-}
-
-func (s *integrationBridgeService) DeliveryMetricsFor(
-	[]string,
-) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
-	return nil, nil
-}
-
-func (s *integrationBridgeService) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	if s == nil || s.catalogStore == nil {
-		return nil, errors.New("integration bridge catalog store is not configured")
-	}
-	return s.catalogStore.CountBridgeRoutes(ctx, bridgeInstanceIDs)
-}
-
-func (s *integrationBridgeService) ListSecretBindingsForInstances(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string][]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.catalogStore == nil {
-		return nil, errors.New("integration bridge catalog store is not configured")
-	}
-	return s.catalogStore.ListBridgeSecretBindingsForInstances(ctx, bridgeInstanceIDs)
-}
-
-func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	return s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusStarting,
-	})
-}
-
-func (s *integrationBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	return s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: false,
-		Status:  bridgepkg.BridgeStatusDisabled,
-	})
-}
-
-func (s *integrationBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-	return s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:      id,
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusStarting,
-	})
-}
-
-func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
-	return append([]bridgepkg.BridgeProvider(nil), s.providers...), nil
-}
-
-func (s *integrationBridgeService) CheckBridge(
-	ctx context.Context,
-	extensionName string,
-	request bridgepkg.BridgeCheckRequest,
-) (bridgepkg.BridgeCheckResponse, error) {
-	if s.checkBridgeFn != nil {
-		return s.checkBridgeFn(ctx, extensionName, request)
-	}
-	return bridgepkg.BridgeCheckResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
-}
-
-func (s *integrationBridgeService) RegisterBridgeWebhook(
-	ctx context.Context,
-	extensionName string,
-	request bridgepkg.BridgeWebhookRegistrationRequest,
-) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
-	if s.registerWebhookFn != nil {
-		return s.registerWebhookFn(ctx, extensionName, request)
-	}
-	return bridgepkg.BridgeWebhookRegistrationResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
-}
-
-func (s *integrationBridgeService) DeliverBridge(
-	ctx context.Context,
-	extensionName string,
-	request bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	if s.deliverBridgeFn != nil {
-		return s.deliverBridgeFn(ctx, extensionName, request)
-	}
-	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
-}
-
-func (s *integrationBridgeService) ListSecretBindings(
-	ctx context.Context,
-	bridgeInstanceID string,
-) ([]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
-}
-
-func (s *integrationBridgeService) PutSecretBinding(
-	ctx context.Context,
-	binding bridgepkg.BridgeSecretBinding,
-	_ *string,
-) error {
-	if s == nil || s.store == nil {
-		return errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.PutBridgeSecretBinding(ctx, binding)
-}
-
-func (s *integrationBridgeService) DeleteSecretBinding(
-	ctx context.Context,
-	bridgeInstanceID string,
-	bindingName string,
-) error {
-	if s == nil || s.store == nil {
-		return errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.DeleteBridgeSecretBinding(ctx, bridgeInstanceID, bindingName)
-}
-
-func (s *integrationBridgeService) PutBridgeTaskSubscription(
-	ctx context.Context,
-	subscription bridgepkg.BridgeTaskSubscription,
-) error {
-	if s == nil || s.taskSubscriptions == nil {
-		return errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.PutBridgeTaskSubscription(ctx, subscription)
-}
-
-func (s *integrationBridgeService) GetBridgeTaskSubscription(
-	ctx context.Context,
-	readScope store.ReadScope,
-	subscriptionID string,
-) (bridgepkg.BridgeTaskSubscription, error) {
-	if s == nil || s.taskSubscriptions == nil {
-		return bridgepkg.BridgeTaskSubscription{}, errors.New(
-			"integration bridge task subscription store is not configured",
-		)
-	}
-	return s.taskSubscriptions.GetBridgeTaskSubscription(ctx, readScope, subscriptionID)
-}
-
-func (s *integrationBridgeService) ListBridgeTaskSubscriptions(
-	ctx context.Context,
-	query bridgepkg.BridgeTaskSubscriptionQuery,
-) ([]bridgepkg.BridgeTaskSubscription, error) {
-	if s == nil || s.taskSubscriptions == nil {
-		return nil, errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.ListBridgeTaskSubscriptions(ctx, query)
-}
-
-func (s *integrationBridgeService) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
-	if s == nil || s.taskSubscriptions == nil {
-		return errors.New("integration bridge task subscription store is not configured")
-	}
-	return s.taskSubscriptions.DeleteBridgeTaskSubscription(ctx, subscriptionID)
 }
 
 func (s *integrationExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -5518,18 +3980,18 @@ func (s *integrationExtensionService) Enable(
 	req contract.EnableExtensionRequest,
 	_ taskpkg.ActorContext,
 ) (contract.ExtensionEnableResult, error) {
-	confirmation, err := s.registry.NetworkConfirmation(extensionpkg.GlobalInstanceKey(name))
+	confirmation, err := s.registry.GatewayConfirmation(extensionpkg.GlobalInstanceKey(name))
 	if err != nil {
 		return contract.ExtensionEnableResult{}, err
 	}
 	if confirmation.Digest != "" &&
 		(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero()) {
-		if strings.TrimSpace(req.ConfirmNetworkDigest) != confirmation.Digest {
-			return contract.ExtensionEnableResult{}, &extensionpkg.NetworkConfirmationRequiredError{
+		if strings.TrimSpace(req.ConfirmGatewayDigest) != confirmation.Digest {
+			return contract.ExtensionEnableResult{}, &extensionpkg.GatewayConfirmationRequiredError{
 				CurrentDigest: confirmation.Digest,
 			}
 		}
-		if err := s.registry.ConfirmNetworkRequirement(
+		if err := s.registry.ConfirmGatewayRequirement(
 			extensionpkg.GlobalInstanceKey(name),
 			confirmation.Digest,
 			"cli-integration",
@@ -5612,8 +4074,8 @@ func (s *integrationExtensionService) Preview(
 		AgentConflicts:              []string{},
 		MissingEnv:                  append([]string(nil), status.MissingEnv...),
 		AutomationStarting:          []string{},
-		NetworkRequirementDigest:    status.NetworkRequirementDigest,
-		NetworkConfirmationRequired: status.NetworkConfirmationRequired,
+		GatewayRequirementDigest:    status.GatewayRequirementDigest,
+		GatewayConfirmationRequired: status.GatewayConfirmationRequired,
 	}, nil
 }
 
@@ -5710,7 +4172,7 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
-	cfg.Network.Enabled = true
+
 	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
@@ -5861,11 +4323,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("new workspace resolver: %w", err)
 	}
-	participationResolver := apitestutil.NewIntegrationParticipationResolver(d.t, registry)
-	sandboxRegistry, err := sandboxlocal.NewRegistry()
-	if err != nil {
-		return fmt.Errorf("new local sandbox registry: %w", err)
-	}
+
 	manager, err := session.NewManager(
 		session.WithHomePaths(d.homePaths),
 		session.WithWorkspaceResolver(resolver),
@@ -5878,14 +4336,13 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 			return driver
 		}()),
 		session.WithNotifier(fanout),
-		session.WithSandboxRegistry(sandboxRegistry),
+
 		session.WithSoulSnapshotStore(registry),
 		session.WithSoulRunActivityChecker(integrationSoulRunActivityChecker{}),
 		session.WithSessionHealthStore(registry),
 		session.WithSessionPromptAdmissionStore(registry),
 		session.WithSessionHealthConfig(d.cfg.Agents.Heartbeat),
 		session.WithSessionCatalog(registry),
-		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)
@@ -5905,19 +4362,17 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(&integrationTaskExecutor{}),
-		taskpkg.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		return fmt.Errorf("new task manager: %w", err)
 	}
 
-	bridgeService := newIntegrationBridgeService(registry, d.bridgeProviders)
 	observer, err := observe.New(
 		context.Background(),
 		observe.WithHomePaths(d.homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
-		observe.WithBridgeSource(bridgeService),
+
 		observe.WithLogger(discardLogger()),
 		observe.WithStartTime(d.startedAt),
 	)
@@ -6021,20 +4476,6 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		joinRunError("shutdown automation manager", automationManager.Shutdown(shutdownCtx))
 	}()
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
-	networkManager, err := network.NewManager(
-		ctx,
-		d.cfg.Network,
-		d.homePaths.NetworkAuditFile,
-		registry,
-		network.WithManagerLogger(discardLogger()),
-	)
-	if err != nil {
-		return fmt.Errorf("new network manager: %w", err)
-	}
-	manager.SetNetworkPeerLifecycle(networkManager)
-	manager.SetTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
-		networkManager.OnTurnEnd(identity.SessionID)
-	})
 
 	soulAuthoring, err := soul.NewManagedSoulAuthoringService(registry)
 	if err != nil {
@@ -6062,11 +4503,10 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		udsapi.WithSessionManager(manager),
 		udsapi.WithSessionCatalog(registry),
 		udsapi.WithTaskService(taskManager),
-		udsapi.WithNetworkService(networkManager),
-		udsapi.WithNetworkStore(registry),
+
 		udsapi.WithObserver(observer),
 		udsapi.WithAutomation(automationManager),
-		udsapi.WithBridgeService(bridgeService),
+
 		udsapi.WithWorkspaceResolver(resolver),
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
@@ -6088,7 +4528,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		return fmt.Errorf("start uds server: %w", err)
 	}
 	d.mu.Lock()
-	d.bridges = bridgeService
+
 	d.mu.Unlock()
 	defer func() {
 		shutdown := func(operation string, stop func(context.Context) error) {
@@ -6114,11 +4554,11 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 			)
 		}
 		shutdown("wait for session finalizations", manager.WaitForFinalizations)
-		shutdown("shutdown network manager", networkManager.Shutdown)
+
 		shutdown("shutdown UDS server", server.Shutdown)
 		joinRunError("remove daemon info", compozydaemon.RemoveInfo(d.homePaths.DaemonInfo))
 		d.mu.Lock()
-		d.bridges = nil
+
 		d.manager = nil
 		d.driver = nil
 		d.tasks = nil
@@ -6190,12 +4630,6 @@ func (d *integrationDaemon) waitForExitWithin(timeout time.Duration) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.exitErr
-}
-
-func (d *integrationDaemon) bridgeService() *integrationBridgeService {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.bridges
 }
 
 func (f *integrationNotifierFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {
@@ -6588,18 +5022,3 @@ func stopIntegrationSessionAndRead(t *testing.T, deps commandDeps, id string) st
 }
 
 // Presence does not create a durable conversation channel; seed its explicit owner.
-func seedIntegrationNetworkChannel(t *testing.T, h integrationHarness, owner SessionRecord, channel string) {
-	t.Helper()
-	database, err := globaldb.OpenGlobalDB(t.Context(), h.homePaths.DatabaseFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = database.CreateNetworkChannel(t.Context(), store.NetworkChannelEntry{
-		ProfileID: owner.ProfileID, WorkspaceID: owner.WorkspaceID, Channel: channel,
-		Purpose: "Integration coordination", CreatedBy: "operator",
-	})
-	closeErr := database.Close(t.Context())
-	if err != nil || closeErr != nil {
-		t.Fatalf("seed channel: %v; close: %v", err, closeErr)
-	}
-}

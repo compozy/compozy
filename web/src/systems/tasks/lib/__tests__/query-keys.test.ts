@@ -32,7 +32,6 @@ describe("tasksKeys", () => {
         owner_kind: "human",
         owner_ref: "op",
         parent_task_id: "task_parent",
-        participation_channel: "net",
         query: "review",
         sort: "priority",
         cursor: "ignored-cursor",
@@ -58,14 +57,13 @@ describe("tasksKeys", () => {
       "human",
       "op",
       "task_parent",
-      "net",
       "review",
       "priority",
       "50",
       "marketing",
     ]);
 
-    expect(tasksKeys.list()).toEqual(["tasks", "list", ...Array.from({ length: 17 }, () => "")]);
+    expect(tasksKeys.list()).toEqual(["tasks", "list", ...Array.from({ length: 16 }, () => "")]);
 
     // The calm default sends no include flag at all, so it must not collide
     // with an explicit reveal.
@@ -130,7 +128,7 @@ describe("tasksKeys", () => {
   it("serializes dashboard and inbox filters stably", () => {
     expect(
       tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_alpha" })
-    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", "", ""]);
+    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
 
     expect(
       tasksKeys.inbox({
@@ -187,7 +185,6 @@ describe("tasksKeys", () => {
     expect(tasksKeys.profilesRoot()).toEqual(["tasks", "profile"]);
     expect(tasksKeys.reviewsRoot()).toEqual(["tasks", "reviews"]);
     expect(tasksKeys.streamsRoot()).toEqual(["tasks", "stream"]);
-    expect(tasksKeys.bridgeNotificationsRoot()).toEqual(["tasks", "bridge-notifications"]);
     expect(tasksKeys.agentContextsRoot()).toEqual(["tasks", "agent-context"]);
     expect(tasksKeys.agentContext(identity)).toEqual([
       "tasks",
@@ -237,55 +234,5 @@ describe("tasksKeys", () => {
       "12",
     ]);
     expect(tasksKeys.stream("task_1")).toEqual(["tasks", "stream", "task_1", ""]);
-  });
-
-  it("Should serialize bridge notification filters stably", () => {
-    expect(
-      tasksKeys.bridgeNotifications("task_1", {
-        bridge_instance_id: "bridge_alpha",
-        scope: "workspace",
-        workspace_id: "ws_alpha",
-        limit: 10,
-      })
-    ).toEqual([
-      "tasks",
-      "bridge-notifications",
-      "task_1",
-      "bridge_alpha",
-      "workspace",
-      "ws_alpha",
-      "10",
-    ]);
-
-    expect(tasksKeys.bridgeNotification("task_1", "bsub_1")).toEqual([
-      "tasks",
-      "bridge-notifications",
-      "task_1",
-      "detail",
-      "bsub_1",
-    ]);
-
-    expect(
-      tasksKeys.bridgeNotifications(" task_1 ", {
-        bridge_instance_id: " bridge_alpha ",
-        workspace_id: " ws_alpha ",
-      })
-    ).not.toEqual(
-      tasksKeys.bridgeNotifications(" task_1 ", {
-        bridge_instance_id: "bridge_alpha",
-        workspace_id: "ws_alpha",
-      })
-    );
-    expect(tasksKeys.bridgeNotifications("task_1")).not.toEqual(
-      tasksKeys.bridgeNotifications("task_1", {
-        bridge_instance_id: "",
-      })
-    );
-    expect(tasksKeys.bridgeNotifications("task_1")).not.toEqual(
-      tasksKeys.bridgeNotifications("task_1", { workspace_id: "" })
-    );
-    expect(tasksKeys.bridgeNotification("task_1", " bsub_1 ")).not.toEqual(
-      tasksKeys.bridgeNotification("task_1", "bsub_1")
-    );
   });
 });

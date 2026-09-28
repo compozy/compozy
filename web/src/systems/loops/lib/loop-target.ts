@@ -8,7 +8,6 @@ export interface LoopTargetDraft {
   loop_name: string;
   inputs?: Record<string, unknown>;
   input_mapping?: Record<string, string>;
-  network_participation?: LoopTargetParticipationRequest | null;
 }
 
 /** Switches the target loop, clearing inputs + mapping tied to the previous loop's schema. */
@@ -46,24 +45,4 @@ export function setLoopTargetMapping(
   }
   return { ...value, input_mapping: mapping };
 }
-
-/** Updates authored participation while retaining existing Live bounds on channel-only edits. */
-export function setLoopTargetNetworkParticipation(
-  value: LoopTargetDraft,
-  networkParticipation: LoopTargetParticipationRequest
-): LoopTargetDraft {
-  const existingBounds =
-    value.network_participation?.mode === "live" && networkParticipation.mode === "live"
-      ? value.network_participation.bounds
-      : undefined;
-  return {
-    ...value,
-    network_participation: {
-      ...networkParticipation,
-      ...(existingBounds ? { bounds: existingBounds } : {}),
-    },
-  };
-}
-import type { RunLoopRequest } from "../types";
-
-export type LoopTargetParticipationRequest = NonNullable<RunLoopRequest["network_participation"]>;
+import type {} from "../types";

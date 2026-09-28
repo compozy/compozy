@@ -125,8 +125,6 @@ operational allowlist. CompozyOS then applies these changes:
 | `PROVIDER_CODEX_HOME`          | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Mirrors `CODEX_HOME` for QA and provider-launch diagnostics.                           |
 | `OPENCODE_CONFIG_DIR`          | path          | set only for isolated `opencode` providers                           | Provider OpenCode config directory.   | Points OpenCode at isolated CompozyOS-owned auth/config state.                         |
 | `PI_CODING_AGENT_DIR`          | path          | set for native Pi isolated home or Pi-backed `bound_secret` sessions | Pi auth/config directory.             | Points Pi at the isolated native auth store or bound-secret runtime config.            |
-| `COMPOZY_SESSION_CHANNEL`      | string        | unset unless the execution resolved as Live                          | Immutable participation channel.      | Injected for Live sessions. Stale values are removed for Local sessions.               |
-| `COMPOZY_PEER_ID`              | string        | unset unless the execution resolved as Live                          | `<agent-name>.<session-id>`           | Injected for Live sessions. Stale values are removed for Local sessions.               |
 | `COMPOZY_BIN`                  | absolute path | current CompozyOS executable                                         | Existing executable path.             | Injected into ACP provider subprocesses so agents can call the same CompozyOS binary.  |
 | `PATH`                         | path list     | inherited or allowlisted                                             | Path list for the operating system.   | The directory containing `COMPOZY_BIN` is prepended and duplicate entries are removed. |
 
@@ -156,49 +154,6 @@ apply explicit hook `env` values from config, `AGENT.md`, or `SKILL.md`.
 
 Explicit hook `env` values override inherited values with the same key.
 
-## Bridge Provider Variables
-
-Bridge providers are extension runtimes, not `config.toml` sections. These environment variables
-act as process-level defaults or test hooks for provider binaries.
-
-| Variable                                   | Provider    | Default                        | Valid values          | Description                                   |
-| ------------------------------------------ | ----------- | ------------------------------ | --------------------- | --------------------------------------------- |
-| `COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR`       | Discord     | provider config value          | Host and port string. | Default Discord webhook listener address.     |
-| `COMPOZY_BRIDGE_DISCORD_API_BASE_URL`      | Discord     | Discord API default            | URL.                  | Discord API base URL override.                |
-| `COMPOZY_BRIDGE_GITHUB_LISTEN_ADDR`        | GitHub      | provider config value          | Host and port string. | Default GitHub webhook listener address.      |
-| `COMPOZY_BRIDGE_GITHUB_API_BASE_URL`       | GitHub      | GitHub API default             | URL.                  | GitHub API base URL override.                 |
-| `COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR`         | Google Chat | provider config value          | Host and port string. | Default Google Chat webhook listener address. |
-| `COMPOZY_BRIDGE_GCHAT_API_BASE_URL`        | Google Chat | Google Chat API default        | URL.                  | Google Chat API base URL override.            |
-| `COMPOZY_BRIDGE_GCHAT_AUTH_URL`            | Google Chat | Google OAuth token URL         | URL.                  | Google Chat auth endpoint override.           |
-| `COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL`    | Google Chat | Google direct-message cert URL | URL.                  | Direct-message certificate URL override.      |
-| `COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL`    | Google Chat | Google Pub/Sub cert URL        | URL.                  | Pub/Sub certificate URL override.             |
-| `COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR`        | Linear      | provider config value          | Host and port string. | Default Linear webhook listener address.      |
-| `COMPOZY_BRIDGE_LINEAR_API_BASE_URL`       | Linear      | Linear API default             | URL.                  | Linear API base URL override.                 |
-| `COMPOZY_BRIDGE_LINEAR_TOKEN_URL`          | Linear      | Linear OAuth token URL         | URL.                  | Linear OAuth token endpoint override.         |
-| `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR`         | Slack       | provider config value          | Host and port string. | Default Slack webhook listener address.       |
-| `COMPOZY_BRIDGE_SLACK_API_BASE_URL`        | Slack       | Slack API default              | URL.                  | Slack API base URL override.                  |
-| `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR`         | Teams       | provider config value          | Host and port string. | Default Teams webhook listener address.       |
-| `COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL` | Teams       | Microsoft OpenID metadata URL  | URL.                  | Teams OpenID metadata endpoint override.      |
-| `COMPOZY_BRIDGE_TEAMS_TOKEN_URL`           | Teams       | Microsoft OAuth token URL      | URL.                  | Teams OAuth token endpoint override.          |
-| `COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR`      | Telegram    | provider config value          | Host and port string. | Default Telegram webhook listener address.    |
-| `COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL`     | Telegram    | Telegram API default           | URL.                  | Telegram API base URL override.               |
-| `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR`      | WhatsApp    | provider config value          | Host and port string. | Default WhatsApp webhook listener address.    |
-| `COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL`     | WhatsApp    | WhatsApp API default           | URL.                  | WhatsApp API base URL override.               |
-
-Bridge adapter harness variables are read by bridge binaries for integration and lifecycle marker
-paths:
-
-```text
-COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH
-COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH
-COMPOZY_BRIDGE_ADAPTER_STATE_PATH
-COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH
-COMPOZY_BRIDGE_ADAPTER_INGEST_PATH
-COMPOZY_BRIDGE_ADAPTER_STARTS_PATH
-COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH
-COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH
-```
-
 ## Not Supported As Environment Overrides
 
 These names are common guesses or appear in older task notes, but current CompozyOS code does not read
@@ -214,4 +169,3 @@ them as runtime configuration variables.
 
 - [config.toml](/docs/configuration/config-toml) documents config fields that replace env overrides.
 - [File Locations](/docs/configuration/file-locations) documents `$COMPOZY_HOME` and workspace paths.
-- [Bridge Overview](/docs/bridges) explains bridge instances and provider runtime behavior.

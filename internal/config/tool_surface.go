@@ -37,7 +37,6 @@ const (
 	toolSurfaceMemoryDreamGatesMinScorePath                    = "memory.dream.gates.min_score"
 	toolSurfaceMemoryProviderTimeoutPath                       = "memory.provider.timeout"
 	toolSurfaceMemoryRecallWeightsBm25UnicodePath              = "memory.recall.weights.bm25_unicode"
-	toolSurfaceNetworkMaxReplayAgePath                         = "network.max_replay_age"
 	toolSurfacePermissionsKey                                  = "permissions"
 	toolSurfaceToolsDefaultMaxResultBytesPath                  = "tools.default_max_result_bytes"
 	toolSurfaceToolsArtifactsMaxAgePath                        = "tools.artifacts.max_age"
@@ -59,7 +58,6 @@ var (
 		appUpdateCheckIntervalPath:                                 ConfigValueDuration,
 		toolSurfaceDefaultsAgentPath:                               ConfigValueString,
 		"defaults.provider":                                        ConfigValueString,
-		"defaults.sandbox":                                         ConfigValueString,
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
 		toolSurfaceAgentsSoulContextProjectionBytesPath:            ConfigValueInt64,
@@ -168,23 +166,6 @@ var (
 		"shell.sessions.scope":                                     ConfigValueString,
 		"cmd_palette.fallback_targets":                             ConfigValueStringSlice,
 		"cmd_palette.personalization":                              ConfigValueBool,
-		"network.enabled":                                          ConfigValueBool,
-		toolSurfaceNetworkMaxReplayAgePath:                         ConfigValueInt,
-		"network.live.defaults.max_wakes":                          ConfigValueInt,
-		"network.live.defaults.max_wake_wall_time":                 ConfigValueString,
-		"network.live.defaults.max_total_wall_time":                ConfigValueString,
-		"network.live.defaults.max_input_tokens":                   ConfigValueInt64,
-		"network.live.defaults.max_output_tokens":                  ConfigValueInt64,
-		"network.live.defaults.max_wake_depth":                     ConfigValueInt,
-		"network.live.defaults.coalesce_window":                    ConfigValueString,
-		networkLiveLimitsMaxWakesPath:                              ConfigValueInt,
-		"network.live.limits.max_wake_wall_time":                   ConfigValueString,
-		"network.live.limits.max_total_wall_time":                  ConfigValueString,
-		"network.live.limits.max_input_tokens":                     ConfigValueInt64,
-		"network.live.limits.max_output_tokens":                    ConfigValueInt64,
-		"network.live.limits.max_wake_depth":                       ConfigValueInt,
-		networkLiveLimitsMinCoalesceWindowPath:                     ConfigValueString,
-		"network.live.limits.max_coalesce_window":                  ConfigValueString,
 		toolSurfaceToolsDefaultMaxResultBytesPath:                  ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxAgePath:                        ConfigValueDuration,
 		toolSurfaceToolsArtifactsMaxBytesPath:                      ConfigValueInt64,

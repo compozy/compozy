@@ -27,7 +27,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
-	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -113,37 +112,6 @@ func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts,
 			State: profilepkg.StateArchived,
 		}},
 	}, nil
-}
-
-func TestBaseHandlersStreamDoneBridge(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should replace the silent construction channel with the transport shutdown bridge", func(t *testing.T) {
-		t.Parallel()
-
-		var logs bytes.Buffer
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			Logger: slog.New(slog.NewTextHandler(&logs, nil)),
-		})
-		if strings.Contains(logs.String(), "stream shutdown bridge not provided") {
-			t.Fatalf("NewBaseHandlers() logged a construction-state stream bridge warning: %s", logs.String())
-		}
-
-		transportDone := make(chan struct{})
-		handlers.SetStreamDone(transportDone)
-		select {
-		case <-handlers.StreamDoneChannel():
-			t.Fatal("StreamDoneChannel() closed before the transport shutdown bridge closed")
-		default:
-		}
-
-		close(transportDone)
-		select {
-		case <-handlers.StreamDoneChannel():
-		default:
-			t.Fatal("StreamDoneChannel() did not observe the transport shutdown bridge")
-		}
-	})
 }
 
 func (s sessionCommandCatalogManagerStub) CommandCatalog(
@@ -4899,143 +4867,6 @@ func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (core.AgentCa
 		Def:    compozyconfig.CloneAgentDef(agent),
 		Origin: contract.AgentOriginGlobal,
 	}, nil
-}
-
-func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should include network diagnostics in daemon status without leaking credentials", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "sess-1"}}, nil
-			},
-		}
-		observer := testutil.StubObserver{
-			HealthFn: func(context.Context) (observe.Health, error) {
-				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-			},
-		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = testutil.StubNetworkService{
-			StatusFn: func(context.Context) (*network.Status, error) {
-				return &network.Status{
-					Enabled:    true,
-					Status:     network.StatusActive,
-					LocalPeers: 1,
-					Channels:   3,
-				}, nil
-			},
-		}
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("daemon status = %d, want %d", resp.Code, http.StatusOK)
-		}
-
-		var payload struct {
-			Daemon contract.DaemonStatusPayload `json:"daemon"`
-		}
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Daemon.Network == nil {
-			t.Fatal("daemon network payload = nil, want diagnostics")
-		}
-		if got, want := payload.Daemon.Network.LocalPeers, 1; got != want {
-			t.Fatalf("daemon network Live participants = %d, want %d", got, want)
-		}
-		if got, want := payload.Daemon.Network.Channels, 3; got != want {
-			t.Fatalf("daemon network channels = %d, want %d", got, want)
-		}
-		bodyLower := strings.ToLower(resp.Body.String())
-		for _, forbidden := range []string{
-			"token=",
-			"claim_token",
-			"compozy_claim_",
-			"authorization: bearer",
-			"pkce_verifier",
-			"oauth_code",
-			"access_token",
-			"refresh_token",
-			"secret_binding",
-		} {
-			if strings.Contains(bodyLower, forbidden) {
-				t.Fatalf("daemon status leaked credentials (%s): %s", forbidden, resp.Body.String())
-			}
-		}
-	})
-
-	t.Run("Should report enabled network as unavailable when status cannot be collected", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "sess-1"}}, nil
-			},
-		}
-		observer := testutil.StubObserver{
-			HealthFn: func(context.Context) (observe.Health, error) {
-				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-			},
-		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Config.Network.Enabled = true
-		fixture.Handlers.Network = nil
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("doctor status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-		}
-		var payload contract.DoctorPayload
-		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
-		}
-		for _, item := range payload.Items {
-			if item.ID != "doctor.network.status" {
-				continue
-			}
-			if item.Code != contract.CodeNetworkUnavailable || item.Severity != contract.SeverityWarn {
-				t.Fatalf("network diagnostic = %#v, want unavailable warning", item)
-			}
-			return
-		}
-		t.Fatalf("doctor items = %#v, want network diagnostic", payload.Items)
-	})
-
-	t.Run("Should keep doctor status ok for informational diagnostics", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "sess-1"}}, nil
-			},
-		}
-		observer := testutil.StubObserver{
-			HealthFn: func(context.Context) (observe.Health, error) {
-				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-			},
-		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Config.Network.Enabled = false
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("doctor status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-		}
-		var payload contract.DoctorPayload
-		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
-		}
-		for _, item := range payload.Items {
-			if item.ID == "doctor.network.status" &&
-				item.Code == contract.CodeNetworkDisabled &&
-				item.Severity == contract.SeverityInfo {
-				return
-			}
-		}
-		t.Fatalf("doctor items = %#v, want disabled network info diagnostic", payload.Items)
-	})
 }
 
 func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {

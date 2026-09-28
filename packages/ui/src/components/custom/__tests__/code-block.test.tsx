@@ -65,9 +65,7 @@ describe("CodeBlock", () => {
   });
 
   it("Should suppress the prompt on continuation and comment lines", () => {
-    const code = ["# comment", "compozy network status", '    --body \'{"task":"go"}\'', ""].join(
-      "\n"
-    );
+    const code = ["# comment", "compozy status", '    --body \'{"task":"go"}\'', ""].join("\n");
     const { container } = render(<CodeBlock code={code} showPrompt />);
     const prompts = container.querySelectorAll('[data-slot="code-block-prompt"]');
     expect(prompts.length).toBe(1);
@@ -145,11 +143,11 @@ describe("CodeBlock", () => {
   });
 
   it("Should call navigator.clipboard.writeText with the code when copy is clicked", async () => {
-    const { container } = render(<CodeBlock code="compozy network status" />);
+    const { container } = render(<CodeBlock code="compozy status" />);
     const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
     fireEvent.click(button);
     await waitFor(() => {
-      expect(clipboard.writeText).toHaveBeenCalledWith("compozy network status");
+      expect(clipboard.writeText).toHaveBeenCalledWith("compozy status");
       expect(toastMocks.success).toHaveBeenCalledWith("Copied to clipboard");
     });
   });

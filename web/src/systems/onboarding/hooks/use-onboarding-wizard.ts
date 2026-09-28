@@ -14,7 +14,7 @@ export const ONBOARDING_STEP_COUNT = 2;
 
 /**
  * The step strip carries progress and the footer carries what will be saved, so
- * a pane only needs a heading that stands alone. Skip, default, and Network
+ * a pane only needs a heading that stands alone. Skip and default
  * consequences the heading does not name live in `help`.
  */
 export interface OnboardingStepMeta {
@@ -31,7 +31,7 @@ const STEP_META: Record<number, OnboardingStepMeta> = {
   },
   2: {
     title: "Pick where agents can work",
-    help: "Skip starts in Global (~, your home folder). Setup does not enable Network.",
+    help: "Skip starts in Global (~, your home folder).",
     helpLabel: "About workspace",
   },
 };

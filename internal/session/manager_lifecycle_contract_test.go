@@ -24,7 +24,6 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/procutil"
-	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -330,20 +329,19 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 	}
 
 	session := &Session{
-		ID:                   "sess-helper",
-		Name:                 "helper",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		Workspace:            h.workspace,
-		NetworkParticipation: testLocalParticipation(),
-		Type:                 SessionTypeUser,
-		State:                StateStarting,
-		CreatedAt:            time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
-		sessionDir:           sessionDir,
-		metaPath:             store.SessionMetaFile(sessionDir),
-		dbPath:               dbPath,
-		recorder:             recorder,
+		ID:          "sess-helper",
+		Name:        "helper",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		Workspace:   h.workspace,
+		Type:        SessionTypeUser,
+		State:       StateStarting,
+		CreatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		sessionDir:  sessionDir,
+		metaPath:    store.SessionMetaFile(sessionDir),
+		dbPath:      dbPath,
+		recorder:    recorder,
 	}
 
 	if err := h.manager.reserveStart(testutil.Context(t), session.ID, h.workspaceID); err != nil {
@@ -364,7 +362,6 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		proc,
 		false,
 		compozyconfig.ResolvedAgent{Name: "coder"},
-		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
 		false,
 	); err != nil {
@@ -456,7 +453,6 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 		proc,
 		false,
 		compozyconfig.ResolvedAgent{Name: "coder"},
-		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
 		false,
 	); err == nil {
@@ -1231,14 +1227,14 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 	})
 	for _, persistFailure := range []bool{false, true} {
-		name := "Should preserve remote orphan attention while allowing boot after durable diagnosis"
+		name := "Should preserve unverified orphan attention while allowing boot after durable diagnosis"
 		if persistFailure {
-			name = "Should reject boot when remote orphan diagnostics cannot persist"
+			name = "Should reject boot when unverified orphan diagnostics cannot persist"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
-			active := seedRecoveredRemoteStop(t, h)
+			active := seedRecoveredUnverifiedStop(t, h)
 			persistErr := errors.New("orphan diagnostic store unavailable")
 			if persistFailure {
 				h.manager.openStore = func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
@@ -1256,7 +1252,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 			outcome, err := h.manager.AwaitStopped(ctx, active.ID)
 			if !errors.Is(err, ErrStopVerificationFailed) || outcome.Verified || outcome.FinalState != StateStopping {
-				t.Fatalf("boot manufactured remote exit proof: %#v, %v", outcome, err)
+				t.Fatalf("boot manufactured process exit proof: %#v, %v", outcome, err)
 			}
 			meta := readMeta(t, active.MetaPath())
 			if meta.State != string(StateStopping) || !meta.StopVerificationFailed || h.notifier.stoppedCount() != 1 {
@@ -1755,7 +1751,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 	t.Run("Should coalesce recovered requests admitted before metadata preparation completes", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		active := seedRecoveredRemoteStop(t, h)
+		active := seedRecoveredUnverifiedStop(t, h)
 		ctx := testutil.Context(t)
 		metadataEntered, phaseEntered := make(chan struct{}), make(chan struct{})
 		releaseMetadata, releasePhase := make(chan struct{}), make(chan struct{})
@@ -1859,83 +1855,6 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 		if err := h.manager.Stop(ctx, active.ID); err != nil || h.notifier.stoppedCount() != before+1 {
 			t.Fatalf("repeated recovered stop: %v", err)
-		}
-	})
-
-	t.Run("Should retain recovered remote stop attention without signaling a local process", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		active := seedRecoveredRemoteStop(t, h)
-		ctx := testutil.Context(t)
-		meta := readMeta(t, active.MetaPath())
-		beforeEvents := readStoredEvents(t, active)
-		if err := h.manager.RequestStop(ctx, active.ID, CauseUserRequested); err != nil {
-			t.Fatalf("RequestStop(recovered) error = %v", err)
-		}
-		outcome, err := h.manager.AwaitStopped(ctx, active.ID)
-		if !errors.Is(err, ErrStopVerificationFailed) || outcome.Verified || outcome.FinalState != StateStopping {
-			t.Fatalf("recovered stop = %#v, %v", outcome, err)
-		}
-		after := readMeta(t, active.MetaPath())
-		if after.State != string(StateStopping) || !after.StopVerificationFailed || !after.StopEscalated ||
-			after.Name != meta.Name || after.CreationDigest != meta.CreationDigest {
-			t.Fatalf("recovered metadata lost stop truth or identity: %#v", after)
-		}
-		stored := readStoredEvents(t, active)
-		if countEventType(
-			stored,
-			eventspkg.SessionStopEscalated,
-		) != countEventType(
-			beforeEvents,
-			eventspkg.SessionStopEscalated,
-		)+2 ||
-			countEventType(stored, eventspkg.SessionStopVerificationFailed) != 1 ||
-			countEventType(stored, EventTypeSessionStopped) != countEventType(beforeEvents, EventTypeSessionStopped) {
-			t.Fatal("recovered stop omitted phase diagnostics or emitted an unverified terminal event")
-		}
-	})
-	t.Run("Should recover remote termination through bounded provider phases and identity proof", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		var exited atomic.Bool
-		signals := make(chan sandbox.ProcessSignal, 3)
-		provider := &recoveredProcessTestProvider{
-			verify: func(ctx context.Context, state sandbox.SessionState) (bool, error) {
-				if _, ok := ctx.Deadline(); !ok || state.InstanceID != "remote-instance" {
-					return false, errors.New("missing phase deadline or remote identity")
-				}
-				return exited.Load(), nil
-			},
-			signal: func(_ context.Context, _ sandbox.SessionState, signal sandbox.ProcessSignal) error {
-				signals <- signal
-				if signal == sandbox.ProcessSignalKill {
-					exited.Store(true)
-					return nil
-				}
-				return errors.New("remote process remains alive")
-			},
-		}
-		registry, err := sandbox.NewRegistry(provider)
-		if err != nil {
-			t.Fatal(err)
-		}
-		h.manager.sandbox = registry
-		proc, target := h.manager.recoveredTerminationTarget(&store.SessionMeta{
-			Sandbox: &store.SessionSandboxMeta{Backend: "daytona", InstanceID: "remote-instance"},
-		})
-		result, err := h.manager.runTerminationLadder(t.Context(), proc, target)
-		if err != nil || !result.Verified || result.Phase != StopPhaseKilled {
-			t.Fatalf("recovered remote termination = %+v, %v", result, err)
-		}
-		close(signals)
-		var observed []sandbox.ProcessSignal
-		for signal := range signals {
-			observed = append(observed, signal)
-		}
-		if !slices.Equal(observed, []sandbox.ProcessSignal{
-			sandbox.ProcessSignalCloseInput, sandbox.ProcessSignalTerminate, sandbox.ProcessSignalKill,
-		}) {
-			t.Fatalf("remote phases = %v", observed)
 		}
 	})
 
@@ -2367,29 +2286,6 @@ func (r *terminalCloseFailingRecorder) Close(ctx context.Context) error {
 	return err
 }
 
-func seedRecoveredRemoteStop(t *testing.T, h *harness) *Session {
-	t.Helper()
-	active := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
-		t.Fatal(err)
-	}
-	started, err := procutil.StartedAt(os.Getpid())
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta := readMeta(t, active.MetaPath())
-	meta.State = string(StateStopping)
-	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid(), SubprocessStartedAt: &started}
-	meta.Sandbox = &store.SessionSandboxMeta{Backend: "daytona"}
-	if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
-		t.Fatal(err)
-	}
-	h.manager.mu.Lock()
-	delete(h.manager.stopRuns, active.ID)
-	h.manager.mu.Unlock()
-	return active
-}
-
 func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -2422,7 +2318,7 @@ func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
 		t.Fatal(err)
 	}
 	meta := readMeta(t, active.MetaPath())
-	meta.State, meta.Sandbox = string(StateStopping), nil
+	meta.State = string(StateStopping)
 	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: cmd.Process.Pid, SubprocessStartedAt: &started}
 	if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
 		t.Fatal(err)
@@ -2433,24 +2329,6 @@ func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
 	return active
 }
 
-type recoveredProcessTestProvider struct {
-	sandbox.Provider
-	verify func(context.Context, sandbox.SessionState) (bool, error)
-	signal func(context.Context, sandbox.SessionState, sandbox.ProcessSignal) error
-}
-
-func (*recoveredProcessTestProvider) Backend() sandbox.Backend { return sandbox.BackendDaytona }
-func (p *recoveredProcessTestProvider) ProcessExitVerified(
-	ctx context.Context, state sandbox.SessionState,
-) (bool, error) {
-	return p.verify(ctx, state)
-}
-func (p *recoveredProcessTestProvider) SignalProcess(
-	ctx context.Context, state sandbox.SessionState, signal sandbox.ProcessSignal,
-) error {
-	return p.signal(ctx, state, signal)
-}
-
 // stopGoalHandler injects only the daemon cancellation I/O boundary.
 type stopGoalHandler struct {
 	GoalCommandHandler
@@ -2459,4 +2337,22 @@ type stopGoalHandler struct {
 
 func (h *stopGoalHandler) StopSessionGoals(ctx context.Context, info *Info) error {
 	return h.stop(ctx, info)
+}
+
+func seedRecoveredUnverifiedStop(t *testing.T, h *harness) *Session {
+	t.Helper()
+	active := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+		t.Fatal(err)
+	}
+	meta := readMeta(t, active.MetaPath())
+	meta.State = string(StateStopping)
+	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid()}
+	if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
+		t.Fatal(err)
+	}
+	h.manager.mu.Lock()
+	delete(h.manager.stopRuns, active.ID)
+	h.manager.mu.Unlock()
+	return active
 }

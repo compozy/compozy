@@ -41,7 +41,7 @@ func validateRequest(ctx context.Context, req Request) error {
 
 func validActorKind(kind ActorKind) bool {
 	switch kind {
-	case ActorAgentSession, ActorHuman, ActorExtension, ActorAutomation, ActorNetworkPeer, ActorDaemon:
+	case ActorAgentSession, ActorHuman, ActorExtension, ActorAutomation, ActorDaemon:
 		return true
 	default:
 		return false
@@ -50,7 +50,7 @@ func validActorKind(kind ActorKind) bool {
 
 func validSeam(seam Seam) bool {
 	switch seam {
-	case SeamIdentity, SeamTask, SeamTool, SeamSpawn, SeamCoordination, SeamCatalog:
+	case SeamIdentity, SeamTask, SeamTool, SeamSpawn, SeamCatalog:
 		return true
 	default:
 		return false

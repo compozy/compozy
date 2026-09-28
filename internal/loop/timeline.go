@@ -37,7 +37,6 @@ var timelineTiers = map[RunEventKind]TimelineTier{
 	RunEventNodeFailed:           TimelineNotable,
 	RunEventGateVerdict:          TimelineNotable,
 	RunEventGenerationStarted:    TimelineNotable,
-	RunEventChannelMsg:           TimelineActivity,
 	RunEventTokenTick:            TimelineChatter,
 	RunEventNeedsApproval:        TimelineNotable,
 	RunEventStatusChanged:        TimelineNotable,
@@ -416,8 +415,6 @@ func timelineStaticRunTitle(kind RunEventKind) (string, bool) {
 
 func timelineAgentActivityTitle(kind RunEventKind) (string, bool) {
 	switch kind {
-	case RunEventChannelMsg:
-		return "An agent message was recorded", true
 	case RunEventTokenTick:
 		return "Token usage increased", true
 	case RunEventGoalTurnStarted:

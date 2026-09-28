@@ -457,7 +457,7 @@ describe("useMarketplaceActionController", () => {
       inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "observability" }],
       name: "otel-bridge",
-      network_requirement_digest: "sha256:network",
+      gateway_requirement_digest: "sha256:network",
       placements: [],
     });
     setup([verified]);
@@ -480,7 +480,7 @@ describe("useMarketplaceActionController", () => {
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith({
         ...request,
-        confirm_network_digest: "sha256:network",
+        confirm_gateway_digest: "sha256:network",
       })
     );
     await waitFor(() =>
@@ -630,7 +630,7 @@ describe("useMarketplaceActionController", () => {
     expect(io.success).toHaveBeenCalledTimes(1);
   });
 
-  it("Should close a failed network confirmation attempt and retain its error code [UT-038]", async () => {
+  it("Should close a failed gateway confirmation attempt and retain its error code [UT-038]", async () => {
     io.install.mockRejectedValueOnce(
       new MarketplaceApiError("The source is unreachable", 503, "source_unreachable")
     );
@@ -764,10 +764,10 @@ describe("useMarketplaceActionController", () => {
     );
     expect(io.install).not.toHaveBeenCalled();
   });
-  it("Should resume a refused update with the exact network digest", async () => {
+  it("Should resume a refused update with the exact gateway digest", async () => {
     io.update.mockRejectedValueOnce(
-      new ExtensionsApiError("network confirmation required", 409, "daemon", {
-        code: "extension_network_confirmation_required",
+      new ExtensionsApiError("gateway confirmation required", 409, "daemon", {
+        code: "extension_gateway_confirmation_required",
         currentDigest: "sha256:quick-update",
       })
     );
@@ -776,19 +776,19 @@ describe("useMarketplaceActionController", () => {
     ]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
-    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeVisible();
-    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    expect(await screen.findByTestId("extension-gateway-confirm-dialog")).toBeVisible();
+    await user.click(screen.getByTestId("extension-gateway-confirm-accept"));
     await waitFor(() =>
       expect(io.update).toHaveBeenLastCalledWith("manifest-otel", {
         profile: "default",
         scope: "global",
         allow_unverified: false,
         version: verified.version,
-        confirm_network_digest: "sha256:quick-update",
+        confirm_gateway_digest: "sha256:quick-update",
       })
     );
     await waitFor(() =>
-      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
+      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).not.toBeInTheDocument()
     );
   });
   it.each(["default", "captured"])(
@@ -823,7 +823,7 @@ describe("useMarketplaceActionController", () => {
       await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled", "true"));
       await user.click(toggle);
       await waitFor(() => expect(io.toggle).toHaveBeenCalledWith("local-kit", profile, true));
-      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).not.toBeInTheDocument();
     }
   );
   it("Should require fresh consent for an unverified installed-row update", async () => {
@@ -930,7 +930,7 @@ describe("useMarketplaceActionController", () => {
   );
 });
 
-// Invariant: input/network recovery retries the same scoped update without losing prior fields or consent.
+// Invariant: input/gateway recovery retries the same scoped update without losing prior fields or consent.
 // Owner: Marketplace update controller; canonical suite: marketplace-action-controller.test.tsx.
 describe("Marketplace update recovery", () => {
   const definitions = [
@@ -942,12 +942,12 @@ describe("Marketplace update recovery", () => {
       binding: { type: "url_query", name: "region" },
     },
   ];
-  it("Should preserve scope and prior inputs across network and input confirmation", async () => {
+  it("Should preserve scope and prior inputs across gateway and input confirmation", async () => {
     const mutate = vi
       .fn()
       .mockRejectedValueOnce(
-        new ExtensionsApiError("Confirm network", 409, "daemon", {
-          code: "extension_network_confirmation_required",
+        new ExtensionsApiError("Confirm gateway", 409, "daemon", {
+          code: "extension_gateway_confirmation_required",
           currentDigest: "a".repeat(64),
         })
       )
@@ -974,7 +974,7 @@ describe("Marketplace update recovery", () => {
     await act(async () => {
       await result.current.runUpdate("Kit", request, action => action());
     });
-    expect(result.current.recovery?.kind).toBe("network");
+    expect(result.current.recovery?.kind).toBe("gateway");
     await act(async () => {
       result.current.confirm();
     });
@@ -990,7 +990,7 @@ describe("Marketplace update recovery", () => {
       ...request,
       body: {
         ...request.body,
-        confirm_network_digest: "a".repeat(64),
+        confirm_gateway_digest: "a".repeat(64),
         inputs: { ...request.body.inputs, region: { value: "eu" } },
       },
     });

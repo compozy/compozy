@@ -91,7 +91,7 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 	case errors.Is(err, extensionmcp.ErrNameTaken):
 		return toolspkg.NewToolError("mcp_server_name_taken", id, err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonExtensionValidationFailed)
-	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired),
+	case errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired),
 		errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
 		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
 	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid),

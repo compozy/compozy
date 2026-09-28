@@ -11,8 +11,7 @@ const (
 	StepKindThought       StepKind = "thought"
 	StepKindToolCall      StepKind = "tool_call"
 	StepKindPermission    StepKind = "permission"
-	StepKindSandbox       StepKind = "sandbox_exec"
-	StepKindBridgeContent StepKind = "bridge_response"
+	StepKindCommand       StepKind = "command_exec"
 	StepKindDriverControl StepKind = "driver_control"
 )
 
@@ -88,10 +87,10 @@ type TurnMatch struct {
 	// UserTextContains matches a substring after the same canonical whitespace normalization as UserText.
 	UserTextContains string `json:"user_text_contains,omitempty"`
 	// RawUserTextContains matches a substring before prompt augmentation is stripped.
-	RawUserTextContains string            `json:"raw_user_text_contains,omitempty"`
-	Network             *TurnMatchNetwork `json:"network,omitempty"`
-	Goal                *TurnMatchGoal    `json:"goal,omitempty"`
-	Judge               *TurnMatchJudge   `json:"judge,omitempty"`
+	RawUserTextContains string `json:"raw_user_text_contains,omitempty"`
+
+	Goal  *TurnMatchGoal  `json:"goal,omitempty"`
+	Judge *TurnMatchJudge `json:"judge,omitempty"`
 }
 
 // TurnMatchGoal captures exact Goal prompt metadata fields.
@@ -113,23 +112,6 @@ type TurnMatchJudge struct {
 	CorrelationID string `json:"correlation_id,omitempty"`
 	GateID        string `json:"gate_id,omitempty"`
 	CriterionID   string `json:"criterion_id,omitempty"`
-}
-
-// TurnMatchNetwork captures exact Compozy network envelope field matching.
-type TurnMatchNetwork struct {
-	MessageID   string `json:"message_id,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	Channel     string `json:"channel,omitempty"`
-	Surface     string `json:"surface,omitempty"`
-	ThreadID    string `json:"thread_id,omitempty"`
-	DirectID    string `json:"direct_id,omitempty"`
-	From        string `json:"from,omitempty"`
-	To          string `json:"to,omitempty"`
-	WorkID      string `json:"work_id,omitempty"`
-	ReplyTo     string `json:"reply_to,omitempty"`
-	TraceID     string `json:"trace_id,omitempty"`
-	CausationID string `json:"causation_id,omitempty"`
-	Trust       string `json:"trust,omitempty"`
 }
 
 // Step describes one deterministic ACP action emitted or executed by the driver.

@@ -213,72 +213,6 @@ describe("Extension", () => {
     await expect(harness.call("health_check", {})).resolves.toMatchObject({ healthy: true });
   });
 
-  it("negotiates bridge adapter services and exposes scoped runtime data", async () => {
-    const ready = vi.fn();
-    const harness = new TestHarness();
-    const extension = new Extension({
-      name: "bridge-adapter",
-      version: "0.1.0",
-      capabilities: { provides: ["bridge.adapter"] },
-      permissions: { requires: ["bridges/instances/get"] },
-    });
-
-    extension.handle("bridges/deliver", async () => ({
-      acknowledged: true,
-    }));
-    extension.handle("bridges/targets/snapshot", async () => ({ targets: [] }));
-    extension.onReady((_host, session) => {
-      ready(session.initializeRequest.runtime.bridge?.managed_instances?.[0]?.instance.id);
-    });
-
-    await harness.loadExtension(extension, {
-      grantedPermissions: ["bridges/instances/get"],
-      runtime: {
-        bridge: {
-          runtime_version: "1",
-          purpose: "service",
-          provider: "bridge-adapter",
-          platform: "telegram",
-          managed_instances: [
-            {
-              instance: {
-                id: "chan-1",
-                profile_id: DEFAULT_PROFILE_LENS.profile_lens_id,
-                scope: "global",
-                platform: "telegram",
-                extension_name: "bridge-adapter",
-                display_name: "Telegram",
-                enabled: true,
-                status: "ready",
-                notification_suppress: false,
-                routing_policy: {
-                  include_peer: true,
-                  include_thread: false,
-                  include_group: false,
-                },
-                created_at: "2026-04-11T12:00:00.000Z",
-                updated_at: "2026-04-11T12:00:00.000Z",
-              },
-              bound_secrets: [{ binding_name: "bot_token", kind: "bot_token", value: "secret" }],
-            },
-          ],
-        },
-      },
-    });
-
-    expect(harness.getLastInitializeRequest()).toMatchObject({
-      session_nonce: "session-nonce-test",
-      capabilities: {
-        granted_resource_kinds: [],
-        granted_resource_scopes: [],
-      },
-      methods: {
-        extension_services: ["bridges/deliver", "bridges/targets/snapshot"],
-      },
-    });
-    expect(ready).toHaveBeenCalledWith("chan-1");
-  });
-
   it("captures session nonce and resource grants during initialize", async () => {
     const ready = vi.fn();
     const harness = new TestHarness();
@@ -305,25 +239,6 @@ describe("Extension", () => {
       session_nonce: "nonce-resource",
       granted_resource_kinds: ["tool", "skill"],
       granted_resource_scopes: ["workspace"],
-    });
-  });
-
-  it("rejects bridge.adapter initialize when bridges/deliver is not implemented", async () => {
-    const pair = createMockTransportPair();
-    const extension = new Extension(
-      {
-        name: "bridge-denied",
-        version: "0.1.0",
-        capabilities: { provides: ["bridge.adapter"] },
-      },
-      { transport: pair.extension }
-    );
-
-    void extension.start();
-    await expect(pair.host.call("initialize", initializeFor(extension))).rejects.toMatchObject({
-      data: {
-        error: expect.stringContaining("bridge.adapter"),
-      },
     });
   });
 

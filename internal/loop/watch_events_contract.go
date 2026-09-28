@@ -6,7 +6,6 @@ const (
 	watchEventsTaskStream       = "task_events"
 	watchEventsLoopStream       = "loop_run_events"
 	watchEventsAutomationStream = "automation_runs"
-	watchEventsNetworkStream    = "network_timeline_log"
 	watchEventsObserveStream    = "event_summaries"
 	watchEventsSessionStream    = "session_events"
 	watchEventsSessionSeparator = ":"
@@ -21,34 +20,23 @@ const (
 	watchEventsPayloadReason       = "reason"
 	watchEventsNamespaceEvent      = "event"
 
-	watchEventsPayloadAgentName   = "agent_name"
-	watchEventsPayloadAttempt     = "attempt"
-	watchEventsPayloadCausationID = "causation_id"
-	watchEventsPayloadDirectID    = "direct_id"
-	watchEventsPayloadDirection   = "direction"
-	watchEventsPayloadDurationMS  = "duration_ms"
-	watchEventsPayloadJobID       = "job_id"
-	watchEventsPayloadMessageID   = "message_id"
-	watchEventsPayloadPeerFrom    = "peer_from"
-	watchEventsPayloadPeerTo      = "peer_to"
-	watchEventsPayloadSurface     = "surface"
-	watchEventsPayloadThreadID    = "thread_id"
-	watchEventsPayloadTraceID     = "trace_id"
-	watchEventsPayloadTriggerID   = "trigger_id"
-	watchEventsPayloadWillRetry   = "will_retry"
-	watchEventsPayloadWorkState   = "work_state"
+	watchEventsPayloadAgentName  = "agent_name"
+	watchEventsPayloadAttempt    = "attempt"
+	watchEventsPayloadDurationMS = "duration_ms"
+	watchEventsPayloadJobID      = "job_id"
+	watchEventsPayloadTriggerID  = "trigger_id"
+	watchEventsPayloadWillRetry  = "will_retry"
 
-	watchEventsPayloadCoordinatorSessionID         = "coordinator_session_id"
-	watchEventsPayloadResolvedNetworkParticipation = "resolved_network_participation"
-	watchEventsPayloadDecisionKind                 = "decision_kind"
-	watchEventsPayloadDecision                     = "decision"
-	watchEventsPayloadModel                        = "model"
-	watchEventsPayloadProvider                     = "provider"
-	watchEventsPayloadRecordType                   = "record_type"
-	watchEventsPayloadSequence                     = "sequence"
-	watchEventsPayloadStopReason                   = "stop_reason"
-	watchEventsPayloadTurnID                       = "turn_id"
-	watchEventsPayloadWorkflowID                   = "workflow_id"
+	watchEventsPayloadCoordinatorSessionID = "coordinator_session_id"
+	watchEventsPayloadDecisionKind         = "decision_kind"
+	watchEventsPayloadDecision             = "decision"
+	watchEventsPayloadModel                = "model"
+	watchEventsPayloadProvider             = "provider"
+	watchEventsPayloadRecordType           = "record_type"
+	watchEventsPayloadSequence             = "sequence"
+	watchEventsPayloadStopReason           = "stop_reason"
+	watchEventsPayloadTurnID               = "turn_id"
+	watchEventsPayloadWorkflowID           = "workflow_id"
 )
 
 const (
@@ -58,8 +46,6 @@ const (
 	WatchEventsLoopStream = watchEventsLoopStream
 	// WatchEventsAutomationStream is the automation_runs replay stream name.
 	WatchEventsAutomationStream = watchEventsAutomationStream
-	// WatchEventsNetworkStream is the network_timeline_log replay stream name.
-	WatchEventsNetworkStream = watchEventsNetworkStream
 	// WatchEventsObserveStream is the event_summaries replay stream name.
 	WatchEventsObserveStream = watchEventsObserveStream
 	// WatchEventsSessionStream is the per-session event replay stream base name.

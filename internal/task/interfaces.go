@@ -81,11 +81,6 @@ type Manager interface {
 	BulkForceFailRuns(ctx context.Context, req BulkForceRunRequest, actor ActorContext) (BulkForceRunResult, error)
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion, actor ActorContext) (*Run, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure, actor ActorContext) (*Run, error)
-	SettleNetworkWake(
-		ctx context.Context,
-		settlement NetworkWakeSettlement,
-		actor ActorContext,
-	) (*NetworkWakeSettlementResult, error)
 	CompleteRun(ctx context.Context, runID string, result RunResult, actor ActorContext) (*Run, error)
 	FailRun(ctx context.Context, runID string, failure RunFailure, actor ActorContext) (*Run, error)
 	CancelRun(ctx context.Context, runID string, req CancelRun, actor ActorContext) (*Run, error)
@@ -189,7 +184,6 @@ type RunStore interface {
 	ListTaskRunsByStatus(ctx context.Context, statuses []RunStatus) ([]Run, error)
 	CountActiveSessionBindings(ctx context.Context, sessionID string) (int, error)
 	CompleteRunLeaseSettlement(ctx context.Context, completion LeaseCompletion) (CompletedRunSettlement, error)
-	SettleNetworkWake(ctx context.Context, settlement NetworkWakeSettlement) (NetworkWakeSettlementResult, error)
 	CompleteCoordinatorAndEnqueueNext(
 		ctx context.Context,
 		completion CoordinatorCompletion,
@@ -308,10 +302,6 @@ type runMutationStore interface {
 		ctx context.Context,
 		mutation RunBootRecoveryMutation,
 	) (NominalRunMutationResult, error)
-	RecoverNetworkWakeOnBoot(
-		ctx context.Context,
-		mutation NetworkWakeBootRecoveryMutation,
-	) (NominalRunMutationResult, error)
 	ConsumeTerminalRunCommand(
 		ctx context.Context,
 		command TerminalRunCommand,
@@ -421,11 +411,4 @@ type UnboundTaskSessionCleaner interface {
 // claimed run's immutable execution-environment snapshot before binding it.
 type RunSessionAttachmentExecutor interface {
 	AttachTaskRunSession(ctx context.Context, run Run, sessionID string) (*SessionRef, error)
-}
-
-// RunNetworkSessionBinder is the optional task-session bridge that moves a
-// claimant into the run-owned coordination channel for the lease lifetime.
-type RunNetworkSessionBinder interface {
-	BindTaskRunNetwork(ctx context.Context, sessionID string, run Run) error
-	RestoreTaskRunNetwork(ctx context.Context, sessionID string) error
 }

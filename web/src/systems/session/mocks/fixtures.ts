@@ -13,21 +13,15 @@ import type {
 } from "@/systems/session/types";
 import {
   storyAgentNames,
-  storyChannels,
   storySessionIds,
   storySkillNames,
   storyWorkspaceIds,
   storyWorkspacePaths,
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
-import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { sessionRuntime } from "./runtime-fixture";
 
 export { sessionRuntime } from "./runtime-fixture";
-
-function liveParticipation(workspaceId: string, channelId: string) {
-  return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
-}
 
 type SessionFixtureInput = Omit<SessionPayload, "pending_interactions" | "supervision"> & {
   pending_interactions?: SessionPayload["pending_interactions"];
@@ -62,10 +56,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.product,
-      storyChannels.landingPage
-    ),
     lineage: {
       parent_session_id: storySessionIds.product,
       root_session_id: storySessionIds.product,
@@ -84,8 +74,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
         skills: [storySkillNames.frontendQa],
         mcp_servers: [],
         workspace_paths: [storyWorkspacePaths.product, storyWorkspacePaths.hq],
-        network_channels: [storyChannels.landingPage, storyChannels.launchWarRoom],
-        sandbox_profiles: [],
       },
     },
     created_at: "2026-04-17T12:00:00Z",
@@ -117,10 +105,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.hq,
-      storyChannels.execSignal
-    ),
     created_at: "2026-04-17T10:10:00Z",
     updated_at: "2026-04-17T18:11:00Z",
   },
@@ -150,10 +134,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.finance,
-      storyChannels.financeWatch
-    ),
     created_at: "2026-04-17T10:30:00Z",
     updated_at: "2026-04-17T18:13:00Z",
   },
@@ -171,10 +151,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.hq,
-      storyChannels.launchWarRoom
-    ),
     created_at: "2026-04-17T11:20:00Z",
     updated_at: "2026-04-17T18:14:00Z",
   },
@@ -191,10 +167,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: false,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.growth,
-      storyChannels.growthLaunch
-    ),
     created_at: "2026-04-17T09:45:00Z",
     updated_at: "2026-04-17T17:58:00Z",
   },
@@ -211,10 +183,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.growth,
-      storyChannels.landingPage
-    ),
     created_at: "2026-04-17T14:05:00Z",
     updated_at: "2026-04-17T18:06:00Z",
   },
@@ -231,10 +199,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.support,
-      storyChannels.supportSwarm
-    ),
     created_at: "2026-04-17T13:00:00Z",
     updated_at: "2026-04-17T18:08:00Z",
   },
@@ -251,10 +215,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.risk,
-      storyChannels.riskOps
-    ),
     created_at: "2026-04-17T10:45:00Z",
     updated_at: "2026-04-17T18:07:00Z",
   },
@@ -271,10 +231,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.risk,
-      storyChannels.launchWarRoom
-    ),
     created_at: "2026-04-17T12:25:00Z",
     updated_at: "2026-04-17T18:04:00Z",
   },
@@ -291,10 +247,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.platform,
-      storyChannels.releaseControl
-    ),
     created_at: "2026-04-17T09:15:00Z",
     updated_at: "2026-04-17T18:03:00Z",
   },
@@ -311,10 +263,6 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     attachable: true,
     archived_at: null,
     available_commands: [],
-    resolved_network_participation: liveParticipation(
-      storyWorkspaceIds.platform,
-      storyChannels.partnerSync
-    ),
     created_at: "2026-04-17T09:05:00Z",
     updated_at: "2026-04-17T18:01:00Z",
   },

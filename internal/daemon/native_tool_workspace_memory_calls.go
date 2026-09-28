@@ -30,7 +30,7 @@ func (n *daemonNativeTools) workspaceList(
 	if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" {
 		resolved, err := n.deps.Workspaces.Resolve(ctx, scope.WorkspaceID)
 		if err != nil {
-			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 		}
 		workspaces = []workspacepkg.Workspace{resolved.Workspace}
 	} else {
@@ -93,7 +93,7 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	workspaceID, err := nativeResolvedWorkspaceID(&resolved)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -239,7 +239,7 @@ func (n *daemonNativeTools) listLogs(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -279,7 +279,7 @@ func (n *daemonNativeTools) observeSearch(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

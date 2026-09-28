@@ -229,7 +229,7 @@ func TestManagerDelete(t *testing.T) {
 	t.Run("Should retain recovered session history until process exit is verified", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		active := seedRecoveredRemoteStop(t, h)
+		active := seedRecoveredUnverifiedStop(t, h)
 		before := readStoredEvents(t, active)
 		if err := h.manager.Delete(testutil.Context(t), active.ID); !errors.Is(err, ErrStopVerificationFailed) {
 			t.Fatalf("delete bypassed unverified recovered process: %v", err)

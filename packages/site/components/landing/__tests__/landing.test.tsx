@@ -24,10 +24,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-import { Pill } from "@compozy/ui";
 import { AutonomyKernelSection } from "../autonomy-kernel-section";
 import { BentoSection } from "../bento-section";
-import { BridgesSection } from "../bridges-section";
 import { Comparison } from "../comparison";
 import { ExtensibilitySection } from "../extensibility-section";
 import { FeaturesSection } from "../features-section";
@@ -35,11 +33,8 @@ import { FinalCta } from "../final-cta";
 import { Hero } from "../hero";
 import { InstallSection } from "../install-section";
 import { MemoryDreamSection } from "../memory-dream-section";
-import { NetworkSection } from "../network-section";
 import { BUILTIN_PROVIDER_COUNT, BUILTIN_PROVIDER_INTEGRATIONS } from "../provider-data";
 import { SupportedAgents } from "../supported-agents";
-
-import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
 // next/image optimization is enabled, so an <img> src is a `/_next/image?url=…`
 // URL. The invariant under test is which source asset each section references,
@@ -88,11 +83,11 @@ describe("Hero", () => {
       resolveImageAsset(
         screen
           .getByAltText(
-            "CompozyOS workspace capture: the Loops window lists three workspace loops beside a Tasks board tracking launch work across Blocked, Queued, and Done."
+            "CompozyOS workspace capture: a Tasks window with one queued task beside a Loops window listing the built-in implement-tasks and review-and-fix Loops."
           )
           .getAttribute("src")
       )
-    ).toBe("/images/hero/os-shell-capture-v1.png");
+    ).toBe("/images/hero/os-shell-capture-v2.png");
   });
 });
 
@@ -132,14 +127,14 @@ describe("FeaturesSection", () => {
 });
 
 describe("BentoSection", () => {
-  it("renders the five-tile runtime bento with the Extensibility tile", () => {
+  it("renders the runtime bento with the Extensibility tile", () => {
     render(<BentoSection />);
 
     expect(screen.getByTestId("bento-grid")).toBeDefined();
-    expect(screen.getAllByRole("article")).toHaveLength(5);
+    expect(screen.getAllByRole("article")).toHaveLength(3);
     expect(screen.queryByText("The runtime surface in five parts.")).toBeNull();
 
-    for (const label of ["OS Shell", "Network", "Bridges", "Memory", "Extensibility"]) {
+    for (const label of ["OS Shell", "Memory", "Extensibility"]) {
       expect(screen.getByText(label)).toBeDefined();
     }
     expect(screen.queryByText("Trace")).toBeNull();
@@ -147,8 +142,6 @@ describe("BentoSection", () => {
 
     for (const title of [
       "Batteries included. Every window managed.",
-      "Built-in network. Delegate. Deliver. Done.",
-      "From anywhere. Into a session.",
       "Memory that compounds.",
       "Every layer. Pluggable.",
     ]) {
@@ -156,13 +149,11 @@ describe("BentoSection", () => {
     }
   });
 
-  it("uses the five active bento illustration assets including extensibility-v2", () => {
+  it("uses the active bento illustration assets including extensibility-v2", () => {
     render(<BentoSection />);
 
     const expectedSources = [
       "/images/bento-illustrations/os-v2.png",
-      "/images/bento-illustrations/network-v2.png",
-      "/images/bento-illustrations/bridges-v2.png",
       "/images/bento-illustrations/memory-v2.png",
       "/images/bento-illustrations/extensibility-v2.png",
     ];
@@ -190,62 +181,11 @@ describe("SupportedAgents", () => {
   }, 15_000);
 });
 
-describe("BridgesSection", () => {
-  it("renders the bridge catalog with brand logos and release-safe copy", () => {
-    render(<BridgesSection />);
-    const expected = [
-      "Slack",
-      "Discord",
-      "Telegram",
-      "WhatsApp",
-      "Microsoft Teams",
-      "Google Chat",
-      "GitHub",
-      "Linear",
-    ];
-    for (const name of expected) {
-      expect(screen.getByText(name)).toBeDefined();
-    }
-    expect(
-      screen.getByText("Your users work in these channels. Your agents can meet them there.")
-    ).toBeDefined();
-    expect(
-      screen.getByText(
-        "Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime, the bridge adapter runs inside the daemon."
-      )
-    ).toBeDefined();
-    expect(screen.queryByText("Your users live on these. Now so do your agents.")).toBeNull();
-  });
-
-  it("marks every provider in-tree and states the source-checkout caveat", () => {
-    render(<BridgesSection />);
-    // All eight providers exist under extensions/bridges/; none is embedded in the released
-    // binary. content/docs/bridges/index.mdx is the source of record for both facts.
-    expect(screen.getAllByText("in-tree").length).toBe(8);
-    expect(screen.queryByText("alpha")).toBeNull();
-    expect(screen.queryByText("planned")).toBeNull();
-    expect(
-      screen.getByText(/build and install the provider from a trusted source checkout/i)
-    ).toBeDefined();
-  });
-
-  it("links bridge readers to setup and adapter docs", () => {
-    render(<BridgesSection />);
-
-    expect(screen.getByRole("link", { name: "Set up a bridge" }).getAttribute("href")).toBe(
-      "/docs/bridges/setup"
-    );
-    expect(screen.getByRole("link", { name: "Build a bridge adapter" }).getAttribute("href")).toBe(
-      "/docs/bridges/adding-a-bridge"
-    );
-  });
-});
-
 describe("ExtensibilitySection", () => {
-  it("renders six extensibility cards including sandbox and docs link", () => {
+  it("renders extensibility cards and docs link", () => {
     render(<ExtensibilitySection />);
-    expect(screen.getAllByRole("article")).toHaveLength(6);
-    const eyebrows = ["Hooks", "Skills", "Automation", "Sandbox", "Extensions"];
+    expect(screen.getAllByRole("article")).toHaveLength(5);
+    const eyebrows = ["Hooks", "Skills", "Automation", "Extensions"];
     for (const label of eyebrows) {
       expect(screen.getByText(label)).toBeDefined();
     }
@@ -266,16 +206,6 @@ describe("ExtensibilitySection", () => {
           .getAttribute("src")
       )
     ).toBe("/images/extensibility-skill-contract-v1.png");
-  });
-});
-
-describe("NetworkSection", () => {
-  it("renders the protocol walkthrough and supporting cards", () => {
-    render(<NetworkSection />);
-    expect(screen.getByText("Implemented commands")).toBeDefined();
-    expect(screen.getByText("Commit first, dispatch in-process")).toBeDefined();
-    expect(screen.getByText("Explicit receipts, durable history")).toBeDefined();
-    expect(screen.getByLabelText(/Pause walkthrough|Play walkthrough/)).toBeDefined();
   });
 });
 
@@ -427,33 +357,13 @@ describe("AutonomyKernelSection", () => {
 });
 
 describe("FinalCta", () => {
-  it("links the final actions to installation, protocol, and the repository", () => {
+  it("links the final actions to installation guidance and the repository", () => {
     render(<FinalCta />);
     const install = screen.getByText("Install the beta");
     expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
-    const spec = screen.getByText("Read compozy-network/v0 spec");
-    expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/network/protocol");
+    const spec = screen.getByText("Read the installation guide");
+    expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const star = screen.getByText("Star on GitHub");
     expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);
-  });
-});
-
-describe("Network kind pill", () => {
-  it("has a meaning string for every NetworkKind and renders inside Pill", () => {
-    const kinds: NetworkKind[] = ["greet", "whois", "say", "capability", "receipt", "trace"];
-    for (const kind of kinds) {
-      expect(KIND_MEANING[kind]).toBeDefined();
-      render(
-        <Pill mono size="xs" tone="accent" title={KIND_MEANING[kind]}>
-          {kind}
-        </Pill>
-      );
-      expect(screen.getAllByText(kind)).toBeDefined();
-    }
-  });
-
-  it("does not advertise direct as a wire kind", () => {
-    const meaningKeys = Object.keys(KIND_MEANING);
-    expect(meaningKeys).not.toContain("direct");
   });
 });

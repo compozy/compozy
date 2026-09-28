@@ -61,18 +61,17 @@ func (m *Manager) buildResumeReplay(
 	if provider, ok := m.assembler.(ResumeContextProvider); ok {
 		info := session.Info()
 		continuity, continuityErr := provider.ResumeContextSection(ctx, StartupPromptContext{
-			SessionID:            info.ID,
-			SessionName:          info.Name,
-			AgentName:            info.AgentName,
-			Provider:             info.Provider,
-			ProviderHomePolicy:   info.ProviderHomePolicy,
-			WorkspaceID:          info.WorkspaceID,
-			Workspace:            info.Workspace,
-			NetworkParticipation: info.NetworkParticipation,
-			SessionType:          info.Type,
-			SpawnRole:            store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
-			CreatedAt:            info.CreatedAt,
-			UpdatedAt:            info.UpdatedAt,
+			SessionID:          info.ID,
+			SessionName:        info.Name,
+			AgentName:          info.AgentName,
+			Provider:           info.Provider,
+			ProviderHomePolicy: info.ProviderHomePolicy,
+			WorkspaceID:        info.WorkspaceID,
+			Workspace:          info.Workspace,
+			SessionType:        info.Type,
+			SpawnRole:          store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
+			CreatedAt:          info.CreatedAt,
+			UpdatedAt:          info.UpdatedAt,
 		})
 		if continuityErr != nil {
 			return "", 0, fmt.Errorf("session: assemble resume continuity for %q: %w", session.ID, continuityErr)

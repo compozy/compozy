@@ -66,7 +66,6 @@ const CONTENT_NOUNS: ReadonlyArray<
   ["agents", "agent", "agents"],
   ["loops", "loop", "loops"],
   ["hooks", "hook", "hooks"],
-  ["bridges", "bridge", "bridges"],
 ];
 
 /** "1 MCP server · 2 skills" from the inventory summary; zero of a thing renders nothing. */

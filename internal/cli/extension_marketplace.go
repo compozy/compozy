@@ -57,7 +57,7 @@ type extensionUpdateOptions struct {
 	CheckOnly            bool
 	Version              string
 	AllowUnverified      bool
-	ConfirmNetworkDigest string
+	ConfirmGatewayDigest string
 }
 
 type extensionPortableUpdateOutput struct {
@@ -134,7 +134,7 @@ func updateMarketplaceExtensions(
 			Scope: options.Scope, WorkspaceID: options.WorkspaceID, Profile: options.Profile,
 			Version: strings.TrimSpace(options.Version), CheckOnly: options.CheckOnly,
 			AllowUnverified:      options.AllowUnverified && !options.CheckOnly,
-			ConfirmNetworkDigest: strings.TrimSpace(options.ConfirmNetworkDigest),
+			ConfirmGatewayDigest: strings.TrimSpace(options.ConfirmGatewayDigest),
 		})
 		if err != nil {
 			return nil, err

@@ -11,7 +11,6 @@ import {
   FileText,
   FolderSearch,
   Globe,
-  Plug,
   Search,
   Terminal,
   Wrench,
@@ -43,11 +42,6 @@ describe("getToolIcon", () => {
     expect(getToolIcon("compozy__deny_native")).toBe(Wrench);
     expect(getToolIcon("compozy__terminal_exec")).toBe(Terminal);
     expect(getToolIcon("compozy__terminal_open")).toBe(Terminal);
-  });
-
-  it("Should map MCP bridge tools to the connector glyph", () => {
-    expect(getToolIcon("mcp__context7__resolve-library-id")).toBe(Plug);
-    expect(getToolIcon("mcp__github__search_issues", { url: "https://example.com" })).toBe(Plug);
   });
 
   it("Should return the generic tool fallback for unknown ids", () => {

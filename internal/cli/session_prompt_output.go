@@ -90,7 +90,7 @@ func goalCommandRows(prompt SessionPromptResultRecord, result contract.GoalComma
 func goalCommandFields() []string {
 	return []string{
 		cliOutcomeKey, "reason_code", "replaced_run_id", agentKernelRunIDKey, sessionStatusKey,
-		"objective", "turns_used", "turn_limit", goalLiveKey, messageIDKey, idempotencyKeyField,
+		"objective", "turns_used", "turn_limit", goalLiveKey, cliOutputMessageIDKey, idempotencyKeyField,
 	}
 }
 
@@ -134,7 +134,7 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 	}
 
 	if result.Mode != "" {
-		rows = append(rows, keyValue{Label: bridgeModeValue, Value: string(result.Mode)})
+		rows = append(rows, keyValue{Label: cliOutputModeValue, Value: string(result.Mode)})
 	}
 	if result.Delivery != "" {
 		rows = append(rows, keyValue{Label: cliDeliveryValue, Value: string(result.Delivery)})
@@ -164,7 +164,7 @@ func sessionPromptFields() []string {
 	return []string{
 		"disposition", "steer_delivery", sessionTurnIDKey, entryIDField, "message_id", "idempotency_key", "replayed",
 		sessionStatusKey,
-		bridgeModeKey,
+		cliOutputModeKey,
 		cliDeliveryKey,
 		"queue_entry_id",
 		"queue_position",

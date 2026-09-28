@@ -318,7 +318,6 @@ func getTaskDashboardOperationSpec() OperationSpec {
 			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
-			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
 		),
 		Responses: []ResponseSpec{

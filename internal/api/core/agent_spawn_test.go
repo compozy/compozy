@@ -40,16 +40,16 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 			}
 			ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
 			return &session.Session{
-				ID:                   "sess-child",
-				Name:                 opts.Name,
-				AgentName:            opts.AgentName,
-				Provider:             opts.Provider,
-				Speed:                opts.Speed,
-				WorkspaceID:          "ws-1",
-				Workspace:            "/workspace/project",
-				NetworkParticipation: testLiveParticipation("ws-1", "builders"),
-				Type:                 session.SessionTypeSpawned,
-				State:                session.StateActive,
+				ID:          "sess-child",
+				Name:        opts.Name,
+				AgentName:   opts.AgentName,
+				Provider:    opts.Provider,
+				Speed:       opts.Speed,
+				WorkspaceID: "ws-1",
+				Workspace:   "/workspace/project",
+
+				Type:  session.SessionTypeSpawned,
+				State: session.StateActive,
 				Lineage: &store.SessionLineage{
 					ParentSessionID:  opts.ParentSessionID,
 					RootSessionID:    "sess-parent",
@@ -227,16 +227,16 @@ func agentSpawnRouter(manager core.SessionManager) *gin.Engine {
 
 func agentSpawnCallerInfo() *session.Info {
 	return &session.Info{
-		ID:                   "sess-parent",
-		ProfileID:            store.DefaultProfileID,
-		Name:                 "parent",
-		AgentName:            "coder",
-		Provider:             "codex",
-		WorkspaceID:          "ws-1",
-		Workspace:            "/workspace/project",
-		NetworkParticipation: testLiveParticipation("ws-1", "builders"),
-		Type:                 session.SessionTypeUser,
-		State:                session.StateActive,
+		ID:          "sess-parent",
+		ProfileID:   store.DefaultProfileID,
+		Name:        "parent",
+		AgentName:   "coder",
+		Provider:    "codex",
+		WorkspaceID: "ws-1",
+		Workspace:   "/workspace/project",
+
+		Type:  session.SessionTypeUser,
+		State: session.StateActive,
 		Lineage: &store.SessionLineage{
 			RootSessionID: "sess-parent",
 			PermissionPolicy: store.SessionPermissionPolicy{

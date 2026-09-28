@@ -102,11 +102,6 @@ export const TaskDelegation: Story = {
             title: "Reconcile settlement ledger",
             description: "Diff the settlement ledger against the gateway and open a task per gap.",
             owner: { kind: "pool", ref: "finance-ops" },
-            network_participation: {
-              mode: "live",
-              channel_strategy: "named",
-              channel_id: "release-room",
-            },
           },
         }),
         "task"
@@ -216,12 +211,6 @@ export const WorkspaceLoopTarget: Story = {
           loop_name: "review-and-fix",
           inputs: { pr: 312 },
           input_mapping: {},
-          network_participation: {
-            mode: "live",
-            channel_strategy: "named",
-            channel_id: "release-room",
-            bounds: { max_wakes: 3 },
-          },
         },
       })}
       mode="edit"
@@ -229,12 +218,6 @@ export const WorkspaceLoopTarget: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const participation = await canvas.findByTestId("loop-target-participation");
-    participation.scrollIntoView({ block: "center" });
-    await expect(canvas.getByTestId("loop-target-participation-mode")).toHaveValue("live");
-    await expect(canvas.getByTestId("loop-target-participation-channel")).toHaveValue(
-      "release-room"
-    );
     await expect(canvas.getByTestId("submit-job-form")).toBeEnabled();
   },
 };

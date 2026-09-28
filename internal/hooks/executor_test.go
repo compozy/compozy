@@ -300,27 +300,6 @@ func (s *blockingHookLifecycleStore) UpdateProcessRecordState(
 	return ctx.Err()
 }
 
-func TestSubprocessExecutorExecuteFiltersSandbox(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("subprocess shell test requires POSIX shell")
-	}
-
-	t.Setenv("HOOK_TEST_AMBIENT_SECRET", "ambient-secret")
-	executor := NewSubprocessExecutor(
-		"/bin/sh",
-		[]string{"-c", `printf '%s|%s|%s' "${HOOK_TEST_AMBIENT_SECRET:-}" "${PATH:+present}" "${HOOK_CUSTOM_ENV:-}"`},
-		WithSubprocessEnv(map[string]string{"HOOK_CUSTOM_ENV": "custom-value"}),
-	)
-
-	output, err := executor.Execute(t.Context(), RegisteredHook{Name: "env-hook"}, nil)
-	if err != nil {
-		t.Fatalf("Execute() error = %v, want nil", err)
-	}
-	if got := string(output); got != "|present|custom-value" {
-		t.Fatalf("output = %q, want %q", got, "|present|custom-value")
-	}
-}
-
 func TestSubprocessExecutorExecuteCapturesStderrOnFailure(t *testing.T) {
 	t.Parallel()
 
@@ -388,5 +367,26 @@ func TestWasmExecutorExecuteReturnsErrNotImplemented(t *testing.T) {
 	}
 	if output != nil {
 		t.Fatalf("output = %q, want nil", string(output))
+	}
+}
+
+func TestSubprocessExecutorExecuteFiltersEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("subprocess shell test requires POSIX shell")
+	}
+
+	t.Setenv("HOOK_TEST_AMBIENT_SECRET", "ambient-secret")
+	executor := NewSubprocessExecutor(
+		"/bin/sh",
+		[]string{"-c", `printf '%s|%s|%s' "${HOOK_TEST_AMBIENT_SECRET:-}" "${PATH:+present}" "${HOOK_CUSTOM_ENV:-}"`},
+		WithSubprocessEnv(map[string]string{"HOOK_CUSTOM_ENV": "custom-value"}),
+	)
+
+	output, err := executor.Execute(t.Context(), RegisteredHook{Name: "env-hook"}, nil)
+	if err != nil {
+		t.Fatalf("Execute() error = %v, want nil", err)
+	}
+	if got := string(output); got != "|present|custom-value" {
+		t.Fatalf("output = %q, want %q", got, "|present|custom-value")
 	}
 }

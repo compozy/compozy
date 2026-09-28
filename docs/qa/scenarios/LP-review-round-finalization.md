@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-09-04-pr-543-review-findings.md
 last_report: docs/qa/reports/2026-09-04-pr-543-review-findings.md
-overlaps: LP-029;LP-review-artifact-inspection
+overlaps: LP-029; LP-review-artifact-inspection
 ---
 
 Task07 2026-07-27: added for round-finalization behavior; flag only, not retested.

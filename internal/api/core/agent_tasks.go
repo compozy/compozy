@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -181,7 +179,7 @@ func (h *BaseHandlers) AgentTaskHeartbeat(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run)})
 }
 
 // AgentTaskRelease releases one claimed task run back to the queue.
@@ -216,7 +214,7 @@ func (h *BaseHandlers) AgentTaskRelease(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run)})
 }
 
 // AgentTaskComplete completes one claimed task run after token verification.
@@ -257,7 +255,7 @@ func (h *BaseHandlers) AgentTaskComplete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run)})
 }
 
 // AgentTaskFail fails one claimed task run after token verification.
@@ -297,7 +295,7 @@ func (h *BaseHandlers) AgentTaskFail(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run)})
 }
 
 func (h *BaseHandlers) agentTaskLeaseMutationSetup(
@@ -371,75 +369,36 @@ func AgentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.Agent
 	if result == nil || result.Task == nil {
 		return contract.AgentTaskClaimPayload{}
 	}
-	channel := coordinationChannelPayloadFromMetadata(result.CoordinationChannel)
 	run := TaskRunPayloadFromRun(&result.Run)
-	if channel != nil {
-		run.CoordinationChannel = channel
-	}
-	lease := AgentTaskLeasePayloadFromRun(&result.Run, channel)
+	lease := AgentTaskLeasePayloadFromRun(&result.Run)
 	if lease.LeaseUntil == nil && !result.LeaseUntil.IsZero() {
 		lease.LeaseUntil = optionalTime(result.LeaseUntil)
 	}
 	return contract.AgentTaskClaimPayload{
-		Task:                taskReferencePayloadFromTask(*result.Task),
-		Run:                 run,
-		Lease:               lease,
-		CoordinationChannel: channel,
+		Task:  taskReferencePayloadFromTask(*result.Task),
+		Run:   run,
+		Lease: lease,
 	}
 }
 
 // AgentTaskLeasePayloadFromRun builds the public, redacted lease payload.
 func AgentTaskLeasePayloadFromRun(
 	run *taskpkg.Run,
-	channel *contract.CoordinationChannelPayload,
 ) contract.TaskRunLeaseSummaryPayload {
 	if run == nil {
 		return contract.TaskRunLeaseSummaryPayload{}
 	}
 	payload := contract.TaskRunLeaseSummaryPayload{
-		TaskID:                       run.TaskID,
-		RunID:                        run.ID,
-		Status:                       run.Status,
-		SessionID:                    run.SessionID,
-		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:               run.ClaimTokenHash,
-		LeaseUntil:                   optionalTime(run.LeaseUntil),
-		HeartbeatAt:                  optionalTime(run.HeartbeatAt),
-		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
-		CoordinationChannel:          channel,
+		TaskID:         run.TaskID,
+		RunID:          run.ID,
+		Status:         run.Status,
+		SessionID:      run.SessionID,
+		ClaimedBy:      cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash: run.ClaimTokenHash,
+		LeaseUntil:     optionalTime(run.LeaseUntil),
+		HeartbeatAt:    optionalTime(run.HeartbeatAt),
 	}
 	return contract.NormalizeTaskRunLeaseSummaryPayload(payload)
-}
-
-func coordinationChannelPayloadFromMetadata(
-	metadata *taskpkg.CoordinationChannelMetadata,
-) *contract.CoordinationChannelPayload {
-	if metadata == nil || strings.TrimSpace(metadata.ID) == "" {
-		return nil
-	}
-	kinds := make([]contract.CoordinationMessageKind, 0, len(metadata.AllowedMessageKinds))
-	for _, kind := range metadata.AllowedMessageKinds {
-		if trimmed := strings.TrimSpace(kind); trimmed != "" {
-			kinds = append(kinds, contract.CoordinationMessageKind(trimmed))
-		}
-	}
-	displayName := strings.TrimSpace(metadata.DisplayName)
-	if displayName == "" {
-		displayName = strings.TrimSpace(metadata.ID)
-	}
-	payload := contract.CoordinationChannelPayload{
-		ID:                  strings.TrimSpace(metadata.ID),
-		DisplayName:         displayName,
-		Purpose:             strings.TrimSpace(metadata.Purpose),
-		WorkspaceID:         strings.TrimSpace(metadata.WorkspaceID),
-		TaskID:              strings.TrimSpace(metadata.TaskID),
-		RunID:               strings.TrimSpace(metadata.RunID),
-		WorkflowID:          strings.TrimSpace(metadata.WorkflowID),
-		AllowedMessageKinds: kinds,
-		LastActivityAt:      optionalTime(metadata.LastActivityAt),
-	}
-	normalized := contract.NormalizeCoordinationChannelPayload(payload)
-	return &normalized
 }
 
 func taskReferencePayloadFromTask(record taskpkg.Task) contract.TaskReferencePayload {

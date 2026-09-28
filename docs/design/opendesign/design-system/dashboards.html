@@ -204,7 +204,7 @@ svg.lucide{stroke-width:1.6}
       <tr><td>0</td><td>Page meta</td><td>Which workspace, how fresh</td><td>Demoted 12px line + hairline</td></tr>
       <tr><td>1</td><td>Needs you</td><td>What is blocked on me</td><td>Attention rows (<code>.att</code>)</td></tr>
       <tr><td>2</td><td>KPI strip</td><td>The four numbers of the day</td><td>4-up <code>.kpi--lg</code></td></tr>
-      <tr><td>3</td><td>Working now │ Network</td><td>What is running right now</td><td>Paired panels</td></tr>
+      <tr><td>3</td><td>Working now</td><td>What is running right now</td><td>Activity panel</td></tr>
       <tr><td>4</td><td>Pulse</td><td>When this workspace is busy</td><td>Full-width heatmap</td></tr>
       <tr><td>5</td><td>Outcomes │ Usage</td><td>How did the last two weeks go</td><td>Paired chart cards</td></tr>
       <tr><td>6</td><td>Agents │ Activity</td><td>Who did the work, in what order</td><td>Paired table + feed</td></tr>
@@ -364,7 +364,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-foot  { <span class="k">margin-top:auto</span>; border-top:1px solid var(--line-soft) }</div>
     <div class="demo demo--col" data-od-id="demo-paired">
       <div class="dsh-grid2" style="width:100%">
-        <section class="dsh-col" data-od-id="panel-working-now">
+        <section class="dsh-col" data-od-id="panel-working-now" style="grid-column:1 / -1">
           <div class="dsh-head"><span class="eyebrow">Working now</span><span class="count-chip">4</span>
             <span class="dsh-sp"></span><a class="dsh-act" href="#">View sessions <i data-lucide="chevron-right"></i></a></div>
           <div class="panelbox">
@@ -395,26 +395,9 @@ svg.lucide{stroke-width:1.6}
           </div>
         </section>
 
-        <section class="dsh-col" data-od-id="panel-network">
-          <div class="dsh-head"><span class="eyebrow">Network</span>
-            <span class="dsh-sp"></span><span class="dsh-note">2 peers reachable</span></div>
-          <div class="panelbox">
-            <div class="dsh-fill" style="padding:6px 14px">
-              <div class="prow"><span class="prow__k">Peers online</span><span class="prow__v"><span class="d d--ok"></span> 2 <span class="mono" style="color:var(--faint)">mac-studio · hermes-vps</span></span></div>
-              <div class="prow"><span class="prow__k">Open work</span><span class="prow__v">3 <span class="dotsep"></span><span class="mono" style="color:var(--warning)">1 needs input</span></span></div>
-              <div class="prow"><span class="prow__k">Messages today</span><span class="prow__v mono">128</span></div>
-              <div class="prow"><span class="prow__k">Last activity</span><span class="prow__v">6m ago</span></div>
-              <div style="margin:12px 0 4px">
-                <div class="dsh-mrow"><span>Wakes this week <span style="color:var(--faint)">· resets Sunday</span></span><span class="mono">12 / 50</span></div>
-                <div class="meter" role="img" aria-label="12 of 50 network wakes used"><i class="meter-fill" style="width:24%"></i></div>
-              </div>
-            </div>
-            <div class="dsh-foot"><a class="dsh-act" href="#">Open Network <i data-lucide="chevron-right"></i></a></div>
-          </div>
-        </section>
+
       </div>
-      <p class="demo-note">both footers sit on the same baseline even though the left panel holds three cards
-      and the right holds four rows plus a meter — <b>no leftover air</b></p>
+      <p class="demo-note">The list fills the panel and keeps its footer at the bottom.</p>
     </div>
   </section>
 

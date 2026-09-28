@@ -218,31 +218,31 @@ function MarketplaceExtensionProvenanceCard({
   );
 }
 
-function MarketplaceExtensionNetworkCard({ extension }: { extension: ExtensionEntry }) {
-  if (!extension.network_requirement_digest) return null;
+function MarketplaceExtensionGatewayCard({ extension }: { extension: ExtensionEntry }) {
+  if (!extension.gateway_requirement_digest) return null;
   return (
     <MarketplaceDetailRailCard
-      defaultOpen={extension.network_confirmation_required === true}
+      defaultOpen={extension.gateway_confirmation_required === true}
       icon={Network}
-      summary={extension.network_confirmation_required ? "confirmation required" : "confirmed"}
-      title="Network"
+      summary={extension.gateway_confirmation_required ? "confirmation required" : "confirmed"}
+      title="Gateway"
     >
       <div className="px-3.5">
         <PropertyRow
           editor={
             <Pill
-              data-testid="extension-network-consent"
+              data-testid="extension-gateway-consent"
               mono
               size="xs"
-              tone={extension.network_confirmation_required ? "warning" : "success"}
+              tone={extension.gateway_confirmation_required ? "warning" : "success"}
             >
-              {extension.network_confirmation_required ? "confirmation required" : "confirmed"}
+              {extension.gateway_confirmation_required ? "confirmation required" : "confirmed"}
             </Pill>
           }
           label="Consent"
         />
         <PropertyRow
-          editor={<MonoId value={extension.network_requirement_digest} />}
+          editor={<MonoId value={extension.gateway_requirement_digest} />}
           label="Digest"
         />
       </div>
@@ -252,7 +252,7 @@ function MarketplaceExtensionNetworkCard({ extension }: { extension: ExtensionEn
 
 export {
   MarketplaceExtensionManageCard,
-  MarketplaceExtensionNetworkCard,
+  MarketplaceExtensionGatewayCard,
   MarketplaceExtensionProvenanceCard,
   MarketplaceExtensionRuntimeCard,
 };

@@ -14,7 +14,6 @@ import type {
 import { useHomeAttentionActions, type HomeAttentionActions } from "./use-home-attention-actions";
 import { useHomeAgents, type HomeAgentsModel } from "./use-home-agents";
 import { useHomeLive } from "./use-home-live";
-import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
 import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
@@ -42,7 +41,6 @@ export interface HomeDashboardModel {
   activityErrorMessage: string | null;
   activeWorkspaceName: string | null;
   workingNow: HomeWorkingNowModel;
-  network: HomeNetworkModel;
   agents: HomeAgentsModel;
   system: HomeSystemModel;
   systemOpen: boolean;
@@ -111,7 +109,6 @@ export function useHomeDashboard({
 
   const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
   const overview = overviewQuery.data;
-  const network = useHomeNetwork(overview?.network.messages_today);
   const agents = useHomeAgents();
   const system = useHomeSystem(
     overview?.system.hook_runs_today,
@@ -155,7 +152,6 @@ export function useHomeDashboard({
     activityErrorMessage: activityQuery.error instanceof Error ? activityQuery.error.message : null,
     activeWorkspaceName: workspaceScope === "global" ? "Global" : (activeWorkspace?.name ?? null),
     workingNow,
-    network,
     agents,
     system,
     systemOpen,

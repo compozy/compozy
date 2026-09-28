@@ -17,7 +17,6 @@ const (
 
 const (
 	bundledCompozySkillName     = "compozy"
-	bundledNetworkReference     = "references/network.md"
 	bundledToolsReference       = "references/tools-and-skills.md"
 	bundledNativeToolsReference = "references/native-tools.md"
 	bundledTaskReference        = "references/tasks-and-orchestration.md"
@@ -28,7 +27,6 @@ const (
 	startupSoulSectionOrder            = 50
 	startupSkillsSectionOrder          = 100
 	startupToolsSectionOrder           = 150
-	startupNetworkSectionOrder         = 200
 
 	startupSituationSectionBudget = 20_000
 	startupMemorySectionBudget    = 24_000
@@ -38,7 +36,6 @@ const (
 	startupToolsSectionBudget = 16_000
 	// Preserve complete operational guidance when the skill registry is disabled.
 	startupToolsReferenceSectionBudget = 64_000
-	startupNetworkSectionBudget        = 512
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or
@@ -87,7 +84,6 @@ func defaultStartupPromptSectionDescriptors(
 	memoryProvider session.PromptProvider,
 	skillsProvider session.PromptProvider,
 	situationProvider startupPromptSectionProvider,
-	networkResponseGuidanceBudget ...int,
 ) []PromptSectionDescriptor {
 	descriptors := make([]PromptSectionDescriptor, 0, 6)
 
@@ -147,13 +143,13 @@ func defaultStartupPromptSectionDescriptors(
 
 	descriptors = append(
 		descriptors,
-		defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget...)...,
+		defaultBundledStartupPromptSectionDescriptors()...,
 	)
 
 	return descriptors
 }
 
-func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget ...int) []PromptSectionDescriptor {
+func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 	return []PromptSectionDescriptor{
 		{
 			Name:           string(HarnessPromptSectionTools),
@@ -181,15 +177,6 @@ func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget
 					!containsHarnessSection(policy.IncludeSections, HarnessPromptSectionSkills)
 			},
 		},
-		{
-			Name:           string(HarnessPromptSectionNetwork),
-			Position:       PromptSectionPositionAppend,
-			Order:          startupNetworkSectionOrder,
-			Budget:         resolvedNetworkResponseGuidanceBudget(networkResponseGuidanceBudget...),
-			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider:       networkResponseRegisterPromptSectionProvider{},
-			Predicate:      policyIncludesSection(HarnessPromptSectionNetwork),
-		},
 	}
 }
 
@@ -197,7 +184,6 @@ func defaultStartupPromptSectionDescriptorsFromProviders(
 	prependProviders []session.PromptProvider,
 	appendProviders []session.PromptProvider,
 	situationProvider startupPromptSectionProvider,
-	networkResponseGuidanceBudget ...int,
 ) []PromptSectionDescriptor {
 	var memoryProvider session.PromptProvider
 	for _, provider := range prependProviders {
@@ -219,17 +205,7 @@ func defaultStartupPromptSectionDescriptorsFromProviders(
 		memoryProvider,
 		skillsProvider,
 		situationProvider,
-		networkResponseGuidanceBudget...,
 	)
-}
-
-func resolvedNetworkResponseGuidanceBudget(values ...int) int {
-	for _, value := range values {
-		if value > 0 {
-			return value
-		}
-	}
-	return startupNetworkSectionBudget
 }
 
 func policyIncludesSection(section HarnessPromptSection) SectionPredicate {

@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: internal/config/provider_test.go;internal/acp/types_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-09-24-pr-674-provider-full-access.md
 last_report: docs/qa/reports/2026-09-24-pr-674-provider-full-access.md
-overlaps: RT-session-sandbox-first-bind; RT-cursor-agent-mode
+overlaps: RT-cursor-agent-mode
 ---
 
 In an owned disposable workspace, enable `[permissions] provider_full_access = true` and

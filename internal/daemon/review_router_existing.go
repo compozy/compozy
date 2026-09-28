@@ -76,11 +76,7 @@ func (r *reviewRouter) existingCandidateScore(
 		return 0, false, nil
 	}
 	agentName := strings.TrimSpace(info.AgentName)
-	channelID := strings.TrimSpace(info.NetworkParticipation.ChannelID)
-	peerID := reviewRouterPeerID(info)
-	if !selectorAllows(review.AgentName, review.AllowedAgentNames, agentName) ||
-		!selectorAllows("", review.AllowedChannelIDs, channelID) ||
-		!selectorAllows("", review.AllowedPeerIDs, peerID) {
+	if !selectorAllows(review.AgentName, review.AllowedAgentNames, agentName) {
 		return 0, false, nil
 	}
 	if ok, err := r.agentHasCapabilities(ctx, resolved, agentName, review.RequiredCapabilities); err != nil {
@@ -95,12 +91,7 @@ func (r *reviewRouter) existingCandidateScore(
 	if slices.Contains(review.PreferredAgentNames, agentName) || strings.TrimSpace(review.AgentName) == agentName {
 		score += 4
 	}
-	if slices.Contains(review.PreferredPeerIDs, peerID) {
-		score += 3
-	}
-	if slices.Contains(review.PreferredChannelIDs, channelID) {
-		score += 2
-	}
+
 	if ok, err := r.agentHasCapabilities(ctx, resolved, agentName, review.PreferredCapabilities); err != nil {
 		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 			return score, true, nil

@@ -37,7 +37,6 @@ type httpOverlay struct {
 type defaultsOverlay struct {
 	Agent    *string `toml:"agent"`
 	Provider *string `toml:"provider"`
-	Sandbox  *string `toml:"sandbox"`
 }
 
 type agentsOverlay struct {
@@ -165,35 +164,6 @@ type providerCredentialOverlay struct {
 	SecretRef *string `toml:"secret_ref"`
 	Kind      *string `toml:"kind"`
 	Required  *bool   `toml:"required"`
-}
-
-type sandboxOverlay struct {
-	Backend     *string               `toml:"backend"`
-	SyncMode    *string               `toml:"sync_mode"`
-	Persistence *string               `toml:"persistence"`
-	RuntimeRoot *string               `toml:"runtime_root"`
-	Env         *map[string]string    `toml:"env"`
-	SecretEnv   *map[string]string    `toml:"secret_env"`
-	Network     networkProfileOverlay `toml:"network"`
-	Daytona     daytonaProfileOverlay `toml:"daytona"`
-}
-
-type networkProfileOverlay struct {
-	AllowPublicIngress *bool     `toml:"allow_public_ingress"`
-	AllowOutbound      *bool     `toml:"allow_outbound"`
-	AllowList          *[]string `toml:"allow_list"`
-	DenyList           *[]string `toml:"deny_list"`
-	Required           *bool     `toml:"required"`
-}
-
-type daytonaProfileOverlay struct {
-	APIURL      *string `toml:"api_url"`
-	Target      *string `toml:"target"`
-	Image       *string `toml:"image"`
-	Snapshot    *string `toml:"snapshot"`
-	Class       *string `toml:"class"`
-	AutoStop    *string `toml:"auto_stop"`
-	AutoArchive *string `toml:"auto_archive"`
 }
 
 type observabilityOverlay struct {
@@ -405,4 +375,10 @@ type mcpAuthOverlay struct {
 	ClientID        *string              `toml:"client_id"`
 	ClientSecretRef *string              `toml:"client_secret_ref"`
 	Scopes          *[]string            `toml:"scopes"`
+}
+
+func applyOptional[T any](source *T, target *T) {
+	if source != nil {
+		*target = *source
+	}
 }

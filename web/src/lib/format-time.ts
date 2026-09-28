@@ -1,5 +1,5 @@
 /**
- * Time formatters consumed by Tasks/Bridges/Knowledge/Settings runtime surfaces.
+ * Time formatters consumed by Tasks/Knowledge/Settings runtime surfaces.
  *
  * The canonical implementation lives in `@compozy/ui` (`packages/ui/src/lib/format-time.ts`)
  * because the `<Time>` primitive must consume them without crossing the

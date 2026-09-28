@@ -28,7 +28,7 @@ const mockedContent = vi.hoisted(() => ({
       description:
         "Restore CompozyOS search from the home shell and the docs shell with one runtime API.",
       excerpt:
-        "Search now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
+        "Search now spans runtime docs, Loop references, blog entries, and changelog receipts.",
       toc: [
         {
           title: "Why the search broke",
@@ -49,24 +49,24 @@ const mockedContent = vi.hoisted(() => ({
     {
       version: "v0.3.0-beta.1",
       summary: "Runtime search now works from both the home shell and docs shell.",
-      body: "### Runtime\n\nSearch spans runtime docs, protocol docs, blog posts, and changelog entries.",
+      body: "### Runtime\n\nSearch spans runtime docs, Loop references, blog posts, and changelog entries.",
       headings: [{ id: "runtime", label: "Runtime", level: 3 }],
     },
   ],
-  protocolPages: [
+  loopPages: [
     {
-      url: "/docs/network/protocol/implementation-status",
+      url: "/docs/loops/reference/grammar",
       data: {
         title: "Implementation Status",
-        description: "Understand the current compozy-network/v0 reference implementation.",
+        description: "Understand the current Loop grammar.",
         structuredData: { headings: [{ content: "Current runtime" }] },
       },
     },
     {
-      url: "/docs/network/protocol/guide/testing",
+      url: "/docs/loops/reference/validation",
       data: {
-        title: "Protocol Testing",
-        description: "Test a protocol implementation against the v0 contract.",
+        title: "Loop Validation",
+        description: "Validate an authored Loop definition.",
         structuredData: { headings: [{ content: "Test matrix" }] },
       },
     },
@@ -125,9 +125,7 @@ vi.mock("@/lib/changelog/github-client", () => ({
 
 vi.mock("@/lib/source", () => ({
   docsSource: {
-    getPages: () => [...mockedContent.runtimePages, ...mockedContent.protocolPages],
-    getPage: (slugs: string[]) =>
-      slugs[0] === "bridges" && slugs[1] ? { url: `/docs/bridges/${slugs[1]}` } : undefined,
+    getPages: () => [...mockedContent.runtimePages, ...mockedContent.loopPages],
   },
 }));
 
@@ -158,7 +156,7 @@ vi.mock("fumadocs-core/search/server", () => ({
 }));
 
 describe("public search index", () => {
-  it("indexes runtime docs, protocol docs, blog posts, and changelog entries with stable route metadata", async () => {
+  it("indexes runtime docs, Loop references, blog posts, and changelog entries with stable route metadata", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
 
     expect((await buildPublicSearchIndexes()).filter(index => index.tag !== "Marketplace")).toEqual(
@@ -179,7 +177,7 @@ describe("public search index", () => {
               {
                 heading: undefined,
                 content:
-                  "Restore CompozyOS search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
+                  "Restore CompozyOS search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, Loop references, blog entries, and changelog receipts.",
               },
               {
                 heading: "why-the-search-broke",
@@ -205,7 +203,7 @@ describe("public search index", () => {
               {
                 heading: undefined,
                 content:
-                  "Runtime search now works from both the home shell and docs shell.\n\n### Runtime\n\nSearch spans runtime docs, protocol docs, blog posts, and changelog entries.",
+                  "Runtime search now works from both the home shell and docs shell.\n\n### Runtime\n\nSearch spans runtime docs, Loop references, blog posts, and changelog entries.",
               },
             ],
           },
@@ -239,22 +237,22 @@ describe("public search index", () => {
           tag: "Docs",
         },
         {
-          title: "Protocol Testing",
-          description: "Test a protocol implementation against the v0 contract.",
-          structuredData: { headings: [{ content: "Test matrix" }] },
-          id: "/docs/network/protocol/guide/testing",
-          url: "/docs/network/protocol/guide/testing",
-          breadcrumbs: ["Compozy Network", "Network", "Protocol spec", "Implementation guide"],
-          tag: "Compozy Network",
+          title: "Implementation Status",
+          description: "Understand the current Loop grammar.",
+          structuredData: { headings: [{ content: "Current runtime" }] },
+          id: "/docs/loops/reference/grammar",
+          url: "/docs/loops/reference/grammar",
+          breadcrumbs: ["Automation", "Loops", "Reference"],
+          tag: "Automation",
         },
         {
-          title: "Implementation Status",
-          description: "Understand the current compozy-network/v0 reference implementation.",
-          structuredData: { headings: [{ content: "Current runtime" }] },
-          id: "/docs/network/protocol/implementation-status",
-          url: "/docs/network/protocol/implementation-status",
-          breadcrumbs: ["Compozy Network", "Network", "Protocol spec"],
-          tag: "Compozy Network",
+          title: "Loop Validation",
+          description: "Validate an authored Loop definition.",
+          structuredData: { headings: [{ content: "Test matrix" }] },
+          id: "/docs/loops/reference/validation",
+          url: "/docs/loops/reference/validation",
+          breadcrumbs: ["Automation", "Loops", "Reference"],
+          tag: "Automation",
         },
         {
           title: "Sessions",
@@ -303,7 +301,6 @@ describe("public search index", () => {
   it("indexes every marketplace surface under the Marketplace group", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
     const { extensionEntries, marketplaceEntryPath } = await import("@/lib/marketplace-catalog");
-    const { bridgeProviders } = await import("@/lib/marketplace-bridges");
     const { bundledExtensions } = await import("@/lib/marketplace-bundled");
 
     const marketplace = (await buildPublicSearchIndexes()).filter(
@@ -317,10 +314,7 @@ describe("public search index", () => {
     }
     expect(urls.has("/marketplace/skills")).toBe(false);
     expect(urls.has("/marketplace/mcp")).toBe(false);
-    expect(urls.has("/marketplace/bridges")).toBe(true);
-    for (const provider of bridgeProviders) {
-      expect(urls.has(`/marketplace/bridges#${provider.platform}`)).toBe(true);
-    }
+    expect(urls.has("/marketplace/bridges")).toBe(false);
     for (const extension of bundledExtensions) {
       expect(urls.has(extension.path)).toBe(true);
     }

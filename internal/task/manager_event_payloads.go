@@ -3,8 +3,6 @@ package task
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/compozy/compozy/internal/network/participation"
 )
 
 type createdTaskPayload struct {
@@ -175,12 +173,11 @@ type releasedRunPayload struct {
 
 // ExpiredLeaseEventPayload is the canonical audit payload for an expired task-run lease.
 type ExpiredLeaseEventPayload struct {
-	PreviousStatus               RunStatus           `json:"previous_status"`
-	Status                       RunStatus           `json:"status"`
-	TaskStatus                   Status              `json:"task_status"`
-	Reason                       string              `json:"reason,omitempty"`
-	SessionID                    string              `json:"session_id,omitempty"`
-	LeaseUntil                   time.Time           `json:"lease_until"`
-	PreviousTokenHash            string              `json:"previous_claim_token_hash,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
+	PreviousStatus    RunStatus `json:"previous_status"`
+	Status            RunStatus `json:"status"`
+	TaskStatus        Status    `json:"task_status"`
+	Reason            string    `json:"reason,omitempty"`
+	SessionID         string    `json:"session_id,omitempty"`
+	LeaseUntil        time.Time `json:"lease_until"`
+	PreviousTokenHash string    `json:"previous_claim_token_hash,omitempty"`
 }

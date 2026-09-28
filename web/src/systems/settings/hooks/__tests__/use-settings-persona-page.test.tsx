@@ -39,7 +39,6 @@ function section(filter: SettingsPersonaFilter): SettingsPersonaSection {
     config: {
       agent: namedProfile === "marketing" ? "campaigns" : "general",
       provider: namedProfile === "marketing" ? "openai" : "claude",
-      sandbox: "local",
     },
   };
 }
@@ -91,7 +90,7 @@ describe("useSettingsPersonaPage", () => {
 
     await waitFor(() => expect(updateSettingsPersona).toHaveBeenCalledTimes(1));
     expect(updateSettingsPersona).toHaveBeenCalledWith(
-      { config: { agent: "general", provider: "openai", sandbox: "local" } },
+      { config: { agent: "general", provider: "openai" } },
       { scope: "user" }
     );
   });
@@ -108,7 +107,7 @@ describe("useSettingsPersonaPage", () => {
     const { rerender, result } = renderPage();
 
     await waitFor(() => expect(result.current.draft?.agent).toBe("campaigns"));
-    act(() => result.current.setDraft(current => ({ ...current!, sandbox: "browser" })));
+    act(() => result.current.setDraft(current => ({ ...current!, provider: "claude" })));
     act(() => result.current.handleSave());
     await waitFor(() => expect(result.current.isSaving).toBe(true));
 
@@ -125,7 +124,7 @@ describe("useSettingsPersonaPage", () => {
     });
 
     expect(updateSettingsPersona).toHaveBeenCalledWith(
-      { config: { agent: "campaigns", provider: "openai", sandbox: "browser" } },
+      { config: { agent: "campaigns", provider: "claude" } },
       { scope: "profile", profile: "marketing" }
     );
     expect(result.current.profileName).toBe("default");
@@ -141,7 +140,7 @@ describe("useSettingsPersonaPage", () => {
     const { result } = renderPage();
     await waitFor(() => expect(result.current.draft?.agent).toBe("campaigns"));
 
-    act(() => result.current.setDraft(current => ({ ...current!, sandbox: "browser" })));
+    act(() => result.current.setDraft(current => ({ ...current!, provider: "claude" })));
     act(() => result.current.handleSave());
 
     await waitFor(() =>
@@ -156,7 +155,7 @@ describe("useSettingsPersonaPage", () => {
     profile.destination = "marketing";
     const { rerender, result } = renderPage();
     await waitFor(() => expect(result.current.draft?.agent).toBe("campaigns"));
-    act(() => result.current.setDraft(current => ({ ...current!, sandbox: "browser" })));
+    act(() => result.current.setDraft(current => ({ ...current!, provider: "claude" })));
     act(() => result.current.handleSave());
     await waitFor(() => expect(result.current.isSaving).toBe(true));
 
