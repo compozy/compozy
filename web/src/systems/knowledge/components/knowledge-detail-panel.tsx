@@ -1,19 +1,12 @@
-import { AlertCircle, BookOpen, Code, Pencil, Trash2 } from "lucide-react";
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { useState } from "react";
 
 import {
-  Button,
   cn,
-  CodeBlock,
   ContextBox,
   type ContextBoxEntry,
   Disclosure,
-  Empty,
   MonoId,
   PAGE_CONTENT_GUTTER,
-  Section,
-  Skeleton,
-  StreamMarkdown,
   Time,
 } from "@compozy/ui";
 
@@ -28,9 +21,17 @@ import type {
   MemoryDecision,
 } from "@/systems/knowledge/types";
 
+import { useKnowledgeDetailDialogs } from "../hooks/use-knowledge-detail-dialogs";
+
 import { KnowledgeDecisionsSection } from "./knowledge-decisions-section";
-import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
-import { KnowledgeEditDialog } from "./knowledge-edit-dialog";
+import {
+  KnowledgeContentSection,
+  KnowledgeDetailDialogs,
+  KnowledgeDetailEmpty,
+  KnowledgeDetailError,
+  KnowledgeDetailHeader,
+  KnowledgeDetailSkeleton,
+} from "./knowledge-detail-sections";
 
 interface KnowledgeDetailPanelProps {
   memory: KnowledgeMemoryItem | undefined;
@@ -57,36 +58,6 @@ interface KnowledgeDetailPanelProps {
   onRevertDecision?: (decision: MemoryDecision) => Promise<void>;
   revertingDecisionId?: string | null;
   revertError?: string | null;
-}
-
-type KnowledgeDialogKey = "confirmDeleteOpen" | "editOpen";
-
-interface KnowledgeDialogState {
-  memoryIdentity: string;
-  confirmDeleteOpen: boolean;
-  editOpen: boolean;
-}
-
-function setKnowledgeDialogOpen(
-  setDialogState: Dispatch<SetStateAction<KnowledgeDialogState>>,
-  memoryIdentity: string,
-  key: KnowledgeDialogKey,
-  open: boolean
-) {
-  setDialogState(previous => ({ ...previous, memoryIdentity, [key]: open }));
-}
-
-function knowledgeDialogMemoryIdentity(memory: KnowledgeMemoryItem | undefined): string {
-  if (!memory) return "";
-  if (memory.key) return memory.key;
-
-  return [
-    memory.scope,
-    memory.workspace_id ?? "",
-    memory.agent_name ?? "",
-    memory.agent_tier ?? "",
-    memory.filename,
-  ].join(":");
 }
 
 function buildPrimaryEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
@@ -209,6 +180,16 @@ function buildDetailEntries(
   return entries;
 }
 
+/** Runs a dialog action and closes the dialog on success; failures keep it open with its error. */
+async function closeOnSuccess(action: () => Promise<void>, close: () => void) {
+  try {
+    await action();
+    close();
+  } catch {
+    // Error state is surfaced through the dialog's error prop and the dialog stays open.
+  }
+}
+
 function KnowledgeDetailPanel({
   memory,
   content,
@@ -223,158 +204,49 @@ function KnowledgeDetailPanel({
   decisions,
   decisionsError = null,
   onRevertDecision,
-  revertingDecisionId = null,
-  revertError = null,
+  revertingDecisionId,
+  revertError,
 }: KnowledgeDetailPanelProps) {
   const { isLoading, isDeletePending, isEditPending = false, isDecisionsLoading = false } = status;
-  const memoryIdentity = knowledgeDialogMemoryIdentity(memory);
+  const dialogs = useKnowledgeDetailDialogs(memory);
   const [showSource, setShowSource] = useState(false);
-  const [dialogState, setDialogState] = useState<KnowledgeDialogState>({
-    memoryIdentity,
-    confirmDeleteOpen: false,
-    editOpen: false,
-  });
-
-  if (dialogState.memoryIdentity !== memoryIdentity) {
-    setDialogState({ memoryIdentity, confirmDeleteOpen: false, editOpen: false });
-  }
-
-  const isCurrentDialogState = dialogState.memoryIdentity === memoryIdentity;
-  const confirmDeleteOpen = isCurrentDialogState && dialogState.confirmDeleteOpen;
-  const editOpen = isCurrentDialogState && dialogState.editOpen;
 
   if (isLoading) {
     return <KnowledgeDetailSkeleton />;
   }
-
   if (error) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="knowledge-detail-error"
-      >
-        <Empty
-          className="max-w-md"
-          description={error.message ?? "Failed to load memory details"}
-          icon={AlertCircle}
-          title="Failed to load memory details"
-        />
-      </div>
-    );
+    return <KnowledgeDetailError error={error} />;
   }
-
   if (!memory) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="knowledge-detail-empty"
-      >
-        <Empty className="max-w-md" icon={BookOpen} title="Select a memory to view details" />
-      </div>
-    );
+    return <KnowledgeDetailEmpty />;
   }
 
   const resolvedScope: KnowledgeScope = scope ?? memory.scope;
-
-  const handleConfirmDelete = async () => {
-    try {
-      await onDelete(memory);
-      setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", false);
-    } catch {
-      // Error state is surfaced through `deleteError` and the dialog stays open.
-    }
-  };
-
-  const handleConfirmEdit = async (input: { content: string; description?: string }) => {
-    if (!onEdit) return;
-    try {
-      await onEdit(memory, input);
-      setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", false);
-    } catch {
-      // Error state is surfaced through `editError` and the dialog stays open.
-    }
-  };
+  const canEdit = onEdit !== undefined;
 
   return (
     <div
       className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-y-auto")}
       data-testid="knowledge-detail-panel"
     >
-      <header
-        className="flex flex-wrap items-start justify-between gap-3 pt-4"
-        data-testid="knowledge-detail-header"
-      >
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h2 className="text-item-title font-medium text-fg-strong">{memory.name}</h2>
-          {memory.description ? (
-            <p
-              className="text-small-body leading-relaxed text-muted"
-              data-testid="knowledge-detail-description"
-            >
-              {memory.description}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {onEdit ? (
-            <Button
-              data-testid="edit-memory-btn"
-              disabled={isEditPending || content === undefined}
-              onClick={() =>
-                setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", true)
-              }
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Pencil className="size-3" />
-              Edit
-            </Button>
-          ) : null}
-          <Button
-            data-testid="delete-memory-btn"
-            disabled={isDeletePending}
-            onClick={() =>
-              setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", true)
-            }
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Trash2 className="size-3" />
-            Delete
-          </Button>
-        </div>
-      </header>
+      <KnowledgeDetailHeader
+        canEdit={canEdit}
+        deleteDisabled={isDeletePending}
+        editDisabled={isEditPending || content === undefined}
+        memory={memory}
+        onDeleteClick={() => dialogs.setDeleteOpen(true)}
+        onEditClick={() => dialogs.setEditOpen(true)}
+      />
 
       <div className="flex flex-col gap-6 py-5">
         <ContextBox data-testid="knowledge-detail-context" entries={buildPrimaryEntries(memory)} />
 
         {content ? (
-          <Section
-            label="Content"
-            right={
-              <Button
-                aria-pressed={showSource}
-                data-testid="knowledge-content-source-toggle"
-                onClick={() => setShowSource(previous => !previous)}
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                <Code className="size-3" />
-                {showSource ? "View formatted" : "View source"}
-              </Button>
-            }
-          >
-            {showSource ? (
-              <CodeBlock code={content} copyable data-testid="content-source" />
-            ) : (
-              <div data-testid="content-preview">
-                <StreamMarkdown compact>{content}</StreamMarkdown>
-              </div>
-            )}
-          </Section>
+          <KnowledgeContentSection
+            content={content}
+            onToggleSource={() => setShowSource(previous => !previous)}
+            showSource={showSource}
+          />
         ) : null}
 
         <Disclosure
@@ -401,58 +273,33 @@ function KnowledgeDetailPanel({
         />
       </div>
 
-      <KnowledgeDeleteDialog
-        error={deleteError}
-        isPending={isDeletePending}
-        name={memory.name}
-        onConfirm={handleConfirmDelete}
-        onOpenChange={open =>
-          setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", open)
+      <KnowledgeDetailDialogs
+        canEdit={canEdit}
+        confirmDeleteOpen={dialogs.confirmDeleteOpen}
+        content={content}
+        deleteError={deleteError}
+        editError={editError}
+        editOpen={dialogs.editOpen}
+        isDeletePending={isDeletePending}
+        isEditPending={isEditPending}
+        memory={memory}
+        onConfirmDelete={() =>
+          closeOnSuccess(
+            () => onDelete(memory),
+            () => dialogs.setDeleteOpen(false)
+          )
         }
-        open={confirmDeleteOpen}
+        onConfirmEdit={async input => {
+          if (!onEdit) return;
+          await closeOnSuccess(
+            () => onEdit(memory, input),
+            () => dialogs.setEditOpen(false)
+          );
+        }}
+        onDeleteOpenChange={dialogs.setDeleteOpen}
+        onEditOpenChange={dialogs.setEditOpen}
         scope={resolvedScope}
       />
-
-      {onEdit ? (
-        <KnowledgeEditDialog
-          error={editError}
-          filename={memory.filename}
-          initialContent={content ?? ""}
-          initialDescription={memory.description ?? ""}
-          isPending={isEditPending}
-          name={memory.name}
-          onConfirm={handleConfirmEdit}
-          onOpenChange={open =>
-            setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", open)
-          }
-          open={editOpen}
-          type={memory.type}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function KnowledgeDetailSkeleton() {
-  return (
-    <div
-      aria-busy="true"
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
-      data-testid="knowledge-detail-loading"
-      role="status"
-    >
-      <div className="flex flex-col gap-2 pt-4">
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-3 w-3/4" />
-      </div>
-      <div className="flex flex-col gap-6 py-5">
-        <Skeleton className="h-20 w-full" />
-        <div className="space-y-2.5">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-48 w-full" />
-        </div>
-      </div>
-      <span className="sr-only">Loading knowledge details</span>
     </div>
   );
 }

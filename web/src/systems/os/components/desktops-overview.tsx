@@ -124,68 +124,16 @@ export function DesktopsOverview({
                 </DialogTitle>
               </div>
               {ready && !empty ? (
-                <Button
-                  type="button"
-                  size="cta-lg"
-                  disabled={mutationsDisabled}
-                  onClick={onCreateDesktop}
-                >
-                  <Plus aria-hidden="true" />
-                  Create desktop
-                </Button>
+                <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
               ) : null}
             </header>
 
             <main className="min-h-0 flex-1 overflow-y-auto pt-5">
-              {state.status === "loading" ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {LOADING_CARD_IDS.map(id => (
-                    <div
-                      key={id}
-                      className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3"
-                    >
-                      <Skeleton className="h-5 w-2/3" />
-                      <Skeleton className="h-workspace-thumb w-full" />
-                      <Skeleton className="h-8 w-full" />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {state.status === "error" ? (
-                <Alert className="mx-auto max-w-modal-sm" variant="danger">
-                  <AlertTitle>Couldn't load desktops</AlertTitle>
-                  <AlertDescription>{state.message}</AlertDescription>
-                  {onRetry ? (
-                    <AlertActions>
-                      <Button type="button" size="cta-lg" variant="neutral" onClick={onRetry}>
-                        <RefreshCw aria-hidden="true" />
-                        Retry loading
-                      </Button>
-                    </AlertActions>
-                  ) : null}
-                </Alert>
-              ) : null}
-
-              {state.status === "conflict" ? (
-                <Alert className="mx-auto max-w-modal-sm" variant="warning">
-                  <AlertTitle>Desktop layout changed</AlertTitle>
-                  <AlertDescription>{state.message}</AlertDescription>
-                  {onResolveConflict ? (
-                    <AlertActions>
-                      <Button
-                        type="button"
-                        size="cta-lg"
-                        variant="neutral"
-                        onClick={onResolveConflict}
-                      >
-                        <RefreshCw aria-hidden="true" />
-                        Reload desktops
-                      </Button>
-                    </AlertActions>
-                  ) : null}
-                </Alert>
-              ) : null}
+              <DesktopsOverviewStatus
+                state={state}
+                onRetry={onRetry}
+                onResolveConflict={onResolveConflict}
+              />
 
               {empty ? (
                 <Empty
@@ -193,15 +141,7 @@ export function DesktopsOverview({
                   title="No desktops"
                   description="Add a desktop to arrange windows."
                   action={
-                    <Button
-                      type="button"
-                      size="cta-lg"
-                      disabled={mutationsDisabled}
-                      onClick={onCreateDesktop}
-                    >
-                      <Plus aria-hidden="true" />
-                      Create desktop
-                    </Button>
+                    <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
                   }
                 />
               ) : null}
@@ -225,5 +165,98 @@ export function DesktopsOverview({
         </TooltipProvider>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CreateDesktopButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <Button type="button" size="cta-lg" disabled={disabled} onClick={onClick}>
+      <Plus aria-hidden="true" />
+      Create desktop
+    </Button>
+  );
+}
+
+interface DesktopsOverviewStatusProps {
+  state: DesktopsOverviewState;
+  onRetry?: () => void;
+  onResolveConflict?: () => void;
+}
+
+/** Loading skeletons, or the load-failure / stale-layout alert; nothing once ready. */
+function DesktopsOverviewStatus({
+  state,
+  onRetry,
+  onResolveConflict,
+}: DesktopsOverviewStatusProps) {
+  if (state.status === "loading") {
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {LOADING_CARD_IDS.map(id => (
+          <div
+            key={id}
+            className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3"
+          >
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-workspace-thumb w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <DesktopsOverviewAlert
+        actionLabel="Retry loading"
+        message={state.message}
+        onAction={onRetry}
+        title="Couldn't load desktops"
+        variant="danger"
+      />
+    );
+  }
+  if (state.status === "conflict") {
+    return (
+      <DesktopsOverviewAlert
+        actionLabel="Reload desktops"
+        message={state.message}
+        onAction={onResolveConflict}
+        title="Desktop layout changed"
+        variant="warning"
+      />
+    );
+  }
+  return null;
+}
+
+interface DesktopsOverviewAlertProps {
+  variant: "danger" | "warning";
+  title: string;
+  message: string;
+  actionLabel: string;
+  onAction?: () => void;
+}
+
+function DesktopsOverviewAlert({
+  variant,
+  title,
+  message,
+  actionLabel,
+  onAction,
+}: DesktopsOverviewAlertProps) {
+  return (
+    <Alert className="mx-auto max-w-modal-sm" variant={variant}>
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+      {onAction ? (
+        <AlertActions>
+          <Button type="button" size="cta-lg" variant="neutral" onClick={onAction}>
+            <RefreshCw aria-hidden="true" />
+            {actionLabel}
+          </Button>
+        </AlertActions>
+      ) : null}
+    </Alert>
   );
 }
