@@ -44,7 +44,7 @@ Walk (task_11 plan):
    confirm identical id, label, and effective chord on all four surfaces.
 4. Find one context-unavailable command — its row is disabled with the runtime's verbatim reason;
    the same reason appears on `compozy cmd-palette list --available=false`.
-5. Stop the daemon with the palette open — action rows disable with "runtime unavailable",
+5. Stop the daemon with the palette open — action rows disable with "CompozyOS isn't reachable right now",
    availability-exempt commands keep working; restart re-enables rows without reopening.
 6. Seed a large group — the group either scrolls fully or states the exact "showing N of M".
 

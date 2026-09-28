@@ -14,7 +14,7 @@ import type {
  * runtime (BR-8) — the UI never invents a specific it cannot prove.
  */
 export const ATTACHED_SHELL_REASON = "requires an attached shell";
-export const RUNTIME_UNAVAILABLE_REASON = "runtime unavailable";
+export const RUNTIME_UNAVAILABLE_REASON = "CompozyOS isn't reachable right now";
 export const GENERIC_UNAVAILABLE_REASON = "unavailable right now";
 
 const AVAILABLE: CmdPaletteAvailability = { visible: true, available: true, reason: "" };
