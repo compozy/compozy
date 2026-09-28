@@ -104,118 +104,35 @@ export function TaskSetupSheet({
             </div>
           ) : null}
 
-          {profileLoading && !profile ? (
-            <p className="text-small-body text-muted">Loading setup…</p>
-          ) : profileErrorMessage && !profile ? (
-            <p className="text-small-body text-danger">{profileErrorMessage}</p>
-          ) : profile ? (
-            <TaskSetupProfileView
-              profile={profile}
-              worktrees={worktreePolicy?.worktrees}
-              showWorktree={Boolean(worktreePolicy)}
-            />
-          ) : (
-            <p className="text-small-body text-muted" data-testid="tasks-setup-empty">
-              No custom setup. Runs inherit the workspace defaults for worker and model.
-            </p>
-          )}
+          <TaskSetupSummary
+            profile={profile}
+            profileLoading={profileLoading}
+            profileErrorMessage={profileErrorMessage}
+            worktreePolicy={worktreePolicy}
+          />
 
-          {editor.open && editor.value && !hasActiveRun ? (
-            <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
-              <TaskSetupForm
-                onChange={editor.setValue}
-                runtime={runtime}
-                value={editor.value}
-                worktreePolicy={worktreePolicy}
-              />
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  aria-busy={saving || undefined}
-                  disabled={saving}
-                  onClick={() => editor.setOpen(false)}
-                  size="sm"
-                  type="button"
-                  variant="neutral"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  data-testid="tasks-setup-editor-save"
-                  disabled={saving || !worktreePolicyValid}
-                  onClick={() => void editor.submit()}
-                  size="sm"
-                  type="button"
-                >
-                  {saving ? "Saving…" : "Save setup"}
-                </Button>
-              </div>
-            </div>
-          ) : hasActiveRun && profile ? (
-            <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
-              <TaskSetupForm
-                disabled
-                onChange={editor.setValue}
-                runtime={runtime}
-                value={{ ...profile, task_id: profile.task_id }}
-                worktreePolicy={worktreePolicy ? { ...worktreePolicy, locked: true } : undefined}
-              />
-            </div>
-          ) : showJson && profile ? (
-            <div className="mt-2" data-testid="tasks-setup-json">
-              <JsonViewer value={profile} />
-            </div>
-          ) : null}
+          <TaskSetupEditor
+            editor={editor}
+            hasActiveRun={hasActiveRun}
+            profile={profile}
+            runtime={runtime}
+            worktreePolicy={worktreePolicy}
+            worktreePolicyValid={worktreePolicyValid}
+            saving={saving}
+            showJson={showJson}
+          />
         </div>
 
-        <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-line px-4 py-3">
-          <div className="flex items-center gap-2">
-            {profile && !editor.open ? (
-              <Button
-                data-testid="tasks-setup-toggle-json"
-                onClick={() => setShowJson(current => !current)}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                {showJson ? "Hide JSON" : "View JSON"}
-              </Button>
-            ) : null}
-            {profile && !hasActiveRun && !editor.open ? (
-              <Button
-                data-testid="tasks-setup-clear"
-                disabled={isDeletePending}
-                onClick={() => onClearOpenChange(true)}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Clear setup
-              </Button>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2">
-            {!hasActiveRun && !editor.open ? (
-              <Button
-                data-testid="tasks-setup-edit"
-                onClick={() => editor.setOpen(true)}
-                size="sm"
-                type="button"
-                variant="neutral"
-              >
-                {profile ? "Edit setup" : "Create setup"}
-              </Button>
-            ) : null}
-            <Button
-              data-testid="tasks-setup-close"
-              onClick={() => onOpenChange(false)}
-              size="sm"
-              type="button"
-              variant={hasActiveRun || editor.open ? "neutral" : "ghost"}
-            >
-              Close
-            </Button>
-          </div>
-        </SheetFooter>
+        <TaskSetupFooter
+          profile={profile}
+          editor={editor}
+          hasActiveRun={hasActiveRun}
+          isDeletePending={isDeletePending}
+          onClearOpenChange={onClearOpenChange}
+          onOpenChange={onOpenChange}
+          showJson={showJson}
+          onToggleJson={() => setShowJson(current => !current)}
+        />
       </SheetContent>
       <ConfirmDialog
         cancelLabel="Keep setup"
@@ -233,5 +150,186 @@ export function TaskSetupSheet({
         tone="danger"
       />
     </Sheet>
+  );
+}
+
+function TaskSetupSummary({
+  profile,
+  profileLoading,
+  profileErrorMessage,
+  worktreePolicy,
+}: Pick<
+  TaskSetupSheetProps,
+  "profile" | "profileLoading" | "profileErrorMessage" | "worktreePolicy"
+>) {
+  return (
+    <>
+      {profileLoading && !profile ? (
+        <p className="text-small-body text-muted">Loading setup…</p>
+      ) : profileErrorMessage && !profile ? (
+        <p className="text-small-body text-danger">{profileErrorMessage}</p>
+      ) : profile ? (
+        <TaskSetupProfileView
+          profile={profile}
+          worktrees={worktreePolicy?.worktrees}
+          showWorktree={Boolean(worktreePolicy)}
+        />
+      ) : (
+        <p className="text-small-body text-muted" data-testid="tasks-setup-empty">
+          No custom setup. Runs inherit the workspace defaults for worker and model.
+        </p>
+      )}
+    </>
+  );
+}
+
+function TaskSetupEditor({
+  editor,
+  hasActiveRun,
+  profile,
+  runtime,
+  worktreePolicy,
+  worktreePolicyValid,
+  saving,
+  showJson,
+}: Pick<
+  TaskSetupSheetProps,
+  "editor" | "hasActiveRun" | "profile" | "runtime" | "worktreePolicy" | "worktreePolicyValid"
+> & { saving: boolean; showJson: boolean }) {
+  return (
+    <>
+      {editor.open && editor.value && !hasActiveRun ? (
+        <TaskSetupEditForm
+          editor={editor}
+          runtime={runtime}
+          worktreePolicy={worktreePolicy}
+          worktreePolicyValid={worktreePolicyValid}
+          saving={saving}
+        />
+      ) : hasActiveRun && profile ? (
+        <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
+          <TaskSetupForm
+            disabled
+            onChange={editor.setValue}
+            runtime={runtime}
+            value={{ ...profile, task_id: profile.task_id }}
+            worktreePolicy={worktreePolicy ? { ...worktreePolicy, locked: true } : undefined}
+          />
+        </div>
+      ) : showJson && profile ? (
+        <div className="mt-2" data-testid="tasks-setup-json">
+          <JsonViewer value={profile} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function TaskSetupFooter({
+  profile,
+  editor,
+  hasActiveRun,
+  isDeletePending,
+  onClearOpenChange,
+  onOpenChange,
+  showJson,
+  onToggleJson,
+}: Pick<
+  TaskSetupSheetProps,
+  "profile" | "editor" | "hasActiveRun" | "isDeletePending" | "onClearOpenChange" | "onOpenChange"
+> & { showJson: boolean; onToggleJson: () => void }) {
+  return (
+    <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-line px-4 py-3">
+      <div className="flex items-center gap-2">
+        {profile && !editor.open ? (
+          <Button
+            data-testid="tasks-setup-toggle-json"
+            onClick={onToggleJson}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {showJson ? "Hide JSON" : "View JSON"}
+          </Button>
+        ) : null}
+        {profile && !hasActiveRun && !editor.open ? (
+          <Button
+            data-testid="tasks-setup-clear"
+            disabled={isDeletePending}
+            onClick={() => onClearOpenChange(true)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Clear setup
+          </Button>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        {!hasActiveRun && !editor.open ? (
+          <Button
+            data-testid="tasks-setup-edit"
+            onClick={() => editor.setOpen(true)}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            {profile ? "Edit setup" : "Create setup"}
+          </Button>
+        ) : null}
+        <Button
+          data-testid="tasks-setup-close"
+          onClick={() => onOpenChange(false)}
+          size="sm"
+          type="button"
+          variant={hasActiveRun || editor.open ? "neutral" : "ghost"}
+        >
+          Close
+        </Button>
+      </div>
+    </SheetFooter>
+  );
+}
+
+function TaskSetupEditForm({
+  editor,
+  runtime,
+  worktreePolicy,
+  worktreePolicyValid,
+  saving,
+}: Pick<TaskSetupSheetProps, "editor" | "runtime" | "worktreePolicy" | "worktreePolicyValid"> & {
+  saving: boolean;
+}) {
+  if (!editor.value) return null;
+  return (
+    <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
+      <TaskSetupForm
+        onChange={editor.setValue}
+        runtime={runtime}
+        value={editor.value}
+        worktreePolicy={worktreePolicy}
+      />
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          aria-busy={saving || undefined}
+          disabled={saving}
+          onClick={() => editor.setOpen(false)}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          Cancel
+        </Button>
+        <Button
+          data-testid="tasks-setup-editor-save"
+          disabled={saving || !worktreePolicyValid}
+          onClick={() => void editor.submit()}
+          size="sm"
+          type="button"
+        >
+          {saving ? "Saving…" : "Save setup"}
+        </Button>
+      </div>
+    </div>
   );
 }

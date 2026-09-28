@@ -47,7 +47,7 @@ fi
 cd "$repo_root"
 
 set +e
-matches="$(rg --line-number --no-heading --pcre2 '(?<!X-)\bCompozy\b' -- "${paths[@]}" 2>&1)"
+matches="$(rg --line-number --no-heading --pcre2 '(?<!X-)\bCompozy\b(?! Network)' -- "${paths[@]}" 2>&1)"
 status=$?
 set -e
 

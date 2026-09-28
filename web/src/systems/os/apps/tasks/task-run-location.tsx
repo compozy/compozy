@@ -109,27 +109,7 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
                 workspaceId={page.task?.task.workspace_id ?? ""}
               />
 
-              {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
-                <Section
-                  count={page.reviews.length || undefined}
-                  data-testid="tasks-run-reviews"
-                  label="Reviews"
-                >
-                  {page.reviewsLoading ? (
-                    <Skeleton className="h-20 rounded-lg" />
-                  ) : page.reviewsError ? (
-                    <p className="text-small-body text-danger" role="alert">
-                      {page.reviewsError.message}
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {page.reviews.map(review => (
-                        <TaskRunReviewCard key={review.review_id} review={review} />
-                      ))}
-                    </div>
-                  )}
-                </Section>
-              ) : null}
+              <TaskRunReviews page={page} />
 
               <TaskRunActivitySection
                 errorMessage={controller.timelineError?.message}
@@ -181,5 +161,33 @@ function TaskRunResult({ run, workspaceId }: { run: TaskRun; workspaceId: string
       resultBytes={run.result_bytes}
       resultRef={run.result_ref}
     />
+  );
+}
+
+function TaskRunReviews({ page }: { page: ReturnType<typeof useTaskRunLocation>["page"] }) {
+  return (
+    <>
+      {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
+        <Section
+          count={page.reviews.length || undefined}
+          data-testid="tasks-run-reviews"
+          label="Reviews"
+        >
+          {page.reviewsLoading ? (
+            <Skeleton className="h-20 rounded-lg" />
+          ) : page.reviewsError ? (
+            <p className="text-small-body text-danger" role="alert">
+              {page.reviewsError.message}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {page.reviews.map(review => (
+                <TaskRunReviewCard key={review.review_id} review={review} />
+              ))}
+            </div>
+          )}
+        </Section>
+      ) : null}
+    </>
   );
 }

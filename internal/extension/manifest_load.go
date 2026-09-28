@@ -257,7 +257,8 @@ func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 		if len(key) == 0 {
 			continue
 		}
-		if key[0] == legacyManifestActionsKey || key[0] == legacyManifestSecurityKey {
+		if key[0] == legacyManifestActionsKey || key[0] == legacyManifestSecurityKey ||
+			key[0] == legacyManifestNetworkParticipationKey {
 			return legacyManifestSectionError(key[0])
 		}
 		if key[0] == manifestResourcesKey {
@@ -310,7 +311,11 @@ func rejectLegacyManifestJSON(data []byte) error {
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil
 	}
-	for _, section := range []string{legacyManifestActionsKey, legacyManifestSecurityKey} {
+	for _, section := range []string{
+		legacyManifestActionsKey,
+		legacyManifestSecurityKey,
+		legacyManifestNetworkParticipationKey,
+	} {
 		if _, ok := root[section]; ok {
 			return legacyManifestSectionError(section)
 		}
@@ -319,11 +324,18 @@ func rejectLegacyManifestJSON(data []byte) error {
 }
 
 const (
-	legacyManifestActionsKey  = "actions"
-	legacyManifestSecurityKey = "security"
+	legacyManifestActionsKey              = "actions"
+	legacyManifestSecurityKey             = "security"
+	legacyManifestNetworkParticipationKey = "network_participation"
 )
 
 func legacyManifestSectionError(section string) error {
+	if section == legacyManifestNetworkParticipationKey {
+		return &ManifestValidationError{
+			Field:   section,
+			Message: "[network_participation] was removed; rebuild with [gateway] and confirm its requirement digest",
+		}
+	}
 	return &ManifestValidationError{
 		Field:   section,
 		Message: fmt.Sprintf("[%s] was removed; use [permissions]", section),

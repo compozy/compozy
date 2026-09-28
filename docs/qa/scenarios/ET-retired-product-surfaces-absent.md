@@ -18,7 +18,10 @@ overlaps: ET-web-catalog-navigation; RT-authored-context-lifecycle; RT-observe-o
 
 In an isolated fresh home, inspect the public catalogs and attempt representative retired commands,
 routes, tool ids, and settings mutations. Refusal must occur before mutation, with no alias, hidden
-activation, or stale navigation entry. Repeat after restarting the daemon and reloading the Web.
+activation, or stale navigation entry. Extension manifests with `network_participation` must be
+refused in both TOML and JSON with guidance to rebuild using `[gateway]` and confirm the new
+requirement digest; old stored consent must not authorize the changed declaration. Repeat after
+restarting the daemon and reloading the Web.
 
 Upgrade a disposable copy of state containing retired tables, config, and persisted windows. Verify
 that migration removes retired projections according to the recorded retirement decision while
@@ -39,3 +42,11 @@ The two local charters passed through a real isolated daemon, production Web, CL
 The full scenario remains skipped in this provider-free cycle; the linked report lists exact observed
 steps, retained receipts, and excluded upgrade/provider/runtime legs. This is partial scenario coverage,
 not a full-scenario pass.
+
+## PR 681 manifest rejection recheck
+
+The current real CLI rejected both TOML and JSON legacy `network_participation` manifests in
+an isolated temporary home, with explicit `[gateway]` rebuild and digest-confirmation guidance.
+Receipt: `.cache/pkgs-cleanup/gateway-manifest-cli.json`. Canonical manifest-boundary and exact-digest
+registry tests passed with race detection. This adds the manifest-refusal leg only; the broader
+scenario exclusions above remain unchanged.

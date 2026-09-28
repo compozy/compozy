@@ -19,7 +19,7 @@ Back up your global and workspace `.compozy/` directories before changing instal
 
 ## Networks, Bridges, and Sandbox removal
 
-The package cleanup release removes the Compozy Network, Bridges, and managed Sandbox products
+The package cleanup release removes the CompozyOS Network, Bridges, and managed Sandbox products
 across the daemon, CLI, HTTP/UDS, native tools, SDKs, configuration, Web UI, and documentation. This
 is an intentional breaking change with no compatibility aliases or deprecation window.
 
@@ -36,7 +36,8 @@ Opening an existing database applies `00121_retire_network_bridges_sandbox.sql` 
 It permanently drops Network channels, threads, messages, subscriptions, participation, coordination,
 audit/timeline projections, and wake queues; Bridge instances, routes, delivery history, secret
 bindings, target directories, and task subscriptions; and notification presets and their delivery
-permits. Network wake runs and their dependent records are removed. References from retained Tasks
+permits. Network wake runs, their dependent records, and triage state owned by retired Network
+actors are removed; triage state belonging to retained actors is preserved. References from retained Tasks
 and task events to those removed runs are cleared. Product-specific Network, Bridge, and Sandbox
 fields are removed from retained runtime records. Historical Loop channel-message events are removed.
 
@@ -65,7 +66,11 @@ Declare only the permissions the extension needs. Install, update, and developme
 confirm the returned `gateway_requirement_digest` using `--confirm-gateway-requirement` in the CLI
 or `confirm_gateway_digest` in the request. The database migration retains the recorded digest,
 confirmer, and confirmation time under the Gateway names. A changed requirement requires a matching
-confirmation; removal of Network must not grant public ingress implicitly.
+confirmation; removal of Network must not grant public ingress implicitly. Legacy
+`network_participation` manifests are not converted or accepted as Gateway declarations. Rebuild
+those extensions with `[gateway]`, inspect the new requirement digest, and confirm it before
+using Gateway capabilities. The retained database tuple preserves the previous consent record;
+it does not authorize a different manifest or bypass confirmation after this hardcut.
 
 Provider-native execution permissions and sandbox policies, operating-system isolation, MCP/ACP
 stdio adapters, and the Herdr hook IPC bridge are independent of the removed products.

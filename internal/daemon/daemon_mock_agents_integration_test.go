@@ -70,8 +70,8 @@ func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *
 		t.Fatalf("SessionTranscript() error = %v", err)
 	}
 	gotTranscript := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
-	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "bridge-alpha") {
-		t.Fatalf("transcript = %q, want alpha assistant and bridge content", gotTranscript)
+	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "alpha follow-up") {
+		t.Fatalf("transcript = %q, want both alpha assistant messages", gotTranscript)
 	}
 
 	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {

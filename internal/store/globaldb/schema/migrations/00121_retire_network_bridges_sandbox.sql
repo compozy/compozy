@@ -208,7 +208,7 @@ UPDATE "task_events" SET "actor_kind" = 'daemon' WHERE "actor_kind" = 'network_p
 
 UPDATE "task_events" SET origin_kind = 'daemon', origin_ref = 'retired-network:' || origin_ref WHERE origin_kind = 'network';
 
-UPDATE "task_triage_state" SET "actor_kind" = 'daemon' WHERE "actor_kind" = 'network_peer';
+DELETE FROM "task_triage_state" WHERE "actor_kind" = 'network_peer';
 
 UPDATE "task_runs" SET "claimed_by_kind" = 'daemon' WHERE "claimed_by_kind" = 'network_peer';
 

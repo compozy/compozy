@@ -391,6 +391,26 @@ func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
 		wantFragments []string
 	}{
 		{
+			name:     "Should reject retired Network participation in TOML with Gateway guidance",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "retired-participation"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+[network_participation]
+permissions = ["network.gateway.private"]
+`,
+			wantField:     "network_participation",
+			wantFragments: []string{"[gateway]", "confirm"},
+		},
+		{
+			name:          "Should reject retired Network participation in JSON with Gateway guidance",
+			fileName:      manifestJSONFileName,
+			content:       `{"extension":{"name":"retired-participation","version":"0.1.0","min_compozy_version":"0.6.0"},"network_participation":{"permissions":["network.gateway.private"]}}`,
+			wantField:     "network_participation",
+			wantFragments: []string{"[gateway]", "confirm"},
+		},
+		{
 			name:     "Should reject an unknown provide and list the closed set",
 			fileName: manifestTOMLFileName,
 			content: `[extension]

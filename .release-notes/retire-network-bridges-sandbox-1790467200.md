@@ -13,7 +13,7 @@ notifications, task status cursors, and provider-native execution policies remai
 Back up the daemon state and workspace `.compozy/` directories before upgrading. Export any retired
 product history using the previous release first. Migration `00121_retire_network_bridges_sandbox.sql`
 permanently drops Network state and wake runs, Bridge instances/routes/deliveries and task subscriptions,
-notification presets/delivery permits, and retired fields on retained records. It clears retained Task
+notification presets/delivery permits, Network-actor triage state, and retired fields on retained records. It clears retained Task
 references to removed Network wake runs and removes Loop channel-message events. Retained local sessions,
 Tasks, ordinary runs, workspaces, memory, SOUL, and HEARTBEAT state are preserved.
 
@@ -21,7 +21,9 @@ Remove Network, Bridges, and managed Sandbox configuration and request fields. P
 to the current CLI, routes, tools, and SDK; no replacement messaging or remote Sandbox feature is provided.
 Gateway requirements move to `[gateway]` with `gateway.private` / `gateway.public` permission atoms,
 `gateway_requirement_digest`, and `--confirm-gateway-requirement` / `confirm_gateway_digest` confirmation.
-Existing recorded Gateway consent survives the migration; changed requirements still require consent.
+The previous Gateway consent tuple remains recorded. Legacy `network_participation` manifests must
+be rebuilt with `[gateway]` and their new requirement digest confirmed; no legacy manifest conversion
+or implicit Gateway authorization is provided.
 
 There is no in-place downgrade. Restore a complete pre-upgrade backup before running an older binary.
 See the [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal) for the

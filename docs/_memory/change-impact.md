@@ -28,6 +28,15 @@ to SD-013; no compatibility window or lossless translation of retired product da
   and retain historical run evidence. Site content generation, typecheck, tests, build, and generated
   CLI checks are tracked in the implementation checkpoint with their actual status.
 
+PR 681 review/CI remediation: migration 00121 deletes triage owned by retired Network actors rather
+than relabeling it into a retained actor's composite key; existing daemon triage flags survive
+upgrade and reopen. Extension TOML/JSON loaders reject `network_participation` with Gateway rebuild
+and digest-confirmation guidance; no compatibility conversion or implicit authorization is added.
+Migration/release guidance distinguishes preservation of the recorded consent tuple from authority
+for a new manifest. Public routes, native tools, hooks, workspace boundaries, and the official skill
+remain as audited above. Web rendering sections are decomposed without changing controls or state.
+Owning migration, manifest, runtime, and browser suites verify the corrected paths.
+
 ## Issue 669 — Preserve whitespace in session transcripts
 
 - **Session transcript:** canonical, legacy, and raw agent text retain whitespace-only chunks between

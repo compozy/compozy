@@ -438,6 +438,10 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			 origin_kind, origin_ref, created_at, updated_at, owner_kind, owner_ref)
 			 VALUES ('retained-task', '00000000000000000000000000', 'workspace', 'retained-ws', 'Keep task', 'open',
 			 'network_peer', 'remote-peer', 'network', 'remote-origin', '` + timestamp + `', '` + timestamp + `', 'network_peer', 'remote-peer')`,
+			`INSERT INTO task_triage_state (task_id, actor_kind, actor_id, is_read, archived, dismissed, updated_at)
+			 VALUES ('retained-task', 'daemon', 'shared-actor', 1, 0, 1, '` + timestamp + `'),
+			 ('retained-task', 'network_peer', 'shared-actor', 0, 1, 0, '` + timestamp + `'),
+			 ('retained-task', 'network_peer', 'retired-actor', 0, 1, 0, '` + timestamp + `')`,
 			`INSERT INTO task_runs (id, task_id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at)
 			 VALUES ('retained-run', 'retained-task', 'retained-ws', 'queued', 1, 'network', 'remote-origin', '` + timestamp + `')`,
 			`INSERT INTO task_runs (id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at, run_kind,
@@ -480,6 +484,8 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				{`SELECT body FROM agent_heartbeat_snapshots WHERE id='retained-heartbeat'`, "Keep wake policy"},
 				{`SELECT health FROM session_health WHERE session_id='retained-session'`, "healthy"},
 				{`SELECT title || ':' || created_by_kind || ':' || origin_kind || ':' || COALESCE(owner_kind,'') FROM tasks WHERE id='retained-task'`, "Keep task:daemon:daemon:"},
+				{`SELECT actor_kind || ':' || actor_id || ':' || is_read || ':' || archived || ':' || dismissed FROM task_triage_state WHERE task_id='retained-task'`, "daemon:shared-actor:1:0:1"},
+				{`SELECT CAST(COUNT(*) AS TEXT) FROM task_triage_state WHERE task_id='retained-task'`, "1"},
 				{`SELECT origin_kind || ':' || run_kind FROM task_runs WHERE id='retained-run'`, "daemon:worker"},
 				{`SELECT CAST(last_sequence AS TEXT) FROM notification_cursors WHERE subject_id='retained-task'`, "12"},
 				{`SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'`, `{"completed":1}`},

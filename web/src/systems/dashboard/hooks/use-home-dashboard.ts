@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@compozy/ui";
 
 import { hasNoRecordedWork } from "../lib/home-overview-empty";
@@ -108,6 +108,8 @@ export function useHomeDashboard({
   });
 
   const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
+  const overviewPresentation = queryPresentation(overviewQuery, scopeSettled);
+  const activityPresentation = queryPresentation(activityQuery, scopeSettled);
   const overview = overviewQuery.data;
   const agents = useHomeAgents();
   const system = useHomeSystem(
@@ -136,20 +138,12 @@ export function useHomeDashboard({
     usageWindow,
     setUsageWindow: usageWindow => homePrefsStore.trigger.usageWindowSelected({ usageWindow }),
     overview,
-    overviewStatus: surfaceStatus(
-      overviewQuery.isLoading || !scopeSettled,
-      overviewQuery.isError,
-      overviewQuery.data !== undefined
-    ),
-    overviewErrorMessage: overviewQuery.error instanceof Error ? overviewQuery.error.message : null,
+    overviewStatus: overviewPresentation.status,
+    overviewErrorMessage: overviewPresentation.errorMessage,
     hasNoWork: overview !== undefined && hasNoRecordedWork(overview),
     activity: activityQuery.data,
-    activityStatus: surfaceStatus(
-      activityQuery.isLoading || !scopeSettled,
-      activityQuery.isError,
-      activityQuery.data !== undefined
-    ),
-    activityErrorMessage: activityQuery.error instanceof Error ? activityQuery.error.message : null,
+    activityStatus: activityPresentation.status,
+    activityErrorMessage: activityPresentation.errorMessage,
     activeWorkspaceName: workspaceScope === "global" ? "Global" : (activeWorkspace?.name ?? null),
     workingNow,
     agents,
@@ -162,5 +156,19 @@ export function useHomeDashboard({
       }
       homePrefsStore.trigger.systemPanelClosed();
     },
+  };
+}
+
+function queryPresentation(
+  query: Pick<UseQueryResult, "isLoading" | "isError" | "data" | "error">,
+  scopeSettled: boolean
+) {
+  return {
+    status: surfaceStatus(
+      query.isLoading || !scopeSettled,
+      query.isError,
+      query.data !== undefined
+    ),
+    errorMessage: query.error instanceof Error ? query.error.message : null,
   };
 }

@@ -3053,7 +3053,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
     new PerformanceObserver(list => {
       for (const entry of list.getEntries()) {
         const url = new URL(entry.name);
-        if (url.pathname.endsWith("/window-manager")) {
+        if (url.pathname.endsWith("/window-manager") && perf.snapshotResponseEnd === null) {
           perf.snapshotResponseEnd = entry.startTime + entry.duration;
         }
       }
