@@ -10,6 +10,7 @@ import {
   CommandList,
   Kbd,
   KindIcon,
+  Pill,
   type KindIconRegistry,
 } from "@compozy/ui";
 
@@ -24,7 +25,6 @@ import {
   paletteKindKey,
   type PaletteItem,
 } from "../../lib/loop-palette";
-import { MonoTag } from "../mono-tag";
 
 const QUICK_ADD_KIND_ICONS = {
   ...LOOP_NODE_KIND_ICONS,
@@ -144,9 +144,9 @@ function QuickAddPanel({
                 />
                 <span className="min-w-0 truncate">{option.label}</span>
                 {option.kind === "" ? null : (
-                  <MonoTag className="ml-auto shrink-0 text-pill-group-badge tracking-[0.07em] text-faint">
+                  <Pill size="xs" tone="neutral" mono className="ml-auto">
                     {option.kind}
-                  </MonoTag>
+                  </Pill>
                 )}
               </CommandItem>
             ))}
