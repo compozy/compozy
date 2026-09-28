@@ -96,7 +96,7 @@ export function LoopRunBriefing({
   return (
     <section
       className={cn(
-        "flex items-start gap-3 rounded-lg border px-4.5 py-4",
+        "flex items-start gap-3 rounded-lg border px-4 py-4",
         WEIGHT_CLASS[briefing.weight],
         className
       )}

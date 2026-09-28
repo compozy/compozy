@@ -34,7 +34,7 @@ function ratioTone(ratio: number): LoopUsageTone {
 export function runElapsedSeconds(
   run: Pick<
     LoopRunRecord,
-    "status" | "historical" | "started_at" | "created_at" | "last_progress_at"
+    "status" | "historical" | "started_at" | "created_at" | "last_progress_at" | "completed_at"
   >,
   nowMs: number
 ): number {
@@ -43,8 +43,9 @@ export function runElapsedSeconds(
     if (Number.isNaN(started)) return 0;
     return Math.max(0, Math.round((nowMs - started) / 1000));
   }
+  // A finished run stops at `completed_at`; anything else freezes at its last progress.
   const created = Date.parse(run.created_at);
-  const last = Date.parse(run.last_progress_at);
+  const last = Date.parse(run.completed_at ?? run.last_progress_at);
   if (Number.isNaN(created) || Number.isNaN(last) || last < created) return 0;
   return Math.round((last - created) / 1000);
 }

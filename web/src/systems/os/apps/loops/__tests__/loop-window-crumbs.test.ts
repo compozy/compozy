@@ -55,6 +55,22 @@ describe("loopRunsTrail", () => {
     });
   });
 
+  it("Should name the run leaf with its human label once the run loads", () => {
+    const trail = loopRunsTrail({
+      level: "compare",
+      loopName: "implement-tasks",
+      onBack,
+      openLoop,
+      openLoops,
+      openRun,
+      openRuns,
+      runId: "looprun_running",
+      runLabel: "Run from 5m ago",
+    });
+
+    expect(trail.crumbs?.[3]).toEqual({ id: "run", label: "Run from 5m ago", onSelect: openRun });
+  });
+
   it("Should keep Runs and the run id as parents on the compare leaf", () => {
     const trail = loopRunsTrail({
       level: "compare",

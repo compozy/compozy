@@ -45,7 +45,8 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const openLoops = () => {
     void navigate({ to: "/loops" });
   };
-  const nowMs = useNowTick(inventoryState !== undefined);
+  // Inventory ages and roster durations tick on one clock.
+  const nowMs = useNowTick(true);
 
   const runs = runsQuery.data?.runs ?? [];
   // This roster is polled, not streamed, so "reconnecting" cannot mean a dropped
@@ -68,7 +69,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
             data-testid="loop-runs-view-switch"
             items={[
               { value: "runs", label: "Runs", testId: "loop-runs-view-runs" },
-              { value: "nodes", label: "Nodes", testId: "loop-runs-view-nodes" },
+              { value: "nodes", label: "Steps", testId: "loop-runs-view-nodes" },
             ]}
             onChange={next =>
               setInventoryState(next === "runs" ? undefined : LOOP_NODE_INVENTORY_STATES[0])
@@ -94,9 +95,9 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   if (workspaceId === "") {
     return (
       <RunsState
-        description="Select a workspace to view its Loop runs."
+        description="Select a project to view its Loop runs."
         testId="loop-runs-no-workspace"
-        title="No workspace selected"
+        title="No project selected"
       />
     );
   }
@@ -109,14 +110,14 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
         <RunsState
           action={
             <Button onClick={inventory.refetch} size="sm" type="button" variant="outline">
-              Retry inventory
+              Try again
             </Button>
           }
-          description={inventory.error?.message ?? "The node inventory could not be loaded."}
+          description={inventory.error?.message ?? "The step list could not be loaded."}
           icon={AlertCircle}
           role="alert"
           testId="loop-runs-inventory-error"
-          title="Unable to load node inventory"
+          title="Couldn't load steps"
         />
       );
     }
@@ -168,6 +169,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
         lastReadAt={
           runsQuery.dataUpdatedAt > 0 ? new Date(runsQuery.dataUpdatedAt).toISOString() : undefined
         }
+        nowMs={nowMs}
         onEmptyAction={outcome === "all" ? openLoops : () => setOutcome("all")}
         onRetry={() => void runsQuery.refetch()}
         outcome={outcome}

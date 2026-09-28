@@ -1,7 +1,15 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { CircleDot, GitCompare, Info } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle, Empty, Pill, SkeletonRows } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Empty,
+  ListGroupHeader,
+  Pill,
+  SkeletonRows,
+} from "@compozy/ui";
 
 import type { LoopDiffGroupView, LoopDiffView } from "../../lib/loop-run-diff-model";
 import { LoopRunDiffInputs } from "./loop-run-diff-inputs";
@@ -25,18 +33,23 @@ interface DiffGroupProps {
 }
 
 const LIVE_SIDE_SENTENCE: Record<"base" | "against", string> = {
-  base: "The base side is still running. Rows settle as it settles.",
-  against: "The against side is still running. Rows settle as it settles.",
+  base: "The left run is still running; results may change.",
+  against: "The right run is still running; results may change.",
 };
 
 function DiffGroup({ group }: DiffGroupProps) {
+  const headingId = `loop-diff-group-${useId()}-heading`;
   return (
-    <section data-testid={`loop-diff-group-${group.change}`}>
-      <div className="flex items-center gap-2 pb-1.5">
-        <h3 className="eyebrow text-subtle">{group.label}</h3>
-        <span className="font-mono text-mono-id tabular-nums text-faint">{group.rows.length}</span>
-      </div>
-      <ul className="overflow-hidden rounded-md border border-line bg-canvas-soft">
+    <section
+      aria-labelledby={headingId}
+      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      data-testid={`loop-diff-group-${group.change}`}
+    >
+      <ListGroupHeader
+        count={group.rows.length}
+        label={<span id={headingId}>{group.label}</span>}
+      />
+      <ul>
         {group.rows.map(row => (
           <LoopRunDiffRow key={row.key} row={row} />
         ))}
@@ -51,10 +64,10 @@ function DiffBody({ view }: DiffBodyProps) {
       {view.hasDefinitionDivergence ? (
         <Alert data-testid="loop-diff-divergence" role="note" variant="info">
           <Info aria-hidden="true" />
-          <AlertTitle>The two sides pin different definition versions</AlertTitle>
+          <AlertTitle>These runs used different versions of the Loop</AlertTitle>
           <AlertDescription>
-            Rows compare only the nodes present on both sides. A node that exists in one version
-            alone is left out, not marked failed.
+            Only steps in both are compared. A step that exists in one version alone is left out,
+            not marked failed.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -65,7 +78,7 @@ function DiffBody({ view }: DiffBodyProps) {
         >
           <Pill size="sm" tone="info">
             <CircleDot aria-hidden="true" />
-            live
+            Live
           </Pill>
           {LIVE_SIDE_SENTENCE[view.liveSide]}
         </p>
@@ -74,7 +87,7 @@ function DiffBody({ view }: DiffBodyProps) {
       {view.isEmpty ? (
         <Empty
           data-testid="loop-diff-empty"
-          description="Both sides match. Nothing changed, reran, skipped, or settled a new verdict."
+          description="Both runs match. Nothing changed, reran, or was skipped."
           framed
           icon={GitCompare}
           title="No differences"

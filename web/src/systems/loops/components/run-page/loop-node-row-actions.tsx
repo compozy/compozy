@@ -64,8 +64,8 @@ export function LoopNodeRowActions({
           {primary === "resume"
             ? "Resume"
             : primary === "resume-wait"
-              ? "Resume with payload…"
-              : "Requeue…"}
+              ? "Resume with data…"
+              : "Retry…"}
         </Button>
       ) : null}
       <LoopNodeControlMenu

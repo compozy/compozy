@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { PlugZap, Search } from "lucide-react";
 
-import { LaneTabs, Pill, PillDot } from "@compozy/ui";
+import { LaneTabs, Pill, PillDot, viewTransitionName } from "@compozy/ui";
 
 import type { LoopRosterReach } from "../../../lib/loop-run-registers-view";
 import { LoopSection } from "../../loop-section";
@@ -62,6 +62,8 @@ export function LoopRunInspectRegister({
   children,
   foot,
 }: LoopRunInspectRegisterProps) {
+  // Unique per register so two run windows never share a transition name.
+  const laneTransitionName = viewTransitionName("loop-inspect-lane", useId());
   // The gist is the only line a reader sees before deciding whether to open
   // this, so it is where the loaded counts have to admit what they are. A
   // truncated roster reads `200+ steps`; one still arriving says so in words.
@@ -71,15 +73,11 @@ export function LoopRunInspectRegister({
     : reach.isComplete
       ? `${loadedNodeCount} ${loadedNodeCount === 1 ? "step" : "steps"}`
       : `reading steps…`;
-  const gist = [
-    "graph",
-    steps,
-    `${generationCount} ${generationCount === 1 ? "round" : "rounds"}`,
-    `${loadedEventCount} events`,
-  ].join(" · ");
+  const gist = [steps, `${generationCount} ${generationCount === 1 ? "round" : "rounds"}`].join(
+    " · "
+  );
   return (
     <LoopSection
-      className="mb-0"
       data-testid="loop-run-inspect"
       defaultOpen={false}
       gist={gist}
@@ -93,7 +91,7 @@ export function LoopRunInspectRegister({
         isReconnecting ? (
           <Pill data-testid="loop-run-inspect-reconnecting" tone="warning">
             <PlugZap aria-hidden="true" className="size-3" />
-            reconnecting
+            Reconnecting
           </Pill>
         ) : isLive ? (
           <Pill data-testid="loop-run-inspect-live" tone="accent">
@@ -109,13 +107,13 @@ export function LoopRunInspectRegister({
         data-testid="loop-run-inspect-panel"
       >
         <LaneTabs
-          ariaLabel="Operator register"
+          ariaLabel="Run details"
           items={[
             { value: "graph", label: "Graph", testId: "loop-lane-graph" },
-            { value: "nodes", label: "Nodes", count: loadedNodeCount, testId: "loop-lane-nodes" },
+            { value: "nodes", label: "Steps", count: loadedNodeCount, testId: "loop-lane-nodes" },
             {
               value: "generations",
-              label: "Generations",
+              label: "Rounds",
               count: generationCount,
               testId: "loop-lane-generations",
             },
@@ -130,7 +128,11 @@ export function LoopRunInspectRegister({
           onChange={onLaneChange}
           value={lane}
         />
-        <div data-lane={lane} data-testid={`loop-run-inspect-lane-${lane}`}>
+        <div
+          data-lane={lane}
+          data-testid={`loop-run-inspect-lane-${lane}`}
+          style={{ viewTransitionName: laneTransitionName }}
+        >
           {children}
         </div>
         {foot ? (

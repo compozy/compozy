@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   formatAbsoluteTime,
   formatRelativeTime,
+  StatusDot,
   Timeline,
   TimelineEvent,
   type PillTone,
@@ -39,19 +40,20 @@ function attemptSpan(row: LoopQuarantineChainRow): string | null {
 function EpisodeBoundary({ row }: { row: LoopQuarantineChainRow }) {
   const openedBy = row.openedBy;
   if (!openedBy) return null;
-  const who = openedBy.actorId || openedBy.actorKind || "an operator";
+  const who = openedBy.actorId || openedBy.actorKind || "you";
   const when = openedBy.requestedAt ? formatRelativeTime(openedBy.requestedAt) : "";
   return (
     <li
       className="relative flex items-center gap-2 py-1.5 pl-6"
       data-testid={`loop-quarantine-episode-${row.episodeIndex}`}
     >
-      <span
-        aria-hidden="true"
-        className="absolute top-1/2 left-2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-line"
+      <StatusDot
+        className="absolute top-1/2 left-2 -translate-x-1/2 -translate-y-1/2"
+        size="sm"
+        tone="faint"
       />
-      <span className="min-w-0 font-mono text-pill-group-badge text-faint">
-        {`Episode ${row.episodeIndex + 1} — requeued by ${who}`}
+      <span className="min-w-0 text-form-hint text-faint">
+        {`Retried by ${who}`}
         {when ? ` ${when}` : ""}
         {openedBy.reason ? ` · ${openedBy.reason}` : ""}
       </span>

@@ -7,6 +7,7 @@ import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";
 import { dozensActiveRuns } from "./loop-runs-scale-fixtures";
+import { STORY_NOW } from "./loop-run-page-fixture-world";
 import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 const meta: Meta<typeof LoopRunsView> = {
@@ -43,6 +44,7 @@ function RunsHarness({
         <LoopRunsView
           isReconnecting={isReconnecting}
           lastReadAt={isReconnecting ? STALE_READ_AT : undefined}
+          nowMs={STORY_NOW}
           // The host wires both branches (`loop-runs-location.tsx`): browse the
           // catalog when nothing has ever run, clear the filter otherwise. A
           // story that omitted it captured an empty state with no action at all.
