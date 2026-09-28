@@ -72,7 +72,7 @@ Observe cross-client changes through `cmd_palette.pin.changed`,
 ## Runtime And Workspace Tools
 
 Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,
-`compozy__session_rewind`,
+`compozy__session_rewind`, `compozy__session_continue`,
 `compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
@@ -138,6 +138,14 @@ by the read API. The tool cuts before that message, restarts a fresh ACP context
 CompozyOS session ID, and returns the selected text as `draft_text`. It never rolls back files, tool or
 network effects, memory, or external provider actions. Resolve its descriptor and obtain approval
 before calling it.
+
+`compozy__session_continue` (risk `mutating`, same permission as `compozy__session_create`) starts a
+new user session for `agent` with the source conversation carried over; the source is never changed.
+Required: `session_id`, `agent`, `idempotency_key`. Optional: `workspace`, `message`, `name`, `runtime`
+`{provider, model, reasoning_effort, speed, acp_options}` **or** `route` (1-based declared route of the
+agent's `fallback_chain`), and the three transcript fences together. The result is `{session,
+derived}`; repeat the same call with the same key to read the recorded outcome (`derived.replayed`,
+`derived.child_deleted`) instead of creating a second session.
 
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional

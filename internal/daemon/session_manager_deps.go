@@ -39,6 +39,7 @@ type SessionManagerDeps struct {
 	SessionStop             compozyconfig.SessionStopConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
 	SessionCompaction       compozyconfig.SessionCompactionConfig
+	SessionDerive           compozyconfig.SessionDeriveConfig
 	SessionInputQueue       store.SessionInputQueueStore
 	SessionPromptAdmission  store.SessionPromptAdmissionStore
 	SessionAttachments      session.AttachmentOpener
@@ -99,6 +100,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionStop:             state.cfg.Session.Stop,
 		SessionBusyInput:        state.cfg.Session.BusyInput,
 		SessionCompaction:       state.cfg.Session.Compaction,
+		SessionDerive:           state.cfg.Session.Derive,
 		SessionInputQueue:       sessionInputQueueStoreDependency(state.registry),
 		SessionPromptAdmission:  sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:      state.sessionAttachments,

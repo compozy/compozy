@@ -31,6 +31,7 @@ var baseRegistryEntries = []Metadata{
 	info(SessionCompactionFired, "session", ComponentSession),
 	info(SessionConversationRewound, "session", ComponentSession),
 	info(SessionFallbackUsed, "session", ComponentSession),
+	info(SessionDerived, "session", ComponentSession),
 
 	info(TaskCreated, "task", ComponentTask),
 	info(TaskUpdated, "task", ComponentTask),

@@ -166,6 +166,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		WorktreeID:               meta.WorktreeIDValue(),
 		Type:                     normalizeSessionType(Type(meta.SessionType)),
 		Lineage:                  store.NormalizeSessionLineage(meta.ID, meta.Lineage),
+		Derivation:               store.CloneSessionDerivation(meta.Derivation),
 		State:                    State(meta.State),
 		StopReason:               sessionMetaStopReason(&meta),
 		StopEscalated:            meta.StopEscalated,

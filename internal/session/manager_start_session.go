@@ -37,6 +37,8 @@ func (s *sessionStartSpec) newStartingSession(
 		stopReason: s.stopReason, stopDetail: s.stopDetail, failure: store.CloneSessionFailure(s.failure),
 		ACPSessionID:    s.acpSessionID,
 		acceptedRoute:   store.CloneSessionAcceptedRoute(s.acceptedRoute),
+		derivation:      store.CloneSessionDerivation(s.derivation),
+		importedContext: store.CloneSessionImportedContext(s.importedContext),
 		acceptedCommand: s.command,
 		SoulSnapshotID:  s.soulSnapshotID, SoulDigest: s.soulDigest, ParentSoulDigest: s.parentSoulDigest,
 		AdvertisedCommands: store.CloneSessionAdvertisedCommands(s.advertisedCommands),

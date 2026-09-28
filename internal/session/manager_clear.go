@@ -188,6 +188,10 @@ func clearedConversationMeta(meta store.SessionMeta, now time.Time) store.Sessio
 	cleared.StopDetail = ""
 	cleared.ACPSessionID = nil
 	cleared.AcceptedRoute = nil
+	// A cleared conversation is a fresh context: the carried context and its derive
+	// record go with the transcript (lineage is kept).
+	cleared.Derivation = nil
+	cleared.ImportedContext = nil
 	cleared.UpdatedAt = now
 	return cleared
 }

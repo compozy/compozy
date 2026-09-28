@@ -47,6 +47,7 @@ Unknown TOML keys are errors. Use the supported sections below.
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.        | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
 | `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.                 | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
+| `[session.derive]`                   | Size bounds of the context carried into a continued or forked session.                 | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.         | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
 | `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                    | `mode = "approve-all"`                                                                                |
@@ -301,6 +302,13 @@ pressure_threshold = 0.85
 max_attempts_per_turn = 1
 # Delay before a failed session compaction may be attempted again.
 failure_cooldown = "10m"
+
+[session.derive]
+# Hard upper bound, in bytes, of the transcript JSON carried into a continued or forked session.
+# Oldest messages are dropped first; the 8 most recent messages are kept while they fit.
+max_replay_bytes = 131072
+# Per-message cap on carried message bodies; longer bodies end with " [content truncated]".
+max_message_bytes = 16384
 
 [agents.soul]
 # Disabling pauses prompt injection but keeps inspect/validate/write/delete/history/rollback available.
@@ -1299,6 +1307,26 @@ These paths are global or workspace desired state and are available through `com
 the `compozy__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
 `next_action="restart-daemon"`; the running daemon keeps its bound compaction policy until restart.
 Use `compozy config apply-history -o json` to inspect the blocked apply record.
+
+## `[session.derive]`
+
+`[session.derive]` bounds the carried context that `compozy session continue` (and the Web
+"Continue with another agent…" action) copies from the source session into the new session. The
+bound applies to the serialized transcript JSON and is never exceeded: CompozyOS caps each message
+body first, then drops the oldest messages, keeping the 8 most recent while they fit, and finally
+drops even those down to one. Every omission is stated in the carried context
+(`[N earlier messages omitted to fit the context budget]`) and in the response (`truncated`,
+`omitted_count`). Bounding never fails a continue.
+
+| Field               | Type    | Default  | Valid values                         | Description                                                   |
+| ------------------- | ------- | -------- | ------------------------------------ | ------------------------------------------------------------- |
+| `max_replay_bytes`  | integer | `131072` | `4096` or more.                      | Hard upper bound of the carried transcript, in bytes.         |
+| `max_message_bytes` | integer | `16384`  | `1024` through `max_replay_bytes`.   | Per-message cap; a cut body ends with ` [content truncated]`. |
+
+Invalid values fail config validation with
+`session.derive.max_replay_bytes must be at least 4096` or
+`session.derive.max_message_bytes must be between 1024 and session.derive.max_replay_bytes`.
+A workspace `.compozy/config.toml` may override either key for sessions in that workspace.
 
 ## `[agents.soul]`
 

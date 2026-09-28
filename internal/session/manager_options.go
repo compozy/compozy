@@ -397,3 +397,10 @@ func WithCompactionHandler(handler CompactionHandler) Option {
 		manager.compactionHandler = handler
 	}
 }
+
+// WithSessionDeriveConfig sets the carried-context bounds for continue and fork.
+func WithSessionDeriveConfig(cfg compozyconfig.SessionDeriveConfig) Option {
+	return func(manager *Manager) {
+		manager.deriveConfig = cfg
+	}
+}

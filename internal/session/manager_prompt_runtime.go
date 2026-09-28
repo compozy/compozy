@@ -45,6 +45,12 @@ func (m *Manager) ensurePromptRuntime(
 		return nil, err
 	}
 	if snapshot.process == nil {
+		if pending := session.pendingRouteSnapshot(); pending != nil {
+			proc, handled, err := m.bindPendingRoute(ctx, session, &snapshot, plan, *pending)
+			if handled {
+				return proc, err
+			}
+		}
 		// Initial bind of a logical session: the agent's fallback_chain applies (ADR-004).
 		if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
 			return m.bindPromptRuntimeWithFallback(ctx, session, &snapshot, plan, routes)
@@ -159,7 +165,9 @@ func (m *Manager) replacePromptRuntime(
 		return nil, fmt.Errorf("session: resolve runtime MCP servers: %w", err)
 	}
 	runtime.mcpServers = mcpServers
-	plan.spec.resumeReplay = snapshot.process != nil
+	// A replacement rebuilds history; so does the first bind of a derived child, whose
+	// carried context rides in front of its first prompt.
+	plan.spec.resumeReplay = snapshot.process != nil || session.hasImportedContext()
 	plan.spec.startAction = "bind runtime"
 
 	if err := session.beginRuntimeTransition(status, strategy, m.now()); err != nil {

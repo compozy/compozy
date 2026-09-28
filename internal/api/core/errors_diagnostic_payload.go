@@ -38,6 +38,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
 		payload.Code = "session_not_promptable"
 	}
+	if code := DeriveErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
 	}

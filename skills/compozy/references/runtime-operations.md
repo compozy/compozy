@@ -189,6 +189,7 @@ cannot be validated fail closed.
     compozy session history <session-id>
     compozy session history <session-id> --last 20 --after 42
     compozy session rewind <session-id> --message-id <message-id>
+    compozy session continue <session-id> --agent <name> --message "Carry on; run the tests first." -o json
     compozy session prompt <session-id> "Summarize the last three tool results."
     compozy session runtime set <session-id> --provider cursor --model claude-opus-5 --reasoning-effort high --speed fast --acp-toggle thinking=true
     compozy session runtime clear <session-id>
@@ -248,6 +249,33 @@ Rewind is available only for idle ordinary user sessions; parented children (`li
 It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
 saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
 and history to inspect the discarded suffix.
+
+`session continue` starts a **new** user session for another agent (optionally with an explicit
+runtime via `--provider/--model/--reasoning-effort/--speed/--acp-option`, or one declared route of the
+target agent's `fallback_chain` via `--route <n>`; the two are exclusive) with the source conversation
+carried over as historical context. The source is only read: no event, epoch, runtime, or running turn
+changes. The carried context is the pruned transcript through the last settled turn (a still-running
+later turn is excluded with a note), bounded by `[session.derive] max_replay_bytes` /
+`max_message_bytes`; omissions are reported as `truncated` and `omitted_count`. It is stored on the new
+session and prepended once whenever that session's history is rebuilt (first prompt, provider
+replacement, recovery without a native id, rewind restart). `--message` admits the first prompt
+(`first_prompt: admitted`); without it the context waits for the first prompt (`staged`). Preview the
+numbers first with `GET /api/workspaces/<ws>/sessions/<id>/derive/preview` (`message_count`,
+`replay_bytes`, `native_fork_possible`, and `cut.turn_id` when `message_id` is given); it never writes.
+The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_name` and a `derivation`
+object; `session status` prints `Origin` and `Derivation` lines, and the daemon log records
+`session.derived` for it. Retries are deterministic: the same `idempotency_key` with the same request
+returns the recorded outcome with `replayed: true` (and `child_deleted: true` if the new session was
+deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
+and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at
+the new session's first bind; if it was removed or its command changed, that bind fails with
+`route_not_found` and the session stays unbound. Errors: `session_not_derivable`, `session_archived`,
+`agent_not_found`, `route_not_found`.
+
+When a user session's turn fails as `rate_limited` or `not_authenticated`, the error event's
+`provider_error.next_action` is `handoff` with guidance naming `compozy session continue <id> --agent
+<name>`. It is an offer only; nothing continues automatically. Spawned, coordinator, and system
+sessions keep `retry` / `login`.
 
 ### Session attention and pending interactions
 

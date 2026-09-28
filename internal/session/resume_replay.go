@@ -50,14 +50,44 @@ func (m *Manager) buildResumeReplay(
 		}
 	}
 	messages = transcript.Prune(messages, transcript.PruneOptions{Dedup: true})
+	// A derived child carries its immutable imported context in front of its own
+	// history on every rebuild, flattened into one replay array.
+	imported := session.importedContextSnapshot()
+	importedMessages, err := decodeImportedMessages(imported)
+	if err != nil {
+		return "", 0, err
+	}
+	if len(importedMessages) > 0 {
+		messages = append(importedMessages, messages...)
+	}
 	payload, err := json.Marshal(messages)
 	if err != nil {
 		return "", 0, fmt.Errorf("session: marshal persisted resume replay: %w", err)
+	}
+	continuity, err := m.resumeContinuitySection(ctx, session)
+	if err != nil {
+		return "", 0, err
+	}
+	if imported != nil {
+		return renderImportedReplayBlock(*imported, continuity, string(payload)), len(messages), nil
 	}
 
 	sections := []string{
 		resumeReplayInstruction,
 	}
+	if continuity != "" {
+		sections = append(sections, continuity)
+	}
+	sections = append(sections, strings.Join([]string{
+		resumeReplayOpenTag,
+		string(payload),
+		resumeReplayCloseTag,
+	}, "\n"))
+	block := strings.Join(sections, "\n\n")
+	return block, len(messages), nil
+}
+
+func (m *Manager) resumeContinuitySection(ctx context.Context, session *Session) (string, error) {
 	if provider, ok := m.assembler.(ResumeContextProvider); ok {
 		info := session.Info()
 		continuity, continuityErr := provider.ResumeContextSection(ctx, StartupPromptContext{
@@ -74,19 +104,11 @@ func (m *Manager) buildResumeReplay(
 			UpdatedAt:          info.UpdatedAt,
 		})
 		if continuityErr != nil {
-			return "", 0, fmt.Errorf("session: assemble resume continuity for %q: %w", session.ID, continuityErr)
+			return "", fmt.Errorf("session: assemble resume continuity for %q: %w", session.ID, continuityErr)
 		}
-		if trimmed := strings.TrimSpace(continuity); trimmed != "" {
-			sections = append(sections, trimmed)
-		}
+		return strings.TrimSpace(continuity), nil
 	}
-	sections = append(sections, strings.Join([]string{
-		resumeReplayOpenTag,
-		string(payload),
-		resumeReplayCloseTag,
-	}, "\n"))
-	block := strings.Join(sections, "\n\n")
-	return block, len(messages), nil
+	return "", nil
 }
 
 func conversationRewindReplayBaseline(

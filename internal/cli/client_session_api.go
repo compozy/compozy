@@ -38,6 +38,7 @@ type sessionClientAPI interface {
 	GetSessionTranscript(context.Context, string) (SessionTranscriptRecord, error)
 	MutateSessionGoal(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
 	RewindSession(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
+	ContinueSession(context.Context, string, SessionContinueRequest) (SessionDeriveRecord, error)
 	ApproveSession(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	ListSessionClarifications(context.Context, string) (ClarificationsRecord, error)
 	ListSessionInteractions(context.Context, string, []string) (SessionInteractionsRecord, error)

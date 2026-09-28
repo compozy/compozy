@@ -149,6 +149,7 @@ type stubClient struct {
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
 	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
+	continueSessionFn            func(context.Context, string, SessionContinueRequest) (SessionDeriveRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
 	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
@@ -1415,6 +1416,17 @@ func (s *stubClient) RewindSession(
 		return s.rewindSessionFn(ctx, id, request)
 	}
 	return SessionRewindRecord{}, errors.New("unexpected RewindSession call")
+}
+
+func (s *stubClient) ContinueSession(
+	ctx context.Context,
+	id string,
+	request SessionContinueRequest,
+) (SessionDeriveRecord, error) {
+	if s.continueSessionFn != nil {
+		return s.continueSessionFn(ctx, id, request)
+	}
+	return SessionDeriveRecord{}, errors.New("unexpected ContinueSession call")
 }
 
 func (s *stubClient) GetSessionTranscript(ctx context.Context, id string) (SessionTranscriptRecord, error) {

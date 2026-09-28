@@ -65,6 +65,16 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should register session.derived on the session component", func(t *testing.T) {
+		t.Parallel()
+
+		derived, ok := Lookup(SessionDerived)
+		if !ok || derived.Component != ComponentSession || derived.Family != "session" ||
+			derived.Outcome != OutcomeInfo {
+			t.Fatalf("Lookup(%q) = %#v, %t, want a session info event", SessionDerived, derived, ok)
+		}
+	})
+
 	t.Run("Should expose metadata consumed by logs and notifications", func(t *testing.T) {
 		t.Parallel()
 

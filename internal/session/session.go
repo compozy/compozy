@@ -80,36 +80,38 @@ type Info struct {
 	WorktreeID               string
 	Type                     Type
 	Lineage                  *store.SessionLineage
-	State                    State
-	PendingPermission        bool
-	StopReason               store.StopReason
-	StopCause                StopCause
-	StopEscalated            bool
-	StopVerificationFailed   bool
-	StopDetail               string
-	Failure                  *store.SessionFailure
-	ACPSessionID             string
-	ACPCaps                  acp.Caps
-	ACPCapsKnown             bool
-	AdvertisedCommands       []store.SessionAdvertisedCommand
-	Liveness                 *store.SessionLivenessMeta
-	SoulSnapshotID           string
-	SoulDigest               string
-	ParentSoulDigest         string
-	AttachedTo               string
-	AttachExpiresAt          *time.Time
-	TranscriptEpoch          int64
-	PendingPermissionCount   int
-	PendingClarifyCount      int
-	AttentionRevision        int64
-	LastSettledRevision      int64
-	LastSeenRevision         int64
-	LastSeenAt               *time.Time
-	AttentionChangedAt       *time.Time
-	PendingInteractions      []store.PendingInteraction
-	ArchivedAt               *time.Time
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
+	// Derivation is present only on continued or forked children.
+	Derivation             *store.SessionDerivation
+	State                  State
+	PendingPermission      bool
+	StopReason             store.StopReason
+	StopCause              StopCause
+	StopEscalated          bool
+	StopVerificationFailed bool
+	StopDetail             string
+	Failure                *store.SessionFailure
+	ACPSessionID           string
+	ACPCaps                acp.Caps
+	ACPCapsKnown           bool
+	AdvertisedCommands     []store.SessionAdvertisedCommand
+	Liveness               *store.SessionLivenessMeta
+	SoulSnapshotID         string
+	SoulDigest             string
+	ParentSoulDigest       string
+	AttachedTo             string
+	AttachExpiresAt        *time.Time
+	TranscriptEpoch        int64
+	PendingPermissionCount int
+	PendingClarifyCount    int
+	AttentionRevision      int64
+	LastSettledRevision    int64
+	LastSeenRevision       int64
+	LastSeenAt             *time.Time
+	AttentionChangedAt     *time.Time
+	PendingInteractions    []store.PendingInteraction
+	ArchivedAt             *time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.
@@ -197,6 +199,11 @@ type Session struct {
 	creationIdentity          *store.SessionCreationIdentity
 	providerRoute             compozyconfig.ResolvedAgent
 	acceptedRoute             *store.SessionAcceptedRoute
+	// derivation and importedContext exist only on continued or forked children.
+	derivation      *store.SessionDerivation
+	importedContext *store.SessionImportedContext
+	// pendingDeriveReceipt is taken by the first catalog registration of a derived child.
+	pendingDeriveReceipt *store.SessionDerivationReceipt
 	// acceptedCommand is the explicit route command of the accepted attempt ("" when the
 	// route inherited its command); in-memory only, so automatic recovery keeps the seat.
 	acceptedCommand string

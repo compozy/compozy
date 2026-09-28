@@ -33,6 +33,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionCreateDescriptor(),
 	sessionPromptDescriptor(),
 	sessionRewindDescriptor(),
+	sessionContinueDescriptor(),
 	sessionRuntimeSetDescriptor(),
 	sessionRuntimeClearDescriptor(),
 	sessionInputsListDescriptor(),

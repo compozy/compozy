@@ -68,6 +68,9 @@ type SessionMeta struct {
 	// cleared with it, and drives resume affinity.
 	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitempty"`
 	Liveness      *SessionLivenessMeta  `json:"liveness,omitempty"`
+	// Derivation and ImportedContext are present only on continued or forked children.
+	Derivation      *SessionDerivation      `json:"derivation,omitempty"`
+	ImportedContext *SessionImportedContext `json:"imported_context,omitempty"`
 
 	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitempty"`
 	CreationOptions    *SessionCreationOptions `json:"creation_options,omitempty"`

@@ -47,6 +47,8 @@ func (s *Session) metaLocked() store.SessionMeta {
 		ACPSessionID:           stringPointer(s.ACPSessionID),
 		AcceptedRoute:          store.CloneSessionAcceptedRoute(s.acceptedRoute),
 		Liveness:               store.CloneSessionLivenessMeta(s.Liveness),
+		Derivation:             store.CloneSessionDerivation(s.derivation),
+		ImportedContext:        store.CloneSessionImportedContext(s.importedContext),
 		CreationProfile:        profile,
 		CreationOptions:        creationOptions,
 		SoulSnapshotID:         s.SoulSnapshotID,

@@ -33,6 +33,9 @@ func (m *Manager) persistSessionLifecycleStateLocked(ctx context.Context, sessio
 	}
 	info := session.Info()
 	if register {
+		if receipt := session.takePendingDeriveReceipt(); receipt != nil {
+			return m.registerDerivedSession(ctx, session, *receipt)
+		}
 		meta := session.Meta()
 		if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
 			if err := m.registerSessionCreation(ctx, info, meta, *identity); err != nil {

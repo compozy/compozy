@@ -188,7 +188,9 @@ func (m *Manager) prepareProvenanceLineage(
 	if err := validateProvenanceLineageShape(lineage); err != nil {
 		return nil, err
 	}
-	parent, err := m.Status(ctx, parentID)
+	// The parent is read through the non-repairing reader: creating a child never
+	// reclassifies, repairs, or reprojects the session it names.
+	parent, err := m.readSessionMetaReadOnly(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve parent session %q: %w", parentID, err)
 	}
@@ -240,14 +242,14 @@ func (m *Manager) validateCreateLineageReferences(ctx context.Context, lineage *
 	if lineage == nil || strings.TrimSpace(lineage.ParentSessionID) == "" {
 		return nil
 	}
-	if _, err := m.Status(ctx, lineage.ParentSessionID); err != nil {
+	if _, err := m.readSessionMetaReadOnly(ctx, lineage.ParentSessionID); err != nil {
 		return fmt.Errorf("session: validate parent lineage %q: %w", lineage.ParentSessionID, err)
 	}
 	rootID := strings.TrimSpace(lineage.RootSessionID)
 	if rootID == "" || rootID == strings.TrimSpace(lineage.ParentSessionID) {
 		return nil
 	}
-	if _, err := m.Status(ctx, rootID); err != nil {
+	if _, err := m.readSessionMetaReadOnly(ctx, rootID); err != nil {
 		return fmt.Errorf("session: validate root lineage %q: %w", rootID, err)
 	}
 	return nil

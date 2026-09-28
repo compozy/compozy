@@ -888,8 +888,10 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 			t.Fatalf("stored provider errors = %d, error = %v", len(stored), err)
 		}
 		if replayed, err := transcript.UnmarshalAgentEvent(stored[0].Content); err != nil ||
-			replayed.ProviderError == nil || replayed.ProviderError.NextAction != acp.ProviderFailureActionRetry {
-			t.Fatalf("turn refusal next_action = %#v, error = %v, want retry", replayed.ProviderError, err)
+			replayed.ProviderError == nil || replayed.ProviderError.NextAction != acp.ProviderFailureActionHandoff {
+			// A post-acceptance refusal never advances the chain (no use_fallback); on a user
+			// session the session owner prescribes handoff (session-continue-fork ADR-006).
+			t.Fatalf("turn refusal next_action = %#v, error = %v, want handoff", replayed.ProviderError, err)
 		}
 
 		codexModel := h.cfg.Providers["codex"].Models.Default

@@ -61,6 +61,11 @@ type CreateOpts struct {
 	// ChainOwner declares who owns the fallback chain for this launch; role-owned
 	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
 	ChainOwner ChainOwner
+	// Derivation and ImportedContext are set only by the continue/fork derive path.
+	Derivation      *store.SessionDerivation
+	ImportedContext *store.SessionImportedContext
+	// deriveReceipt commits the child together with its derive receipt.
+	deriveReceipt *store.SessionDerivationReceipt
 }
 
 // CreateAcceptedOpts carries one logical user-session creation request.
@@ -231,6 +236,7 @@ type Manager struct {
 	busyInput                    compozyconfig.SessionBusyInputConfig
 	busyInputMu                  sync.RWMutex
 	compaction                   compozyconfig.SessionCompactionConfig
+	deriveConfig                 compozyconfig.SessionDeriveConfig
 	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context

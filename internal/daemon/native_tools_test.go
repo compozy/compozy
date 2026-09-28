@@ -7336,6 +7336,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		var submittedPrompt session.SendPromptOpts
 		var submittedRewind session.ConversationRewindOptions
 		rewindSubmitCalls := 0
+		var submittedContinue session.ContinueSessionOpts
+		continueSubmitCalls := 0
 		var selectedRuntime session.RuntimeSelection
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
@@ -7509,6 +7511,23 @@ func TestDaemonNativeTools(t *testing.T) {
 						Delivery:  store.SessionInputDeliveryDirect,
 						NewTurnID: "turn-native",
 						Events:    promptEvents,
+					}, nil
+				},
+				ContinueFn: func(
+					_ context.Context,
+					opts session.ContinueSessionOpts,
+				) (session.DeriveResult, error) {
+					continueSubmitCalls++
+					submittedContinue = opts
+					return session.DeriveResult{
+						Child: &session.Info{
+							ID: "sess-continued", AgentName: "codex", WorkspaceID: info.WorkspaceID,
+							State: session.StateActive, CreatedAt: info.CreatedAt, UpdatedAt: info.UpdatedAt,
+						},
+						ChildSessionID: "sess-continued", Kind: store.LineageKindContinue,
+						SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
+						Seed: session.DeriveSeedReplay, ReplayMessageCount: 4, ReplayBytes: 512,
+						FirstPrompt: store.SessionDerivationFirstPromptAdmitted,
 					}, nil
 				},
 				RewindFn: func(
@@ -8025,6 +8044,43 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, rewindResult, []byte(`"draft_text":"try another path"`))
 		if rewindSubmitCalls != 1 {
 			t.Fatalf("RewindConversation calls = %d, want 1", rewindSubmitCalls)
+		}
+
+		continueResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionContinue,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","agent":"codex","route":2,` +
+						`"message":"carry on","idempotency_key":"idem-native-continue"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_continue) error = %v", err)
+		}
+		if submittedContinue.SourceSessionID != "sess-1" || submittedContinue.AgentName != "codex" ||
+			submittedContinue.Route != 2 || submittedContinue.Runtime != nil ||
+			submittedContinue.Message != "carry on" || submittedContinue.IdempotencyKey != "idem-native-continue" {
+			t.Fatalf("session_continue opts = %#v", submittedContinue)
+		}
+		requireNativeStructuredContains(t, continueResult, []byte(`"first_prompt":"admitted"`))
+		requireNativeStructuredContains(t, continueResult, []byte(`"child_session_id":"sess-continued"`))
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionContinue,
+				Input: json.RawMessage(
+					`{"workspace":"ws-foreign-stable","session_id":"sess-1","agent":"codex",` +
+						`"idempotency_key":"idem-foreign-continue"}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if continueSubmitCalls != 1 {
+			t.Fatalf("ContinueSession calls = %d, want 1 after denied workspace", continueSubmitCalls)
 		}
 
 		_, err = registry.Call(

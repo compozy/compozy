@@ -89,7 +89,9 @@ const (
 	RoleFallbackUsed = "role.fallback.used"
 	// SessionFallbackUsed records a session-owned fallback attempt before it starts.
 	SessionFallbackUsed = "session.fallback.used"
-	RoleResolveError    = "role.resolve.error"
+	// SessionDerived records a continued or forked child after its commit.
+	SessionDerived   = "session.derived"
+	RoleResolveError = "role.resolve.error"
 
 	ProfileCreated              = "profile.created"
 	ProfileRenamed              = "profile.renamed"

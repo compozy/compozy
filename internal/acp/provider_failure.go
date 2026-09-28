@@ -42,6 +42,10 @@ const (
 	// ProviderFailureActionUseFallback marks a refused pre-acceptance attempt after which
 	// the session layer advances to the next configured route (never set by the classifier).
 	ProviderFailureActionUseFallback ProviderFailureAction = "use_fallback"
+	// ProviderFailureActionHandoff prescribes continuing a user session with another agent
+	// or route after a post-acceptance prompt failure; decorated by the session owner
+	// (never set by the classifier, which has no session type).
+	ProviderFailureActionHandoff ProviderFailureAction = "handoff"
 )
 
 // ProviderFailureDiagnostic is the typed provider-specific recovery metadata

@@ -2218,3 +2218,42 @@ func TestMarketplaceWireFixtures(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: the public continue/derive wire fixtures from _dx.md survive strict decoding and
+// encoding byte-for-byte. Owner: API contract; canonical contract suite (UT-042 goldens).
+func TestSessionDeriveWireFixtures(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payload any
+	}{
+		{"continue-runtime.json", &contract.ContinueSessionRequest{}},
+		{"continue-route.json", &contract.ContinueSessionRequest{}},
+		{"continue-replay-child-deleted.json", &contract.SessionDeriveResponse{}},
+		{"preview.json", &contract.SessionDerivePreviewResponse{}},
+	} {
+		t.Run("Should preserve "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := os.ReadFile(filepath.Join("testdata", "session-derive", tc.name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoder := json.NewDecoder(bytes.NewReader(raw))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(tc.payload); err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var expected bytes.Buffer
+			if err := json.Compact(&expected, raw); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(encoded, expected.Bytes()) {
+				t.Fatalf("wire fixture changed: %s\n%s", tc.name, encoded)
+			}
+		})
+	}
+}

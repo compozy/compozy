@@ -24,6 +24,7 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if loop.activity != nil && !runtimeEvent {
 		loop.activity.observeEvent(normalized)
 	}
+	decorateHandoffAction(session.Type, session.ID, &normalized)
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)
 	}

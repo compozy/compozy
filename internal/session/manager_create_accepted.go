@@ -79,6 +79,8 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	if err := m.persistSessionLifecycleState(ctx, accepted.session, true); err != nil {
 		return m.discardLogicalSessionStart(accepted, err)
 	}
+	// A derived child is committed (catalog row + identity + receipt) by the write above.
+	m.recordSessionDerivedEvent(ctx, accepted.spec, accepted.session)
 	if err := accepted.session.activateWithProcess(nil, m.now(), false, false); err != nil {
 		return m.discardLogicalSessionStart(accepted, err)
 	}

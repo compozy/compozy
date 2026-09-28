@@ -82,11 +82,12 @@ func (m *Manager) acceptSessionStart(
 
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	session.followUpMode = m.busyInputDefaultMode
+	session.pendingDeriveReceipt = cloneDerivationReceipt(spec.deriveReceipt)
 	if err := m.registerStarting(session); err != nil {
 		cleanupErr := m.cleanupFailedStart(storage.sessionDir, storage.recorder, nil)
 		return nil, errors.Join(err, cleanupErr)
 	}
-	if err := m.persistSessionLifecycleState(acceptCtx, session, true); err != nil {
+	if err := m.persistAcceptedStart(acceptCtx, spec, session); err != nil {
 		m.remove(session.ID)
 		cleanupErr := m.cleanupFailedStart(storage.sessionDir, storage.recorder, nil)
 		return nil, errors.Join(
@@ -98,4 +99,14 @@ func (m *Manager) acceptSessionStart(
 	return &acceptedSessionStart{
 		spec: spec, runtime: runtime, session: session, storage: storage, run: run,
 	}, nil
+}
+
+// persistAcceptedStart writes the accepted start. A derived child only writes its meta
+// here: its catalog row is committed later together with its derive receipt, so
+// nothing publishes the child before that transaction.
+func (m *Manager) persistAcceptedStart(ctx context.Context, spec *sessionStartSpec, session *Session) error {
+	if spec.deriveReceipt != nil {
+		return m.persistSessionMetadataOnly(session)
+	}
+	return m.persistSessionLifecycleState(ctx, session, true)
 }

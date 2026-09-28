@@ -47,6 +47,8 @@ type StubSessionManager struct {
 	SetRuntimeSelectionFn   func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
 	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
 	ClearFn                 func(context.Context, string) (*session.Session, error)
+	ContinueFn              func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error)
+	DerivePreviewFn         func(context.Context, string, string, string) (session.DerivePreview, error)
 	RewindFn                func(
 		context.Context,
 		string,
@@ -388,7 +390,32 @@ func (s StubSessionManager) RewindConversation(
 	return session.ConversationRewindResult{}, session.ErrSessionNotFound
 }
 
+// ContinueSession delegates to ContinueFn.
+func (s StubSessionManager) ContinueSession(
+	ctx context.Context,
+	opts session.ContinueSessionOpts,
+) (session.DeriveResult, error) {
+	if s.ContinueFn != nil {
+		return s.ContinueFn(ctx, opts)
+	}
+	return session.DeriveResult{}, session.ErrSessionNotFound
+}
+
+// DerivePreview delegates to DerivePreviewFn.
+func (s StubSessionManager) DerivePreview(
+	ctx context.Context,
+	workspaceID string,
+	sourceSessionID string,
+	messageID string,
+) (session.DerivePreview, error) {
+	if s.DerivePreviewFn != nil {
+		return s.DerivePreviewFn(ctx, workspaceID, sourceSessionID, messageID)
+	}
+	return session.DerivePreview{}, session.ErrSessionNotFound
+}
+
 var _ core.SessionManager = (*StubSessionManager)(nil)
+var _ core.SessionDeriveManager = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
 var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)

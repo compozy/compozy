@@ -47,6 +47,8 @@ func sessionStartSpecFromMeta(
 		creationIdentityPinned:   meta.CreationProfile != nil,
 		creationIdentityEnabled:  meta.CreationProfile != nil,
 		advertisedCommands:       store.CloneSessionAdvertisedCommands(meta.AdvertisedCommandsValue()),
+		derivation:               store.CloneSessionDerivation(meta.Derivation),
+		importedContext:          store.CloneSessionImportedContext(meta.ImportedContext),
 	}
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode

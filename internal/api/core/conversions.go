@@ -83,6 +83,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
 		payload.Activity = activity
 	}
+	payload.Derivation = sessionDerivationPayload(info.Derivation)
 	return payload
 }
 

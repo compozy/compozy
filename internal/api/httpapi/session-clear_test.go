@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -157,6 +158,262 @@ func TestRewindSessionConversationHandler(t *testing.T) {
 		}
 		if called {
 			t.Fatal("RewindConversation() called for a foreign-profile session")
+		}
+	})
+}
+
+func continueTestManager(
+	t *testing.T,
+	workspaceID string,
+	continueFn func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error),
+) stubSessionManager {
+	t.Helper()
+	return stubSessionManager{
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			if id != "sess-123" {
+				return nil, session.ErrSessionNotFound
+			}
+			info := newSessionInfo(id)
+			info.WorkspaceID = workspaceID
+			info.ProfileID = store.DefaultProfileID
+			return info, nil
+		},
+		ContinueFn: continueFn,
+		DerivePreviewFn: func(_ context.Context, workspaceID, sourceID, messageID string) (session.DerivePreview, error) {
+			preview := session.DerivePreview{
+				MessageCount: 42, ReplayBytes: 62771, Epoch: 3, Generation: 12, MaxSequence: 418,
+			}
+			if messageID != "" {
+				preview.Cut = &session.DeriveCut{MessageID: messageID, TurnID: "turn-7", TurnSettled: true}
+			}
+			return preview, nil
+		},
+	}
+}
+
+func continuedChildInfo() *session.Info {
+	child := newSessionInfo("sess-child")
+	child.WorkspaceID = "ws-workspace"
+	child.ProfileID = store.DefaultProfileID
+	child.Lineage = &store.SessionLineage{
+		ParentSessionID: "sess-123", RootSessionID: "sess-123", SpawnDepth: 1,
+		Kind: store.LineageKindContinue, OriginAgentName: "codex",
+	}
+	child.Derivation = &store.SessionDerivation{
+		Kind: store.LineageKindContinue, SourceSessionID: "sess-123", Seed: store.SessionDerivationSeedReplay,
+		FirstPrompt: store.SessionFirstPrompt{State: store.SessionDerivationFirstPromptAdmitted},
+	}
+	return child
+}
+
+func continuedResult(replayed bool) session.DeriveResult {
+	return session.DeriveResult{
+		Child: continuedChildInfo(), ChildSessionID: "sess-child", Kind: store.LineageKindContinue,
+		SourceSessionID: "sess-123", OriginAgentName: "codex", ThroughTurnID: "turn-9",
+		Seed: session.DeriveSeedReplay, ReplayMessageCount: 42, ReplayBytes: 62771,
+		FirstPrompt: store.SessionDerivationFirstPromptAdmitted, Replayed: replayed,
+	}
+}
+
+func TestContinueSessionHandler(t *testing.T) {
+	t.Parallel()
+
+	const continuePath = "/api/workspaces/ws-workspace/sessions/sess-123/continue"
+
+	t.Run("Should create the continued session with a runtime body", func(t *testing.T) {
+		t.Parallel()
+
+		var captured session.ContinueSessionOpts
+		manager := continueTestManager(t, "ws-workspace",
+			func(_ context.Context, opts session.ContinueSessionOpts) (session.DeriveResult, error) {
+				captured = opts
+				return continuedResult(false), nil
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		body := []byte(`{"agent_name":"claude-code","runtime":{"provider":"claude","model":"opus"},` +
+			`"message":"go","idempotency_key":"idem-1"}`)
+		recorder := performRequest(t, engine, http.MethodPost, continuePath, body)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201; body=%s", recorder.Code, recorder.Body.String())
+		}
+		if captured.SourceSessionID != "sess-123" || captured.WorkspaceID != "ws-workspace" ||
+			captured.AgentName != "claude-code" || captured.Runtime == nil || captured.Runtime.Model != "opus" ||
+			captured.Message != "go" || captured.IdempotencyKey != "idem-1" || captured.ProfileID != store.DefaultProfileID {
+			t.Fatalf("ContinueSession() opts = %#v, want routed request", captured)
+		}
+		var response contract.SessionDeriveResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Session == nil || response.Session.Lineage == nil || response.Session.Lineage.SpawnDepth != 1 ||
+			response.Session.Lineage.Kind != store.LineageKindContinue || response.Session.Derivation == nil ||
+			response.Session.Derivation.FirstPrompt != "admitted" {
+			t.Fatalf("response.session = %#v, want continued child with derivation", response.Session)
+		}
+		if response.Derived.FirstPrompt != "admitted" || response.Derived.Replayed ||
+			response.Derived.ThroughTurnID != "turn-9" || response.Derived.ReplayMessageCount == nil ||
+			*response.Derived.ReplayMessageCount != 42 {
+			t.Fatalf("response.derived = %#v, want fresh admitted outcome", response.Derived)
+		}
+	})
+
+	t.Run("Should accept a declared route body", func(t *testing.T) {
+		t.Parallel()
+
+		var route int
+		manager := continueTestManager(t, "ws-workspace",
+			func(_ context.Context, opts session.ContinueSessionOpts) (session.DeriveResult, error) {
+				route = opts.Route
+				return continuedResult(false), nil
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"claude-code","route":2,"idempotency_key":"idem-2"}`))
+		if recorder.Code != http.StatusCreated || route != 2 {
+			t.Fatalf("status = %d route = %d, want 201 with route 2; body=%s", recorder.Code, route, recorder.Body.String())
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{name: "Should reject runtime and route together", body: `{"agent_name":"b","runtime":{"provider":"claude"},"route":1,"idempotency_key":"k"}`},
+		{name: "Should reject partial fences", body: `{"agent_name":"b","idempotency_key":"k","expected_epoch":3}`},
+		{name: "Should reject a missing agent", body: `{"idempotency_key":"k"}`},
+		{name: "Should reject unknown fields", body: `{"agent_name":"b","idempotency_key":"k","bogus":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			manager := continueTestManager(t, "ws-workspace",
+				func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					called = true
+					return session.DeriveResult{}, nil
+				})
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(t, engine, http.MethodPost, continuePath, []byte(tc.body))
+			if recorder.Code != http.StatusBadRequest || called {
+				t.Fatalf("status = %d called = %t, want 400 without a derive; body=%s",
+					recorder.Code, called, recorder.Body.String())
+			}
+		})
+	}
+
+	t.Run("Should return 404 for an unknown or foreign-workspace source", func(t *testing.T) {
+		t.Parallel()
+
+		for _, path := range []string{
+			"/api/workspaces/ws-workspace/sessions/sess-missing/continue",
+			continuePath,
+		} {
+			manager := continueTestManager(t, "ws-other",
+				func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					t.Fatalf("ContinueSession() called for %s", path)
+					return session.DeriveResult{}, nil
+				})
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(t, engine, http.MethodPost, path,
+				[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+			if recorder.Code != http.StatusNotFound {
+				t.Fatalf("%s status = %d, want 404; body=%s", path, recorder.Code, recorder.Body.String())
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"Should map draining admission to 503", admission.ErrDraining, http.StatusServiceUnavailable, ""},
+		{"Should map a non-user source", session.ErrSessionNotDerivable, http.StatusBadRequest, "session_not_derivable"},
+		{"Should map an archived source", session.ErrDeriveSourceArchived, http.StatusConflict, "session_archived"},
+		{"Should map an unknown agent", session.ErrDeriveAgentNotFound, http.StatusNotFound, "agent_not_found"},
+		{"Should map a missing route", session.ErrDeriveRouteNotFound, http.StatusConflict, "route_not_found"},
+		{"Should map a fence conflict", session.ErrDeriveFenceConflict, http.StatusConflict, "session_fence_conflict"},
+		{"Should map an idempotency conflict", session.ErrDeriveIdempotencyConflict, http.StatusConflict, "idempotency_conflict"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := continueTestManager(t, "ws-workspace",
+				func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					return session.DeriveResult{}, tc.err
+				})
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(t, engine, http.MethodPost, continuePath,
+				[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if recorder.Code != tc.status || payload.Code != tc.code {
+				t.Fatalf("status = %d code = %q, want %d %q; body=%s",
+					recorder.Code, payload.Code, tc.status, tc.code, recorder.Body.String())
+			}
+		})
+	}
+
+	t.Run("Should return 200 with the recorded outcome on a replay", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				return continuedResult(true), nil
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+		var response contract.SessionDeriveResponse
+		decodeJSONResponse(t, recorder, &response)
+		if recorder.Code != http.StatusOK || !response.Derived.Replayed || response.Session == nil {
+			t.Fatalf("status = %d response = %#v, want 200 replayed", recorder.Code, response)
+		}
+	})
+
+	t.Run("Should return 200 with child_deleted and no session after the child was deleted", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				result := continuedResult(true)
+				result.Child = nil
+				result.ChildDeleted = true
+				return result, nil
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+		var response contract.SessionDeriveResponse
+		decodeJSONResponse(t, recorder, &response)
+		if recorder.Code != http.StatusOK || !response.Derived.ChildDeleted || response.Session != nil ||
+			response.Derived.ChildSessionID != "sess-child" {
+			t.Fatalf("status = %d response = %#v, want 200 child_deleted without session", recorder.Code, response)
+		}
+	})
+}
+
+func TestPreviewSessionDeriveHandler(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report the cut for a message and omit it for the whole session", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace", nil)
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodGet,
+			"/api/workspaces/ws-workspace/sessions/sess-123/derive/preview?message_id=msg-3", nil)
+		var withCut contract.SessionDerivePreviewResponse
+		decodeJSONResponse(t, recorder, &withCut)
+		if recorder.Code != http.StatusOK || withCut.Cut == nil || withCut.Cut.TurnID != "turn-7" ||
+			!withCut.Cut.TurnSettled || withCut.NativeForkPossible || withCut.Transcript.MaxSequence != 418 {
+			t.Fatalf("status = %d preview = %#v, want cut turn-7", recorder.Code, withCut)
+		}
+		recorder = performRequest(t, engine, http.MethodGet,
+			"/api/workspaces/ws-workspace/sessions/sess-123/derive/preview", nil)
+		var whole contract.SessionDerivePreviewResponse
+		decodeJSONResponse(t, recorder, &whole)
+		if recorder.Code != http.StatusOK || whole.Cut != nil || whole.MessageCount != 42 {
+			t.Fatalf("status = %d preview = %#v, want whole-session preview without cut", recorder.Code, whole)
 		}
 	})
 }

@@ -3922,3 +3922,151 @@ func TestSessionNavigationCommands(t *testing.T) {
 		}
 	})
 }
+
+func continuedRecord(replayed bool) SessionDeriveRecord {
+	count, size := 42, 62771
+	return SessionDeriveRecord{
+		Session: &contract.SessionPayload{ID: "sess-child", AgentName: "claude-code"},
+		Derived: contract.SessionDerivedPayload{
+			Kind: "continue", SourceSessionID: "sess-src", OriginAgentName: "codex",
+			ThroughTurnID: "turn-9", Seed: "replay", ReplayMessageCount: &count, ReplayBytes: &size,
+			FirstPrompt: "admitted", Replayed: replayed, ChildSessionID: "sess-child",
+		},
+	}
+}
+
+func TestSessionContinueCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send the _dx request body and read fences from the transcript", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionContinueRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionTranscriptFn: func(_ context.Context, id string) (SessionTranscriptRecord, error) {
+				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
+			},
+			continueSessionFn: func(_ context.Context, id string, request SessionContinueRequest) (SessionDeriveRecord, error) {
+				if id != "sess-src" {
+					t.Fatalf("ContinueSession() id = %q, want sess-src", id)
+				}
+				captured = request
+				return continuedRecord(false), nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps,
+			"session", "continue", "sess-src", "--agent", "b", "--message", "go", "-o", "json")
+		if err != nil {
+			t.Fatalf("session continue error = %v", err)
+		}
+		if captured.AgentName != "b" || captured.Message != "go" || captured.Runtime != nil || captured.Route != 0 ||
+			!strings.HasPrefix(captured.IdempotencyKey, "idem") || captured.ExpectedEpoch == nil ||
+			*captured.ExpectedEpoch != 3 || *captured.ExpectedGeneration != 12 || *captured.ExpectedMaxSequence != 418 {
+			t.Fatalf("ContinueSession() request = %#v", captured)
+		}
+		var decoded SessionDeriveRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session continue) error = %v", err)
+		}
+		if decoded.Derived.FirstPrompt != "admitted" || decoded.Session == nil || decoded.Session.ID != "sess-child" {
+			t.Fatalf("session continue output = %#v", decoded)
+		}
+	})
+
+	t.Run("Should send a route without a runtime", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionContinueRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			continueSessionFn: func(_ context.Context, _ string, request SessionContinueRequest) (SessionDeriveRecord, error) {
+				captured = request
+				return continuedRecord(false), nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b", "--route", "2",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3", "-o", "json")
+		if err != nil || captured.Route != 2 || captured.Runtime != nil || *captured.ExpectedMaxSequence != 3 {
+			t.Fatalf("session continue --route error = %v request = %#v", err, captured)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"Should require --agent", []string{}, "cli: --agent is required"},
+		{
+			"Should reject --route with a runtime flag", []string{"--agent", "b", "--route", "2", "--speed", "fast"},
+			"cli: --route cannot be combined with runtime flags " +
+				"(--provider, --model, --reasoning-effort, --speed, --acp-option)",
+		},
+		{
+			"Should reject partial fences", []string{"--agent", "b", "--expected-epoch", "3"},
+			"cli: set all transcript fence flags together or omit all three",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newWorkspaceTestDeps(t, &stubClient{})
+			args := append([]string{"session", "continue", "sess-src"}, tc.args...)
+			_, _, err := executeRootCommand(t, deps, args...)
+			if err == nil || err.Error() != tc.want || cliExitCodeForError(err) != 2 {
+				t.Fatalf("session continue error = %v (exit %d), want %q with exit 2",
+					err, cliExitCodeForError(err), tc.want)
+			}
+		})
+	}
+
+	t.Run("Should print the golden path block and Replayed yes on a replay", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			continueSessionFn: func(context.Context, string, SessionContinueRequest) (SessionDeriveRecord, error) {
+				return continuedRecord(true), nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
+			"--idempotency-key", "idem-1", "--expected-epoch", "1", "--expected-generation", "2",
+			"--expected-max-sequence", "3")
+		if err != nil {
+			t.Fatalf("session continue error = %v", err)
+		}
+		for _, want := range []string{
+			"Continued sess-src (codex) into sess-child (claude-code)",
+			"Origin        continue · from sess-src · codex · through turn turn-9",
+			"Context       42 messages · 61.3 KiB · nothing omitted",
+			"Seed          replay",
+			"First prompt  admitted",
+			"Replayed      yes",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("session continue output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
+	t.Run("Should print Origin and Derivation lines in session status", func(t *testing.T) {
+		t.Parallel()
+
+		record := &SessionRecord{
+			ID: "sess-child", AgentName: "claude-code",
+			Lineage: &contract.SessionLineagePayload{
+				ParentSessionID: "sess-src", Kind: "continue", OriginAgentName: "codex",
+			},
+			Derivation: &contract.SessionDerivationPayload{
+				Kind: "continue", SourceSessionID: "sess-src", Seed: "replay", FirstPrompt: "admitted",
+			},
+		}
+		rendered, err := renderSessionHuman(record, time.Now)
+		if err != nil {
+			t.Fatalf("renderSessionHuman() error = %v", err)
+		}
+		for _, want := range []string{"continue · from sess-src · codex", "seed replay · first prompt admitted"} {
+			if !strings.Contains(rendered, want) {
+				t.Fatalf("session status output missing %q:\n%s", want, rendered)
+			}
+		}
+	})
+}

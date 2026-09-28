@@ -26,6 +26,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionRecapCommand(deps))
 	cmd.AddCommand(newSessionRepairCommand(deps))
 	cmd.AddCommand(newSessionRewindCommand(deps))
+	cmd.AddCommand(newSessionContinueCommand(deps))
 	cmd.AddCommand(newSessionApproveCommand(deps))
 	cmd.AddCommand(newSessionClarifyCommand(deps))
 	cmd.AddCommand(newSessionWaitCommand(deps))

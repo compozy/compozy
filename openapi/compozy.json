@@ -271959,6 +271959,3072 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/continue": {
+      "post": {
+        "operationId": "continueSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Source session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "agent_name": {
+                    "type": "string"
+                  },
+                  "expected_epoch": {
+                    "format": "int64",
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "expected_generation": {
+                    "format": "int64",
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "expected_max_sequence": {
+                    "format": "int64",
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "idempotency_key": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "route": {
+                    "type": "integer"
+                  },
+                  "runtime": {
+                    "nullable": true,
+                    "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "model": {
+                        "type": "string"
+                      },
+                      "provider": {
+                        "type": "string"
+                      },
+                      "reasoning_effort": {
+                        "type": "string"
+                      },
+                      "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "provider"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "agent_name",
+                  "idempotency_key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "derived": {
+                      "properties": {
+                        "acp_session_id": {
+                          "type": "string"
+                        },
+                        "child_deleted": {
+                          "type": "boolean"
+                        },
+                        "child_session_id": {
+                          "type": "string"
+                        },
+                        "first_prompt": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "native_fork_error": {
+                          "type": "string"
+                        },
+                        "native_state": {
+                          "type": "string"
+                        },
+                        "omitted_count": {
+                          "type": "integer"
+                        },
+                        "origin_agent_name": {
+                          "type": "string"
+                        },
+                        "origin_message_id": {
+                          "type": "string"
+                        },
+                        "replay_bytes": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "replay_message_count": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "replayed": {
+                          "type": "boolean"
+                        },
+                        "seed": {
+                          "type": "string"
+                        },
+                        "source_session_id": {
+                          "type": "string"
+                        },
+                        "source_turn_in_progress": {
+                          "type": "boolean"
+                        },
+                        "through_turn_id": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "child_session_id",
+                        "first_prompt",
+                        "kind",
+                        "omitted_count",
+                        "origin_agent_name",
+                        "replayed",
+                        "seed",
+                        "source_session_id",
+                        "source_turn_in_progress",
+                        "through_turn_id",
+                        "truncated"
+                      ],
+                      "type": "object"
+                    },
+                    "session": {
+                      "nullable": true,
+                      "properties": {
+                        "activity": {
+                          "nullable": true,
+                          "properties": {
+                            "current_tool": {
+                              "type": "string"
+                            },
+                            "deadline_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "elapsed_ms": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "elapsed_seconds": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "idle_seconds": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "iteration_current": {
+                              "type": "integer"
+                            },
+                            "iteration_max": {
+                              "type": "integer"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "last_activity_detail": {
+                              "type": "string"
+                            },
+                            "last_activity_kind": {
+                              "type": "string"
+                            },
+                            "last_progress_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "tool_call_id": {
+                              "type": "string"
+                            },
+                            "turn_id": {
+                              "type": "string"
+                            },
+                            "turn_source": {
+                              "type": "string"
+                            },
+                            "turn_started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "elapsed_ms",
+                            "elapsed_seconds",
+                            "idle_seconds",
+                            "iteration_current",
+                            "iteration_max"
+                          ],
+                          "type": "object"
+                        },
+                        "agent_name": {
+                          "type": "string"
+                        },
+                        "archived_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attach_expires_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attachable": {
+                          "type": "boolean"
+                        },
+                        "attached_to": {
+                          "type": "string"
+                        },
+                        "attention": {
+                          "type": "string"
+                        },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "available_commands": {
+                          "items": {
+                            "properties": {
+                              "description": {
+                                "type": "string"
+                              },
+                              "input": {
+                                "nullable": true,
+                                "properties": {
+                                  "hint": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "hint"
+                                ],
+                                "type": "object"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "description",
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "badge": {
+                          "type": "string"
+                        },
+                        "busy_input": {
+                          "nullable": true,
+                          "properties": {
+                            "default_mode": {
+                              "type": "string"
+                            },
+                            "steer_capability": {
+                              "enum": [
+                                "steer_ext",
+                                "concurrent_prompt",
+                                "none"
+                              ],
+                              "type": "string"
+                            },
+                            "steer_delivery": {
+                              "enum": [
+                                "injected",
+                                "pending_injection",
+                                "interrupt_fallback"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "default_mode",
+                            "steer_capability"
+                          ],
+                          "type": "object"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
+                        "escalated": {
+                          "nullable": true,
+                          "type": "boolean"
+                        },
+                        "failure": {
+                          "nullable": true,
+                          "properties": {
+                            "crash_bundle_path": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "health": {
+                          "nullable": true,
+                          "properties": {
+                            "active_prompt": {
+                              "type": "boolean"
+                            },
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "attachable": {
+                              "type": "boolean"
+                            },
+                            "attention": {
+                              "type": "string"
+                            },
+                            "eligible_for_wake": {
+                              "type": "boolean"
+                            },
+                            "escalated": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "health": {
+                              "enum": [
+                                "healthy",
+                                "degraded",
+                                "stale",
+                                "dead",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "ineligibility_reason": {
+                              "enum": [
+                                "session_prompt_active",
+                                "session_not_attachable",
+                                "session_unhealthy",
+                                "session_health_stale",
+                                "session_health_hung",
+                                "session_health_dead",
+                                "session_health_unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "last_error": {
+                              "type": "string"
+                            },
+                            "last_presence_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "lifecycle_state": {
+                              "enum": [
+                                "starting",
+                                "active",
+                                "stopping",
+                                "stopped"
+                              ],
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "enum": [
+                                "idle",
+                                "prompting",
+                                "stopped",
+                                "detached"
+                              ],
+                              "type": "string"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "verified": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "active_prompt",
+                            "agent_name",
+                            "attachable",
+                            "eligible_for_wake",
+                            "health",
+                            "session_id",
+                            "state",
+                            "updated_at",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "lineage": {
+                          "nullable": true,
+                          "properties": {
+                            "auto_stop_on_parent": {
+                              "type": "boolean"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
+                            },
+                            "parent_session_id": {
+                              "type": "string"
+                            },
+                            "permission_policy": {
+                              "properties": {
+                                "mcp_servers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "skills": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "tools": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "workspace_paths": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "mcp_servers",
+                                "skills",
+                                "tools",
+                                "workspace_paths"
+                              ],
+                              "type": "object"
+                            },
+                            "root_session_id": {
+                              "type": "string"
+                            },
+                            "spawn_budget": {
+                              "properties": {
+                                "max_active_per_workspace": {
+                                  "type": "integer"
+                                },
+                                "max_children": {
+                                  "type": "integer"
+                                },
+                                "max_depth": {
+                                  "type": "integer"
+                                },
+                                "ttl_seconds": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "max_children",
+                                "max_depth",
+                                "ttl_seconds"
+                              ],
+                              "type": "object"
+                            },
+                            "spawn_depth": {
+                              "type": "integer"
+                            },
+                            "spawn_role": {
+                              "type": "string"
+                            },
+                            "ttl_expires_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "auto_stop_on_parent",
+                            "notify_creator",
+                            "permission_policy",
+                            "spawn_budget",
+                            "spawn_depth"
+                          ],
+                          "type": "object"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "tool_id": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "profile_archived": {
+                          "type": "boolean"
+                        },
+                        "profile_color": {
+                          "type": "string"
+                        },
+                        "profile_emoji": {
+                          "type": "string"
+                        },
+                        "profile_icon": {
+                          "type": "string"
+                        },
+                        "profile_id": {
+                          "type": "string"
+                        },
+                        "profile_name": {
+                          "type": "string"
+                        },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
+                            "selected": {
+                              "nullable": true,
+                              "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "selection_revision": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "selection_revision",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        "state": {
+                          "enum": [
+                            "starting",
+                            "active",
+                            "stopping",
+                            "stopped"
+                          ],
+                          "type": "string"
+                        },
+                        "stop_cause": {
+                          "type": "string"
+                        },
+                        "stop_detail": {
+                          "type": "string"
+                        },
+                        "stop_reason": {
+                          "enum": [
+                            "completed",
+                            "user_canceled",
+                            "max_iterations",
+                            "loop_detected",
+                            "timeout",
+                            "budget_exceeded",
+                            "error",
+                            "agent_crashed",
+                            "hook_stopped",
+                            "shutdown"
+                          ],
+                          "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
+                        },
+                        "transcript_epoch": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "type": {
+                          "enum": [
+                            "user",
+                            "dream",
+                            "system",
+                            "coordinator",
+                            "spawned"
+                          ],
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "verified": {
+                          "nullable": true,
+                          "type": "boolean"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        },
+                        "workspace_path": {
+                          "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent_name",
+                        "archived_at",
+                        "attachable",
+                        "available_commands",
+                        "badge",
+                        "created_at",
+                        "id",
+                        "pending_interactions",
+                        "profile_id",
+                        "profile_name",
+                        "runtime",
+                        "state",
+                        "supervision",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "derived"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Recorded outcome replayed"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "derived": {
+                      "properties": {
+                        "acp_session_id": {
+                          "type": "string"
+                        },
+                        "child_deleted": {
+                          "type": "boolean"
+                        },
+                        "child_session_id": {
+                          "type": "string"
+                        },
+                        "first_prompt": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "native_fork_error": {
+                          "type": "string"
+                        },
+                        "native_state": {
+                          "type": "string"
+                        },
+                        "omitted_count": {
+                          "type": "integer"
+                        },
+                        "origin_agent_name": {
+                          "type": "string"
+                        },
+                        "origin_message_id": {
+                          "type": "string"
+                        },
+                        "replay_bytes": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "replay_message_count": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "replayed": {
+                          "type": "boolean"
+                        },
+                        "seed": {
+                          "type": "string"
+                        },
+                        "source_session_id": {
+                          "type": "string"
+                        },
+                        "source_turn_in_progress": {
+                          "type": "boolean"
+                        },
+                        "through_turn_id": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "child_session_id",
+                        "first_prompt",
+                        "kind",
+                        "omitted_count",
+                        "origin_agent_name",
+                        "replayed",
+                        "seed",
+                        "source_session_id",
+                        "source_turn_in_progress",
+                        "through_turn_id",
+                        "truncated"
+                      ],
+                      "type": "object"
+                    },
+                    "session": {
+                      "nullable": true,
+                      "properties": {
+                        "activity": {
+                          "nullable": true,
+                          "properties": {
+                            "current_tool": {
+                              "type": "string"
+                            },
+                            "deadline_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "elapsed_ms": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "elapsed_seconds": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "idle_seconds": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "iteration_current": {
+                              "type": "integer"
+                            },
+                            "iteration_max": {
+                              "type": "integer"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "last_activity_detail": {
+                              "type": "string"
+                            },
+                            "last_activity_kind": {
+                              "type": "string"
+                            },
+                            "last_progress_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "tool_call_id": {
+                              "type": "string"
+                            },
+                            "turn_id": {
+                              "type": "string"
+                            },
+                            "turn_source": {
+                              "type": "string"
+                            },
+                            "turn_started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "elapsed_ms",
+                            "elapsed_seconds",
+                            "idle_seconds",
+                            "iteration_current",
+                            "iteration_max"
+                          ],
+                          "type": "object"
+                        },
+                        "agent_name": {
+                          "type": "string"
+                        },
+                        "archived_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attach_expires_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attachable": {
+                          "type": "boolean"
+                        },
+                        "attached_to": {
+                          "type": "string"
+                        },
+                        "attention": {
+                          "type": "string"
+                        },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "available_commands": {
+                          "items": {
+                            "properties": {
+                              "description": {
+                                "type": "string"
+                              },
+                              "input": {
+                                "nullable": true,
+                                "properties": {
+                                  "hint": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "hint"
+                                ],
+                                "type": "object"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "description",
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "badge": {
+                          "type": "string"
+                        },
+                        "busy_input": {
+                          "nullable": true,
+                          "properties": {
+                            "default_mode": {
+                              "type": "string"
+                            },
+                            "steer_capability": {
+                              "enum": [
+                                "steer_ext",
+                                "concurrent_prompt",
+                                "none"
+                              ],
+                              "type": "string"
+                            },
+                            "steer_delivery": {
+                              "enum": [
+                                "injected",
+                                "pending_injection",
+                                "interrupt_fallback"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "default_mode",
+                            "steer_capability"
+                          ],
+                          "type": "object"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "derivation": {
+                          "nullable": true,
+                          "properties": {
+                            "first_prompt": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "native_fork_error": {
+                              "type": "string"
+                            },
+                            "native_state": {
+                              "type": "string"
+                            },
+                            "seed": {
+                              "type": "string"
+                            },
+                            "source_session_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "first_prompt",
+                            "kind",
+                            "seed",
+                            "source_session_id"
+                          ],
+                          "type": "object"
+                        },
+                        "escalated": {
+                          "nullable": true,
+                          "type": "boolean"
+                        },
+                        "failure": {
+                          "nullable": true,
+                          "properties": {
+                            "crash_bundle_path": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "health": {
+                          "nullable": true,
+                          "properties": {
+                            "active_prompt": {
+                              "type": "boolean"
+                            },
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "attachable": {
+                              "type": "boolean"
+                            },
+                            "attention": {
+                              "type": "string"
+                            },
+                            "eligible_for_wake": {
+                              "type": "boolean"
+                            },
+                            "escalated": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "health": {
+                              "enum": [
+                                "healthy",
+                                "degraded",
+                                "stale",
+                                "dead",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "ineligibility_reason": {
+                              "enum": [
+                                "session_prompt_active",
+                                "session_not_attachable",
+                                "session_unhealthy",
+                                "session_health_stale",
+                                "session_health_hung",
+                                "session_health_dead",
+                                "session_health_unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "last_error": {
+                              "type": "string"
+                            },
+                            "last_presence_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "lifecycle_state": {
+                              "enum": [
+                                "starting",
+                                "active",
+                                "stopping",
+                                "stopped"
+                              ],
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "enum": [
+                                "idle",
+                                "prompting",
+                                "stopped",
+                                "detached"
+                              ],
+                              "type": "string"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "verified": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "active_prompt",
+                            "agent_name",
+                            "attachable",
+                            "eligible_for_wake",
+                            "health",
+                            "session_id",
+                            "state",
+                            "updated_at",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "lineage": {
+                          "nullable": true,
+                          "properties": {
+                            "auto_stop_on_parent": {
+                              "type": "boolean"
+                            },
+                            "kind": {
+                              "enum": [
+                                "",
+                                "provenance",
+                                "spawn",
+                                "continue",
+                                "fork",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
+                            "origin_agent_name": {
+                              "type": "string"
+                            },
+                            "origin_message_id": {
+                              "type": "string"
+                            },
+                            "parent_session_id": {
+                              "type": "string"
+                            },
+                            "permission_policy": {
+                              "properties": {
+                                "mcp_servers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "skills": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "tools": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "workspace_paths": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "mcp_servers",
+                                "skills",
+                                "tools",
+                                "workspace_paths"
+                              ],
+                              "type": "object"
+                            },
+                            "root_session_id": {
+                              "type": "string"
+                            },
+                            "spawn_budget": {
+                              "properties": {
+                                "max_active_per_workspace": {
+                                  "type": "integer"
+                                },
+                                "max_children": {
+                                  "type": "integer"
+                                },
+                                "max_depth": {
+                                  "type": "integer"
+                                },
+                                "ttl_seconds": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "max_children",
+                                "max_depth",
+                                "ttl_seconds"
+                              ],
+                              "type": "object"
+                            },
+                            "spawn_depth": {
+                              "type": "integer"
+                            },
+                            "spawn_role": {
+                              "type": "string"
+                            },
+                            "ttl_expires_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "auto_stop_on_parent",
+                            "notify_creator",
+                            "permission_policy",
+                            "spawn_budget",
+                            "spawn_depth"
+                          ],
+                          "type": "object"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "tool_id": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "profile_archived": {
+                          "type": "boolean"
+                        },
+                        "profile_color": {
+                          "type": "string"
+                        },
+                        "profile_emoji": {
+                          "type": "string"
+                        },
+                        "profile_icon": {
+                          "type": "string"
+                        },
+                        "profile_id": {
+                          "type": "string"
+                        },
+                        "profile_name": {
+                          "type": "string"
+                        },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
+                            "selected": {
+                              "nullable": true,
+                              "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "selection_revision": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "selection_revision",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        "state": {
+                          "enum": [
+                            "starting",
+                            "active",
+                            "stopping",
+                            "stopped"
+                          ],
+                          "type": "string"
+                        },
+                        "stop_cause": {
+                          "type": "string"
+                        },
+                        "stop_detail": {
+                          "type": "string"
+                        },
+                        "stop_reason": {
+                          "enum": [
+                            "completed",
+                            "user_canceled",
+                            "max_iterations",
+                            "loop_detected",
+                            "timeout",
+                            "budget_exceeded",
+                            "error",
+                            "agent_crashed",
+                            "hook_stopped",
+                            "shutdown"
+                          ],
+                          "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
+                        },
+                        "transcript_epoch": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "type": {
+                          "enum": [
+                            "user",
+                            "dream",
+                            "system",
+                            "coordinator",
+                            "spawned"
+                          ],
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "verified": {
+                          "nullable": true,
+                          "type": "boolean"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        },
+                        "workspace_path": {
+                          "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent_name",
+                        "archived_at",
+                        "attachable",
+                        "available_commands",
+                        "badge",
+                        "created_at",
+                        "id",
+                        "pending_interactions",
+                        "profile_id",
+                        "profile_name",
+                        "runtime",
+                        "state",
+                        "supervision",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "derived"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid continue request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session or agent not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session cannot be continued"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "New-work admission is unavailable while the daemon is draining"
+          }
+        },
+        "summary": "Continue a session with another agent, runtime, or declared route",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview": {
+      "get": {
+        "operationId": "previewSessionDerive",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Source session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Durable user message to cut through (fork from here)",
+            "in": "query",
+            "name": "message_id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "cut": {
+                      "nullable": true,
+                      "properties": {
+                        "message_id": {
+                          "type": "string"
+                        },
+                        "turn_id": {
+                          "type": "string"
+                        },
+                        "turn_settled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "message_id",
+                        "turn_id",
+                        "turn_settled"
+                      ],
+                      "type": "object"
+                    },
+                    "message_count": {
+                      "type": "integer"
+                    },
+                    "native_fork_possible": {
+                      "type": "boolean"
+                    },
+                    "omitted_count": {
+                      "type": "integer"
+                    },
+                    "replay_bytes": {
+                      "type": "integer"
+                    },
+                    "source_turn_in_progress": {
+                      "type": "boolean"
+                    },
+                    "transcript": {
+                      "properties": {
+                        "epoch": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "generation": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "max_sequence": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "epoch",
+                        "generation",
+                        "max_sequence"
+                      ],
+                      "type": "object"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "message_count",
+                    "native_fork_possible",
+                    "omitted_count",
+                    "replay_bytes",
+                    "source_turn_in_progress",
+                    "transcript",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session cannot be continued or forked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session or message not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Preview what a continue or fork of a session would carry",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
       "get": {
         "operationId": "listSessionEvents",

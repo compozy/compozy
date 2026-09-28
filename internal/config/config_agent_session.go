@@ -46,6 +46,7 @@ type SessionConfig struct {
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
 	Compaction  SessionCompactionConfig  `toml:"compaction"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
+	Derive      SessionDeriveConfig      `toml:"derive"`
 }
 
 // SessionStopConfig bounds the cooperative phase before process termination.

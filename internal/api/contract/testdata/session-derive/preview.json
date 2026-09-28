@@ -1,0 +1,10 @@
+{
+    "message_count": 42,
+    "replay_bytes": 62771,
+    "truncated": false,
+    "omitted_count": 0,
+    "source_turn_in_progress": false,
+    "native_fork_possible": false,
+    "cut": { "message_id": "msg_01J9R2N3V0QF", "turn_id": "turn_01J9R2N3V1", "turn_settled": true },
+    "transcript": { "epoch": 3, "generation": 12, "max_sequence": 418 }
+}

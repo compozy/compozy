@@ -5,6 +5,7 @@
         "approve",
         "archive",
         "commands",
+        "continue",
         "events",
         "health",
         "history",
