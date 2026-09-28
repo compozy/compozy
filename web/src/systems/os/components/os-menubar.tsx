@@ -6,6 +6,7 @@ import {
   Logo,
   Menubar,
   MenubarTrigger,
+  PillCount,
   StatusDot,
   Tooltip,
   TooltipContent,
@@ -162,14 +163,6 @@ function ControlTooltip({
   );
 }
 
-function NotificationBadge({ count }: { count: number }) {
-  return (
-    <span className="absolute top-0.5 right-0 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-1 font-mono text-micro font-bold text-accent-ink">
-      {count > 9 ? "9+" : count}
-    </span>
-  );
-}
-
 export function OsMenuBar({
   workspace,
   scopeNotice,
@@ -298,7 +291,9 @@ export function OsMenuBar({
             wrap={wrapBellTrigger}
           >
             <Icon as={Bell} size="lg" />
-            {notifications ? <NotificationBadge count={notifications} /> : null}
+            {notifications ? (
+              <PillCount count={notifications} className="absolute top-0.5 right-0" />
+            ) : null}
           </Control>
           <ControlTooltip
             label={

@@ -226,8 +226,10 @@ export {
 export { Eyebrow, type EyebrowProps, type EyebrowVariant } from "./components/custom/eyebrow";
 export {
   Pill,
+  PillCount,
   PillDot,
   PillLink,
+  type PillCountProps,
   type PillProps,
   type PillDotProps,
   type PillLinkProps,

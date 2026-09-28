@@ -16,6 +16,7 @@ const pillVariants = cva(
         xs: "h-pill-xs px-1.5 leading-none",
         sm: "h-pill-sm px-2 leading-none",
         md: "h-pill-md px-2.5 leading-none",
+        count: "h-3.5 min-w-3.5 gap-0 px-1 leading-none tabular-nums",
       },
       mono: {
         true: "font-mono",
@@ -35,6 +36,7 @@ const pillVariants = cva(
       { mono: false, size: "xs", className: "text-eyebrow font-medium tracking-eyebrow" },
       { mono: false, size: "sm", className: "text-eyebrow font-medium tracking-eyebrow" },
       { mono: false, size: "md", className: "text-eyebrow font-medium tracking-eyebrow" },
+      { size: "count", className: "font-mono text-micro font-bold" },
       { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
       { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
       { solid: true, tone: "success", className: "bg-success text-canvas" },
