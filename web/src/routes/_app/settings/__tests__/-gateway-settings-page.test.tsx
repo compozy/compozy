@@ -29,8 +29,13 @@ vi.mock("@/systems/gateway", () => ({
   useGatewaySettingsPage: () => state.view,
 }));
 
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings", async () => ({
   SettingsPageFrame: ({ children }: PropsWithChildren) => <main>{children}</main>,
+  SettingsPageState: (
+    await vi.importActual<typeof import("@/systems/settings/components/settings-page-state")>(
+      "@/systems/settings/components/settings-page-state"
+    )
+  ).SettingsPageState,
   useSettingsTopbar: vi.fn(),
 }));
 
@@ -112,7 +117,10 @@ describe("GatewaySettingsPage", () => {
     expect(screen.getByTestId("settings-page-gateway-error")).toHaveTextContent(
       "Gateway unavailable"
     );
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(screen.getByTestId("settings-page-gateway-error")).toHaveTextContent(
+      "Couldn't load Remote access"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(view.page.refetch).toHaveBeenCalledTimes(1);
   });
 });

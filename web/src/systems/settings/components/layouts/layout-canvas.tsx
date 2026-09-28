@@ -71,7 +71,7 @@ export function LayoutCanvas({
       {empty ? (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-small-body text-subtle">
           <p className="text-fg">No windows on this desktop</p>
-          <p>Open a window in the workspace to start tiling.</p>
+          <p>Open a window in the project to start tiling.</p>
         </div>
       ) : null}
 

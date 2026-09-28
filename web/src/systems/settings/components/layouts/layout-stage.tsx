@@ -43,7 +43,7 @@ export function LayoutStage({ editor, config }: LayoutStageProps) {
         className="rounded-lg border border-line bg-canvas-soft px-4 py-5 text-form-label text-subtle"
         data-testid="layout-stage-empty"
       >
-        This workspace has no desktops yet. Open a window to create the first one.
+        This project has no desktops yet. Open a window to create the first one.
       </div>
     );
   }

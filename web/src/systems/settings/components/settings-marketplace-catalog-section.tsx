@@ -23,7 +23,7 @@ export function SettingsMarketplaceCatalogSection({
     <SettingsGroup data-testid={TEST_ID} title="CompozyOS catalog">
       <SettingRow
         data-testid={`${TEST_ID}-base-url`}
-        description="Set the base URL of the feed; the daemon reads its v3 extensions listing from there."
+        description="CompozyOS loads the extension list from this address."
         error={draft.base_url.trim() === "" ? "Enter the feed URL." : undefined}
         help="marketplace.catalog.base_url"
         label="Feed URL"
@@ -40,7 +40,7 @@ export function SettingsMarketplaceCatalogSection({
       />
       <SettingRow
         data-testid={`${TEST_ID}-ttl`}
-        description="How long a read stays fresh before the catalog and its marketplaces refresh."
+        description="How often the catalog and its marketplaces check for updates."
         error={draft.ttl.trim() === "" ? "Enter a duration." : undefined}
         help="marketplace.catalog.ttl"
         label="Refresh every"
@@ -57,7 +57,7 @@ export function SettingsMarketplaceCatalogSection({
       />
       <SettingRow
         data-testid={`${TEST_ID}-timeout`}
-        description="A source that does not answer in time reads as could not refresh and keeps its last read."
+        description="If a source takes longer than this, CompozyOS keeps the last list it loaded."
         error={draft.timeout.trim() === "" ? "Enter a duration." : undefined}
         help="marketplace.catalog.timeout"
         label="Timeout"

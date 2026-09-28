@@ -1,9 +1,9 @@
-import { AlertCircle } from "lucide-react";
 import { useState, type SetStateAction } from "react";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
   SettingsPageFrame,
+  SettingsPageState,
   SettingsSaveBar,
   TerminalSettingsSections,
   readTerminalSettings,
@@ -13,7 +13,6 @@ import {
   type TerminalSettingsConfig,
   type TerminalSettingsKey,
 } from "@/systems/settings";
-import { Button, Spinner } from "@compozy/ui";
 
 export function TerminalSettingsPage() {
   const page = useSettingsGeneralPage();
@@ -35,32 +34,17 @@ export function TerminalSettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-terminal-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="terminal" state="loading" />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-terminal-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load terminal settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="terminal"
+        state="error"
+      />
     );
   }
 

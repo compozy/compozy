@@ -53,15 +53,16 @@ export function SettingsTaglistField({
           value.map(entry => (
             <Pill key={entry} mono tone="neutral">
               {entry}
-              <button
+              <Button
                 aria-label={`Remove ${entry}`}
-                className="inline-flex size-6 items-center justify-center rounded-xxs text-subtle transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none disabled:pointer-events-none"
                 disabled={disabled}
                 onClick={() => removeEntry(entry)}
+                size="icon-xs"
                 type="button"
+                variant="ghost"
               >
                 <X aria-hidden="true" className="size-2.5" />
-              </button>
+              </Button>
             </Pill>
           ))
         )}

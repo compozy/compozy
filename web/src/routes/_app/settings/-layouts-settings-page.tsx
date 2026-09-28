@@ -1,7 +1,7 @@
-import { AlertCircle, Download, Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import {
   windowManagerApplyMessage,
@@ -13,6 +13,7 @@ import {
   LayoutStage,
   SettingsGroup,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsSaveBar,
   useLayoutsSettingsData,
   useSettingsSaveBarState,
@@ -25,34 +26,6 @@ import {
   type WindowManagerLayoutResourceRecord,
   type WindowManagerLayoutState,
 } from "@/systems/settings";
-
-function LoadingState() {
-  return (
-    <div
-      className="flex flex-1 items-center justify-center"
-      data-testid="settings-page-layouts-loading"
-    >
-      <Spinner className="size-5 text-subtle" />
-    </div>
-  );
-}
-
-function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
-  return (
-    <div
-      className="flex flex-1 items-center justify-center"
-      data-testid="settings-page-layouts-error"
-    >
-      <div className="flex max-w-sm flex-col items-center gap-2 text-center">
-        <AlertCircle aria-hidden="true" className="size-6 text-danger" />
-        <p className="text-small-body text-subtle">{error.message}</p>
-        <Button size="cta-lg" type="button" variant="outline" onClick={onRetry}>
-          Retry
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * The workspace layout and the layouts saved from it. Both read one draft, so a
@@ -122,7 +95,7 @@ function LayoutSections({
               onClick={() => fileInput.current?.click()}
             >
               <Upload aria-hidden="true" className="size-3.5" />
-              Import JSON
+              Import layout file
             </Button>
             <Button
               data-testid="layout-export"
@@ -132,14 +105,14 @@ function LayoutSections({
               onClick={exportDocument}
             >
               <Download aria-hidden="true" className="size-3.5" />
-              Export JSON
+              Export layout file
             </Button>
           </>
         }
         bare
         help="Drag tiles, dividers and group edges."
         description="CompozyOS checks the result before anything is applied."
-        title="Workspace layout"
+        title="Project layout"
       >
         <LayoutStage config={config} editor={editor} />
       </SettingsGroup>
@@ -210,6 +183,7 @@ function LayoutsSettingsView({
 
   return (
     <SettingsPageFrame
+      description="The layout applies from its own Apply button, window settings wait for Save, and shortcuts apply right away."
       meta={meta}
       saveBar={
         <SettingsSaveBar
@@ -223,9 +197,9 @@ function LayoutsSettingsView({
       width="canvas"
     >
       {workspaceId === "" || layout === null ? (
-        <SettingsGroup title="Workspace layout">
+        <SettingsGroup title="Project layout">
           <p className="px-4 py-5 text-form-label text-subtle">
-            Select a workspace to see and change its layout.
+            Open a project to see and change its layout.
           </p>
         </SettingsGroup>
       ) : (
@@ -256,13 +230,18 @@ export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: strin
   useSettingsTopbar("layouts");
   const data = useLayoutsSettingsData();
 
-  if (data.isPending) return <LoadingState />;
-  if (data.error !== null) return <ErrorState error={data.error} onRetry={data.retry} />;
-  if (data.config === null || data.keyboard === null) return <LoadingState />;
+  if (data.isPending) return <SettingsPageState slug="layouts" state="loading" />;
+  if (data.error !== null) {
+    return (
+      <SettingsPageState error={data.error} onRetry={data.retry} slug="layouts" state="error" />
+    );
+  }
+  if (data.config === null || data.keyboard === null) {
+    return <SettingsPageState slug="layouts" state="loading" />;
+  }
 
   const meta = [
     data.workspaceName ? { key: "workspace", content: <span>{data.workspaceName}</span> } : null,
-    data.layout ? { key: "revision", content: <span>Revision {data.layout.revision}</span> } : null,
     {
       key: "profiles",
       content: (
