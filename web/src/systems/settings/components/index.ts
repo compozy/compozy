@@ -21,9 +21,8 @@ export {
   mcpServerRowTestId,
 } from "./mcp-server-labels";
 export { ProviderCard } from "./provider-card";
-export { ProviderRow } from "./provider-row";
 export { ProvidersToolbar } from "./providers-toolbar";
-export type { ProvidersToolbarProps, ProvidersViewMode } from "./providers-toolbar";
+export type { ProvidersToolbarProps } from "./providers-toolbar";
 export { ProviderEditForm } from "./provider-edit-form";
 export { ProviderDetailDialog } from "./provider-detail-dialog";
 export { ProviderInspectView } from "./provider-inspect-view";

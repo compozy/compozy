@@ -137,6 +137,7 @@ export function useSettingsProvidersPage() {
   return {
     isLoading: query.isLoading,
     error: query.error,
+    retry: () => void query.refetch(),
     envelope,
     providers,
     filteredProviders,

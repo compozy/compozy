@@ -85,8 +85,8 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-command"
         help={
           isCreate
-            ? "Executable used to launch the ACP subprocess."
-            : "Executable used to launch the ACP subprocess. Clearing it falls back to the builtin definition."
+            ? "The program CompozyOS starts to run this agent."
+            : "The program CompozyOS starts to run this agent. Leave empty to use the default."
         }
         label={
           <>

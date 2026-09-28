@@ -1,4 +1,5 @@
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
@@ -8,8 +9,6 @@ import {
 } from "@compozy/ui";
 
 import type { ProviderStateLabel } from "../lib/provider-state";
-
-export type ProvidersViewMode = "rows" | "cards";
 
 const STATUS_LABEL: Record<ProviderStateLabel | "all", string> = {
   all: "All",
@@ -26,8 +25,6 @@ export interface ProvidersToolbarProps {
   onNameQueryChange: (next: string) => void;
   statusFilter: ProviderStateLabel | null;
   onStatusChange: (next: ProviderStateLabel | null) => void;
-  view: ProvidersViewMode;
-  onViewChange: (next: ProvidersViewMode) => void;
 }
 
 export function ProvidersToolbar({
@@ -35,8 +32,6 @@ export function ProvidersToolbar({
   onNameQueryChange,
   statusFilter,
   onStatusChange,
-  view,
-  onViewChange,
 }: ProvidersToolbarProps) {
   const statusValue = statusFilter ?? "all";
 
@@ -54,8 +49,8 @@ export function ProvidersToolbar({
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="Filter by status"
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-btn-default-fill px-2.5 text-form-label text-fg transition-colors duration-base hover:bg-btn-default-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
               data-testid="settings-providers-status-filter"
+              render={<Button size="sm" type="button" variant="outline" />}
             >
               <span className="text-subtle">Status</span>
               <span aria-hidden="true" className="text-faint">
@@ -84,9 +79,6 @@ export function ProvidersToolbar({
           </DropdownMenu>
         </ListingToolbar.Filters>
       </ListingToolbar.Leading>
-      <ListingToolbar.Trailing>
-        <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
-      </ListingToolbar.Trailing>
     </ListingToolbar>
   );
 }
