@@ -1365,7 +1365,7 @@ describe("palette nested views", () => {
         <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
       </PaletteHarness>
     );
-    expect(screen.getByText("No sessions in this workspace yet.")).toBeInTheDocument();
+    expect(screen.getByText("No sessions in this project yet.")).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
   });
 
@@ -1428,7 +1428,7 @@ describe("palette nested views", () => {
     await pushSessionsView(user);
 
     const scope = screen.getByTestId("os-palette-session-scope");
-    expect(scope).toHaveAccessibleName("All workspaces");
+    expect(scope).toHaveAccessibleName("All projects");
     expect(scope).toHaveAttribute("aria-pressed", "false");
     await user.click(scope);
     expect(paletteMocks.setSessionListScope).toHaveBeenCalledWith("all-workspaces");
@@ -1474,7 +1474,7 @@ describe("palette nested views", () => {
         <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
       </PaletteHarness>
     );
-    expect(screen.getByText("No sessions across workspaces yet.")).toBeInTheDocument();
+    expect(screen.getByText("No sessions across projects yet.")).toBeInTheDocument();
   });
 
   it("Should read the archive through its own toggle without touching the breadth [UT-061]", async () => {

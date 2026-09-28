@@ -371,9 +371,9 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   if (!reenabledSessionId) {
     throw new Error("Expected the re-enabled trigger run to expose a linked session.");
   }
-  const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch workspace?" });
+  const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
   await expect(workspaceSwitchDialog).toBeVisible();
-  await workspaceSwitchDialog.getByRole("button", { name: "Switch workspace" }).click();
+  await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
   const sessionUI = sessionWindowSelectors(sessionWindow(appPage, reenabledSessionId));
   await expect(sessionUI.chatView).toBeVisible();
   await expect(sessionUI.chatView).toContainText("Review payload deploy for main");

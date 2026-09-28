@@ -259,7 +259,7 @@ export function OsMenuBar({
             )}
             {scopeControl}
             {wrapMenus ? (
-              <Menubar aria-label="Workspace" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar aria-label="Project" className={cn("gap-1", WINDOW_NO_DRAG)}>
                 {workspaceControl}
               </Menubar>
             ) : (

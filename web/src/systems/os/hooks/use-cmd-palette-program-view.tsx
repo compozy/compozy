@@ -129,7 +129,7 @@ export function useCmdPaletteProgramView({
     store.trigger.openStarted({ preserve: store.getSnapshot().context.payload !== null });
     const epoch = store.getSnapshot().context.openEpoch;
     if (!workspace || attachmentToken === "") {
-      store.trigger.openFailed({ error: "This browser is not attached to the workspace." });
+      store.trigger.openFailed({ error: "This window isn't connected to the project yet." });
       return undefined;
     }
     const controller = new AbortController();
