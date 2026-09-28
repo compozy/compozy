@@ -856,9 +856,9 @@ describe("SessionThread transcript states", () => {
   });
 
   // Invariant (US-014.EC-2): while the daemon reports a quiet episode the
-  // status row reads the quiet clock, not a working timer the daemon's own
-  // signals contradict; both figures derive from the daemon instants.
-  it("Should read the quiet clock instead of the working timer while the daemon reports a quiet episode", async () => {
+  // status row never shows a working timer the daemon's own signals
+  // contradict; the window's quiet Alert is the one place the quiet clock reads.
+  it("Should keep the status row silent instead of a working timer while the daemon reports a quiet episode", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-04-17T18:31:00Z"));
     try {
@@ -868,11 +868,10 @@ describe("SessionThread transcript states", () => {
         quietWarning: sessionQuietWarning(quietWarningSessionFixture),
       });
 
-      const row = await screen.findByRole("status", { name: "Quiet" });
-      expect(row).toHaveAttribute("data-quiet-stop", "scheduled");
-      expect(within(row).getByTestId("session-quiet-elapsed")).toHaveTextContent("31m");
-      expect(within(row).getByTestId("session-quiet-remaining")).toHaveTextContent("9m");
+      await screen.findByTestId("composer-input");
+      expect(screen.queryByRole("status", { name: "Quiet" })).not.toBeInTheDocument();
       expect(screen.queryByRole("status", { name: "Working" })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("session-working-row")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -1641,9 +1640,8 @@ describe("SessionThread transcript states", () => {
     expect(cut).toBeDefined();
     expect(within(cut!).getByTestId("tool-call-state-word")).toHaveTextContent("stopped");
     expect(screen.queryByText(/Running Preparing/)).not.toBeInTheDocument();
-    const status = screen.getByTestId("session-stopped-row");
-    expect(status).toHaveAttribute("data-stopped-by", "you");
-    expect(status).toHaveTextContent("Stopped by you after 46s");
+    // The fold is the one owner of "You stopped after 46s": no second status line.
+    expect(screen.queryByTestId("session-stopped-row")).not.toBeInTheDocument();
   });
 
   // Invariant (US-009.EC-2): a stop the daemon answered nothing-in-flight reads
@@ -3099,12 +3097,13 @@ describe("SessionThread transcript states", () => {
     // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
     expect(workingRow.querySelector('[data-slot="typing-dots"]')?.children).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
-    // Live "Working for Xs · Running shell": the timer counts from the daemon's
-    // durable turn start, the activity from the session's current tool (US-027).
+    // Live "Working for Xs": the timer counts from the daemon's durable turn
+    // start (US-027); the running tool is the live row's, never repeated here.
     expect(workingRow).toHaveTextContent(/Working for/);
     const timer = screen.getByTestId("session-working-timer");
     expect(timer.textContent).toMatch(/^\d+s$/);
-    expect(screen.getByTestId("session-working-activity")).toHaveTextContent("Running shell");
+    expect(screen.queryByTestId("session-working-activity")).not.toBeInTheDocument();
+    expect(workingRow).not.toHaveTextContent("Running shell");
   });
 
   // Invariant: a pending stop states intent without presenting continued work or
@@ -5764,12 +5763,7 @@ it("Should preserve provider titles through the runtime and disclose live and Wo
   );
   await user.keyboard("{Escape}");
   expect(trigger).toHaveFocus();
-  const activity = screen.getByRole("button", { name: "Activity details" });
-  await user.click(activity);
-  expect((await screen.findByRole("dialog", { name: "Activity details" })).textContent).toContain(
-    title
-  );
-  await user.click(screen.getByRole("button", { name: "Copy activity details" }));
-  expect(await navigator.clipboard.readText()).toBe(title);
+  // The Working row no longer repeats the tool: the live row is its one owner.
+  expect(screen.queryByRole("button", { name: "Activity details" })).not.toBeInTheDocument();
   expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
 });

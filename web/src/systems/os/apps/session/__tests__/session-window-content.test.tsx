@@ -394,7 +394,7 @@ describe("SessionWindowContent", () => {
     const notice = await screen.findByTestId("session-quiet-warning");
     expect(notice).toHaveAttribute("data-quiet-stop", "off");
     expect(screen.getByTestId("session-quiet-warning-message")).toHaveTextContent(
-      "Automatic stop is off, so this session keeps waiting until the agent gets back to work or you stop it."
+      "The agent hasn't done any work in a while. Stop it if it looks stuck."
     );
     expect(screen.getByTestId("session-quiet-warning-message")).not.toHaveTextContent("stops in");
   });

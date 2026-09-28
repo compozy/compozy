@@ -8,7 +8,6 @@
 
 import type { SessionPayload } from "../types";
 import { formatQuietDurationWords } from "./session-quiet-warning";
-import { liveToolLabel } from "./session-tool-visual-state";
 
 /** Live "Working for Xs" ladder: seconds under a minute, then `Xm Ys`, then `Xh Ym`. */
 export function formatWorkingElapsed(startedAtMs: number, nowMs: number): string {
@@ -121,15 +120,11 @@ function signalCount(session: SessionWorkingStatusInput["session"], kind: string
   return session.supervision?.work_signals.filter(signal => signal.kind === kind).length ?? 0;
 }
 
-// The activity segment, in precedence: a decision waiting on the operator is
-// activity too; then the honest parallel count; then the single tool's verb.
+// The activity segment only speaks for a decision waiting on the operator. The
+// running tool (or the parallel count) is owned by the live row in the
+// transcript, one line above; repeating it here said the same fact twice.
 function currentActivity(session: SessionWorkingStatusInput["session"]): string | null {
-  if (session.pending_interactions.length > 0) return "Waiting for your decision";
-  const runningTools = signalCount(session, "tool_running");
-  if (runningTools > 1) return `Running ${runningTools} tools`;
-  const tool = session.activity?.current_tool?.trim();
-  if (!tool) return null;
-  return liveToolLabel(tool).text;
+  return session.pending_interactions.length > 0 ? "Waiting for your decision" : null;
 }
 
 export function agentCountLabel(count: number): string {
@@ -156,14 +151,16 @@ export function deriveWorkingStatus(input: SessionWorkingStatusInput): SessionWo
   switch (lastTurn.cause) {
     case "stopped": {
       const stop = lastTurn.stop ?? { kind: "user" as const };
-      return {
-        kind: "stopped",
-        duration,
-        byYou: stop.kind === "user",
-        detail: stopAttributionDetail(stop),
-      };
+      const byYou = stop.kind === "user";
+      const detail = stopAttributionDetail(stop);
+      // The turn's fold already reads "You stopped after …"; the row only
+      // speaks when it adds who stopped it or why.
+      if (byYou && detail === null) return { kind: "hidden" };
+      return { kind: "stopped", duration, byYou, detail };
     }
     case "failed":
+      // Same for a failure: the fold says "Failed after …"; the row adds the cause.
+      if (lastTurn.failureCause === null) return { kind: "hidden" };
       return { kind: "failed", duration, cause: lastTurn.failureCause };
     default:
       // A completed or steer-replaced turn reads nothing here: the frozen

@@ -337,10 +337,6 @@ export {
   type SessionQuietWarningNoticeProps,
 } from "./components/session-quiet-warning-notice";
 export {
-  SessionQuietStatusRow,
-  type SessionQuietStatusRowProps,
-} from "./components/session-quiet-status-row";
-export {
   SessionThinkingRow,
   type SessionThinkingRowProps,
 } from "./components/session-thinking-row";

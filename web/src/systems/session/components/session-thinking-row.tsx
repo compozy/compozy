@@ -197,9 +197,9 @@ function SessionStatusLine({
           data-testid="session-stopped-row"
           data-status="stopped"
           data-stopped-by={status.byYou ? "you" : "daemon"}
-          className={cn(ROW_CLASS, "text-warning")}
+          className={ROW_CLASS}
         >
-          <CircleStop aria-hidden="true" className="size-3 shrink-0" />
+          <CircleStop aria-hidden="true" className="size-3 shrink-0 text-warning" />
           <span>
             {status.byYou ? "Stopped by you after " : "Stopped after "}
             <span className="font-medium">{status.duration}</span>
@@ -218,9 +218,9 @@ function SessionStatusLine({
           role="status"
           data-testid="session-failed-row"
           data-status="failed"
-          className={cn(ROW_CLASS, "text-danger")}
+          className={ROW_CLASS}
         >
-          <CircleAlert aria-hidden="true" className="size-3 shrink-0" />
+          <CircleAlert aria-hidden="true" className="size-3 shrink-0 text-danger" />
           <span>
             Failed after <span className="font-medium">{status.duration}</span>
             {status.cause ? (
