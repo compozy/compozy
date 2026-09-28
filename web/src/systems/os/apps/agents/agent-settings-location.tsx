@@ -1,20 +1,16 @@
 import { useEffect, useRef } from "react";
-import { Settings2 } from "lucide-react";
+import { Bot } from "lucide-react";
 
 import {
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Eyebrow,
-  KindIcon,
+  EntityDialogHeader,
   Pill,
   Spinner,
   cn,
-  providerKindIconRegistry,
+  dialogShellClass,
 } from "@compozy/ui";
 
 import {
@@ -28,15 +24,13 @@ import {
 
 const SECTION_LABELS: Record<AgentSettingsSection, string> = {
   basics: "Basics",
-  runtime: "Runtime",
+  runtime: "Model",
   instructions: "Instructions",
   access: "Access",
   mcp: "MCP servers",
-  danger: "Danger zone",
 };
 
-const SETTINGS_MODAL_CLASS =
-  "text-fg flex w-(--width-modal-lg) max-w-[calc(100vw-2rem)] flex-col overflow-hidden sm:max-w-(--width-modal-lg) h-[min(720px,92vh)] max-h-[calc(100vh-2rem)]";
+const SETTINGS_MODAL_CLASS = `text-fg flex flex-col overflow-hidden ${dialogShellClass("lg", { fill: true })}`;
 
 export function AgentSettingsLocation({
   name,
@@ -78,63 +72,18 @@ export function AgentSettingsLocation({
         showCloseButton={false}
         className={SETTINGS_MODAL_CLASS}
         data-testid="agent-settings-dialog"
-        aria-describedby="agent-settings-description"
       >
         {page.unsavedGuardDialog}
         {page.deleteFlow.confirmDialog}
 
-        <DialogHeader variant="ruled" className="shrink-0 gap-3 sm:flex-row sm:items-start">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="grid size-[34px] shrink-0 place-items-center rounded-lg bg-elevated text-muted shadow-highlight"
-            >
-              {page.agent ? (
-                <KindIcon
-                  className="size-[18px]"
-                  kind={page.agent.provider}
-                  registry={providerKindIconRegistry}
-                  size="sm"
-                  tone="default"
-                />
-              ) : (
-                <Settings2 className="size-4" />
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Eyebrow className="text-muted">Agents · Settings</Eyebrow>
-                {page.dirty ? (
-                  <Pill tone="warning" size="sm" data-testid="agent-settings-unsaved">
-                    Unsaved
-                  </Pill>
-                ) : null}
-              </div>
-              <DialogTitle className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
-                Edit {name}
-              </DialogTitle>
-              <DialogDescription
-                id="agent-settings-description"
-                className="mt-1 text-small-body text-muted"
-              >
-                Update the agent definition used for new sessions. Runtime, instructions, and access
-                apply on save — existing sessions keep their current config.
-              </DialogDescription>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Close settings"
-            onClick={() => page.onBackToDetail()}
-            data-testid="agent-settings-close"
-          >
-            <span aria-hidden="true" className="text-body leading-none">
-              ×
-            </span>
-          </Button>
-        </DialogHeader>
+        <EntityDialogHeader
+          className="shrink-0"
+          closeLabel="Close settings"
+          eyebrow="Agents"
+          icon={Bot}
+          onClose={() => page.onBackToDetail()}
+          title={`Edit ${name}`}
+        />
 
         {page.agentLoading || !page.agent || !page.draft ? (
           <div
@@ -156,7 +105,6 @@ export function AgentSettingsLocation({
             >
               {AGENT_SETTINGS_SECTIONS.map(section => {
                 const isActive = search.section === section;
-                const isDanger = section === "danger";
                 return (
                   <button
                     key={section}
@@ -170,9 +118,7 @@ export function AgentSettingsLocation({
                       "w-auto shrink-0 md:w-full",
                       isActive
                         ? "bg-row-selected text-fg-strong"
-                        : "text-muted hover:bg-hover hover:text-fg",
-                      isDanger && !isActive && "text-danger hover:text-danger",
-                      isDanger && isActive && "bg-danger-tint text-danger"
+                        : "text-muted hover:bg-hover hover:text-fg"
                     )}
                   >
                     <span className="whitespace-nowrap md:truncate">{SECTION_LABELS[section]}</span>
@@ -208,9 +154,16 @@ export function AgentSettingsLocation({
         )}
 
         <DialogFooter variant="ruled" className="shrink-0 sm:justify-between">
-          <p className="text-small-body text-muted" data-testid="agent-settings-footer-note">
-            Changes apply to new sessions only.
-          </p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="text-small-body text-muted" data-testid="agent-settings-footer-note">
+              Changes apply to new sessions only.
+            </p>
+            {page.dirty ? (
+              <Pill tone="warning" size="sm" data-testid="agent-settings-unsaved">
+                Unsaved
+              </Pill>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             <Button
               type="button"

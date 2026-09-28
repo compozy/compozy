@@ -43,7 +43,7 @@ export function GatewayAuditPanel({
         </Button>
       }
       data-testid="gateway-audit-panel"
-      title="Self-audit"
+      title="Safety check"
     >
       {isRunning ? (
         <div className="flex items-center justify-center py-8" role="status">

@@ -26,7 +26,7 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
             onClick={() => sessionCreate.openForAgent("")}
             size="sm"
             type="button"
-            variant="neutral"
+            variant="primary"
           >
             Start a session
           </Button>
@@ -51,6 +51,7 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
         </>
       }
       data-testid="home-first-run"
+      support="Start a session with an agent, or set up a task that runs on its own."
       icon={Home}
       title={workspaceName ? `No agent work yet in ${workspaceName}` : "No agent work yet"}
     />

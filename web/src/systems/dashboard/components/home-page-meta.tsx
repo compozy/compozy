@@ -16,7 +16,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
 
 /**
  * Demoted page meta line — the window head owns identity, so the body opens
- * with a 12px date · workspace line instead of a second H1.
+ * with a 12px date · project line instead of a second H1.
  */
 export function HomePageMeta({ workspaceName, today, className, ...props }: HomePageMetaProps) {
   return (
@@ -33,7 +33,7 @@ export function HomePageMeta({ workspaceName, today, className, ...props }: Home
         <>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
           <span>
-            workspace <span className="font-medium text-muted">{workspaceName}</span>
+            project <span className="font-medium text-muted">{workspaceName}</span>
           </span>
         </>
       ) : null}

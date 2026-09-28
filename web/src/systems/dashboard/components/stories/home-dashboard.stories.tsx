@@ -201,13 +201,13 @@ const activityEvents: HomeActivityEvent[] = [
 
 const systemModel: HomeSystemModel = {
   allNormal: true,
-  summary: "v0.4.2 · up 2d 4h · providers 3/3 · scheduler running",
+  summary: "Running for 2d 4h · 3 of 3 providers ready",
   tiles: [
     {
       key: "daemon",
-      label: "Runtime",
+      label: "CompozyOS",
       value: "Running",
-      detail: "v0.4.2 · up 2d 4h",
+      detail: "Running for 2d 4h",
       tone: "success",
     },
     {
@@ -219,24 +219,29 @@ const systemModel: HomeSystemModel = {
     },
     {
       key: "scheduler",
-      label: "Scheduler",
-      value: "Running",
-      detail: "next wake 09:57",
+      label: "Automations",
+      value: "On",
+      detail: "Next run 09:57",
       tone: "success",
     },
     {
       key: "memory",
       label: "Memory",
       value: "Enabled",
-      detail: "dream consolidation on",
       tone: "success",
     },
-    { key: "hooks", label: "Hooks", value: "24 runs today", detail: "0 failed", tone: "success" },
+    {
+      key: "hooks",
+      label: "Hooks",
+      value: "24 runs today",
+      detail: "None failed",
+      tone: "success",
+    },
     {
       key: "retention",
-      label: "Retention",
+      label: "Data kept",
       value: "60 days",
-      detail: "events · usage · permissions",
+      detail: "Activity, usage, and approvals",
     },
   ],
 };

@@ -1,9 +1,13 @@
-import { Pill, Section } from "@compozy/ui";
+import { ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
+
+import { Button, MetadataList, Panel, Pill } from "@compozy/ui";
 
 import { formatAbsentOverride } from "../lib/agent-absent-value";
+import { agentShadowLayers, formatAgentLayer } from "../lib/agent-fleet-projection";
+import { permissionLabel } from "../lib/agent-permissions";
 import type { AgentPayload } from "../types";
 import { AgentMcpServersPanel } from "./agent-mcp-servers-panel";
-import { AgentPanelBox } from "./agent-panel-box";
 
 export interface AgentConfigurationTabProps {
   agent: AgentPayload;
@@ -14,134 +18,117 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
   const tools = agent.tools ?? [];
   const denyTools = agent.deny_tools ?? [];
   const toolsets = agent.toolsets ?? [];
+  const shadows = agentShadowLayers(agent);
+  const command = agent.command?.trim() ?? "";
 
   return (
     <div className="flex flex-col gap-6" data-testid="agent-configuration-tab">
-      <Section
-        className="gap-0"
-        label="Runtime"
+      <Panel
+        bodyClassName="p-0"
         data-testid="agent-config-runtime"
         right={
-          <EditLink onClick={() => onEditSection("runtime")} testId="agent-config-edit-runtime" />
+          <EditButton onClick={() => onEditSection("runtime")} testId="agent-config-edit-runtime" />
         }
+        title="Runtime"
       >
-        <AgentPanelBox>
-          <div className="flex flex-col">
-            <ConfigKvRow
-              label="Command"
-              value={formatAbsentOverride(agent.command)}
-              muted={!agent.command?.trim()}
-              mono={Boolean(agent.command?.trim())}
-            />
-            <ConfigKvRow
-              label="Permissions"
-              value={agent.permissions?.trim() || "Default"}
-              muted={!agent.permissions?.trim()}
-              mono={Boolean(agent.permissions?.trim())}
-            />
-          </div>
-        </AgentPanelBox>
-      </Section>
+        <MetadataList className="gap-0">
+          <ConfigRow label="Defined in" testId="agent-config-defined-in">
+            <span className="font-mono text-mono-id">{formatAgentLayer(agent)}</span>
+            {shadows.length > 0 ? (
+              <span className="text-muted"> · overrides {shadows.join(", ")}</span>
+            ) : null}
+          </ConfigRow>
+          <ConfigRow label="Command">
+            <span className={command ? "font-mono" : "text-muted"}>
+              {formatAbsentOverride(command)}
+            </span>
+          </ConfigRow>
+          <ConfigRow label="Permissions">{permissionLabel(agent.permissions)}</ConfigRow>
+        </MetadataList>
+      </Panel>
 
-      <Section
-        className="gap-0"
-        label="Access"
+      <Panel
+        bodyClassName="p-0"
         data-testid="agent-config-access"
         right={
-          <EditLink onClick={() => onEditSection("access")} testId="agent-config-edit-access" />
+          <EditButton onClick={() => onEditSection("access")} testId="agent-config-edit-access" />
         }
+        title="Access"
       >
-        <AgentPanelBox>
-          <AccessTokenRow label="Tools" values={tools} testId="agent-config-tools" />
+        <MetadataList className="gap-0">
+          <AccessTokenRow label="Allowed tools" testId="agent-config-tools" values={tools} />
           <AccessTokenRow
-            label="Deny tools"
-            values={denyTools}
-            tone="danger"
+            label="Blocked tools"
             testId="agent-config-deny-tools"
+            values={denyTools}
           />
-          <AccessTokenRow label="Toolsets" values={toolsets} testId="agent-config-toolsets" />
-        </AgentPanelBox>
-      </Section>
+          <AccessTokenRow label="Tool groups" testId="agent-config-toolsets" values={toolsets} />
+        </MetadataList>
+      </Panel>
 
-      <Section
-        className="gap-0"
-        label="MCP servers"
+      <Panel
+        bodyClassName="p-0"
         data-testid="agent-config-mcp"
-        right={<EditLink onClick={() => onEditSection("mcp")} testId="agent-config-edit-mcp" />}
+        right={<EditButton onClick={() => onEditSection("mcp")} testId="agent-config-edit-mcp" />}
+        title="MCP servers"
       >
-        <AgentPanelBox>
-          <AgentMcpServersPanel agent={agent} bare />
-        </AgentPanelBox>
-      </Section>
+        <AgentMcpServersPanel agent={agent} bare />
+      </Panel>
     </div>
   );
 }
 
-function EditLink({ onClick, testId }: { onClick: () => void; testId: string }) {
+function EditButton({ onClick, testId }: { onClick: () => void; testId: string }) {
   return (
-    <button
-      type="button"
-      className="text-small-body text-muted hover:text-fg"
-      onClick={onClick}
-      data-testid={testId}
-    >
-      Edit ›
-    </button>
+    <Button data-testid={testId} onClick={onClick} size="sm" type="button" variant="ghost">
+      Edit
+      <ChevronRight aria-hidden="true" data-icon="inline-end" />
+    </Button>
   );
 }
 
-function ConfigKvRow({
+const configRowClassName =
+  "flex-col items-start gap-1.5 border-t border-line-soft px-4 py-3.5 first:border-t-0";
+
+function ConfigRow({
   label,
-  value,
-  muted,
-  mono,
+  testId,
+  children,
 }: {
   label: string;
-  value: string;
-  muted?: boolean;
-  mono?: boolean;
+  testId?: string;
+  children: ReactNode;
 }) {
   return (
-    <div className="border-t border-line-soft px-4 py-3.5 first:border-t-0">
-      <p className="eyebrow text-muted">{label}</p>
-      <p
-        className={[
-          "mt-1.5 text-body",
-          muted ? "text-muted" : "text-fg",
-          mono ? "font-mono" : "",
-        ].join(" ")}
-      >
-        {value}
-      </p>
-    </div>
+    <MetadataList.Row className={configRowClassName} data-testid={testId}>
+      <MetadataList.Term>{label}</MetadataList.Term>
+      <MetadataList.Value className="text-fg">{children}</MetadataList.Value>
+    </MetadataList.Row>
   );
 }
 
 function AccessTokenRow({
   label,
   values,
-  tone = "neutral",
   testId,
 }: {
   label: string;
   values: readonly string[];
-  tone?: "neutral" | "danger";
   testId: string;
 }) {
   return (
-    <div className="border-t border-line-soft px-4 py-3.5 first:border-t-0" data-testid={testId}>
-      <p className="eyebrow mb-2 text-muted">{label}</p>
+    <ConfigRow label={label} testId={testId}>
       {values.length === 0 ? (
-        <p className="text-small-body text-muted">None</p>
+        <span className="text-muted">None</span>
       ) : (
-        <div className="flex flex-wrap gap-1.5">
+        <span className="flex flex-wrap gap-1.5">
           {values.map(value => (
-            <Pill key={value} mono size="sm" tone={tone}>
+            <Pill key={value} mono size="sm">
               {value}
             </Pill>
           ))}
-        </div>
+        </span>
       )}
-    </div>
+    </ConfigRow>
   );
 }

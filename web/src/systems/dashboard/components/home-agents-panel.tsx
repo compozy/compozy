@@ -41,8 +41,8 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
       >
         {rows.length === 0 ? (
           <Empty
-            description="Define an agent to put the fleet to work."
-            title="No agents in this workspace"
+            description="Create an agent to start working with it."
+            title="No agents in this project"
           />
         ) : (
           <div className="flex flex-1 flex-col">

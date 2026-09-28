@@ -42,8 +42,8 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
   return (
     <Section
       data-slot="home-pulse"
-      label="Pulse · hour × weekday"
-      right={<span className="text-micro text-faint">last 14 days — bounded by retention</span>}
+      label="When agents were busy"
+      right={<span className="text-micro text-muted">Last 14 days</span>}
     >
       <Panel bodyClassName="p-0">
         <div className="overflow-x-auto px-4 pt-4 pb-1.5">

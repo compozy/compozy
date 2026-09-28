@@ -1,6 +1,6 @@
 import { Eye, FileText, TerminalSquare } from "lucide-react";
 
-import { MonoId, Pill, useTopbarSlot } from "@compozy/ui";
+import { Pill, useTopbarSlot } from "@compozy/ui";
 
 import type { TerminalInfo } from "../types";
 import { TerminalHeaderActions, TerminalWindowVerbs } from "./terminal-header-actions";
@@ -64,7 +64,8 @@ export function TerminalHeader({
 }: TerminalHeaderProps) {
   const isPipe = terminal.mode === "pipe";
   const capCount = terminalCapCount(terminalCount, limit);
-  const identityCount = capCount ?? <MonoId size="sm" value={terminal.id} />;
+  // The raw terminal id lives in the journal detail; the head only shows the cap count.
+  const identityCount = capCount ?? undefined;
   const actions = (
     <>
       <TerminalHeaderActions
@@ -81,9 +82,9 @@ export function TerminalHeader({
   const status = (
     <>
       {recording ? (
-        <Pill data-testid="terminal-recording-chip" mono size="sm" tone="neutral">
+        <Pill data-testid="terminal-recording-chip" size="sm" tone="neutral">
           <Pill.Dot pulse tone="danger" />
-          rec {recording.elapsed}
+          Recording {recording.elapsed}
         </Pill>
       ) : null}
       {isPipe ? (
@@ -91,13 +92,13 @@ export function TerminalHeader({
           read-only log
         </Pill>
       ) : null}
-      {isPipe ? null : (
+      {isPipe || terminal.viewers <= 1 ? null : (
         <Pill
           aria-label={`${terminal.viewers} ${terminal.viewers === 1 ? "viewer" : "viewers"}`}
           data-testid="terminal-viewers"
           mono
           size="sm"
-          tone="info"
+          tone="neutral"
         >
           <Eye aria-hidden="true" className="size-3" />
           {terminal.viewers}

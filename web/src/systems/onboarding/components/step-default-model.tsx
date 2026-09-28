@@ -12,13 +12,13 @@ import { RuntimeSelector } from "@/systems/runtime";
 const AUTH_OPTIONS: { mode: OnboardingAuthMode; title: string; description: string }[] = [
   {
     mode: "native_cli",
-    title: "Use the provider CLI",
-    description: "Reuse the sign-in already on this machine. Nothing to paste.",
+    title: "Use my existing sign-in",
+    description: "Reuse the sign-in already on this computer. Nothing to paste.",
   },
   {
     mode: "bound_secret",
     title: "Use an API key",
-    description: "Bind a key from an environment variable, or paste one now.",
+    description: "Read a key from your computer's settings, or paste one now.",
   },
 ];
 
@@ -27,7 +27,7 @@ function ModelFacts({ facts }: { facts: OnboardingModelFact[] }) {
   return (
     <p
       data-testid="onboarding-model-facts"
-      className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-form-hint text-faint"
+      className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-form-hint text-muted"
     >
       {facts.map((fact, index) => (
         <Fragment key={fact.id}>
@@ -36,7 +36,7 @@ function ModelFacts({ facts }: { facts: OnboardingModelFact[] }) {
           ) : null}
           <span>
             {fact.value === null ? null : (
-              <span className="font-medium text-muted">{fact.value} </span>
+              <span className="font-medium text-fg">{fact.value} </span>
             )}
             {fact.label}
           </span>
@@ -55,7 +55,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
     <div className="mt-5.5 flex flex-col gap-5.5" data-testid="onboarding-step-default-model">
       <section>
         <Eyebrow id="onboarding-runtime-label" className="mb-2.5 block text-subtle">
-          Runtime
+          Model
         </Eyebrow>
         {model.providersLoading ? (
           <div className="flex items-center gap-2 text-small-body text-muted">
@@ -92,7 +92,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
 
       <section>
         <Eyebrow id="onboarding-auth-label" className="mb-2.5 block text-subtle">
-          How CompozyOS signs in
+          Sign-in
         </Eyebrow>
         <div
           role="radiogroup"
@@ -125,7 +125,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
         {model.authMode === "bound_secret" ? (
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Environment variable</FieldLabel>
+              <FieldLabel>Key name (environment variable)</FieldLabel>
               <Input
                 value={model.envVar}
                 spellCheck={false}

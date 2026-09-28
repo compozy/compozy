@@ -97,12 +97,9 @@ export function RuntimeSelectorTrigger({
   const meterUnset = currentEffort === "";
   const showFast = speed === "fast" && !compact;
   const providerManaged = provider?.runtime_strategy === "provider_managed";
-  const showWarning = needsAuth || model?.availability === "unavailable" || providerManaged;
-  const warningLabel = needsAuth
-    ? "Provider needs sign in"
-    : model?.availability === "unavailable"
-      ? "Model unavailable"
-      : "Provider managed";
+  // Provider-managed settings are a normal state, so only sign-in and availability warn.
+  const showWarning = needsAuth || model?.availability === "unavailable";
+  const warningLabel = needsAuth ? "Provider needs sign in" : "Model unavailable";
   const providerName = provider?.name || value.provider;
   // `||` not `??`: an unset model is "" (not nullish), so the placeholder must
   // still win — otherwise the trigger renders blank in the no-model state.

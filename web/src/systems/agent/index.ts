@@ -86,6 +86,7 @@ export {
 } from "./lib/query-options";
 
 // Lib
+export { AGENT_CREATE_PERMISSION_OPTIONS, permissionLabel } from "./lib/agent-permissions";
 export {
   inheritedAgentRuntimeFields,
   normalizeRuntimeSpeed,
@@ -93,7 +94,6 @@ export {
 } from "./lib/agent-effective-runtime";
 export {
   AGENT_CREATE_ADVANCED_FIELDS,
-  AGENT_CREATE_PERMISSION_OPTIONS,
   appendAgentCreateTokens,
   buildCreateAgentParams,
   buildDraftFromAgentPayload,
@@ -173,12 +173,9 @@ export {
   type AgentSettingsValidation,
 } from "./lib/agent-settings-draft";
 export {
-  countPromptWords,
   formatAbsentList,
   formatAbsentListLabels,
   formatAbsentOverride,
-  formatPromptWordCount,
-  formatSkillsPolicyLine,
 } from "./lib/agent-absent-value";
 export {
   formatAgentFleetAriaLabel,
@@ -266,11 +263,7 @@ export {
   type AgentRuntimeControlProps,
 } from "./components/agent-runtime-control";
 export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
-export {
-  AgentStatsGrid,
-  type AgentStatsGridProps,
-  type AgentStatsGridVariant,
-} from "./components/agent-stats-grid";
+export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
 export { formatAgentRuntimeDuration } from "./lib/format-agent-runtime-duration";
 export {
   AgentDiagnosticsBanner,

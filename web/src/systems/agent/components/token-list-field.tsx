@@ -1,7 +1,9 @@
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
 
 import {
+  CommandSelectChip,
+  CommandSelectChipStrip,
   Field,
   FieldDescription,
   FieldError,
@@ -12,7 +14,6 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-  Pill,
 } from "@compozy/ui";
 
 import { appendAgentCreateTokens, removeAgentCreateToken } from "../lib/agent-create-draft";
@@ -108,26 +109,21 @@ export function TokenListField({
         </InputGroupAddon>
       </InputGroup>
       {values.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5" data-testid={testId + "-tokens"}>
+        <CommandSelectChipStrip data-testid={testId + "-tokens"}>
           {values.map(value => (
-            <Pill key={value} className="gap-1 pr-1" size="sm">
-              <span className="max-w-44 truncate">{value}</span>
-              <button
-                aria-label={"Remove " + value}
-                className="inline-flex size-4 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50"
-                disabled={disabled}
-                aria-disabled={readOnly || undefined}
-                onClick={() => {
-                  if (disabled || readOnly) return;
-                  onChange(removeAgentCreateToken(values, value));
-                }}
-                type="button"
-              >
-                <X aria-hidden="true" className="size-3" />
-              </button>
-            </Pill>
+            <CommandSelectChip
+              aria-disabled={readOnly || undefined}
+              aria-label={readOnly ? undefined : "Remove " + value}
+              disabled={disabled}
+              key={value}
+              onRemove={
+                readOnly ? undefined : () => onChange(removeAgentCreateToken(values, value))
+              }
+            >
+              {value}
+            </CommandSelectChip>
           ))}
-        </div>
+        </CommandSelectChipStrip>
       ) : null}
       <FieldError data-testid={testId + "-error"}>{error}</FieldError>
     </Field>

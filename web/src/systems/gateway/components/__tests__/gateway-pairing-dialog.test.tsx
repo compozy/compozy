@@ -76,7 +76,7 @@ describe("GatewayPairingDialog", () => {
     const { onMint } = renderDialog();
     const mint = screen.getByTestId("gateway-pairing-mint");
 
-    expect(mint).toHaveTextContent("Mint a new code");
+    expect(mint).toHaveTextContent("Create a new code");
     mint.click();
     expect(onMint).toHaveBeenCalledTimes(1);
   });

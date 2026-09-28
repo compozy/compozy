@@ -1,8 +1,10 @@
+import { ChevronRight } from "lucide-react";
+
 import {
   Button,
   DescriptionCard,
   Eyebrow,
-  Pill,
+  Panel,
   PillGroup,
   Skeleton,
   type PillGroupItem,
@@ -13,9 +15,22 @@ import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { AgentAuthoredFileEditor } from "./agent-authored-file-editor";
 import { AgentHeartbeatOps } from "./agent-heartbeat-ops";
-import { AgentPanelBox } from "./agent-panel-box";
 
 export type { AgentInstructionsTabViewModel };
+
+const FILE_ITEMS: PillGroupItem<AgentInstructionFile>[] = [
+  { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
+  {
+    value: "soul",
+    label: <Eyebrow>SOUL.md</Eyebrow>,
+    testId: "agent-file-tab-soul",
+  },
+  {
+    value: "heartbeat",
+    label: <Eyebrow>HEARTBEAT.md</Eyebrow>,
+    testId: "agent-file-tab-heartbeat",
+  },
+];
 
 export interface AgentInstructionsTabProps {
   agent: AgentPayload;
@@ -34,45 +49,13 @@ export function AgentInstructionsTab({
   viewModel: page,
   onNewSession,
 }: AgentInstructionsTabProps) {
-  const fileItems: PillGroupItem<AgentInstructionFile>[] = [
-    { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
-    {
-      value: "soul",
-      label: (
-        <span className="inline-flex items-center gap-1.5">
-          <Eyebrow>SOUL.md</Eyebrow>
-          {page.soulMissing ? (
-            <Pill size="sm" tone="warning" data-testid="agent-file-soul-missing-badge">
-              missing
-            </Pill>
-          ) : null}
-        </span>
-      ),
-      testId: "agent-file-tab-soul",
-    },
-    {
-      value: "heartbeat",
-      label: (
-        <span className="inline-flex items-center gap-1.5">
-          <Eyebrow>HEARTBEAT.md</Eyebrow>
-          {page.heartbeatMissing ? (
-            <Pill size="sm" tone="warning" data-testid="agent-file-heartbeat-missing-badge">
-              missing
-            </Pill>
-          ) : null}
-        </span>
-      ),
-      testId: "agent-file-tab-heartbeat",
-    },
-  ];
-
   return (
     <div className="flex flex-col gap-3.5" data-testid="agent-instructions-tab">
       <div className="flex flex-wrap items-center gap-2.5">
         <PillGroup
           aria-label="Authored files"
           data-testid="agent-instructions-files"
-          items={fileItems}
+          items={FILE_ITEMS}
           onChange={onFileChange}
           size="md"
           value={file}
@@ -86,27 +69,18 @@ export function AgentInstructionsTab({
             onClick={onEditAgentPrompt}
             data-testid="agent-file-edit-prompt"
           >
-            Edit ›
+            Edit
+            <ChevronRight aria-hidden="true" data-icon="inline-end" />
           </Button>
         ) : null}
       </div>
 
       {file === "agent" ? (
-        <AgentPanelBox data-testid="agent-file-agent">
-          <div
-            className="flex items-center gap-2.5 border-b border-line-soft px-4 py-2.5 text-small-body text-muted"
-            data-testid="agent-file-meta"
-          >
-            <span className="font-mono text-badge tracking-mono">{page.promptWordCount}</span>
-            <span aria-hidden="true" className="text-subtle">
-              ·
-            </span>
-            <span>Read-only here</span>
-          </div>
+        <Panel bodyClassName="p-0" data-testid="agent-file-agent">
           <DescriptionCard bare className="px-5 py-4" data-testid="agent-file-prompt">
             {agent.prompt || "No prompt."}
           </DescriptionCard>
-        </AgentPanelBox>
+        </Panel>
       ) : null}
 
       {file === "soul" ? (

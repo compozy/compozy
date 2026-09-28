@@ -4,12 +4,12 @@ area: ET
 title: Agent detail tab panelbox and content contracts
 persona: Bruno
 journey: J-31
-expected: Overview Runtime lists Model (live selector), Command, and Permissions inside panelbox surfaces; At a glance shows MCP mono chips and Skills; Instructions AGENT.md shows file-meta Read-only here with markdown prose; Configuration Access deny tools use danger pills and MCP uses hairline rows; Sessions empty New session opens the launch dialog and, after creation, navigates through the created session owner workspace to its composer.
+expected: Overview Setup panel lists Model (live selector) and Permissions in plain language (no Command row, no At a glance rail); Instructions AGENT.md renders markdown prose without a meta strip and SOUL/HEARTBEAT tabs carry no missing-file warning pills; Configuration Runtime shows "Defined in" with layer/override provenance, Access lists Allowed/Blocked tools and Tool groups as neutral pills, and MCP uses hairline rows; Sessions empty New session opens the launch dialog and, after creation, navigates through the created session owner workspace to its composer.
 entry_points: web /agents/$name?tab=overview|instructions|configuration|sessions
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png
 last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
@@ -40,3 +40,10 @@ which now takes the reading-tier prose ladder (H1 22 px, H2 18 px, H3 16 px, hea
 32 px), semibold emphasis, accent-strong links, and framed tables. Panel geometry and the tab contracts
 are untouched. Not walked: the Instructions tab in a live runtime; confirm a long AGENT.md still reads
 comfortably inside the panelbox and that no horizontal overflow appears.
+
+QA impact 2026-09-28 (ui-normie-pass): Overview drops the At a glance rail and the Command row
+(Command stays in Configuration), panels move from `AgentPanelBox` to the shared `Panel`, permission
+values render through one plain vocabulary ("Ask before every action" / "Ask only before changes" /
+"Never ask" / "Use the provider's setting"), the Sessions tab drops its duplicate stats grid in favour of
+filter counts and loses the Iterations column, and a failed session list offers Retry. Status reset to
+untested; not walked.

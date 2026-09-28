@@ -247,7 +247,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     providerName,
     modelName,
     reasoningLabel,
-    facts: onboardingModelFacts(selectedModel, harness),
+    facts: onboardingModelFacts(selectedModel),
     authMode,
     envVar: draft.envVar,
     apiKey: draft.apiKey,

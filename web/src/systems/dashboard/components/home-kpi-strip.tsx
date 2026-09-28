@@ -74,13 +74,13 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
         <Metric
           label="Completed today"
           labelCase="eyebrow"
-          subtext={`${overview.today.runs_completed} runs · ${overview.today.tasks_closed} tasks closed`}
+          subtext={`${overview.today.runs_completed} runs, ${overview.today.tasks_closed} tasks finished`}
           value={overview.today.runs_completed + overview.today.tasks_closed}
         />
       </Link>
       <div className="min-w-0 rounded-lg" data-slot="home-kpi-usage">
         <Metric
-          label={`Usage · ${overview.usage.window_days}d`}
+          label={`Usage, last ${overview.usage.window_days} days`}
           labelCase="eyebrow"
           subtext={usageCostDetail(overview)}
           trailing={

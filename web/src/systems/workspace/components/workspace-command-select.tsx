@@ -85,7 +85,7 @@ export function WorkspaceCommandSelect({
     onOpenChange,
     worktreesByWorkspace,
   });
-  const label = state.selected?.name ?? "No workspace";
+  const label = state.selected?.name ?? "No project";
   const hasWorkspaces = state.projectWorkspaces.length > 0;
   const isDisabled = disabled || !hasWorkspaces;
 
@@ -95,7 +95,7 @@ export function WorkspaceCommandSelect({
         aria-haspopup="listbox"
         aria-expanded={state.open}
         aria-labelledby={ariaLabelledBy}
-        aria-label={hasWorkspaces ? `Workspace: ${label}` : "No workspace"}
+        aria-label={hasWorkspaces ? `Project: ${label}` : "No project"}
         data-size={size}
         data-testid={triggerTestId}
         disabled={isDisabled}
@@ -143,7 +143,7 @@ export function WorkspaceCommandSelect({
       </CommandSelectTrigger>
       <CommandSelectShell
         className={cn(size === "compact" ? "min-w-56" : "min-w-64")}
-        inputPlaceholder="Search workspaces..."
+        inputPlaceholder="Search projects…"
         commandProps={{
           value: state.activeCommandValue,
           onValueChange: state.changeCommandValue,
@@ -153,9 +153,9 @@ export function WorkspaceCommandSelect({
       >
         <CommandList>
           <CommandEmpty data-testid={`${testIdPrefix}-empty`}>
-            No workspaces match your search.
+            No projects match your search.
           </CommandEmpty>
-          <CommandSelectGroup heading="Workspaces" data-testid={`${testIdPrefix}-group`}>
+          <CommandSelectGroup heading="Projects" data-testid={`${testIdPrefix}-group`}>
             {state.projectWorkspaces.map(workspace => {
               const isActive = workspace.id === value;
               const node = state.nodeByWorkspaceId.get(workspace.id);
@@ -232,12 +232,12 @@ export function WorkspaceCommandSelect({
               <CommandSeparator />
               <CommandSelectGroup>
                 <CommandItem
-                  value="add workspace"
+                  value="add project"
                   onSelect={state.addWorkspace}
                   data-testid={`${testIdPrefix}-add`}
                 >
                   <Plus aria-hidden="true" className="size-4 shrink-0 text-subtle" />
-                  <span className="text-small-body text-fg">Add workspace</span>
+                  <span className="text-small-body text-fg">Add project</span>
                 </CommandItem>
               </CommandSelectGroup>
             </>
