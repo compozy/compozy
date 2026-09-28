@@ -1,11 +1,5 @@
-import { useState } from "react";
-import { ChevronRight } from "lucide-react";
-
 import {
-  cn,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+  Disclosure,
   Field,
   FieldContent,
   FieldHeader,
@@ -32,57 +26,52 @@ export function ExecutionCollapsible({
   onSaveAsDraft,
   onAutoEnqueue,
 }: ExecutionCollapsibleProps) {
-  const [open, setOpen] = useState(false);
   const badge = saveAsDraft ? "Saved as draft" : "Starts on create";
 
   return (
-    <Collapsible className="mt-5 border-t border-line-soft pt-1" onOpenChange={setOpen} open={open}>
-      <CollapsibleTrigger
-        className="flex w-full items-center gap-2 rounded-sm py-2.5 text-left outline-none focus-visible:shadow-focus-ring"
-        data-testid="task-execution-toggle"
-        type="button"
-      >
-        <ChevronRight
-          aria-hidden="true"
-          className={cn("size-4 text-muted transition-transform", open && "rotate-90")}
+    <Disclosure
+      className="mt-5 border-t border-line-soft pt-1"
+      label={
+        <>
+          <span className="flex-1 font-semibold text-fg-strong">Execution</span>
+          <span className="text-form-hint font-normal text-subtle">{badge}</span>
+        </>
+      }
+      size="md"
+      triggerProps={{ "data-testid": "task-execution-toggle", className: "w-full py-2.5" }}
+      contentProps={{ className: "flex flex-col gap-4 pb-1" }}
+    >
+      <Field orientation="horizontal">
+        <Switch
+          checked={saveAsDraft}
+          data-testid="task-save-draft-toggle"
+          onCheckedChange={onSaveAsDraft}
         />
-        <span className="flex-1 text-small-body font-semibold text-fg-strong">Execution</span>
-        <span className="text-form-hint text-subtle">{badge}</span>
-      </CollapsibleTrigger>
+        <FieldContent>
+          <FieldHeader>
+            <FieldTitle>Save as draft</FieldTitle>
+            <HelpTip label="About save as draft">
+              Create the task without starting it. Start it later from the task page.
+            </HelpTip>
+          </FieldHeader>
+        </FieldContent>
+      </Field>
 
-      <CollapsibleContent className="flex flex-col gap-4 pt-2 pb-1">
-        <Field orientation="horizontal">
-          <Switch
-            checked={saveAsDraft}
-            data-testid="task-save-draft-toggle"
-            onCheckedChange={onSaveAsDraft}
-          />
-          <FieldContent>
-            <FieldHeader>
-              <FieldTitle>Save as draft</FieldTitle>
-              <HelpTip label="About save as draft">
-                Create the task without starting it. Start it later from the task page.
-              </HelpTip>
-            </FieldHeader>
-          </FieldContent>
-        </Field>
-
-        <Field orientation="horizontal">
-          <Switch
-            checked={autoEnqueueOnReady}
-            data-testid="task-auto-enqueue-toggle"
-            onCheckedChange={onAutoEnqueue}
-          />
-          <FieldContent>
-            <FieldHeader>
-              <FieldTitle>Start automatically when ready</FieldTitle>
-              <HelpTip label="About starting automatically">
-                Once the tasks it waits on finish, start it without you doing anything.
-              </HelpTip>
-            </FieldHeader>
-          </FieldContent>
-        </Field>
-      </CollapsibleContent>
-    </Collapsible>
+      <Field orientation="horizontal">
+        <Switch
+          checked={autoEnqueueOnReady}
+          data-testid="task-auto-enqueue-toggle"
+          onCheckedChange={onAutoEnqueue}
+        />
+        <FieldContent>
+          <FieldHeader>
+            <FieldTitle>Start automatically when ready</FieldTitle>
+            <HelpTip label="About starting automatically">
+              Once the tasks it waits on finish, start it without you doing anything.
+            </HelpTip>
+          </FieldHeader>
+        </FieldContent>
+      </Field>
+    </Disclosure>
   );
 }
