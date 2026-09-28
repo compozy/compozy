@@ -1,7 +1,3 @@
-import { AlertTriangle, WifiOff } from "lucide-react";
-
-import { cn } from "@compozy/ui";
-
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
 import {
@@ -33,14 +29,11 @@ function overviewState(input: {
 }
 
 /**
- * Management overview and honest daemon-connection feedback. The status pill
- * also carries a refused command's notice while the stream is healthy, so a
- * drop that rolled back never disappears without a word.
+ * Desktop management overview. Connection health and refused-command notices
+ * live in the menubar's single status pill (`OsHydrationStatus`).
  */
 export interface DesktopManagerSurfacesProps {
   model: DesktopManagerSurfacesModel;
-  /** No workspace is bound, so there is no layout stream to report on. */
-  unbound?: boolean;
   onCreateDesktop: () => void;
   onSwitchDesktop: (desktopId: string) => void;
   onRenameDesktop: (desktopId: string, name: string) => void;
@@ -54,7 +47,6 @@ export interface DesktopManagerSurfacesProps {
 
 export function DesktopManagerSurfaces({
   model,
-  unbound = false,
   onCreateDesktop,
   onSwitchDesktop,
   onRenameDesktop,
@@ -78,7 +70,7 @@ export function DesktopManagerSurfaces({
     activeDesktopId: model.activeDesktopId,
     desktops,
     conflictMessage: model.conflict
-      ? `Revision ${model.conflict.expectedRevision} is stale; CompozyOS is at revision ${model.conflict.currentRevision}.`
+      ? "Your desktops changed somewhere else. Reload to see the latest."
       : null,
     diagnosticMessage: model.diagnostic?.message ?? null,
   });
@@ -103,29 +95,6 @@ export function DesktopManagerSurfaces({
         onRetry={onRetry}
         onResolveConflict={onResolveConflict}
       />
-      {!unbound &&
-      model.hydration !== "pending" &&
-      (model.connectionStatus !== "connected" || model.diagnostic !== null) ? (
-        <div
-          role="status"
-          data-testid="os-window-manager-status"
-          className={cn(
-            "pointer-events-none absolute top-2 right-2 z-30 flex items-center gap-1.5",
-            "rounded-pill border border-line-strong bg-shell-glass px-2.5 py-1",
-            "text-form-hint text-muted backdrop-blur-shell"
-          )}
-        >
-          {model.diagnostic ? (
-            <AlertTriangle aria-hidden="true" className="size-3 text-warning" />
-          ) : (
-            <WifiOff aria-hidden="true" className="size-3 text-subtle" />
-          )}
-          {model.diagnostic?.message ??
-            (model.connectionStatus === "reconnecting"
-              ? "Layout reconnecting"
-              : "Live layout disconnected")}
-        </div>
-      ) : null}
     </>
   );
 }

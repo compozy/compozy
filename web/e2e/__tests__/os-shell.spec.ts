@@ -1089,7 +1089,7 @@ test("E2E-012: blocked window-manager stream degrades without blocking work and 
 
   const degradedStatus = degradedPage
     .getByRole("status")
-    .filter({ hasText: /Layout reconnecting|Live layout disconnected/ });
+    .filter({ hasText: /Reconnecting…|Can.t save window layout/ });
   await expect(degradedStatus).toBeVisible();
   const tasks = await openDockApp(degradedPage, "Tasks", "tasks");
   const before = await windowPosition(degradedPage, tasks);
@@ -2697,7 +2697,7 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
   const shell = osShellSelectors(appPage);
   const layoutUnavailable = appPage
     .getByRole("status")
-    .filter({ hasText: /Layout reconnecting|Live layout disconnected/ });
+    .filter({ hasText: /Reconnecting…|Can.t save window layout/ });
   await expect(shell.tab(sessionID)).toBeVisible();
   await shell.tab(sessionID).click();
   const composer = shell.window(sessionID).getByRole("textbox", { name: "Session prompt" });
