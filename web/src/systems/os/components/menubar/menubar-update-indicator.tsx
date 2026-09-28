@@ -1,6 +1,6 @@
 import { Download } from "lucide-react";
 
-import { Button, Icon } from "@compozy/ui";
+import { Button, Icon, StatusDot, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 export interface MenubarUpdateIndicatorProps {
   /** Daemon truth: at least one track offers an update and nothing is running. */
@@ -22,18 +22,31 @@ export function MenubarUpdateIndicator({ available, onActivate }: MenubarUpdateI
   if (!available) return null;
 
   return (
-    <Button
-      aria-label="Update available"
-      className="size-7"
-      data-slot="os-menubar-update"
-      data-testid="os-menubar-update"
-      onClick={onActivate}
-      size="icon"
-      title="Update available"
-      type="button"
-      variant="default"
-    >
-      <Icon as={Download} size="lg" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label="Update available"
+            className="relative size-7 text-muted"
+            data-slot="os-menubar-update"
+            data-testid="os-menubar-update"
+            onClick={onActivate}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <Icon as={Download} size="lg" />
+            {/* Quiet offer: a dot, not an accent fill competing with the bell. */}
+            <StatusDot
+              tone="accent"
+              size="sm"
+              aria-hidden="true"
+              className="absolute top-1 right-1"
+            />
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">Update available</TooltipContent>
+    </Tooltip>
   );
 }

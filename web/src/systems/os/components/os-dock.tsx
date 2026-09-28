@@ -134,7 +134,7 @@ function DockItem({
         >
           {body}
         </TooltipTrigger>
-        <DockTip label={item.name} />
+        <DockTip label={dockItemAccessibleName(item)} />
       </Tooltip>
     );
   }
@@ -156,7 +156,7 @@ function DockItem({
       >
         {body}
       </TooltipTrigger>
-      <DockTip label={item.name} />
+      <DockTip label={dockItemAccessibleName(item)} />
     </Tooltip>
   );
   return renderItemMenu ? <>{renderItemMenu(item, interactiveItem)}</> : interactiveItem;

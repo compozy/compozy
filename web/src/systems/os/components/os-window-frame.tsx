@@ -82,9 +82,11 @@ function OsWindowToolbar() {
 function OsWindowBody({
   children,
   onScrolled,
+  transitionName,
 }: {
   children: React.ReactNode;
   onScrolled: (scrolled: boolean) => void;
+  transitionName?: string;
 }) {
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const scrollTarget = event.target;
@@ -96,6 +98,7 @@ function OsWindowBody({
     <div
       data-slot="os-window-body"
       className="flex min-h-0 flex-1 flex-col overflow-auto bg-canvas"
+      style={transitionName ? { viewTransitionName: transitionName } : undefined}
       onScrollCapture={handleScroll}
     >
       {children}
@@ -121,6 +124,11 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
   headClassName?: string;
   presentation?: "floating" | "compact";
   slotStore?: TopbarSlotStore;
+  /**
+   * `view-transition-name` for the body. Only the focused, visible window may
+   * carry one — names must be unique per document or the transition aborts.
+   */
+  bodyTransitionName?: string;
 }
 
 export function OsWindowSurface({
@@ -134,6 +142,7 @@ export function OsWindowSurface({
   headClassName,
   presentation = "floating",
   slotStore,
+  bodyTransitionName,
   className,
   children,
   ...props
@@ -171,7 +180,9 @@ export function OsWindowSurface({
           )}
         />
         <OsWindowToolbar />
-        <OsWindowBody onScrolled={setScrolled}>{children}</OsWindowBody>
+        <OsWindowBody onScrolled={setScrolled} transitionName={bodyTransitionName}>
+          {children}
+        </OsWindowBody>
       </TopbarSlotProvider>
     </section>
   );

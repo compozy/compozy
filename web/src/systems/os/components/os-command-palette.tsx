@@ -153,11 +153,11 @@ export function OsCommandPalette({
 
   return (
     <CommandDialog
-      className="top-[9vh] min-[960px]:top-[16vh] sm:max-w-(--width-modal-sm)"
+      className="top-[9vh] shell-wide:top-[16vh] sm:max-w-(--width-modal-sm)"
       description={
         activeView?.description ??
         (root.destination
-          ? "Pick the surface this tab becomes"
+          ? "Choose what to open in this tab"
           : "Search apps, sessions, and actions")
       }
       open={open}

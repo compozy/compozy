@@ -136,7 +136,7 @@ describe("AttentionBell sections", () => {
     await user.click(screen.getByRole("button", { name: "Clear all" }));
     expect(onAcknowledge).toHaveBeenLastCalledWith();
     expect(onSelect).not.toHaveBeenCalled();
-    expect(screen.getByText(/Showing 1 of 230/)).toBeInTheDocument();
+    expect(screen.getByText("1 of 230 shown")).toBeInTheDocument();
   });
 
   it("Should retain failed rows and expose the acknowledgement error", () => {
@@ -204,7 +204,7 @@ describe("AttentionBell sections", () => {
     expect(screen.queryByTestId("os-attention-loop-node-waiting")).not.toBeInTheDocument();
   });
 
-  it("Should state that a disconnected source is frozen and uncounted", () => {
+  it("Should say plainly that a disconnected source can't update", () => {
     render(
       <Popover open>
         <AttentionBell
@@ -218,7 +218,7 @@ describe("AttentionBell sections", () => {
     );
 
     expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
-      "Session attention is unavailable. Frozen rows do not count."
+      "Some notifications can't update right now."
     );
   });
 

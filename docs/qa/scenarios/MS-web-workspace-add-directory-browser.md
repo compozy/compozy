@@ -5,7 +5,7 @@ title: Add workspace picks a root by browsing and registers once on submit
 persona: Dora
 journey: J-operate-workspace-context
 expected: Add workspace opens as a two-pane extra-wide dialog. The left pane is a filesystem browser (home/up toolbar, Locations row, mono current path, "Use this folder", hover-reveal row picks) that chooses the root; there is no plain path input and no one-click global-default / home-folder card. Picking a root only updates the draft — it must not register a workspace — and it autofills the display name from the folder name until the operator types their own. The right pane carries optional session defaults: default agent and additional directories as removable chips. Exactly one `POST /api/workspaces` is issued when the footer primary is pressed, carrying `root_dir` plus any of `name`, `add_dirs`, and `default_agent` that are set. A failed registration reports inline and keeps every entered value. Below 980px the two panes collapse to one column with session defaults stacked underneath. The browser's reading, empty, and permission-error states are all visible. First-run onboarding uses the same browser; folders are optional and Skip starts in Global scope without calling `POST /api/workspaces/resolve` for `$HOME`.
-entry_points: web desktop shell → Add workspace; web workspaces overview → New workspace; web first-run onboarding
+entry_points: web desktop shell → Add project…; web workspaces overview → New project; web first-run onboarding
 qa_status: untested
 bug_ids:
 fix_status:
