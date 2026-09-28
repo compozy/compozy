@@ -110,8 +110,8 @@ test.describe("E2E-009 attention bell", () => {
     await expect(popover.getByTestId(bell.needsYou)).toBeVisible();
     await expect(popover.getByTestId(bell.finished)).toBeVisible();
 
-    const badge = page.locator(`${bell.trigger} [class*="rounded-full"]`).first();
-    await expect(badge).toHaveText("1");
+    await expect(page.locator(bell.trigger)).toHaveAccessibleName("Attention, 1 waiting");
+    await expect(page.locator(`${bell.trigger} [data-slot="pill"]`)).toHaveText("1");
   });
 
   test("Should acknowledge a notification durably without changing its failed session", async ({

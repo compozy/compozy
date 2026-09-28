@@ -948,15 +948,15 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
     "Appearance",
     "Layouts",
     "Profiles",
-    "Palette",
     "Providers",
+    "Palette",
+    "Notifications",
+    "Diagnostics",
     "Memory",
     "Roles",
     "Skills",
     "MCP servers",
     "Automation",
-    "Notifications",
-    "Diagnostics",
     "Remote access",
     "Hooks",
     "Extensions",
@@ -1024,7 +1024,8 @@ test("E2E-018: the real Settings API projects a journaled runtime swap through r
     await desktop.cli(["app", "open", "/settings/general"]);
     const progress = product.getByTestId("settings-page-general-update-progress-runtime");
     for (const phase of ["download", "verify", "install", "start"]) {
-      await expect(progress).toContainText(phase, { timeout: 30_000 });
+      // The daemon's named phase rides on data-phase; the visible label is plain words.
+      await expect(progress).toHaveAttribute("data-phase", phase, { timeout: 30_000 });
     }
     if (!updateResult) throw new Error("The runtime update fixture did not start.");
     const result = await updateResult;
@@ -1827,8 +1828,8 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
     ).toBeDisabled();
 
     await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
-      "title",
-      /^Command palette · /u
+      "aria-keyshortcuts",
+      /^(?:Meta|Control)\+/u
     );
     if (process.platform === "darwin") {
       // Chromium reserves Command-based browser shortcuts before Playwright can

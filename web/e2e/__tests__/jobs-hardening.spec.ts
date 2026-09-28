@@ -273,6 +273,9 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   expect(parity.health.automation.scheduler_running).toBe(true);
 
   await assertJobsLifecycleViewportMatrix(appPage, browserArtifacts, runtime, created.id);
+  // The matrix re-navigates, which folds Advanced details (and the scheduler) closed again.
+  await jobsWin.getByTestId("automation-job-advanced-toggle").click();
+  await expect(jobsWin.getByTestId("automation-job-scheduler")).toBeVisible();
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
   await browserArtifacts.captureScreenshot("jobs-lifecycle-history", appPage);
   await browserArtifacts.persist(appPage);
@@ -436,7 +439,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(windowTitle(jobsWin)).toContainText(job.name, { timeout: 20_000 });
   await expect(ui.run(failedRun.id)).toBeVisible();
-  await expect(ui.run(failedRun.id)).toContainText("FAILED");
+  await expect(ui.run(failedRun.id)).toContainText("Failed");
   await expect(ui.run(failedRun.id)).toContainText(/disconnect|prompt|session|failed/i);
 
   const parity = await captureJobParity(runtime, job.id, failedRun.id);

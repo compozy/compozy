@@ -164,6 +164,50 @@ export function shortcutLabel(
   return shortcutKeyGlyphs(chord, primaryModifier).join("");
 }
 
+const ARIA_MODIFIER_NAMES: Record<ShortcutModifier, string> = {
+  meta: "Meta",
+  control: "Control",
+  alt: "Alt",
+  shift: "Shift",
+};
+const ARIA_CODE_KEYS: Readonly<Record<string, string>> = {
+  BracketLeft: "[",
+  BracketRight: "]",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Semicolon: ";",
+  Quote: "'",
+  Backquote: "`",
+  Minus: "-",
+  Equal: "=",
+  Backslash: "\\",
+};
+
+/**
+ * The chord in `aria-keyshortcuts` syntax (e.g. `Meta+K`), with the same
+ * portable-primary mapping the glyph label uses. Empty when the chord is invalid.
+ */
+export function shortcutAriaKeys(
+  chord: string,
+  primaryModifier: PrimaryShortcutModifier = "meta"
+): string {
+  const parsed = parseShortcutChord(chord);
+  if (parsed === null) return "";
+  const portablePrimary = parsed.modifiers.has("meta") && !parsed.modifiers.has("control");
+  const modifiers: string[] = [];
+  for (const modifier of MODIFIER_ORDER) {
+    if (!parsed.modifiers.has(modifier)) continue;
+    modifiers.push(
+      modifier === "meta" && portablePrimary && primaryModifier === "control"
+        ? ARIA_MODIFIER_NAMES.control
+        : ARIA_MODIFIER_NAMES[modifier]
+    );
+  }
+  const key = ARIA_CODE_KEYS[parsed.code] ?? parsed.code.replace(/^Key/, "").replace(/^Digit/, "");
+  return [...modifiers, key].join("+");
+}
+
 /**
  * Whether an override may name this id. The known-id set is supplied by the
  * caller from the registry — the id space is open (core plus `ext.*`), so no

@@ -1,6 +1,8 @@
 // Suite: desktop onboarding gate
 // Invariant: first-run setup renders over the live shell, and completing it reveals the
 // desktop that was already mounted behind the panel rather than building a new one.
+// A daemon access refusal (403, fixed daemon-authored text) is shown verbatim, while
+// any other failure keeps the raw runtime message off screen.
 // Boundary IN: DesktopGate's status branching and child lifecycle.
 // Boundary OUT: the setup panel internals, the onboarding transport, and the window manager.
 import { render, screen } from "@testing-library/react";
@@ -30,6 +32,8 @@ vi.mock("@/systems/onboarding/components/onboarding-setup-panel", () => ({
     </div>
   ),
 }));
+
+import { OnboardingApiError } from "@/systems/onboarding";
 
 import { DesktopGate } from "../desktop-gate";
 
@@ -112,5 +116,19 @@ describe("DesktopGate", () => {
     expect(screen.queryByTestId("os-desktop")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(mocks.status.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("Should state the daemon's access refusal verbatim instead of claiming an outage", () => {
+    const refusal =
+      "remote HTTP API access is disabled unless the daemon is bound to a loopback host";
+    mocks.status.isError = true;
+    mocks.status.error = new OnboardingApiError(refusal, 403);
+
+    renderGate();
+
+    const gateError = screen.getByTestId("onboarding-gate-error");
+    expect(gateError).toHaveTextContent(refusal);
+    expect(gateError).toHaveTextContent("CompozyOS refused this connection");
+    expect(gateError).not.toHaveTextContent("CompozyOS isn't responding");
   });
 });

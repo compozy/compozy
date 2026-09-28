@@ -58,6 +58,8 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   onSettingsClick?: () => void;
   /** Live daemon binding for the command-palette chip. */
   commandShortcutLabel?: string;
+  /** The same binding in `aria-keyshortcuts` syntax; absent until the keymap is known. */
+  commandKeyShortcuts?: string;
   /** Renders the CompozyOS mark inside its system-menu owner (shell wiring). */
   logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Renders the workspace chip inside its menu owner (shell wiring). */
@@ -173,6 +175,7 @@ export function OsMenuBar({
   onCommandClick,
   onSettingsClick,
   commandShortcutLabel,
+  commandKeyShortcuts,
   logoMenu,
   workspaceMenu,
   scopeControl,
@@ -306,6 +309,7 @@ export function OsMenuBar({
             <Control
               data-slot="os-menubar-command"
               aria-label="Command palette"
+              aria-keyshortcuts={commandKeyShortcuts || undefined}
               className="grid size-7 place-items-center rounded-md text-muted"
               onClick={onCommandClick}
             >

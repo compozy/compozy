@@ -65,15 +65,15 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Appearance",
       "Layouts",
       "Profiles",
-      "Palette",
       "Providers",
+      "Palette",
+      "Notifications",
+      "Diagnostics",
       "Memory",
       "Roles",
       "Skills",
       "MCP servers",
       "Automation",
-      "Notifications",
-      "Diagnostics",
       "Remote access",
       "Hooks",
       "Extensions",
@@ -371,7 +371,13 @@ test("operator can replace a builtin provider with a config overlay and delete i
   await expect(settingsUI.providers.inspectorCommand).toContainText(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
   );
-  await expect(settingsUI.providers.inspectorSource).toContainText(/config/i);
+  // The overlay's effective source is the global config, replacing the builtin.
+  await expect(
+    settingsUI.providers.inspectorSource.getByTestId("inspect-source-effective")
+  ).toHaveText("From settings");
+  await expect(
+    settingsUI.providers.inspectorSource.getByTestId("inspect-source-shadowed")
+  ).toContainText("Built in");
   await settingsUI.providers.editorDelete.click();
   await expect(settingsUI.providers.deleteDialog).toBeVisible();
   await settingsUI.providers.deleteConfirm.click();
@@ -381,7 +387,9 @@ test("operator can replace a builtin provider with a config overlay and delete i
   );
   await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
   await settingsUI.providers.card(builtinProviderName).click();
-  await expect(settingsUI.providers.inspectorSource).toContainText(/builtin/i);
+  await expect(
+    settingsUI.providers.inspectorSource.getByTestId("inspect-source-effective")
+  ).toHaveText("Built in");
   await browserArtifacts.captureScreenshot(
     "tc-func-008-providers-crud-and-builtin-fallback",
     appPage
@@ -536,6 +544,11 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await expect(settingsUI.hooks.hooksList).toHaveCount(0);
 
     await expect(settingsUI.extensions.githubEnabled).toBeChecked();
+    // The GitHub API URL lives in the page's Advanced fold.
+    await settingsWin
+      .getByTestId("settings-page-extensions-advanced")
+      .getByTestId("settings-advanced-toggle")
+      .click();
     await settingsUI.extensions.githubBaseURLInput.fill("https://github.example/api/v3");
     await expect(settingsUI.extensions.save).toBeEnabled();
     await settingsUI.extensions.save.click();
@@ -718,9 +731,13 @@ test("browser operator applies all eligible updates and reads staged progress an
   await expect.poll(() => applyTargets).toEqual(["runtime", "app"]);
 
   // Progress is the daemon's named phase, not an invented spinner label.
-  await expect(settingsUI.general.updateProgress("runtime")).toContainText("install", {
-    timeout: 20_000,
-  });
+  await expect(settingsUI.general.updateProgress("runtime")).toHaveAttribute(
+    "data-phase",
+    "install",
+    {
+      timeout: 20_000,
+    }
+  );
   await expect(settingsUI.general.updateApply()).toHaveCount(0);
 
   // Terminal truth arrives through the polled read, including rollback.

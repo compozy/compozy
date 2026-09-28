@@ -9,6 +9,7 @@ import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-sel
 import { useDesktop } from "../hooks/use-desktop";
 import { useWindowManagerDiagnostic } from "../hooks/use-window-manager-store";
 import { desktopMenubarScopeModel } from "../lib/desktop-menubar-model";
+import { primaryShortcutModifier, shortcutAriaKeys } from "../lib/window-manager-shortcuts";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
@@ -75,6 +76,13 @@ export interface DesktopMenubarProps {
 }
 
 /** Live window-layout status: stream health plus the latest refused-command notice. */
+/** The palette chord as `aria-keyshortcuts`, mapped to this platform's primary modifier. */
+function paletteKeyShortcuts(binding: string | undefined): string | undefined {
+  if (!binding) return undefined;
+  const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+  return shortcutAriaKeys(binding, primaryShortcutModifier(platform)) || undefined;
+}
+
 function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
   const hydration = useDesktop(state => state.hydration);
   const connectionStatus = useDesktop(state => state.connectionStatus);
@@ -167,6 +175,7 @@ export function DesktopMenubar({
       onCommandClick={() => onRunCommand("palette.open")}
       onSettingsClick={() => onRunCommand("settings.general")}
       commandShortcutLabel={paletteOpen?.chords[0]}
+      commandKeyShortcuts={paletteKeyShortcuts(paletteOpen?.bindings[0])}
       logoMenu={trigger => (
         <CompozyMenu
           trigger={trigger}

@@ -709,7 +709,7 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
     waitUntil: "domcontentloaded",
   });
   await expect(appPage.getByTestId("loop-node-inventory-empty")).toContainText(
-    "Nothing is quarantined"
+    "Nothing is set aside"
   );
   await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
 });

@@ -92,26 +92,11 @@ export function AutomationTriggerForm({
           <TriggerPreview preview={form.preview} />
         ) : (
           <>
-            {submitError ? (
-              <Alert className="mb-4" role="alert" variant="danger">
-                <AlertDescription>{submitError}</AlertDescription>
-              </Alert>
-            ) : null}
-            {form.isWebhook ? (
-              <Alert className="mb-4" data-testid="trigger-webhook-scope-note" variant="neutral">
-                <Webhook aria-hidden="true" className="size-4" />
-                <AlertDescription>
-                  Webhook triggers are always global; they aren&apos;t tied to a workspace.
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {form.preview.targetIssue ? (
-              // With the preview closed this is the only visible reason the
-              // primary is disabled — never let it live solely in the preview.
-              <Alert className="mb-4" data-testid="trigger-form-blocked" variant="warning">
-                <AlertDescription>{form.preview.targetIssue}</AlertDescription>
-              </Alert>
-            ) : null}
+            <TriggerFormNotices
+              isWebhook={form.isWebhook}
+              submitError={submitError}
+              targetIssue={form.preview.targetIssue}
+            />
             <Field>
               <FieldLabel htmlFor="trigger-name">Trigger name</FieldLabel>
               <Input
@@ -224,12 +209,50 @@ export function AutomationTriggerForm({
         onCancel={onCancel}
         primaryDisabled={!form.canSubmit}
         primaryIcon={mode === "create" ? Check : undefined}
-        primaryLabel={
-          isPending ? "Saving..." : mode === "create" ? "Create trigger" : "Save changes"
-        }
+        primaryLabel={submitLabel(isPending, mode)}
         primaryTestId="submit-trigger-form"
         primaryType="submit"
       />
     </form>
+  );
+}
+
+function submitLabel(isPending: boolean, mode: AutomationTriggerFormProps["mode"]): string {
+  if (isPending) return "Saving...";
+  return mode === "create" ? "Create trigger" : "Save changes";
+}
+
+function TriggerFormNotices({
+  isWebhook,
+  submitError,
+  targetIssue,
+}: {
+  isWebhook: boolean;
+  submitError?: string | null;
+  targetIssue?: string | null;
+}) {
+  return (
+    <>
+      {submitError ? (
+        <Alert className="mb-4" role="alert" variant="danger">
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {isWebhook ? (
+        <Alert className="mb-4" data-testid="trigger-webhook-scope-note" variant="neutral">
+          <Webhook aria-hidden="true" className="size-4" />
+          <AlertDescription>
+            Webhook triggers are always global; they aren&apos;t tied to a workspace.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {targetIssue ? (
+        // With the preview closed this is the only visible reason the
+        // primary is disabled — never let it live solely in the preview.
+        <Alert className="mb-4" data-testid="trigger-form-blocked" variant="warning">
+          <AlertDescription>{targetIssue}</AlertDescription>
+        </Alert>
+      ) : null}
+    </>
   );
 }
