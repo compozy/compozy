@@ -131,3 +131,8 @@ export {
   type SymbolValue,
 } from "../lib/symbol-palette";
 export { identityColorsFor, type IdentityColors } from "../lib/identity-palette";
+export {
+  runViewTransition,
+  viewTransitionName,
+  type RunViewTransitionOptions,
+} from "../lib/view-transition";
