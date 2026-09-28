@@ -1,4 +1,9 @@
-import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
+import {
+  SettingsFieldRow,
+  SettingsGroup,
+  SettingsNumberInput,
+  SettingValue,
+} from "@/systems/settings";
 import { Input, Switch } from "@compozy/ui";
 import {
   type DraftSectionProps,
@@ -13,33 +18,17 @@ export function SessionLedgerSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="Session ledger">
+    <SettingsGroup title="Session history">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-format`}
-        label="Ledger format"
-        description="jsonl is the only Slice 1 ledger format"
-        control={
-          <Input
-            className="w-32 font-mono"
-            data-testid={`${TEST_PREFIX}-session-ledger-format-input`}
-            value={draft.session.ledger_format}
-            placeholder="jsonl"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  session: { ...current.session, ledger_format: event.target.value },
-                };
-              })
-            }
-          />
-        }
+        label="History file format"
+        description="Fixed for now"
+        control={<SettingValue mono>{draft.session.ledger_format || "jsonl"}</SettingValue>}
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-events-purge-grace`}
         label="Events purge grace"
-        help="Hold events.db rows this long before purging materialized ledgers"
+        help="How long raw session events are kept after the history file is written. For example 24h"
         control={
           <Input
             className="w-32 font-mono"
@@ -61,7 +50,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-cold-archive-days`}
         label="Cold archive (days)"
-        help="Move ledgers to cold archive after this many days"
+        help="Move session history to the archive after this many days"
         error={validationErrors.sessionColdArchive ?? undefined}
         control={
           <SettingsNumberInput
@@ -85,7 +74,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-hard-delete-days`}
         label="Hard delete (days)"
-        description="0 means never auto-delete; ledgers prune only via explicit CLI"
+        description="0 keeps history forever; you can still delete it from the command line"
         error={validationErrors.sessionHardDelete ?? undefined}
         control={
           <SettingsNumberInput
@@ -109,7 +98,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-max-archive-bytes`}
         label="Max archive bytes"
-        help="Safety valve for cold archive size"
+        help="Largest size the archive can grow to"
         error={validationErrors.sessionMaxArchive ?? undefined}
         control={
           <SettingsNumberInput
@@ -132,7 +121,7 @@ export function SessionLedgerSection({
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-root`}
-        label="Ledger root"
+        label="History folder"
         description="Read-only, managed by CompozyOS"
         control={
           <Input
@@ -145,8 +134,8 @@ export function SessionLedgerSection({
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-unbound-partition`}
-        label="Unbound partition"
-        description="Read-only directory for sessions without a workspace binding"
+        label="Sessions without a project"
+        description="Read-only folder for sessions that aren't tied to a project"
         control={
           <Input
             readOnly
@@ -242,8 +231,8 @@ export function DailyLogsSection({
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-dreaming-window`}
-        label="Dreaming window (days)"
-        help="How many days of daily logs feed dreaming candidates"
+        label="Tidy-up window (days)"
+        help="How many days of daily logs the tidy-up looks at"
         error={validationErrors.dailyDreamingWindow ?? undefined}
         control={
           <SettingsNumberInput
@@ -377,7 +366,7 @@ export function FileCapsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-file-max-lines`}
         label="Max lines"
-        help="Soft cap for the MEMORY.md projection"
+        help="Suggested size limit for the memory file"
         error={validationErrors.fileMaxLines ?? undefined}
         control={
           <SettingsNumberInput
@@ -401,7 +390,7 @@ export function FileCapsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-file-max-bytes`}
         label="Max bytes"
-        help="Hard byte budget for the MEMORY.md projection"
+        help="Maximum size of the memory file"
         error={validationErrors.fileMaxBytes ?? undefined}
         control={
           <SettingsNumberInput
@@ -428,11 +417,11 @@ export function FileCapsSection({
 
 export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Workspace identity">
+    <SettingsGroup title="Project settings file">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-toml-path`}
-        label="Workspace toml path"
-        description="Informational; validation locks this to <workspace>/.compozy/workspace.toml"
+        label="File location"
+        description="Read-only; always <project>/.compozy/workspace.toml"
         control={
           <Input
             readOnly
@@ -444,8 +433,8 @@ export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps)
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-auto-create`}
-        label="Auto-create workspace.toml"
-        description="Create <workspace>/.compozy/workspace.toml on first touch"
+        label="Create it automatically"
+        description="Creates the file the first time a project is used"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-workspace-auto-create-switch`}
