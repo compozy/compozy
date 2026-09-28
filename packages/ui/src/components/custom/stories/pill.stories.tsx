@@ -307,3 +307,26 @@ export const PulseAnimation: Story = {
     </Pill>
   ),
 };
+
+export const Count: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`Pill.Count` is the compact numeric badge for unread and needs-you counts: solid accent, mono digits, capped at `9+`, and absent at zero.",
+      },
+    },
+  },
+  render: () => (
+    <div className="flex items-center gap-3">
+      <Pill.Count count={1} />
+      <Pill.Count count={7} />
+      <Pill.Count count={42} />
+      <Pill.Count count={3} tone="neutral" />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("9+")).toBeInTheDocument();
+  },
+};

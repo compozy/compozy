@@ -4397,7 +4397,9 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   // but the unavailable primary action is described and refused at the shared
   // dispatch seam without closing the palette or changing the window topology.
   const closeRow = paletteRow(palette, "window.close");
-  await expect(paletteRowReason(palette, "window.close")).toHaveText("runtime unavailable");
+  await expect(paletteRowReason(palette, "window.close")).toHaveText(
+    "CompozyOS isn't reachable right now"
+  );
   await expect(closeRow).toHaveAccessibleDescription("runtime unavailable");
   await palette.getByPlaceholder("Search apps, sessions, and actions…").press("Home");
   await expect(closeRow).toHaveAttribute("data-selected", "true");

@@ -1,12 +1,10 @@
-import { AlertCircle, ChevronRight, KeyRound } from "lucide-react";
+import { AlertCircle, KeyRound } from "lucide-react";
 
 import {
   Alert,
   AlertAction,
   AlertDescription,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+  Disclosure,
   Input,
   MonoId,
   RequiredMark,
@@ -51,7 +49,6 @@ export function VaultEditor({
       open
       mode="create"
       icon={KeyRound}
-      eyebrow="Vault"
       size="sm"
       title="New secret"
       slug="vault"
@@ -123,32 +120,25 @@ export function VaultEditor({
           value={draft.secretValue}
           onValueChange={next => onChange(current => ({ ...current, secretValue: next }))}
         />
-        <Collapsible data-testid="settings-vault-editor-more">
-          <CollapsibleTrigger className="group flex items-center gap-1 text-form-label text-muted hover:text-fg">
-            <ChevronRight
-              aria-hidden="true"
-              className="size-3 transition-transform group-data-panel-open:rotate-90 motion-reduce:transition-none"
-            />
-            More options
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-3">
-            <ModalSettingsFieldRow
-              label="Label (optional)"
-              data-testid="settings-vault-editor-kind"
-              control={
-                <Input
-                  className="w-48"
-                  value={draft.kind}
-                  onChange={event =>
-                    onChange(current => ({ ...current, kind: event.target.value }))
-                  }
-                  placeholder="api_key"
-                  data-testid="settings-vault-editor-kind-input"
-                />
-              }
-            />
-          </CollapsibleContent>
-        </Collapsible>
+        <Disclosure
+          data-testid="settings-vault-editor-more"
+          label="More options"
+          contentProps={{ className: "pt-3" }}
+        >
+          <ModalSettingsFieldRow
+            label="Label (optional)"
+            data-testid="settings-vault-editor-kind"
+            control={
+              <Input
+                className="w-48"
+                value={draft.kind}
+                onChange={event => onChange(current => ({ ...current, kind: event.target.value }))}
+                placeholder="api_key"
+                data-testid="settings-vault-editor-kind-input"
+              />
+            }
+          />
+        </Disclosure>
       </div>
     </SettingsEditorDialog>
   );

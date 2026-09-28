@@ -156,9 +156,33 @@ function PillLink({
   );
 }
 
-const PillRoot = Pill as typeof Pill & { Dot: typeof PillDot; Link: typeof PillLink };
+export interface PillCountProps extends Omit<PillProps, "size" | "children" | "mono"> {
+  count: number;
+  /** Counts above `max` render as `{max}+`. */
+  max?: number;
+}
+
+/**
+ * Numeric badge (unread, needs-you). Solid accent by default; renders nothing
+ * at zero so callers never paint a "0" badge.
+ */
+function PillCount({ count, max = 9, tone = "accent", solid = true, ...props }: PillCountProps) {
+  if (count <= 0) return null;
+  return (
+    <Pill size="count" tone={tone} solid={solid} data-count={count} {...props}>
+      {count > max ? `${max}+` : count}
+    </Pill>
+  );
+}
+
+const PillRoot = Pill as typeof Pill & {
+  Dot: typeof PillDot;
+  Link: typeof PillLink;
+  Count: typeof PillCount;
+};
 PillRoot.Dot = PillDot;
 PillRoot.Link = PillLink;
+PillRoot.Count = PillCount;
 
-export { PillRoot as Pill, PillDot, PillLink };
+export { PillRoot as Pill, PillCount, PillDot, PillLink };
 export type { PillForm, PillSize, PillTone };

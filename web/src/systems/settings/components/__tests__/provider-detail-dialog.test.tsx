@@ -148,7 +148,8 @@ describe("ProviderDetailDialog", () => {
     expect(header).not.toBeNull();
     expect(header?.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
     expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Create provider");
-    expect(within(dialog()).getByText("Provider")).toBeInTheDocument();
+    // The title already names the entity, so create carries no redundant eyebrow.
+    expect(within(dialog()).queryByText("Provider")).toBeNull();
     expect(within(dialog()).getByText("Connect an agent app to CompozyOS.")).toBeInTheDocument();
     // A provider surface configures a provider; it never chooses a runtime.
     expect(dialog().querySelector('[data-slot="runtime-selector"]')).toBeNull();

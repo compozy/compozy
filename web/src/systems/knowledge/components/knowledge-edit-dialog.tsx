@@ -91,7 +91,6 @@ function KnowledgeEditDialog({
       >
         <EntityDialogHeader
           description="Update the summary or the content."
-          eyebrow="Knowledge"
           icon={BookOpen}
           onClose={() => onOpenChange(false)}
           title="Edit knowledge entry"

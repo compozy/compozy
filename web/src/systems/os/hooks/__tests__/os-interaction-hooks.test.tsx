@@ -124,7 +124,7 @@ function shortcutCommand(
     execution: { retry_safe: true, single_flight: false },
     visible: true,
     available,
-    reason: available ? "" : "runtime unavailable",
+    reason: available ? "" : "CompozyOS isn't reachable right now",
     chords: [],
   } as ResolvedPaletteCommand;
 }

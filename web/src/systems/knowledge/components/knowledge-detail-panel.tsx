@@ -7,6 +7,7 @@ import {
   CodeBlock,
   ContextBox,
   type ContextBoxEntry,
+  Disclosure,
   Empty,
   MonoId,
   PAGE_CONTENT_GUTTER,
@@ -30,7 +31,6 @@ import type {
 import { KnowledgeDecisionsSection } from "./knowledge-decisions-section";
 import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
 import { KnowledgeEditDialog } from "./knowledge-edit-dialog";
-import { KnowledgeFold } from "./knowledge-fold";
 
 interface KnowledgeDetailPanelProps {
   memory: KnowledgeMemoryItem | undefined;
@@ -377,16 +377,19 @@ function KnowledgeDetailPanel({
           </Section>
         ) : null}
 
-        <KnowledgeFold
+        <Disclosure
           data-testid="knowledge-detail-more"
           label="Details"
-          toggleTestId="knowledge-detail-more-toggle"
+          size="md"
+          keepMounted
+          triggerProps={{ "data-testid": "knowledge-detail-more-toggle" }}
+          contentProps={{ className: "pt-3" }}
         >
           <ContextBox
             data-testid="knowledge-detail-facts"
             entries={buildDetailEntries(memory, resolvedScope, projectName)}
           />
-        </KnowledgeFold>
+        </Disclosure>
 
         <KnowledgeDecisionsSection
           decisions={decisions}

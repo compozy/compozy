@@ -131,7 +131,6 @@ function KnowledgeCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          eyebrow="Knowledge"
           icon={BookOpen}
           onClose={() => updateDialogOpen(false)}
           title="Create knowledge entry"

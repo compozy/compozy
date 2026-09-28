@@ -235,3 +235,29 @@ describe("Pill.Dot", () => {
     expect(dot?.getAttribute("data-size")).toBe("sm");
   });
 });
+
+describe("Pill.Count", () => {
+  it("Should render a solid accent count badge", () => {
+    render(<Pill.Count count={3} data-testid="count" />);
+    const badge = screen.getByTestId("count");
+    expect(badge).toHaveTextContent("3");
+    expect(badge).toHaveAttribute("data-size", "count");
+    expect(badge).toHaveAttribute("data-solid", "true");
+    expect(badge).toHaveAttribute("data-tone", "accent");
+  });
+
+  it("Should cap counts above max", () => {
+    render(<Pill.Count count={12} data-testid="count" />);
+    expect(screen.getByTestId("count")).toHaveTextContent("9+");
+  });
+
+  it("Should honor a custom max", () => {
+    render(<Pill.Count count={120} max={99} data-testid="count" />);
+    expect(screen.getByTestId("count")).toHaveTextContent("99+");
+  });
+
+  it("Should render nothing at zero", () => {
+    const { container } = render(<Pill.Count count={0} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});

@@ -1,14 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { AlertCircle, ChevronRight } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import {
-  cn,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  Empty,
-  Eyebrow,
-} from "@compozy/ui";
+import { Disclosure, Empty, Eyebrow } from "@compozy/ui";
 
 import type { TaskDashboardView } from "../types";
 import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
@@ -56,28 +49,21 @@ function DashboardQueueControls({ forceOpen, panel }: { forceOpen: boolean; pane
   const [open, setOpen] = useState(false);
   const isOpen = open || forceOpen;
   return (
-    <Collapsible
+    <Disclosure
       className="border-t border-line-soft pt-1"
       data-testid="tasks-dashboard-queue-controls"
+      label="Queue controls"
+      size="md"
       onOpenChange={setOpen}
       open={isOpen}
+      triggerProps={{
+        "data-testid": "tasks-dashboard-queue-controls-toggle",
+        className: "w-full py-2.5 text-fg",
+      }}
+      contentProps={{ className: "pt-0" }}
     >
-      <CollapsibleTrigger
-        className="flex w-full items-center gap-2 rounded-sm py-2.5 text-left outline-none focus-visible:shadow-focus-ring"
-        data-testid="tasks-dashboard-queue-controls-toggle"
-        type="button"
-      >
-        <ChevronRight
-          aria-hidden="true"
-          className={cn(
-            "size-4 text-muted transition-transform duration-base ease-out",
-            isOpen && "rotate-90"
-          )}
-        />
-        <span className="text-small-body font-medium text-fg">Queue controls</span>
-      </CollapsibleTrigger>
-      <CollapsibleContent>{panel}</CollapsibleContent>
-    </Collapsible>
+      {panel}
+    </Disclosure>
   );
 }
 

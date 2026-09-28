@@ -1,14 +1,10 @@
-import { ChevronRight } from "lucide-react";
-
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Disclosure,
   Logo,
   MetadataList,
   MetadataListRow,
@@ -86,18 +82,9 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
           {rows.length > 0 ? (
             <div className="flex flex-col gap-4">
               <AboutRows rows={rows} />
-              <Collapsible>
-                <CollapsibleTrigger className="group/about-details flex items-center gap-1 text-small-body text-muted hover:text-fg-strong">
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="size-3.5 transition-transform duration-base group-data-[panel-open]/about-details:rotate-90"
-                  />
-                  Technical details
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-2">
-                  <AboutRows rows={technicalRows} />
-                </CollapsibleContent>
-              </Collapsible>
+              <Disclosure label="Technical details" size="md">
+                <AboutRows rows={technicalRows} />
+              </Disclosure>
             </div>
           ) : null}
         </div>
