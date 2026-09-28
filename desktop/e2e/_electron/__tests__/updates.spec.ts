@@ -348,7 +348,8 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
     await product.getByRole("button", { name: "Update available" }).click();
     await stageAppOperation(desktop, fixture, digest);
     await product.reload({ waitUntil: "domcontentloaded" });
-    await expect(product.getByRole("group", { name: "App" }).getByRole("status")).toContainText(
+    await expect(product.getByRole("group", { name: "App" }).getByRole("status")).toHaveAttribute(
+      "data-phase",
       "download"
     );
     feed.releaseAsset();
