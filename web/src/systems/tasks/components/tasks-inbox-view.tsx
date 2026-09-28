@@ -55,6 +55,8 @@ export interface TasksInboxViewProps {
   onRetryQuery?: () => void;
 }
 
+type InboxItemActionProps = Omit<TasksInboxItemProps, "item" | "group">;
+
 export function TasksInboxView({
   inbox,
   laneFilter,
@@ -69,23 +71,11 @@ export function TasksInboxView({
   onSearchChange,
   isLoading = false,
   errorMessage = null,
-  onApprove,
-  onReject,
-  onRetry,
-  onArchive,
-  onDismiss,
-  onMarkRead,
-  onOpen,
-  pendingApproveIds,
-  pendingRejectIds,
-  pendingRetryIds,
-  pendingArchiveIds,
-  pendingDismissIds,
-  pendingMarkReadIds,
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
   onRetryQuery,
+  ...itemActionProps
 }: TasksInboxViewProps) {
   const { filterChips, filterFields, groups, groupTotals, handleFiltersChange, hasItems } =
     useTasksInboxView({
@@ -97,22 +87,6 @@ export function TasksInboxView({
       priorityFilter,
       onPriorityChange,
     });
-
-  const itemActionProps: Omit<TasksInboxItemProps, "item" | "group"> = {
-    onApprove,
-    onReject,
-    onRetry,
-    onArchive,
-    onDismiss,
-    onMarkRead,
-    onOpen,
-    pendingApproveIds,
-    pendingRejectIds,
-    pendingRetryIds,
-    pendingArchiveIds,
-    pendingDismissIds,
-    pendingMarkReadIds,
-  };
 
   return (
     <ListingPage className="bg-canvas" data-testid="tasks-inbox-view">
@@ -161,49 +135,16 @@ export function TasksInboxView({
       </div>
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6" data-testid="tasks-inbox-body">
-        {isLoading && !inbox ? (
-          <TaskRowsLoadingSkeleton label="Loading inbox" testId="tasks-inbox-loading" />
-        ) : errorMessage && !inbox ? (
-          <Empty
-            action={
-              onRetryQuery ? (
-                <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
-                  Retry loading inbox
-                </Button>
-              ) : null
-            }
-            data-testid="tasks-inbox-error"
-            description={errorMessage}
-            icon={AlertCircle}
-            title="Couldn't load the inbox"
-          />
-        ) : !hasItems ? (
-          <Empty
-            className="mx-auto max-w-xl"
-            data-testid="tasks-inbox-empty"
-            description="Approvals and failed runs that need you show up here."
-            icon={Inbox}
-            title="You're all caught up"
-          />
-        ) : (
-          <div className="flex flex-col gap-6" data-testid="tasks-inbox-groups">
-            {INBOX_GROUPS.map(group => {
-              const bucket = groups.get(group.id) ?? [];
-              if (bucket.length === 0) {
-                return null;
-              }
-              return (
-                <GroupSection
-                  group={group}
-                  items={bucket}
-                  itemActionProps={itemActionProps}
-                  key={group.id}
-                  totalCount={groupTotals[group.id]}
-                />
-              );
-            })}
-          </div>
-        )}
+        <TasksInboxContent
+          errorMessage={errorMessage}
+          groupTotals={groupTotals}
+          groups={groups}
+          hasItems={hasItems}
+          inbox={inbox}
+          isLoading={isLoading}
+          itemActionProps={itemActionProps}
+          onRetryQuery={onRetryQuery}
+        />
         {errorMessage && inbox ? (
           <div
             className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
@@ -211,39 +152,145 @@ export function TasksInboxView({
             role="alert"
           >
             <span>{errorMessage}</span>
-            {onRetryQuery ? (
-              <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
-                Retry loading inbox
-              </Button>
-            ) : null}
+            {onRetryQuery ? <TasksInboxRetryButton onRetryQuery={onRetryQuery} /> : null}
           </div>
         ) : null}
         {hasMore && onLoadMore && !errorMessage ? (
-          <div className="flex items-center justify-center border-t border-line-soft pt-3">
-            <Button
-              aria-busy={isLoadingMore}
-              aria-label={isLoadingMore ? "Loading more inbox tasks" : "Load more inbox tasks"}
-              data-testid="tasks-inbox-load-more"
-              disabled={isLoadingMore}
-              onClick={onLoadMore}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {isLoadingMore ? "Loading more" : "Load more"}
-            </Button>
-          </div>
+          <TasksInboxLoadMore isLoadingMore={isLoadingMore} onLoadMore={onLoadMore} />
         ) : null}
       </div>
     </ListingPage>
   );
 }
 
+type InboxViewModel = ReturnType<typeof useTasksInboxView>;
+
+function TasksInboxContent({
+  inbox,
+  hasItems,
+  groups,
+  groupTotals,
+  itemActionProps,
+  isLoading,
+  errorMessage,
+  onRetryQuery,
+}: Pick<InboxViewModel, "groups" | "groupTotals" | "hasItems"> & {
+  inbox: TaskInboxView | null;
+  itemActionProps: InboxItemActionProps;
+  isLoading: boolean;
+  errorMessage: string | null;
+  onRetryQuery?: () => void;
+}) {
+  if (!inbox) {
+    return (
+      <TasksInboxUnloadedState
+        errorMessage={errorMessage}
+        isLoading={isLoading}
+        onRetryQuery={onRetryQuery}
+      />
+    );
+  }
+  if (!hasItems) {
+    return <TasksInboxEmptyState />;
+  }
+  return (
+    <div className="flex flex-col gap-6" data-testid="tasks-inbox-groups">
+      {INBOX_GROUPS.map(group => {
+        const bucket = groups.get(group.id) ?? [];
+        if (bucket.length === 0) {
+          return null;
+        }
+        return (
+          <GroupSection
+            group={group}
+            items={bucket}
+            itemActionProps={itemActionProps}
+            key={group.id}
+            totalCount={groupTotals[group.id]}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function TasksInboxRetryButton({ onRetryQuery }: { onRetryQuery: () => void }) {
+  return (
+    <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
+      Retry loading inbox
+    </Button>
+  );
+}
+
+/** Body for an inbox that has not loaded yet: loading, failed, or not requested. */
+function TasksInboxUnloadedState({
+  isLoading,
+  errorMessage,
+  onRetryQuery,
+}: {
+  isLoading: boolean;
+  errorMessage: string | null;
+  onRetryQuery?: () => void;
+}) {
+  if (isLoading) {
+    return <TaskRowsLoadingSkeleton label="Loading inbox" testId="tasks-inbox-loading" />;
+  }
+  if (errorMessage) {
+    return (
+      <Empty
+        action={onRetryQuery ? <TasksInboxRetryButton onRetryQuery={onRetryQuery} /> : null}
+        data-testid="tasks-inbox-error"
+        description={errorMessage}
+        icon={AlertCircle}
+        title="Couldn't load the inbox"
+      />
+    );
+  }
+  return <TasksInboxEmptyState />;
+}
+
+function TasksInboxEmptyState() {
+  return (
+    <Empty
+      className="mx-auto max-w-xl"
+      data-testid="tasks-inbox-empty"
+      description="Approvals and failed runs that need you show up here."
+      icon={Inbox}
+      title="You're all caught up"
+    />
+  );
+}
+
+function TasksInboxLoadMore({
+  isLoadingMore,
+  onLoadMore,
+}: {
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-center border-t border-line-soft pt-3">
+      <Button
+        aria-busy={isLoadingMore}
+        aria-label={isLoadingMore ? "Loading more inbox tasks" : "Load more inbox tasks"}
+        data-testid="tasks-inbox-load-more"
+        disabled={isLoadingMore}
+        onClick={onLoadMore}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {isLoadingMore ? "Loading more" : "Load more"}
+      </Button>
+    </div>
+  );
+}
+
 interface GroupSectionProps {
   group: InboxGroupDefinition;
   items: TaskInboxItem[];
-  itemActionProps: Omit<TasksInboxItemProps, "item" | "group">;
+  itemActionProps: InboxItemActionProps;
   totalCount: number;
 }
 
