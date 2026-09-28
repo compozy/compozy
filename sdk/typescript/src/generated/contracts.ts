@@ -3884,6 +3884,8 @@ export interface RuntimeSelectionPayload {
 
 export interface ACPCapsPayload {
   supports_load_session: boolean;
+  supports_fork_session: boolean;
+  supports_resume_session: boolean;
   prompt_image: boolean;
   prompt_audio: boolean;
   prompt_embedded_context: boolean;

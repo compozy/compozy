@@ -500,12 +500,19 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 	if strings.HasPrefix(a.scenario, "steering_") {
 		meta = map[string]any{"steering": map[string]any{"supported": true}}
 	}
+	var sessionCaps acpsdk.SessionCapabilities
+	if a.scenario == "fork_session" {
+		sessionCaps.Fork = &acpsdk.SessionForkCapabilities{}
+		sessionCaps.Resume = &acpsdk.SessionResumeCapabilities{}
+	}
 	return acpsdk.InitializeResponse{
 		Meta:            meta,
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
-				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options",
+				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" ||
+				a.scenario == "fork_session",
+			SessionCapabilities: sessionCaps,
 			PromptCapabilities: acpsdk.PromptCapabilities{
 				Image: a.scenario == "prompt_capabilities_image" ||
 					a.scenario == "echo_prompt_blocks",
@@ -527,6 +534,35 @@ func (a *helperACPAgent) CloseSession(
 	acpsdk.CloseSessionRequest,
 ) (acpsdk.CloseSessionResponse, error) {
 	return acpsdk.CloseSessionResponse{}, nil
+}
+
+// UnstableForkSession mirrors OpenCode's adapter: it replays clone-id traffic
+// on the source connection before answering, plus one stray foreign-id update.
+func (a *helperACPAgent) UnstableForkSession(
+	ctx context.Context,
+	params acpsdk.UnstableForkSessionRequest,
+) (acpsdk.UnstableForkSessionResponse, error) {
+	const cloneID acpsdk.SessionId = "sess-fork"
+	updates := []acpsdk.SessionNotification{
+		{SessionId: cloneID, Update: acpsdk.SessionUpdate{
+			AvailableCommandsUpdate: &acpsdk.SessionAvailableCommandsUpdate{
+				SessionUpdate:     "available_commands_update",
+				AvailableCommands: []acpsdk.AvailableCommand{{Name: "review", Description: "Review"}},
+			},
+		}},
+		{SessionId: cloneID, Update: acpsdk.UpdateAgentMessageText("replayed one")},
+		{SessionId: cloneID, Update: acpsdk.UpdateAgentMessageText("replayed two")},
+		{SessionId: "sess-stray", Update: acpsdk.UpdateAgentMessageText("stray")},
+	}
+	for _, update := range updates {
+		if err := a.conn.SessionUpdate(ctx, update); err != nil {
+			return acpsdk.UnstableForkSessionResponse{}, err
+		}
+	}
+	if params.SessionId != "sess-new" {
+		return acpsdk.UnstableForkSessionResponse{}, fmt.Errorf("fork source = %q", params.SessionId)
+	}
+	return acpsdk.UnstableForkSessionResponse{SessionId: cloneID}, nil
 }
 
 func (a *helperACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {

@@ -16556,7 +16556,13 @@
                                       },
                                       "type": "array"
                                     },
+                                    "supports_fork_session": {
+                                      "type": "boolean"
+                                    },
                                     "supports_load_session": {
+                                      "type": "boolean"
+                                    },
+                                    "supports_resume_session": {
                                       "type": "boolean"
                                     }
                                   },
@@ -16564,7 +16570,9 @@
                                     "prompt_audio",
                                     "prompt_embedded_context",
                                     "prompt_image",
-                                    "supports_load_session"
+                                    "supports_fork_session",
+                                    "supports_load_session",
+                                    "supports_resume_session"
                                   ],
                                   "type": "object"
                                 },
@@ -118304,7 +118312,13 @@
                                     },
                                     "type": "array"
                                   },
+                                  "supports_fork_session": {
+                                    "type": "boolean"
+                                  },
                                   "supports_load_session": {
+                                    "type": "boolean"
+                                  },
+                                  "supports_resume_session": {
                                     "type": "boolean"
                                   }
                                 },
@@ -118312,7 +118326,9 @@
                                   "prompt_audio",
                                   "prompt_embedded_context",
                                   "prompt_image",
-                                  "supports_load_session"
+                                  "supports_fork_session",
+                                  "supports_load_session",
+                                  "supports_resume_session"
                                 ],
                                 "type": "object"
                               },
@@ -119718,7 +119734,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -119726,7 +119748,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -121728,7 +121752,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -121736,7 +121766,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -212858,7 +212890,13 @@
                                     },
                                     "type": "array"
                                   },
+                                  "supports_fork_session": {
+                                    "type": "boolean"
+                                  },
                                   "supports_load_session": {
+                                    "type": "boolean"
+                                  },
+                                  "supports_resume_session": {
                                     "type": "boolean"
                                   }
                                 },
@@ -212866,7 +212904,9 @@
                                   "prompt_audio",
                                   "prompt_embedded_context",
                                   "prompt_image",
-                                  "supports_load_session"
+                                  "supports_fork_session",
+                                  "supports_load_session",
+                                  "supports_resume_session"
                                 ],
                                 "type": "object"
                               },
@@ -262220,7 +262260,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -262228,7 +262274,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -263389,7 +263437,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -263397,7 +263451,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -265015,7 +265071,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -265023,7 +265085,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -266363,7 +266427,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -266371,7 +266441,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -269666,7 +269738,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -269674,7 +269752,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -283000,7 +283080,13 @@
                                       },
                                       "type": "array"
                                     },
+                                    "supports_fork_session": {
+                                      "type": "boolean"
+                                    },
                                     "supports_load_session": {
+                                      "type": "boolean"
+                                    },
+                                    "supports_resume_session": {
                                       "type": "boolean"
                                     }
                                   },
@@ -283008,7 +283094,9 @@
                                     "prompt_audio",
                                     "prompt_embedded_context",
                                     "prompt_image",
-                                    "supports_load_session"
+                                    "supports_fork_session",
+                                    "supports_load_session",
+                                    "supports_resume_session"
                                   ],
                                   "type": "object"
                                 },
@@ -284729,7 +284817,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -284737,7 +284831,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -286120,7 +286216,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -286128,7 +286230,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -287489,7 +287593,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -287497,7 +287607,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -296054,7 +296166,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -296062,7 +296180,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },
@@ -298800,7 +298920,13 @@
                                   },
                                   "type": "array"
                                 },
+                                "supports_fork_session": {
+                                  "type": "boolean"
+                                },
                                 "supports_load_session": {
+                                  "type": "boolean"
+                                },
+                                "supports_resume_session": {
                                   "type": "boolean"
                                 }
                               },
@@ -298808,7 +298934,9 @@
                                 "prompt_audio",
                                 "prompt_embedded_context",
                                 "prompt_image",
-                                "supports_load_session"
+                                "supports_fork_session",
+                                "supports_load_session",
+                                "supports_resume_session"
                               ],
                               "type": "object"
                             },

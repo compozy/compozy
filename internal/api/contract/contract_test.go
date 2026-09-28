@@ -967,6 +967,18 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 				PromptEmbeddedContext: true,
 			},
 		},
+		{
+			name:  "Should project the fork and resume session capabilities independently",
+			known: true,
+			caps:  acp.Caps{SupportsForkSession: true},
+			want:  &contract.ACPCapsPayload{SupportsForkSession: true},
+		},
+		{
+			name:  "Should project the resume session capability without fork",
+			known: true,
+			caps:  acp.Caps{SupportsResumeSession: true},
+			want:  &contract.ACPCapsPayload{SupportsResumeSession: true},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -978,6 +990,23 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should encode the fork and resume capabilities as snake_case wire fields", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.ACPCapsPayloadFromACP(acp.Caps{SupportsForkSession: true}, true)
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if fields["supports_fork_session"] != true || fields["supports_resume_session"] != false {
+			t.Fatalf("ACPCapsPayload JSON = %s, want supports_fork_session=true supports_resume_session=false", encoded)
+		}
+	})
 }
 
 func TestRuntimeActivityJSONPreservesZeroMetrics(t *testing.T) {

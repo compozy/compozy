@@ -58,6 +58,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 	}
 
 	process.SessionID = normalized.ResumeSessionID
+	process.bindSessionRoute(acpsdk.SessionId(normalized.ResumeSessionID))
 	if err := process.checkpointProcessOwner(ctx); err != nil {
 		return err
 	}
@@ -92,6 +93,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 	}
 
 	process.SessionID = string(newResponse.SessionID)
+	process.bindSessionRoute(newResponse.SessionID)
 	d.logStartStage(normalized, process, "session_new", startOutcomeSucceeded, stageStartedAt)
 	if err := process.checkpointProcessOwner(ctx); err != nil {
 		return err

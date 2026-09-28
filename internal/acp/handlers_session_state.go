@@ -17,6 +17,15 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	if err := json.Unmarshal(raw.Update, &envelope); err != nil {
 		return fmt.Errorf("acp: decode session/update envelope: %w", err)
 	}
+	switch p.routeSessionUpdate(raw.SessionID) {
+	case sessionUpdateRouteFork:
+		p.captureForkSessionUpdate(params, raw.SessionID, envelope.SessionUpdate)
+		return nil
+	case sessionUpdateRouteForeign:
+		p.dropForeignSessionTraffic(raw.SessionID, envelope.SessionUpdate)
+		return nil
+	case sessionUpdateRouteBound:
+	}
 	if envelope.SessionUpdate == "user_message_chunk" {
 		return nil
 	}
@@ -58,4 +67,17 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	event = p.markToolEventPrechecked(event)
 	p.emitPromptEvent(event)
 	return nil
+}
+
+// captureForkSessionUpdate hands a clone-id notification to the open fork
+// capture. It never touches the bound session's turn, stream, or config state.
+func (p *AgentProcess) captureForkSessionUpdate(params json.RawMessage, id acpsdk.SessionId, kind string) {
+	var notification acpsdk.SessionNotification
+	if err := json.Unmarshal(params, &notification); err != nil {
+		p.dropForeignSessionTraffic(id, kind)
+		return
+	}
+	if !p.captureForkUpdate(notification) {
+		p.dropForeignSessionTraffic(id, kind)
+	}
 }

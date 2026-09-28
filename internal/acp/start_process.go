@@ -233,6 +233,8 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		SteerCapability:       captureSteerCapability(initializeResponse.Meta, process.CapsSnapshot().SteerCapability),
 		SupportsLoadSession:   initializeResponse.AgentCapabilities.LoadSession,
 		SupportsCloseSession:  initializeResponse.AgentCapabilities.SessionCapabilities.Close != nil,
+		SupportsForkSession:   initializeResponse.AgentCapabilities.SessionCapabilities.Fork != nil,
+		SupportsResumeSession: initializeResponse.AgentCapabilities.SessionCapabilities.Resume != nil,
 		PromptImage:           initializeResponse.AgentCapabilities.PromptCapabilities.Image,
 		PromptAudio:           initializeResponse.AgentCapabilities.PromptCapabilities.Audio,
 		PromptEmbeddedContext: initializeResponse.AgentCapabilities.PromptCapabilities.EmbeddedContext,

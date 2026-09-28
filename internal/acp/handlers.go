@@ -185,6 +185,9 @@ func (p *AgentProcess) handleRequestPermission(
 	ctx context.Context,
 	request acpsdk.RequestPermissionRequest,
 ) (acpsdk.RequestPermissionResponse, error) {
+	if !p.permissionRequestIsBound(request.SessionId) {
+		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+	}
 	turnID := p.activeTurnID()
 	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)

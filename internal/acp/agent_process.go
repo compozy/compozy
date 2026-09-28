@@ -84,6 +84,11 @@ type AgentProcess struct {
 	childTasksMu      sync.Mutex
 	childTasks        map[*processChildTask]struct{}
 	childTasksClosing bool
+
+	// sessionRoutes routes inbound ACP traffic by session id; forkMu serializes
+	// session/fork calls so at most one fork capture is open (ADR-003).
+	sessionRoutes sessionRouter
+	forkMu        sync.Mutex
 }
 
 type pendingPermission struct {

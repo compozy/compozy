@@ -11727,7 +11727,9 @@ export interface operations {
                     prompt_embedded_context: boolean;
                     prompt_image: boolean;
                     supported_modes?: string[];
+                    supports_fork_session: boolean;
                     supports_load_session: boolean;
+                    supports_resume_session: boolean;
                   } | null;
                   acp_session_id?: string;
                   effective?: {
@@ -49211,7 +49213,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -49689,7 +49693,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -50398,7 +50404,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -87787,7 +87795,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -105334,7 +105344,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -105802,7 +105814,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -106367,7 +106381,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -106818,7 +106834,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -108058,7 +108076,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -113597,7 +113617,9 @@ export interface operations {
                     prompt_embedded_context: boolean;
                     prompt_image: boolean;
                     supported_modes?: string[];
+                    supports_fork_session: boolean;
                     supports_load_session: boolean;
+                    supports_resume_session: boolean;
                   } | null;
                   acp_session_id?: string;
                   effective?: {
@@ -114185,7 +114207,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -114670,7 +114694,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -115108,7 +115134,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -118834,7 +118862,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {
@@ -119821,7 +119851,9 @@ export interface operations {
                   prompt_embedded_context: boolean;
                   prompt_image: boolean;
                   supported_modes?: string[];
+                  supports_fork_session: boolean;
                   supports_load_session: boolean;
+                  supports_resume_session: boolean;
                 } | null;
                 acp_session_id?: string;
                 effective?: {

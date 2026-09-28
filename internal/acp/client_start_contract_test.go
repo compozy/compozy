@@ -125,6 +125,51 @@ func TestStartCapturesPromptCapabilities(t *testing.T) {
 	}
 }
 
+func TestStartCapturesSessionLifecycleCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		scenario   string
+		wantFork   bool
+		wantResume bool
+	}{
+		{
+			name:       "Should capture advertised session fork and resume capabilities",
+			scenario:   "fork_session",
+			wantFork:   true,
+			wantResume: true,
+		},
+		{
+			name:     "Should leave fork and resume false when the agent omits them",
+			scenario: "prompt_capabilities_image",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			proc := startHelperProcess(t, driver, tt.scenario, "", StartOpts{})
+			t.Cleanup(func() {
+				stopProcess(t, driver, proc)
+			})
+
+			caps := proc.CapsSnapshot()
+			if got := caps.SupportsForkSession; got != tt.wantFork {
+				t.Fatalf("Start() SupportsForkSession = %t, want %t", got, tt.wantFork)
+			}
+			if got := caps.SupportsResumeSession; got != tt.wantResume {
+				t.Fatalf("Start() SupportsResumeSession = %t, want %t", got, tt.wantResume)
+			}
+			cloned := CloneCaps(caps)
+			if cloned.SupportsForkSession != tt.wantFork || cloned.SupportsResumeSession != tt.wantResume {
+				t.Fatalf("CloneCaps() = %+v, want fork=%t resume=%t", cloned, tt.wantFork, tt.wantResume)
+			}
+		})
+	}
+}
+
 func TestStartActivatesMCPAfterInitializeBeforeSessionNegotiation(t *testing.T) {
 	t.Parallel()
 

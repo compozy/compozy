@@ -228,6 +228,23 @@ and current `expected_revision`. Clear the selection with
 `DELETE /api/workspaces/:workspace/sessions/:id/runtime?expected_revision=<revision>`. A stale
 revision returns `409`; read the session again before deciding what to save.
 
+### Negotiated agent capabilities
+
+While a session has a live agent process, session reads include `runtime.acp_caps`: what the agent
+advertised during the ACP `initialize` handshake. The field is absent when no process is bound.
+
+| Field | Meaning |
+| --- | --- |
+| `supports_load_session` | The agent can reopen a stored conversation with `session/load`. |
+| `supports_fork_session` | The agent advertises the unstable `session/fork` capability. |
+| `supports_resume_session` | The agent advertises the `session/resume` capability. |
+| `prompt_image`, `prompt_audio`, `prompt_embedded_context` | Prompt content the agent accepts. |
+| `supported_modes`, `config_options` | Session modes and ACP config options reported at setup. |
+
+Each value is `true` only when the agent declared it. Traffic that an agent sends for any ACP session
+other than the one bound to the CompozyOS session is dropped and logged, so it never appears in that
+session's transcript.
+
 ### Workspace knowledge on live turns
 
 Put workspace-owned reference material under `<workspace>/knowledge/` as Markdown files. Before an

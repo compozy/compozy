@@ -56,6 +56,8 @@ object from `session status -o json` (or any session read), rather than inferrin
 the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
 `selection_revision`, `effective`, ACP session ID, and advertised ACP capabilities. `selected` is
 durable next-prompt intent; `effective` is the runtime already bound to the current process.
+`runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
+and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
