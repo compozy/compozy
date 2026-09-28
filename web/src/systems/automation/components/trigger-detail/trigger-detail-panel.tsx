@@ -3,7 +3,7 @@ import { Zap } from "lucide-react";
 
 import { Button, PAGE_CONTENT_GUTTER, cn, useTopbarSlot } from "@compozy/ui";
 
-import { triggerTargetName } from "../../lib/trigger-sentence";
+import { triggerEventLabel, triggerTargetName } from "../../lib/trigger-sentence";
 import type { AutomationRun, AutomationTrigger } from "../../types";
 import { AutomationDeleteAction } from "../automation-delete-action";
 import { TriggerDetailActions, TriggerDetailOverflow } from "./trigger-detail-actions";
@@ -148,8 +148,7 @@ function lastRanAt(runs: AutomationRun[]): string | null {
 
 function ruleGist(trigger: AutomationTrigger): string {
   const target = triggerTargetName(trigger);
-  const slug = trigger.endpoint_slug?.trim();
-  const source = trigger.event === "webhook" && slug ? `webhook · ${slug}` : trigger.event;
+  const source = triggerEventLabel(trigger);
   return target ? `${source} → ${target}` : source;
 }
 
@@ -211,7 +210,7 @@ function TriggerDetailLoadedPanel({
         />
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto pt-5 pb-10">
+      <div className="@container min-h-0 flex-1 overflow-y-auto pt-5 pb-16">
         <TriggerDetailLock trigger={trigger} />
         <TriggerDetailHead
           isTogglePending={state.isTogglePending}
@@ -220,7 +219,7 @@ function TriggerDetailLoadedPanel({
           trigger={trigger}
           workspaceName={workspaceName}
         />
-        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
+        <div className="grid items-start gap-8 @3xl:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
           <main className="flex min-w-0 flex-col gap-6">
             <TriggerDetailSection
               data-testid="trigger-rule-section"

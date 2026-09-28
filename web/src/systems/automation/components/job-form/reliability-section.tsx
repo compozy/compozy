@@ -24,18 +24,22 @@ type CatchUpChoice = AutomationCatchUpPolicy | typeof CATCH_UP_DEFAULT;
 const CATCH_UP_ITEMS: PillGroupItem<CatchUpChoice>[] = [
   { value: CATCH_UP_DEFAULT, label: "Default", testId: "job-catch-up-default" },
   { value: "skip_missed", label: "Skip missed", testId: "job-catch-up-skip-missed" },
-  { value: "coalesce", label: "Coalesce", testId: "job-catch-up-coalesce" },
-  { value: "replay", label: "Replay", testId: "job-catch-up-replay" },
-  { value: "run_once_on_catchup", label: "Run once", testId: "job-catch-up-run-once" },
+  { value: "coalesce", label: "Catch up once", testId: "job-catch-up-coalesce" },
+  { value: "replay", label: "Run every missed time", testId: "job-catch-up-replay" },
+  {
+    value: "run_once_on_catchup",
+    label: "Run once, then continue",
+    testId: "job-catch-up-run-once",
+  },
 ];
 
-/** How each catch-up choice reacts to fires missed while the runtime was down. */
+/** How each catch-up choice reacts to runs missed while CompozyOS was off. */
 const CATCH_UP_DESCRIPTIONS: Record<CatchUpChoice, string> = {
-  [CATCH_UP_DEFAULT]: "Runtime picks the catch-up behavior for this target.",
-  skip_missed: "Run the latest missed fire within grace; skip it beyond grace.",
-  coalesce: "Collapse all missed fires into one catch-up run.",
-  replay: "Run every missed fire in order.",
-  run_once_on_catchup: "Run once to catch up, then resume the schedule.",
+  [CATCH_UP_DEFAULT]: "CompozyOS picks the best option for this job.",
+  skip_missed: "Run the latest missed time if it's still recent; otherwise skip it.",
+  coalesce: "Run once for all the missed times.",
+  replay: "Run every missed time, in order.",
+  run_once_on_catchup: "Run once to catch up, then continue the schedule.",
 };
 
 interface ReliabilitySectionProps {
@@ -111,17 +115,17 @@ export function ReliabilitySection({
         <>
           <Field className="col-span-2" data-testid="job-catch-up-field">
             <FieldHeader>
-              <FieldTitle>Catch-up policy</FieldTitle>
-              <HelpTip label="About catch-up policy">
-                What happens to fires missed while the runtime was down. Default:{" "}
+              <FieldTitle>Missed runs</FieldTitle>
+              <HelpTip label="About missed runs">
+                What happens to runs missed while CompozyOS was off. Default:{" "}
                 {CATCH_UP_DESCRIPTIONS[CATCH_UP_DEFAULT]} Skip missed:{" "}
-                {CATCH_UP_DESCRIPTIONS.skip_missed} Coalesce: {CATCH_UP_DESCRIPTIONS.coalesce}{" "}
-                Replay: {CATCH_UP_DESCRIPTIONS.replay} Run once:{" "}
+                {CATCH_UP_DESCRIPTIONS.skip_missed} Catch up once: {CATCH_UP_DESCRIPTIONS.coalesce}{" "}
+                Run every missed time: {CATCH_UP_DESCRIPTIONS.replay} Run once, then continue:{" "}
                 {CATCH_UP_DESCRIPTIONS.run_once_on_catchup}
               </HelpTip>
             </FieldHeader>
             <PillGroup
-              aria-label="Catch-up policy"
+              aria-label="Missed runs"
               items={CATCH_UP_ITEMS}
               onChange={next => onCatchUpPolicyChange(next === CATCH_UP_DEFAULT ? undefined : next)}
               size="sm"
@@ -130,10 +134,10 @@ export function ReliabilitySection({
           </Field>
           <Field>
             <FieldHeader>
-              <FieldLabel htmlFor="job-misfire-grace">Grace window</FieldLabel>
-              <HelpTip label="About grace window">
-                Applies only when the effective policy is Skip missed. Whole seconds the latest
-                missed fire may still run; 0 or empty uses the scheduler&apos;s default grace.
+              <FieldLabel htmlFor="job-misfire-grace">Late start limit (seconds)</FieldLabel>
+              <HelpTip label="About late start limit">
+                Applies only with Skip missed. How many seconds late a missed run may still start; 0
+                or empty uses the default.
               </HelpTip>
             </FieldHeader>
             <Input
@@ -159,7 +163,7 @@ export function ReliabilitySection({
       ) : null}
       <ReliabilityEnabledField
         enabled={enabled}
-        help="Disabled jobs stay stored but never dispatch on their schedule."
+        help="Disabled jobs are kept but don't run on their schedule."
         idPrefix="job"
         label={mode === "create" ? "Enabled on create" : "Enabled"}
         onChange={onEnabledChange}

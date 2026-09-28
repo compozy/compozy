@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { AlertCircle, Lock, Search } from "lucide-react";
 import {
+  Alert,
+  AlertDescription,
   cn,
   Empty,
-  Eyebrow,
   Metric,
   PAGE_CONTENT_GUTTER,
-  Pill,
   Section,
   Skeleton,
   useTopbarSlot,
@@ -15,9 +15,6 @@ import {
 
 import {
   automationScopeLabel,
-  automationSourceLabel,
-  automationStatusTone,
-  catchUpPolicyLabel,
   describeSchedule,
   formatDate,
   formatDateTime,
@@ -33,9 +30,10 @@ import {
 } from "./automation-detail-topbar-actions";
 import {
   AutomationTargetSection,
-  GovernanceSection,
+  JobAdvancedDetails,
   PromptSection,
 } from "./automation-detail-sections";
+import { AutomationEnableSwitch } from "./automation-enable-switch";
 
 interface AutomationDetailState {
   isDeleting: boolean;
@@ -64,7 +62,6 @@ interface JobMetricsCopy {
   successRateTone: MetricTone;
   lastRunValue: string;
   lastRunSubtext?: string;
-  runsValue: string;
   nextRunValue: string;
   nextRunSubtext?: string;
 }
@@ -100,59 +97,21 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
     successRateTone,
     lastRunValue,
     lastRunSubtext,
-    runsValue: String(runs.length),
     nextRunValue,
     nextRunSubtext,
   };
 }
 
-function JobScheduleSection({ job }: { job: AutomationJob }) {
-  const mode = job.schedule?.mode ?? "manual";
-  const expression =
-    job.schedule?.mode === "cron"
-      ? (job.schedule.expr ?? "--")
-      : job.schedule?.mode === "every"
-        ? (job.schedule.interval ?? "--")
-        : job.schedule?.mode === "at"
-          ? formatDateTime(job.schedule.time)
-          : "Manual";
-
-  return (
-    <Section
-      label="Schedule"
-      right={
-        <Pill mono tone="accent">
-          {mode}
-        </Pill>
-      }
-    >
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-canvas-soft px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-item-title text-fg">{expression}</p>
-          <p className="mt-1 text-xs text-muted">{describeSchedule(job.schedule)}</p>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
 function JobStatsSection({ job, runs }: { job: AutomationJob; runs: AutomationRun[] }) {
   const metrics = computeJobMetrics(runs, job);
   return (
-    <Section label="Stats">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <Section label="At a glance">
+      <div className="grid gap-3 @md:grid-cols-3">
         <Metric
-          data-testid="automation-job-metric-runs"
-          label="Runs shown"
-          subtext="recent window"
-          value={metrics.runsValue}
-        />
-        <Metric
-          data-testid="automation-job-metric-success-rate"
-          label="Recent success"
-          subtext="shown terminal runs"
-          tone={metrics.successRateTone}
-          value={metrics.successRateValue}
+          data-testid="automation-job-metric-next-run"
+          label="Next run"
+          subtext={metrics.nextRunSubtext}
+          value={metrics.nextRunValue}
         />
         <Metric
           data-testid="automation-job-metric-last-run"
@@ -161,66 +120,12 @@ function JobStatsSection({ job, runs }: { job: AutomationJob; runs: AutomationRu
           value={metrics.lastRunValue}
         />
         <Metric
-          data-testid="automation-job-metric-next-run"
-          label="Next run"
-          subtext={metrics.nextRunSubtext}
-          tone="accent"
-          value={metrics.nextRunValue}
+          data-testid="automation-job-metric-success-rate"
+          label="Recent success"
+          subtext="of recent runs"
+          tone={metrics.successRateTone}
+          value={metrics.successRateValue}
         />
-      </div>
-    </Section>
-  );
-}
-
-function JobSchedulerSection({ job }: { job: AutomationJob }) {
-  if (!job.scheduler) {
-    return null;
-  }
-
-  const scheduler = job.scheduler;
-  const registeredTone = scheduler.registered ? "success" : "neutral";
-
-  return (
-    <Section
-      label="Scheduler"
-      right={
-        <Pill mono tone={registeredTone}>
-          {scheduler.registered ? "REGISTERED" : "IDLE"}
-        </Pill>
-      }
-    >
-      <div
-        className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2"
-        data-testid="automation-job-scheduler"
-      >
-        <div>
-          <Eyebrow className="text-muted">Next cursor</Eyebrow>
-          <p className="mt-1 text-small-body text-muted">{formatDateTime(scheduler.next_run_at)}</p>
-        </div>
-        <div>
-          <Eyebrow className="text-muted">Last scheduled</Eyebrow>
-          <p className="mt-1 text-small-body text-muted">
-            {formatDateTime(scheduler.last_scheduled_at)}
-          </p>
-        </div>
-        <div>
-          <Eyebrow className="text-muted">Fire ID</Eyebrow>
-          <p className="mt-1 break-all font-mono text-xs text-muted">
-            {scheduler.last_fire_id || "--"}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Eyebrow className="text-muted">Catch-up</Eyebrow>
-            <p className="mt-1 font-mono text-xs text-muted">
-              {catchUpPolicyLabel(scheduler.catch_up_policy)}
-            </p>
-          </div>
-          <div>
-            <Eyebrow className="text-muted">Misfires</Eyebrow>
-            <p className="mt-1 font-mono text-xs text-muted">{scheduler.misfire_count ?? 0}</p>
-          </div>
-        </div>
       </div>
     </Section>
   );
@@ -355,55 +260,22 @@ function AutomationDetailLoadedPanel({
   const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
   const isDynamic = item.source === "dynamic";
   const target = projectAutomationTarget(item);
-  const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const showRunNow = Boolean(onTriggerNow);
-  const showOverflow = isDynamic || showRunNow;
-  const detailActions = (
+  const detailActions = showRunNow ? (
     <AutomationDetailActions
-      item={item}
-      onToggleEnabled={onToggleEnabled}
       onTriggerNow={onTriggerNow}
-      state={{
-        togglePending: isTogglePending,
-        triggerDisabled: isTriggerDisabled,
-        triggerPending: isTriggerPending,
-      }}
-    />
-  );
-  const detailOverflow = showOverflow ? (
-    <AutomationDetailOverflow
-      isTogglePending={isTogglePending}
-      item={item}
-      onDelete={() => setDeleteOpen(true)}
-      onEdit={onEdit}
-      onToggleEnabled={onToggleEnabled}
+      triggerDisabled={isTriggerDisabled}
+      triggerPending={isTriggerPending}
     />
   ) : undefined;
-  const detailMeta = (
-    <span data-testid="automation-detail-meta">
-      {`${automationTargetLabel(target)} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
-    </span>
-  );
-  const detailPills = (
-    <>
-      <Pill mono tone={item.source === "dynamic" ? "info" : "neutral"}>
-        {automationSourceLabel(item.source)}
-      </Pill>
-      {item.source === "config" ? <Lock aria-hidden="true" className="size-3 text-subtle" /> : null}
-    </>
-  );
-
+  const detailOverflow = isDynamic ? (
+    <AutomationDetailOverflow onDelete={() => setDeleteOpen(true)} onEdit={onEdit} />
+  ) : undefined;
   useTopbarSlot({
     onBack,
     crumbs: [{ id: "catalog", label: "Jobs", onSelect: onBack }],
     crumb: item.name,
-    status: (
-      <Pill mono tone={enabledTone}>
-        <Pill.Dot tone={enabledTone} />
-        {item.enabled ? "ENABLED" : "DISABLED"}
-      </Pill>
-    ),
     actions: detailActions,
     overflow: detailOverflow,
   });
@@ -424,33 +296,49 @@ function AutomationDetailLoadedPanel({
           open={deleteOpen}
         />
       ) : null}
-      <div className="flex flex-col gap-2 pt-4" data-testid="automation-detail-header">
-        <div className="flex flex-wrap items-center gap-1.5">{detailPills}</div>
-        <div className="text-small-body text-subtle">{detailMeta}</div>
+      <div
+        className="mt-4 mb-5 flex items-start justify-between gap-6 border-b border-line pb-4"
+        data-testid="automation-detail-header"
+      >
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-pretty text-item-title font-medium text-fg-strong"
+            data-testid="automation-detail-schedule"
+          >
+            {describeSchedule(item.schedule)}
+          </p>
+          <p className="mt-1 text-form-label text-subtle" data-testid="automation-detail-meta">
+            {`${automationTargetLabel(target)} · ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+          </p>
+        </div>
+        <AutomationEnableSwitch
+          enabled={item.enabled}
+          onEnabledChange={onToggleEnabled}
+          pending={isTogglePending}
+          labelTestId="job-enable-label"
+          switchTestId="toggle-automation-btn"
+        />
       </div>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-5">
+      <div className="@container min-h-0 flex-1 space-y-6 overflow-y-auto pb-16">
         {!isDynamic ? (
-          <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
-            <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-subtle" />
-            <p>
+          <Alert data-testid="automation-detail-lock" variant="neutral">
+            <Lock aria-hidden="true" />
+            <AlertDescription>
               {item.source === "config"
-                ? "This automation is defined in configuration files. Only its enabled state can be changed here."
-                : "This automation is provided by an installed package. Only its enabled state can be changed here."}
-            </p>
-          </div>
+                ? "This job is defined in configuration files. You can only turn it on or off here."
+                : "This job comes from an installed package. You can only turn it on or off here."}
+            </AlertDescription>
+          </Alert>
         ) : null}
 
-        <JobScheduleSection job={item} />
         <JobStatsSection job={item} runs={runs} />
-        <JobSchedulerSection job={item} />
 
         {target.kind === "loop" ? <AutomationTargetSection target={target} /> : null}
         {target.kind === "agent" ? <PromptSection prompt={target.prompt} /> : null}
-        <GovernanceSection item={item} />
 
         <AutomationRunHistory
-          emptyDescription="Runs will appear here after the first scheduled or manual execution."
+          emptyDescription="Runs show up here after the job runs for the first time."
           emptyTitle="No runs recorded yet"
           error={runsError}
           isLoading={runsLoading}
@@ -458,6 +346,8 @@ function AutomationDetailLoadedPanel({
           runs={runs}
           title="Runs"
         />
+
+        <JobAdvancedDetails job={item} />
       </div>
     </section>
   );

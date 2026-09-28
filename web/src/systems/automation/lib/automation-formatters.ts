@@ -1,5 +1,7 @@
 import type { PillTone } from "@compozy/ui";
 
+import { humanCron } from "./cron-engine-presentation";
+
 import type {
   AutomationCatchUpPolicy,
   AutomationKind,
@@ -81,18 +83,29 @@ export function formatDate(dateStr?: string | null): string {
   });
 }
 
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Plain-language cadence: `Every weekday at 09:00 UTC`, `Every 30 minutes`, `Once on …`. */
 export function describeSchedule(schedule?: AutomationSchedule | null): string {
   if (!schedule) {
     return "Manual";
   }
 
   switch (schedule.mode) {
-    case "cron":
-      return schedule.expr ? `Cron ${schedule.expr}` : "Cron";
+    case "cron": {
+      const human = schedule.expr ? humanCron(schedule.expr) : null;
+      if (!human) return "Custom schedule";
+      const hasClock = /\d{2}:\d{2}|midnight/.test(human);
+      return `${capitalize(human)}${hasClock ? " UTC" : ""}`;
+    }
     case "every":
-      return schedule.interval ? `Every ${schedule.interval}` : "Every interval";
+      return schedule.interval
+        ? `Every ${humanizeFireWindow(schedule.interval)}`
+        : "Repeats on an interval";
     case "at":
-      return schedule.time ? `At ${formatDateTime(schedule.time)}` : "One-shot";
+      return schedule.time ? `Once on ${formatDateTime(schedule.time)}` : "Runs once";
     default:
       return "Manual";
   }
@@ -119,19 +132,19 @@ export function describeRetry(retry: AutomationRetry): string {
     return "No retries";
   }
 
-  return `${retry.max_retries} retries from ${retry.base_delay}`;
+  return `Up to ${retry.max_retries} retries, first after ${retry.base_delay}`;
 }
 
 export function describeFireLimit(limit: AutomationFireLimit): string {
-  return `${limit.max} fires / ${limit.window}`;
+  return `Up to ${limit.max} runs per ${humanizeFireWindow(limit.window)}`;
 }
 
 /** `1h` → `hour`, `30m` → `30 minutes`; unknown formats stay verbatim. */
 export function humanizeFireWindow(window: string): string {
-  const match = /^(\d+)([smh])$/.exec(window.trim());
+  const match = /^(\d+)([smhd])$/.exec(window.trim());
   if (!match) return window;
   const count = Number(match[1]);
-  const unit = { h: "hour", m: "minute", s: "second" }[match[2] as "h" | "m" | "s"];
+  const unit = { d: "day", h: "hour", m: "minute", s: "second" }[match[2] as "d" | "h" | "m" | "s"];
   return count === 1 ? unit : `${count} ${unit}s`;
 }
 
@@ -159,8 +172,22 @@ export function summarizeTriggerReliability(
   return `${strategy} · ${limit.max} / ${humanizeFireWindow(limit.window)}`;
 }
 
+const AUTOMATION_RUN_STATUS_LABELS = {
+  running: "Running",
+  scheduled: "Scheduled",
+  delegated: "Handed off",
+  completed: "Completed",
+  failed: "Failed",
+  canceled: "Canceled",
+} as const satisfies Record<AutomationRunStatus, string>;
+
+/** Sentence-case label for a job/trigger run status. */
+export function automationRunStatusLabel(status: AutomationRunStatus): string {
+  return AUTOMATION_RUN_STATUS_LABELS[status] ?? status;
+}
+
 export function formatRunTitle(run: AutomationRun): string {
-  return `${run.status.toUpperCase()} · attempt ${run.attempt}`;
+  return `${automationRunStatusLabel(run.status)} · attempt ${run.attempt}`;
 }
 
 export function formatRunDuration(run: AutomationRun): string {
@@ -209,10 +236,10 @@ type AutomationStatusKey = AutomationRunStatus | "enabled" | "disabled";
 
 const AUTOMATION_STATUS_TONE = {
   running: "info",
-  scheduled: "warning",
+  scheduled: "neutral",
   delegated: "info",
   completed: "success",
-  enabled: "success",
+  enabled: "neutral",
   failed: "danger",
   canceled: "neutral",
   disabled: "neutral",
@@ -224,9 +251,9 @@ export function automationStatusTone(status: AutomationStatusKey): PillTone {
 
 const CATCH_UP_POLICY_LABELS = {
   skip_missed: "Skip missed",
-  coalesce: "Coalesce",
-  replay: "Replay",
-  run_once_on_catchup: "Run once",
+  coalesce: "Catch up once",
+  replay: "Run every missed time",
+  run_once_on_catchup: "Run once, then continue",
 } as const satisfies Record<AutomationCatchUpPolicy, string>;
 
 /**
@@ -247,14 +274,14 @@ interface AutomationSkipReasonInfo {
 /** Durable skip reasons the daemon records on a canceled run's `metadata.reason`. */
 const AUTOMATION_SKIP_REASONS = {
   self_overlap: {
-    label: "Overlap",
-    tone: "info",
-    detail: "A previous run was still active.",
+    label: "Skipped",
+    tone: "neutral",
+    detail: "Skipped because the previous run was still going.",
   },
   misfire_grace_exceeded: {
-    label: "Grace window",
+    label: "Missed",
     tone: "warning",
-    detail: "Missed its grace window.",
+    detail: "Skipped because it missed its start window.",
   },
 } as const satisfies Record<string, AutomationSkipReasonInfo>;
 
@@ -290,19 +317,20 @@ export function automationSkipReasonDetail(reason: AutomationSkipReason): string
 }
 
 export function automationSourceLabel(source: AutomationJob["source"]): string {
-  return { config: "CONFIG", dynamic: "DYNAMIC", package: "PACKAGE" }[source];
+  return { config: "From config", dynamic: "Created here", package: "From package" }[source];
 }
 
+/** Scope label: `workspace` reads as "Project" per the COPY.md surface aliases. */
 export function automationScopeLabel(scope: AutomationScope): string {
-  return scope === "workspace" ? "WORKSPACE" : "GLOBAL";
+  return scope === "workspace" ? "Project" : "Global";
 }
 
-export function automationSourceTone(source: AutomationJob["source"]): PillTone {
-  return source === "dynamic" ? "info" : "neutral";
+export function automationSourceTone(_source: AutomationJob["source"]): PillTone {
+  return "neutral";
 }
 
-export function automationScopeTone(scope: AutomationScope): PillTone {
-  return scope === "workspace" ? "info" : "neutral";
+export function automationScopeTone(_scope: AutomationScope): PillTone {
+  return "neutral";
 }
 
 export function formatAutomationListSummary({
@@ -340,16 +368,16 @@ export function formatAutomationListSummary({
   }
 
   if (scopeFilter === "all") {
-    return `${totalCount} ${totalNoun} across all scopes`;
+    return `${totalCount} ${totalNoun} across all projects`;
   }
 
   if (scopeFilter === "global") {
-    return `${count} ${totalNoun} in global scope`;
+    return `${count} global ${totalNoun}`;
   }
 
   if (activeWorkspaceName) {
     return `${count} ${totalNoun} in ${activeWorkspaceName}`;
   }
 
-  return `${count} ${totalNoun} in workspace scope`;
+  return `${count} ${totalNoun} in this project`;
 }

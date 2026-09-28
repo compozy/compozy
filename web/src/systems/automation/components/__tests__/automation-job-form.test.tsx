@@ -566,11 +566,11 @@ describe("AutomationJobForm", () => {
     expect(screen.queryByText(/Pick a frequency/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("job-governance-toggle"));
-    expect(screen.getByRole("button", { name: "About catch-up policy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "About grace window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About missed runs" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About late start limit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About enabled on create" })).toBeInTheDocument();
-    expect(screen.queryByText(/Runtime picks the catch-up/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Disabled jobs stay stored/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/CompozyOS picks the best option/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Disabled jobs are kept/)).not.toBeInTheDocument();
   });
 
   it("Should keep a decodable cron expression editable after selecting Custom", () => {

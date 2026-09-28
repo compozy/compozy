@@ -171,7 +171,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   const jobsWin = appWindow(appPage, "jobs");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
-  const jobStatus = jobsWin.locator('[data-slot="topbar-status"]');
+  const jobStatus = jobsWin.getByTestId("job-enable-label");
   const workspace = await createWorkspace(runtime);
   const workspaceJob = await createJob(runtime, workspaceJobRequest(workspace));
   await completeOnboardingIfPrompted(shellUI);
@@ -183,7 +183,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await expect(ui.item(workspaceJob.id)).toBeVisible();
   await ui.itemLink(workspaceJob.id).click();
   await expect(appPage).toHaveURL(new RegExp(`/jobs/${workspaceJob.id}$`));
-  await expect(ui.detailPanel).toContainText("Scope: WORKSPACE");
+  await expect(jobsWin.getByTestId("automation-detail-meta")).toContainText("Project");
 
   await jobsWin
     .getByRole("navigation", { name: "Window path" })
@@ -221,7 +221,8 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   // Saving from the editor navigates straight to the new job's detail route.
   await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
   await expect(windowTitle(jobsWin)).toContainText(initialName);
-  await expect(ui.detailPanel).toContainText("REGISTERED");
+  await jobsWin.getByTestId("automation-job-advanced-toggle").click();
+  await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
 
   await ui.detailOverflow.click();
   await appPage.getByTestId("edit-automation-btn").click();
@@ -241,10 +242,9 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await expect(ui.editorDialog).toBeHidden();
   await expect(windowTitle(jobsWin)).toContainText(editedName);
 
-  await ui.detailOverflow.click();
   await ui.toggleAutomationButton.click();
   await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(false);
-  await expect(jobStatus).toContainText("DISABLED");
+  await expect(jobStatus).toContainText("Disabled");
   let disabledHealth = await getAutomationHealth(runtime);
   expect(
     disabledHealth.automation.scheduled_jobs?.some(
@@ -252,10 +252,9 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
     )
   ).toBe(false);
 
-  await ui.detailOverflow.click();
   await ui.toggleAutomationButton.click();
   await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(true);
-  await expect(jobStatus).toContainText("ENABLED");
+  await expect(jobStatus).toContainText("Enabled");
   await expect
     .poll(async () => schedulerState(runtime, created.id).then(state => state?.registered))
     .toBe(true);
@@ -359,7 +358,8 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
   await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
   await ui.itemLink(job.id).click();
   await expect(appPage).toHaveURL(new RegExp(`/jobs/${job.id}$`));
-  await expect(ui.detailPanel).toContainText("REGISTERED");
+  await jobsWin.getByTestId("automation-job-advanced-toggle").click();
+  await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
 
   const beforeRestart = await waitForScheduledRuns(runtime, job.id, 1);
   const beforeFireIDs = uniqueFireIDs(beforeRestart);

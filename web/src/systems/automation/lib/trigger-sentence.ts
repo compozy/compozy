@@ -157,8 +157,8 @@ export function describeTriggerWhen(
   const icon = def?.icon ?? "extension";
   const workspaceSub =
     trigger.scope === "workspace"
-      ? `In workspace ${workspaceName ?? trigger.workspace_id ?? ""}`.trimEnd()
-      : "In any workspace";
+      ? `In project ${workspaceName ?? trigger.workspace_id ?? ""}`.trimEnd()
+      : "In any project";
   switch (selection.catalogId) {
     case "session.created":
       return { icon, headline: "A session starts", eventId: trigger.event, sub: workspaceSub };
@@ -171,21 +171,21 @@ export function describeTriggerWhen(
         icon,
         headline: `Hook ${selection.hookName} completed`,
         eventId: trigger.event,
-        sub: "Hook name is in the event id",
+        sub: "Runs when this hook finishes",
       };
     case "webhook":
       return {
         icon,
         headline: "Incoming webhook",
         eventId: trigger.event,
-        sub: `${trigger.scope === "workspace" ? "Workspace" : "Global"} path — always answers on this machine. Public URL is a separate fact.`,
+        sub: `${trigger.scope === "workspace" ? "Project" : "Global"} address on this computer`,
       };
     default:
       return {
         icon,
         headline: "Extension event",
         eventId: trigger.event,
-        sub: "Across the runtime",
+        sub: "Anywhere in CompozyOS",
       };
   }
 }

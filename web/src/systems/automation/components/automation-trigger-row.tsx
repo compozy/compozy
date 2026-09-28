@@ -1,17 +1,13 @@
 import { Zap } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { ListingRow, Pill } from "@compozy/ui";
+import { ListingRow } from "@compozy/ui";
 
-import {
-  automationScopeLabel,
-  automationSourceLabel,
-  automationSourceTone,
-  automationStatusTone,
-  formatPromptPreview,
-} from "../lib/automation-formatters";
+import { automationScopeLabel, formatPromptPreview } from "../lib/automation-formatters";
 import { describeAutomationTarget, projectAutomationTarget } from "../lib/automation-target";
+import { triggerEventLabel } from "../lib/trigger-sentence";
 import type { AutomationTrigger } from "../types";
+import { AutomationStateBadges } from "./automation-state-badges";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationTriggerRowProps {
@@ -22,7 +18,6 @@ export interface AutomationTriggerRowProps {
 
 /** Row presentation for a trigger in the Triggers catalog (rows view). */
 function AutomationTriggerRow({ trigger, profileOwner }: AutomationTriggerRowProps) {
-  const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
   const target = projectAutomationTarget(trigger);
   const description =
     target.kind === "loop" ? describeAutomationTarget(target) : formatPromptPreview(target.prompt);
@@ -44,15 +39,7 @@ function AutomationTriggerRow({ trigger, profileOwner }: AutomationTriggerRowPro
         <ListingRow.Main>
           <ListingRow.Name>
             <ListingRow.Title>{trigger.name}</ListingRow.Title>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <Pill.Dot tone={enabledTone} />
-              <Pill mono size="xs" tone={enabledTone}>
-                {trigger.enabled ? "ENABLED" : "DISABLED"}
-              </Pill>
-            </span>
-            <Pill mono size="xs" tone={automationSourceTone(trigger.source)}>
-              {automationSourceLabel(trigger.source)}
-            </Pill>
+            <AutomationStateBadges enabled={trigger.enabled} source={trigger.source} />
           </ListingRow.Name>
           {description ? <ListingRow.Description>{description}</ListingRow.Description> : null}
           <ListingRow.Meta>
@@ -70,9 +57,12 @@ function AutomationTriggerRow({ trigger, profileOwner }: AutomationTriggerRowPro
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail>
-        <Pill mono size="sm" tone="info">
-          {trigger.event}
-        </Pill>
+        <span
+          className="truncate text-form-label text-muted"
+          data-testid="automation-trigger-event"
+        >
+          {triggerEventLabel(trigger)}
+        </span>
       </ListingRow.Trail>
     </ListingRow>
   );
