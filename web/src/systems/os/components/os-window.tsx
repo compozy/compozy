@@ -233,6 +233,8 @@ function OsWindowMember({
       }
       presentation={presentation}
       slotStore={slotStore}
+      // The runtime animates in-window drills against this one named body.
+      bodyTransitionName={focused && !win.minimized ? "os-window-body" : undefined}
       headClassName={cn(
         !compact &&
           controls === "head" &&

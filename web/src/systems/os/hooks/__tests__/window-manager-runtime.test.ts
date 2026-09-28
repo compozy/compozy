@@ -2408,3 +2408,106 @@ describe("WindowManagerRuntime guarded close", () => {
     runtime.stop();
   });
 });
+
+describe("WindowManagerRuntime in-window view transitions", () => {
+  const listRoute = { pathname: "/agents", search: {} };
+  const detailRoute = { pathname: "/agents/release", search: {} };
+
+  function stubViewTransition(reducedMotion = false) {
+    const start = vi.fn((arg: (() => void) | { update: () => void }) => {
+      if (typeof arg === "function") arg();
+      else arg.update();
+      const settled = Promise.resolve();
+      return { updateCallbackDone: settled, finished: settled, ready: settled };
+    });
+    Reflect.set(document, "startViewTransition", start);
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: reducedMotion }) as MediaQueryList)
+    );
+    return start;
+  }
+
+  function focusedAgentsRuntime(options: { focused: boolean; navStack?: OsWindowRoute[] }) {
+    const queryClient = new QueryClient();
+    const base = snapshotWithAgentsRoute(options.navStack ? detailRoute : listRoute);
+    const agents = base.windows["app:agents"];
+    const snapshot =
+      agents && options.navStack
+        ? { ...base, windows: { "app:agents": { ...agents, navStack: options.navStack } } }
+        : base;
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockReturnValue(new Promise(() => undefined));
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: options.focused ? "app:agents" : null,
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    return runtime;
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, "startViewTransition");
+    vi.unstubAllGlobals();
+  });
+
+  it("Should animate a push inside the focused window as a drill-in", () => {
+    const start = stubViewTransition();
+    const runtime = focusedAgentsRuntime({ focused: true });
+
+    const outcome = runtime.navigateWindow("app:agents", detailRoute, "push");
+
+    expect(outcome.accepted).toBe(true);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(detailRoute);
+    runtime.stop();
+  });
+
+  it("Should not animate replace navigation or a push into an unfocused window", () => {
+    const start = stubViewTransition();
+    const focusedRuntime = focusedAgentsRuntime({ focused: true });
+    focusedRuntime.navigateWindow("app:agents", detailRoute);
+    expect(focusedRuntime.getState().windows["app:agents"]?.route).toEqual(detailRoute);
+    focusedRuntime.stop();
+
+    const unfocusedRuntime = focusedAgentsRuntime({ focused: false });
+    unfocusedRuntime.navigateWindow("app:agents", detailRoute, "push");
+    expect(unfocusedRuntime.getState().windows["app:agents"]?.route).toEqual(detailRoute);
+    unfocusedRuntime.stop();
+
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it("Should skip the transition but still navigate when motion is reduced", () => {
+    const start = stubViewTransition(true);
+    const runtime = focusedAgentsRuntime({ focused: true });
+
+    runtime.navigateWindow("app:agents", detailRoute, "push");
+
+    expect(start).not.toHaveBeenCalled();
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(detailRoute);
+    runtime.stop();
+  });
+
+  it("Should render a pop optimistically as a drill-out only when the route matches the stack top", () => {
+    const start = stubViewTransition();
+    const runtime = focusedAgentsRuntime({ focused: true, navStack: [listRoute] });
+
+    runtime.popWindowRoute("app:agents", { pathname: "/agents/other", search: {} });
+    expect(start).not.toHaveBeenCalled();
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(detailRoute);
+
+    runtime.popWindowRoute("app:agents", listRoute);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(listRoute);
+    runtime.stop();
+  });
+});
