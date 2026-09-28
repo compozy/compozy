@@ -14,7 +14,7 @@ interface LoopRailSectionProps extends Omit<ComponentProps<typeof Collapsible>, 
  * A rail card that stays informative while folded.
  *
  * Collapse is the density control on these pages, so the summary line carries the
- * answer (`50 generations · no budgets set`) and opening only adds detail. At most
+ * answer (`50 rounds · no budgets`) and opening only adds detail. At most
  * one rail section on a page opens by default.
  */
 export function LoopRailSection({
@@ -30,7 +30,7 @@ export function LoopRailSection({
       className={cn("rounded-lg border border-line bg-canvas-soft", className)}
       {...props}
     >
-      <CollapsibleTrigger className="group/rail-trigger flex w-full items-center gap-2 px-3.5 py-2.5 text-left">
+      <CollapsibleTrigger className="group/rail-trigger flex w-full items-center gap-2 px-4 py-3 text-left">
         {icon ? <span className="shrink-0 text-muted">{icon}</span> : null}
         <span className="text-form-label font-medium text-fg-strong">{title}</span>
         <span className="min-w-0 flex-1 truncate text-right text-form-hint text-subtle">

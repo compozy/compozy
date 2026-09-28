@@ -1,5 +1,14 @@
 import type { LoopEnvironmentSpec, LoopInputSchema, LoopInputSchemaField } from "../types";
 import { LOOP_ENVIRONMENT_MODE_LABELS } from "./loop-node-schema-types";
+import { humanizeLoopNodeId } from "./loop-node-labels";
+
+/** Plain label for a declared input; the input key stays one hover away. */
+export function loopInputLabel(name: string, field?: LoopInputSchemaField): string {
+  const title = field && "title" in field && typeof field.title === "string" ? field.title : "";
+  if (title.trim() !== "") return title;
+  const words = humanizeLoopNodeId(name);
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 /** The resolved run-form input values, keyed by declared input name. */
 export type LoopRunInputs = Record<string, unknown>;

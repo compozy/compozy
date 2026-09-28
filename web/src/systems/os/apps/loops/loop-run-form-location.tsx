@@ -1,6 +1,14 @@
 import { AlertCircle, Repeat2, X } from "lucide-react";
 
-import { Button, Empty, Spinner, useTopbarSlot } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  PAGE_CONTENT_GUTTER,
+  Skeleton,
+  SkeletonRows,
+  cn,
+  useTopbarSlot,
+} from "@compozy/ui";
 
 import { useLoopRunFormPage } from "./use-loop-run-form-page";
 import { LoopRunForm } from "@/systems/loops";
@@ -39,19 +47,21 @@ export function LoopRunFormLocation({ name }: { name: string }) {
   if (workspaceId === "") {
     return (
       <RunFormState
-        description="Select a workspace to run this Loop."
+        description="Select a project to run this Loop."
         testId="loop-run-form-no-workspace"
-        title="No workspace selected"
+        title="No project selected"
       />
     );
   }
   if (loopQuery.isLoading || configQuery.isLoading) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center"
+        aria-busy="true"
+        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-6 pt-6")}
         data-testid="loop-run-form-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+        <Skeleton className="h-7 w-48" />
+        <SkeletonRows count={3} rowClassName="border-b border-line-soft py-3" />
       </div>
     );
   }
@@ -63,7 +73,7 @@ export function LoopRunFormLocation({ name }: { name: string }) {
         }
         icon={AlertCircle}
         testId="loop-run-form-error"
-        title="Unable to load loop"
+        title="Couldn't open this Loop"
       />
     );
   }
@@ -71,10 +81,10 @@ export function LoopRunFormLocation({ name }: { name: string }) {
   if (!configQuery.effectiveConfig) {
     return (
       <RunFormState
-        description="Couldn't load the effective loop configuration."
+        description="Couldn't load this Loop's settings. Try again in a moment."
         icon={AlertCircle}
         testId="loop-run-form-effective-error"
-        title="Unable to load loop configuration"
+        title="Couldn't load settings"
       />
     );
   }

@@ -1,8 +1,7 @@
-import { AlertCircle, Activity, RefreshCw, Repeat2 } from "lucide-react";
+import { AlertCircle, Activity, Repeat2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
-  Button,
   Empty,
   ListingPage,
   ListingToolbar,
@@ -56,16 +55,6 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
             <Activity aria-hidden="true" className="size-3" />
             Runs
           </Link>
-          <Button
-            data-testid="loops-refresh"
-            onClick={page.handleRefresh}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <RefreshCw aria-hidden="true" className="size-3" />
-            Refresh
-          </Button>
         </div>
       ),
     toolbar,
@@ -74,9 +63,9 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   if (page.workspaceId === "") {
     return (
       <CatalogState
-        description="Select a workspace to browse its Loops."
+        description="Select a project to browse its Loops."
         testId="loops-no-workspace"
-        title="No workspace selected"
+        title="No project selected"
       />
     );
   }

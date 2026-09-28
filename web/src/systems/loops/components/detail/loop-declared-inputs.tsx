@@ -1,8 +1,8 @@
 import { TextCursorInput } from "lucide-react";
 
 import type { LoopInputSchema } from "../../types";
-import { MonoTag } from "../mono-tag";
 import { LoopRailSection } from "../loop-rail-section";
+import { loopInputLabel } from "../../lib/loop-run-form";
 
 interface LoopDeclaredInputsProps {
   inputs?: LoopInputSchema;
@@ -10,12 +10,15 @@ interface LoopDeclaredInputsProps {
 
 function formatDefault(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value === "string") return value === "" ? '"" (empty)' : value;
+  if (typeof value === "string") return value === "" ? "empty" : value;
   if (typeof value === "boolean" || typeof value === "number") return String(value);
   return JSON.stringify(value);
 }
 
-/** Right-rail panel: the Loop's declared inputs (name, required, type, default). */
+/**
+ * Right-rail panel: the Loop's declared inputs in plain words. The input key stays
+ * one hover away (`title`); the control on the run form already implies the type.
+ */
 export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
   const names = inputs ? Object.keys(inputs) : [];
   const required = names.filter(name => inputs?.[name]?.required).length;
@@ -29,23 +32,22 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
     >
       <div className="flex flex-col">
         {names.length === 0 ? (
-          <p className="px-3.5 py-3 text-form-hint text-subtle">This Loop declares no inputs.</p>
+          <p className="px-4 py-3 text-form-hint text-subtle">No inputs needed.</p>
         ) : (
           names.map(name => {
             const field = inputs?.[name];
             const defaultLabel = formatDefault(field?.default);
             return (
-              <div key={name} className="border-t border-line-soft px-3.5 py-2.5 first:border-t-0">
+              <div key={name} className="border-t border-line-soft px-4 py-2.5 first:border-t-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-xs text-fg-strong">{name}</span>
+                  <span className="text-form-label text-fg-strong" title={name}>
+                    {loopInputLabel(name, field)}
+                  </span>
                   {field?.required ? (
                     <span className="font-semibold text-muted" aria-label="required">
                       *
                     </span>
                   ) : null}
-                  <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5">
-                    {field?.type}
-                  </MonoTag>
                 </div>
                 {field?.description ? (
                   <p className="mt-1 text-form-hint leading-snug text-subtle">
@@ -53,7 +55,7 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
                   </p>
                 ) : null}
                 {defaultLabel ? (
-                  <p className="mt-1 font-mono text-mono-id text-faint">default: {defaultLabel}</p>
+                  <p className="mt-1 text-form-hint text-subtle">Default: {defaultLabel}</p>
                 ) : null}
               </div>
             );

@@ -1,7 +1,6 @@
-import { RadioCard } from "@compozy/ui";
+import { Pill, RadioCard } from "@compozy/ui";
 
 import type { LoopReattemptStrategy } from "../../lib/loop-config-draft";
-import { MonoTag } from "../mono-tag";
 
 interface LoopConfigureStrategyProps {
   value: LoopReattemptStrategy;
@@ -20,27 +19,24 @@ interface StrategyCard {
 const STRATEGY_CARDS: StrategyCard[] = [
   {
     value: "failed_only",
-    label: "failed-only",
+    label: "Retry what failed",
     testIdSuffix: "failed-only",
     isDefault: true,
-    description:
-      "Re-runs only the work that failed the review gate, plus its downstream steps. Handled work carries forward; the next tick re-fetches anything still unresolved.",
+    description: "Re-runs only the steps that failed review, and anything after them.",
   },
   {
     value: "full_body",
-    label: "full-body",
+    label: "Start over each round",
     testIdSuffix: "full-body",
     isDefault: false,
-    description:
-      "Re-runs the whole body from scratch each generation. Safer when steps share hidden state, but costs more tokens.",
+    description: "Re-runs every step each round. Safer, but uses more tokens.",
   },
   {
     value: "halt",
-    label: "halt",
+    label: "Stop and wait for me",
     testIdSuffix: "halt",
     isDefault: false,
-    description:
-      "Stops after a failed generation. The run stays failed until you start an explicit re-run.",
+    description: "Stops after a failed round until you start it again.",
   },
 ];
 
@@ -50,7 +46,7 @@ export function LoopConfigureStrategy({ value, disabled, onChange }: LoopConfigu
       className="grid grid-cols-1 gap-2.5 sm:grid-cols-3"
       data-testid="loop-configure-strategy"
       role="radiogroup"
-      aria-label="Re-attempt strategy"
+      aria-label="If a round fails"
     >
       {STRATEGY_CARDS.map(card => (
         <RadioCard
@@ -62,11 +58,11 @@ export function LoopConfigureStrategy({ value, disabled, onChange }: LoopConfigu
           onSelect={() => onChange(card.value)}
           title={
             <span className="flex items-center gap-2">
-              <span className="font-mono">{card.label}</span>
+              <span>{card.label}</span>
               {card.isDefault ? (
-                <MonoTag className="rounded-xs bg-success-tint px-1.5 py-0.5 text-pill-group-badge text-success">
-                  default
-                </MonoTag>
+                <Pill size="xs" tone="neutral">
+                  Default
+                </Pill>
               ) : null}
             </span>
           }

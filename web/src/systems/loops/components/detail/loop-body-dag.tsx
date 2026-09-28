@@ -3,6 +3,7 @@ import { createElement } from "react";
 
 import { fanOutSummary, nodeClassLabel, routeSummary } from "../../lib/loop-graph";
 import type { LoopGraph, LoopGraphNode } from "../../lib/loop-graph";
+import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import { loopNodeClassIcon } from "../../lib/loop-node-kind-icons";
 
 interface LoopBodyDagProps {
@@ -20,7 +21,7 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
         className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-small-body text-subtle"
         data-testid="loop-dag-empty"
       >
-        This Loop exposes no readable body graph.
+        This Loop has no steps to show.
       </div>
     );
   }
@@ -32,15 +33,12 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
             <DagNode node={node} />
             {index < graph.nodes.length - 1 ? (
               <span aria-hidden="true" className="flex items-center self-center px-1 text-faint">
-                <ArrowRight className="size-4.5" />
+                <ArrowRight className="size-4" />
               </span>
             ) : null}
           </div>
         ))}
       </div>
-      <p className="border-t border-line-soft px-4 py-3 text-form-hint leading-relaxed text-subtle">
-        Read-only view. Open the builder to fork and edit this graph.
-      </p>
     </div>
   );
 }
@@ -51,6 +49,8 @@ function DagNode({ node }: { node: LoopGraphNode }) {
 
   const summary = isRoute ? routeSummary(node) : fanOutSummary(node);
   const kindLabel = summary ?? node.kind;
+  const classLabel = nodeClassLabel(node);
+  const detail = [...new Set([classLabel, kindLabel].filter(Boolean))].join(" · ");
   const classIcon = node.nodeClass
     ? loopNodeClassIcon({
         nodeClass: node.nodeClass,
@@ -77,17 +77,11 @@ function DagNode({ node }: { node: LoopGraphNode }) {
           className="min-w-0 truncate text-small-body font-medium text-fg-strong"
           title={node.id}
         >
-          {node.id}
+          {humanizeLoopNodeId(node.id)}
         </span>
       </span>
-      <span className="min-w-0 truncate font-mono text-mono-id text-faint">
-        {nodeClassLabel(node)}
-      </span>
-      <span
-        className="min-w-0 truncate font-mono text-mono-id text-subtle"
-        title={kindLabel || undefined}
-      >
-        {kindLabel}
+      <span className="min-w-0 truncate text-form-hint text-faint" title={detail || undefined}>
+        {detail}
       </span>
     </div>
   );

@@ -152,18 +152,14 @@ describe("loop-catalog", () => {
     expect(loopKindFacetCount("read-only", 2, {})).toBe(2);
   });
 
-  it("Should lead facts with category and append best as a plain segment", () => {
-    expect(loopFactsSegments(delivery)).toEqual(["Engineering", "9 inputs", "iteration cap 50"]);
+  it("Should keep catalog facts to category and the human-approval note", () => {
+    expect(loopFactsSegments(delivery)).toEqual(["Engineering"]);
     const withBest: LoopCatalogEntry = {
       ...delivery,
       last_run: { ...delivery.last_run!, best_generation: 2, best_score: 0.92 },
     };
-    expect(loopFactsSegments(withBest)).toEqual([
-      "Engineering",
-      "9 inputs",
-      "iteration cap 50",
-      "best Gen 2 · 0.92",
-    ]);
+    // Inputs, the round cap, and the best score live on the detail page.
+    expect(loopFactsSegments(withBest)).toEqual(["Engineering"]);
     expect(loopLastRunFact(delivery)).toEqual({
       id: "looprun_running",
       iso: "2026-07-05T12:00:00Z",

@@ -2,9 +2,9 @@ import { AlertCircle } from "lucide-react";
 
 import { RequiredMark } from "@compozy/ui";
 
+import { loopInputLabel } from "../../lib/loop-run-form";
 import type { LoopInputSchemaField } from "../../types";
 import { LoopTypedInputControl } from "../input/loop-typed-input-control";
-import { MonoTag } from "../mono-tag";
 
 interface LoopRunInputFieldProps {
   name: string;
@@ -27,6 +27,7 @@ export function LoopRunInputField({
   const controlId = `loop-run-input-${name}`;
   const isBoolean = field.type === "boolean";
   const errorId = `loop-run-field-error-${name}`;
+  const label = loopInputLabel(name, field);
   return (
     <div
       className="flex flex-col gap-1.5"
@@ -48,23 +49,22 @@ export function LoopRunInputField({
           <div className="min-w-0 flex-1">
             <label
               htmlFor={controlId}
-              className="flex items-center font-mono text-form-input text-fg-strong"
+              className="flex items-center text-form-label font-medium text-fg-strong"
+              title={name}
             >
-              {name}
+              {label}
               {field.required ? <RequiredMark /> : null}
             </label>
             {field.description ? (
               <p className="text-form-hint leading-snug text-subtle">{field.description}</p>
             ) : null}
           </div>
-          <MonoTag className="ml-auto text-faint">{field.type}</MonoTag>
         </div>
       ) : (
         <>
-          <label htmlFor={controlId} className="flex items-center gap-1.5">
-            <span className="font-mono text-form-input text-fg-strong">{name}</span>
+          <label htmlFor={controlId} className="flex items-center gap-1.5" title={name}>
+            <span className="text-form-label font-medium text-fg-strong">{label}</span>
             {field.required ? <RequiredMark /> : null}
-            <MonoTag className="ml-auto text-faint">{field.type}</MonoTag>
           </label>
           <LoopTypedInputControl
             controlId={controlId}
