@@ -1,4 +1,3 @@
-import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
@@ -10,20 +9,18 @@ import {
   SettingsApplyRecordsPanel,
   SettingsChoiceGroup,
   SettingsGroup,
-  SettingsNumberInput,
   SettingsPageFrame,
-  SettingsProvChip,
+  SettingsPageState,
   SettingsSaveBar,
-  SettingsRuntimeUnavailable,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  SettingsTile,
-  SettingsTiles,
 } from "@/systems/settings";
 import { DEFAULT_SESSION_BUSY_INPUT_MODE, type SessionBusyInputMode } from "@/systems/session";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import {
   Button,
+  NativeSelect,
+  NativeSelectOption,
   PillGroup,
   Sheet,
   SheetContent,
@@ -33,8 +30,8 @@ import {
   type PillGroupItem,
 } from "@compozy/ui";
 
-import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
-import { GeneralUpdateSection } from "./-general-update-section";
+import { MemoryReportRow, RedactionSection } from "./-general-daemon-sections";
+import { GeneralUpdateSection, generalUpdateNeedsAttention } from "./-general-update-section";
 
 const PERMISSION_OPTIONS = [
   {
@@ -93,42 +90,31 @@ function formatSessionTimeout(seconds: number): string {
   return `${Math.floor(seconds)}s`;
 }
 
+const SESSION_TIMEOUT_PRESETS: ReadonlyArray<{ seconds: number; label: string }> = [
+  { seconds: 0, label: "Never" },
+  { seconds: 15 * 60, label: "15 minutes" },
+  { seconds: 60 * 60, label: "1 hour" },
+  { seconds: 4 * 60 * 60, label: "4 hours" },
+  { seconds: 24 * 60 * 60, label: "1 day" },
+];
+
+const CUSTOM_TIMEOUT = "custom";
+
+/** Duration in plain words for a value that matches no preset ("90 minutes"). */
+function describeSeconds(seconds: number): string {
+  if (seconds % 3600 === 0) return `${seconds / 3600} hours`;
+  if (seconds % 60 === 0) return `${seconds / 60} minutes`;
+  return `${seconds} seconds`;
+}
+
 type GeneralPageModel = ReturnType<typeof useSettingsGeneralPage>;
 type GeneralEnvelope = NonNullable<GeneralPageModel["envelope"]>;
 type GeneralRuntime = GeneralEnvelope["runtime"];
 
-function GeneralSettingsLoading() {
-  return (
-    <div
-      className="flex flex-1 items-center justify-center"
-      data-testid="settings-page-general-loading"
-    >
-      <Spinner className="size-5 text-subtle" />
-    </div>
-  );
-}
-
-function GeneralSettingsLoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div
-      className="flex flex-1 items-center justify-center"
-      data-testid="settings-page-general-error"
-    >
-      <div className="flex flex-col items-center gap-2 text-center">
-        <AlertCircle className="size-6 text-danger" />
-        <p className="text-sm text-subtle">{message}</p>
-        <Button onClick={onRetry} size="sm" type="button" variant="outline">
-          Retry
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 /** The frame's meta strip: live session/agent counts, or the one fact that the runtime is unreachable. */
 function generalSettingsMeta(runtime: GeneralRuntime) {
   if (!runtime.available) {
-    return [{ key: "runtime", content: <span>runtime unavailable</span> }];
+    return [{ key: "runtime", content: <span>CompozyOS isn&apos;t reachable</span> }];
   }
   return [
     {
@@ -150,68 +136,45 @@ function generalSettingsMeta(runtime: GeneralRuntime) {
   ];
 }
 
-/** Read-only runtime facts, or the shared unavailable notice when they could not be measured. */
-function GeneralRuntimeSection({ envelope }: { envelope: GeneralEnvelope }) {
+/** Where CompozyOS listens — the local socket and HTTP address, from live runtime facts when available. */
+function listenAddresses(envelope: GeneralEnvelope) {
   const runtime = envelope.runtime;
-  if (!runtime.available) {
-    return (
-      <SettingsGroup bare description="Read-only." title="Runtime">
-        <SettingsRuntimeUnavailable
-          slug="general"
-          description="Session, agent, socket, and uptime facts could not be measured."
-        />
-      </SettingsGroup>
-    );
-  }
-  const httpAddress =
-    runtime.http_host && runtime.http_port
-      ? `${runtime.http_host}:${runtime.http_port}`
-      : `${envelope.config.http.host}:${envelope.config.http.port}`;
-  return (
-    <SettingsGroup bare description="Read-only." title="Runtime">
-      <SettingsTiles>
-        <SettingsTile
-          label="Local socket"
-          mono
-          value={runtime.socket ?? envelope.config.daemon.socket}
-        />
-        <SettingsTile label="HTTP address" mono value={httpAddress} />
-        <SettingsTile
-          dotTone={runtime.active_sessions > 0 ? "success" : "neutral"}
-          label="Active sessions"
-          value={String(runtime.active_sessions)}
-        />
-        <SettingsTile
-          label="Agents running"
-          value={`${runtime.active_agents} of ${envelope.config.limits.max_concurrent_agents} max`}
-        />
-      </SettingsTiles>
-    </SettingsGroup>
-  );
+  const live = runtime.available ? runtime : null;
+  return {
+    socket: live?.socket ?? envelope.config.daemon.socket,
+    http:
+      live?.http_host && live.http_port
+        ? `${live.http_host}:${live.http_port}`
+        : `${envelope.config.http.host}:${envelope.config.http.port}`,
+  };
 }
 
-/** Reload, apply-record history, config-file provenance, and the update detail fold. */
+/**
+ * The operator layer: settings-file reload and history, where CompozyOS
+ * listens, memory-usage logging, and update internals.
+ */
 function GeneralAdvancedSection({
+  draft,
   envelope,
   onOpenApplyRecords,
   page,
+  setDraft,
 }: {
+  draft: GeneralEnvelope["config"];
   envelope: GeneralEnvelope;
   onOpenApplyRecords: () => void;
   page: GeneralPageModel;
+  setDraft: GeneralPageModel["setDraft"];
 }) {
   const applyRecordCount = page.applyRecords.data?.entries?.length ?? 0;
   const updateRuntime = page.update.data?.runtime;
+  const addresses = listenAddresses(envelope);
   return (
     <SettingsAdvancedFold data-testid="settings-page-general-advanced">
       <SettingRow
         data-testid="settings-page-general-reload"
-        description="Re-read the config file without restarting CompozyOS."
-        label={
-          <>
-            Reload configuration <SettingsProvChip>config.toml</SettingsProvChip>
-          </>
-        }
+        description="Re-read the settings file without restarting CompozyOS."
+        label="Reload settings file"
         control={
           <Button
             data-testid="settings-page-general-reload-button"
@@ -228,19 +191,33 @@ function GeneralAdvancedSection({
       />
       <SettingActionRow
         data-testid="settings-page-general-apply-records"
-        description={applyRecordCount > 0 ? `${applyRecordCount} apply records.` : undefined}
-        label="Configuration changes"
+        description={
+          applyRecordCount > 0
+            ? `${applyRecordCount} saved ${applyRecordCount === 1 ? "change" : "changes"}.`
+            : undefined
+        }
+        label="Settings file changes"
         onClick={onOpenApplyRecords}
       />
       <SettingRow
-        description="Workspace overlays can override values from this file."
-        label="Config file"
+        description="Project settings can override this file."
+        label="Settings file"
         control={<SettingValue mono>{envelope.config_paths?.global_config ?? "—"}</SettingValue>}
       />
+      <SettingRow
+        data-testid="settings-page-general-socket"
+        label="Local socket"
+        control={<SettingValue mono>{addresses.socket}</SettingValue>}
+      />
+      <SettingRow
+        data-testid="settings-page-general-http-address"
+        label="Local address"
+        control={<SettingValue mono>{addresses.http}</SettingValue>}
+      />
+      <MemoryReportRow draft={draft} setDraft={setDraft} />
       {updateRuntime ? (
         <SettingRow
           data-testid="settings-page-general-update-detail"
-          description={updateRuntime.recommendation ?? undefined}
           label="Update detail"
           control={
             <SettingValue mono>
@@ -249,7 +226,50 @@ function GeneralAdvancedSection({
           }
         />
       ) : null}
+      {updateRuntime?.recommendation ? (
+        <SettingRow
+          data-testid="settings-page-general-update-recommendation"
+          label="Upgrade command"
+          control={<SettingValue mono>{updateRuntime.recommendation}</SettingValue>}
+        />
+      ) : null}
     </SettingsAdvancedFold>
+  );
+}
+
+/** Idle-session cutoff as presets; a value that matches none stays selectable as-is. */
+function SessionTimeoutSelect({
+  disabled,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  onChange: (seconds: number) => void;
+  value: string;
+}) {
+  const seconds = parseSessionTimeoutSeconds(value);
+  const preset = SESSION_TIMEOUT_PRESETS.find(option => option.seconds === seconds);
+  return (
+    <NativeSelect
+      aria-label="End idle sessions after"
+      data-testid="settings-page-general-session-timeout-input"
+      disabled={disabled}
+      onChange={event => {
+        const next = event.target.value;
+        if (next !== CUSTOM_TIMEOUT) onChange(Number(next));
+      }}
+      size="sm"
+      value={preset ? String(preset.seconds) : CUSTOM_TIMEOUT}
+    >
+      {SESSION_TIMEOUT_PRESETS.map(option => (
+        <NativeSelectOption key={option.seconds} value={String(option.seconds)}>
+          {option.label}
+        </NativeSelectOption>
+      ))}
+      {preset ? null : (
+        <NativeSelectOption value={CUSTOM_TIMEOUT}>{describeSeconds(seconds)}</NativeSelectOption>
+      )}
+    </NativeSelect>
   );
 }
 
@@ -271,7 +291,7 @@ function GeneralApplyRecordsSheet({
         side="right"
       >
         <SheetHeader>
-          <SheetTitle>Configuration changes</SheetTitle>
+          <SheetTitle>Settings file changes</SheetTitle>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <SettingsApplyRecordsPanel
@@ -294,17 +314,10 @@ function GeneralApplyRecordsSheet({
 export function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
   useSettingsTopbar("general");
-  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const [applyRecordsOpen, setApplyRecordsOpen] = useState(false);
-  const setValidationError = (key: string) => (message: string | null) => {
-    setValidationErrors(current =>
-      current[key] === message ? current : { ...current, [key]: message }
-    );
-  };
-  const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
-    isInvalid,
+    isInvalid: false,
     isSaving: page.isSaving,
     error: page.saveError,
     warnings: page.warnings,
@@ -312,19 +325,34 @@ export function GeneralSettingsPage() {
   });
 
   if (page.isLoading) {
-    return <GeneralSettingsLoading />;
+    return <SettingsPageState slug="general" state="loading" />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <GeneralSettingsLoadError
-        message={page.error?.message ?? "Failed to load general settings"}
+      <SettingsPageState
+        error={page.error}
         onRetry={page.handleRetry}
+        slug="general"
+        state="error"
       />
     );
   }
 
   const { envelope, draft, setDraft, restart, update } = page;
+  const updateSection = (
+    <GeneralUpdateSection
+      actions={page.updateActions}
+      data={update.data}
+      error={update.error}
+      isError={update.isError}
+      isFetching={update.isFetching}
+      isLoading={update.isLoading}
+      onRetry={() => void update.refetch()}
+    />
+  );
+  // Updates lead the page only when there is something to act on.
+  const updatesFirst = generalUpdateNeedsAttention(update);
 
   return (
     <SettingsPageFrame
@@ -341,6 +369,8 @@ export function GeneralSettingsPage() {
       }
       slug="general"
     >
+      {updatesFirst ? updateSection : null}
+
       <SettingsGroup data-testid="settings-page-general-permissions" title="Permissions">
         <SettingsChoiceGroup
           ariaLabel="Permission mode"
@@ -381,49 +411,32 @@ export function GeneralSettingsPage() {
         <SettingRow
           data-testid="settings-page-general-session-timeout"
           help="A session with no activity for this long is ended and kept in history."
-          description="0 keeps sessions open."
-          error={validationErrors.sessionTimeout ?? undefined}
           label="End idle sessions after"
           control={
-            <span className="flex items-center gap-2">
-              <SettingsNumberInput
-                className="w-28 text-right font-mono"
-                data-testid="settings-page-general-session-timeout-input"
-                min={0}
-                onValidityChange={setValidationError("sessionTimeout")}
-                onValueChange={value =>
-                  setDraft(prev => {
-                    const current = prev ?? draft;
-                    return { ...current, session_timeout: formatSessionTimeout(value) };
-                  })
-                }
-                value={parseSessionTimeoutSeconds(draft.session_timeout)}
-              />
-              <span className="text-form-label text-subtle">seconds</span>
-            </span>
+            <SessionTimeoutSelect
+              disabled={page.isSaving}
+              onChange={value =>
+                setDraft(prev => {
+                  const current = prev ?? draft;
+                  return { ...current, session_timeout: formatSessionTimeout(value) };
+                })
+              }
+              value={draft.session_timeout}
+            />
           }
         />
       </SettingsGroup>
 
-      <DaemonSection draft={draft} setDraft={setDraft} />
       <RedactionSection draft={draft} setDraft={setDraft} />
 
-      <GeneralRuntimeSection envelope={envelope} />
-
-      <GeneralUpdateSection
-        actions={page.updateActions}
-        data={update.data}
-        error={update.error}
-        isError={update.isError}
-        isFetching={update.isFetching}
-        isLoading={update.isLoading}
-        onRetry={() => void update.refetch()}
-      />
+      {updatesFirst ? null : updateSection}
 
       <GeneralAdvancedSection
+        draft={draft}
         envelope={envelope}
         onOpenApplyRecords={() => setApplyRecordsOpen(true)}
         page={page}
+        setDraft={setDraft}
       />
 
       <GeneralApplyRecordsSheet

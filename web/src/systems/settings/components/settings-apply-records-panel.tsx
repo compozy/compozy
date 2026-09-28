@@ -10,6 +10,7 @@ import {
   Section,
   Skeleton,
   Spinner,
+  Time,
 } from "@compozy/ui";
 import type { PillTone } from "@compozy/ui";
 
@@ -38,12 +39,6 @@ const NEXT_ACTION_LABEL: Record<ConfigApplyRecord["next_action"], string> = {
   "new-session": "new session",
   retry: "retry",
 };
-
-function formatDateTime(value?: string | null): string {
-  if (!value) return "--";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "--" : parsed.toLocaleString();
-}
 
 function shortHash(value: string): string {
   return value.length <= 12 ? value : value.slice(0, 12);
@@ -89,8 +84,8 @@ function SettingsApplyRecordsPanel({
   return (
     <Section
       divided
-      label="Config apply history"
-      note="config.toml is desired state. Active generation is runtime truth."
+      label="Settings file changes"
+      note="Changes you've made to the settings file and whether they're in effect."
       count={records.length}
       right={
         <div className="flex flex-wrap items-center gap-2">
@@ -114,7 +109,7 @@ function SettingsApplyRecordsPanel({
             data-testid="settings-apply-records-reload"
           >
             {isReloading ? <Spinner className="size-3" /> : <RotateCw className="size-3" />}
-            Reload config
+            Reload settings file
           </Button>
         </div>
       }
@@ -164,8 +159,8 @@ function SettingsApplyRecordsPanel({
           </div>
         ) : records.length === 0 ? (
           <Empty
-            title="No apply records"
-            description="Config reload and settings mutations will appear here."
+            title="No changes yet"
+            description="Saved settings and reloads of the settings file show up here."
             data-testid="settings-apply-records-empty"
           />
         ) : (
@@ -213,7 +208,10 @@ function SettingsApplyRecordsPanel({
                 </div>
                 <div className="flex min-w-0 flex-col gap-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-small-body text-muted">
-                    <span>updated {formatDateTime(record.updated_at)}</span>
+                    <span>
+                      updated{" "}
+                      {record.updated_at ? <Time iso={record.updated_at} mode="absolute" /> : "--"}
+                    </span>
                     <span>next {NEXT_ACTION_LABEL[record.next_action]}</span>
                   </div>
                   <p className="text-small-body leading-relaxed text-muted">

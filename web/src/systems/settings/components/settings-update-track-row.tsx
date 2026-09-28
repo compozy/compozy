@@ -4,6 +4,7 @@ import { Button, Pill, Spinner } from "@compozy/ui";
 
 import { settingsUpdateVersionTransition } from "../lib/update-presentation";
 import type { SettingsUpdateTrackView } from "../lib/update-presentation";
+import type { UpdateUiPhase } from "../lib/update-phase-map";
 import { SettingRow, SettingValue } from "./setting-row";
 
 export interface SettingsUpdateTrackRowProps {
@@ -11,6 +12,16 @@ export interface SettingsUpdateTrackRowProps {
   onCancel: () => void;
   isCanceling: boolean;
 }
+
+/** Plain words for the fixed phase vocabulary; the raw phase stays on `data-phase`. */
+const PHASE_LABEL: Record<UpdateUiPhase, string> = {
+  download: "Downloading",
+  verify: "Verifying",
+  install: "Installing",
+  start: "Starting",
+  "ready-check": "Checking it works",
+  ready: "Ready",
+};
 
 /** `current → latest` while a different build is pending, else the bare version. */
 function TrackVersion({ track }: { track: SettingsUpdateTrackView }) {
@@ -62,14 +73,15 @@ export function SettingsUpdateTrackRow({
               aria-atomic="true"
               aria-live="polite"
               className="flex items-center gap-1.5"
+              data-phase={progress.phase}
               data-testid={`settings-page-general-update-progress-${track.id}`}
               role="status"
             >
               <Spinner aria-hidden="true" className="size-3.5 text-info" role="presentation" />
-              <SettingValue mono>
+              <SettingValue>
                 {/* The phase word is the fact; percent is a qualifier, so it sits
                     one step quieter and disappears when nothing measures it. */}
-                <span className="text-fg tabular-nums">{progress.phase}</span>
+                <span className="text-fg tabular-nums">{PHASE_LABEL[progress.phase]}</span>
                 {progress.percent === null ? null : (
                   <>
                     <span aria-hidden="true" className="text-faint">
