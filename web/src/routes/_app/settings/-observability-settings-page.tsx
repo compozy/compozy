@@ -1,4 +1,3 @@
-import { AlertCircle } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsObservabilityPage } from "@/systems/settings/hooks/use-settings-observability-page";
@@ -9,6 +8,7 @@ import {
   SettingsGroup,
   SettingsHeroGauge,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsProvChip,
   SettingsSaveBar,
   SettingsRuntimeUnavailable,
@@ -16,7 +16,7 @@ import {
   useSettingsTopbar,
   type SettingsObservabilitySection,
 } from "@/systems/settings";
-import { Button, Spinner, Switch } from "@compozy/ui";
+import { Switch } from "@compozy/ui";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
 
@@ -44,32 +44,17 @@ export function ObservabilitySettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-observability-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="observability" state="loading" />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-observability-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load observability settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="observability"
+        state="error"
+      />
     );
   }
 
@@ -94,16 +79,8 @@ export function ObservabilitySettingsPage() {
                   </span>
                 ),
               },
-              {
-                key: "storage",
-                content: (
-                  <span data-testid="settings-page-observability-storage-summary">
-                    storage {formatBytes(totalStorage)} of {formatBytes(cap)}
-                  </span>
-                ),
-              },
             ]
-          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
+          : [{ key: "runtime", content: <span>CompozyOS isn't reachable</span> }]
       }
       restart={restart}
       saveBar={
@@ -126,13 +103,12 @@ export function ObservabilitySettingsPage() {
           percent={capPercent}
           tone={capPercent >= 95 ? "danger" : capPercent >= 80 ? "warning" : "success"}
           pill={capPercent >= 80 ? "Filling up" : "Healthy"}
-          legend={`Global DB ${formatBytes(runtime.global_db_size_bytes)} · Sessions ${formatBytes(runtime.session_db_size_bytes)} · ${formatBytes(Math.max(0, cap - totalStorage))} free`}
-          foot={`${draft.enabled ? "Capturing" : "Capture off"} · ${runtime.active_sessions} active sessions · ${runtime.active_agents} agents working · ${draft.retention_days}-day retention`}
+          legend={`App data ${formatBytes(runtime.global_db_size_bytes)} · Sessions ${formatBytes(runtime.session_db_size_bytes)} · ${formatBytes(Math.max(0, cap - totalStorage))} free`}
         />
       ) : (
         <SettingsRuntimeUnavailable
           slug="observability"
-          description="Session, agent, and storage measurements could not be read."
+          description="Session and storage numbers couldn't be read."
         />
       )}
       <CaptureSection
@@ -173,7 +149,7 @@ function CaptureSection({
       <SettingsFieldRow
         data-testid="settings-page-observability-enabled"
         label="Record activity"
-        help="Persist every session event to SQLite for replay"
+        help="Save every session step so you can replay it"
         control={
           <Switch
             data-testid="settings-page-observability-enabled-switch"
@@ -190,7 +166,7 @@ function CaptureSection({
       <SettingsFieldRow
         data-testid="settings-page-observability-retention"
         label="Keep records for"
-        description="Older events are pruned on the retention sweep"
+        description="Older activity is deleted automatically"
         error={validationErrors.retentionDays ?? undefined}
         control={
           <NumberField
@@ -220,7 +196,7 @@ function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-observability-transcripts-enabled"
         label="Save full transcripts"
-        help="Chunked segment-based replay of every prompt + response"
+        help="Keep every prompt and reply so you can replay a session"
         control={
           <Switch
             data-testid="settings-page-observability-transcripts-enabled-switch"
@@ -246,17 +222,17 @@ function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
     <SettingsGroup title="Storage limits">
       <SettingsFieldRow
         data-testid="settings-page-observability-max-global"
-        label="Global storage cap"
+        label="Storage limit"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Soft cap across the global event store
+            Suggested size limit for all saved activity
             <SettingsProvChip>observability.max_global_bytes</SettingsProvChip>
           </span>
         }
         control={
           <SettingsByteField
             data-testid="settings-page-observability-max-global-bytes"
-            label="Global storage cap"
+            label="Storage limit"
             value={draft.max_global_bytes}
             onChange={value =>
               setDraft(prev => {
@@ -272,7 +248,7 @@ function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
         label="Transcript segment size"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Chunk size for transcript segments
+            Size of each saved transcript piece
             <SettingsProvChip>observability.transcripts.segment_bytes</SettingsProvChip>
           </span>
         }
@@ -298,7 +274,7 @@ function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
         label="Transcript cap per session"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Per-session transcript ceiling
+            Largest transcript kept for one session
             <SettingsProvChip>observability.transcripts.max_bytes_per_session</SettingsProvChip>
           </span>
         }

@@ -28,9 +28,9 @@ const TASK_MODE_ITEMS: ReadonlyArray<{
   testId: string;
 }> = [
   { value: "list", label: "List", testId: "tasks-mode-list" },
+  { value: "inbox", label: "Inbox", testId: "tasks-mode-inbox" },
   { value: "kanban", label: "Kanban", testId: "tasks-mode-kanban" },
   { value: "dashboard", label: "Dashboard", testId: "tasks-mode-dashboard" },
-  { value: "inbox", label: "Inbox", testId: "tasks-mode-inbox" },
 ];
 
 export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
@@ -134,7 +134,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       {page.scopeLoading ? (
         <BlockLoading
           data-testid="tasks-scope-loading"
-          label="Resolving task scope"
+          label="Loading tasks…"
           size="md"
           surface="bare"
         />
@@ -143,7 +143,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           data-testid="tasks-scope-error"
           description={page.scopeError.message}
           icon={AlertCircle}
-          title="Unable to resolve task scope"
+          title="Couldn't load tasks for this project"
         />
       ) : mode === "dashboard" ? (
         <TasksDashboardView

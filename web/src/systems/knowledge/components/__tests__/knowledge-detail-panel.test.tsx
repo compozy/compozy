@@ -102,47 +102,74 @@ describe("KnowledgeDetailPanel", () => {
     expect(screen.getByText("Boom")).toBeInTheDocument();
   });
 
-  it("Should render the markdown preview inside the CodeBlock primitive", () => {
+  it("Should render content as formatted markdown with the raw source one toggle away", async () => {
+    const user = userEvent.setup();
     renderDetail();
     const preview = screen.getByTestId("content-preview");
-    expect(preview).toHaveAttribute("data-slot", "code-block");
+    expect(within(preview).getByText("Body content.")).toBeInTheDocument();
+    expect(preview).not.toHaveTextContent("# User Role");
+    expect(screen.queryByTestId("content-source")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("knowledge-content-source-toggle"));
+    expect(screen.getByTestId("content-source")).toHaveAttribute("data-slot", "code-block");
+    expect(screen.queryByTestId("content-preview")).not.toBeInTheDocument();
   });
 
-  it("Should render only scope + age pills in the detail header (no type/tier/staleness)", () => {
+  it("Should lead the header with the memory name and description", () => {
     renderDetail();
     const header = screen.getByTestId("knowledge-detail-header");
-    expect(header.querySelector("[data-slot='page-head']")).toBeNull();
-    expect(within(header).getByTestId("detail-scope-badge")).toHaveTextContent("Profile");
-    expect(within(header).getByTestId("detail-age-badge")).toBeInTheDocument();
-    // The header must NOT carry type/tier/staleness pills.
-    expect(within(header).queryByTestId("detail-type-badge")).toBeNull();
-    expect(within(header).queryByTestId("detail-agent-tier-badge")).toBeNull();
-    expect(within(header).queryByTestId("detail-staleness-badge")).toBeNull();
+    expect(within(header).getByRole("heading", { level: 2 })).toHaveTextContent("User Role");
+    expect(within(header).getByTestId("knowledge-detail-description")).toHaveTextContent(
+      "Guidance for the assistant."
+    );
+    expect(within(header).queryByTestId("detail-scope-badge")).toBeNull();
+    expect(within(header).queryByTestId("detail-age-badge")).toBeNull();
   });
 
-  it("Should surface filename under the unified window head", () => {
+  it("Should keep kind, updated, and usage in the overview", () => {
     renderDetail();
-    expect(screen.getByTestId("knowledge-detail-filename")).toHaveTextContent("user-role.md");
+    const overview = screen.getByTestId("knowledge-detail-context");
+    expect(within(overview).getByTestId("context-type-value")).toHaveTextContent("About you");
+    expect(within(overview).getByTestId("context-recalls-value")).toHaveTextContent(
+      /^4 times · last/
+    );
+    expect(within(overview).queryByTestId("context-staleness-value")).toBeNull();
+    expect(within(overview).queryByTestId("knowledge-detail-filename")).toBeNull();
   });
 
-  it("Should embed an Overview ContextBox carrying type/tier/staleness", () => {
+  it("Should move the remaining facts into a Details fold closed by default", async () => {
+    const user = userEvent.setup();
     renderDetail({
       memory: AGENT_MEMORY,
       content: "agent body",
+      projectName: "Launch",
       scope: "agent",
     });
-    const context = screen.getByTestId("knowledge-detail-context");
-    expect(context).toBeInTheDocument();
-    expect(screen.getByTestId("context-type-value")).toHaveTextContent("user");
-    expect(screen.getByTestId("context-tier-value")).toHaveTextContent("notes");
+    const toggle = screen.getByTestId("knowledge-detail-more-toggle");
+    expect(toggle).toHaveTextContent("Details");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    const facts = screen.getByTestId("knowledge-detail-facts");
+    expect(within(facts).getByTestId("knowledge-detail-filename")).toHaveTextContent("cto-tone.md");
+    expect(within(facts).getByTestId("context-scope-value")).toHaveTextContent(
+      "Agent · this project"
+    );
+    expect(within(facts).getByTestId("context-agent-value")).toHaveTextContent("cto");
+    expect(within(facts).getByTestId("context-workspace-value")).toHaveTextContent("Launch");
+    expect(within(facts).getByTestId("context-superseded-value")).toHaveTextContent(
+      "cto-tone-v2.md"
+    );
+    expect(within(facts).getByTestId("context-injection-value")).toHaveTextContent("Yes");
     expect(screen.getByTestId("context-staleness-value")).toHaveTextContent(
       "Updated >7 days after last recall"
     );
-    expect(screen.getByTestId("context-agent-tier-value")).toHaveTextContent("Agent · workspace");
-    expect(screen.getByTestId("context-agent-value")).toHaveTextContent("cto");
+  });
+
+  it("Should fall back to the raw project id when no project name resolves", () => {
+    renderDetail({ memory: AGENT_MEMORY, content: "agent body", scope: "agent" });
     expect(screen.getByTestId("context-workspace-value")).toHaveTextContent("ws_launch");
-    expect(screen.getByTestId("context-superseded-value")).toHaveTextContent("cto-tone-v2.md");
-    expect(screen.getByTestId("context-recalls-value")).toHaveTextContent("6");
   });
 
   it("Should resolve modified + last-recalled via the <Time> primitive", () => {
@@ -155,11 +182,6 @@ describe("KnowledgeDetailPanel", () => {
     expect(lastRecalled.getAttribute("datetime")).toBe(MEMORY.last_recalled_at);
   });
 
-  it("Should default staleness to Active when the banner is absent", () => {
-    renderDetail();
-    expect(screen.getByTestId("context-staleness-value")).toHaveTextContent("Active");
-  });
-
   it("Should open the delete dialog and emit onDelete when confirmed", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn().mockResolvedValue(undefined);
@@ -168,7 +190,7 @@ describe("KnowledgeDetailPanel", () => {
     await user.click(screen.getByTestId("delete-memory-btn"));
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
 
-    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), MEMORY.filename);
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), MEMORY.name);
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
     expect(onDelete).toHaveBeenCalledWith(MEMORY);
   });
@@ -235,7 +257,7 @@ describe("KnowledgeDetailPanel", () => {
     });
 
     await user.click(screen.getByTestId("delete-memory-btn"));
-    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), secondMemory.filename);
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), secondMemory.name);
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(onDelete).toHaveBeenCalledWith(secondMemory);
@@ -248,11 +270,10 @@ describe("KnowledgeDetailPanel", () => {
     expect(screen.getByTestId("delete-memory-btn")).toBeDisabled();
   });
 
-  it("Should surface delete failures inline and inside the delete dialog", async () => {
+  it("Should surface delete failures inside the delete dialog", async () => {
     const user = userEvent.setup();
     renderDetail({ deleteError: "Delete failed" });
 
-    expect(screen.getByTestId("knowledge-delete-error")).toHaveTextContent("Delete failed");
     await user.click(screen.getByTestId("delete-memory-btn"));
     expect(screen.getByTestId("knowledge-delete-dialog-error")).toHaveTextContent("Delete failed");
   });
@@ -283,24 +304,23 @@ describe("KnowledgeDetailPanel", () => {
     expect(screen.getByTestId("edit-memory-btn")).toBeDisabled();
   });
 
-  it("Should surface edit failures inline and inside the edit dialog", async () => {
+  it("Should surface edit failures inside the edit dialog", async () => {
     const user = userEvent.setup();
     renderDetail({ onEdit: vi.fn(), editError: "Edit failed" });
 
-    expect(screen.getByTestId("knowledge-edit-error")).toHaveTextContent("Edit failed");
     await user.click(screen.getByTestId("edit-memory-btn"));
     expect(screen.getByTestId("knowledge-edit-dialog-error")).toHaveTextContent("Edit failed");
   });
 
-  it("Should render the controller decisions section when decisions are present", () => {
+  it("Should render the history section when decisions are present", () => {
     renderDetail({ decisions: [SAMPLE_DECISION] });
     expect(screen.getByTestId("knowledge-decisions-list")).toBeInTheDocument();
     expect(screen.getByTestId(`knowledge-decision-${SAMPLE_DECISION.id}`)).toBeInTheDocument();
   });
 
-  it("Should render the empty decisions fallback when there are no decisions", () => {
+  it("Should omit the history section when there are no decisions", () => {
     renderDetail();
-    expect(screen.getByTestId("knowledge-decisions-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-decisions-section")).not.toBeInTheDocument();
   });
 
   it("Should render the decisions error fallback when the decisions query fails", () => {

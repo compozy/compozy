@@ -14,10 +14,12 @@ import {
   EntityModeToolbar,
   LaneTabs,
   Pill,
+  runViewTransition,
+  viewTransitionName,
   type EntityMode,
 } from "@compozy/ui";
 
-import { getProviderStateView } from "../lib/provider-state";
+import { getProviderStateView, type ProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import { ProviderEditForm } from "./provider-edit-form";
 import { ProviderInspectView } from "./provider-inspect-view";
@@ -94,9 +96,13 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
     provider && provider.source_metadata.effective_source.kind !== "builtin-provider"
   );
 
+  // Overview and Configure differ a lot in height; a view transition morphs the
+  // body instead of letting the dialog jump.
+  const switchToEdit = () => void runViewTransition(onSwitchToEdit);
+  const cancelEdit = () => void runViewTransition(onCancelEdit);
   const handleTabChange = (next: DetailTab) => {
-    if (next === "configure" && mode === "inspect") onSwitchToEdit();
-    if (next === "overview" && mode === "edit") onCancelEdit();
+    if (next === "configure" && mode === "inspect") switchToEdit();
+    if (next === "overview" && mode === "edit") cancelEdit();
   };
 
   return (
@@ -111,8 +117,15 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
         <div className="flex flex-col">
           <EntityDialogHeader
             className="border-b-0 pb-3"
-            description={headerDescription(mode, provider)}
-            eyebrow="Settings · Provider"
+            description={
+              isCreate ? (
+                "Connect an agent app to CompozyOS."
+              ) : provider ? (
+                <ProviderHeaderStatus isDefault={provider.default} state={state} />
+              ) : undefined
+            }
+            // Create/edit titles already name the entity; only the bare-name inspect view needs the kind.
+            eyebrow={mode === "inspect" ? "Provider" : undefined}
             icon={Settings2}
             onClose={isSaving ? undefined : () => onOpenChange(false)}
             title={
@@ -121,7 +134,7 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
           />
 
           {isCreate ? null : (
-            <div className="flex flex-wrap items-center gap-3 border-b border-line bg-canvas-soft px-5 pb-2">
+            <div className="border-b border-line bg-canvas-soft px-5 pb-2">
               <LaneTabs<DetailTab>
                 ariaLabel="Provider detail sections"
                 items={[
@@ -135,14 +148,6 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
                 onChange={handleTabChange}
                 value={activeTab}
               />
-              <div className="flex-1" />
-              {provider?.default ? <Pill tone="accent">Default</Pill> : null}
-              {state?.display ? (
-                <Pill tone={state.tone}>
-                  <Pill.Dot tone={state.tone} />
-                  {state.display}
-                </Pill>
-              ) : null}
             </div>
           )}
 
@@ -152,26 +157,23 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
               onModeChange={setTier}
               testIdPrefix="settings-providers-editor"
               trailing={
-                provider ? (
+                provider && tier === "advanced" ? (
                   <SettingsSourceBadge
                     data-testid="settings-providers-editor-source"
                     shadowed={provider.source_metadata.shadowed_sources ?? []}
                     source={provider.source_metadata.effective_source}
                   />
-                ) : (
-                  <span
-                    className="font-mono text-form-label text-muted"
-                    data-testid="settings-providers-editor-status"
-                  >
-                    overlay draft
-                  </span>
-                )
+                ) : null
               }
             />
           ) : null}
         </div>
 
-        <EntityDialogBody className="flex flex-col" data-testid="provider-detail-body">
+        <EntityDialogBody
+          className="flex flex-col"
+          data-testid="provider-detail-body"
+          style={{ viewTransitionName: viewTransitionName("provider-detail-body") }}
+        >
           {error ? (
             <Alert data-testid="provider-detail-error" variant="danger">
               <AlertDescription>{error}</AlertDescription>
@@ -200,7 +202,11 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
               />
             ) : null
           ) : provider ? (
-            <ProviderInspectView onRefreshCatalog={onRefreshCatalog} provider={provider} />
+            <ProviderInspectView
+              onAction={switchToEdit}
+              onRefreshCatalog={onRefreshCatalog}
+              provider={provider}
+            />
           ) : null}
         </EntityDialogBody>
 
@@ -210,11 +216,11 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
             cancelTestId="provider-detail-cancel"
             hint={
               isCreate
-                ? "Credential controls follow the selected ownership mode."
-                : "Unchanged credentials remain bound and untouched."
+                ? "Key fields depend on who handles sign-in."
+                : "Saved keys stay as they are unless you replace them."
             }
             isSaving={isSaving}
-            onCancel={isCreate ? () => onOpenChange(false) : onCancelEdit}
+            onCancel={isCreate ? () => onOpenChange(false) : cancelEdit}
             onPrimary={onSave}
             primaryDisabled={!canSave}
             primaryIcon={Save}
@@ -226,25 +232,22 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
             cancelLabel="Close"
             cancelTestId="provider-detail-close"
             hint={
-              <Button
-                data-testid="provider-detail-delete"
-                disabled={!deletable || isDeleting}
-                onClick={onRequestDelete}
-                size="sm"
-                title={
-                  deletable
-                    ? undefined
-                    : "Builtin providers cannot be deleted — edit the overlay to override them."
-                }
-                type="button"
-                variant="destructive"
-              >
-                <Trash2 aria-hidden="true" className="size-3" />
-                Delete overlay
-              </Button>
+              deletable ? (
+                <Button
+                  data-testid="provider-detail-delete"
+                  disabled={isDeleting}
+                  onClick={onRequestDelete}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Trash2 aria-hidden="true" className="size-3" />
+                  {provider?.fallback ? "Reset to default" : "Delete provider"}
+                </Button>
+              ) : undefined
             }
             onCancel={() => onOpenChange(false)}
-            onPrimary={onSwitchToEdit}
+            onPrimary={switchToEdit}
             primaryDisabled={isDeleting}
             primaryIcon={Pencil}
             primaryLabel="Edit settings"
@@ -262,27 +265,27 @@ function headerTitle(
   draft: ProviderDraft | null
 ): string {
   if (mode === "create") return "Create provider";
-  const name = provider?.name ?? draft?.name ?? "";
+  const name = provider?.settings.display_name?.trim() || provider?.name || draft?.name || "";
   return mode === "edit" ? `Edit ${name}` : name;
 }
 
-function headerDescription(mode: DetailMode, provider: SettingsProviderEntry | null) {
-  if (mode === "create") {
-    return (
-      <>
-        An ACP provider overlay — <b className="font-medium text-muted">who owns authentication</b>{" "}
-        decides which credential controls CompozyOS may manage.
-      </>
-    );
-  }
-  if (mode === "edit") {
-    return (
-      <>
-        Changes apply to the provider overlay.{" "}
-        <b className="font-medium text-muted">Stored credentials stay bound</b> — rotate only when
-        replacing them.
-      </>
-    );
-  }
-  return provider?.settings.display_name || "Provider configuration";
+function ProviderHeaderStatus({
+  isDefault,
+  state,
+}: {
+  isDefault: boolean;
+  state: ProviderStateView | null;
+}) {
+  if (!isDefault && !state) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-2" data-testid="provider-detail-status">
+      {state ? (
+        <Pill tone={state.label === "installed" ? "neutral" : state.tone}>
+          <Pill.Dot tone={state.label === "installed" ? "success" : state.tone} />
+          {state.display}
+        </Pill>
+      ) : null}
+      {isDefault ? <Pill tone="accent">Default</Pill> : null}
+    </span>
+  );
 }

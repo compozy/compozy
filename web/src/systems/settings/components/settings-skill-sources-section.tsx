@@ -42,7 +42,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
             lastAppliedLabel={model.lastLabel}
             onReset={model.reset}
             onSave={model.save}
-            saveLabel="Apply"
+            saveLabel="Apply now"
             testId={`${TEST_ID}-controls`}
           />
         )
@@ -51,8 +51,8 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       {model.readOnly ? (
         <p className="text-sm text-muted" data-testid={`${TEST_ID}-read-only`}>
           {model.readOnlyReason === "repository-profile"
-            ? "This workspace projection follows the active profile and is read-only."
-            : "Agent scope only supports disabled-skill tombstones. Sources stay user and workspace policy."}
+            ? "This project uses the active profile's settings and can't be edited here."
+            : "Sources are set for you or for a project, not per agent. Here you can only turn skills off."}
         </p>
       ) : null}
       {(model.saveError ?? model.inheritError) ? (
@@ -144,7 +144,7 @@ function SourceKeyGroup({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-fg">{title}</span>
           <Pill size="xs" data-testid={`${testId}-posture`}>
-            {posture.inherited ? "inherited" : "custom for this workspace"}
+            {posture.inherited ? "inherited" : "custom for this project"}
           </Pill>
           {model.readOnly ? null : posture.inherited && !posture.armed ? (
             <Button

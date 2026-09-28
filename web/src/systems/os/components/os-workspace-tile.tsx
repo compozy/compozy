@@ -109,7 +109,7 @@ export function OsWorkspaceAddTile({ focused, className, ...props }: OsWorkspace
       data-add="true"
       data-on={focused ? "true" : undefined}
       aria-selected={false}
-      aria-label="New workspace"
+      aria-label="New project"
       className={cn(TILE_CLASS, className)}
       {...props}
     >

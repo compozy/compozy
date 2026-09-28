@@ -104,9 +104,9 @@ function MarketplaceResults({
               </Button>
             }
             data-testid="marketplace-query-empty"
-            description={`Nothing matches "${query}" in the marketplace.`}
+            description="Try a different word."
             icon={SearchX}
-            title="No extensions match this query"
+            title={`No results for "${query}"`}
           />
         ) : (
           <Empty

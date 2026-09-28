@@ -26,7 +26,7 @@ describe("onboardingSummary", () => {
   it("Should name the provider, model, effort and sign-in on the runtime step", () => {
     expect(onboardingSummary(input())).toEqual({
       label: "Saves as your default",
-      value: "Claude Code · Claude Opus 4.8 · High · CLI sign-in",
+      value: "Claude Code · Claude Opus 4.8 · High · Existing sign-in",
       tone: "neutral",
     });
   });
@@ -44,10 +44,10 @@ describe("onboardingSummary", () => {
       })
     );
 
-    expect(summary.value).toBe("OpenRouter · Grok 4 · OPENROUTER_API_KEY");
+    expect(summary.value).toBe("OpenRouter · Grok 4 · API key from OPENROUTER_API_KEY");
   });
 
-  it("Should fall back to a generic bound-key phrase before an env var is typed", () => {
+  it("Should fall back to a generic API-key phrase before an env var is typed", () => {
     const summary = onboardingSummary(
       input({
         runtime: {
@@ -60,7 +60,7 @@ describe("onboardingSummary", () => {
       })
     );
 
-    expect(summary.value).toBe("OpenRouter · Grok 4 · bound key");
+    expect(summary.value).toBe("OpenRouter · Grok 4 · API key");
   });
 
   it("Should say nothing is selected rather than render an empty runtime line", () => {
@@ -89,7 +89,7 @@ describe("onboardingSummary", () => {
     );
 
     expect(summary).toEqual({
-      label: "Workspaces",
+      label: "Projects",
       value: "2 folders · compozy, infra",
       tone: "neutral",
     });
@@ -99,7 +99,7 @@ describe("onboardingSummary", () => {
     const summary = onboardingSummary(input({ step: 2, workspaces: [] }));
 
     expect(summary).toEqual({
-      label: "Workspaces",
+      label: "Projects",
       value: "None yet",
       tone: "neutral",
     });

@@ -59,7 +59,7 @@ export function WorktreeRow({
       data-selected={selected ? "true" : undefined}
       data-inert={inert ? "true" : undefined}
       className={cn(
-        "grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-[7px]",
+        "grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-2",
         inert ? "cursor-default" : "hover:bg-row-hover",
         selected && "bg-row-selected",
         className
@@ -70,7 +70,7 @@ export function WorktreeRow({
         aria-hidden="true"
         data-slot="worktree-row-icon"
         className={cn(
-          "grid size-[26px] shrink-0 place-items-center rounded",
+          "grid size-7 shrink-0 place-items-center rounded",
           DASHED_WELL_STATES.has(entry.displayState)
             ? "border border-dashed border-line-strong text-muted"
             : "bg-elevated text-muted"
@@ -84,7 +84,7 @@ export function WorktreeRow({
           <b
             data-slot="worktree-row-name"
             className={cn(
-              "min-w-0 truncate text-small-body font-[550] tracking-tight",
+              "min-w-0 truncate text-small-body font-medium tracking-tight",
               entry.displayState === "missing" ||
                 entry.displayState === "failed" ||
                 entry.displayState === "error"

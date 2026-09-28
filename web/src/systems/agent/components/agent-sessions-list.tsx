@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, MessageSquare } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { ChevronRight, MessageSquare, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 
 import {
   Empty,
@@ -8,7 +8,6 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-  Eyebrow,
   Pill,
   Skeleton,
   Spinner,
@@ -18,6 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Time,
   cn,
   formatDuration as formatCanonicalDuration,
 } from "@compozy/ui";
@@ -31,8 +31,6 @@ import {
   type SessionPayload,
   SessionRowActions,
 } from "@/systems/session";
-
-const RELATIVE_TIME_REFRESH_MS = 30_000;
 
 export interface AgentSessionsListProps {
   agentName: string;
@@ -48,6 +46,7 @@ export interface AgentSessionsListProps {
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
   emptyAction?: ReactNode;
+  onRetry?: () => void;
 }
 
 export function AgentSessionsList({
@@ -64,6 +63,7 @@ export function AgentSessionsList({
   emptyTitle = "No sessions yet",
   emptyDescription,
   emptyAction,
+  onRetry,
 }: AgentSessionsListProps) {
   const resolvedEmptyDescription =
     emptyDescription === undefined
@@ -77,7 +77,21 @@ export function AgentSessionsList({
           <Empty
             icon={MessageSquare}
             title="Couldn't load sessions"
-            description="The session list failed to load. Try refreshing the page."
+            description="Something went wrong while loading this agent's sessions."
+            action={
+              onRetry ? (
+                <Button
+                  data-testid="agent-sessions-retry"
+                  onClick={onRetry}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <RefreshCw aria-hidden="true" className="size-3" />
+                  Retry
+                </Button>
+              ) : undefined
+            }
             data-testid="agent-sessions-error"
             fill={false}
           />
@@ -131,13 +145,6 @@ function AgentSessionsTable({
   onLoadMore,
   sessionActions,
 }: AgentSessionsTableProps) {
-  const [now, setNow] = useState(Date.now);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), RELATIVE_TIME_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
   return (
     <div className="flex flex-col" data-testid="agent-sessions-table-wrapper">
       <div className="overflow-x-auto">
@@ -147,7 +154,6 @@ function AgentSessionsTable({
               <TableHead className="w-2/5">Session</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Duration</TableHead>
-              <TableHead className="text-right">Iterations</TableHead>
               <TableHead className="text-right">Last activity</TableHead>
               <TableHead className="w-10">
                 <span className="sr-only">Actions</span>
@@ -160,7 +166,6 @@ function AgentSessionsTable({
                 key={session.id}
                 agentName={agentName}
                 session={session}
-                now={now}
                 sessionActions={sessionActions}
               />
             ))}
@@ -190,11 +195,10 @@ function AgentSessionsTable({
 interface AgentSessionRowProps {
   agentName: string;
   session: SessionPayload;
-  now: number;
   sessionActions?: SessionLifecycleActionHandlers;
 }
 
-function AgentSessionRow({ agentName, session, now, sessionActions }: AgentSessionRowProps) {
+function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
   const running = isSessionRunning(session);
   const title = getSessionDisplayTitle(session);
@@ -211,30 +215,22 @@ function AgentSessionRow({ agentName, session, now, sessionActions }: AgentSessi
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
-          <Eyebrow className="text-subtle">{session.runtime.effective?.provider}</Eyebrow>
         </Link>
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap justify-end gap-1">
+        <div className="flex flex-wrap justify-start gap-1">
           <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
             {running ? <Spinner className="size-3" /> : null}
             {status.label}
           </Pill>
-          {session.archived_at !== null ? (
-            <Pill mono tone="neutral">
-              ARCHIVED
-            </Pill>
-          ) : null}
+          {session.archived_at !== null ? <Pill tone="neutral">Archived</Pill> : null}
         </div>
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-muted">
+      <TableCell className="text-small-body text-right tabular-nums text-muted">
         {formatDuration(session.activity?.elapsed_seconds)}
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-muted">
-        {formatIterations(session.activity?.iteration_current, session.activity?.iteration_max)}
-      </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-muted">
-        {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at, now)}
+      <TableCell className="text-small-body text-right text-muted">
+        <LastActivity iso={session.activity?.last_activity_at ?? session.updated_at} />
       </TableCell>
       <TableCell className="text-right">
         {sessionActions ? <SessionRowActions session={session} actions={sessionActions} /> : null}
@@ -315,32 +311,12 @@ const AGENT_SESSION_SKELETON_IDS = [
   "agent-session-skeleton-4",
 ];
 
+function LastActivity({ iso }: { iso: string | null | undefined }) {
+  if (!iso || !Number.isFinite(new Date(iso).getTime())) return <>—</>;
+  return <Time iso={iso} mode="relative" />;
+}
+
 function formatDuration(seconds: number | undefined | null): string {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "--";
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "—";
   return formatCanonicalDuration(Math.round(seconds) * 1_000);
-}
-
-function formatIterations(current: number | undefined, max: number | undefined): string {
-  if (typeof current !== "number" || !Number.isFinite(current)) return "--";
-  if (typeof max === "number" && Number.isFinite(max) && max > 0) {
-    return `${current}/${max}`;
-  }
-  return `${current}`;
-}
-
-function formatRelativeTime(value: string | null | undefined, now: number): string {
-  if (!value) return "--";
-  const ts = new Date(value).getTime();
-  if (!Number.isFinite(ts)) return "--";
-  const diffMs = now - ts;
-  if (diffMs < 0) return "just now";
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 45) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString();
 }

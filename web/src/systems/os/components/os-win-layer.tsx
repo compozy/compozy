@@ -1,3 +1,7 @@
+import { MonitorX } from "lucide-react";
+
+import { Empty } from "@compozy/ui";
+
 import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
@@ -186,14 +190,13 @@ export function OsWinLayer({
           data-testid="os-viewport-rejected"
           className="absolute inset-0 grid place-items-center px-6"
         >
-          <div className="max-w-sm border border-line bg-surface px-5 py-4 text-center shadow-overlay">
-            <p className="text-body font-semibold text-foreground">
-              This window is too narrow for the configured layout.
-            </p>
-            <p className="mt-1 text-small-body text-muted">
-              Widen it or change the small viewport policy in Settings › Layouts.
-            </p>
-          </div>
+          <Empty
+            framed
+            icon={MonitorX}
+            className="max-w-sm bg-canvas shadow-overlay"
+            title="Make the window wider to see your desktop"
+            description="You can also change this in Settings › Layouts."
+          />
         </div>
       ) : null}
     </div>

@@ -208,7 +208,7 @@ export interface WindowManagerController extends OsDesktopRuntime {
     instanceKey: string,
     route: OsWindowRoute
   ): WindowManagerCommandOutcome;
-  popWindowRoute(id: string): WindowManagerCommandOutcome;
+  popWindowRoute(id: string, expectedRoute?: OsWindowRoute): WindowManagerCommandOutcome;
   groupWindows(
     targetWindowId: string,
     windowIds: readonly string[],

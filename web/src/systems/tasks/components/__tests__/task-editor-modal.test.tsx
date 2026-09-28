@@ -112,12 +112,12 @@ describe("TaskEditorModal", () => {
     expect(within(header as HTMLElement).getByText("Autonomy · Task")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Create task")).toBeInTheDocument();
     expect(
-      within(header as HTMLElement).getByText(/A task is a durable contract/)
+      within(header as HTMLElement).getByText(/A task is a piece of work you hand to an agent/)
     ).toBeInTheDocument();
     // The description no longer duplicates as a paragraph in the scrolling body.
     expect(
       within(screen.getByTestId("task-editor-modal-body")).queryByText(
-        /A task is a durable contract/
+        /A task is a piece of work you hand to an agent/
       )
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("task-mode-simple")).toHaveAttribute("aria-pressed", "true");
@@ -200,7 +200,7 @@ describe("TaskEditorModal", () => {
     fireEvent.click(screen.getByTestId("task-execution-toggle"));
     expect(screen.getByRole("button", { name: "About save as draft" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "About auto-enqueue when ready" })
+      screen.getByRole("button", { name: "About starting automatically" })
     ).toBeInTheDocument();
     expect(screen.queryByText(/Create the contract without enqueueing/)).not.toBeInTheDocument();
   });

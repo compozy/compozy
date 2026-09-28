@@ -191,7 +191,7 @@ export function DesktopsOverview({
                 <Empty
                   icon={MonitorUp}
                   title="No desktops"
-                  description="Create a desktop to place windows in this workspace."
+                  description="Add a desktop to arrange windows."
                   action={
                     <Button
                       type="button"

@@ -1,5 +1,6 @@
 import { Input } from "@compozy/ui";
 
+import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import type { LoopConfigCheckDescriptor, LoopConfigCheckState } from "../../lib/loop-config-checks";
 import { LoopConfigureSwitchRow } from "./loop-configure-switch-row";
 
@@ -21,10 +22,10 @@ export function LoopConfigureChecks({
   if (descriptors.length === 0) {
     return (
       <p
-        className="rounded-lg border border-line-soft bg-canvas-tint px-3.5 py-3 text-form-hint text-subtle"
+        className="rounded-lg border border-line-soft bg-canvas-tint px-4 py-3 text-form-hint text-subtle"
         data-testid="loop-configure-checks-empty"
       >
-        This loop declares no verification checks.
+        This Loop has no checks to turn on or off.
       </p>
     );
   }
@@ -40,19 +41,20 @@ export function LoopConfigureChecks({
           <LoopConfigureSwitchRow
             key={descriptor.id}
             testId={`loop-configure-check-${descriptor.id}`}
-            typeLabel={descriptor.type}
-            title={descriptor.id}
+            title={humanizeLoopNodeId(descriptor.id)}
             description={descriptor.method || undefined}
             checked={state.enabled}
             disabled={descriptor.locked || disabled}
-            lockedHint={descriptor.locked ? "Cannot be removed without a fork." : undefined}
+            lockedHint={
+              descriptor.locked ? "Built into this Loop. Edit its steps to remove it." : undefined
+            }
             onCheckedChange={next => onToggle(descriptor.id, next)}
           >
             {descriptor.isCommand ? (
               <Input
                 type="text"
                 data-testid={`loop-configure-command-${descriptor.id}`}
-                className="ml-[96px] h-8 font-mono text-form-input"
+                className="h-8 font-mono text-form-input"
                 placeholder={descriptor.declaredCommand || "command"}
                 value={state.command}
                 disabled={commandDisabled}

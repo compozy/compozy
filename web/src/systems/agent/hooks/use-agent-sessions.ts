@@ -18,6 +18,7 @@ interface UseAgentSessionsResult {
   loadMoreArchived: () => void;
   isLoading: boolean;
   isError: boolean;
+  retry: () => void;
 }
 
 /**
@@ -66,5 +67,9 @@ export function useAgentSessions(
     isLoading:
       (enabled && !worktree.resolved) || sessionsQuery.isLoading || archivedSessionsQuery.isLoading,
     isError: sessionsQuery.isError || archivedSessionsQuery.isError,
+    retry: () => {
+      if (sessionsQuery.isError) void sessionsQuery.refetch();
+      if (archivedSessionsQuery.isError) void archivedSessionsQuery.refetch();
+    },
   };
 }

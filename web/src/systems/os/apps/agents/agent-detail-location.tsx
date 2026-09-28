@@ -125,6 +125,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
         data-testid="agent-detail-loading"
       >
         <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-8 w-80" />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton key={index} className="h-20 rounded-md" />
@@ -142,7 +143,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
           icon={AlertCircle}
           title="Agent not found"
           description={
-            page.agentError?.message ?? `No agent named "${name}" was found in this workspace.`
+            page.agentError?.message ?? `No agent named "${name}" was found in this project.`
           }
           action={
             <Button
@@ -241,10 +242,8 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 total={page.sessionsTotal}
                 active={page.activeSessionsTotal}
                 failed={page.failedSessionsTotal}
-                runtimeSeconds={page.runtimeSeconds}
                 metricsUnavailable={page.metricsUnavailable}
                 metricsLoading={page.metricsLoading}
-                lastActivityAt={page.lastSessionActivityAt}
                 status={page.sessionsLoading ? "loading" : page.sessionsError ? "error" : "ready"}
                 paginationStatus={
                   page.isLoadingMoreSessions
@@ -267,6 +266,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 onFilterChange={page.setFilter}
                 onNewSession={page.onNewSession}
                 onClearFilter={() => page.setFilter("all")}
+                onRetry={page.onRetrySessions}
               />
               {page.sessionDeleteDialog.session ? (
                 <SessionDeleteDialog

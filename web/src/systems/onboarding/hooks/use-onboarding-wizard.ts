@@ -20,19 +20,16 @@ export const ONBOARDING_STEP_COUNT = 2;
 export interface OnboardingStepMeta {
   title: string;
   help: string;
-  helpLabel: string;
 }
 
 const STEP_META: Record<number, OnboardingStepMeta> = {
   1: {
     title: "Choose the model your agents run on",
-    help: "New agents inherit this model. Change it any time in Settings.",
-    helpLabel: "About the default model",
+    help: "New agents use this model. You can change it any time in Settings.",
   },
   2: {
-    title: "Pick where agents can work",
-    help: "Skip starts in Global (~, your home folder).",
-    helpLabel: "About workspace",
+    title: "Choose a project folder",
+    help: "Agents can read and change files in the folders you add. You can add more later.",
   },
 };
 

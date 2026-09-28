@@ -253,7 +253,6 @@ export {
   ProviderModelCatalogStatus,
   TerminalSettingsSections,
   type TerminalSettingsConfig,
-  ProviderRow,
   ProvidersToolbar,
   RoleList,
   ModalSettingRow,
@@ -287,6 +286,7 @@ export {
   SettingsUpdateTrackRow,
   SettingsNumberInput,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsProvChip,
   SettingsRestartNotice,
   SettingsRuntimeUnavailable,
@@ -310,7 +310,7 @@ export type {
   SettingsMarketplaceCatalogSectionProps,
   SettingsMarketplaceSourcesSectionProps,
 } from "./components";
-export type { MCPOverrideEditorProps, MCPServerEditorProps, ProvidersViewMode } from "./components";
+export type { MCPOverrideEditorProps, MCPServerEditorProps } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
 export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 export { settingsProviderToOption } from "./lib/provider-runtime-option";

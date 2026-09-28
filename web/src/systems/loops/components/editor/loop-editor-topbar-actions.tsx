@@ -2,6 +2,7 @@ import { Check, Upload } from "lucide-react";
 
 import { Button, Pill } from "@compozy/ui";
 
+import { loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopSource } from "../../types";
 
 interface LoopEditorTopbarActionsProps {
@@ -26,19 +27,14 @@ export function LoopEditorTopbarStatus({
 }: LoopEditorTopbarStatusProps) {
   const readOnlySource = source !== undefined && source !== "workspace";
   const state = readOnlySource
-    ? source
+    ? loopSourceLabel({ source })
     : isDirty
-      ? "unpublished edits"
+      ? "Draft"
       : positionsDirty
-        ? "layout unsaved"
-        : "published";
-  const tone = readOnlySource
-    ? "neutral"
-    : isDirty
-      ? "warning"
-      : positionsDirty
-        ? "neutral"
-        : "success";
+        ? "Layout not saved"
+        : "Published";
+  // Only unpublished edits carry signal color; a resting published Loop stays neutral.
+  const tone = !readOnlySource && isDirty ? "warning" : "neutral";
 
   return (
     <span
@@ -52,12 +48,11 @@ export function LoopEditorTopbarStatus({
     >
       <Pill
         data-testid="loop-editor-version"
-        mono
         size="xs"
-        title={`v${version ?? "?"} · ${state}`}
+        title={`Version ${version ?? "?"} · ${state}`}
         tone={tone}
       >
-        <Pill.Dot size="sm" tone={tone} />v{version ?? "?"} · {state}
+        {tone === "warning" ? <Pill.Dot size="sm" tone={tone} /> : null}v{version ?? "?"} · {state}
       </Pill>
     </span>
   );

@@ -28,6 +28,7 @@ import {
 import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace, useCreateDestination } from "@/systems/workspace";
 
+import { knowledgeGuard, knowledgeSearchInfo } from "./knowledge-page-copy";
 import { resolveKnowledgeSelectedKey } from "./knowledge-route-selection";
 
 interface DecorateOptions {
@@ -76,7 +77,7 @@ function useKnowledgePage(options?: {
   routeScope?: KnowledgeScope | null;
   routeWorkspaceId?: string | null;
 }) {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspaceId, data: knownWorkspaces } = useActiveWorkspace();
   const destination = useCreateDestination();
   const { destination: profile } = useProfileReadScope();
 
@@ -386,6 +387,12 @@ function useKnowledgePage(options?: {
     setRevertingDecisionId(prev => (prev === decision.id ? null : prev));
   };
 
+  const selectedWorkspaceId = selectedMemory?.workspace_id;
+  const selectedProjectName = selectedWorkspaceId
+    ? (knownWorkspaces?.find(workspace => workspace.id === selectedWorkspaceId)?.name ??
+      (selectedWorkspaceId === activeWorkspaceId ? "This project" : undefined))
+    : undefined;
+
   const selectedTargetMatches = selectedMemory
     ? actionTargetKey === knowledgeMemoryKey(selectedMemory)
     : false;
@@ -407,14 +414,9 @@ function useKnowledgePage(options?: {
 
   const requiresWorkspace = activeScope === "workspace" && !listWorkspaceId;
   const requiresAgentName = activeScope === "agent" && trimmedAgentName === "";
-  const guardMessage = requiresWorkspace
-    ? "Select an active workspace to view workspace memories."
-    : requiresAgentName
-      ? "Enter an agent name to view agent-scoped memories."
-      : null;
-
+  const guard = knowledgeGuard({ requiresWorkspace, requiresAgentName });
   const searchInfo = searchEnabled
-    ? `Recall ${searchQueryResult.data?.results.length ?? 0} of top-K`
+    ? knowledgeSearchInfo(searchQueryResult.data?.results.length ?? 0)
     : null;
 
   return {
@@ -442,6 +444,7 @@ function useKnowledgePage(options?: {
     error,
     selectedMemory,
     selectedScope: selectedMemory?.scope,
+    selectedProjectName,
     selectedContent: memoryDetailQuery.data?.content,
     isContentLoading: memoryDetailQuery.isLoading && Boolean(selectedMemory),
     contentError: memoryDetailQuery.error,
@@ -475,7 +478,7 @@ function useKnowledgePage(options?: {
     revertError,
     searchActive: searchEnabled,
     searchInfo,
-    guardMessage,
+    guard,
   };
 }
 

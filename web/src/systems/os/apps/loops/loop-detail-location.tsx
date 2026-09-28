@@ -1,6 +1,6 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
 
-import { Empty, Spinner } from "@compozy/ui";
+import { Empty, PAGE_CONTENT_GUTTER, Skeleton, SkeletonRows, cn } from "@compozy/ui";
 
 import { useLoopDetail } from "./use-loop-detail";
 import { LoopDetailView } from "@/systems/loops";
@@ -26,19 +26,21 @@ export function LoopDetailLocation({
   if (workspaceId === "") {
     return (
       <DetailState
-        description="Select a workspace to inspect this Loop."
+        description="Select a project to inspect this Loop."
         testId="loop-detail-no-workspace"
-        title="No workspace selected"
+        title="No project selected"
       />
     );
   }
   if (loopQuery.isLoading || configQuery.isLoading) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center"
+        aria-busy="true"
+        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-6 pt-6")}
         data-testid="loop-detail-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+        <Skeleton className="h-7 w-48" />
+        <SkeletonRows count={3} rowClassName="border-b border-line-soft py-3" />
       </div>
     );
   }
@@ -50,7 +52,7 @@ export function LoopDetailLocation({
         }
         icon={AlertCircle}
         testId="loop-detail-not-found"
-        title="Unable to load loop"
+        title="Couldn't open this Loop"
       />
     );
   }
@@ -58,10 +60,10 @@ export function LoopDetailLocation({
   if (!configQuery.effectiveConfig) {
     return (
       <DetailState
-        description="Couldn't load the effective loop configuration."
+        description="Couldn't load this Loop's settings. Try again in a moment."
         icon={AlertCircle}
         testId="loop-detail-config-error"
-        title="Unable to load loop configuration"
+        title="Couldn't load settings"
       />
     );
   }

@@ -1,20 +1,13 @@
 import { AlertCircle, GitBranch, ListChecks, Search } from "lucide-react";
 
-import { Button, Empty, ListingPage, Skeleton, Spinner } from "@compozy/ui";
+import { Button, Empty, ListingPage, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
 import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
+import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
-
-const TASK_LIST_SKELETON_IDS = [
-  "task-list-skeleton-1",
-  "task-list-skeleton-2",
-  "task-list-skeleton-3",
-  "task-list-skeleton-4",
-  "task-list-skeleton-5",
-];
 
 export interface TasksListSurfaceProps {
   tasks: TaskListItem[];
@@ -68,58 +61,46 @@ export function TasksListSurface({
     <ListingPage data-testid="tasks-list-surface">
       <div className="flex flex-col gap-5" data-testid="tasks-list-surface-body">
         {isLoading && visibleCount === 0 ? (
-          <div
-            className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
-            data-testid="tasks-list-surface-loading"
-          >
-            {TASK_LIST_SKELETON_IDS.map(id => (
-              <div
-                className="flex items-center gap-3.5 border-b border-line-soft px-4 py-3 last:border-b-0"
-                key={id}
-              >
-                <Skeleton className="size-[34px] shrink-0 rounded-md" />
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <Skeleton className="h-3 w-3/5 rounded-xs" />
-                  <Skeleton className="h-2.5 w-2/5 rounded-xs" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <TaskRowsLoadingSkeleton
+            label="Loading tasks"
+            rows={4}
+            testId="tasks-list-surface-loading"
+          />
         ) : errorMessage && visibleCount === 0 ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-            <Empty
-              data-testid="tasks-list-surface-error"
-              description={errorMessage}
-              icon={AlertCircle}
-              title="Unable to load tasks"
-            />
-            {onRetryLoad ? (
-              <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
-                Retry loading tasks
-              </Button>
-            ) : null}
-          </div>
+          <Empty
+            action={
+              onRetryLoad ? (
+                <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
+                  Retry loading tasks
+                </Button>
+              ) : null
+            }
+            data-testid="tasks-list-surface-error"
+            description={errorMessage}
+            icon={AlertCircle}
+            title="Couldn't load tasks"
+          />
         ) : visibleCount === 0 && isRevealEmpty ? (
           <Empty
             action={
               onShowWorkItems ? (
                 <Button onClick={onShowWorkItems} size="sm" type="button" variant="neutral">
-                  Show work items
+                  Show tasks
                 </Button>
               ) : null
             }
             data-testid="tasks-list-surface-loop-empty"
-            description="Turn the filter back to work items to see your tasks."
+            description="Switch back to Tasks to see your work."
             icon={GitBranch}
-            title="No loop records in this workspace"
+            title="No loop steps in this project"
           />
         ) : visibleCount === 0 ? (
           <Empty
             data-testid="tasks-list-surface-empty"
             description={
               hasFilters
-                ? "Clear filters to see other tasks in this workspace."
-                : "Open a new task contract from the topbar to populate this list."
+                ? "Clear filters to see other tasks in this project."
+                : "Create one with New task above."
             }
             icon={hasFilters ? Search : ListChecks}
             title={

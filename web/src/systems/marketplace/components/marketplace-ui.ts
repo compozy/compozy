@@ -22,3 +22,19 @@ export function marketplaceErrorCode(error: unknown): string | undefined {
   if (error instanceof ExtensionsApiError) return error.code;
   return undefined;
 }
+
+interface MarketplaceTrustSubject {
+  tier?: string;
+  trust?: { checksum_verified: boolean } | null;
+}
+
+/** Plain-language tier word: the catalog's own tier, never the registry enum. */
+export function marketplaceTierLabel(tier: string | null | undefined): string {
+  return tier === "official" ? "Official" : "Community";
+}
+
+/** One-sentence trust summary shared by the detail rail and the install summary. */
+export function marketplaceTrustSentence(entry: MarketplaceTrustSubject): string {
+  const checked = entry.trust?.checksum_verified ? "checked by CompozyOS" : "not verified";
+  return `${marketplaceTierLabel(entry.tier)} · ${checked}`;
+}

@@ -31,9 +31,13 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@compozy/ui", () => ({
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
   Empty: () => null,
+  formatRelativeTime: () => "5m ago",
+  PAGE_CONTENT_GUTTER: "",
   Pill: ({ children }: { children: unknown }) => children,
-  Spinner: () => null,
+  Skeleton: () => null,
+  SkeletonRows: () => null,
   useTopbarSlot: vi.fn(),
 }));
 
@@ -205,9 +209,10 @@ describe("LoopRunDetailLocation", () => {
     render(<LoopRunDetailLocation runId="run-1" />);
 
     const slot = vi.mocked(useTopbarSlot).mock.calls.at(-1)?.[0];
+    // The run leaf names the run by when it started; the id stays in About.
     expect(slot).toEqual(
       expect.objectContaining({
-        crumb: "run-1",
+        crumb: "Run from 5m ago",
         crumbs: [
           expect.objectContaining({ id: "loops", label: "Loops" }),
           expect.objectContaining({ id: "runs", label: "Runs" }),

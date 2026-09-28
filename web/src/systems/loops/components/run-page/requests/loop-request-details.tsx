@@ -11,6 +11,7 @@ import {
   Spinner,
 } from "@compozy/ui";
 
+import { humanizeLoopNodeId } from "../../../lib/loop-node-labels";
 import type { LoopRequestView } from "../../../lib/loop-request-model";
 
 export interface LoopRequestDetailsProps {
@@ -116,7 +117,7 @@ export function LoopRequestDetails({
 }
 
 function identityLine(view: LoopRequestView): string {
-  const parts = [view.request.node_id, `gen ${view.request.generation}`];
+  const parts = [humanizeLoopNodeId(view.request.node_id), `round ${view.request.generation}`];
   if (view.laneLabel !== "") parts.push(view.laneLabel);
   return parts.join(" · ");
 }

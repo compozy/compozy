@@ -310,7 +310,7 @@ describe("LoopRunNeedsYouCard", () => {
     expect(screen.queryByTestId("loop-run-needs-approval")).not.toBeInTheDocument();
     // A live run can still take the verb, so the row points at it.
     expect(screen.getByTestId("loop-run-needs-quarantine-detail-fix_batch-g2")).toHaveTextContent(
-      "Requeue it from the entry once it is repaired."
+      "Retry it once the problem is fixed."
     );
     fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-g2"));
     expect(onOpenQuarantine).toHaveBeenCalledWith("fix_batch");
@@ -350,7 +350,7 @@ describe("LoopRunNeedsYouCard", () => {
     // The daemon rejects requeue on a terminal run; the row keeps the reason
     // and the entry, and no longer asks for a verb nobody can take.
     const detail = screen.getByTestId("loop-run-needs-quarantine-detail-orchestrate-g2");
-    expect(detail).toHaveTextContent("Set aside after 2 attempts. This run has ended.");
+    expect(detail).toHaveTextContent("Set aside after 2 tries. This run has ended.");
     expect(detail).not.toHaveTextContent(/requeue/i);
     fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-orchestrate-g2"));
     expect(onOpenQuarantine).toHaveBeenCalledWith("orchestrate");
@@ -503,7 +503,7 @@ describe("LoopRunControlDialog", () => {
     const dialog = screen.getByTestId("loop-run-control-dialog");
     expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
     // The strip is the guard against acting on a stale screen.
-    expect(dialog).toHaveTextContent("r-7c4e19 is running · generation 2");
+    expect(dialog).toHaveTextContent("r-7c4e19 is running · round 2");
     expect(dialog).not.toHaveTextContent("in flight");
     expect(dialog).not.toHaveTextContent("waiting on you");
     expect(dialog).toHaveTextContent("Active sessions are stopped automatically");
@@ -525,7 +525,7 @@ describe("LoopRunControlDialog", () => {
     );
     const dialog = screen.getByTestId("loop-run-control-dialog");
     expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
-    expect(dialog).toHaveTextContent("r-7c4e19 is watching · generation 4");
+    expect(dialog).toHaveTextContent("r-7c4e19 is watching · round 4");
     expect(dialog).toHaveTextContent("Active sessions are stopped automatically");
     expect(dialog).toHaveTextContent("cause operator_cancel");
   });
@@ -562,7 +562,7 @@ describe("LoopRunControlDialog", () => {
       />
     );
     expect(screen.getByTestId("loop-run-control-dialog")).toHaveTextContent(
-      "r-7c4e19 is running · 2 lanes in flight · 1 waiting on you · generation 2 · 22m 14s"
+      "r-7c4e19 is running · 2 lanes in flight · 1 waiting on you · round 2 · 22m 14s"
     );
   });
 
@@ -809,7 +809,7 @@ describe("LoopNodeRowActions", () => {
       />
     );
     expect(screen.getByTestId("loop-node-primary-resume-wait-task_03")).toHaveTextContent(
-      "Resume with payload…"
+      "Resume with data…"
     );
   });
 });
@@ -874,7 +874,7 @@ describe("loopRunStateStrip", () => {
         status: "running",
         waitingOnYouCount: 0,
       })
-    ).toBe("r-7c4e19 is running · generation 2");
+    ).toBe("r-7c4e19 is running · round 2");
   });
 });
 
@@ -1032,7 +1032,6 @@ describe("LoopQuarantineSheet", () => {
         onOpenChange={vi.fn()}
         onVerb={vi.fn()}
         open
-        runId="r-1"
       />
     );
     expect(await screen.findByTestId("loop-quarantine-episode-1")).toHaveTextContent(
@@ -1109,7 +1108,7 @@ describe("LoopRunAboutRail", () => {
     // Operational status and navigation read with About still closed.
     expect(screen.queryByTestId("loop-run-about-id")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-run-about-last-woke")).toHaveTextContent("Last woke");
-    const best = screen.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
+    const best = screen.getByRole("link", { name: "Best result · Round 1 · 0.70" });
     expect(best).toHaveAttribute("href", "#loop-generation-1");
     await userEvent.click(best);
     expect(onOpenGeneration).toHaveBeenCalledWith(1);
@@ -1216,7 +1215,7 @@ describe("run-page reads that failed", () => {
     const failed = screen.getByTestId("loop-run-story-empty");
     expect(failed).toHaveAttribute("data-state", "error");
     expect(failed).not.toHaveTextContent("Nothing has happened in this run yet.");
-    expect(failed).toHaveTextContent("could not be read");
+    expect(failed).toHaveTextContent("could not be loaded");
   });
 
   it("Should mark stale story beats instead of passing them off as current", () => {

@@ -106,7 +106,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect(settingsUI.general.page).toBeVisible();
 
   const nextTimeoutValue = await nextSessionTimeoutValue(settingsUI.general.sessionTimeoutInput);
-  await settingsUI.general.sessionTimeoutInput.fill(nextTimeoutValue);
+  await settingsUI.general.sessionTimeoutInput.selectOption(nextTimeoutValue);
   await expect(settingsUI.general.saveButton).toBeEnabled();
   await settingsUI.general.saveButton.click();
 
@@ -366,19 +366,19 @@ test("operator can replace a builtin provider with a config overlay and delete i
     `Saved provider "${builtinProviderName}"`
   );
   await expect(settingsUI.providers.actionResult).toContainText("restart required");
-  await expect(settingsUI.providers.cardCommand(builtinProviderName)).toContainText(
+  await settingsUI.providers.card(builtinProviderName).click();
+  await settingsUI.providers.inspectorTechnical.getByTestId("settings-advanced-toggle").click();
+  await expect(settingsUI.providers.inspectorCommand).toContainText(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
   );
-  await settingsUI.providers.card(builtinProviderName).click();
   await expect(settingsUI.providers.inspectorSource).toContainText(/config/i);
   await settingsUI.providers.editorDelete.click();
   await expect(settingsUI.providers.deleteDialog).toBeVisible();
   await settingsUI.providers.deleteConfirm.click();
 
   await expect(settingsUI.providers.actionResult).toContainText(
-    `Deleted overlay for "${builtinProviderName}"`
+    `Reset "${builtinProviderName}" to its default setup`
   );
-  await expect(settingsUI.providers.actionResult).toContainText("builtin fallback now effective");
   await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
   await settingsUI.providers.card(builtinProviderName).click();
   await expect(settingsUI.providers.inspectorSource).toContainText(/builtin/i);
@@ -417,7 +417,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await expect(
     settingsUI.mcpServers.rowSource(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
-  ).toHaveText(`workspace config · workspace · ${workspace.id}`);
+  ).toHaveText(`project settings · project · ${workspace.id}`);
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
@@ -432,7 +432,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await expect(
     settingsUI.mcpServers.rowSource(browserSettingsOperatorFlowScenario.mcpServers.global.name)
-  ).toHaveText("global mcp.json · user");
+  ).toHaveText("mcp.json · personal");
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
   ).toBeVisible();

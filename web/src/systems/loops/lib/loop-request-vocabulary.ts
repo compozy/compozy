@@ -1,12 +1,4 @@
-import {
-  Check,
-  CircleAlert,
-  Clock,
-  GitFork,
-  type LucideIcon,
-  Minus,
-  TriangleAlert,
-} from "lucide-react";
+import { Check, CircleAlert, Clock, type LucideIcon, Minus, TriangleAlert } from "lucide-react";
 
 import type { PillTone } from "@compozy/ui";
 
@@ -61,8 +53,6 @@ export const LOOP_REQUEST_NEAR_EXPIRY_SIGNAL: LoopSignal = {
   icon: Clock,
   word: "expires soon",
 };
-
-export const LOOP_FORK_SIGNAL: LoopSignal = { tone: "info", icon: GitFork, word: "fork" };
 
 export const LOOP_DIFF_CHANGE_TONE: Record<LoopDiffChange, PillTone> = {
   changed: "accent",

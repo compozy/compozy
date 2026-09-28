@@ -11,6 +11,7 @@ import {
   DialogTitle,
   Field,
   FieldDescription,
+  HelpTip,
   FieldHeader,
   FieldLabel,
   Input,
@@ -67,9 +68,12 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
             <Field data-invalid={form.refInvalid ? true : undefined}>
               <FieldHeader>
                 <FieldLabel htmlFor={REF_ID}>GitHub repository or folder</FieldLabel>
+                <HelpTip label="What the repository needs">
+                  The repository needs a <MonoId value="marketplace.json" /> at its root or under{" "}
+                  <MonoId value=".claude-plugin/" />.
+                </HelpTip>
               </FieldHeader>
               <Input
-                aria-describedby={`${REF_ID}-hint`}
                 aria-invalid={form.refInvalid ? true : undefined}
                 autoComplete="off"
                 autoFocus
@@ -83,10 +87,6 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
                 spellCheck={false}
                 value={form.draft.ref}
               />
-              <FieldDescription id={`${REF_ID}-hint`}>
-                The repository needs a <MonoId value="marketplace.json" /> at its root or under{" "}
-                <MonoId value=".claude-plugin/" />.
-              </FieldDescription>
             </Field>
 
             {form.showNameField ? (

@@ -76,6 +76,16 @@ describe("EntityDialogHeader", () => {
     expect(close).not.toHaveAttribute("tabindex", "-1");
   });
 
+  it("Should render without an eyebrow when the title names the entity", async () => {
+    renderHeader({ eyebrow: undefined });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const header = screen.getByTestId("host").querySelector('[data-slot="entity-dialog-header"]');
+    expect(header?.querySelector('[data-slot="eyebrow"]')).toBeNull();
+    expect(screen.queryByText("Autonomy · Task")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Create task" })).toBeInTheDocument();
+  });
+
   it("Should leave ConfirmDialog on its neutral header", async () => {
     render(
       <UIProvider reducedMotion="always">

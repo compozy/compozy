@@ -3,8 +3,8 @@ import { Check } from "lucide-react";
 import { cn } from "@compozy/ui";
 
 const STEPS: { step: number; label: string }[] = [
-  { step: 1, label: "Runtime" },
-  { step: 2, label: "Workspace" },
+  { step: 1, label: "Model" },
+  { step: 2, label: "Project" },
 ];
 
 export interface OnboardingStepStripProps {

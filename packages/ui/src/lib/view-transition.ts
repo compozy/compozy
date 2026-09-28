@@ -30,8 +30,10 @@ function supportsTransitionTypes(): boolean {
 
 /**
  * Runs `update` inside a same-document view transition when the engine supports
- * it and motion is allowed. `update` always runs synchronously (flushed through
- * React) so callers keep synchronous outcomes; the animation is fire-and-forget.
+ * it and motion is allowed. Without a transition `update` runs synchronously;
+ * with one, the engine calls it after capturing the old frame (next frame) and
+ * React commits it via `flushSync`. Callers that need synchronous outcomes must
+ * compute them outside `update`. The returned promise settles once `update` ran.
  * Single swap point for React's `<ViewTransition>` once it ships in stable.
  */
 export function runViewTransition(

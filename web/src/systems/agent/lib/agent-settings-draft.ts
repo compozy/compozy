@@ -1,11 +1,11 @@
 import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import {
-  AGENT_CREATE_PERMISSION_OPTIONS,
   parseAgentCreateCategoryPath,
   type AgentCreatePermission,
   type AgentCreatePermissionChoice,
 } from "./agent-create-draft";
+import { AGENT_CREATE_PERMISSION_OPTIONS } from "./agent-permissions";
 import { joinAgentCategorySegments } from "./agent-category";
 import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-runtime";
 import type { AgentPayload, UpdateAgentParams } from "../types";

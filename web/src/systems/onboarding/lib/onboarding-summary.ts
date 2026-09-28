@@ -28,9 +28,9 @@ export interface OnboardingSummaryInput {
 }
 
 function authSummary(authMode: OnboardingAuthMode, envVar: string): string {
-  if (authMode === "native_cli") return "CLI sign-in";
+  if (authMode === "native_cli") return "Existing sign-in";
   const target = envVar.trim();
-  return target.length > 0 ? target : "bound key";
+  return target.length > 0 ? `API key from ${target}` : "API key";
 }
 
 function runtimeSummary(runtime: OnboardingSummaryInput["runtime"]): OnboardingSummary {
@@ -52,14 +52,14 @@ function runtimeSummary(runtime: OnboardingSummaryInput["runtime"]): OnboardingS
 function workspacesSummary(workspaces: OnboardingSummaryInput["workspaces"]): OnboardingSummary {
   if (workspaces.length === 0) {
     return {
-      label: "Workspaces",
+      label: "Projects",
       value: "None yet",
       tone: "neutral",
     };
   }
   const count = `${workspaces.length} folder${workspaces.length === 1 ? "" : "s"}`;
   return {
-    label: "Workspaces",
+    label: "Projects",
     value: `${count} · ${workspaces.map(workspace => workspace.name).join(", ")}`,
     tone: "neutral",
   };

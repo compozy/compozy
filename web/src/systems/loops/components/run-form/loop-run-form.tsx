@@ -1,10 +1,10 @@
 import { CheckCircle2, FlaskConical, Info, Play, TextCursorInput } from "lucide-react";
 
-import { Button, Eyebrow, Spinner } from "@compozy/ui";
+import { Button, PageContent, Spinner } from "@compozy/ui";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
 import { loopSourceLabel } from "../../lib/loop-catalog";
-import { declaredInputCountsGist } from "../../lib/loop-run-form";
+import { declaredInputCountsGist, loopInputLabel } from "../../lib/loop-run-form";
 import { LoopPageLede } from "../loop-page-lede";
 import { LoopRailSection } from "../loop-rail-section";
 import type { LoopDetail, LoopEffectiveConfig, LoopRun } from "../../types";
@@ -18,8 +18,7 @@ import { LoopRunEnvironment } from "./loop-run-environment";
 import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
 import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
 
-const DRY_RUN_SENTENCE =
-  "Dry run validates inputs and renders the first-generation plan without starting a run.";
+const DRY_RUN_SENTENCE = "Dry run checks your inputs without starting anything.";
 
 interface LoopRunFormProps {
   workspaceId: string;
@@ -32,6 +31,7 @@ interface LoopRunFormProps {
 
 function actionBarNote(form: {
   missing: Set<string>;
+  schema: LoopDetail["definition"]["inputs"] | null | undefined;
   plan: unknown;
   submitAttempted: boolean;
   valid: boolean;
@@ -40,11 +40,18 @@ function actionBarNote(form: {
   if (form.submitAttempted && !form.valid) {
     if (form.missing.size === 1) {
       const [name] = form.missing;
-      return { kind: "missing", text: `${name} is required to run this loop.` };
+      return { kind: "missing", text: requiredMessage(name, form.schema?.[name]) };
     }
     return { kind: "missing", text: "Fill the required inputs, then run." };
   }
   return { kind: "idle", text: DRY_RUN_SENTENCE };
+}
+
+function requiredMessage(
+  name: string,
+  field: NonNullable<LoopDetail["definition"]["inputs"]>[string] | undefined
+): string {
+  return `${loopInputLabel(name, field)} is required to run this Loop.`;
 }
 
 function LoopRunFormActions({
@@ -138,99 +145,88 @@ export function LoopRunForm({
   const inputCatalogNeeds = loopInputCatalogNeeds(form.schema);
 
   return (
-    <div
-      className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-y-auto"
-      data-testid="loop-run-form"
-    >
-      <form
-        className="flex min-w-0 flex-col gap-6 px-6 pt-5 pb-20"
-        onSubmit={event => {
-          event.preventDefault();
-          form.handleRun();
-        }}
-      >
-        <LoopPageLede
-          lede="Fill the inputs, start the run. Everything else — retries, budgets, gates — is already declared on the loop."
-          meta={[
-            loop.definition.apiVersion,
-            `${inputNames.length} declared input${inputNames.length === 1 ? "" : "s"}`,
-          ]}
-          name={loop.name}
-          prefix="Run"
-          tags={[loopSourceLabel(loop), `v${loop.version}`]}
-          testId="loop-run-form-lede"
-        />
-
-        <div className="max-w-prose">
-          <Eyebrow className="text-muted">Contract goal</Eyebrow>
-          <p className="mt-1.5 text-sm text-fg">{form.contract.goal}</p>
-        </div>
-
-        {activeRun ? (
-          <LoopRunActiveNotice concurrency={loop.definition.concurrency} run={activeRun} />
-        ) : null}
-
-        <LoopRailSection
-          defaultOpen
-          gist={declaredInputCountsGist(form.schema)}
-          icon={<TextCursorInput aria-hidden="true" className="size-3.5" />}
-          title="Inputs"
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="loop-run-form">
+      <PageContent className="flex max-w-2xl min-w-0 flex-col gap-6" density="route">
+        <form
+          className="flex min-w-0 flex-col gap-6"
+          onSubmit={event => {
+            event.preventDefault();
+            form.handleRun();
+          }}
         >
-          <LoopInputCatalogBoundary workspaceId={workspaceId} needs={inputCatalogNeeds}>
-            {inputNames.length === 0 ? (
-              <p className="px-3.5 py-3 text-sm text-subtle">
-                This Loop declares no inputs — run it directly.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-4 px-3.5 py-3">
-                {inputNames.map(name => (
-                  <LoopRunInputField
-                    key={name}
-                    name={name}
-                    field={form.schema![name]}
-                    value={form.inputs[name]}
-                    disabled={form.busy}
-                    error={
-                      form.fieldErrors[name] ??
-                      (form.submitAttempted && form.missing.has(name)
-                        ? `${name} is required to run this loop.`
-                        : undefined)
-                    }
-                    onChange={value => form.setInput(name, value)}
-                  />
-                ))}
-              </div>
-            )}
-          </LoopInputCatalogBoundary>
-        </LoopRailSection>
+          <LoopPageLede
+            lede={form.contract.goal}
+            meta={[]}
+            name={loop.name}
+            prefix="Run"
+            tags={[loopSourceLabel(loop), `v${loop.version}`]}
+            testId="loop-run-form-lede"
+          />
 
-        <LoopRunEnvironment
-          disabled={form.busy}
-          gitBacked={gitBacked}
-          onChange={environment => form.setOverridesDraft({ ...form.overrides, environment })}
-          value={form.overrides.environment}
-          worktrees={worktrees.data?.worktrees ?? []}
-        />
+          {activeRun ? (
+            <LoopRunActiveNotice concurrency={loop.definition.concurrency} run={activeRun} />
+          ) : null}
 
-        <LoopRunOverrides
-          effectiveConfig={effectiveConfig}
-          draft={form.overrides}
-          disabled={form.busy}
-          onChange={form.setOverridesDraft}
-        />
+          <LoopRailSection
+            defaultOpen
+            gist={declaredInputCountsGist(form.schema)}
+            icon={<TextCursorInput aria-hidden="true" className="size-3.5" />}
+            title="Inputs"
+          >
+            <LoopInputCatalogBoundary workspaceId={workspaceId} needs={inputCatalogNeeds}>
+              {inputNames.length === 0 ? (
+                <p className="px-4 py-3 text-form-hint text-subtle">No inputs needed.</p>
+              ) : (
+                <div className="flex flex-col gap-4 px-4 py-3">
+                  {inputNames.map(name => (
+                    <LoopRunInputField
+                      key={name}
+                      name={name}
+                      field={form.schema![name]}
+                      value={form.inputs[name]}
+                      disabled={form.busy}
+                      error={
+                        form.fieldErrors[name] ??
+                        (form.submitAttempted && form.missing.has(name)
+                          ? requiredMessage(name, form.schema?.[name])
+                          : undefined)
+                      }
+                      onChange={value => form.setInput(name, value)}
+                    />
+                  ))}
+                </div>
+              )}
+            </LoopInputCatalogBoundary>
+          </LoopRailSection>
 
-        <LoopRunFormActions
-          busy={form.busy}
-          note={note}
-          onDryRun={form.handleDryRun}
-          onRun={form.handleRun}
-          pendingKind={form.pendingKind}
-          profileDestination={form.profileDestination}
-          valid={form.valid}
-        />
+          <LoopRunEnvironment
+            disabled={form.busy}
+            gitBacked={gitBacked}
+            onChange={environment => form.setOverridesDraft({ ...form.overrides, environment })}
+            value={form.overrides.environment}
+            worktrees={worktrees.data?.worktrees ?? []}
+          />
 
-        {form.plan ? <LoopRunPlan plan={form.plan} /> : null}
-      </form>
+          <LoopRunOverrides
+            effectiveConfig={effectiveConfig}
+            draft={form.overrides}
+            disabled={form.busy}
+            onChange={form.setOverridesDraft}
+          />
+
+          <LoopRunFormActions
+            busy={form.busy}
+            note={note}
+            onDryRun={form.handleDryRun}
+            onRun={form.handleRun}
+            pendingKind={form.pendingKind}
+            profileDestination={form.profileDestination}
+            valid={form.valid}
+          />
+
+          {form.plan ? <LoopRunPlan plan={form.plan} /> : null}
+        </form>
+      </PageContent>
     </div>
   );
 }

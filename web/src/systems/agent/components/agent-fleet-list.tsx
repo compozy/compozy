@@ -81,7 +81,7 @@ function AgentFleetList({
       >
         <SkeletonRows count={8} className="gap-0" rowClassName="px-4 py-3">
           <div className="flex items-center gap-3.5">
-            <Skeleton className="size-[34px] shrink-0 rounded-md" />
+            <Skeleton className="size-icon-well-row shrink-0 rounded-md" />
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <Skeleton className="h-3 w-40" />
               <Skeleton className="h-2.5 w-64 max-w-full" />
@@ -110,7 +110,7 @@ function AgentFleetList({
               New agent
             </Button>
           }
-          description="Agents define the provider, model, and instructions a session runs with."
+          description="An agent is an assistant with its own instructions and model. Create one to start working with it."
           icon={Users2}
           title="No agents yet"
         />

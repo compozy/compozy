@@ -1,6 +1,6 @@
 import { Repeat2 } from "lucide-react";
 
-import { Button, Empty, Eyebrow, type ListingViewMode } from "@compozy/ui";
+import { Button, Empty, ListGroup, ListGroupHeader, type ListingViewMode } from "@compozy/ui";
 
 import type { LoopCatalogFilter } from "../../lib/loop-catalog";
 import { groupLoopCatalog, loopKindFacetCount } from "../../lib/loop-catalog";
@@ -61,9 +61,7 @@ export function LoopCatalog({
           }
           className="max-w-sm"
           description={
-            hasActiveFilters
-              ? "Try clearing search or filters."
-              : "No Loop definitions are available in this workspace yet."
+            hasActiveFilters ? "Try clearing search or filters." : "This project has no Loops yet."
           }
           icon={Repeat2}
           title={hasActiveFilters ? "No matching loops" : "No loops yet"}
@@ -74,32 +72,40 @@ export function LoopCatalog({
 
   const catalog = (
     <div className="flex flex-col gap-5" data-testid="loop-catalog">
-      {groups.map(group => (
-        <section key={group.kind} data-testid={`loop-group-${group.kind}`}>
-          <div className="flex items-center gap-2 px-1 pb-2">
-            <Eyebrow className="text-muted">{group.label}</Eyebrow>
-            <span className="font-mono text-mono-id tabular-nums text-faint">
-              {loopKindFacetCount(group.kind, group.entries.length, facets?.kinds)}
-            </span>
-          </div>
-          {view === "cards" ? (
-            <div
-              className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-              data-testid="loop-catalog-card-grid"
-            >
-              {group.entries.map(entry => (
-                <LoopCatalogCard key={entry.name} entry={entry} onRun={onRun} />
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-              {group.entries.map(entry => (
-                <LoopCatalogRow key={entry.name} entry={entry} onRun={onRun} />
-              ))}
-            </div>
-          )}
-        </section>
-      ))}
+      {groups.map(group => {
+        const count = loopKindFacetCount(group.kind, group.entries.length, facets?.kinds);
+        return (
+          <section key={group.kind} data-testid={`loop-group-${group.kind}`}>
+            {view === "cards" ? (
+              <>
+                <ListGroupHeader
+                  className="border-b-0 bg-transparent px-1 pt-0"
+                  count={count}
+                  label={group.label}
+                />
+                <div
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                  data-testid="loop-catalog-card-grid"
+                >
+                  {group.entries.map(entry => (
+                    <LoopCatalogCard key={entry.name} entry={entry} onRun={onRun} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <ListGroup
+                className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+                count={count}
+                label={group.label}
+              >
+                {group.entries.map(entry => (
+                  <LoopCatalogRow key={entry.name} entry={entry} onRun={onRun} />
+                ))}
+              </ListGroup>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 

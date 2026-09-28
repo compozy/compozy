@@ -58,15 +58,8 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <MonoId value={item.task.identifier ?? item.task.id} />
+                  {item.task.identifier ? <MonoId value={item.task.identifier} /> : null}
                   <span className="truncate text-fg">{item.task.title}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-muted">
-                  <span>Run {item.run.id}</span>
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                  <span>{item.run.status}</span>
                 </div>
               </div>
               {item.task.effective_paused ? (

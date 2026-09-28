@@ -129,7 +129,7 @@ export const SearchActive: Story = {
         memories={defaultMemories.slice(0, 1)}
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
-        searchInfo="Recall 1 of top-K"
+        searchInfo="1 match"
         searchMode
         searchQuery="operator"
         selectedMemoryKey={null}
@@ -146,7 +146,7 @@ export const SearchEmpty: Story = {
         memories={[]}
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
-        searchInfo="Recall 0 of top-K"
+        searchInfo="0 matches"
         searchMode
         searchQuery="zzzzzz"
         selectedMemoryKey={null}

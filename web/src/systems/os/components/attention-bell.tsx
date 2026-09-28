@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Bell, Check, CircleAlert } from "lucide-react";
 
-import { Button, cn, Eyebrow, Icon } from "@compozy/ui";
+import { Button, cn, Empty, Eyebrow, Icon, SkeletonRows } from "@compozy/ui";
 
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
 import { AttentionBellRow } from "./attention-bell-row";
@@ -90,8 +90,7 @@ export function AttentionBell({
       data-testid="os-attention-bell"
       {...props}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-line px-1 pb-2">
-        <Eyebrow className="text-micro text-subtle">All workspaces · all profiles</Eyebrow>
+      <div className="flex items-center justify-end gap-2 border-b border-line px-1 pb-2">
         <Button
           size="sm"
           variant="ghost"
@@ -127,17 +126,18 @@ export function AttentionBell({
           testId="os-bell-finished"
         />
         {!loading && empty && !disconnected ? (
-          <div
-            className="flex flex-col items-center gap-1.5 px-2 py-7 text-center"
+          <Empty
             data-testid="os-bell-empty"
-          >
-            <Icon as={Bell} size="lg" className="text-faint" />
-            <p className="text-small-body font-medium text-fg-strong">All quiet</p>
-            <p className="text-small-body text-muted">No unread notifications.</p>
-          </div>
+            icon={Bell}
+            size="compact"
+            fill={false}
+            className="py-7"
+            title="All quiet"
+            description="No unread notifications."
+          />
         ) : null}
         {loading && empty ? (
-          <p className="px-2 py-5 text-center text-small-body text-muted">Loading attention…</p>
+          <SkeletonRows aria-label="Loading notifications" count={2} className="gap-3 px-2 py-3" />
         ) : null}
       </div>
     </div>
@@ -155,13 +155,9 @@ function BellNotices({
   AttentionBellProps,
   "error" | "total" | "sessionsDisconnected" | "tasksDisconnected" | "loopRequestsDisconnected"
 > & { shown: number }) {
-  const unavailable = [
-    sessionsDisconnected ? "session" : null,
-    tasksDisconnected ? "task" : null,
-    loopRequestsDisconnected ? "loop request" : null,
-  ].filter((source): source is string => source !== null);
-  const unavailableLabel = unavailable.join(" and ");
-  const disconnected = unavailable.length > 0;
+  const disconnected = Boolean(
+    sessionsDisconnected || tasksDisconnected || loopRequestsDisconnected
+  );
   return (
     <>
       {error ? (
@@ -171,7 +167,7 @@ function BellNotices({
       ) : null}
       {total !== undefined && total > shown ? (
         <p className="px-2 py-2 text-micro text-subtle">
-          Showing {shown} of {total}. Clear all includes every notification.
+          {shown} of {total} shown
         </p>
       ) : null}
       {disconnected ? (
@@ -181,7 +177,7 @@ function BellNotices({
           data-testid="os-bell-disconnected"
         >
           <Icon as={CircleAlert} size="sm" className="mt-0.5 shrink-0" />
-          <span>{`${unavailableLabel.charAt(0).toUpperCase()}${unavailableLabel.slice(1)} attention ${unavailable.length === 1 ? "is" : "are"} unavailable. Frozen rows do not count.`}</span>
+          <span>Some notifications can't update right now.</span>
         </div>
       ) : null}
     </>

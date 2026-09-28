@@ -186,7 +186,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           </NativeSelect>
         }
         data-testid="settings-providers-editor-env-policy"
-        help="Runtime environment inheritance for the provider subprocess."
+        help="Which of your system settings the agent can see."
         label={
           <>
             Env policy

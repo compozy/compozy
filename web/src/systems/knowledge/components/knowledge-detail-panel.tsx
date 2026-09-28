@@ -1,4 +1,4 @@
-import { AlertCircle, BookOpen, Pencil, Trash2 } from "lucide-react";
+import { AlertCircle, BookOpen, Code, Pencil, Trash2 } from "lucide-react";
 import { type Dispatch, type SetStateAction, useState } from "react";
 
 import {
@@ -7,21 +7,21 @@ import {
   CodeBlock,
   ContextBox,
   type ContextBoxEntry,
+  Disclosure,
   Empty,
+  MonoId,
   PAGE_CONTENT_GUTTER,
-  Pill,
   Section,
   Skeleton,
-  StatusDot,
+  StreamMarkdown,
   Time,
 } from "@compozy/ui";
 
 import {
   knowledgeAgentTierLabel,
   knowledgeScopeLabel,
-  memoryScopeTone,
+  knowledgeTypeLabel,
 } from "@/systems/knowledge/lib/knowledge-formatters";
-import { knowledgeTypeFor } from "@/systems/knowledge/lib/knowledge-type-tone";
 import type {
   KnowledgeMemoryItem,
   KnowledgeScope,
@@ -31,12 +31,13 @@ import type {
 import { KnowledgeDecisionsSection } from "./knowledge-decisions-section";
 import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
 import { KnowledgeEditDialog } from "./knowledge-edit-dialog";
-import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
 interface KnowledgeDetailPanelProps {
   memory: KnowledgeMemoryItem | undefined;
   content: string | undefined;
   scope?: KnowledgeScope;
+  /** Display name of the memory's project; the raw id is the fallback. */
+  projectName?: string;
   status: {
     isLoading: boolean;
     isDeletePending: boolean;
@@ -66,12 +67,6 @@ interface KnowledgeDialogState {
   editOpen: boolean;
 }
 
-function statusDotToneFromScope(scope: KnowledgeScope): "warning" | "accent" | "faint" {
-  if (scope === "agent") return "warning";
-  if (scope === "workspace") return "accent";
-  return "faint";
-}
-
 function setKnowledgeDialogOpen(
   setDialogState: Dispatch<SetStateAction<KnowledgeDialogState>>,
   memoryIdentity: string,
@@ -94,48 +89,80 @@ function knowledgeDialogMemoryIdentity(memory: KnowledgeMemoryItem | undefined):
   ].join(":");
 }
 
-function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
-  const knowledgeType = knowledgeTypeFor(memory.type);
+function buildPrimaryEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
   const entries: ContextBoxEntry[] = [
     {
-      label: "Type",
+      label: "Kind",
       value: (
-        <span className="font-mono text-fg" data-testid="context-type-value">
-          {memory.type}
+        <span className="text-fg" data-testid="context-type-value">
+          {knowledgeTypeLabel(memory.type)}
         </span>
       ),
     },
     {
-      label: "Knowledge tier",
+      label: "Updated",
       value: (
-        <span className="font-mono text-muted" data-testid="context-tier-value">
-          {knowledgeType}
-        </span>
+        <Time className="text-muted" data-testid="context-modified-value" iso={memory.mod_time} />
       ),
     },
     {
-      label: "Staleness",
+      label: "Used",
       value: (
-        <span data-testid="context-staleness-value">{memory.staleness_banner ?? "Active"}</span>
+        <span className="text-muted" data-testid="context-recalls-value">
+          {memory.recall_count === 0
+            ? "Not used yet"
+            : `${memory.recall_count} ${memory.recall_count === 1 ? "time" : "times"}`}
+          {memory.last_recalled_at ? (
+            <>
+              {" · last "}
+              <Time data-testid="context-last-recalled-value" iso={memory.last_recalled_at} />
+            </>
+          ) : null}
+        </span>
       ),
     },
   ];
-
-  if (memory.scope === "agent" && memory.agent_tier) {
+  if (memory.staleness_banner) {
     entries.push({
-      label: "Agent tier",
+      label: "Status",
       value: (
-        <span className="font-mono text-muted" data-testid="context-agent-tier-value">
-          {knowledgeAgentTierLabel(memory.agent_tier)}
+        <span className="text-warning" data-testid="context-staleness-value">
+          {memory.staleness_banner}
         </span>
       ),
     });
   }
+  return entries;
+}
+
+function buildDetailEntries(
+  memory: KnowledgeMemoryItem,
+  scope: KnowledgeScope,
+  projectName: string | undefined
+): ContextBoxEntry[] {
+  const entries: ContextBoxEntry[] = [
+    {
+      label: "File",
+      value: (
+        <MonoId data-testid="knowledge-detail-filename" preserveCase value={memory.filename} />
+      ),
+    },
+    {
+      label: "Saved in",
+      value: (
+        <span className="text-muted" data-testid="context-scope-value">
+          {memory.scope === "agent" && memory.agent_tier
+            ? knowledgeAgentTierLabel(memory.agent_tier)
+            : knowledgeScopeLabel(scope)}
+        </span>
+      ),
+    },
+  ];
   if (memory.agent_name) {
     entries.push({
       label: "Agent",
       value: (
-        <span className="font-mono text-fg" data-testid="context-agent-value">
+        <span className="text-fg" data-testid="context-agent-value">
           {memory.agent_name}
         </span>
       ),
@@ -143,70 +170,38 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
   }
   if (memory.workspace_id) {
     entries.push({
-      label: "Workspace",
-      value: (
-        <span className="font-mono text-muted" data-testid="context-workspace-value">
-          {memory.workspace_id}
+      label: "Project",
+      value: projectName ? (
+        <span className="text-muted" data-testid="context-workspace-value">
+          {projectName}
         </span>
-      ),
-    });
-  }
-  entries.push({
-    label: "Modified",
-    value: (
-      <Time
-        className="text-muted"
-        data-testid="context-modified-value"
-        iso={memory.mod_time}
-        mode="absolute"
-      />
-    ),
-  });
-  entries.push({
-    label: "Recalls",
-    value: (
-      <span className="font-mono text-fg" data-testid="context-recalls-value">
-        {memory.recall_count}
-      </span>
-    ),
-  });
-  if (memory.last_recalled_at) {
-    entries.push({
-      label: "Last recalled",
-      value: (
-        <Time
-          className="text-muted"
-          data-testid="context-last-recalled-value"
-          iso={memory.last_recalled_at}
-          mode="absolute"
-        />
+      ) : (
+        <MonoId data-testid="context-workspace-value" preserveCase value={memory.workspace_id} />
       ),
     });
   }
   if (memory.superseded_by) {
     entries.push({
-      label: "Superseded by",
+      label: "Replaced by",
       value: (
-        <span className="font-mono text-fg" data-testid="context-superseded-value">
-          {memory.superseded_by}
-        </span>
+        <MonoId data-testid="context-superseded-value" preserveCase value={memory.superseded_by} />
       ),
     });
   }
   entries.push({
-    label: "Injection",
+    label: "Loaded into every session",
     value: (
-      <span className="font-mono text-muted" data-testid="context-injection-value">
-        {memory.injection ? "true" : "false"}
+      <span className="text-muted" data-testid="context-injection-value">
+        {memory.injection ? "Yes" : "No"}
       </span>
     ),
   });
   if (memory.system_managed) {
     entries.push({
-      label: "System managed",
+      label: "Managed by",
       value: (
-        <span className="font-mono text-muted" data-testid="context-system-managed-value">
-          true
+        <span className="text-muted" data-testid="context-system-managed-value">
+          CompozyOS
         </span>
       ),
     });
@@ -218,6 +213,7 @@ function KnowledgeDetailPanel({
   memory,
   content,
   scope,
+  projectName,
   status,
   error,
   onDelete,
@@ -232,6 +228,7 @@ function KnowledgeDetailPanel({
 }: KnowledgeDetailPanelProps) {
   const { isLoading, isDeletePending, isEditPending = false, isDecisionsLoading = false } = status;
   const memoryIdentity = knowledgeDialogMemoryIdentity(memory);
+  const [showSource, setShowSource] = useState(false);
   const [dialogState, setDialogState] = useState<KnowledgeDialogState>({
     memoryIdentity,
     confirmDeleteOpen: false,
@@ -278,8 +275,6 @@ function KnowledgeDetailPanel({
   }
 
   const resolvedScope: KnowledgeScope = scope ?? memory.scope;
-  const scopeTone = pillToneFromKnowledgeTone(memoryScopeTone(resolvedScope));
-  const contextEntries = buildContextEntries(memory);
 
   const handleConfirmDelete = async () => {
     try {
@@ -305,46 +300,96 @@ function KnowledgeDetailPanel({
       className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-y-auto")}
       data-testid="knowledge-detail-panel"
     >
-      <div className="flex flex-col gap-2 pt-4" data-testid="knowledge-detail-header">
-        <span
-          className="lowercase text-small-body text-subtle"
-          data-testid="knowledge-detail-filename"
-        >
-          {memory.filename}
-        </span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
-            <StatusDot
-              aria-hidden="true"
-              className="-ml-0.5"
-              tone={statusDotToneFromScope(resolvedScope)}
-            />
-            {knowledgeScopeLabel(resolvedScope)}
-          </Pill>
-          <Pill mono data-testid="detail-age-badge" tone="neutral">
-            <Time iso={memory.mod_time} />
-          </Pill>
+      <header
+        className="flex flex-wrap items-start justify-between gap-3 pt-4"
+        data-testid="knowledge-detail-header"
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h2 className="text-item-title font-medium text-fg-strong">{memory.name}</h2>
+          {memory.description ? (
+            <p
+              className="text-small-body leading-relaxed text-muted"
+              data-testid="knowledge-detail-description"
+            >
+              {memory.description}
+            </p>
+          ) : null}
         </div>
-      </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onEdit ? (
+            <Button
+              data-testid="edit-memory-btn"
+              disabled={isEditPending || content === undefined}
+              onClick={() =>
+                setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", true)
+              }
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Pencil className="size-3" />
+              Edit
+            </Button>
+          ) : null}
+          <Button
+            data-testid="delete-memory-btn"
+            disabled={isDeletePending}
+            onClick={() =>
+              setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", true)
+            }
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 className="size-3" />
+            Delete
+          </Button>
+        </div>
+      </header>
 
       <div className="flex flex-col gap-6 py-5">
-        <ContextBox
-          data-testid="knowledge-detail-context"
-          entries={contextEntries}
-          title="Overview"
-        />
-
-        {memory.description ? (
-          <Section label="Description">
-            <p className="text-small-body leading-relaxed text-muted">{memory.description}</p>
-          </Section>
-        ) : null}
+        <ContextBox data-testid="knowledge-detail-context" entries={buildPrimaryEntries(memory)} />
 
         {content ? (
-          <Section label="Content">
-            <CodeBlock code={content} copyable data-testid="content-preview" />
+          <Section
+            label="Content"
+            right={
+              <Button
+                aria-pressed={showSource}
+                data-testid="knowledge-content-source-toggle"
+                onClick={() => setShowSource(previous => !previous)}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                <Code className="size-3" />
+                {showSource ? "View formatted" : "View source"}
+              </Button>
+            }
+          >
+            {showSource ? (
+              <CodeBlock code={content} copyable data-testid="content-source" />
+            ) : (
+              <div data-testid="content-preview">
+                <StreamMarkdown compact>{content}</StreamMarkdown>
+              </div>
+            )}
           </Section>
         ) : null}
+
+        <Disclosure
+          data-testid="knowledge-detail-more"
+          label="Details"
+          size="md"
+          keepMounted
+          triggerProps={{ "data-testid": "knowledge-detail-more-toggle" }}
+          contentProps={{ className: "pt-3" }}
+        >
+          <ContextBox
+            data-testid="knowledge-detail-facts"
+            entries={buildDetailEntries(memory, resolvedScope, projectName)}
+          />
+        </Disclosure>
 
         <KnowledgeDecisionsSection
           decisions={decisions}
@@ -356,49 +401,10 @@ function KnowledgeDetailPanel({
         />
       </div>
 
-      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-line py-4">
-        {onEdit ? (
-          <Button
-            data-testid="edit-memory-btn"
-            disabled={isEditPending || content === undefined}
-            onClick={() => setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", true)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Pencil className="size-3" />
-            Edit
-          </Button>
-        ) : null}
-        <Button
-          data-testid="delete-memory-btn"
-          disabled={isDeletePending}
-          onClick={() =>
-            setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", true)
-          }
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          <Trash2 className="size-3" />
-          Delete
-        </Button>
-        {deleteError ? (
-          <span className="text-xs text-danger" data-testid="knowledge-delete-error">
-            {deleteError}
-          </span>
-        ) : null}
-        {editError ? (
-          <span className="text-xs text-danger" data-testid="knowledge-edit-error">
-            {editError}
-          </span>
-        ) : null}
-      </footer>
-
       <KnowledgeDeleteDialog
         error={deleteError}
-        filename={memory.filename}
         isPending={isDeletePending}
+        name={memory.name}
         onConfirm={handleConfirmDelete}
         onOpenChange={open =>
           setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", open)
@@ -420,7 +426,6 @@ function KnowledgeDetailPanel({
             setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", open)
           }
           open={editOpen}
-          scope={resolvedScope}
           type={memory.type}
         />
       ) : null}
@@ -437,18 +442,11 @@ function KnowledgeDetailSkeleton() {
       role="status"
     >
       <div className="flex flex-col gap-2 pt-4">
-        <Skeleton className="h-3 w-48" />
-        <div className="flex gap-2">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-5 w-20" />
-        </div>
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-3 w-3/4" />
       </div>
       <div className="flex flex-col gap-6 py-5">
-        <Skeleton className="h-44 w-full" />
-        <div className="space-y-2.5">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-20 w-full" />
-        </div>
+        <Skeleton className="h-20 w-full" />
         <div className="space-y-2.5">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-48 w-full" />

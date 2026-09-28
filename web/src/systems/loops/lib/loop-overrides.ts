@@ -1,6 +1,6 @@
 import type { LoopEffectiveConfig, LoopEnvironmentSpec, RunLoopRequest } from "../types";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
-import { LOOP_CEILINGS } from "./loop-limits";
+import { LOOP_CEILINGS, LOOP_LIMIT_LABELS } from "./loop-limits";
 
 /** The six per-run numeric overrides. Most clamp to a daemon ceiling. */
 export type LoopOverrideKey =
@@ -19,7 +19,7 @@ export interface LoopOverrideField {
   label: string;
   /** Hard numeric ceiling (minutes for wall clock); absent when the field has no fixed cap. */
   ceiling?: number;
-  /** Right-hand ceiling label (`/ 100`, `/ 20M`, `/ 7d`). */
+  /** Right-hand ceiling hint (`max 100`, `max 20M`, `max 7d`). */
   ceilingLabel: string;
   /** Placeholder shown when the override is unset (`off`, `≤ tasks`). */
   placeholder: string;
@@ -40,48 +40,48 @@ export function buildOverrideFields(effectiveConfig: LoopEffectiveConfig): LoopO
   return [
     {
       key: "iteration_cap",
-      label: "Iteration cap",
+      label: LOOP_LIMIT_LABELS.iteration_cap,
       ceiling: LOOP_CEILINGS.iterationCap,
-      ceilingLabel: `/ ${LOOP_CEILINGS.iterationCap}`,
+      ceilingLabel: `max ${LOOP_CEILINGS.iterationCap}`,
       placeholder: "∞",
       defaultValue: iterationDefault,
     },
     {
       key: "budget_tokens",
-      label: "Token budget",
+      label: LOOP_LIMIT_LABELS.budget_tokens,
       ceiling: LOOP_CEILINGS.tokensMax,
-      ceilingLabel: `/ ${LOOP_CEILINGS.tokens}`,
+      ceilingLabel: `max ${LOOP_CEILINGS.tokens}`,
       placeholder: "off",
       defaultValue: tokensDefault,
     },
     {
       key: "budget_wall_sec",
-      label: "Wall clock (min)",
+      label: `${LOOP_LIMIT_LABELS.budget_wall_sec} (min)`,
       ceiling: LOOP_CEILINGS.wallClockMinutes,
-      ceilingLabel: `/ ${LOOP_CEILINGS.wallClock}`,
+      ceilingLabel: `max ${LOOP_CEILINGS.wallClock}`,
       placeholder: "off",
       defaultValue: wallDefaultMin,
     },
     {
       key: "no_progress_window",
-      label: "No-progress window",
+      label: LOOP_LIMIT_LABELS.no_progress_window,
       ceiling: LOOP_CEILINGS.noProgressWindow,
-      ceilingLabel: `/ ${LOOP_CEILINGS.noProgressWindow}`,
+      ceilingLabel: `max ${LOOP_CEILINGS.noProgressWindow}`,
       placeholder: String(effective.no_progress_window),
       defaultValue: effective.no_progress_window,
     },
     {
       key: "fan_out_width",
-      label: "Fan-out window",
-      ceilingLabel: "no fixed cap",
-      placeholder: "≤ tasks",
+      label: LOOP_LIMIT_LABELS.fan_out_width,
+      ceilingLabel: "no limit",
+      placeholder: "Auto",
       defaultValue: effective.fan_out_width > 0 ? effective.fan_out_width : null,
     },
     {
       key: "gate_max_revisions",
-      label: "Gate max revisions",
+      label: LOOP_LIMIT_LABELS.gate_max_revisions,
       ceiling: LOOP_CEILINGS.gateMaxRevisions,
-      ceilingLabel: `/ ${LOOP_CEILINGS.gateMaxRevisions}`,
+      ceilingLabel: `max ${LOOP_CEILINGS.gateMaxRevisions}`,
       placeholder: String(effective.gate_max_revisions),
       defaultValue: effective.gate_max_revisions,
     },
@@ -179,15 +179,18 @@ export function summarizeRunLimits(
   effectiveConfig: LoopEffectiveConfig
 ): string {
   const effective = resolveLoopEffectiveConfig(effectiveConfig);
-  const generations = draft.values.iteration_cap ?? effective.iteration_cap;
+  const rounds = draft.values.iteration_cap ?? effective.iteration_cap;
   const tokens = draft.values.budget_tokens ?? effective.budget_tokens;
   const wallSeconds =
     draft.values.budget_wall_sec !== undefined
       ? draft.values.budget_wall_sec * 60
       : effective.budget_wall_sec;
-  const budgets = tokens > 0 || wallSeconds > 0 ? "budgets set" : "no budgets set";
-  const source = hasActiveOverrides(draft, effectiveConfig) ? "overrides set" : "loop defaults";
-  return `${generations} generations · ${budgets} · ${source}`;
+  const budgets = tokens > 0 || wallSeconds > 0 ? "budgets set" : "no budgets";
+  const source = hasActiveOverrides(draft, effectiveConfig)
+    ? "changed for this run"
+    : "loop defaults";
+  const roundsLabel = rounds === 0 ? "no round limit" : `${rounds} rounds`;
+  return `${roundsLabel} · ${budgets} · ${source}`;
 }
 
 /**

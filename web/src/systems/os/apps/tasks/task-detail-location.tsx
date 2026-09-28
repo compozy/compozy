@@ -122,7 +122,7 @@ export function TaskDetailLocation({
         <Empty
           icon={AlertCircle}
           title="Task not found"
-          description={page.fatalError?.message ?? `No task with id "${taskId}" in this workspace.`}
+          description={page.fatalError?.message ?? `This task isn't in this project.`}
           action={
             <Button onClick={controller.backToTasks} size="sm" type="button" variant="ghost">
               <ClipboardList aria-hidden="true" className="size-3" />
@@ -225,17 +225,11 @@ export function TaskDetailLocation({
               </main>
               <aside className={TASK_DETAIL_RAIL_CLASS}>
                 <TaskPropertiesRail
-                  approvalPending={{
-                    approve: page.isApprovePending,
-                    reject: page.isRejectPending,
-                  }}
                   detail={detail}
-                  onApprove={() => void page.handleApproveTask()}
                   onAutoEnqueueChange={enabled => void controller.handleAutoEnqueueChange(enabled)}
                   onEditSetup={() => controller.setSetupOpen(true)}
                   onInspect={() => controller.setInspectOpen(true)}
                   onPriorityChange={priority => void controller.handlePriorityChange(priority)}
-                  onReject={() => void page.handleRejectTask()}
                   profile={page.profile}
                   runs={page.runs}
                   updatePending={controller.updatePending}

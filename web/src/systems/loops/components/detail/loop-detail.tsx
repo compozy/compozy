@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   ArrowRight,
-  GitFork,
+  Copy,
   History,
   PencilLine,
   Play,
@@ -13,12 +13,14 @@ import { Link, useNavigate } from "@tanstack/react-router";
 
 import {
   Button,
+  buttonVariants,
   cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  HelpTip,
   PAGE_CONTENT_GUTTER,
   TopbarOverflowIcon,
   useTopbarSlot,
@@ -28,7 +30,7 @@ import { LoopPageLede } from "../loop-page-lede";
 import { LoopSection } from "../loop-section";
 
 import type { LoopBindingRow } from "../../lib/loop-bindings";
-import { loopSourceLabel } from "../../lib/loop-catalog";
+import { loopSourceLabel, successRateLabel } from "../../lib/loop-catalog";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
   LoopAggregate30d,
@@ -43,8 +45,6 @@ import { LoopDeleteAction } from "./loop-delete-action";
 import { LoopLimitsPanel } from "./loop-limits-panel";
 import { LoopRecentRuns } from "./loop-recent-runs";
 import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
-import { LoopStatsPanel } from "./loop-stats-panel";
-import { LoopVersionsPanel } from "./loop-versions-panel";
 
 interface LoopDetailProps {
   loop: LoopDetailData;
@@ -125,9 +125,9 @@ export function LoopDetailView({
             {writable ? (
               <PencilLine aria-hidden="true" className="size-3.5" />
             ) : (
-              <GitFork aria-hidden="true" className="size-3.5" />
+              <Copy aria-hidden="true" className="size-3.5" />
             )}
-            {writable ? "Edit" : "Fork & edit"}
+            {writable ? "Edit" : "Copy and edit"}
           </DropdownMenuItem>
           <DropdownMenuItem data-testid="loop-configure-action" onClick={onConfigure}>
             <SlidersHorizontal aria-hidden="true" className="size-3.5" />
@@ -168,9 +168,11 @@ export function LoopDetailView({
         <LoopPageLede
           lede={loop.description}
           meta={[
-            definition.apiVersion,
             ...(category ? [category] : []),
-            `${graph.nodes.length} nodes`,
+            `${graph.nodes.length} ${graph.nodes.length === 1 ? "step" : "steps"}`,
+            ...(aggregate && successRate !== null
+              ? [`${successRateLabel(successRate)} success · ${aggregate.runs} runs this month`]
+              : []),
           ]}
           name={loop.name}
           tags={[sourceLabel, `v${loop.version}`]}
@@ -186,17 +188,29 @@ export function LoopDetailView({
               <LoopSection
                 icon={<Workflow aria-hidden="true" />}
                 right={
-                  <button
-                    type="button"
-                    onClick={onOpenEditor}
-                    className="inline-flex items-center gap-1.5 text-form-hint font-medium text-muted transition-colors hover:text-fg-strong"
-                    data-testid="loop-open-builder"
-                  >
-                    Open in builder
-                    <ArrowRight aria-hidden="true" className="size-3" />
-                  </button>
+                  <span className="flex items-center gap-1">
+                    {writable ? null : (
+                      <HelpTip label="About copying built-in Loops">
+                        Built-in Loops are read-only. Editing makes your own copy in this project.
+                      </HelpTip>
+                    )}
+                    <Button
+                      data-testid="loop-open-builder"
+                      onClick={onOpenEditor}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {writable ? (
+                        <PencilLine aria-hidden="true" className="size-3" />
+                      ) : (
+                        <Copy aria-hidden="true" className="size-3" />
+                      )}
+                      {writable ? "Edit steps" : "Copy and edit"}
+                    </Button>
+                  </span>
                 }
-                title="Body · DAG"
+                title="Steps"
               >
                 <LoopBodyDag graph={graph} />
               </LoopSection>
@@ -205,10 +219,10 @@ export function LoopDetailView({
                 right={
                   <Link
                     to="/loop-runs"
-                    className="inline-flex items-center gap-1.5 text-form-hint font-medium text-muted transition-colors hover:text-fg-strong"
+                    className={buttonVariants({ size: "sm", variant: "ghost" })}
                     data-testid="loop-all-runs"
                   >
-                    All runs
+                    All Loop runs
                     <ArrowRight aria-hidden="true" className="size-3" />
                   </Link>
                 }
@@ -229,10 +243,6 @@ export function LoopDetailView({
                 triggers={bindingTriggers}
               />
               <LoopLimitsPanel effectiveConfig={effectiveConfig} />
-              <LoopVersionsPanel version={loop.version} />
-              {aggregate && successRate !== null ? (
-                <LoopStatsPanel successRate={successRate} aggregate={aggregate} />
-              ) : null}
             </aside>
           </div>
         </div>

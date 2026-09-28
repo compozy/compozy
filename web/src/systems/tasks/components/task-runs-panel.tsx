@@ -36,7 +36,7 @@ export interface TaskRunsPanelProps {
   emptyDescription?: string;
 }
 
-const RUN_COLUMNS = ["Attempt", "Status", "Claimed by", "Started", "Duration", "Result"] as const;
+const RUN_COLUMNS = ["Attempt", "Status", "Agent", "Started", "Duration", "Result"] as const;
 
 function RunRow({
   taskId,
@@ -65,9 +65,8 @@ function RunRow({
   return (
     <>
       <LinkedRecordTableRow data-testid={`tasks-runs-row-${run.id}`}>
-        <LinkedRecordTableCell className="w-8 pl-4">
-          <Pill.Dot pulse={isActive} tone={taskRunStatusTone(run.status)} />
-        </LinkedRecordTableCell>
+        {/* Status reads once, in the Status pill; this keeps the table's leading column. */}
+        <LinkedRecordTableCell className="w-8 pl-4" />
         <LinkedRecordTableCell>
           <LinkedRecordTableTitle>
             <Link
@@ -79,7 +78,7 @@ function RunRow({
             </Link>
             {lineageAttempt !== null ? (
               <span className="flex items-center gap-1 text-eyebrow text-subtle">
-                <CornerUpLeft aria-hidden="true" className="size-[11px] text-faint" />
+                <CornerUpLeft aria-hidden="true" className="size-3 text-faint" />
                 retried from attempt {lineageAttempt}
               </span>
             ) : null}
@@ -108,15 +107,15 @@ function RunRow({
             )}
           </span>
         </LinkedRecordTableCell>
-        <LinkedRecordTableCell className="hidden text-form-label tabular-nums text-muted md:table-cell">
+        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted">
           {run.started_at ? <Time iso={run.started_at} mode="relative" /> : "—"}
         </LinkedRecordTableCell>
-        <LinkedRecordTableCell className="hidden font-mono text-eyebrow tabular-nums text-muted md:table-cell">
+        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted">
           {duration ?? "—"}
         </LinkedRecordTableCell>
         <LinkedRecordTableCell
           className={cn(
-            "hidden max-w-48 truncate text-form-label md:table-cell",
+            "max-w-48 truncate text-form-label",
             run.status === "failed" ? "text-danger" : "text-muted"
           )}
         >

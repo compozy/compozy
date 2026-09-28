@@ -1,6 +1,6 @@
-import { AlertCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import {
   PROFILE_REMOTE_MANAGEMENT_LINE,
@@ -11,7 +11,12 @@ import {
   useProfilesSettingsPage,
   type ProfileFlowSearch,
 } from "@/systems/profiles";
-import { SettingsAdvancedFold, SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
+import {
+  SettingsAdvancedFold,
+  SettingsPageFrame,
+  SettingsPageState,
+  useSettingsTopbar,
+} from "@/systems/settings";
 
 const TEST_PREFIX = "settings-page-profiles";
 
@@ -40,29 +45,17 @@ export function ProfilesSettingsPage({ profileFlow }: ProfilesSettingsPageProps)
   };
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center py-12"
-        role="status"
-        data-testid={`${TEST_PREFIX}-loading`}
-      >
-        <Spinner className="size-4 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="profiles" state="loading" />;
   }
 
   if (page.errorMessage !== null) {
     return (
-      <div
-        className="flex flex-1 flex-col items-center justify-center gap-3 py-12"
-        data-testid={`${TEST_PREFIX}-error`}
-      >
-        <AlertCircle aria-hidden="true" className="size-5 text-danger" />
-        <p className="text-small-body text-muted">{page.errorMessage}</p>
-        <Button size="sm" variant="outline" onClick={page.refetch}>
-          Retry
-        </Button>
-      </div>
+      <SettingsPageState
+        error={page.errorMessage}
+        onRetry={page.refetch}
+        slug="profiles"
+        state="error"
+      />
     );
   }
 

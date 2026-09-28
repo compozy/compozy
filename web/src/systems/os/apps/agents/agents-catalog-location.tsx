@@ -55,9 +55,9 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
         data-testid="agents-no-workspace"
       >
         <Empty
-          description="Select a workspace to browse its agents."
+          description="Choose a project to see its agents."
           icon={Users2}
-          title="No workspace selected"
+          title="No project selected"
         />
       </div>
     );
@@ -83,7 +83,7 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
                 Retry
               </Button>
             }
-            description="The agents request failed. Check that CompozyOS is running and try again."
+            description="Couldn't load your agents. Check that CompozyOS is running, then try again."
             icon={AlertCircle}
             title="Couldn't load agents"
           />

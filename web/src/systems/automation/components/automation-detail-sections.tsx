@@ -1,23 +1,18 @@
-import { Repeat2 } from "lucide-react";
+import { CodeBlock, Disclosure, PropertyRow, Section } from "@compozy/ui";
 
-import { CodeBlock, Eyebrow, Pill, Section } from "@compozy/ui";
-
-import { describeFireLimit, describeRetry } from "../lib/automation-formatters";
+import {
+  catchUpPolicyLabel,
+  describeFireLimit,
+  describeRetry,
+  formatDateTime,
+} from "../lib/automation-formatters";
 import type { LoopTargetProjection } from "../lib/automation-target";
 import type { AutomationJob } from "../types";
 import { AutomationTargetDetails } from "./automation-target-details";
 
 export function AutomationTargetSection({ target }: { target: LoopTargetProjection }) {
   return (
-    <Section
-      label="Target"
-      right={
-        <Pill mono tone="accent">
-          <Repeat2 aria-hidden="true" className="size-3" />
-          LOOP
-        </Pill>
-      }
-    >
+    <Section label="Runs a loop">
       <div className="rounded-md border border-line bg-canvas-soft px-4 py-3">
         <AutomationTargetDetails showInputMapping={false} target={target} />
       </div>
@@ -33,19 +28,58 @@ export function PromptSection({ prompt }: { prompt: string }) {
   );
 }
 
-export function GovernanceSection({ item }: { item: AutomationJob }) {
+function scheduleExpression(job: AutomationJob): string | null {
+  if (job.schedule?.mode === "cron") return job.schedule.expr ?? null;
+  if (job.schedule?.mode === "every") return job.schedule.interval ?? null;
+  return null;
+}
+
+/**
+ * Operator-facing scheduler internals and limits, folded closed by default so
+ * the page leads with what the job does and how it has been going.
+ */
+export function JobAdvancedDetails({ job }: { job: AutomationJob }) {
+  const scheduler = job.scheduler;
+  const expression = scheduleExpression(job);
+
   return (
-    <Section label="Governance">
-      <div className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2">
-        <div>
-          <Eyebrow className="text-muted">Retry</Eyebrow>
-          <p className="mt-1 text-small-body text-muted">{describeRetry(item.retry)}</p>
+    <Disclosure
+      className="border-t border-line-soft pt-1"
+      data-testid="automation-job-advanced"
+      label="Advanced details"
+      size="md"
+      triggerProps={{
+        "data-testid": "automation-job-advanced-toggle",
+        className: "w-full py-2.5 text-fg",
+      }}
+      contentProps={{ className: "flex flex-col pt-0 pb-1 pl-6" }}
+    >
+      {expression ? (
+        <PropertyRow label="Schedule expression" mono>
+          {expression}
+        </PropertyRow>
+      ) : null}
+      <PropertyRow label="Retries">{describeRetry(job.retry)}</PropertyRow>
+      <PropertyRow label="Run limit">{describeFireLimit(job.fire_limit)}</PropertyRow>
+      {scheduler ? (
+        <div data-testid="automation-job-scheduler">
+          <PropertyRow label="Scheduler">
+            {scheduler.registered ? "Registered" : "Idle"}
+          </PropertyRow>
+          <PropertyRow label="Last scheduled">
+            {formatDateTime(scheduler.last_scheduled_at)}
+          </PropertyRow>
+          <PropertyRow label="Missed runs">
+            {catchUpPolicyLabel(scheduler.catch_up_policy)}
+          </PropertyRow>
+          <PropertyRow label="Times missed">{scheduler.misfire_count ?? 0}</PropertyRow>
+          {scheduler.last_fire_id ? (
+            <PropertyRow label="Last fire ID" mono>
+              {scheduler.last_fire_id}
+            </PropertyRow>
+          ) : null}
         </div>
-        <div>
-          <Eyebrow className="text-muted">Fire limit</Eyebrow>
-          <p className="mt-1 text-small-body text-muted">{describeFireLimit(item.fire_limit)}</p>
-        </div>
-      </div>
-    </Section>
+      ) : null}
+    </Disclosure>
   );
 }

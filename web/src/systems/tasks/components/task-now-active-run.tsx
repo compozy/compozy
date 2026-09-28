@@ -1,7 +1,8 @@
 import { ArrowUpRight } from "lucide-react";
 
-import { Button, Time } from "@compozy/ui";
+import { Button, Pill, Time } from "@compozy/ui";
 import type { TaskDetailView } from "../types";
+import { TaskStateBand } from "./task-state-band";
 
 type ActiveRun = NonNullable<NonNullable<TaskDetailView["summary"]>["active_run"]>;
 
@@ -26,26 +27,39 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
   const claimant = run.claimed_by?.ref;
 
   return (
-    <section
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border border-accent-dim bg-canvas-soft px-4 py-3.5"
-      data-slot="task-active-run-card"
-      data-testid="tasks-detail-now-run"
-    >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2.5 text-card-title font-medium text-fg-strong">
-          <span
-            aria-hidden="true"
-            className="size-[7px] shrink-0 rounded-full bg-accent motion-safe:animate-pulse"
-          />
-          {title}
-        </div>
-        <p className="mt-1 text-small-body text-muted">
+    <TaskStateBand
+      actions={
+        <>
+          {elapsed ? (
+            <span
+              aria-label="Elapsed"
+              className="text-form-label tabular-nums text-muted"
+              data-testid="tasks-detail-now-elapsed"
+            >
+              {elapsed}
+            </span>
+          ) : null}
+          <Button
+            className="min-h-6"
+            data-testid="tasks-detail-now-open-run"
+            onClick={() => onOpenRun(run.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Open run
+            <ArrowUpRight aria-hidden="true" className="size-3" />
+          </Button>
+        </>
+      }
+      body={
+        <>
           {claimant ? (
             <>
               <span className="font-medium text-fg">{claimant}</span> picked this up
             </>
           ) : (
-            <>Waiting for a worker to pick this up</>
+            <>Waiting for an agent to pick this up</>
           )}
           {run.started_at ? (
             <>
@@ -53,30 +67,17 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
               · started <Time iso={run.started_at} mode="relative" />
             </>
           ) : null}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3.5">
-        {elapsed ? (
-          <span
-            aria-label="Elapsed"
-            className="font-mono text-form-label tabular-nums text-muted"
-            data-testid="tasks-detail-now-elapsed"
-          >
-            {elapsed}
-          </span>
-        ) : null}
-        <Button
-          className="min-h-6"
-          data-testid="tasks-detail-now-open-run"
-          onClick={() => onOpenRun(run.id)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Open run
-          <ArrowUpRight aria-hidden="true" className="size-3" />
-        </Button>
-      </div>
-    </section>
+        </>
+      }
+      data-slot="task-active-run-card"
+      data-testid="tasks-detail-now-run"
+      title={
+        <span className="inline-flex items-center gap-2.5">
+          <Pill.Dot pulse tone="accent" />
+          {title}
+        </span>
+      }
+      tone="accent"
+    />
   );
 }

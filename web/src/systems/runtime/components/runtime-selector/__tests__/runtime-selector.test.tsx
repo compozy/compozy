@@ -441,7 +441,8 @@ describe("RuntimeSelector ACP advanced options", () => {
       props: { acpOptions: advancedACPOptions, onSpeedChange: vi.fn(), speed: "normal" },
     });
 
-    expect(screen.getByRole("img", { name: "Provider managed" })).toBeInTheDocument();
+    // A provider owning its settings is normal, not a warning.
+    expect(screen.queryByRole("img", { name: "Provider managed" })).not.toBeInTheDocument();
     await openSelector(user);
     await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
 
@@ -1018,7 +1019,7 @@ describe("RuntimeSelector custom model id", () => {
 
     await openSelector(user);
     await user.click(screen.getByTestId("runtime-selector-custom"));
-    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact model name" });
     await user.type(exactInput, "auto");
     fireEvent.keyDown(exactInput, { key: "Enter" });
 
@@ -1028,7 +1029,9 @@ describe("RuntimeSelector custom model id", () => {
       reasoning_effort: "",
     });
     await waitFor(() =>
-      expect(screen.queryByRole("textbox", { name: "Exact model ID" })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("textbox", { name: "Use this exact model name" })
+      ).not.toBeInTheDocument()
     );
     const catalogSearch = screen.getByRole("combobox", {
       name: "Search models and providers",
@@ -1048,7 +1051,7 @@ describe("RuntimeSelector custom model id", () => {
     const custom = await screen.findByTestId("runtime-selector-custom");
     expect(custom).toHaveTextContent("Use an exact custom model ID…");
     await user.click(custom);
-    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact model name" });
     expect(exactInput).toHaveFocus();
     expect(screen.getByTestId("runtime-selector-custom")).toBeDisabled();
 
@@ -1061,7 +1064,9 @@ describe("RuntimeSelector custom model id", () => {
       reasoning_effort: "",
     });
     await waitFor(() =>
-      expect(screen.queryByRole("textbox", { name: "Exact model ID" })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("textbox", { name: "Use this exact model name" })
+      ).not.toBeInTheDocument()
     );
     expect(screen.getByRole("combobox", { name: "Search models and providers" })).toHaveFocus();
     expect(screen.getByTestId("runtime-selector-popup")).toBeInTheDocument();
@@ -1076,7 +1081,7 @@ describe("RuntimeSelector custom model id", () => {
 
     await openSelector(user);
     await user.click(screen.getByTestId("runtime-selector-custom"));
-    const exactInput = screen.getByRole("textbox", { name: "Exact model ID" });
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact model name" });
     await user.type(exactInput, "discard-me");
     await user.click(screen.getByRole("button", { name: "Return to model search" }));
 
@@ -1100,7 +1105,7 @@ describe("RuntimeSelector custom model id", () => {
     await openSelector(user);
     await user.click(screen.getByRole("button", { name: "Use an exact custom model ID…" }));
 
-    expect(screen.getByRole("textbox", { name: "Exact model ID" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Use this exact model name" })).toHaveFocus();
     expect(screen.queryByTestId("runtime-selector-loading")).not.toBeInTheDocument();
   });
 
@@ -1136,7 +1141,7 @@ describe("RuntimeSelector custom model id", () => {
 
     await openSelector(user);
     await user.click(screen.getByTestId("runtime-selector-custom"));
-    const exactInput = screen.getByRole("textbox", { name: "Exact runtime ID" });
+    const exactInput = screen.getByRole("textbox", { name: "Use this exact provider name" });
     await user.type(exactInput, "custom-acp/model-v2");
     fireEvent.keyDown(exactInput, { key: "Enter" });
 

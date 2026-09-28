@@ -63,6 +63,16 @@ export const WithoutDescription: Story = {
   ),
 };
 
+/** No eyebrow: the title already names the entity, so the header stays one line. */
+export const WithoutEyebrow: Story = {
+  args: { icon: KeyRound, title: "New secret" },
+  render: () => (
+    <HeaderHost>
+      <EntityDialogHeader icon={KeyRound} title="New secret" />
+    </HeaderHost>
+  ),
+};
+
 export const FocusVisibleClose: Story = {
   args: { eyebrow: "Autonomy · Task", icon: ClipboardCheck, title: "Create task" },
   tags: ["play-fn"],

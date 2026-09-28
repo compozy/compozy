@@ -30,7 +30,6 @@ export function TaskRunOutcome({
           </>
         }
         data-testid="tasks-run-outcome-failed"
-        micro={`task.run_failed · ${record.id}`}
         title={duration ? `Failed after ${duration}` : "Failed"}
         tone="danger"
       />
@@ -64,10 +63,9 @@ export function TaskRunOutcome({
       <TaskStateBand
         body={
           record.error ??
-          "This attempt requires operator attention. Recover requeues the work as a fresh attempt."
+          "This attempt got stuck. Try again from the task to start a fresh attempt."
         }
         data-testid="tasks-run-outcome-stuck"
-        micro={`task.run_needs_attention · ${record.id}`}
         title="This attempt needs attention"
         tone="danger"
       />

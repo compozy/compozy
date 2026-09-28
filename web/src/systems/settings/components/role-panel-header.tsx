@@ -3,7 +3,6 @@ import { ChevronRight, TriangleAlert } from "lucide-react";
 import { cn, CollapsibleTrigger, Switch } from "@compozy/ui";
 
 import type { RoleViewModel } from "../lib/roles-view-model";
-import { RoleStatusBadges } from "./role-status-badges";
 
 export interface RolePanelHeaderProps {
   vm: RoleViewModel;
@@ -69,7 +68,6 @@ export function RolePanelHeader({
           {vm.routeSummary}
         </span>
       ) : null}
-      <RoleStatusBadges badges={vm.badges} data-testid={`${testId}-badges`} />
       <Switch
         aria-label={`Enable ${vm.label}`}
         checked={vm.enabled}

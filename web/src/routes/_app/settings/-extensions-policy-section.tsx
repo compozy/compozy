@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 import {
   SettingLinkRow,
+  SettingsAdvancedFold,
   SettingsFieldRow,
   SettingsGroup,
   SettingsLiveChip,
@@ -46,29 +47,6 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
                 }))
               }
               size="sm"
-            />
-          }
-        />
-        <SettingsFieldRow
-          data-testid="settings-page-extensions-policy-github-base-url"
-          help="Endpoint used for GitHub installs and search"
-          label="GitHub API URL"
-          control={
-            <Input
-              className="w-72 font-mono"
-              data-testid="settings-page-extensions-policy-github-base-url-input"
-              disabled={!canMutate}
-              onChange={event =>
-                setDraft(current => ({
-                  ...current,
-                  sources: {
-                    ...current.sources,
-                    github: { ...current.sources.github, base_url: event.target.value },
-                  },
-                }))
-              }
-              placeholder="https://api.github.com"
-              value={draft.sources.github.base_url}
             />
           }
         />
@@ -129,6 +107,32 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
           render={<Link to="/marketplace" />}
         />
       </SettingsGroup>
+
+      <SettingsAdvancedFold data-testid="settings-page-extensions-advanced">
+        <SettingsFieldRow
+          data-testid="settings-page-extensions-policy-github-base-url"
+          help="Endpoint used for GitHub installs and search"
+          label="GitHub API URL"
+          control={
+            <Input
+              className="w-72 font-mono"
+              data-testid="settings-page-extensions-policy-github-base-url-input"
+              disabled={!canMutate}
+              onChange={event =>
+                setDraft(current => ({
+                  ...current,
+                  sources: {
+                    ...current.sources,
+                    github: { ...current.sources.github, base_url: event.target.value },
+                  },
+                }))
+              }
+              placeholder="https://api.github.com"
+              value={draft.sources.github.base_url}
+            />
+          }
+        />
+      </SettingsAdvancedFold>
     </>
   );
 }

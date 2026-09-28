@@ -67,27 +67,25 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         tone: "warning",
         label,
         display: "Needs setup",
-        hint: slot ? `Bind ${slot} to continue.` : "Required credential is missing.",
-        cta: { label: "Configure credentials", intent: "configure" },
+        hint: slot ? `Add a value for ${slot} to continue.` : "A required key is missing.",
+        cta: { label: "Add key", intent: "configure" },
       };
     }
-    case "binary-missing": {
-      const command = provider.settings.command?.trim() || provider.name;
+    case "binary-missing":
       return {
         tone: "warning",
         label,
         display: "Not installed",
-        hint: `${command} not found on PATH.`,
+        hint: "The app for this provider isn't installed on this computer yet.",
         cta: { label: "Edit settings", intent: "edit" },
       };
-    }
     case "needs-sign-in":
       return {
         tone: "warning",
         label,
         display: "Needs sign-in",
         hint: provider.auth_status?.message?.trim() || "Sign in before starting a session.",
-        cta: { label: "Review sign-in", intent: "configure" },
+        cta: { label: "Sign in", intent: "configure" },
       };
     case "auth-unknown":
       return {
@@ -95,16 +93,16 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         label,
         display: "Sign-in unverified",
         hint:
-          provider.auth_status?.message?.trim() || "CompozyOS has not verified the local sign-in.",
-        cta: { label: "Inspect sign-in", intent: "edit" },
+          provider.auth_status?.message?.trim() || "CompozyOS couldn't confirm you're signed in.",
+        cta: { label: "Check sign-in", intent: "edit" },
       };
     case "auth-unavailable":
       return {
         tone: "danger",
         label,
         display: "Sign-in unavailable",
-        hint: provider.auth_status?.message?.trim() || "The authentication check failed.",
-        cta: { label: "Inspect sign-in", intent: "edit" },
+        hint: provider.auth_status?.message?.trim() || "CompozyOS couldn't check the sign-in.",
+        cta: { label: "Check sign-in", intent: "edit" },
       };
   }
 }

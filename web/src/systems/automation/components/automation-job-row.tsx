@@ -1,17 +1,15 @@
 import { Clock3, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, ListingRow, Pill } from "@compozy/ui";
+import { Button, ListingRow } from "@compozy/ui";
 
 import {
   automationScopeLabel,
-  automationSourceLabel,
-  automationSourceTone,
-  automationStatusTone,
   describeSchedule,
   formatRelativeTime,
 } from "../lib/automation-formatters";
 import type { AutomationJob } from "../types";
+import { AutomationStateBadges } from "./automation-state-badges";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationJobRowProps {
@@ -31,7 +29,6 @@ function AutomationJobRow({
   onRun,
   runDisabled,
 }: AutomationJobRowProps) {
-  const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
 
   return (
@@ -47,15 +44,7 @@ function AutomationJobRow({
         <ListingRow.Main>
           <ListingRow.Name>
             <ListingRow.Title>{job.name}</ListingRow.Title>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <Pill.Dot tone={enabledTone} />
-              <Pill mono size="xs" tone={enabledTone}>
-                {job.enabled ? "ENABLED" : "DISABLED"}
-              </Pill>
-            </span>
-            <Pill mono size="xs" tone={automationSourceTone(job.source)}>
-              {automationSourceLabel(job.source)}
-            </Pill>
+            <AutomationStateBadges enabled={job.enabled} source={job.source} />
           </ListingRow.Name>
           <ListingRow.Meta>
             <span>{describeSchedule(job.schedule)}</span>
@@ -88,7 +77,7 @@ function AutomationJobRow({
           variant="outline"
         >
           <Play aria-hidden="true" className="size-3" />
-          {isRunPending ? "Queuing..." : "Run now"}
+          {isRunPending ? "Starting…" : "Run now"}
         </Button>
       </ListingRow.Trail>
     </ListingRow>

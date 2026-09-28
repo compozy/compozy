@@ -102,6 +102,11 @@ describe("task-grouping", () => {
     expect(groups).toHaveLength(5);
   });
 
+  it("Should list canceled tasks under Done instead of the danger-toned Failed group", () => {
+    expect(resolveTaskListGroupId("canceled")).toBe("done");
+    expect(resolveTaskListGroupId("failed")).toBe("failed");
+  });
+
   it("Should route a needs_attention task to its own list group so the escalation is visible", () => {
     expect(resolveTaskListGroupId("needs_attention")).toBe("needs_attention");
     expect(resolveTaskListGroupId("blocked")).toBe("blocked");

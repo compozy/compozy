@@ -3,6 +3,7 @@ export { Icon, type IconProps, type IconSize } from "../components/icon";
 export { MonoId, type MonoIdProps, type MonoIdSize } from "../components/custom/mono-id";
 export { QrCode, type QrCodeProps, type QrCodeSize } from "../components/custom/qr-code";
 export { Time, type TimeMode, type TimeProps } from "../components/custom/time";
+export { Disclosure, type DisclosureProps } from "../components/custom/disclosure";
 export {
   StatusDot,
   type StatusDotProps,

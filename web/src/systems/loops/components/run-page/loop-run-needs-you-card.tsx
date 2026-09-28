@@ -60,17 +60,12 @@ const GATE_DECISIONS = [
   {
     decision: "reject",
     testId: "loop-approval-reject",
-    variant: "outline",
-    className: "text-danger hover:border-danger/40 hover:text-danger",
+    variant: "ghost",
+    className: undefined,
     icon: X,
     label: "Reject & halt",
   },
 ] as const;
-
-function nodeIdentity(node: LoopNodeLifecycle): string {
-  const item = node.itemIndex === null ? "" : `[${node.itemIndex}]`;
-  return `${node.nodeId}${item} · gen ${node.generation}`;
-}
 
 function nodeRowKey(node: LoopNodeLifecycle): string {
   return `${node.nodeId}${node.itemIndex === null ? "" : `-${node.itemIndex}`}-g${node.generation}`;
@@ -84,10 +79,10 @@ const NO_REQUEST_VIEWS: readonly LoopRequestView[] = [];
  * terminal row keeps the reason and the entry but stops asking for one.
  */
 function quarantineDetail(attempts: number, runEnded: boolean): string {
-  const setAside = attempts > 0 ? `Set aside after ${attempts} attempts.` : "Set aside.";
+  const setAside = attempts > 0 ? `Set aside after ${attempts} tries.` : "Set aside.";
   return runEnded
     ? `${setAside} This run has ended.`
-    : `${setAside} Requeue it from the entry once it is repaired.`;
+    : `${setAside} Retry it once the problem is fixed.`;
 }
 
 /**
@@ -114,7 +109,6 @@ export function LoopRunNeedsYouCard({
   const runEnded = isTerminalLoopStatus(run.status);
   return (
     <LoopSection
-      className="mb-0"
       data-testid="loop-run-needs-you"
       gist={`${gistCount} ${gistCount === 1 ? "item" : "items"}`}
       icon={<Bell aria-hidden="true" />}
@@ -153,17 +147,14 @@ export function LoopRunNeedsYouCard({
               <ShieldAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
               <div className="min-w-0 flex-1">
                 <div className="text-ws-name font-medium text-fg-strong">
-                  {node.label} was quarantined
+                  {node.label} was set aside
                 </div>
                 <p
-                  className="mt-0.75 max-w-[62ch] text-small-body leading-relaxed text-muted"
+                  className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted"
                   data-testid={`loop-run-needs-quarantine-detail-${rowKey}`}
                 >
                   {quarantineDetail(attempts, runEnded)}
                 </p>
-                <div className="mt-1.5 font-mono text-pill-group-badge text-faint">
-                  {`node_controls.quarantined true · ${nodeIdentity(node)}`}
-                </div>
               </div>
               <span className="flex shrink-0 items-center gap-2 pt-0.5">
                 {node.quarantinedAt ? (
@@ -181,7 +172,7 @@ export function LoopRunNeedsYouCard({
                     variant="outline"
                   >
                     <ShieldAlert aria-hidden="true" className="size-3.5" />
-                    Open entry
+                    View details
                   </Button>
                 ) : null}
               </span>
@@ -243,7 +234,7 @@ function LoopRunApprovalDecision({
             "This run is waiting for your approval. Approving lets it continue; rejecting ends the run."}
         </p>
         {facts.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-x-5.5 gap-y-2">
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
             {facts.map(fact => (
               <div key={fact.label} className="flex flex-col gap-0.5" data-testid="loop-run-fact">
                 <Eyebrow className="text-faint">{fact.label}</Eyebrow>
@@ -252,7 +243,7 @@ function LoopRunApprovalDecision({
             ))}
           </div>
         ) : null}
-        <div className="mt-3.5 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {GATE_DECISIONS.map(({ decision, testId, variant, className, icon: Icon, label }) => (
             <Button
               key={decision}

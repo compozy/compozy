@@ -1,5 +1,5 @@
 import type { useNavigate } from "@tanstack/react-router";
-import { Pill, useTopbarSlot } from "@compozy/ui";
+import { Pill, formatRelativeTime, useTopbarSlot } from "@compozy/ui";
 import { LoopRunControls, LoopRunOverflowMenu, LoopStatusPill } from "@/systems/loops";
 import { loopRunsTrail } from "../loop-window-crumbs";
 import type { useLoopRunDetail } from "../use-loop-run-detail";
@@ -17,6 +17,8 @@ export function useLoopRunTopbar(
   { runId, openLoops, openRuns, navigate }: LoopRunTopbarNavigation
 ) {
   const loopName = page.run?.loop_name;
+  // The run id stays in About; the crumb names the run by when it started.
+  const runLabel = page.run ? `Run from ${formatRelativeTime(page.run.created_at)}` : undefined;
   useTopbarSlot({
     ...loopRunsTrail({
       level: "run",
@@ -31,6 +33,7 @@ export function useLoopRunTopbar(
       openLoops,
       openRuns,
       runId,
+      runLabel,
     }),
     status: page.run ? (
       <span className="flex items-center gap-2">

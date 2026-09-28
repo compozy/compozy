@@ -23,7 +23,7 @@ describe("loop-list-filters", () => {
     expect(options.map(option => option.value)).toEqual([...LOOP_RUN_STATUSES]);
     expect(options.map(option => option.value)).toContain("canceled");
     expect(options.find(option => option.value === "canceled")?.label).toBe("Canceled");
-    expect(options.find(option => option.value === "needs-approval")?.label).toBe("Needs Approval");
+    expect(options.find(option => option.value === "needs-approval")?.label).toBe("Needs approval");
   });
 
   it("Should parse URL search values and reject unknowns", () => {
@@ -115,7 +115,7 @@ describe("buildLoopRunFilterFields", () => {
     // The full daemon vocabulary stays selectable regardless of the loaded page (SD-007).
     expect(outcome.options?.map(option => option.value)).toEqual([...LOOP_RUN_STATUSES]);
     expect(outcome.options?.find(option => option.value === "needs-approval")?.label).toBe(
-      "Needs Approval"
+      "Needs approval"
     );
   });
 });

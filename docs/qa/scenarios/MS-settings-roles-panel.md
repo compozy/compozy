@@ -42,3 +42,5 @@ scroll container, out-of-catalog agent display, and Live save/reload through the
 
 QA impact 2026-07-25 (deep-review remediation): role validation now reports invalid fields against
 the owning role consistently. Flag only; the next QA cycle owns save-blocking focus and recovery.
+
+QA impact 2026-09-28 (normie pass): the BUILTIN/INHERIT pills are gone from the collapsed row; the resolution line carries that state ("Built in · <agent>", "Uses your default agent."). The routing field is labelled "Model" and an unresolved route reads "Decided when the role runs.". Flag only; the next QA cycle owns the re-walk.

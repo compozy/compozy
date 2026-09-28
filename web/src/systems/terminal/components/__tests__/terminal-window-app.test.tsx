@@ -114,7 +114,8 @@ describe("TerminalWindowApp — S1 states", () => {
     await waitFor(() =>
       expect(screen.getByRole("log", { name: PSQL_TERMINAL.title })).toBeInTheDocument()
     );
-    expect(screen.getByTestId("terminal-viewers")).toBeInTheDocument();
+    // A lone viewer is the default, so the head shows no viewer count.
+    expect(screen.queryByTestId("terminal-viewers")).not.toBeInTheDocument();
   });
 
   it("Should render a pipe terminal as a log with no interactive affordance", async () => {
@@ -482,7 +483,7 @@ describe("TerminalWindowApp — S1 states", () => {
 
     await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
 
-    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 02:14");
+    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("Recording 02:14");
     expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
 
     view.rerender(
@@ -518,7 +519,7 @@ describe("TerminalWindowApp — S1 states", () => {
         workspaceId="ws-atlas"
       />
     );
-    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 05:00");
+    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("Recording 05:00");
     expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
   });
 

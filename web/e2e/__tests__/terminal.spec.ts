@@ -1085,6 +1085,11 @@ test("E2E-015: terminal settings expose defaults and reject an invalid limit", a
   const settings = await openAppWindow(appPage, "Settings", "settings");
   await settings.getByTestId("settings-section-nav").getByText("Terminal", { exact: true }).click();
   await expect(settings.getByTestId("settings-terminal-default-shell")).toBeVisible();
+  // Limits live in the page's Advanced fold.
+  await settings
+    .getByTestId("settings-page-terminal-advanced")
+    .getByTestId("settings-advanced-toggle")
+    .click();
   const limit = settings.getByTestId("settings-terminal-max-per-workspace");
   await expect(limit).toHaveValue("8");
   await limit.fill("0");

@@ -1,4 +1,4 @@
-import { AlertCircle, ListFilter, Search } from "lucide-react";
+import { AlertCircle, Inbox, ListFilter } from "lucide-react";
 
 import {
   Button,
@@ -124,7 +124,7 @@ export function TasksInboxView({
           containerClassName="w-64 max-w-full"
           data-testid="tasks-inbox-search"
           onChange={next => onSearchChange(next)}
-          placeholder="Search inbox..."
+          placeholder="Search inbox…"
           value={searchQuery}
         />
         <FiltersWithSearch<string>
@@ -164,26 +164,26 @@ export function TasksInboxView({
         {isLoading && !inbox ? (
           <TaskRowsLoadingSkeleton label="Loading inbox" testId="tasks-inbox-loading" />
         ) : errorMessage && !inbox ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-            <Empty
-              data-testid="tasks-inbox-error"
-              description={errorMessage}
-              icon={AlertCircle}
-              title="Unable to load inbox"
-            />
-            {onRetryQuery ? (
-              <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
-                Retry loading inbox
-              </Button>
-            ) : null}
-          </div>
+          <Empty
+            action={
+              onRetryQuery ? (
+                <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
+                  Retry loading inbox
+                </Button>
+              ) : null
+            }
+            data-testid="tasks-inbox-error"
+            description={errorMessage}
+            icon={AlertCircle}
+            title="Couldn't load the inbox"
+          />
         ) : !hasItems ? (
           <Empty
             className="mx-auto max-w-xl"
             data-testid="tasks-inbox-empty"
-            description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
-            icon={Search}
-            title="Nothing is waiting in the inbox"
+            description="Approvals and failed runs that need you show up here."
+            icon={Inbox}
+            title="You're all caught up"
           />
         ) : (
           <div className="flex flex-col gap-6" data-testid="tasks-inbox-groups">

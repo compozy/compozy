@@ -96,7 +96,7 @@ export function AgentCommandList({
                     size="xs"
                     tone="muted"
                   />
-                  <span className="truncate text-sm text-fg">{agent.name}</span>
+                  <span className="truncate text-small-body text-fg">{agent.name}</span>
                   <Eyebrow
                     className="text-muted"
                     data-testid={`agent-command-provider-${agent.name}`}

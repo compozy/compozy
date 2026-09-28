@@ -1,6 +1,14 @@
 import type { ComponentProps } from "react";
 
-import { cn, Eyebrow, Table, TableBody, TableHead, TableHeader, TableRow } from "@compozy/ui";
+import {
+  cn,
+  ListGroupHeader,
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@compozy/ui";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 
 import type { LoopRunGroup } from "../../lib/loop-runs-view";
@@ -10,6 +18,7 @@ interface LoopRunsTableProps extends Omit<ComponentProps<"section">, "children">
   group: LoopRunGroup;
   /** Resolves each run's owner. Absent in a scoped list — no tags there. */
   ownerOf?: (run: ProfileOwnerLabel) => ProfileOwner;
+  nowMs: number;
 }
 
 /** The roster's closed column set; a sixth column is a design decision, not a typo. */
@@ -33,11 +42,11 @@ const COLUMNS: readonly LoopRunColumn[] = [
 /**
  * One roster group (Needs you / Active / Recent) as a labeled table.
  *
- * The heading is a bare eyebrow plus a count: no glyph, because an icon beside
- * every group heading is decoration rather than wayfinding. Groups arrive
+ * The heading is the shared list-group header plus a count: no glyph, because an
+ * icon beside every group heading is decoration rather than wayfinding. Groups arrive
  * already ranked by the daemon, so this renders the order it is handed.
  */
-export function LoopRunsTable({ group, ownerOf, className, ...props }: LoopRunsTableProps) {
+export function LoopRunsTable({ group, ownerOf, nowMs, className, ...props }: LoopRunsTableProps) {
   const headingId = `loop-runs-group-${group.id}-heading`;
   return (
     <section
@@ -47,18 +56,11 @@ export function LoopRunsTable({ group, ownerOf, className, ...props }: LoopRunsT
       data-testid={`loop-runs-group-${group.id}`}
       {...props}
     >
-      <div className="flex min-h-6 items-center gap-2 px-0.5 pb-2.5">
-        <h2 className="min-w-0" id={headingId}>
-          <Eyebrow className="text-subtle">{group.label}</Eyebrow>
-        </h2>
-        <span
-          className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted"
-          data-testid="loop-runs-count"
-        >
-          {group.rows.length}
-        </span>
-      </div>
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        <ListGroupHeader
+          count={<span data-testid="loop-runs-count">{group.rows.length}</span>}
+          label={<span id={headingId}>{group.label}</span>}
+        />
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -71,7 +73,7 @@ export function LoopRunsTable({ group, ownerOf, className, ...props }: LoopRunsT
           </TableHeader>
           <TableBody>
             {group.rows.map(row => (
-              <LoopRunRow key={row.run.id} owner={ownerOf?.(row.run)} row={row} />
+              <LoopRunRow key={row.run.id} nowMs={nowMs} owner={ownerOf?.(row.run)} row={row} />
             ))}
           </TableBody>
         </Table>

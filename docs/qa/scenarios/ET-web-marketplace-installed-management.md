@@ -82,6 +82,12 @@ holds short collapsible property cards. Update and Authorize are OS-head primary
 rail Manage card keeps the enable switch, overflow (Provenance/Remove), and trust badges. Reset to
 untested.
 
+QA impact 2026-09-28 (ui-normie-pass): Installed rows show an "On"/"Off" word beside the switch and
+no longer print the allocated MCP runtime name (it lives under the detail Server card's "Technical
+details"). The updates line uses a neutral dot. The detail Manage card shows one status word and one
+trust word; trust badges moved to the closed Advanced card. A dev overlay's menu item reads
+"Unlink local copy…". Empty search reads `No results for "<q>"`. Reset to untested.
+
 QA impact 2026-08-10: an installed Skill now labels its switch from daemon truth (`Enabled` or
 `Disabled`) after mutation, and extension Update opens an update-specific trust confirmation instead
 of install copy. This scenario remains untested for a fresh Skill toggle, Extension update-confirm,

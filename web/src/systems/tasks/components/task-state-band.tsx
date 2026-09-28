@@ -7,8 +7,6 @@ export interface TaskStateBandProps extends Omit<React.ComponentProps<"div">, "t
   title: React.ReactNode;
   /** Plain-language consequence line under the title (max ~62ch). */
   body?: React.ReactNode;
-  /** Operator scent (event type · id) rendered as quiet mono microtext. */
-  micro?: React.ReactNode;
   /** Resolving actions, right-aligned and vertically centered. */
   actions?: React.ReactNode;
 }
@@ -39,7 +37,6 @@ export function TaskStateBand({
   tone,
   title,
   body,
-  micro,
   actions,
   className,
   ...props
@@ -65,9 +62,6 @@ export function TaskStateBand({
       {body ? (
         <div className="col-start-1 max-w-[62ch] text-small-body leading-relaxed text-muted">
           {body}
-          {micro ? (
-            <span className="mt-1.5 block font-mono text-mono-id text-faint">{micro}</span>
-          ) : null}
         </div>
       ) : null}
     </StatusCard>

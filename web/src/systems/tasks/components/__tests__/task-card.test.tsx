@@ -57,7 +57,7 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-owner-task_001")).toHaveTextContent("Coder");
     expect(screen.getByTestId("task-card-attempt-task_001")).toHaveTextContent("attempt 2 of 3");
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 subtasks");
-    expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
+    expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("Waits on 1 task");
     expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
     expect(screen.getByText("High")).toBeInTheDocument();
   });
@@ -101,18 +101,20 @@ describe("TaskCard", () => {
     expect(screen.queryByTestId("task-card-publish-task_001")).not.toBeInTheDocument();
   });
 
-  it("Should render a Blocked pill in the trailing slot for blocked tasks", () => {
+  it("Should leave blocked status to its group header instead of repeating a pill", () => {
     render(<TaskCard task={buildTask({ status: "blocked", active_run: null })} />);
-    expect(screen.getByTestId("task-card-blocked-task_001")).toBeInTheDocument();
-    expect(screen.queryByTestId("task-card-needs-attention-task_001")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-card-task_001")).toHaveAttribute("data-status", "blocked");
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
   });
 
-  it("Should surface needs_attention as its own truthful pill, distinct from blocked", () => {
+  it("Should carry needs_attention as its own truthful status, distinct from blocked", () => {
     render(<TaskCard task={buildTask({ status: "needs_attention", active_run: null })} />);
 
-    const pill = screen.getByTestId("task-card-needs-attention-task_001");
-    expect(pill).toHaveTextContent("Needs attention");
-    expect(screen.queryByTestId("task-card-blocked-task_001")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-card-task_001")).toHaveAttribute(
+      "data-status",
+      "needs_attention"
+    );
+    expect(screen.queryByText("Needs attention")).not.toBeInTheDocument();
   });
 
   // Loop execution records leave the default listing entirely and render through

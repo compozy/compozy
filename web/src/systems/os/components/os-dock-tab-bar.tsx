@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 
-import { Icon } from "@compozy/ui";
+import { Icon, PillCount } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -13,10 +13,6 @@ import {
 import { DockIcon } from "./os-dock-icons";
 
 /** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
-function formatBadge(count: number): string {
-  return count > 9 ? "9+" : String(count);
-}
-
 function TabBarItem({
   item,
   onSelect,
@@ -51,12 +47,11 @@ function TabBarItem({
         <DockIcon name={item.icon} className="size-dock-icon" />
       </span>
       {item.badge ? (
-        <span
+        <PillCount
           data-slot="os-dock-badge"
-          className="absolute top-0.5 right-0.5 grid h-dock-badge min-w-dock-badge place-items-center rounded-lg bg-accent px-1 font-mono text-micro font-bold text-accent-ink"
-        >
-          {formatBadge(item.badge)}
-        </span>
+          count={item.badge}
+          className="absolute top-0.5 right-0.5"
+        />
       ) : null}
       <span
         data-slot="os-dock-indicator"

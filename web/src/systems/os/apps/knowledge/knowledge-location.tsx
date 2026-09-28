@@ -41,7 +41,7 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
       data-testid="tab-pills"
       items={[
         { value: "profile", label: "Profile", testId: "tab-profile" },
-        { value: "workspace", label: "Workspace", testId: "tab-workspace" },
+        { value: "workspace", label: "Project", testId: "tab-workspace" },
         { value: "agent", label: "Agent", testId: "tab-agent" },
       ]}
       onChange={page.setActiveScope}
@@ -57,15 +57,15 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
           className="h-7 w-44"
           data-testid="agent-name-input"
           onChange={event => page.setAgentName(event.target.value)}
-          placeholder="agent name"
+          placeholder="Agent name"
           value={page.agentName}
         />
         <PillGroup<KnowledgeAgentTier>
           aria-label="Agent tier"
           data-testid="agent-tier-pills"
           items={[
-            { value: "workspace", label: "Workspace", testId: "tier-workspace" },
-            { value: "global", label: "Global", testId: "tier-global" },
+            { value: "workspace", label: "This project", testId: "tier-workspace" },
+            { value: "global", label: "All projects", testId: "tier-global" },
           ]}
           onChange={page.setAgentTier}
           value={page.agentTier}
@@ -113,7 +113,7 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
     ),
   });
 
-  if (page.guardMessage) {
+  if (page.guard) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
         <div
@@ -122,9 +122,9 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
         >
           <Empty
             className="max-w-md"
-            description={page.guardMessage}
+            description={page.guard.description}
             icon={BookOpen}
-            title="Select scope inputs"
+            title={page.guard.title}
           />
         </div>
       </div>
@@ -134,18 +134,19 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <div className="grid min-h-0 flex-1 grid-cols-[18rem_1fr]" data-testid="knowledge-loading">
-          <SkeletonRows
-            className="border-r border-line p-4"
-            count={6}
-            rowClassName="border-b border-line-soft py-3"
-          />
-          <div className="space-y-4 p-5">
-            <Skeleton className="h-5 w-48" />
-            <Skeleton className="h-3 w-3/4" />
-            <Skeleton className="h-28 w-full" />
-          </div>
-        </div>
+        <SplitPane
+          data-testid="knowledge-loading"
+          detail={
+            <div className="space-y-4 p-5">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          }
+          list={
+            <SkeletonRows className="p-4" count={6} rowClassName="border-b border-line-soft py-3" />
+          }
+        />
       </div>
     );
   }
@@ -154,18 +155,20 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
         <div
-          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-10"
+          className="flex min-h-0 flex-1 items-center justify-center py-10"
           data-testid="knowledge-error"
         >
           <Empty
+            action={
+              <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
+                Retry loading knowledge
+              </Button>
+            }
             className="max-w-md"
-            description={page.error.message ?? "Failed to load knowledge"}
+            description={page.error.message ?? "Try again in a moment."}
             icon={AlertCircle}
-            title="Unable to load knowledge"
+            title="Couldn't load knowledge"
           />
-          <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
-            Retry loading knowledge
-          </Button>
         </div>
       </div>
     );
@@ -189,6 +192,7 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
             onRevertDecision={page.handleRevertDecision}
             revertError={page.revertError}
             revertingDecisionId={page.revertingDecisionId}
+            projectName={page.selectedProjectName}
             scope={page.selectedScope}
             status={{
               isDecisionsLoading: page.isDecisionsLoading,

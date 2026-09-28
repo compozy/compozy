@@ -2,7 +2,7 @@ import { createContext, use, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
-import { cn, KindIcon, PropertyRow, type KindIconRegistry } from "@compozy/ui";
+import { cn, KindIcon, Pill, PropertyRow, type KindIconRegistry } from "@compozy/ui";
 
 import type { EditorNode } from "../../lib/codec";
 import { EDITOR_ROUTE_ROW_HEIGHT } from "../../lib/loop-editor-layout";
@@ -16,7 +16,6 @@ import {
 } from "../../lib/loop-node-kind-icons";
 import { LOOP_ENVIRONMENT_MODE_LABELS } from "../../lib/loop-node-schema-types";
 import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
-import { MonoTag } from "../mono-tag";
 import { LoopEditorNodeMenu } from "./loop-editor-node-menu";
 
 const LoopEditorNodeActionsContext = createContext<LoopEditorNodeActions | null>(null);
@@ -39,7 +38,7 @@ const LOOP_EDITOR_KIND_ICON_REGISTRY = {
 } satisfies KindIconRegistry;
 
 const HANDLE_NUB =
-  "!h-5 !min-h-0 !min-w-0 !w-[7px] !border-line !bg-line transition-[width,left,right] duration-150 group-hover:!w-[9px]";
+  "!h-5 !min-h-0 !min-w-0 !w-2 !border-line !bg-line transition-[width,left,right] duration-150 group-hover:!w-2.5";
 
 const ORIGIN = { x: 0, y: 0 };
 
@@ -136,10 +135,10 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
   const card = (
     <div
       className={cn(
-        "group relative flex w-[188px] flex-col rounded-md border bg-canvas-tint transition-colors",
+        "group relative flex w-47 flex-col rounded-md border bg-canvas-tint transition-colors",
         hasError ? "border-danger" : "border-line hover:border-line-strong",
-        focused && !hasError && "border-accent-dim ring-[1.75px] ring-accent-dim",
-        focused && hasError && "ring-[1.75px] ring-danger",
+        focused && !hasError && "border-accent-dim ring-2 ring-accent-dim",
+        focused && hasError && "ring-2 ring-danger",
         !focused && selected && !hasError && "border-accent-dim/50 ring-1 ring-accent-dim/40"
       )}
       data-testid="loop-editor-node"
@@ -149,17 +148,14 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
       data-node-selected={selected ? "true" : "false"}
     >
       <Handle
-        className={cn(
-          HANDLE_NUB,
-          "!-left-2 !rounded-l-[2px] !rounded-r-none group-hover:!-left-2.5"
-        )}
+        className={cn(HANDLE_NUB, "!-left-2 !rounded-l-xxs !rounded-r-none group-hover:!-left-2.5")}
         isConnectable={connectable}
         position={Position.Left}
         type="target"
       />
       <div
         className={cn(
-          "flex min-h-9.5 items-center gap-2 px-2.5 py-2",
+          "flex min-h-10 items-center gap-2 px-2.5 py-2",
           hasBody && "border-b border-line-soft"
         )}
       >
@@ -184,14 +180,9 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
         >
           {String(raw.id)}
         </span>
-        <MonoTag
-          className={cn(
-            "shrink-0 text-pill-group-badge tracking-[0.07em]",
-            focused ? "text-accent-strong" : "text-faint"
-          )}
-        >
+        <Pill size="xs" tone={focused ? "accent" : "neutral"} mono>
           {classLabel(nodeClass, kind)}
-        </MonoTag>
+        </Pill>
       </div>
       {hasBody ? (
         <div className="flex flex-col gap-1 px-2.5 py-2">
@@ -263,7 +254,7 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
               <Handle
                 className={cn(
                   HANDLE_NUB,
-                  "!-right-2 !h-3.5 !rounded-l-none !rounded-r-[2px] group-hover:!-right-2.5"
+                  "!-right-2 !h-3.5 !rounded-l-none !rounded-r-xxs group-hover:!-right-2.5"
                 )}
                 id={row.handle}
                 isConnectable={connectable}
@@ -277,9 +268,11 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
       ) : null}
       {hasError ? (
         <span
-          className="absolute -right-2 -top-2 grid size-4.5 place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
+          className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
           data-testid="loop-editor-node-badge"
-          title="This node has a validation error"
+          aria-label="This step has a problem"
+          role="img"
+          title="This step has a problem"
         >
           <AlertTriangle aria-hidden="true" className="size-2.5" />
         </span>
@@ -288,7 +281,7 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
         <Handle
           className={cn(
             HANDLE_NUB,
-            "!-right-2 !rounded-l-none !rounded-r-[2px] group-hover:!-right-2.5"
+            "!-right-2 !rounded-l-none !rounded-r-xxs group-hover:!-right-2.5"
           )}
           isConnectable={connectable}
           position={Position.Right}

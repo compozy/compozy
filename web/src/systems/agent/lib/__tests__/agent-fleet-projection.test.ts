@@ -108,7 +108,7 @@ describe("agent fleet projection", () => {
     expect(rows[0]?.hasDiagnostics).toBe(true);
   });
 
-  it("Should render meta with category provider model and middle-truncate deep categories", () => {
+  it("Should render meta with category and model (provider is the icon) and middle-truncate deep categories", () => {
     expect(
       formatAgentFleetMeta(
         agent({
@@ -119,7 +119,7 @@ describe("agent fleet projection", () => {
           origin: "workspace",
         })
       )
-    ).toBe("Engineering / Release · anthropic · claude-sonnet-4-5");
+    ).toBe("Engineering / Release · claude-sonnet-4-5");
 
     expect(
       formatAgentFleetCardCategory(
@@ -188,7 +188,7 @@ describe("agent fleet projection", () => {
       sessionsAvailable: true,
     });
     expect(rows[0]?.cardCategory).toBe("openai");
-    expect(rows[0]?.cardOrigin).toBe("Workspace");
+    expect(rows[0]?.cardOrigin).toBe("This project");
     expect(rows[0]?.ariaLabel).toBe("triage-bot, Idle, 0 of 0 sessions active");
   });
 

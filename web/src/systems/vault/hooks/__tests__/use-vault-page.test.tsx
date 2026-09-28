@@ -28,6 +28,12 @@ const mocks = vi.hoisted(() => ({
     isSuccess: true,
   },
   vaultFilter: vi.fn(),
+  toast: Object.assign(vi.fn(), { success: vi.fn() }),
+}));
+
+vi.mock("@compozy/ui", async importOriginal => ({
+  ...(await importOriginal<typeof import("@compozy/ui")>()),
+  toast: mocks.toast,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -208,10 +214,7 @@ describe("useVaultPage route state", () => {
     });
     await waitFor(() => {
       expect(result.current.replaceValue).toBe("");
-      expect(result.current.lastAction).toEqual({
-        kind: "saved",
-        ref: "vault:providers/openai",
-      });
+      expect(mocks.toast.success).toHaveBeenCalledWith("Saved openai");
     });
   });
 
@@ -307,6 +310,40 @@ describe("useVaultPage route state", () => {
 
     expect(result.current.editorRefExists).toBe(false);
     expect(result.current.editorIsValid).toBe(true);
+  });
+
+  it("Should add the vault: prefix to a bare name and keep the request shape", () => {
+    mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "  providers/anthropic ",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(result.current.editorIsValid).toBe(true);
+    act(() => result.current.saveEditor());
+    expect(mocks.putMutateAsync.mock.lastCall?.[0]).toEqual({
+      ref: "vault:providers/anthropic",
+      secret_value: "sk-live",
+    });
+  });
+
+  it("Should treat a bare name that matches an existing secret as an overwrite", () => {
+    mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({ ...draft, ref: "providers/openai", secretValue: "x" }))
+    );
+
+    expect(result.current.editorRefExists).toBe(true);
+    expect(result.current.editorIsValid).toBe(false);
   });
 
   it("Should withhold a create write until the complete collision inventory resolves", () => {

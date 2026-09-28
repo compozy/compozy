@@ -54,7 +54,6 @@ export function SettingsDisabledSkillsSection({
             <TableHeader>
               <TableRow className="bg-elevated">
                 <TableHead className="eyebrow text-muted">Skill</TableHead>
-                <TableHead className="eyebrow text-muted">Identifier</TableHead>
                 <TableHead className="eyebrow w-[1%] text-right text-muted">Disabled</TableHead>
               </TableRow>
             </TableHeader>
@@ -67,7 +66,6 @@ export function SettingsDisabledSkillsSection({
                       <span className="truncate text-sm text-fg">{name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted">{name}</TableCell>
                   <TableCell className="text-right">
                     <Switch
                       data-testid={`settings-page-skills-disabled-toggle-${name}`}

@@ -245,9 +245,8 @@ describe("settings operator selectors", () => {
     );
     expect(selectors.providers.editorSave).toBe(`locator:${settingsProvidersTestIds.editorSave}`);
     expect(selectors.providers.card("codex")).toBe("locator:settings-page-providers-card-codex");
-    expect(selectors.providers.cardCommand("codex")).toBe(
-      "locator:settings-page-providers-card-codex-command"
-    );
+    expect(selectors.providers.inspectorCommand).toBe("locator:inspect-command");
+    expect(selectors.providers.inspectorTechnical).toBe("locator:provider-detail-technical");
     expect(selectors.providers.inspectorSource).toBe("locator:inspect-source");
 
     expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);

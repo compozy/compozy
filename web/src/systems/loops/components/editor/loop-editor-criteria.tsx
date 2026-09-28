@@ -1,11 +1,10 @@
 import { Plus, X } from "lucide-react";
 
-import { Button, Input, Label, NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { Button, Input, Label, NativeSelect, NativeSelectOption, Pill } from "@compozy/ui";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
-import { MonoTag } from "../mono-tag";
 import { LoopReferenceInput } from "./loop-reference-input";
 
 type Criterion = Record<string, unknown> & { id?: string; type?: string };
@@ -20,6 +19,23 @@ interface LoopEditorCriteriaProps {
 
 const CRITERION_TYPES = ["command", "agent-judge", "human", "extension"] as const;
 type CriterionType = (typeof CRITERION_TYPES)[number];
+
+/** Display-only labels; the submitted `type` / `expect` values stay canonical. */
+const CRITERION_TYPE_LABEL: Record<CriterionType, string> = {
+  command: "Command",
+  "agent-judge": "Agent review",
+  human: "You approve",
+  extension: "Extension check",
+};
+
+const COMMAND_EXPECT_OPTIONS = [
+  { value: "exit_zero", label: "Finishes without errors" },
+  { value: "stdout_match", label: "Output matches" },
+] as const;
+
+function criterionTypeLabel(type: string): string {
+  return CRITERION_TYPE_LABEL[type as CriterionType] ?? type;
+}
 
 function asCriteria(value: unknown): Criterion[] {
   return Array.isArray(value)
@@ -89,15 +105,15 @@ export function LoopEditorCriteria({
       {criteria.map((criterion, index) => (
         <div
           key={rowKeys.keys[index]}
-          className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
+          className="rounded-md border border-line-soft bg-canvas-soft p-3"
         >
           <div className="mb-2 flex items-center gap-2">
             <span className="font-mono text-mono-id text-fg-strong">
               {str(criterion.id) || "criterion"}
             </span>
-            <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-subtle">
-              {str(criterion.type) || "command"}
-            </MonoTag>
+            <Pill size="xs" tone="neutral" className="ml-auto">
+              {criterionTypeLabel(str(criterion.type) || "command")}
+            </Pill>
             <Button
               type="button"
               variant="ghost"
@@ -162,7 +178,7 @@ function CriterionBody({
       >
         {allowedTypes.map(option => (
           <NativeSelectOption key={option} value={option}>
-            {option}
+            {criterionTypeLabel(option)}
           </NativeSelectOption>
         ))}
       </NativeSelect>
@@ -180,14 +196,17 @@ function CriterionBody({
             />
           </div>
           <NativeSelect
-            className="w-32 shrink-0"
+            className="w-44 shrink-0"
             value={str(criterion.expect) || "exit_zero"}
             disabled={disabled}
             onChange={event => onChange({ expect: event.target.value })}
-            aria-label="Expect"
+            aria-label="Passes when"
           >
-            <NativeSelectOption value="exit_zero">exit_zero</NativeSelectOption>
-            <NativeSelectOption value="stdout_match">stdout_match</NativeSelectOption>
+            {COMMAND_EXPECT_OPTIONS.map(option => (
+              <NativeSelectOption key={option.value} value={option.value}>
+                {option.label}
+              </NativeSelectOption>
+            ))}
           </NativeSelect>
         </div>
       ) : null}

@@ -2,6 +2,7 @@ import { KeyRound, ShieldOff, TerminalSquare } from "lucide-react";
 
 import { Alert, AlertDescription, Eyebrow, FormSection, Input, Pill, RadioCard } from "@compozy/ui";
 
+import { providerAuthStateLabel } from "../lib/provider-copy";
 import { withProviderAuthMode } from "../lib/provider-draft";
 import type { ProviderAuthMode, ProviderDraft, SettingsProviderEntry } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";
@@ -26,24 +27,24 @@ const AUTH_CARDS: ReadonlyArray<{
 }> = [
   {
     value: "native_cli",
-    title: "Native CLI",
-    description: "The provider owns login and credential state. CompozyOS never asks for keys.",
+    title: "Provider's own sign-in",
+    description: "You sign in with the provider's app. CompozyOS never asks for keys.",
     badge: "Provider-owned",
     icon: TerminalSquare,
     testId: "settings-providers-editor-auth-mode-native_cli",
   },
   {
     value: "bound_secret",
-    title: "Bound secret",
-    description: "CompozyOS injects the declared credential slots at launch, from the vault.",
+    title: "Key saved in CompozyOS",
+    description: "CompozyOS passes your saved key to the provider when it starts.",
     badge: "CompozyOS-managed",
     icon: KeyRound,
     testId: "settings-providers-editor-auth-mode-bound_secret",
   },
   {
     value: "none",
-    title: "None",
-    description: "The provider launches with no CompozyOS-managed credentials.",
+    title: "No sign-in",
+    description: "The provider starts without any keys from CompozyOS.",
     badge: "Unauthenticated",
     icon: ShieldOff,
     testId: "settings-providers-editor-auth-mode-none",
@@ -63,7 +64,7 @@ export function ProviderAuthFields({ mode, draft, entry, onChange }: ProviderAut
   return (
     <FormSection
       data-testid="settings-providers-editor-auth"
-      description="CompozyOS asks for credentials only under a bound-secret contract."
+      description="CompozyOS asks for keys only when it manages them for you."
       title="Who owns authentication?"
     >
       <div
@@ -107,10 +108,8 @@ export function ProviderAuthFields({ mode, draft, entry, onChange }: ProviderAut
 
       {draft.auth_mode === "none" ? (
         <Alert data-testid="settings-providers-editor-auth-none-note" variant="info">
-          <AlertDescription className="text-xs">
-            No credentials are injected into the provider subprocess. The safety rationale (
-            <code className="font-mono">none_security</code>) stays as configured — this editor does
-            not change it.
+          <AlertDescription className="text-form-hint">
+            CompozyOS doesn&apos;t pass any keys to this provider.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -135,10 +134,8 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
     <>
       {authStatus?.state ? (
         <Alert data-testid="settings-providers-editor-auth-status" variant="info">
-          <AlertDescription className="flex flex-col gap-1 text-xs">
-            <span>
-              Native CLI status: <code className="font-mono">{authStatus.state}</code>
-            </span>
+          <AlertDescription className="flex flex-col gap-1 text-form-hint">
+            <span>Sign-in status: {providerAuthStateLabel(authStatus.state)}</span>
             {authStatus.message ? <span className="text-muted">{authStatus.message}</span> : null}
           </AlertDescription>
         </Alert>
@@ -157,7 +154,7 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
           />
         }
         data-testid="settings-providers-editor-auth-status-command"
-        description="Provider-owned command used for auth diagnostics."
+        description="Command CompozyOS runs to check whether you're signed in."
         label={
           <>
             Status command
@@ -174,8 +171,8 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
           />
         }
         data-testid="settings-providers-editor-auth-login"
-        description="The command is write-only. This view shows only its executable and availability."
-        label="Login CLI"
+        description="Only the app name and whether it's installed are shown here."
+        label="Sign-in app"
       />
     </>
   );

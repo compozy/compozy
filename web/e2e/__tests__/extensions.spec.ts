@@ -76,6 +76,8 @@ test.describe("Extension dev overlay and source-union install", () => {
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
 
+    // Trust badges and process facts live under the closed Advanced card.
+    await marketplaceWin.getByRole("button", { name: /^Advanced/ }).click();
     await expect(marketplace.extensionDevBadge).toHaveText("dev");
     await expect(marketplace.extensionOverridesPublishedBadge).toHaveText("overrides published");
     await expect(marketplace.extensionOriginPath).toContainText(sourceDir);
@@ -88,6 +90,7 @@ test.describe("Extension dev overlay and source-union install", () => {
       marketplaceWin.getByRole("button", { name: `Update ${extensionName}` })
     ).toHaveCount(0);
 
+    await marketplaceWin.getByRole("button", { name: /^Activity/ }).click();
     await expect(marketplace.extensionLogsPanel).toBeVisible();
     await expect(marketplace.extensionLogsLines).toContainText(logSentinel, { timeout: 30_000 });
     await marketplace.extensionLogsFollow.click();
@@ -114,6 +117,7 @@ test.describe("Extension dev overlay and source-union install", () => {
     );
     const unionDir = unionBuild.generation_dir;
     await marketplace.extensionInstallRef.fill(unionDir);
+    await marketplaceWin.getByRole("button", { name: "More options" }).click();
     await marketplace.extensionInstallAllowUnverified.click();
     await marketplace.extensionInstallSubmit.click();
     await expect(marketplaceWin.getByTestId("extension-install-summary")).toBeVisible();

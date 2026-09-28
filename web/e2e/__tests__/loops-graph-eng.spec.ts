@@ -288,7 +288,9 @@ test("E2E-029: editor grammar round-trips and reports a missing route default", 
   await page.getByTestId("loop-route-default").selectOption("");
   await expect(page.getByTestId("loop-linter-error-count")).toBeVisible();
   await page.getByTestId("loop-linter-toggle").click();
-  await expect(page.getByTestId("loop-linter-issue")).toContainText("route_default_missing");
+  await expect(
+    page.getByTestId("loop-linter-issue").getByTitle("route_default_missing")
+  ).toBeVisible();
 });
 
 test("E2E-030: loop requests compose into the bell count and jump to their form", async ({

@@ -30,19 +30,15 @@ const TILE_COMMANDS = [
   "window.tile.bottom-right",
 ];
 const ARRANGE_COMMANDS = ["layout.arrange.two-up", "layout.arrange.grid"];
-const FOCUS_COMMANDS = [
-  "window.focus.left",
-  "window.focus.right",
-  "window.focus.up",
-  "window.focus.down",
-];
 
 function menuGroup(id: string, content: React.ReactNode) {
   return { id, content };
 }
 
 /**
- * Window menu. Grouping and order are curated here (BR-17); every item's label,
+ * Window menu. Grouping and order are curated here (BR-17): the everyday window
+ * actions only — directional focus, tab merge/detach, layout undo/redo and
+ * desktop stepping stay palette and keyboard commands. Every item's label,
  * chord, availability and reason are projections of the registry, so an item
  * shows the same truth as its palette row and its chord. An unbound command
  * shows no chord rather than a fake one.
@@ -101,44 +97,9 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
               ) : null
             ),
             menuGroup(
-              "focus",
-              FOCUS_COMMANDS.some(has) ? (
-                <MenubarSub>
-                  <MenubarSubTrigger data-testid="os-menu-focus-window">Focus</MenubarSubTrigger>
-                  <MenubarSubContent>
-                    {FOCUS_COMMANDS.map(commandId => (
-                      <MenubarCommandItem commandId={commandId} key={commandId} onRun={onRun} />
-                    ))}
-                  </MenubarSubContent>
-                </MenubarSub>
-              ) : null
-            ),
-            menuGroup(
-              "stack",
-              ["window.merge_all", "window.tab.detach"].some(has) ? (
-                <>
-                  <MenubarCommandItem commandId="window.merge_all" onRun={onRun} />
-                  <MenubarCommandItem commandId="window.tab.detach" onRun={onRun} />
-                </>
-              ) : null
-            ),
-            menuGroup(
-              "history",
-              ["layout.undo", "layout.redo"].some(has) ? (
-                <>
-                  <MenubarCommandItem commandId="layout.undo" onRun={onRun} />
-                  <MenubarCommandItem commandId="layout.redo" onRun={onRun} />
-                </>
-              ) : null
-            ),
-            menuGroup(
               "desktop",
-              ["desktop.switch.previous", "desktop.switch.next", "desktop.overview"].some(has) ? (
-                <>
-                  <MenubarCommandItem commandId="desktop.switch.previous" onRun={onRun} />
-                  <MenubarCommandItem commandId="desktop.switch.next" onRun={onRun} />
-                  <MenubarCommandItem commandId="desktop.overview" onRun={onRun} />
-                </>
+              has("desktop.overview") ? (
+                <MenubarCommandItem commandId="desktop.overview" onRun={onRun} />
               ) : null
             ),
             menuGroup(

@@ -2,7 +2,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 
 import { Button, CatalogCard, Pill, Time } from "@compozy/ui";
 
-import { vaultNamespaceTone } from "../lib/vault-tones";
+import { vaultSecretLocation, vaultSecretTitle } from "../lib/vault-secret-title";
 import type { VaultSecret } from "../types";
 
 export interface VaultSecretsCardProps {
@@ -20,6 +20,7 @@ export function VaultSecretsCard({
 }: VaultSecretsCardProps) {
   const trimmedKind = secret.kind?.trim();
   const selectable = onSelect !== undefined;
+  const title = vaultSecretTitle(secret.ref);
 
   return (
     <CatalogCard
@@ -29,11 +30,12 @@ export function VaultSecretsCard({
       selected={selected}
     >
       <button
-        aria-label={`Inspect ${secret.ref}`}
+        aria-label={`Open ${title}`}
         className="flex min-w-0 flex-col gap-3 text-left"
         data-testid={`vault-secrets-select-${secret.ref}`}
         disabled={!selectable}
         onClick={() => onSelect?.(secret)}
+        title={secret.ref}
         type="button"
       >
         <div className="flex items-start gap-2.5">
@@ -41,12 +43,10 @@ export function VaultSecretsCard({
             <KeyRound aria-hidden="true" className="size-3.5" />
           </CatalogCard.Logo>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <CatalogCard.Title className="font-mono text-xs font-medium">
-              {secret.ref}
-            </CatalogCard.Title>
-            <Pill mono size="sm" tone={vaultNamespaceTone(secret.namespace)}>
-              {secret.namespace}
-            </Pill>
+            <CatalogCard.Title>{title}</CatalogCard.Title>
+            <span className="truncate text-xs text-subtle">
+              {vaultSecretLocation(secret.ref) || secret.namespace}
+            </span>
           </div>
         </div>
       </button>
@@ -55,23 +55,16 @@ export function VaultSecretsCard({
           <Pill mono data-testid={`vault-secrets-kind-${secret.ref}`} size="sm" tone="neutral">
             {trimmedKind}
           </Pill>
-        ) : (
-          <span
-            className="font-mono text-mono-id text-faint"
-            data-testid={`vault-secrets-kind-empty-${secret.ref}`}
-          >
-            --
-          </span>
-        )}
-        <div className="flex items-center gap-1">
+        ) : null}
+        <div className="ml-auto flex items-center gap-1">
           <Time
-            className="font-mono text-mono-id text-faint"
+            className="text-xs text-faint"
             data-testid={`vault-secrets-updated-${secret.ref}`}
             iso={secret.updated_at}
           />
           {onDelete ? (
             <Button
-              aria-label={`Delete ${secret.ref}`}
+              aria-label={`Delete ${title}`}
               data-testid={`vault-secrets-delete-${secret.ref}`}
               onClick={event => {
                 event.stopPropagation();

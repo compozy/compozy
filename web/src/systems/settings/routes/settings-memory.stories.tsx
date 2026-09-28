@@ -31,7 +31,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default memory page with persistence controls and dream thresholds.
+ * Default memory page: remember switch, memory folder, and the tidy-up action up front;
+ * tuning lives in the closed Advanced fold.
  */
 export const Default: Story = {
   args: {},
@@ -49,7 +50,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty shell state -- the global memory directory has been edited so the save-bar
+ * Dirty shell state -- the memory folder has been edited so the save-bar
  * reads Unsaved changes + the Save button enables.
  */
 export const Dirty: Story = {
@@ -67,7 +68,7 @@ export const Dirty: Story = {
 };
 
 /**
- * Dream action triggered from the dream section header.
+ * "Tidy up now" (dream consolidation) triggered from the Memory group.
  */
 export const DreamTriggered: Story = {
   args: {},

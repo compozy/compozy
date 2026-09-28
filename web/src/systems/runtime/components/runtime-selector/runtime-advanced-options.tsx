@@ -226,7 +226,7 @@ export function RuntimeAdvancedOptions({
         <SlidersHorizontal aria-hidden="true" className="size-3.5 shrink-0" />
         <Eyebrow className="min-w-0 flex-1 text-left text-subtle">Advanced options</Eyebrow>
         {providerManaged ? (
-          <span className="shrink-0 text-badge text-warning">Provider managed</span>
+          <span className="shrink-0 text-badge text-subtle">Provider managed</span>
         ) : null}
         <ChevronDown
           aria-hidden="true"
@@ -254,7 +254,7 @@ export function RuntimeAdvancedOptions({
             />
           ))}
           {providerManaged ? (
-            <p className="border-t border-line-soft px-3 py-1.5 text-form-hint text-warning">
+            <p className="border-t border-line-soft px-3 py-1.5 text-form-hint text-muted">
               This provider controls these settings.
             </p>
           ) : null}
