@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 import type { SessionTurnFoldRow } from "./session-timeline.logic";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 export interface SessionTurnFoldRowViewProps {
   row: SessionTurnFoldRow;

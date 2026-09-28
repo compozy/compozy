@@ -13,7 +13,7 @@ import { toolMessageFromPart } from "./session-timeline-tool-message";
 
 import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 

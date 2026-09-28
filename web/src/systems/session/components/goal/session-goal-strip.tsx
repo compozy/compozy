@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { ChevronDown, FilePenLine, RefreshCw } from "lucide-react";
+import { FilePenLine, RefreshCw } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, cn, Eyebrow } from "@compozy/ui";
+import { Button, cn, Eyebrow, TranscriptDisclosure } from "@compozy/ui";
 
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 
@@ -124,43 +124,37 @@ export function SessionGoalStrip({
       data-goal-cause={snapshot.cause || undefined}
       className="min-w-0 border-b border-line py-1.5"
     >
-      <button
-        type="button"
-        aria-expanded={open}
+      <TranscriptDisclosure
+        className="w-full min-w-0 gap-2 font-normal"
         data-testid="goal-strip-line"
-        onClick={() => setOpen(value => !value)}
-        className={cn(
-          "flex min-h-6 w-full min-w-0 items-center gap-2 rounded-md px-1 text-left",
-          "transition-colors duration-base ease-out hover:bg-hover",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        <span
-          aria-hidden="true"
-          data-testid="goal-strip-dot"
-          className={cn("size-1.5 shrink-0 rounded-full", STATE_DOT[state])}
-        />
-        <Eyebrow className="shrink-0 text-subtle">Goal</Eyebrow>
-        <span className="min-w-0 max-w-sm flex-1 truncate text-small-body text-fg">
-          {snapshot.objective}
-        </span>
-        <span
-          aria-atomic="true"
-          aria-live="polite"
-          data-testid="goal-strip-facts"
-          className="shrink-0 text-transcript-meta text-subtle tabular-nums"
-        >
-          {moved ? `Moved · ${facts}` : facts}
-        </span>
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
-            open ? "rotate-180" : null
-          )}
-          strokeWidth={1.75}
-        />
-      </button>
+        expanded={open}
+        icon={
+          <span
+            aria-hidden="true"
+            data-testid="goal-strip-dot"
+            className={cn("size-1.5 shrink-0 rounded-full", STATE_DOT[state])}
+          />
+        }
+        label={
+          <span className="flex min-w-0 items-center gap-2">
+            <Eyebrow className="shrink-0 text-subtle">Goal</Eyebrow>
+            <span className="min-w-0 max-w-sm truncate text-small-body text-fg">
+              {snapshot.objective}
+            </span>
+          </span>
+        }
+        onToggle={() => setOpen(value => !value)}
+        trailing={
+          <span
+            aria-atomic="true"
+            aria-live="polite"
+            data-testid="goal-strip-facts"
+            className="ml-auto shrink-0 text-transcript-meta text-subtle tabular-nums"
+          >
+            {moved ? `Moved · ${facts}` : facts}
+          </span>
+        }
+      />
       {open ? (
         <div data-testid="goal-strip-body" className="flex flex-col gap-1.5 px-1 pt-1.5 pb-0.5">
           {/* The line truncates the objective; the body is where it reads in full. */}
