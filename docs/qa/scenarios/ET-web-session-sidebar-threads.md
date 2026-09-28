@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-14
 expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts closed (transcript full-bleed) and opens as a 264px left rail hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
 entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1
-qa_status: pass
+qa_status: untested
 bug_ids: compozy/compozy#416
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits: ea021855; 49601716
 evidence: docs/qa/evidence/2026-08-17-pr-420-review/structured-walk.md; docs/qa/evidence/2026-08-17-pr-420-review/teardown.json
 last_report: docs/qa/reports/2026-08-17-pr-420-review.md
@@ -43,3 +43,5 @@ All-workspaces groups remain navigation-only. The new
 sequential actions, confirmation, and retry; prior thread evidence above is retained.
 
 2026-09-15 quiet-context pass: the current session row dropped its accent left bar; `bg-row-selected` alone marks it, the same tint as multi-selection. Expected updated; the owning unit suite re-verified, no live re-walk.
+
+2026-09-28 session-continue-fork task_04 impact: continue children (lineage kind `continue`) nest under their source like any loaded child; their row subtitle is unchanged, and the session window status line of a continued child adds the neutral origin pill "Continued from {agent}" (fork pill lands with task_06). Reset to `untested` for a re-walk that proves a continued child nests under its source in the rail and the modal, and that selecting it in place shows the pill. Owner of the walk: session-continue-fork task_08.

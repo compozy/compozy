@@ -2,7 +2,8 @@ import type { AgentEventPayload, ProviderErrorDiagnosticPayload } from "../types
 
 export type ProviderErrorCode = "provider_auth_required" | "provider_rate_limited";
 /** Next actions the daemon emits; anything else renders the neutral `inspect` step. */
-export type ProviderErrorNextAction = "login" | "bind_secret" | "inspect" | "retry";
+/** `handoff` offers continuing the session with another agent or route (user sessions only). */
+export type ProviderErrorNextAction = "login" | "bind_secret" | "inspect" | "retry" | "handoff";
 
 export interface ProviderErrorView {
   code: ProviderErrorCode;
@@ -21,6 +22,7 @@ const NEXT_ACTIONS: ReadonlySet<string> = new Set<ProviderErrorNextAction>([
   "bind_secret",
   "inspect",
   "retry",
+  "handoff",
 ]);
 
 function knownDiagnostic(

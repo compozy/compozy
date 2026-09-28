@@ -30,7 +30,9 @@ function SessionPublisher({
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
   transportChip,
+  onContinue,
 }: {
+  onContinue?: () => void;
   onStop: () => void;
   onRename?: () => void;
   session?: SessionPayload;
@@ -60,6 +62,7 @@ function SessionPublisher({
     onResume: vi.fn(),
     onUnarchive: vi.fn(),
     onClear: vi.fn(),
+    onContinue,
   });
   return null;
 }
@@ -248,6 +251,32 @@ describe("useSessionTopbarSlot", () => {
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: "Rename session" })).toBeNull();
     });
+  });
+
+  it("Should offer Continue after Rename and open it once the overflow has closed", async () => {
+    const onContinue = vi.fn();
+    renderWithTopbar(<SessionPublisher onStop={vi.fn()} onContinue={onContinue} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    const items = screen.getAllByRole("menuitem").map(item => item.textContent);
+    expect(items.indexOf("Continue with another agent…")).toBe(items.indexOf("Rename session") + 1);
+    fireEvent.click(screen.getByTestId("continue-menu-item"));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId("session-topbar-overflow-menu")).toBeNull();
+  });
+
+  it("Should not offer Continue for an archived session", () => {
+    renderWithTopbar(
+      <SessionPublisher
+        onStop={vi.fn()}
+        onContinue={vi.fn()}
+        session={{ ...primarySessionFixture, archived_at: "2026-09-01T00:00:00Z" }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByTestId("continue-menu-item")).toBeNull();
   });
 
   // Invariant (task_06 VC-01..05, integration): the transport chip the window

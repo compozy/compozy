@@ -1,4 +1,5 @@
-import { Archive, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Archive, ArrowRightLeft, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
+import { use } from "react";
 
 import {
   Button,
@@ -10,6 +11,7 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import { SessionContinueContext } from "../contexts/session-continue-context-value";
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isUserControllableSession } from "../lib/session-running";
@@ -30,6 +32,8 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
   const isArchived = session.archived_at !== null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
+  const requestContinue = use(SessionContinueContext);
+  const userSession = isUserControllableSession(session);
 
   return (
     <DropdownMenu>
@@ -41,7 +45,7 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {isUserControllableSession(session) ? (
+        {userSession ? (
           <DropdownMenuItem
             data-testid={`session-row-rename-${session.id}`}
             disabled={disabled}
@@ -49,6 +53,16 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
           >
             <Pencil aria-hidden="true" className="size-3" />
             Rename session
+          </DropdownMenuItem>
+        ) : null}
+        {userSession && !isArchived && requestContinue ? (
+          <DropdownMenuItem
+            data-testid={`session-row-continue-${session.id}`}
+            disabled={disabled}
+            onClick={() => requestContinue(session)}
+          >
+            <ArrowRightLeft aria-hidden="true" className="size-3" />
+            Continue with another agent…
           </DropdownMenuItem>
         ) : null}
         {!isArchived && isStopEligible(session) ? (

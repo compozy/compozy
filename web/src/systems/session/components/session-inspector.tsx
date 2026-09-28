@@ -1,10 +1,11 @@
 import { DetailInspector, cn } from "@compozy/ui";
 import { deriveSessionContext, type SessionContextView } from "../lib/session-context";
-import type { SessionUsageTurnsResponse } from "../types";
+import type { SessionPayload, SessionUsageTurnsResponse } from "../types";
 import { SessionContextMeterSection } from "./session-context-meter-section";
 import { SessionContextInjectedSection } from "./session-context-injected-section";
 import { SessionContextTurnsSection } from "./session-context-turns-section";
 import { SessionActivitySection, type SessionActivityView } from "./session-activity-section";
+import { SessionInspectorOriginSection } from "./session-inspector-origin-section";
 import { SessionInspectorUsageSection } from "./session-inspector-sections";
 import type { InspectorUsage } from "./session-inspector-types";
 
@@ -16,6 +17,8 @@ export interface SessionInspectorProps {
   turns?: SessionUsageTurnsResponse;
   turnsUnavailable?: boolean;
   activity?: SessionActivityView;
+  /** The inspected session; a continued or forked one gains its Origin rows. */
+  session?: SessionPayload;
   injectedDefaultOpen?: boolean;
   turnsDefaultOpen?: boolean;
   drawerOpen?: boolean;
@@ -29,6 +32,7 @@ export function SessionInspector({
   turns,
   turnsUnavailable,
   activity,
+  session,
   injectedDefaultOpen,
   turnsDefaultOpen,
   drawerOpen,
@@ -57,6 +61,7 @@ export function SessionInspector({
           defaultOpen={turnsDefaultOpen}
         />
         <SessionActivitySection activity={activity} />
+        {session ? <SessionInspectorOriginSection session={session} /> : null}
       </div>
     </DetailInspector>
   );

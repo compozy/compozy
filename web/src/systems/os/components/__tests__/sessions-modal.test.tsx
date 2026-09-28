@@ -8,10 +8,11 @@ import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  SessionLifecycleActionHandlers,
-  SessionListViewModel,
-  SessionPayload,
+import {
+  SessionContinueContext,
+  type SessionLifecycleActionHandlers,
+  type SessionListViewModel,
+  type SessionPayload,
 } from "@/systems/session";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -467,6 +468,51 @@ describe("OsSessionsModal", () => {
     fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
     expect(screen.getByTestId("session-row-unarchive-session-archived")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-archive-session-archived")).toBeNull();
+  });
+
+  it("Should offer Continue on user rows only and hand the row to the dialog host", () => {
+    const shell = createShell();
+    const requestContinue = vi.fn();
+    const rows = [
+      session({ id: "session-user", name: "User row" }),
+      session({ id: "session-spawned", name: "Spawned row", type: "spawned" }),
+      session({
+        id: "session-archived",
+        name: "Archived row",
+        state: "stopped",
+        badge: "stopped",
+        archived_at: "2026-08-04T12:00:00Z",
+      }),
+    ];
+    render(
+      <OsShellContext.Provider value={shell}>
+        <SessionContinueContext value={requestContinue}>
+          <OsSessionsModal
+            open
+            onOpenChange={() => {}}
+            sessions={rows}
+            disconnected={false}
+            view={listView({ archived: true })}
+            onNewSession={vi.fn()}
+            sessionActions={SESSION_ACTIONS}
+          />
+        </SessionContinueContext>
+      </OsShellContext.Provider>
+    );
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-spawned"));
+    expect(screen.queryByTestId("session-row-continue-session-spawned")).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
+    expect(screen.queryByTestId("session-row-continue-session-archived")).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
+    const item = screen.getByTestId("session-row-continue-session-user");
+    expect(item).toHaveTextContent("Continue with another agent…");
+    fireEvent.click(item);
+    expect(requestContinue).toHaveBeenCalledExactlyOnceWith(rows[0]);
   });
 
   it("Should start a session from the toolbar instead of a footer action", async () => {

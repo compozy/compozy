@@ -1,8 +1,13 @@
 import { ReadonlyThreadProvider, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import type { VirtualItem } from "@tanstack/react-virtual";
-import { type ComponentProps, useEffect } from "react";
+import { type ComponentProps, use, useEffect } from "react";
 
-import { SessionLoadOlderButton } from "@/systems/session";
+import {
+  SessionContinueDivider,
+  SessionContinueEmptyChild,
+  SessionLoadOlderButton,
+  SessionOriginContext,
+} from "@/systems/session";
 
 import {
   recordSessionDebugEvent,
@@ -51,6 +56,7 @@ function ThreadMessageRows({
   isFetchingOlder: boolean;
   loadOlder: () => void;
 }) {
+  const origin = use(SessionOriginContext);
   const paddingTop = virtualItems[0]?.start ?? 0;
   const paddingBottom = Math.max(0, virtualTotalSize - (virtualItems.at(-1)?.end ?? 0));
 
@@ -87,6 +93,10 @@ function ThreadMessageRows({
             data-testid="thread-message-row"
             className="w-full"
           >
+            {/* The derived child's own transcript starts here; nothing older is its own. */}
+            {origin && messageIndex === 0 && leadingItemCount === 0 ? (
+              <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+            ) : null}
             <ThreadPrimitive.Unstable_MessageById
               messageId={messageId}
               components={MESSAGE_COMPONENTS}
@@ -138,6 +148,7 @@ export function ThreadMessages({
   startupFailed: boolean;
 }) {
   const transport = useSessionTransportState();
+  const origin = use(SessionOriginContext);
   const syncFailure =
     transport.phase === "failed" && transport.failure !== null
       ? { attempts: transport.failure.attempts, retry: transport.retry }
@@ -154,6 +165,22 @@ export function ThreadMessages({
       transcript_status: transcriptStatus,
     });
   }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
+
+  const derivedChildReady =
+    messageCount === 0 &&
+    transcriptStatus === "success" &&
+    syncFailure === null &&
+    sessionState !== "starting" &&
+    !(startupFailed && failure);
+  if (origin !== null && derivedChildReady) {
+    // Before its first message a derived child shows only where it came from;
+    // while that first prompt runs, the divider stands alone above the status row.
+    return isSessionRunning ? (
+      <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+    ) : (
+      <SessionContinueEmptyChild onOpenSource={origin.onOpenSource} origin={origin.origin} />
+    );
+  }
 
   if (messageCount === 0) {
     return (

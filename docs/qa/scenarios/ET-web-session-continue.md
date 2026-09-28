@@ -1,0 +1,48 @@
+---
+id: ET-web-session-continue
+area: ET
+title: Continue a session with another agent from the web
+persona: Bruno
+journey: J-14
+expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Continue with another agent…" after "Rename session" (absent for archived, spawned, coordinator, and system rows). The dialog ("Continue with another agent", eyebrow "Operate · Session") preselects the first agent that is not the source's, shows the daemon-measured context line ("Carries over N messages · X KiB", or "Carries over K of N messages · X KiB" plus "M earlier messages omitted to fit the context budget.", "A turn is still in progress; it will not be carried over." for a running source), keeps Continue disabled while measuring and after "Couldn't measure this session's context.", shows a Route select ("Default" + "Route n · provider · model", with an account suffix when two routes collide) only for agents that declare fallback routes and then hides Runtime (route XOR runtime), accepts an optional first message, and defaults Open in to New window. Continue shows "Starting the new session…", creates exactly one child, and opens it in a new window (This window retargets the current window instead; lists outside a session window always open a new window). The child's status line shows the neutral pill "Continued from {source agent}" linking to the source; its transcript starts with the hairline divider "Continued from {source title}" (alone above "Nothing said here yet" before the first message); the inspector shows Origin "continue · from {agent}" and Seed "replay". The source window and transcript are unchanged. A rate-limited or unauthenticated turn whose next step is handoff shows "Continue this session with another agent or route." with a "Continue with another agent…" button that opens the same dialog for that session; nothing is created until Continue. The dead-runtime banner reads "Restart in a new session" and creates a recovery child. No surface in this feature is danger-toned except refusal text.
+entry_points: web session window overflow (continue-menu-item); session row overflow (session-row-continue-{id}) in the sessions modal, window sidebar, and agent detail; provider-error marker (provider-error-continue); SessionContinueDialog (session-continue-dialog, session-derive-preview, session-continue-route-select, session-derive-placement, session-continue-submit); SessionOriginPill (session-origin-pill); SessionContinueDivider (session-origin-divider); inspector Origin section (ledger-origin, ledger-seed); dead-runtime banner; GET …/derive/preview; POST …/continue
+qa_status: untested
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
+evidence:
+last_report:
+overlaps: ET-cli-session-continue, RT-session-derive-retry, RT-provider-error-handoff, ET-web-session-sidebar-threads, ET-web-sessions-catalog-modal, ET-web-session-context-sidebar
+---
+
+Planning 2026-09-28 (session-continue-fork task_04): new behavior. Walk against a lab daemon with two
+agents (acpmock `multi_agent_fixture.json` alpha/beta, or real Codex + Claude) and, for the route
+row, an agent whose `fallback_chain` declares two routes on the same provider/model with different
+commands:
+
+1. Prompt a session on the first agent. Open its window → overflow → "Continue with another agent…".
+   The dialog preselects the other agent; the context line reads "Measuring…" then
+   "Carries over N messages · X KiB"; Continue enables only then.
+2. Choose the routed agent: the Route select lists "Default" and "Route 1/2 · provider · model",
+   the colliding route carrying "· abcd…"; choosing a route hides Runtime.
+3. Continue with a first message and New window: a second window opens on the child; the pill reads
+   "Continued from {source agent}" and opens the source; the divider sits above the child's first
+   message; the source window still shows its turns and `GET …/transcript` on it reports the same
+   `max_sequence` as before.
+4. Continue again with This window: the current window retargets to the new child; no extra window.
+5. Continue without a message: the child shows the divider alone above "Nothing said here yet".
+6. From the sessions modal row menu and agent detail row menu: the item is present for user rows,
+   absent for archived and spawned rows; the child always opens in its own window.
+7. Rate-limit a user session's turn (RT-provider-error-handoff): the marker offers
+   "Continue with another agent…"; the dialog opens for that session; `GET /api/sessions` lists no new
+   session until Continue.
+8. A dead runtime shows "Restart in a new session"; it creates a child with lineage kind `recovery`.
+9. Stop a continued child and open its inspector: Origin "continue · from {agent}", Seed "replay".
+
+Automated evidence at authoring time: `session-continue-dialog.test.tsx`, `use-session-derive.test.ts`,
+`runtime-activity-notice.test.tsx`, `session-status-line.test.tsx`, `session-thread.test.tsx`,
+`session-inspector.test.tsx`, `sessions-modal.test.tsx`, `use-session-topbar-slot.test.tsx`,
+`session-window-content.test.tsx`. Web E2E `web/e2e/__tests__/session-derive.spec.ts` (E2E-001 written,
+E2E-004 `fixme` until acpmock can rate-limit a prompt) — not run by task_04. task_08 owns the walk,
+the E2E run, and the visual-contract bundles (VC-01..03, VC-06..10, VC-16, VC-18..22).

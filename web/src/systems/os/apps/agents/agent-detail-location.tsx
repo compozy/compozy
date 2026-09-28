@@ -31,6 +31,7 @@ import {
   useAgentInstructionsTab,
 } from "@/systems/agent";
 import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
+import { OsSessionsContinueHost } from "../../components/os-sessions-continue-host";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 interface AgentInstructionsSectionProps {
@@ -233,41 +234,47 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
             </TabsContent>
 
             <TabsContent value="sessions" className="flex flex-col gap-6">
-              <AgentSessionsTab
-                agentName={name}
-                sessions={page.sessions}
-                archivedSessions={page.archivedSessions}
-                archivedTotal={page.archivedSessionsTotal}
-                total={page.sessionsTotal}
-                active={page.activeSessionsTotal}
-                failed={page.failedSessionsTotal}
-                runtimeSeconds={page.runtimeSeconds}
-                metricsUnavailable={page.metricsUnavailable}
-                metricsLoading={page.metricsLoading}
-                lastActivityAt={page.lastSessionActivityAt}
-                status={page.sessionsLoading ? "loading" : page.sessionsError ? "error" : "ready"}
-                paginationStatus={
-                  page.isLoadingMoreSessions
-                    ? "loading"
-                    : page.hasMoreSessions
-                      ? "available"
-                      : undefined
-                }
-                onLoadMore={page.onLoadMoreSessions}
-                archivedPaginationStatus={
-                  page.isLoadingMoreArchivedSessions
-                    ? "loading"
-                    : page.hasMoreArchivedSessions
-                      ? "available"
-                      : undefined
-                }
-                onLoadMoreArchived={page.onLoadMoreArchivedSessions}
-                sessionActions={page.sessionActions}
-                filter={search.filter}
-                onFilterChange={page.setFilter}
-                onNewSession={page.onNewSession}
-                onClearFilter={() => page.setFilter("all")}
-              />
+              <OsSessionsContinueHost workspaceId={runtimeWorkspaceId}>
+                {() => (
+                  <AgentSessionsTab
+                    agentName={name}
+                    sessions={page.sessions}
+                    archivedSessions={page.archivedSessions}
+                    archivedTotal={page.archivedSessionsTotal}
+                    total={page.sessionsTotal}
+                    active={page.activeSessionsTotal}
+                    failed={page.failedSessionsTotal}
+                    runtimeSeconds={page.runtimeSeconds}
+                    metricsUnavailable={page.metricsUnavailable}
+                    metricsLoading={page.metricsLoading}
+                    lastActivityAt={page.lastSessionActivityAt}
+                    status={
+                      page.sessionsLoading ? "loading" : page.sessionsError ? "error" : "ready"
+                    }
+                    paginationStatus={
+                      page.isLoadingMoreSessions
+                        ? "loading"
+                        : page.hasMoreSessions
+                          ? "available"
+                          : undefined
+                    }
+                    onLoadMore={page.onLoadMoreSessions}
+                    archivedPaginationStatus={
+                      page.isLoadingMoreArchivedSessions
+                        ? "loading"
+                        : page.hasMoreArchivedSessions
+                          ? "available"
+                          : undefined
+                    }
+                    onLoadMoreArchived={page.onLoadMoreArchivedSessions}
+                    sessionActions={page.sessionActions}
+                    filter={search.filter}
+                    onFilterChange={page.setFilter}
+                    onNewSession={page.onNewSession}
+                    onClearFilter={() => page.setFilter("all")}
+                  />
+                )}
+              </OsSessionsContinueHost>
               {page.sessionDeleteDialog.session ? (
                 <SessionDeleteDialog
                   open={page.sessionDeleteDialog.open}

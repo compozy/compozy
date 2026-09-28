@@ -45,6 +45,12 @@ import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/sessio
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 
+import {
+  SessionOriginContext,
+  type SessionOriginContextValue,
+} from "@/systems/session/contexts/session-origin-context-value";
+import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
+import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { SessionThinkingRow } from "@/systems/session/components/session-thinking-row";
@@ -418,6 +424,7 @@ interface ThreadStateOptions {
   transport?: SessionTransportState;
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
+  origin?: SessionOriginContextValue | null;
 }
 
 function threadStateElement(
@@ -440,6 +447,7 @@ function threadStateElement(
     transport,
     liveDataEnabled = true,
     contextControl,
+    origin = null,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -483,23 +491,25 @@ function threadStateElement(
           retry={retry}
           transport={transport}
         >
-          <SessionThread
-            sessionId={primarySessionFixture.id}
-            agentName={primarySessionFixture.agent_name}
-            canPrompt
-            onCancelPrompt={() => {}}
-            isSessionRunning={isSessionRunning}
-            statusSession={statusSession}
-            stopCompletionNote={stopCompletionNote}
-            stopPhase={stopPhase}
-            quietWarning={quietWarning}
-            acpSessionId={acpSessionId}
-            sessionState={sessionState}
-            failure={failure}
-            readOnly={readOnly}
-            liveDataEnabled={liveDataEnabled}
-            contextControl={contextControl}
-          />
+          <SessionOriginContext value={origin}>
+            <SessionThread
+              sessionId={primarySessionFixture.id}
+              agentName={primarySessionFixture.agent_name}
+              canPrompt
+              onCancelPrompt={() => {}}
+              isSessionRunning={isSessionRunning}
+              statusSession={statusSession}
+              stopCompletionNote={stopCompletionNote}
+              stopPhase={stopPhase}
+              quietWarning={quietWarning}
+              acpSessionId={acpSessionId}
+              sessionState={sessionState}
+              failure={failure}
+              readOnly={readOnly}
+              liveDataEnabled={liveDataEnabled}
+              contextControl={contextControl}
+            />
+          </SessionOriginContext>
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
@@ -738,6 +748,56 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText(/Start the conversation/i)).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
+  });
+
+  // Invariant (UT-071): a derived child marks where its own transcript starts — one divider
+  // before its first message, or the divider alone above a compact empty state before any.
+  // Owning layer: the thread message list. Canonical suite: this file.
+  it("Should render the origin divider once, before the derived child's first message", async () => {
+    const user = userEvent.setup();
+    const onOpenSource = vi.fn();
+    const child = continuedSessionFixture();
+    const transcript = [
+      { id: "child-first", role: "user", parts: [{ type: "text", text: "Pick up the tests." }] },
+      { id: "child-reply", role: "assistant", parts: [{ type: "text", text: "On it." }] },
+    ] as SessionMessage[];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      origin: {
+        origin: sessionOriginView(child, { title: "Refactor flaky manager tests" })!,
+        onOpenSource,
+      },
+    });
+
+    const divider = await screen.findByTestId("session-origin-divider");
+    expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
+    expect(divider).toHaveAccessibleName("Continued from Refactor flaky manager tests");
+    const firstRow = document.querySelector('[data-message-id="child-first"]');
+    expect(firstRow).toContainElement(divider);
+    expect(screen.queryByText(/Start the conversation/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("session-origin-divider-link"));
+    expect(onOpenSource).toHaveBeenCalledExactlyOnceWith(child.lineage?.parent_session_id);
+  });
+
+  it("Should show the divider alone above the empty state of an unprompted derived child", async () => {
+    const child = continuedSessionFixture();
+    renderThreadState({
+      status: "success",
+      origin: { origin: sessionOriginView(child, null)! },
+    });
+
+    const empty = await screen.findByTestId("session-thread-empty");
+    expect(empty).toHaveTextContent("Nothing said here yet");
+    expect(empty).toHaveTextContent(
+      "The conversation carried over is sent with your first message."
+    );
+    const divider = screen.getByTestId("session-origin-divider");
+    expect(divider).toHaveAttribute("data-link", "false");
+    expect(divider).toHaveTextContent("Continued from claude");
+    expect(screen.queryByTestId("session-origin-divider-link")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Start the conversation/i)).not.toBeInTheDocument();
   });
 
   // Invariant: a dead live stream never poses as an empty session (US-018.AC-2).

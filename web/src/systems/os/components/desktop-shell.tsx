@@ -23,6 +23,7 @@ import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
+import { OsSessionsContinueHost } from "./os-sessions-continue-host";
 import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
@@ -343,17 +344,28 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         dispatch={paletteDispatch}
       />
-      <OsSessionsModal
-        open={overlays.activeOverlay === "sessions"}
-        onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
-        dismissalBlocked={sessionLifecycle.deleteDialog.open || sessionLifecycle.renameDialog.open}
-        sessions={attention.sessions}
-        disconnected={attention.sessionsDisconnected}
-        view={sessionListView}
-        currentWorkspaceId={model.runtimeWorkspaceId}
-        onNewSession={openNewSession}
-        sessionActions={sessionLifecycle.actions}
-      />
+      <OsSessionsContinueHost
+        workspaceId={model.runtimeWorkspaceId}
+        onLanded={() => overlays.setOverlayOpen("sessions", false)}
+      >
+        {({ continueOpen }) => (
+          <OsSessionsModal
+            open={overlays.activeOverlay === "sessions"}
+            onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
+            dismissalBlocked={
+              sessionLifecycle.deleteDialog.open ||
+              sessionLifecycle.renameDialog.open ||
+              continueOpen
+            }
+            sessions={attention.sessions}
+            disconnected={attention.sessionsDisconnected}
+            view={sessionListView}
+            currentWorkspaceId={model.runtimeWorkspaceId}
+            onNewSession={openNewSession}
+            sessionActions={sessionLifecycle.actions}
+          />
+        )}
+      </OsSessionsContinueHost>
       {sessionLifecycle.deleteDialog.session ? (
         <SessionDeleteDialog
           open={sessionLifecycle.deleteDialog.open}
