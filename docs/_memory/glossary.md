@@ -417,6 +417,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | fork (built-in Loop) | "Copy and edit" | UI verb for forking a built-in Loop into the project. |
 | memory `dream` | "tidy up" | Memory consolidation. `dream` stays in API, CLI, and config keys. |
 | extension dev overlay | "local development copy" | Menu verb "Unlink local copy". |
+| session status tokens (`waiting-for-input`, `hung`, `unhealthy`, …) | "Needs your answer", "Stuck", "Having trouble", … | Display words only; the token stays on `data-badge`/aria. Color only states that need the user. |
 
 `Roles`, `Hooks`, and `Extensions` keep their names — glossary terms that already read plainly.
 
