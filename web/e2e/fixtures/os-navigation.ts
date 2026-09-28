@@ -32,8 +32,8 @@ export async function openAppWindow(page: Page, title: string, app: string): Pro
           .getByRole("button", { name: title });
   if (app === "settings") {
     await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
-      "title",
-      /^Command palette · /u
+      "aria-keyshortcuts",
+      /^(?:Meta|Control)\+/u
     );
   }
   await launcher.click();
@@ -165,8 +165,8 @@ export function commandPalette(page: Page): Locator {
 export async function openCommandPalette(page: Page): Promise<Locator> {
   const palette = commandPalette(page);
   await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
-    "title",
-    /^Command palette · /u
+    "aria-keyshortcuts",
+    /^(?:Meta|Control)\+/u
   );
   await page.keyboard.press("ControlOrMeta+KeyK");
   await expect(palette).toBeVisible();
