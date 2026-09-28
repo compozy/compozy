@@ -21,6 +21,8 @@ function loopIcon(state: "waiting" | "attention"): LucideIcon {
   return state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
 }
 
+const NEEDS_YOU_TONE = "bg-accent-tint text-accent";
+
 function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
   return (
     <span
@@ -36,22 +38,24 @@ function RowMark({ row }: { row: OsAttentionRow }) {
   switch (row.kind) {
     case "session":
       return <SessionBadgeGlyph badge={row.badge} />;
+    // One "needs you" tone; the glyph carries the type. Warning stays for
+    // states that actually went wrong, never for an ordinary request.
     case "task":
-      return <NonSessionMark icon={ListChecks} tone="bg-danger-tint text-danger" />;
+      return <NonSessionMark icon={ListChecks} tone={NEEDS_YOU_TONE} />;
     case "loop-request":
-      return <NonSessionMark icon={TriangleAlert} tone="bg-danger-tint text-danger" />;
+      return <NonSessionMark icon={TriangleAlert} tone={NEEDS_YOU_TONE} />;
     case "terminal-input":
       return (
         <NonSessionMark
           icon={row.redacted ? KeyRound : MessageCircleQuestionMark}
-          tone="bg-warning-tint text-warning"
+          tone={NEEDS_YOU_TONE}
         />
       );
     case "loop-node":
       return (
         <NonSessionMark
           icon={loopIcon(row.state)}
-          tone={row.state === "waiting" ? "bg-info-tint text-info" : "bg-warning-tint text-warning"}
+          tone={row.state === "waiting" ? NEEDS_YOU_TONE : "bg-warning-tint text-warning"}
         />
       );
   }
