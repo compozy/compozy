@@ -1,17 +1,14 @@
 import type { ReactNode } from "react";
 
-import { MonoId, Pill } from "@compozy/ui";
+import { Pill } from "@compozy/ui";
 
 import {
   formatAttemptLabel,
   taskApprovalStateLabel,
   taskHasApprovalPending,
-  taskIsBlocked,
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
-  taskShortId,
-  taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
 import { TaskLoopRow } from "./task-loop-row";
@@ -41,8 +38,6 @@ export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
       />
     );
   }
-  const isBlocked = taskIsBlocked(task);
-  const needsAttention = task.status === "needs_attention";
   const showApproval = taskHasApprovalPending(task);
   const activeRun = task.active_run ?? null;
   const ownerLabel = taskOwnerLabel(task.owner);
@@ -82,15 +77,14 @@ export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
   if (dependencyCount > 0) {
     metaItems.push(
       <span data-testid={`task-card-deps-${task.id}`} key="deps">
-        {dependencyCount} {dependencyCount === 1 ? "dep" : "deps"}
+        Waits on {dependencyCount} {dependencyCount === 1 ? "task" : "tasks"}
       </span>
     );
   }
   if (task.parent_task_id) {
     metaItems.push(
-      <span className="inline-flex items-center gap-1" key="parent">
-        <span>parent</span>
-        <MonoId size="sm" value={taskShortId({ id: task.parent_task_id })} />
+      <span data-testid={`task-card-subtask-${task.id}`} key="parent">
+        Subtask
       </span>
     );
   }
@@ -117,26 +111,6 @@ export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
       {showApproval ? (
         <Pill size="sm" tone="accent">
           {taskApprovalStateLabel(task.approval_state)}
-        </Pill>
-      ) : null}
-      {isBlocked ? (
-        <Pill
-          data-testid={`task-card-blocked-${task.id}`}
-          mono
-          size="sm"
-          tone={taskStatusTone("blocked")}
-        >
-          Blocked
-        </Pill>
-      ) : null}
-      {needsAttention ? (
-        <Pill
-          data-testid={`task-card-needs-attention-${task.id}`}
-          mono
-          size="sm"
-          tone={taskStatusTone("needs_attention")}
-        >
-          Needs attention
         </Pill>
       ) : null}
     </>

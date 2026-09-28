@@ -62,8 +62,12 @@ function TasksListRow({ task, trailing, meta, testId, className }: TasksListRowP
             <ListingRow.Title data-slot="tasks-list-row-title">{task.title}</ListingRow.Title>
           </ListingRow.Name>
           <ListingRow.Meta data-slot="tasks-list-row-meta">
-            <MonoId value={identifier} size="sm" data-slot="tasks-list-row-id" />
-            <MetaSeparator />
+            {task.identifier ? (
+              <>
+                <MonoId value={identifier} size="sm" data-slot="tasks-list-row-id" />
+                <MetaSeparator />
+              </>
+            ) : null}
             <span
               className="font-mono text-badge tabular-nums text-faint"
               data-slot="tasks-list-row-timestamp"

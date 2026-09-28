@@ -73,7 +73,7 @@ const PRIMARY_LABEL: Record<NonNullable<TaskCommandState["primary"]>["kind"], st
   start: "Start run",
   open_run: "Open run",
   resume: "Resume",
-  recover: "Recover",
+  recover: "Try again",
   retry: "Retry",
 };
 
@@ -83,7 +83,7 @@ const PRIMARY_PENDING_LABEL: Record<
 > = {
   approve: "Approving…",
   publish: "Publishing…",
-  recover: "Recovering…",
+  recover: "Restarting…",
   resume: "Resuming…",
   retry: "Retrying…",
   start: "Starting…",
@@ -313,7 +313,7 @@ export function TaskPageOverflow({
         ) : null}
         {showFanOut ? (
           <DropdownMenuItem data-testid="tasks-detail-fan-out" onClick={onFanOut}>
-            Fan out runs…
+            Run in parallel…
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem data-testid="tasks-detail-copy-id" onClick={onCopyId}>

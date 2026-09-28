@@ -188,12 +188,12 @@ describe("TriggerDetailPanel", () => {
 
   it("Should surface the daemon's own reason when the trigger cannot be read", () => {
     renderPanel({
-      error: new Error("This workspace-scoped trigger belongs to another workspace."),
+      error: new Error("This trigger belongs to another project."),
       trigger: undefined,
     });
 
     expect(screen.getByTestId("automation-detail-error")).toHaveTextContent(
-      "This workspace-scoped trigger belongs to another workspace."
+      "This trigger belongs to another project."
     );
   });
 

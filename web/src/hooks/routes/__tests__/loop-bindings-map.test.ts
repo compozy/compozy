@@ -52,7 +52,7 @@ describe("loop-bindings-map", () => {
   it("Should map a loop-target job to a schedule binding with a cron + next-fire meta line", () => {
     const row = jobToBindingRow(job({}), WS);
     expect(row).toMatchObject({ id: "job_1", name: "nightly", kind: "schedule", enabled: true });
-    expect(row?.meta).toContain("Cron 0 3 * * *");
+    expect(row?.meta).toContain("Every day at 03:00 UTC");
     expect(row?.meta).toContain("next");
   });
 

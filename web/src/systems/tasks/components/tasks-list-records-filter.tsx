@@ -14,12 +14,13 @@ export interface TasksListRecordsFilterProps {
  * current population is always legible without decoding a toggle.
  */
 const RECORDS_FILTER_ITEMS: ReadonlyArray<PillGroupItem<TaskRecordsFilter>> = [
-  { value: "work", label: "Work items", testId: "tasks-records-filter-work" },
+  { value: "work", label: "Tasks", testId: "tasks-records-filter-work" },
   {
     value: "loop",
     label: (
       <>
-        <GitBranch aria-hidden="true" />+ loop records
+        <GitBranch aria-hidden="true" />
+        Include loop steps
       </>
     ),
     testId: "tasks-records-filter-loop",

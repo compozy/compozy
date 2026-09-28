@@ -121,7 +121,7 @@ export function AutomationCatalogShell({
         support={
           kind === "jobs"
             ? "A job runs an agent or a loop on a schedule."
-            : "A trigger reacts to a runtime event and runs its target."
+            : "A trigger runs something when an event happens."
         }
         title={emptyForScope(noun, profileScope.scopeLabel)}
       />

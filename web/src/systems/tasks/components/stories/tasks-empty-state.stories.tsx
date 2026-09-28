@@ -22,18 +22,6 @@ export const Default: Story = {
   ),
 };
 
-export const WithCopyCli: Story = {
-  render: () => (
-    <PanelSurface>
-      <TasksEmptyState
-        onCopyCli={() => undefined}
-        onSelectTemplate={() => undefined}
-        workspaceName="Polybot"
-      />
-    </PanelSurface>
-  ),
-};
-
 export const NoWorkspace: Story = {
   render: () => (
     <PanelSurface>

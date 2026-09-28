@@ -1,16 +1,13 @@
 import { Zap } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { CatalogCard, Pill } from "@compozy/ui";
+import { CatalogCard } from "@compozy/ui";
 
-import {
-  automationSourceLabel,
-  automationSourceTone,
-  automationStatusTone,
-  formatPromptPreview,
-} from "../lib/automation-formatters";
+import { formatPromptPreview } from "../lib/automation-formatters";
 import { describeAutomationTarget, projectAutomationTarget } from "../lib/automation-target";
+import { triggerEventLabel } from "../lib/trigger-sentence";
 import type { AutomationTrigger } from "../types";
+import { AutomationStateBadges } from "./automation-state-badges";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationTriggerCardProps {
@@ -21,7 +18,6 @@ export interface AutomationTriggerCardProps {
 
 /** Card presentation for a trigger in the Triggers catalog (cards view). */
 function AutomationTriggerCard({ trigger, owner }: AutomationTriggerCardProps) {
-  const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
   const target = projectAutomationTarget(trigger);
   const description =
     target.kind === "loop" ? describeAutomationTarget(target) : formatPromptPreview(target.prompt);
@@ -45,7 +41,7 @@ function AutomationTriggerCard({ trigger, owner }: AutomationTriggerCardProps) {
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <CatalogCard.Title>{trigger.name}</CatalogCard.Title>
             <CatalogCard.Meta>
-              <span>{trigger.event}</span>
+              <span>{triggerEventLabel(trigger)}</span>
               {owner ? (
                 <ProfileOwnerTag data-testid={`automation-profile-${trigger.id}`} owner={owner} />
               ) : null}
@@ -56,14 +52,8 @@ function AutomationTriggerCard({ trigger, owner }: AutomationTriggerCardProps) {
       </Link>
       <CatalogCard.Actions className="justify-between">
         <span className="flex items-center gap-1.5">
-          <Pill.Dot tone={enabledTone} />
-          <Pill mono size="sm" tone={automationSourceTone(trigger.source)}>
-            {automationSourceLabel(trigger.source)}
-          </Pill>
+          <AutomationStateBadges enabled={trigger.enabled} source={trigger.source} />
         </span>
-        <Pill mono size="sm" tone="info">
-          {trigger.event}
-        </Pill>
       </CatalogCard.Actions>
     </CatalogCard>
   );

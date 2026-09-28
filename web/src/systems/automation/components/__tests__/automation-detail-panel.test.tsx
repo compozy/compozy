@@ -152,6 +152,8 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
     expect(screen.getByTestId("automation-detail-header")).toBeInTheDocument();
     expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-job-scheduler")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("automation-job-advanced-toggle"));
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("Skip missed");
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent(
       "fire_daily_review_001"
@@ -165,7 +167,7 @@ describe("AutomationDetailPanel", () => {
     fireEvent.click(screen.getByTestId("trigger-job-btn"));
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
-    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    expect(screen.getByTestId("job-enable-label")).toHaveTextContent("Enabled");
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     fireEvent.click(screen.getByRole("button", { name: "Back one level" }));
 
@@ -201,6 +203,7 @@ describe("AutomationDetailPanel", () => {
       },
     });
 
+    fireEvent.click(screen.getByTestId("automation-job-advanced-toggle"));
     const scheduler = screen.getByTestId("automation-job-scheduler");
     expect(scheduler).toHaveTextContent("Default");
     expect(scheduler).not.toHaveTextContent("skip");
@@ -291,6 +294,21 @@ describe("AutomationDetailPanel", () => {
     );
   });
 
+  it("Should toggle a managed job from the head switch and explain the lock", () => {
+    const { onToggleEnabled } = renderPanel({
+      item: { ...jobFixture, source: "config", enabled: false },
+      onTriggerNow: undefined,
+    });
+
+    expect(screen.getByTestId("automation-detail-lock")).toHaveTextContent(
+      "defined in configuration files"
+    );
+    expect(screen.queryByTestId("automation-detail-overflow")).not.toBeInTheDocument();
+    expect(screen.getByTestId("job-enable-label")).toHaveTextContent("Disabled");
+    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
+    expect(onToggleEnabled).toHaveBeenCalledWith(true);
+  });
+
   it("Should render the detail header with the job name in the window-head slot", () => {
     renderPanel();
 
@@ -308,9 +326,9 @@ describe("AutomationDetailPanel", () => {
       },
     });
 
-    expect(screen.getByText("manual")).toBeInTheDocument();
-    expect(screen.getAllByText("Manual")).toHaveLength(2);
-    expect(screen.queryByText("Cron schedule")).not.toBeInTheDocument();
+    expect(screen.getByTestId("automation-detail-schedule")).toHaveTextContent("Manual");
+    fireEvent.click(screen.getByTestId("automation-job-advanced-toggle"));
+    expect(screen.queryByText("Schedule expression")).not.toBeInTheDocument();
   });
 
   it("renders truthful recent-window metrics from the fetched run sample", () => {
@@ -332,10 +350,9 @@ describe("AutomationDetailPanel", () => {
     });
 
     const successRate = screen.getByTestId("automation-job-metric-success-rate");
-    const runsShown = screen.getByTestId("automation-job-metric-runs");
     expect(successRate).toHaveTextContent("Recent success");
     expect(successRate).toHaveTextContent("67%");
-    expect(runsShown).toHaveTextContent("Runs shown");
-    expect(runsShown).toHaveTextContent("3");
+    expect(screen.queryByTestId("automation-job-metric-runs")).not.toBeInTheDocument();
+    expect(screen.getByTestId("automation-run-history")).toHaveTextContent("3");
   });
 });

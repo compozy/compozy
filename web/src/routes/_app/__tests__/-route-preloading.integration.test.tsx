@@ -30,9 +30,11 @@ import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
 import {
   taskDashboardOptions,
+  useTask,
   useTaskDashboard,
   useTaskInbox,
   useTaskInboxBadge,
+  useTaskRuns,
   useTasks,
 } from "@/systems/tasks";
 import {
@@ -71,7 +73,9 @@ const adapterMocks = vi.hoisted(() => ({
   getAutomationTrigger: vi.fn(),
   getScheduler: vi.fn(),
   getSchedulerBacklog: vi.fn(),
+  getTask: vi.fn(),
   getTaskDashboard: vi.fn(),
+  listTaskRuns: vi.fn(),
   getTaskInbox: vi.fn(),
   getSettingsGeneral: vi.fn(),
   getSettingsHooksExtensions: vi.fn(),
@@ -128,7 +132,9 @@ vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => ({
 
 vi.mock("@/systems/tasks/adapters/tasks-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/tasks/adapters/tasks-api")>()),
+  getTask: adapterMocks.getTask,
   getTaskDashboard: adapterMocks.getTaskDashboard,
+  listTaskRuns: adapterMocks.listTaskRuns,
   listTasks: adapterMocks.listTasks,
   getTaskInbox: adapterMocks.getTaskInbox,
 }));
@@ -215,6 +221,7 @@ import { Route as LoopsRoute } from "../loops";
 import { Route as TriggersRoute } from "../triggers";
 import { Route as TriggerDetailRoute } from "../triggers.$triggerId";
 import { Route as TasksRoute } from "../tasks";
+import { Route as TaskDetailRoute } from "../tasks.$id";
 import { Route as VaultRoute } from "../vault";
 import { Route as SettingsGeneralRoute } from "../settings/general";
 import { Route as SettingsExtensionsRoute } from "../settings/extensions";
@@ -1229,6 +1236,29 @@ describe("route query preloading", () => {
     ]) {
       expect(request).toHaveBeenCalledTimes(1);
     }
+    unmount();
+    queryClient.clear();
+  });
+
+  it("Should preload a task detail and its runs on intent and reuse them on mount", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getTask.mockResolvedValueOnce({
+      task: { id: "task-1" },
+      summary: { active_run: null },
+    });
+    adapterMocks.listTaskRuns.mockResolvedValueOnce([]);
+
+    await invokeLoader(TaskDetailRoute, { ...context(queryClient), params: { id: "task-1" } });
+    await waitFor(() => expect(adapterMocks.listTaskRuns).toHaveBeenCalledTimes(1));
+    expect(adapterMocks.getTask).toHaveBeenCalledTimes(1);
+
+    const unmount = mountQueries(queryClient, () => {
+      useTask("task-1");
+      useTaskRuns("task-1");
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.getTask).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listTaskRuns).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
   });

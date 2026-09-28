@@ -255,11 +255,11 @@ describe("TasksListSurface", () => {
     renderSurface({ tasks: [], recordsFilter: "loop", onShowWorkItems });
 
     const empty = screen.getByTestId("tasks-list-surface-loop-empty");
-    expect(empty).toHaveTextContent("No loop records in this workspace");
-    expect(empty).toHaveTextContent("Turn the filter back to work items to see your tasks.");
+    expect(empty).toHaveTextContent("No loop steps in this project");
+    expect(empty).toHaveTextContent("Switch back to Tasks to see your work.");
     expect(screen.queryByTestId("tasks-list-surface-empty")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show work items" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show tasks" }));
     expect(onShowWorkItems).toHaveBeenCalledTimes(1);
   });
 
