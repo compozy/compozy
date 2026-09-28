@@ -4,8 +4,7 @@ import { Ban, Hourglass, Info } from "lucide-react";
 import { ConfirmDialog, Label, RadioCard, Textarea } from "@compozy/ui";
 
 import {
-  LOOP_NODE_PAUSE_MODES,
-  LOOP_NODE_RESUME_MODES,
+  loopNodeVerbCommitMode,
   type LoopControlAnswer,
   type LoopNodePauseMode,
   type LoopNodeVerb,
@@ -13,7 +12,7 @@ import {
 import { isOpenWait, type LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import { LOOP_NODE_VERB_ICON_TONE, LOOP_NODE_VERB_ICONS } from "../../lib/loop-node-verb-icons";
 import { loopNodeStateStrip, loopNodeVerbConfirmCopy } from "../../lib/loop-node-verb-copy";
-import { checkLoopWaitPayload } from "../../lib/loop-node-wait-payload";
+import { checkLoopWaitPayload, type LoopWaitPayloadCheck } from "../../lib/loop-node-wait-payload";
 import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
 
 export interface LoopNodeVerbRequest {
@@ -96,19 +95,12 @@ function LoopNodeControlDialogForm({
   const [reason, setReason] = useState("");
   const copy = loopNodeVerbConfirmCopy(request.verb, request.node, { pauseMode });
   if (!copy) return null;
-  const isPause = request.verb === "pause";
-  const isRequeue = request.verb === "requeue";
   const isWaitResume = request.verb === "resume-wait";
-  const offersReason = isPause || isRequeue;
-  const waitExpect = request.node.waits.find(isOpenWait)?.expect;
-  const waitCheck = isWaitResume ? checkLoopWaitPayload(payload, waitExpect) : null;
+  const offersReason = request.verb === "pause" || request.verb === "requeue";
+  const waitCheck = isWaitResume
+    ? checkLoopWaitPayload(payload, request.node.waits.find(isOpenWait)?.expect)
+    : null;
   const waitInvalid = waitCheck !== null && !waitCheck.ok;
-  const resumeMode =
-    request.verb === "resume" ||
-    request.verb === "resume-reset-attempts" ||
-    request.verb === "resume-immediate"
-      ? LOOP_NODE_RESUME_MODES[request.verb]
-      : undefined;
   const confirmDisabled = Boolean(isPending) || waitInvalid;
   return (
     <ConfirmDialog
@@ -138,7 +130,7 @@ function LoopNodeControlDialogForm({
         onConfirm({
           verb: request.verb,
           node: request.node,
-          mode: isPause ? LOOP_NODE_PAUSE_MODES[pauseMode] : resumeMode,
+          mode: loopNodeVerbCommitMode(request.verb, pauseMode),
           payload: isWaitResume ? payload : undefined,
           reason: offersReason ? reason : undefined,
         })
@@ -150,70 +142,100 @@ function LoopNodeControlDialogForm({
       body={
         <>
           {answer ? <LoopControlAnswerAlert answer={answer} /> : null}
-          {isPause ? (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="sr-only">What happens to the attempt already in flight</legend>
-              {(Object.keys(PAUSE_MODE_COPY) as LoopNodePauseMode[]).map(mode => (
-                <RadioCard
-                  data-testid={`loop-node-pause-mode-${mode}`}
-                  description={PAUSE_MODE_COPY[mode].description}
-                  icon={PAUSE_MODE_COPY[mode].icon}
-                  iconWellSize="lg"
-                  key={mode}
-                  onSelect={() => setPauseMode(mode)}
-                  selected={pauseMode === mode}
-                  title={PAUSE_MODE_COPY[mode].title}
-                />
-              ))}
-            </fieldset>
+          {request.verb === "pause" ? (
+            <PauseModeFieldset onSelect={setPauseMode} selected={pauseMode} />
           ) : null}
-          {isWaitResume ? (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="loop-node-wait-payload">Data</Label>
-              <Textarea
-                aria-invalid={waitInvalid || undefined}
-                className="font-mono text-mono-id"
-                data-testid="loop-node-wait-payload"
-                id="loop-node-wait-payload"
-                onChange={event => setPayload(event.target.value)}
-                rows={4}
-                value={payload}
-              />
-              {waitCheck?.hint ? (
-                <p
-                  className="font-mono text-form-hint text-subtle"
-                  data-testid="loop-node-wait-expect"
-                >
-                  {waitCheck.hint}
-                </p>
-              ) : null}
-              {waitCheck?.error ? (
-                <p
-                  className="text-form-hint text-danger"
-                  data-testid="loop-node-wait-invalid"
-                  role="alert"
-                >
-                  {waitCheck.error}
-                </p>
-              ) : null}
-            </div>
+          {waitCheck ? (
+            <WaitPayloadField
+              check={waitCheck}
+              invalid={waitInvalid}
+              onChange={setPayload}
+              value={payload}
+            />
           ) : null}
-          {offersReason ? (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="loop-node-reason">
-                Reason <span className="text-muted">optional</span>
-              </Label>
-              <Textarea
-                data-testid="loop-node-reason"
-                id="loop-node-reason"
-                onChange={event => setReason(event.target.value)}
-                rows={3}
-                value={reason}
-              />
-            </div>
-          ) : null}
+          {offersReason ? <ReasonField onChange={setReason} value={reason} /> : null}
         </>
       }
     />
+  );
+}
+
+function PauseModeFieldset({
+  selected,
+  onSelect,
+}: {
+  selected: LoopNodePauseMode;
+  onSelect: (mode: LoopNodePauseMode) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="sr-only">What happens to the attempt already in flight</legend>
+      {(Object.keys(PAUSE_MODE_COPY) as LoopNodePauseMode[]).map(mode => (
+        <RadioCard
+          data-testid={`loop-node-pause-mode-${mode}`}
+          description={PAUSE_MODE_COPY[mode].description}
+          icon={PAUSE_MODE_COPY[mode].icon}
+          iconWellSize="lg"
+          key={mode}
+          onSelect={() => onSelect(mode)}
+          selected={selected === mode}
+          title={PAUSE_MODE_COPY[mode].title}
+        />
+      ))}
+    </fieldset>
+  );
+}
+
+function WaitPayloadField({
+  value,
+  check,
+  invalid,
+  onChange,
+}: {
+  value: string;
+  check: LoopWaitPayloadCheck;
+  invalid: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor="loop-node-wait-payload">Data</Label>
+      <Textarea
+        aria-invalid={invalid || undefined}
+        className="font-mono text-mono-id"
+        data-testid="loop-node-wait-payload"
+        id="loop-node-wait-payload"
+        onChange={event => onChange(event.target.value)}
+        rows={4}
+        value={value}
+      />
+      {check.hint ? (
+        <p className="font-mono text-form-hint text-subtle" data-testid="loop-node-wait-expect">
+          {check.hint}
+        </p>
+      ) : null}
+      {check.error ? (
+        <p className="text-form-hint text-danger" data-testid="loop-node-wait-invalid" role="alert">
+          {check.error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ReasonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor="loop-node-reason">
+        Reason <span className="text-muted">optional</span>
+      </Label>
+      <Textarea
+        data-testid="loop-node-reason"
+        id="loop-node-reason"
+        onChange={event => onChange(event.target.value)}
+        rows={3}
+        value={value}
+      />
+    </div>
   );
 }

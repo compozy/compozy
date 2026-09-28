@@ -4,18 +4,22 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 
 import { cn, KindIcon, Pill, PropertyRow, type KindIconRegistry } from "@compozy/ui";
 
-import type { EditorNode } from "../../lib/codec";
+import type { EditorNode, EditorNodeData } from "../../lib/codec";
 import { EDITOR_ROUTE_ROW_HEIGHT } from "../../lib/loop-editor-layout";
+import {
+  editorNodeClassLabel,
+  environmentReadout,
+  fanOutChips,
+  type EnvironmentReadout,
+} from "../../lib/loop-editor-node-readout";
 import { routeCardRows } from "../../lib/loop-editor-route-edges";
 import type { LoopEditorNodeActions } from "../../lib/loop-editor-types";
-import { loopNodeCardRows } from "../../lib/loop-node-card-rows";
+import { loopNodeCardRows, type LoopNodeCardRow } from "../../lib/loop-node-card-rows";
 import {
   LOOP_CALL_TOOL_ICON,
   LOOP_NODE_KIND_ICONS,
   loopNodeClassIcon,
 } from "../../lib/loop-node-kind-icons";
-import { LOOP_ENVIRONMENT_MODE_LABELS } from "../../lib/loop-node-schema-types";
-import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
 import { LoopEditorNodeMenu } from "./loop-editor-node-menu";
 
 const LoopEditorNodeActionsContext = createContext<LoopEditorNodeActions | null>(null);
@@ -30,8 +34,6 @@ export function LoopEditorNodeActionsProvider({
   return <LoopEditorNodeActionsContext value={actions}>{children}</LoopEditorNodeActionsContext>;
 }
 
-const KIND_IN_LABEL = new Set(["gate", "fan-out", "collect", "branch", "sub-loop", "route", "ask"]);
-
 const LOOP_EDITOR_KIND_ICON_REGISTRY = {
   ...LOOP_NODE_KIND_ICONS,
   "": LOOP_CALL_TOOL_ICON,
@@ -42,77 +44,19 @@ const HANDLE_NUB =
 
 const ORIGIN = { x: 0, y: 0 };
 
-function classLabel(nodeClass: string | null, kind: string): string {
-  const base = nodeClass ?? "node";
-  return KIND_IN_LABEL.has(kind) ? `${base} · ${kind}` : base;
-}
-
-function num(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-/** The fan-out knob chips (batch / parallelism / author bound) — the author-time truthful
- *  "branch" summary; runtime fanned items only exist on the run page, never here. */
-function fanOutChips(raw: EditorNode["data"]["raw"]): string[] {
-  if (raw.kind !== "fan-out") return [];
-  const chips: string[] = [];
-  const batch = num(raw.batch_size);
-  const parallel = num(raw.max_parallel);
-  const authorBound = num(raw.max_fan_out);
-  if (batch !== undefined) chips.push(`batch ${batch}`);
-  if (parallel !== undefined) chips.push(parallel <= 1 ? "seq" : `×${parallel}`);
-  if (authorBound !== undefined) chips.push(`≤${authorBound}`);
-  return chips;
-}
-
-/**
- * The node's own environment declaration, as a short readout.
- *
- * Only what the node itself declares is rendered: the loop-level default is not
- * part of the canvas node model, so naming it here would be a guess rather than
- * a readback.
- */
-interface EnvironmentReadout {
-  label: string;
-  inherited: boolean;
-}
-
-function specLabel(spec: {
-  mode?: unknown;
-  worktree_ref?: unknown;
-  directory?: unknown;
-}): string | undefined {
-  if (typeof spec.mode !== "string") return undefined;
-  if (spec.mode === "worktree" && typeof spec.worktree_ref === "string" && spec.worktree_ref) {
-    return `${LOOP_ENVIRONMENT_MODE_LABELS.worktree} · ${spec.worktree_ref}`;
-  }
-  if (spec.mode === "directory" && typeof spec.directory === "string" && spec.directory) {
-    return `${LOOP_ENVIRONMENT_MODE_LABELS.directory} · ${spec.directory}`;
-  }
-  if (spec.mode in LOOP_ENVIRONMENT_MODE_LABELS) {
-    return LOOP_ENVIRONMENT_MODE_LABELS[spec.mode as LoopEnvironmentMode];
-  }
-  return undefined;
-}
-
-function environmentReadout(
-  raw: EditorNode["data"]["raw"],
-  loopDefault?: LoopEnvironmentSpec
-): EnvironmentReadout | undefined {
-  if (raw.kind !== "run-agent" && raw.kind !== "goal") return undefined;
-  const params = raw.params;
-  if (typeof params === "object" && params !== null) {
-    const environment = (params as Record<string, unknown>).environment;
-    if (typeof environment === "object" && environment !== null) {
-      const label = specLabel(environment as Record<string, unknown>);
-      if (label) return { label, inherited: false };
-    }
-  }
-  const defaultLabel = loopDefault ? specLabel(loopDefault) : undefined;
-  return defaultLabel ? { label: `${defaultLabel} · loop default`, inherited: true } : undefined;
-}
-
 const ROUTE_SUMMARY_ROW_KEYS = new Set(["routes", "default"]);
+
+type RouteCardRow = ReturnType<typeof routeCardRows>[number];
+
+function nodeFrameClassName(hasError: boolean, focused: boolean, selected: boolean): string {
+  if (hasError) return cn("border-danger", focused && "ring-2 ring-danger");
+  if (focused)
+    return "border-line hover:border-line-strong border-accent-dim ring-2 ring-accent-dim";
+  return cn(
+    "border-line hover:border-line-strong",
+    selected && "border-accent-dim/50 ring-1 ring-accent-dim/40"
+  );
+}
 
 export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
   const { raw, nodeClass, kind, hasError } = data;
@@ -127,19 +71,11 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
   );
   const hasBody = rows.length > 0 || environment !== undefined || chips.length > 0;
   const connectable = data.readOnly !== true;
-  const classGlyph = loopNodeClassIcon({
-    nodeClass: nodeClass ?? "action",
-    isFanOut: kind === "fan-out",
-    isGate: kind === "gate",
-  });
   const card = (
     <div
       className={cn(
         "group relative flex w-47 flex-col rounded-md border bg-canvas-tint transition-colors",
-        hasError ? "border-danger" : "border-line hover:border-line-strong",
-        focused && !hasError && "border-accent-dim ring-2 ring-accent-dim",
-        focused && hasError && "ring-2 ring-danger",
-        !focused && selected && !hasError && "border-accent-dim/50 ring-1 ring-accent-dim/40"
+        nodeFrameClassName(hasError, focused, selected)
       )}
       data-testid="loop-editor-node"
       data-node-id={raw.id}
@@ -153,130 +89,18 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
         position={Position.Left}
         type="target"
       />
-      <div
-        className={cn(
-          "flex min-h-10 items-center gap-2 px-2.5 py-2",
-          hasBody && "border-b border-line-soft"
-        )}
-      >
-        <span
-          className={cn(
-            "grid size-6 shrink-0 place-items-center rounded border border-line-strong bg-elevated",
-            focused ? "text-accent-strong" : "text-muted"
-          )}
-        >
-          <KindIcon
-            className="size-3.5"
-            fallback={classGlyph}
-            kind={kind}
-            registry={LOOP_EDITOR_KIND_ICON_REGISTRY}
-            size="xs"
-            tone={focused ? "accent" : "muted"}
-          />
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate text-small-body font-medium leading-tight text-fg-strong"
-          title={String(raw.id)}
-        >
-          {String(raw.id)}
-        </span>
-        <Pill size="xs" tone={focused ? "accent" : "neutral"} mono>
-          {classLabel(nodeClass, kind)}
-        </Pill>
-      </div>
-      {hasBody ? (
-        <div className="flex flex-col gap-1 px-2.5 py-2">
-          {rows.map(row => (
-            <PropertyRow
-              className="min-h-0 gap-2 py-0"
-              key={row.key}
-              label={row.danger ? <span className="text-danger/70">{row.label}</span> : row.label}
-              mono
-            >
-              {row.value}
-            </PropertyRow>
-          ))}
-          {environment ? (
-            <PropertyRow
-              className="min-h-0 gap-2 py-0"
-              data-slot="loop-node-card-env"
-              label="env"
-              mono
-            >
-              <span
-                className={cn(
-                  "min-w-0 truncate",
-                  environment.inherited ? "text-faint" : "text-subtle"
-                )}
-                data-source={environment.inherited ? "loop-default" : "node"}
-                title={environment.label}
-              >
-                {environment.label}
-              </span>
-            </PropertyRow>
-          ) : null}
-          {chips.length > 0 ? (
-            <div className="mt-0.5 flex flex-wrap gap-1" data-testid="loop-editor-node-branches">
-              {chips.map(chip => (
-                <span
-                  key={chip}
-                  className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <LoopEditorNodeHeader
+        focused={focused}
+        hasBody={hasBody}
+        kind={kind}
+        nodeClass={nodeClass}
+        nodeId={String(raw.id)}
+      />
+      {hasBody ? <LoopEditorNodeBody chips={chips} environment={environment} rows={rows} /> : null}
       {routeRows.length > 0 ? (
-        <div
-          className="flex flex-col border-t border-line-soft"
-          data-testid="loop-editor-node-routes"
-        >
-          {routeRows.map(row => (
-            <div
-              className="relative flex items-center gap-1.5 px-2.5"
-              data-route-handle={row.handle}
-              key={row.handle}
-
-              style={{ height: EDITOR_ROUTE_ROW_HEIGHT }}
-            >
-              <span
-                className="min-w-0 flex-1 truncate font-mono text-pill-group-badge text-subtle"
-                title={row.label}
-              >
-                {row.label}
-              </span>
-              <span className="shrink-0 font-mono text-pill-group-badge text-faint">
-                {row.to || "—"}
-              </span>
-              <Handle
-                className={cn(
-                  HANDLE_NUB,
-                  "!-right-2 !h-3.5 !rounded-l-none !rounded-r-xxs group-hover:!-right-2.5"
-                )}
-                id={row.handle}
-                isConnectable={connectable}
-                position={Position.Right}
-                style={{ top: "50%" }}
-                type="source"
-              />
-            </div>
-          ))}
-        </div>
+        <LoopEditorNodeRoutes connectable={connectable} routeRows={routeRows} />
       ) : null}
-      {hasError ? (
-        <span
-          className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
-          data-testid="loop-editor-node-badge"
-          aria-label="This step has a problem"
-          role="img"
-          title="This step has a problem"
-        >
-          <AlertTriangle aria-hidden="true" className="size-2.5" />
-        </span>
-      ) : null}
+      {hasError ? <LoopEditorNodeErrorBadge /> : null}
       {routeRows.length === 0 ? (
         <Handle
           className={cn(
@@ -305,5 +129,163 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
     >
       {card}
     </LoopEditorNodeMenu>
+  );
+}
+
+function LoopEditorNodeHeader({
+  nodeId,
+  nodeClass,
+  kind,
+  focused,
+  hasBody,
+}: {
+  nodeId: string;
+  nodeClass: EditorNodeData["nodeClass"];
+  kind: string;
+  focused: boolean;
+  hasBody: boolean;
+}) {
+  const classGlyph = loopNodeClassIcon({
+    nodeClass: nodeClass ?? "action",
+    isFanOut: kind === "fan-out",
+    isGate: kind === "gate",
+  });
+  return (
+    <div
+      className={cn(
+        "flex min-h-10 items-center gap-2 px-2.5 py-2",
+        hasBody && "border-b border-line-soft"
+      )}
+    >
+      <span
+        className={cn(
+          "grid size-6 shrink-0 place-items-center rounded border border-line-strong bg-elevated",
+          focused ? "text-accent-strong" : "text-muted"
+        )}
+      >
+        <KindIcon
+          className="size-3.5"
+          fallback={classGlyph}
+          kind={kind}
+          registry={LOOP_EDITOR_KIND_ICON_REGISTRY}
+          size="xs"
+          tone={focused ? "accent" : "muted"}
+        />
+      </span>
+      <span
+        className="min-w-0 flex-1 truncate text-small-body font-medium leading-tight text-fg-strong"
+        title={nodeId}
+      >
+        {nodeId}
+      </span>
+      <Pill size="xs" tone={focused ? "accent" : "neutral"} mono>
+        {editorNodeClassLabel(nodeClass, kind)}
+      </Pill>
+    </div>
+  );
+}
+
+function LoopEditorNodeBody({
+  rows,
+  environment,
+  chips,
+}: {
+  rows: readonly LoopNodeCardRow[];
+  environment: EnvironmentReadout | undefined;
+  chips: readonly string[];
+}) {
+  return (
+    <div className="flex flex-col gap-1 px-2.5 py-2">
+      {rows.map(row => (
+        <PropertyRow
+          className="min-h-0 gap-2 py-0"
+          key={row.key}
+          label={row.danger ? <span className="text-danger/70">{row.label}</span> : row.label}
+          mono
+        >
+          {row.value}
+        </PropertyRow>
+      ))}
+      {environment ? (
+        <PropertyRow className="min-h-0 gap-2 py-0" data-slot="loop-node-card-env" label="env" mono>
+          <span
+            className={cn("min-w-0 truncate", environment.inherited ? "text-faint" : "text-subtle")}
+            data-source={environment.inherited ? "loop-default" : "node"}
+            title={environment.label}
+          >
+            {environment.label}
+          </span>
+        </PropertyRow>
+      ) : null}
+      {chips.length > 0 ? (
+        <div className="mt-0.5 flex flex-wrap gap-1" data-testid="loop-editor-node-branches">
+          {chips.map(chip => (
+            <span
+              key={chip}
+              className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LoopEditorNodeRoutes({
+  routeRows,
+  connectable,
+}: {
+  routeRows: readonly RouteCardRow[];
+  connectable: boolean;
+}) {
+  return (
+    <div className="flex flex-col border-t border-line-soft" data-testid="loop-editor-node-routes">
+      {routeRows.map(row => (
+        <div
+          className="relative flex items-center gap-1.5 px-2.5"
+          data-route-handle={row.handle}
+          key={row.handle}
+
+          style={{ height: EDITOR_ROUTE_ROW_HEIGHT }}
+        >
+          <span
+            className="min-w-0 flex-1 truncate font-mono text-pill-group-badge text-subtle"
+            title={row.label}
+          >
+            {row.label}
+          </span>
+          <span className="shrink-0 font-mono text-pill-group-badge text-faint">
+            {row.to || "—"}
+          </span>
+          <Handle
+            className={cn(
+              HANDLE_NUB,
+              "!-right-2 !h-3.5 !rounded-l-none !rounded-r-xxs group-hover:!-right-2.5"
+            )}
+            id={row.handle}
+            isConnectable={connectable}
+            position={Position.Right}
+            style={{ top: "50%" }}
+            type="source"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LoopEditorNodeErrorBadge() {
+  return (
+    <span
+      className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
+      data-testid="loop-editor-node-badge"
+      aria-label="This step has a problem"
+      role="img"
+      title="This step has a problem"
+    >
+      <AlertTriangle aria-hidden="true" className="size-2.5" />
+    </span>
   );
 }

@@ -23,73 +23,22 @@ import {
   useNowTick,
 } from "@/systems/loops";
 
+type LoopRunsRoute = ReturnType<typeof useLoopRunsRoute>;
+
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
-  const {
-    profile,
-    outcome,
-    runsQuery,
-    setOriginFilter,
-    setOutcome,
-    workspaceId,
-    inventoryState,
-    inventory,
-    loopOptions,
-    runOptions,
-    setInventoryState,
-    setInventoryLoop,
-    setInventoryRun,
-    setInventoryView,
-    clearInventoryFilters,
-  } = useLoopRunsRoute(search);
+  const route = useLoopRunsRoute(search);
+  const { runsQuery, workspaceId, inventoryState } = route;
   const navigate = useNavigate();
   const openLoops = () => {
     void navigate({ to: "/loops" });
   };
   // Inventory ages and roster durations tick on one clock.
   const nowMs = useNowTick(true);
-
-  const runs = runsQuery.data?.runs ?? [];
-  // This roster is polled, not streamed, so "reconnecting" cannot mean a dropped
-  // subscription — and a healthy 15s poll is not degraded either. The one state
-  // that honestly reads as reconnecting is a read that has already failed and is
-  // being retried right now. The two are kept mutually exclusive so the notice
-  // never tells a reader to wait for a retry that has already settled into an
-  // error they have to act on.
-  const isRetrying = runsQuery.isFetching && runsQuery.failureCount > 0;
-  const isReadFailed = Boolean(runsQuery.error) && !isRetrying;
   const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
 
   useTopbarSlot({
     ...loopRunsTrail({ level: "runs", onBack: openLoops, openLoops }),
-    toolbar: showToolbar ? (
-      <ListingToolbar data-testid="loop-runs-origin-toolbar">
-        <ListingToolbar.Leading>
-          <PillGroup<"runs" | "nodes">
-            aria-label="Runs view"
-            data-testid="loop-runs-view-switch"
-            items={[
-              { value: "runs", label: "Runs", testId: "loop-runs-view-runs" },
-              { value: "nodes", label: "Steps", testId: "loop-runs-view-nodes" },
-            ]}
-            onChange={next =>
-              setInventoryState(next === "runs" ? undefined : LOOP_NODE_INVENTORY_STATES[0])
-            }
-            value={inventoryState === undefined ? "runs" : "nodes"}
-          />
-          {inventoryState === undefined ? (
-            <ListingToolbar.Filters>
-              <LoopRunsFilters
-                onOriginFilterChange={setOriginFilter}
-                onOutcomeChange={setOutcome}
-                origin={search.origin}
-                originSession={search.origin_session}
-                outcome={outcome}
-              />
-            </ListingToolbar.Filters>
-          ) : null}
-        </ListingToolbar.Leading>
-      </ListingToolbar>
-    ) : undefined,
+    toolbar: showToolbar ? <LoopRunsToolbar route={route} search={search} /> : undefined,
   });
 
   if (workspaceId === "") {
@@ -105,48 +54,110 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   // The inventory is a peer view of the same runs area, not a nested state of
   // the roster — it owns its own loading, empty, and paging surfaces.
   if (inventoryState !== undefined) {
-    if (inventory.isError) {
-      return (
-        <RunsState
-          action={
-            <Button onClick={inventory.refetch} size="sm" type="button" variant="outline">
-              Try again
-            </Button>
-          }
-          description={inventory.error?.message ?? "The step list could not be loaded."}
-          icon={AlertCircle}
-          role="alert"
-          testId="loop-runs-inventory-error"
-          title="Couldn't load steps"
-        />
-      );
-    }
     return (
-      <ListingPage data-testid="loop-runs-inventory">
-        <LoopNodeInventoryView
-          hasMore={inventory.hasMore}
-          isFetchingNextPage={inventory.isFetchingNextPage}
-          isLoading={inventory.isLoading}
-          items={inventory.items}
-          loadedCount={inventory.loadedCount}
-          loopFilter={search.nodes_loop ?? ""}
-          loopOptions={loopOptions}
-          nowMs={nowMs}
-          onClearFilters={clearInventoryFilters}
-          onLoadMore={inventory.fetchNextPage}
-          onLoopFilterChange={setInventoryLoop}
-          onRunFilterChange={setInventoryRun}
-          onStateChange={setInventoryState}
-          onViewChange={setInventoryView}
-          runFilter={search.nodes_run ?? ""}
-          runOptions={runOptions}
-          state={inventoryState}
-          view={search.view ?? "rows"}
-        />
-      </ListingPage>
+      <LoopRunsInventoryPane nowMs={nowMs} route={route} search={search} state={inventoryState} />
     );
   }
+  return <LoopRunsRosterPane nowMs={nowMs} openLoops={openLoops} route={route} />;
+}
 
+function LoopRunsToolbar({ route, search }: { route: LoopRunsRoute; search: LoopRunsRouteSearch }) {
+  const { inventoryState, outcome, setInventoryState, setOriginFilter, setOutcome } = route;
+  return (
+    <ListingToolbar data-testid="loop-runs-origin-toolbar">
+      <ListingToolbar.Leading>
+        <PillGroup<"runs" | "nodes">
+          aria-label="Runs view"
+          data-testid="loop-runs-view-switch"
+          items={[
+            { value: "runs", label: "Runs", testId: "loop-runs-view-runs" },
+            { value: "nodes", label: "Steps", testId: "loop-runs-view-nodes" },
+          ]}
+          onChange={next =>
+            setInventoryState(next === "runs" ? undefined : LOOP_NODE_INVENTORY_STATES[0])
+          }
+          value={inventoryState === undefined ? "runs" : "nodes"}
+        />
+        {inventoryState === undefined ? (
+          <ListingToolbar.Filters>
+            <LoopRunsFilters
+              onOriginFilterChange={setOriginFilter}
+              onOutcomeChange={setOutcome}
+              origin={search.origin}
+              originSession={search.origin_session}
+              outcome={outcome}
+            />
+          </ListingToolbar.Filters>
+        ) : null}
+      </ListingToolbar.Leading>
+    </ListingToolbar>
+  );
+}
+
+function LoopRunsInventoryPane({
+  route,
+  search,
+  state,
+  nowMs,
+}: {
+  route: LoopRunsRoute;
+  search: LoopRunsRouteSearch;
+  state: NonNullable<LoopRunsRoute["inventoryState"]>;
+  nowMs: number;
+}) {
+  const { inventory } = route;
+  if (inventory.isError) {
+    return (
+      <RunsState
+        action={
+          <Button onClick={inventory.refetch} size="sm" type="button" variant="outline">
+            Try again
+          </Button>
+        }
+        description={inventory.error?.message ?? "The step list could not be loaded."}
+        icon={AlertCircle}
+        role="alert"
+        testId="loop-runs-inventory-error"
+        title="Couldn't load steps"
+      />
+    );
+  }
+  return (
+    <ListingPage data-testid="loop-runs-inventory">
+      <LoopNodeInventoryView
+        hasMore={inventory.hasMore}
+        isFetchingNextPage={inventory.isFetchingNextPage}
+        isLoading={inventory.isLoading}
+        items={inventory.items}
+        loadedCount={inventory.loadedCount}
+        loopFilter={search.nodes_loop ?? ""}
+        loopOptions={route.loopOptions}
+        nowMs={nowMs}
+        onClearFilters={route.clearInventoryFilters}
+        onLoadMore={inventory.fetchNextPage}
+        onLoopFilterChange={route.setInventoryLoop}
+        onRunFilterChange={route.setInventoryRun}
+        onStateChange={route.setInventoryState}
+        onViewChange={route.setInventoryView}
+        runFilter={search.nodes_run ?? ""}
+        runOptions={route.runOptions}
+        state={state}
+        view={search.view ?? "rows"}
+      />
+    </ListingPage>
+  );
+}
+
+function LoopRunsRosterPane({
+  route,
+  nowMs,
+  openLoops,
+}: {
+  route: LoopRunsRoute;
+  nowMs: number;
+  openLoops: () => void;
+}) {
+  const { runsQuery, outcome, setOutcome, profile } = route;
   if (runsQuery.isLoading) {
     return (
       <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loop-runs-loading">
@@ -154,6 +165,14 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
       </div>
     );
   }
+  // This roster is polled, not streamed, so "reconnecting" cannot mean a dropped
+  // subscription — and a healthy 15s poll is not degraded either. The one state
+  // that honestly reads as reconnecting is a read that has already failed and is
+  // being retried right now. The two are kept mutually exclusive so the notice
+  // never tells a reader to wait for a retry that has already settled into an
+  // error they have to act on.
+  const isRetrying = runsQuery.isFetching && runsQuery.failureCount > 0;
+  const isReadFailed = Boolean(runsQuery.error) && !isRetrying;
 
   // A failed read is degraded transport, not an empty workspace: the rows below
   // are the last good read, and the roster keeps showing them while saying so
@@ -174,7 +193,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
         onRetry={() => void runsQuery.refetch()}
         outcome={outcome}
         profileScope={profile}
-        runs={runs}
+        runs={runsQuery.data?.runs ?? []}
       />
     </ListingPage>
   );

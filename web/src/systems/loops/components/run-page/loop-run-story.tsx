@@ -112,45 +112,16 @@ function LoopRunStoryBeat({ beat }: { beat: LoopStoryBeat }) {
 
 export function LoopRunStory({ beats, paging, isReconnecting = false }: LoopRunStoryProps) {
   const { hasOlder, isLoading, isError = false, isLoadingOlder, onLoadOlder } = paging;
-  // Three different silences, three different sentences. A run that has done
-  // nothing, a read still in flight, and a read that failed all show an empty
-  // list — only the last one means the history is unknown rather than absent,
-  // and the reader has to be told which one they are looking at.
-  const emptyLine = isError
-    ? "This run's activity could not be loaded. The run itself is unaffected."
-    : isLoading
-      ? "Loading activity…"
-      : "Nothing has happened in this run yet.";
   return (
     <LoopSection
       data-testid="loop-run-story"
       icon={<History aria-hidden="true" />}
-      right={
-        // Stale is never painted as current. A failed read is the more specific
-        // fact and outranks a reconnect, exactly as it does on the runs roster.
-        isError ? (
-          <Pill data-testid="loop-run-story-degraded" tone="danger">
-            <TriangleAlert aria-hidden="true" className="size-3" />
-            Couldn't load
-          </Pill>
-        ) : isReconnecting ? (
-          <Pill data-testid="loop-run-story-reconnecting" tone="warning">
-            <PlugZap aria-hidden="true" className="size-3" />
-            Reconnecting
-          </Pill>
-        ) : null
-      }
+      right={<LoopRunStoryStatusPill isError={isError} isReconnecting={isReconnecting} />}
       title="Activity"
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft px-4 py-2">
         {beats.length === 0 ? (
-          <p
-            className={cn("py-2 text-small-body", isError ? "text-danger" : "text-muted")}
-            data-state={isError ? "error" : isLoading ? "loading" : "empty"}
-            data-testid="loop-run-story-empty"
-          >
-            {emptyLine}
-          </p>
+          <LoopRunStoryEmpty isError={isError} isLoading={isLoading} />
         ) : (
           <ul className="flex flex-col divide-y divide-line-soft">
             {beats.map(beat => (
@@ -176,5 +147,56 @@ export function LoopRunStory({ beats, paging, isReconnecting = false }: LoopRunS
         ) : null}
       </div>
     </LoopSection>
+  );
+}
+
+function LoopRunStoryStatusPill({
+  isError,
+  isReconnecting,
+}: {
+  isError: boolean;
+  isReconnecting: boolean;
+}) {
+  // Stale is never painted as current. A failed read is the more specific
+  // fact and outranks a reconnect, exactly as it does on the runs roster.
+  if (isError) {
+    return (
+      <Pill data-testid="loop-run-story-degraded" tone="danger">
+        <TriangleAlert aria-hidden="true" className="size-3" />
+        Couldn't load
+      </Pill>
+    );
+  }
+  if (isReconnecting) {
+    return (
+      <Pill data-testid="loop-run-story-reconnecting" tone="warning">
+        <PlugZap aria-hidden="true" className="size-3" />
+        Reconnecting
+      </Pill>
+    );
+  }
+  return null;
+}
+
+// Three different silences, three different sentences. A run that has done
+// nothing, a read still in flight, and a read that failed all show an empty
+// list — only the last one means the history is unknown rather than absent,
+// and the reader has to be told which one they are looking at.
+const EMPTY_STORY_LINE = {
+  error: "This run's activity could not be loaded. The run itself is unaffected.",
+  loading: "Loading activity…",
+  empty: "Nothing has happened in this run yet.",
+} as const;
+
+function LoopRunStoryEmpty({ isError, isLoading }: { isError: boolean; isLoading: boolean }) {
+  const state = isError ? "error" : isLoading ? "loading" : "empty";
+  return (
+    <p
+      className={cn("py-2 text-small-body", isError ? "text-danger" : "text-muted")}
+      data-state={state}
+      data-testid="loop-run-story-empty"
+    >
+      {EMPTY_STORY_LINE[state]}
+    </p>
   );
 }
