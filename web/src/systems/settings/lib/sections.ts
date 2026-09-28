@@ -179,10 +179,10 @@ export const SETTINGS_SECTION_GROUPS: ReadonlyArray<{
   id: SettingsSectionGroup;
   label: string;
 }> = [
-  { id: "workspace", label: "Workspace" },
+  { id: "workspace", label: "Basics" },
   { id: "operator", label: "Personal" },
-  { id: "runtime", label: "Runtime" },
-  { id: "system", label: "System" },
+  { id: "runtime", label: "Agents" },
+  { id: "system", label: "Advanced" },
 ];
 
 export const SETTINGS_SECTION_SLUGS: readonly SettingsSectionSlug[] = SETTINGS_SECTIONS.map(
