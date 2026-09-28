@@ -333,8 +333,9 @@ export const browserAutomationOperatorFlowScenario = {
 
 export const browserSettingsOperatorFlowScenario = {
   general: {
-    primarySessionTimeoutSeconds: 75,
-    fallbackSessionTimeoutSeconds: 90,
+    // Idle-session presets offered by Settings > General (15 minutes / 1 hour).
+    primarySessionTimeoutSeconds: 900,
+    fallbackSessionTimeoutSeconds: 3600,
   },
   hooks: {
     hookName: "browser-turn-end",

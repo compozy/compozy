@@ -441,8 +441,10 @@ test.describe("MCP Settings authorization", () => {
       });
       await appPage.getByTestId("settings-page-mcp-authorize-done").click();
 
+      // The row carries one summary status; the per-signal breakdown lives in the selection strip.
+      await serverRow.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-name`).click();
       await expect(
-        serverRow.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-auth`)
+        appPage.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-auth`)
       ).toContainText("Authenticated", { timeout: 15_000 });
 
       await browserArtifacts.captureScreenshot("mcp-authorize-confirmed", appPage);

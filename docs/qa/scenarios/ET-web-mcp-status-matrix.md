@@ -44,3 +44,5 @@ QA impact 2026-07-30 deep-review remediation: reset after authenticated remote H
 were reclassified from unreachable to `mcp_auth_required`. Verify cards and detail management offer
 Authorize/Reauthorize without claiming the server is running, while transport/network failures remain
 unavailable and no token, binding ref, or OAuth redirect appears in status payloads.
+
+QA impact 2026-09-28 (ui-normie-pass, settings slice): Settings › MCP servers rows now show one worst-of Status pill (for example "Needs sign-in", "Unavailable", "Ready"); the per-signal setup/sign-in/connection/tools breakdown with its raw detail lines moved into the selection strip opened by the server name. The no-false-green rule is unchanged. Flagged for the next QA cycle.

@@ -509,7 +509,6 @@ interface SettingsProvidersSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
   card(name: string): Locator;
-  cardCommand(name: string): Locator;
   create: Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
@@ -524,7 +523,9 @@ interface SettingsProvidersSelectors {
   editorSave: Locator;
   list: Locator;
   page: Locator;
+  inspectorCommand: Locator;
   inspectorSource: Locator;
+  inspectorTechnical: Locator;
   restartNotice: Locator;
 }
 
@@ -1184,9 +1185,9 @@ export function settingsOperatorSelectors(
       deleteConfirm: page.getByTestId(settingsProvidersTestIds.deleteConfirm),
       restartNotice: page.getByTestId(settingsProvidersTestIds.restartNotice),
       card: (name: string) => page.getByTestId(`settings-page-providers-card-${name}`),
-      cardCommand: (name: string) =>
-        page.getByTestId(`settings-page-providers-card-${name}-command`),
+      inspectorCommand: page.getByTestId("inspect-command"),
       inspectorSource: page.getByTestId("inspect-source"),
+      inspectorTechnical: page.getByTestId("provider-detail-technical"),
     },
     mcpServers: {
       page: page.getByTestId(settingsMCPServersTestIds.page),

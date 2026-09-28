@@ -41,6 +41,11 @@ test("operator applies Memory, Automation, and Observability settings with confi
   );
   const nextTopK = memoryBefore.config.recall.top_k + 1;
   await appPage.goto(runtime.url("/settings/memory"), { waitUntil: "domcontentloaded" });
+  // Recall tuning lives in the Advanced fold.
+  await appPage
+    .getByTestId("settings-page-memory-advanced")
+    .getByTestId("settings-advanced-toggle")
+    .click();
   await expect(appPage.getByTestId("settings-page-memory-recall-top-k-input")).toBeVisible();
   await appPage.getByTestId("settings-page-memory-recall-top-k-input").fill(String(nextTopK));
   await expect(appPage.getByTestId("settings-page-memory-save")).toBeEnabled();
@@ -95,6 +100,11 @@ test("operator applies Memory, Automation, and Observability settings with confi
   const providerDetail = appPage.getByTestId("provider-detail-dialog");
   await expect(providerDetail).toBeVisible();
   await expect(providerDetail.getByRole("heading", { name: "codex" })).toBeVisible();
+  // The model catalog sits in the dialog's closed "Technical details" fold.
+  await providerDetail
+    .getByTestId("provider-detail-technical")
+    .getByTestId("settings-advanced-toggle")
+    .click();
   await expect(providerDetail.locator('[data-section="catalog"]')).toBeVisible();
 
   const parity = {
@@ -225,7 +235,7 @@ test("operator sees restart failure and active-session warning without losing re
     .inputValue();
   await appPage
     .getByTestId("settings-page-general-session-timeout-input")
-    .fill(nextNumberString(currentTimeout));
+    .selectOption(currentTimeout === "900" ? "3600" : "900");
   await expect(appPage.getByTestId("settings-page-general-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-general-save").click();
   const restartNotice = appPage.getByTestId("settings-page-general-restart-notice");
@@ -413,11 +423,6 @@ async function readFileIfExists(filePath: string): Promise<string> {
     }
     throw error;
   }
-}
-
-function nextNumberString(value: string): string {
-  const parsed = Number.parseInt(value.trim(), 10);
-  return String(Number.isFinite(parsed) ? parsed + 1 : 46);
 }
 
 function restartNoticeTrigger(page: Page, slug: string) {
