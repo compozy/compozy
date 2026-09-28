@@ -33,7 +33,7 @@ export function ExecutionCollapsible({
   onAutoEnqueue,
 }: ExecutionCollapsibleProps) {
   const [open, setOpen] = useState(false);
-  const badge = saveAsDraft ? "Saved as draft" : "Enqueue on create";
+  const badge = saveAsDraft ? "Saved as draft" : "Starts on create";
 
   return (
     <Collapsible className="mt-5 border-t border-line-soft pt-1" onOpenChange={setOpen} open={open}>
@@ -47,7 +47,7 @@ export function ExecutionCollapsible({
           className={cn("size-4 text-muted transition-transform", open && "rotate-90")}
         />
         <span className="flex-1 text-small-body font-semibold text-fg-strong">Execution</span>
-        <span className="font-mono text-form-hint text-subtle">{badge}</span>
+        <span className="text-form-hint text-subtle">{badge}</span>
       </CollapsibleTrigger>
 
       <CollapsibleContent className="flex flex-col gap-4 pt-2 pb-1">
@@ -61,7 +61,7 @@ export function ExecutionCollapsible({
             <FieldHeader>
               <FieldTitle>Save as draft</FieldTitle>
               <HelpTip label="About save as draft">
-                Create the contract without enqueueing a run. Enqueue it later from the task.
+                Create the task without starting it. Start it later from the task page.
               </HelpTip>
             </FieldHeader>
           </FieldContent>
@@ -75,9 +75,9 @@ export function ExecutionCollapsible({
           />
           <FieldContent>
             <FieldHeader>
-              <FieldTitle>Auto-enqueue when ready</FieldTitle>
-              <HelpTip label="About auto-enqueue when ready">
-                Once dependencies resolve, queue a run automatically without manual action.
+              <FieldTitle>Start automatically when ready</FieldTitle>
+              <HelpTip label="About starting automatically">
+                Once the tasks it waits on finish, start it without you doing anything.
               </HelpTip>
             </FieldHeader>
           </FieldContent>

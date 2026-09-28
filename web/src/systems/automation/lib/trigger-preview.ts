@@ -207,7 +207,7 @@ function buildJsonRows(env: TriggerEnvelope, filteredKeys: ReadonlySet<string>):
 }
 
 function workspaceName(workspaces: ReadonlyArray<WorkspaceOption>, id: string | undefined): string {
-  if (!id) return "this workspace";
+  if (!id) return "this project";
   return workspaces.find(workspace => workspace.id === id)?.name ?? id;
 }
 
@@ -229,7 +229,7 @@ function buildSummary(
     segments.push({ tone: "plain", text: "in " });
     segments.push({ tone: "strong", text: workspaceName(workspaces, draft.workspace_id) });
   } else {
-    segments.push({ tone: "weak", text: "in any workspace" });
+    segments.push({ tone: "weak", text: "in any project" });
   }
 
   const active = activeFilterEntries(getFilter(draft));

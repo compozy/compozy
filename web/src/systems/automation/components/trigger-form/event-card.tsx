@@ -65,13 +65,13 @@ export function EventCard({
         <span className="flex flex-wrap items-baseline gap-2">
           <span
             className={cn(
-              "font-mono text-form-label font-medium",
+              "text-form-label font-medium",
               selected ? "text-accent-strong" : "text-fg-strong"
             )}
+            title={displayId}
           >
-            {displayId}
+            {label}
           </span>
-          <span className="text-form-label text-muted">{label}</span>
         </span>
         <span className="text-form-hint leading-snug text-subtle">{description}</span>
       </span>

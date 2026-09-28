@@ -84,7 +84,7 @@ export function TaskAutoEnqueueSwitch({
 }) {
   return (
     <Switch
-      aria-label="Auto-enqueue when ready"
+      aria-label="Start automatically when ready"
       checked={enabled}
       data-testid="tasks-rail-auto-enqueue"
       disabled={pending}

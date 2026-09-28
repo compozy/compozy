@@ -97,7 +97,7 @@ function workspaceClause(
   const name = workspaceName ?? trigger.workspace_id ?? "";
   if (trigger.scope !== "workspace" || name === "") {
     // Webhook global paths carry no workspace clause; other events read "in any workspace".
-    return selection.family === "webhook" ? [] : [{ text: " in any workspace" }];
+    return selection.family === "webhook" ? [] : [{ text: " in any project" }];
   }
   // The webhook sentence keeps the workspace plain; the slug carries the emphasis.
   return selection.family === "webhook"

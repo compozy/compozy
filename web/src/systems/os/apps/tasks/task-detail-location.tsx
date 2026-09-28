@@ -122,7 +122,7 @@ export function TaskDetailLocation({
         <Empty
           icon={AlertCircle}
           title="Task not found"
-          description={page.fatalError?.message ?? `No task with id "${taskId}" in this workspace.`}
+          description={page.fatalError?.message ?? `This task isn't in this project.`}
           action={
             <Button onClick={controller.backToTasks} size="sm" type="button" variant="ghost">
               <ClipboardList aria-hidden="true" className="size-3" />
