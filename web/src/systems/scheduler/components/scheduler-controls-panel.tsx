@@ -3,6 +3,7 @@ import { AlertCircle, PauseCircle, PlayCircle, RotateCw } from "lucide-react";
 
 import {
   Button,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -10,7 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
   Empty,
-  Eyebrow,
+  Field,
+  FieldError,
+  FieldLabel,
   Pill,
   Skeleton,
   Textarea,
@@ -37,6 +40,14 @@ export interface SchedulerControlsPanelProps {
   onDrain?: () => void | Promise<void>;
 }
 
+function MetaDot() {
+  return (
+    <span aria-hidden="true" className="text-faint">
+      ·
+    </span>
+  );
+}
+
 export function SchedulerControlsPanel({
   status,
   backlog,
@@ -50,6 +61,7 @@ export function SchedulerControlsPanel({
   onDrain,
 }: SchedulerControlsPanelProps) {
   const [pauseOpen, setPauseOpen] = useState(false);
+  const [drainOpen, setDrainOpen] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
   const [pauseError, setPauseError] = useState<string | null>(null);
   const isPausePending = pending?.pause ?? false;
@@ -80,7 +92,7 @@ export function SchedulerControlsPanel({
       setPauseError(null);
       setPauseOpen(false);
     } catch (error) {
-      setPauseError(error instanceof Error ? error.message : "Failed to pause scheduler.");
+      setPauseError(error instanceof Error ? error.message : "Couldn't pause the task queue.");
     }
   };
 
@@ -95,7 +107,7 @@ export function SchedulerControlsPanel({
           description={errorMessage}
           fill={false}
           icon={AlertCircle}
-          title="Unable to load scheduler"
+          title="Couldn't load the task queue"
         />
       </section>
     );
@@ -106,17 +118,19 @@ export function SchedulerControlsPanel({
       className="border-b border-line-soft bg-canvas-soft px-5 py-4"
       data-testid="scheduler-controls-panel"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-start @3xl:justify-between">
         <div className="min-w-0">
-          <Eyebrow className="text-muted">Scheduler</Eyebrow>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-            <h2 className="text-item-title font-medium text-fg-strong">Dispatch controls</h2>
-            <Pill
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            <h2 className="text-item-title font-medium text-fg-strong">Task queue</h2>
+            <span
+              className="inline-flex items-center gap-1.5 text-form-label text-muted"
               data-testid="scheduler-controls-state"
-              tone={isInitialStatusLoading ? "neutral" : status?.paused ? "warning" : "success"}
             >
+              {isInitialStatusLoading ? null : (
+                <Pill.Dot tone={status?.paused ? "warning" : "success"} />
+              )}
               {isInitialStatusLoading ? "Loading" : status?.paused ? "Paused" : "Running"}
-            </Pill>
+            </span>
             {isLoading && status ? (
               <Pill data-testid="scheduler-controls-loading" tone="neutral">
                 Loading
@@ -139,40 +153,30 @@ export function SchedulerControlsPanel({
               className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted"
               data-testid="scheduler-controls-meta"
             >
-              <span>{status?.active_claim_count ?? 0} active claims</span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span>{status?.queued_run_count ?? 0} queued runs</span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span>{status?.paused_task_count ?? 0} paused tasks</span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
+              <span>{status?.active_claim_count ?? 0} running</span>
+              <MetaDot />
+              <span>{status?.queued_run_count ?? 0} waiting</span>
+              <MetaDot />
+              <span>{status?.paused_task_count ?? 0} paused</span>
+              <MetaDot />
               <span
                 className={(status?.starved_run_count ?? 0) > 0 ? "text-warning" : undefined}
                 data-testid="scheduler-controls-starved-count"
               >
-                {status?.starved_run_count ?? 0} starved runs
+                {status?.starved_run_count ?? 0} waiting too long
               </span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
+              <MetaDot />
               <span
                 className={
                   (status?.needs_attention_run_count ?? 0) > 0 ? "text-warning" : undefined
                 }
                 data-testid="scheduler-controls-needs-attention-count"
               >
-                {status?.needs_attention_run_count ?? 0} needs attention
+                {status?.needs_attention_run_count ?? 0} need attention
               </span>
               {status?.paused_at ? (
                 <>
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
+                  <MetaDot />
                   <span>
                     Paused <Time iso={status.paused_at} mode="relative" />
                   </span>
@@ -219,13 +223,13 @@ export function SchedulerControlsPanel({
           <Button
             data-testid="scheduler-controls-drain"
             disabled={isInitialStatusLoading || isActionPending || !onDrain}
-            onClick={() => void onDrain?.()}
+            onClick={() => setDrainOpen(true)}
             size="sm"
-            title="Pause dispatch and wait for active claims to finish."
             type="button"
+            variant="neutral"
           >
             <RotateCw className="size-3" aria-hidden="true" />
-            Drain
+            Finish current and pause
           </Button>
         </div>
       </div>
@@ -243,13 +247,11 @@ export function SchedulerControlsPanel({
           className="max-w-md"
         >
           <DialogHeader>
-            <DialogTitle>Pause scheduler?</DialogTitle>
-            <DialogDescription>New claims stop; active runs continue.</DialogDescription>
+            <DialogTitle>Pause the task queue?</DialogTitle>
+            <DialogDescription>New work won&apos;t start; running work finishes.</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <label className="eyebrow text-muted" htmlFor="scheduler-controls-pause-reason">
-              Reason
-            </label>
+          <Field data-invalid={Boolean(pauseError) || undefined}>
+            <FieldLabel htmlFor="scheduler-controls-pause-reason">Reason</FieldLabel>
             <Textarea
               aria-describedby={pauseError ? "scheduler-controls-pause-error" : undefined}
               aria-invalid={Boolean(pauseError)}
@@ -264,16 +266,14 @@ export function SchedulerControlsPanel({
               value={pauseReason}
             />
             {pauseError ? (
-              <p
-                className="text-form-hint text-danger"
+              <FieldError
                 data-testid="scheduler-controls-pause-error"
                 id="scheduler-controls-pause-error"
-                role="alert"
               >
                 {pauseError}
-              </p>
+              </FieldError>
             ) : null}
-          </div>
+          </Field>
           <DialogFooter className="gap-2">
             <Button
               disabled={isPausePending}
@@ -296,6 +296,23 @@ export function SchedulerControlsPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        cancelLabel="Cancel"
+        confirmButtonProps={{ "data-testid": "scheduler-controls-drain-confirm" }}
+        confirmLabel="Finish current and pause"
+        contentProps={{ "data-testid": "scheduler-controls-drain-dialog" }}
+        description="New work won't start. Work that is already running gets up to a minute to finish, then the queue stays paused until you resume it."
+        isPending={isDrainPending}
+        onConfirm={async () => {
+          await onDrain?.();
+          setDrainOpen(false);
+        }}
+        onOpenChange={setDrainOpen}
+        open={drainOpen}
+        title="Finish current work and pause?"
+        tone="warning"
+      />
     </section>
   );
 }

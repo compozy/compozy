@@ -104,7 +104,7 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
             <div className="border-b border-line px-9 py-3">
               <Alert data-testid="jobs-runtime-alert" variant="warning">
                 <AlertCircle aria-hidden="true" className="size-4" />
-                <AlertTitle>Automation runtime unavailable</AlertTitle>
+                <AlertTitle>Automations aren&apos;t available right now</AlertTitle>
                 <AlertDescription>{page.runtimeUnavailableMessage}</AlertDescription>
               </Alert>
             </div>

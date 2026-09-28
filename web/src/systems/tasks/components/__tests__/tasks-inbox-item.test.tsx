@@ -100,6 +100,26 @@ describe("TasksInboxItem", () => {
     expect(onApprove).toHaveBeenCalledWith("task_apr");
   });
 
+  it("Should render activity freshness through Time, never as a raw id or 'now ago'", () => {
+    const item = buildInboxItemFixture({
+      latest_activity_at: new Date().toISOString(),
+      task: {
+        id: "task_fresh",
+        identifier: "TASK-7",
+        scope: "workspace",
+        status: "ready",
+        title: "Fresh work",
+      },
+    });
+
+    render(<TasksInboxItem group="updates" item={item} />);
+
+    const row = screen.getByTestId("tasks-inbox-item-task_fresh");
+    expect(row).not.toHaveTextContent(/now ago|— ago/);
+    expect(row).not.toHaveTextContent("task-7");
+    expect(row.querySelector("time")).not.toBeNull();
+  });
+
   it("Should keep inline actions enabled when the row itself has no open handler", () => {
     const item = buildInboxItemFixture({
       lane: "approvals",

@@ -2,19 +2,21 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, Eyebrow, MonoId, Pill } from "@compozy/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Pill,
+  Time,
+  TopbarOverflowIcon,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 import type { InboxGroupId } from "../lib/inbox-grouping";
-import {
-  formatAttemptLabel,
-  formatRelativeTime,
-  taskApprovalStateLabel,
-  taskShortId,
-  taskStatusLabel,
-  taskStatusTone,
-} from "../lib/task-formatters";
+import { taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskInboxItem } from "../types";
 import { TasksInboxRow } from "./tasks-inbox-row";
 
@@ -60,9 +62,7 @@ export function TasksInboxItem({
   const isFailedRun = lane === "failed_runs";
   const isArchived = lane === "archived" || triage.archived;
   const failedError = run?.error ?? null;
-  const identifier = taskShortId(task);
-  const ownerLabel = task.owner?.ref ?? "--";
-  const lastActivity = formatRelativeTime(item.latest_activity_at);
+  const ownerLabel = task.owner?.ref ?? "Unassigned";
 
   const handleSelect = onOpen ? () => onOpen(taskId) : undefined;
 
@@ -77,21 +77,9 @@ export function TasksInboxItem({
       >
         {task.title}
       </h3>
-      <MonoId value={identifier} size="sm" data-slot="tasks-inbox-row-id" />
       <Pill size="xs" tone={taskStatusTone(task.status)}>
         {taskStatusLabel(task.status)}
       </Pill>
-      {run ? (
-        <span
-          className="inline-flex items-center gap-1.5 text-small-body text-muted"
-          data-testid={`tasks-inbox-item-run-${taskId}`}
-        >
-          <MonoId value={run.id} size="sm" />
-          {typeof run.attempt === "number" ? (
-            <Eyebrow>{formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}</Eyebrow>
-          ) : null}
-        </span>
-      ) : null}
     </>
   );
 
@@ -111,18 +99,12 @@ export function TasksInboxItem({
         </p>
       ) : null}
 
-      {item.approval_policy === "manual" && item.approval_state ? (
-        <p data-testid={`tasks-inbox-item-approval-${taskId}`}>
-          Approval state: {taskApprovalStateLabel(item.approval_state)}
-        </p>
-      ) : null}
-
       <p className="flex flex-wrap items-center gap-1.5 text-subtle">
         <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
         <span aria-hidden="true" className="text-faint opacity-60">
           ·
         </span>
-        <span>{lastActivity} ago</span>
+        {item.latest_activity_at ? <Time iso={item.latest_activity_at} mode="relative" /> : null}
       </p>
     </>
   );
@@ -205,6 +187,9 @@ function InboxItemActions({
   pendingDismissIds,
   pendingMarkReadIds,
 }: InboxItemActionsProps) {
+  const canDismiss = isFailedRun && Boolean(onDismiss);
+  const canMarkRead = !isApprovalItem && !isFailedRun && Boolean(onMarkRead) && unread;
+  const canArchive = !isArchived && Boolean(onArchive);
   return (
     <>
       {isApprovalItem && onReject ? (
@@ -227,16 +212,6 @@ function InboxItemActions({
           variant="primary"
         />
       ) : null}
-      {isFailedRun && onDismiss ? (
-        <ActionButton
-          icon={<ArchiveX />}
-          label="Dismiss"
-          onClick={() => onDismiss(taskId)}
-          pending={pendingDismissIds?.has(taskId) ?? false}
-          testId={`tasks-inbox-item-dismiss-${taskId}`}
-          variant="ghost"
-        />
-      ) : null}
       {isFailedRun && onRetry && runId ? (
         <ActionButton
           icon={<RotateCcw />}
@@ -244,26 +219,6 @@ function InboxItemActions({
           onClick={() => onRetry(runId)}
           pending={pendingRetryIds?.has(runId) ?? false}
           testId={`tasks-inbox-item-retry-${taskId}`}
-          variant="ghost"
-        />
-      ) : null}
-      {!isApprovalItem && !isFailedRun && onMarkRead && unread ? (
-        <ActionButton
-          icon={<Eye />}
-          label="Mark read"
-          onClick={() => onMarkRead(taskId)}
-          pending={pendingMarkReadIds?.has(taskId) ?? false}
-          testId={`tasks-inbox-item-mark-read-${taskId}`}
-          variant="ghost"
-        />
-      ) : null}
-      {!isArchived && onArchive ? (
-        <ActionButton
-          icon={<Archive />}
-          label="Archive"
-          onClick={() => onArchive(taskId)}
-          pending={pendingArchiveIds?.has(taskId) ?? false}
-          testId={`tasks-inbox-item-archive-${taskId}`}
           variant="ghost"
         />
       ) : null}
@@ -276,6 +231,49 @@ function InboxItemActions({
       >
         Open
       </Button>
+      {canDismiss || canMarkRead || canArchive ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="More inbox actions"
+            data-testid={`tasks-inbox-item-more-${taskId}`}
+            render={<Button size="icon-xs" type="button" variant="ghost" />}
+          >
+            <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {canMarkRead && onMarkRead ? (
+              <DropdownMenuItem
+                data-testid={`tasks-inbox-item-mark-read-${taskId}`}
+                disabled={pendingMarkReadIds?.has(taskId) ?? false}
+                onClick={() => onMarkRead(taskId)}
+              >
+                <Eye aria-hidden="true" className="size-3" />
+                Mark read
+              </DropdownMenuItem>
+            ) : null}
+            {canDismiss && onDismiss ? (
+              <DropdownMenuItem
+                data-testid={`tasks-inbox-item-dismiss-${taskId}`}
+                disabled={pendingDismissIds?.has(taskId) ?? false}
+                onClick={() => onDismiss(taskId)}
+              >
+                <ArchiveX aria-hidden="true" className="size-3" />
+                Dismiss
+              </DropdownMenuItem>
+            ) : null}
+            {canArchive && onArchive ? (
+              <DropdownMenuItem
+                data-testid={`tasks-inbox-item-archive-${taskId}`}
+                disabled={pendingArchiveIds?.has(taskId) ?? false}
+                onClick={() => onArchive(taskId)}
+              >
+                <Archive aria-hidden="true" className="size-3" />
+                Archive
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </>
   );
 }

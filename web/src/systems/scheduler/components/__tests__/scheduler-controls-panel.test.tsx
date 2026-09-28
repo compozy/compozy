@@ -36,12 +36,12 @@ describe("SchedulerControlsPanel", () => {
     );
 
     expect(screen.getByTestId("scheduler-controls-state")).toHaveTextContent("Running");
-    expect(screen.getByTestId("scheduler-controls-meta")).toHaveTextContent("1 active claims");
+    expect(screen.getByTestId("scheduler-controls-meta")).toHaveTextContent("1 running");
     expect(screen.getByTestId("scheduler-controls-starved-count")).toHaveTextContent(
-      "0 starved runs"
+      "0 waiting too long"
     );
     expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveTextContent(
-      "0 needs attention"
+      "0 need attention"
     );
     expect(screen.getByTestId("scheduler-backlog-total")).toHaveTextContent("2");
     expect(screen.getByTestId("scheduler-backlog-row-run_014")).toBeInTheDocument();
@@ -56,11 +56,11 @@ describe("SchedulerControlsPanel", () => {
     );
 
     expect(screen.getByTestId("scheduler-controls-starved-count")).toHaveTextContent(
-      "2 starved runs"
+      "2 waiting too long"
     );
     expect(screen.getByTestId("scheduler-controls-starved-count")).toHaveClass("text-warning");
     expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveTextContent(
-      "1 needs attention"
+      "1 need attention"
     );
     expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveClass(
       "text-warning"
@@ -97,7 +97,7 @@ describe("SchedulerControlsPanel", () => {
     });
   });
 
-  it("renders resume action while paused and forwards drain", () => {
+  it("renders resume action while paused and forwards drain after confirmation", async () => {
     const onResume = vi.fn();
     const onDrain = vi.fn();
     render(
@@ -111,8 +111,11 @@ describe("SchedulerControlsPanel", () => {
 
     fireEvent.click(screen.getByTestId("scheduler-controls-resume"));
     fireEvent.click(screen.getByTestId("scheduler-controls-drain"));
+    // Draining pauses dispatch, so it asks before acting.
+    expect(onDrain).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("scheduler-controls-drain-confirm"));
 
     expect(onResume).toHaveBeenCalledTimes(1);
-    expect(onDrain).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onDrain).toHaveBeenCalledTimes(1));
   });
 });
