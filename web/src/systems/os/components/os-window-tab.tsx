@@ -65,13 +65,9 @@ export function OsWindowTab({
   const slot = useWindowMemberSlot(slotStore);
   const isSession = win.app === "session";
   const isNewTab = win.app === "new-tab";
-  const state: OsWindowTabState = isSession ? sessionTabState(session) : null;
-  const sessionTitle = session ? getSessionDisplayTitle(session) : null;
-  const label: React.ReactNode = isSession
-    ? (sessionTitle ?? slot?.crumb ?? app.title)
-    : (slot?.crumb ?? app.title);
-  const crumbPath = slot?.crumbs ?? [];
-  const AppIcon = app.icon;
+  const sessionTitle = isSession && session ? getSessionDisplayTitle(session) : null;
+  const label: React.ReactNode = sessionTitle ?? slot?.crumb ?? app.title;
+  const showLabel = !win.pinned;
 
   const closeTab = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -115,51 +111,87 @@ export function OsWindowTab({
                 }
               }}
             >
-              {isSession ? (
-                <TabStateDot
-                  state={state}
-                  label={state ? TAB_STATE_LABELS[state] : "Session idle"}
-                />
-              ) : isNewTab ? null : (
-                <AppIcon aria-hidden="true" className="size-deck-glyph shrink-0 text-subtle" />
-              )}
-              {!win.pinned ? (
+              <OsWindowTabGlyph
+                app={app}
+                isNewTab={isNewTab}
+                isSession={isSession}
+                session={session}
+              />
+              {showLabel ? (
                 <span className={cn("min-w-0 flex-1 truncate", isNewTab && "text-subtle")}>
                   {label}
                 </span>
               ) : null}
             </button>
-            {!win.pinned ? (
-              <button
-                type="button"
-                aria-label={`Close ${typeof label === "string" ? label : "tab"}`}
-                data-slot="os-window-tab-close"
-                className={cn(
-                  "grid size-5 shrink-0 place-items-center rounded-xs text-faint opacity-0 transition-opacity duration-base",
-                  "hover:bg-btn-default-fill hover:text-fg-strong focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",
-                  "group-hover/tab:opacity-100",
-                  active && "opacity-100"
-                )}
-                onPointerDown={event => event.stopPropagation()}
-                onClick={closeTab}
-              >
-                <X aria-hidden="true" className="size-2.5" strokeWidth={1.4} />
-              </button>
+            {showLabel ? (
+              <OsWindowTabClose active={active} label={label} onClick={closeTab} />
             ) : null}
           </div>
         }
       />
       <TooltipContent side="bottom">
         <span className="flex max-w-64 min-w-0 items-center gap-1">
-          {crumbPath.map(part => (
+          {(slot?.crumbs ?? []).map(part => (
             <React.Fragment key={part.id}>
               <span className="truncate">{part.label}</span>
               <span aria-hidden="true">/</span>
             </React.Fragment>
           ))}
-          <span className="truncate">{isSession && session ? sessionTitle : label}</span>
+          <span className="truncate">{sessionTitle ?? label}</span>
         </span>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * Leading mark: a session shows its state dot, the new-tab page shows nothing,
+ * every other app shows its glyph.
+ */
+function OsWindowTabGlyph({
+  app,
+  isNewTab,
+  isSession,
+  session,
+}: {
+  app: ReturnType<typeof getOsAppDescriptor>;
+  isNewTab: boolean;
+  isSession: boolean;
+  session: SessionPayload | undefined;
+}) {
+  if (isSession) {
+    const state = sessionTabState(session);
+    return <TabStateDot state={state} label={state ? TAB_STATE_LABELS[state] : "Session idle"} />;
+  }
+  if (isNewTab) return null;
+  const AppIcon = app.icon;
+  return <AppIcon aria-hidden="true" className="size-deck-glyph shrink-0 text-subtle" />;
+}
+
+function OsWindowTabClose({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: React.ReactNode;
+  onClick: (event: React.MouseEvent) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Close ${typeof label === "string" ? label : "tab"}`}
+      data-slot="os-window-tab-close"
+      className={cn(
+        "grid size-5 shrink-0 place-items-center rounded-xs text-faint opacity-0 transition-opacity duration-base",
+        "hover:bg-btn-default-fill hover:text-fg-strong focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",
+        "group-hover/tab:opacity-100",
+        active && "opacity-100"
+      )}
+      onPointerDown={event => event.stopPropagation()}
+      onClick={onClick}
+    >
+      <X aria-hidden="true" className="size-2.5" strokeWidth={1.4} />
+    </button>
   );
 }

@@ -138,8 +138,7 @@ export function RemoveExtensionDialog({
   // A dev overlay is a workspace link over the published row: unlinking it never deletes the
   // published installation.
   const isDevOverlay = extension?.dev === true;
-  const capabilityCount = extension?.capabilities?.length ?? 0;
-  const permissions = extension?.permissions ?? [];
+  const subject = extension?.name ?? "this extension";
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
@@ -152,33 +151,12 @@ export function RemoveExtensionDialog({
       confirmTyping={extension?.name}
       description={
         isDevOverlay
-          ? `Unlinks the local development copy of ${extension?.name ?? "this extension"} in this project. The published installation stays in place.`
-          : `Removes ${extension?.name ?? "this extension"} and everything it added.`
+          ? `Unlinks the local development copy of ${subject} in this project. The published installation stays in place.`
+          : `Removes ${subject} and everything it added.`
       }
       error={remove.error?.message}
       isPending={remove.isPending}
-      note={
-        <div className="space-y-1">
-          {isDevOverlay ? (
-            <p>
-              This project goes back to the published extension. Your local files are left
-              untouched.
-            </p>
-          ) : (
-            <>
-              <p>
-                This deletes the extension's files and removes the {capabilityCount}{" "}
-                {capabilityCount === 1 ? "capability" : "capabilities"} it provides.
-              </p>
-              {(extension?.declared_profiles?.length ?? 0) > 0 ||
-              extension?.placements?.some(placement => Boolean(placement.profile?.trim())) ? (
-                <p>Declared profiles and their work stay.</p>
-              ) : null}
-            </>
-          )}
-          <p>Permissions removed: {permissions.length ? permissions.join(", ") : "none"}.</p>
-        </div>
-      }
+      note={<RemoveExtensionNote extension={extension} isDevOverlay={isDevOverlay} />}
       noteTone="neutral"
       onConfirm={async () => {
         if (!extension) return;
@@ -197,6 +175,44 @@ export function RemoveExtensionDialog({
       confirmIcon={PackageX}
       contentProps={{ "data-testid": "remove-extension-dialog" }}
     />
+  );
+}
+
+function RemoveExtensionNote({
+  extension,
+  isDevOverlay,
+}: {
+  extension: ExtensionEntry | null;
+  isDevOverlay: boolean;
+}) {
+  const permissions = extension?.permissions ?? [];
+  return (
+    <div className="space-y-1">
+      {isDevOverlay ? (
+        <p>
+          This project goes back to the published extension. Your local files are left untouched.
+        </p>
+      ) : (
+        <RemoveExtensionImpact extension={extension} />
+      )}
+      <p>Permissions removed: {permissions.length ? permissions.join(", ") : "none"}.</p>
+    </div>
+  );
+}
+
+function RemoveExtensionImpact({ extension }: { extension: ExtensionEntry | null }) {
+  const capabilityCount = extension?.capabilities?.length ?? 0;
+  const keepsProfiles =
+    (extension?.declared_profiles?.length ?? 0) > 0 ||
+    extension?.placements?.some(placement => Boolean(placement.profile?.trim()));
+  return (
+    <>
+      <p>
+        This deletes the extension's files and removes the {capabilityCount}{" "}
+        {capabilityCount === 1 ? "capability" : "capabilities"} it provides.
+      </p>
+      {keepsProfiles ? <p>Declared profiles and their work stay.</p> : null}
+    </>
   );
 }
 

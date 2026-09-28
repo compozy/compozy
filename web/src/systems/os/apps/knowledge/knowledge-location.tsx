@@ -21,71 +21,15 @@ import {
 } from "@/systems/knowledge";
 
 import { useDesktop } from "../../hooks/use-desktop";
+import { knowledgeRouteOptions } from "./knowledge-route-selection";
 
 const EMPTY_SEARCH: Record<string, unknown> = {};
 
+type KnowledgePageModel = ReturnType<typeof useKnowledgePage>;
+
 export function KnowledgeLocation({ windowId }: { windowId: string }) {
   const search = useDesktop(state => state.windows[windowId]?.route.search ?? EMPTY_SEARCH);
-  const scope = search.scope;
-  const routeScope: KnowledgeScope | null =
-    scope === "profile" || scope === "workspace" || scope === "agent" ? scope : null;
-  const page = useKnowledgePage({
-    routeMemory: typeof search.memory === "string" ? search.memory : null,
-    routeScope,
-    routeWorkspaceId: typeof search.workspace === "string" ? search.workspace : null,
-  });
-
-  const scopePills = (
-    <PillGroup<KnowledgeScope>
-      aria-label="Knowledge scope"
-      data-testid="tab-pills"
-      items={[
-        { value: "profile", label: "Profile", testId: "tab-profile" },
-        { value: "workspace", label: "Project", testId: "tab-workspace" },
-        { value: "agent", label: "Agent", testId: "tab-agent" },
-      ]}
-      onChange={page.setActiveScope}
-      value={page.activeScope}
-    />
-  );
-
-  const agentControls =
-    page.activeScope === "agent" ? (
-      <div className="flex items-center gap-2" data-testid="agent-scope-controls">
-        <Input
-          aria-label="Agent name"
-          className="h-7 w-44"
-          data-testid="agent-name-input"
-          onChange={event => page.setAgentName(event.target.value)}
-          placeholder="Agent name"
-          value={page.agentName}
-        />
-        <PillGroup<KnowledgeAgentTier>
-          aria-label="Agent tier"
-          data-testid="agent-tier-pills"
-          items={[
-            { value: "workspace", label: "This project", testId: "tier-workspace" },
-            { value: "global", label: "All projects", testId: "tier-global" },
-          ]}
-          onChange={page.setAgentTier}
-          value={page.agentTier}
-        />
-      </div>
-    ) : null;
-
-  const createBtn = (
-    <Button
-      data-testid="create-memory-btn"
-      disabled={!page.canCreateMemory}
-      onClick={() => page.setCreateOpen(true)}
-      size="sm"
-      type="button"
-    >
-      <Plus className="size-3" />
-      Create
-    </Button>
-  );
-
+  const page = useKnowledgePage(knowledgeRouteOptions(search));
   const selected = page.selectedMemory;
   const clearSelection = () => {
     page.setSelectedMemoryKey(null);
@@ -102,80 +46,141 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
     crumbs: selected
       ? [{ id: "knowledge", label: "Knowledge", onSelect: () => clearSelection() }]
       : undefined,
-    actions: createBtn,
-    toolbar: (
-      <ListingToolbar>
-        <ListingToolbar.Leading>
-          {scopePills}
-          {agentControls}
-        </ListingToolbar.Leading>
-      </ListingToolbar>
-    ),
+    actions: <KnowledgeCreateButton page={page} />,
+    toolbar: <KnowledgeScopeToolbar page={page} />,
   });
 
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
+      <KnowledgeLocationBody page={page} />
+    </div>
+  );
+}
+
+function KnowledgeCreateButton({ page }: { page: KnowledgePageModel }) {
+  return (
+    <Button
+      data-testid="create-memory-btn"
+      disabled={!page.canCreateMemory}
+      onClick={() => page.setCreateOpen(true)}
+      size="sm"
+      type="button"
+    >
+      <Plus className="size-3" />
+      Create
+    </Button>
+  );
+}
+
+function KnowledgeScopeToolbar({ page }: { page: KnowledgePageModel }) {
+  return (
+    <ListingToolbar>
+      <ListingToolbar.Leading>
+        <PillGroup<KnowledgeScope>
+          aria-label="Knowledge scope"
+          data-testid="tab-pills"
+          items={[
+            { value: "profile", label: "Profile", testId: "tab-profile" },
+            { value: "workspace", label: "Project", testId: "tab-workspace" },
+            { value: "agent", label: "Agent", testId: "tab-agent" },
+          ]}
+          onChange={page.setActiveScope}
+          value={page.activeScope}
+        />
+        {page.activeScope === "agent" ? <KnowledgeAgentControls page={page} /> : null}
+      </ListingToolbar.Leading>
+    </ListingToolbar>
+  );
+}
+
+function KnowledgeAgentControls({ page }: { page: KnowledgePageModel }) {
+  return (
+    <div className="flex items-center gap-2" data-testid="agent-scope-controls">
+      <Input
+        aria-label="Agent name"
+        className="h-7 w-44"
+        data-testid="agent-name-input"
+        onChange={event => page.setAgentName(event.target.value)}
+        placeholder="Agent name"
+        value={page.agentName}
+      />
+      <PillGroup<KnowledgeAgentTier>
+        aria-label="Agent tier"
+        data-testid="agent-tier-pills"
+        items={[
+          { value: "workspace", label: "This project", testId: "tier-workspace" },
+          { value: "global", label: "All projects", testId: "tier-global" },
+        ]}
+        onChange={page.setAgentTier}
+        value={page.agentTier}
+      />
+    </div>
+  );
+}
+
+/** Guard, then first-load skeleton, then a blocking error, then the split view. */
+function KnowledgeLocationBody({ page }: { page: KnowledgePageModel }) {
   if (page.guard) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <div
-          className="flex min-h-0 flex-1 items-center justify-center py-10"
-          data-testid="knowledge-guard"
-        >
-          <Empty
-            className="max-w-md"
-            description={page.guard.description}
-            icon={BookOpen}
-            title={page.guard.title}
-          />
-        </div>
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
+        data-testid="knowledge-guard"
+      >
+        <Empty
+          className="max-w-md"
+          description={page.guard.description}
+          icon={BookOpen}
+          title={page.guard.title}
+        />
       </div>
     );
   }
 
   if (page.isLoading) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <SplitPane
-          data-testid="knowledge-loading"
-          detail={
-            <div className="space-y-4 p-5">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-28 w-full" />
-            </div>
-          }
-          list={
-            <SkeletonRows className="p-4" count={6} rowClassName="border-b border-line-soft py-3" />
-          }
-        />
-      </div>
+      <SplitPane
+        data-testid="knowledge-loading"
+        detail={
+          <div className="space-y-4 p-5">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+        }
+        list={
+          <SkeletonRows className="p-4" count={6} rowClassName="border-b border-line-soft py-3" />
+        }
+      />
     );
   }
 
   if (page.error) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <div
-          className="flex min-h-0 flex-1 items-center justify-center py-10"
-          data-testid="knowledge-error"
-        >
-          <Empty
-            action={
-              <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
-                Retry loading knowledge
-              </Button>
-            }
-            className="max-w-md"
-            description={page.error.message ?? "Try again in a moment."}
-            icon={AlertCircle}
-            title="Couldn't load knowledge"
-          />
-        </div>
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
+        data-testid="knowledge-error"
+      >
+        <Empty
+          action={
+            <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
+              Retry loading knowledge
+            </Button>
+          }
+          className="max-w-md"
+          description={page.error.message ?? "Try again in a moment."}
+          icon={AlertCircle}
+          title="Couldn't load knowledge"
+        />
       </div>
     );
   }
 
+  return <KnowledgeSplitView page={page} />;
+}
+
+function KnowledgeSplitView({ page }: { page: KnowledgePageModel }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
+    <>
       <SplitPane
         data-testid="knowledge-split-pane"
         detail={
@@ -230,6 +235,6 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
         scope={page.createScope}
         destinationLabel={page.createDestinationLabel}
       />
-    </div>
+    </>
   );
 }
