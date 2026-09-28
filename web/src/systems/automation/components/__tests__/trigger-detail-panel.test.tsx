@@ -502,8 +502,8 @@ describe("TriggerDetailPanel", () => {
     renderPanel({ runs: [], trigger: webhookTrigger });
 
     const ingress = screen.getByTestId("automation-trigger-ingress");
-    expect(ingress).toHaveTextContent("Public delivery ingress is off");
-    expect(ingress).toHaveTextContent("Open Gateway settings to publish one");
+    expect(ingress).toHaveTextContent("Public webhooks are off");
+    expect(ingress).toHaveTextContent("Open Remote access settings to publish one");
   });
 
   it("Should publish the delivery URL with its reachability once the gateway confirms it", () => {

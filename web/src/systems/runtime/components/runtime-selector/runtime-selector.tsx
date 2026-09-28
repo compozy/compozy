@@ -151,7 +151,7 @@ export function RuntimeSelector({
         sideOffset={6}
         anchor={popup.anchor}
         initialFocus={popup.resolveInitialFocus}
-        aria-label="Runtime selector"
+        aria-label="Choose model"
         className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-canvas p-0 shadow-overlay"
       >
         <div
