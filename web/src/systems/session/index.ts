@@ -332,6 +332,7 @@ export {
   sessionStopAttention,
   type SessionStopAttention,
 } from "./lib/session-stop-attention";
+export { SessionPanelToggle } from "./components/session-panel-toggle";
 export {
   SessionQuietWarningNotice,
   type SessionQuietWarningNoticeProps,

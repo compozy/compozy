@@ -1,10 +1,10 @@
 import { lazy, Suspense } from "react";
-import { List, MessagesSquare } from "lucide-react";
+import { MessagesSquare, Plus } from "lucide-react";
 
-import { Button, cn, Empty, useTopbarSlot } from "@compozy/ui";
+import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
-import { SessionSidebar } from "@/systems/session";
+import { SessionPanelToggle, SessionSidebar } from "@/systems/session";
 
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
@@ -32,24 +32,7 @@ export function SessionWindowEmpty({
 
   useTopbarSlot({
     crumb: <span className="text-muted">Sessions</span>,
-    actions: (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={sidebar.open ? "Close sessions sidebar" : "Open sessions sidebar"}
-        aria-pressed={sidebar.open}
-        className={cn(
-          "size-11 focus-visible:shadow-focus-inset",
-          sidebar.open ? "bg-elevated text-fg" : null
-        )}
-        data-state={sidebar.open ? "open" : "closed"}
-        data-testid="session-sidebar-toggle"
-        onClick={sidebar.toggle}
-      >
-        <List aria-hidden="true" className="size-3" />
-      </Button>
-    ),
+    actions: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
   });
 
   return (
@@ -69,7 +52,23 @@ export function SessionWindowEmpty({
         className="flex min-h-0 min-w-0 flex-1 items-center justify-center"
         data-testid="session-window-empty"
       >
-        <Empty icon={MessagesSquare} title="No session selected" />
+        <Empty
+          action={
+            <Button
+              data-testid="session-window-empty-new"
+              onClick={sidebar.onNewSession}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Plus aria-hidden="true" className="size-3" />
+              New session
+            </Button>
+          }
+          description="Pick one from the list, or start a new one."
+          icon={MessagesSquare}
+          title="No session selected"
+        />
       </div>
       {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
         <Suspense fallback={null}>

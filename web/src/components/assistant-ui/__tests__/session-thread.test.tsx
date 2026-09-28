@@ -646,7 +646,7 @@ describe("SessionThread transcript states", () => {
     );
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /retry transcript/i }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(retry).toHaveBeenCalledTimes(1);
   });
@@ -735,7 +735,7 @@ describe("SessionThread transcript states", () => {
   it("Should render ThreadEmpty only for success with zero messages", async () => {
     renderThreadState({ status: "success" });
 
-    expect(await screen.findByText(/Start the conversation/i)).toBeInTheDocument();
+    expect(await screen.findByText(/to get started/i)).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
   });
@@ -761,7 +761,7 @@ describe("SessionThread transcript states", () => {
     expect(pane).toHaveTextContent("This conversation didn't sync");
     expect(pane).toHaveTextContent("after 6 tries");
     expect(screen.getAllByRole("button", { name: "Try again" })).toHaveLength(1);
-    expect(screen.queryByText(/Start the conversation/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
     await user.click(screen.getByTestId("thread-transcript-sync-failed-retry"));
     expect(retry).toHaveBeenCalledTimes(1);
   });
@@ -792,7 +792,8 @@ describe("SessionThread transcript states", () => {
 
     const pane = await screen.findByTestId("thread-session-starting");
     expect(pane).toHaveAttribute("role", "status");
-    expect(pane).toHaveTextContent("The session is saved");
+    expect(pane).toHaveTextContent("Your session is saved");
+    expect(pane).not.toHaveTextContent(/runtime/i);
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     // The Lexical composer is inerted (not focusable, not editable) instead of
     // carrying a `disabled` attribute, and renders its placeholder as visible text.
@@ -815,7 +816,7 @@ describe("SessionThread transcript states", () => {
     const pane = await screen.findByTestId("thread-session-startup-failure");
     expect(pane).toHaveAttribute("role", "alert");
     expect(pane).toHaveTextContent("The configured model is unavailable.");
-    expect(within(pane).getByRole("button", { name: "Review agent runtime" })).toBeInTheDocument();
+    expect(within(pane).getByRole("button", { name: "Check agent settings" })).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
     expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
     expect(screen.getByTestId("composer-send-button")).toBeDisabled();
@@ -835,7 +836,7 @@ describe("SessionThread transcript states", () => {
 
     const pane = await screen.findByTestId("thread-session-startup-failure");
     expect(pane).toHaveTextContent("The provider process exited before activation.");
-    expect(within(pane).queryByRole("button", { name: "Review agent runtime" })).toBeNull();
+    expect(within(pane).queryByRole("button", { name: "Check agent settings" })).toBeNull();
     expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
   });
 
@@ -5282,7 +5283,7 @@ describe("SessionThread pending quote ownership", () => {
     holdPendingTerminalQuote(quote);
     renderThreadState({ status: "success", readOnly: true });
 
-    await screen.findByText(/Start the conversation/i);
+    await screen.findByText(/to get started/i);
     expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
     expect(peekSessionTerminalQuote(primarySessionFixture.id)).toBeNull();
     expect(screen.queryByTestId("terminal-quote-block")).not.toBeInTheDocument();
