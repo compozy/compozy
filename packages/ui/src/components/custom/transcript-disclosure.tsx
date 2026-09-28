@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 export interface TranscriptDisclosureProps extends Omit<
   ComponentProps<"button">,
@@ -15,7 +15,13 @@ export interface TranscriptDisclosureProps extends Omit<
   variant?: "row" | "turn";
 }
 
-/** Shared transcript disclosure trigger; callers own only the revealed body. */
+/**
+ * The transcript's disclosure trigger: a controlled toggle whose body the
+ * caller renders (and points at with `aria-controls`). `row` is the tool/work
+ * line — 20px icon well, truncating label, trailing slot, rotating chevron;
+ * `turn` is the quiet turn-fold sentence with a leading chevron. Use
+ * `Disclosure` instead when the fold should own its own panel.
+ */
 export function TranscriptDisclosure({
   expanded,
   onToggle,
@@ -48,7 +54,7 @@ export function TranscriptDisclosure({
         <ChevronRight
           aria-hidden="true"
           className={cn(
-            "size-[11px] shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
+            "size-2.75 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
             expanded ? "rotate-90" : null
           )}
         />

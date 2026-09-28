@@ -2,7 +2,7 @@ import { FileText } from "lucide-react";
 
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 // Signal palette as information, never decoration: additions read `--success`,
 // deletions `--danger`. The +/− sign carries the meaning too, so the stat never
