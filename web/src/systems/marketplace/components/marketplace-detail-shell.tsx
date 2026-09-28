@@ -7,6 +7,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Eyebrow,
+  Panel,
   PropertyRow,
 } from "@compozy/ui";
 
@@ -77,55 +78,11 @@ function MarketplaceDetailSection({
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <MarketplaceDetailPanel>{children}</MarketplaceDetailPanel>
+        <Panel bodyClassName="p-0" className="overflow-hidden">
+          {children}
+        </Panel>
       </CollapsibleContent>
     </Collapsible>
-  );
-}
-
-interface MarketplaceDetailPanelProps {
-  children: ReactNode;
-  className?: string;
-}
-
-/** The shared panelbox frame for main-column section bodies. */
-function MarketplaceDetailPanel({ children, className }: MarketplaceDetailPanelProps) {
-  return (
-    <div className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}>
-      {children}
-    </div>
-  );
-}
-
-interface MarketplaceDetailKvRowProps {
-  label: string;
-  sub?: ReactNode;
-  mono?: boolean;
-  children: ReactNode;
-}
-
-/** Panel key/value row: eyebrow key over a plain-language value plus optional note. */
-function MarketplaceDetailKvRow({
-  label,
-  sub,
-  mono = false,
-  children,
-}: MarketplaceDetailKvRowProps) {
-  return (
-    <div className="border-t border-line-soft px-4 py-3 first:border-t-0">
-      <Eyebrow className="mb-1.5 block text-faint">{label}</Eyebrow>
-      <div
-        className={cn(
-          "min-w-0 text-small-body text-fg",
-          mono && "font-mono text-form-hint text-muted"
-        )}
-      >
-        {children}
-      </div>
-      {sub !== undefined && sub !== null ? (
-        <p className="mt-1 text-form-label leading-relaxed text-subtle">{sub}</p>
-      ) : null}
-    </div>
   );
 }
 
@@ -138,7 +95,7 @@ interface MarketplaceDetailRailCardProps {
   "data-testid"?: string;
 }
 
-/** Rail collapsible property card: framed, hover-lit summary, short body. */
+/** Rail collapsible property card: a flat panel with a hover-lit summary over a short body. */
 function MarketplaceDetailRailCard({
   icon: Icon,
   title,
@@ -149,14 +106,13 @@ function MarketplaceDetailRailCard({
 }: MarketplaceDetailRailCardProps) {
   return (
     <Collapsible
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
       data-testid={testId}
       defaultOpen={defaultOpen}
-      render={<section aria-label={title} />}
+      render={<Panel aria-label={title} bodyClassName="p-0" className="overflow-hidden" />}
     >
       <CollapsibleTrigger
         className={cn(
-          "group/detail-rail flex w-full items-center gap-2 px-3.5 py-2.75 text-left",
+          "group/detail-rail flex w-full items-center gap-2 px-3.5 py-2.5 text-left",
           "transition-colors duration-base hover:bg-row-hover",
           "focus-visible:shadow-focus-inset focus-visible:outline-none"
         )}
@@ -178,6 +134,44 @@ function MarketplaceDetailRailCard({
       <CollapsibleContent>
         <div className="border-t border-line-soft pt-1 pb-2">{children}</div>
       </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+interface MarketplaceDetailFoldProps {
+  label: string;
+  children: ReactNode;
+  className?: string;
+  "data-testid"?: string;
+}
+
+/** Closed-by-default inline disclosure for secondary facts ("Technical details", "More options"). */
+function MarketplaceDetailFold({
+  label,
+  children,
+  className,
+  "data-testid": testId,
+}: MarketplaceDetailFoldProps) {
+  return (
+    <Collapsible className={cn("min-w-0", className)} data-testid={testId}>
+      <CollapsibleTrigger
+        className={cn(
+          "group/detail-fold inline-flex items-center gap-1 rounded-sm py-1 text-form-label text-subtle",
+          "transition-colors duration-base hover:text-fg",
+          "focus-visible:shadow-focus-ring focus-visible:outline-none"
+        )}
+        type="button"
+      >
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "size-3 shrink-0 -rotate-90 text-faint",
+            "transition-transform duration-base group-data-panel-open/detail-fold:rotate-0"
+          )}
+        />
+        {label}
+      </CollapsibleTrigger>
+      <CollapsibleContent>{children}</CollapsibleContent>
     </Collapsible>
   );
 }
@@ -221,8 +215,7 @@ function formatRepositorySlug(url: string): string {
 
 export {
   MarketplaceDetailColumns,
-  MarketplaceDetailKvRow,
-  MarketplaceDetailPanel,
+  MarketplaceDetailFold,
   MarketplaceDetailRailCard,
   MarketplaceDetailRailNote,
   MarketplaceDetailSection,

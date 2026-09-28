@@ -77,9 +77,12 @@ function MarketplaceInstalledTrailControls({
         </span>
       ) : null}
       <MarketplaceInstalledUpdate item={item} pending={pending} onUpdate={onUpdate} />
+      <span aria-hidden="true" className="w-6 text-right text-eyebrow text-subtle">
+        {extension.enabled ? "On" : "Off"}
+      </span>
       <Switch
         aria-label={
-          isDevOverlay ? `Enable ${name} · managed on the published extension` : `Enable ${name}`
+          isDevOverlay ? `Turn on ${name} · managed on the published extension` : `Enable ${name}`
         }
         checked={extension.enabled}
         data-testid={`marketplace-installed-switch-${extension.name}`}
@@ -112,7 +115,7 @@ function MarketplaceInstalledTrailControls({
             data-testid={`marketplace-installed-remove-${extension.name}`}
             onClick={() => setRemoving(true)}
           >
-            {isDevOverlay ? "Unlink dev overlay…" : "Remove…"}
+            {isDevOverlay ? "Unlink local copy…" : "Remove…"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

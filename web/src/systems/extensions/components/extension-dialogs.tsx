@@ -148,12 +148,12 @@ export function RemoveExtensionDialog({
           ? { disabled: true, "data-testid": "remove-extension-confirm" }
           : { "data-testid": "remove-extension-confirm" }
       }
-      confirmLabel={isDevOverlay ? "Unlink dev overlay" : "Remove extension"}
+      confirmLabel={isDevOverlay ? "Unlink local copy" : "Remove extension"}
       confirmTyping={extension?.name}
       description={
         isDevOverlay
-          ? `Unlinks the workspace dev overlay for ${extension?.name ?? "this extension"}. The published installation stays in place.`
-          : `Removes the installed package and registered runtime resources for ${extension?.name ?? "this extension"}.`
+          ? `Unlinks the local development copy of ${extension?.name ?? "this extension"} in this project. The published installation stays in place.`
+          : `Removes ${extension?.name ?? "this extension"} and everything it added.`
       }
       error={remove.error?.message}
       isPending={remove.isPending}
@@ -161,14 +161,14 @@ export function RemoveExtensionDialog({
         <div className="space-y-1">
           {isDevOverlay ? (
             <p>
-              This workspace stops running the linked generation and falls back to the published
-              extension. Files under the origin path are left untouched.
+              This project goes back to the published extension. Your local files are left
+              untouched.
             </p>
           ) : (
             <>
               <p>
-                This deletes local extension files known to provenance and unregisters{" "}
-                {capabilityCount} capabilities.
+                This deletes the extension's files and removes the {capabilityCount}{" "}
+                {capabilityCount === 1 ? "capability" : "capabilities"} it provides.
               </p>
               {(extension?.declared_profiles?.length ?? 0) > 0 ||
               extension?.placements?.some(placement => Boolean(placement.profile?.trim())) ? (
@@ -176,9 +176,7 @@ export function RemoveExtensionDialog({
               ) : null}
             </>
           )}
-          <p>
-            Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.
-          </p>
+          <p>Permissions removed: {permissions.length ? permissions.join(", ") : "none"}.</p>
         </div>
       }
       noteTone="neutral"
@@ -230,12 +228,12 @@ export function ExtensionGatewayConfirmDialog({
       confirmIcon={Radio}
       confirmLabel="Confirm and continue"
       contentProps={{ "data-testid": "extension-gateway-confirm-dialog" }}
-      description={`Updating ${extensionName} applies the gateway control permissions it declares. CompozyOS records this decision against the digest below.`}
+      description={`Updating ${extensionName} lets it use remote access. CompozyOS remembers your choice for this exact version.`}
       error={error}
       isPending={pending}
       note={
         <div className="space-y-1">
-          <p>Requirement digest</p>
+          <p>Version fingerprint</p>
           <MonoId data-testid="extension-gateway-confirm-digest" value={digest} />
         </div>
       }
@@ -243,7 +241,7 @@ export function ExtensionGatewayConfirmDialog({
       onConfirm={onConfirm}
       onOpenChange={onOpenChange}
       open={open}
-      title={`Confirm gateway permissions for ${extensionName}`}
+      title={`Allow remote access for ${extensionName}?`}
       tone="warning"
     />
   );

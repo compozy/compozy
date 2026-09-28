@@ -107,7 +107,7 @@ function MarketplaceCatalogTrail({
   if (entry.installed) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-success"
+        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-subtle"
         data-testid={`marketplace-installed-${entry.entry_id}`}
       >
         <Check aria-hidden="true" className="size-3" />

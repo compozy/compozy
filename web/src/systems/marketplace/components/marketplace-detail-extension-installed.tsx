@@ -9,26 +9,22 @@ import {
   Stethoscope,
 } from "lucide-react";
 
-import { Empty, MonoId } from "@compozy/ui";
+import { MonoId } from "@compozy/ui";
 
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import {
+  MarketplaceExtensionAdvancedCard,
   MarketplaceExtensionManageCard,
-  MarketplaceExtensionGatewayCard,
-  MarketplaceExtensionProvenanceCard,
-  MarketplaceExtensionRuntimeCard,
 } from "./marketplace-detail-extension-rail";
 import { MarketplaceExtensionServerSection } from "./marketplace-detail-extension-server";
 import {
   ExtensionDiagnostics,
   ExtensionEnvironmentState,
 } from "./marketplace-detail-extension-sections";
-import {
-  MarketplaceExtensionDetailsCard,
-  MarketplaceExtensionTrustCard,
-} from "./marketplace-detail-extension";
+import { MarketplaceExtensionAboutCard } from "./marketplace-detail-extension";
 import { MarketplaceDetailColumns, MarketplaceDetailSection } from "./marketplace-detail-shell";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
+import { MarketplaceTrustWarningList } from "./marketplace-trust-warning-list";
 import { MarketplaceDetailManageFallbackCard } from "./marketplace-detail-manage-state";
 import {
   type ExtensionEntry,
@@ -53,8 +49,10 @@ interface MarketplaceDetailExtensionInstalledProps {
 }
 
 /**
- * Installed extension detail: the kit and its runtime are the body; the rail manages it, with a
- * Server card per provided MCP server right under Manage.
+ * Installed extension detail, calm by default: what's inside and anything that needs the user
+ * (setup, problems) stay open; activity, access, and profile placement sit closed below. The rail
+ * manages it — Manage, a Server card per provided MCP server, About — and keeps the operator
+ * facts (process, provenance, remote access) in one closed Advanced card.
  */
 function MarketplaceDetailExtensionInstalled({
   data,
@@ -90,8 +88,7 @@ function MarketplaceDetailExtensionInstalled({
               inputs={data.extension?.inputs ?? []}
               servers={data.extension?.mcp_servers ?? []}
             />
-            <MarketplaceExtensionDetailsCard data={data} />
-            <MarketplaceExtensionTrustCard trust={entry.trust} />
+            <MarketplaceExtensionAboutCard data={data} />
           </>
         }
       />
@@ -106,20 +103,17 @@ function MarketplaceDetailExtensionInstalled({
       <MarketplaceDetailColumns
         main={
           <>
-            {(extension.declared_profiles?.length ?? 0) > 0 ||
-            (extension.placements?.length ?? 0) > 0 ? (
-              <MarketplaceDetailSection icon={CircleCheck} title="Profiles and placement">
-                <ExtensionDeclaredProfiles extension={extension} />
-              </MarketplaceDetailSection>
-            ) : null}
             <MarketplaceExtensionKitSection state={state} />
-            <MarketplaceExtensionAccessSection extension={extension} />
             <MarketplaceExtensionEnvironmentSection extension={extension} />
-            <MarketplaceExtensionDiagnosticsSection extension={extension} />
-            <MarketplaceDetailSection icon={ScrollText} title="Logs">
+            <MarketplaceExtensionProblemsSection
+              extension={extension}
+              warnings={entry.trust?.warnings ?? []}
+            />
+            <MarketplaceDetailSection defaultOpen={false} icon={ScrollText} title="Activity">
               <ExtensionLogPanel bare logs={state.logs} name={name} />
             </MarketplaceDetailSection>
-            <MarketplaceDetailWarnings warnings={entry.trust?.warnings} />
+            <MarketplaceExtensionAccessSection extension={extension} />
+            <MarketplaceExtensionProfilesSection extension={extension} />
           </>
         }
         rail={
@@ -139,11 +133,8 @@ function MarketplaceDetailExtensionInstalled({
               missingInputs={extension.missing_inputs}
               servers={extension.mcp_servers}
             />
-            <MarketplaceExtensionRuntimeCard extension={extension} facts={facts} />
-            <MarketplaceExtensionTrustCard trust={entry.trust} />
-            <MarketplaceExtensionDetailsCard data={data} defaultOpen={false} />
-            <MarketplaceExtensionProvenanceCard extension={extension} facts={facts} />
-            <MarketplaceExtensionGatewayCard extension={extension} />
+            <MarketplaceExtensionAboutCard data={data} />
+            <MarketplaceExtensionAdvancedCard data={data} extension={extension} facts={facts} />
           </>
         }
       />
@@ -183,14 +174,14 @@ function MarketplaceExtensionKitSection({ state }: { state: ExtensionDetailState
   const allLive = total > 0 && items!.every(item => item.live);
   const settled = !state.inventory.isLoading && !state.inventory.error;
   const summary = settled
-    ? `${total} ${total === 1 ? "item" : "items"}${allLive ? " · all live" : ""}`
+    ? `${total} ${total === 1 ? "item" : "items"}${allLive ? " · all ready" : ""}`
     : undefined;
   return (
     <MarketplaceDetailSection
       data-testid="marketplace-extension-kit"
       icon={Package}
       summary={summary}
-      title="Kit inventory"
+      title="What's inside"
     >
       <ExtensionKitInventoryPanel
         bare
@@ -213,28 +204,27 @@ function MarketplaceExtensionAccessSection({ extension }: { extension: Extension
   return (
     <MarketplaceDetailSection
       data-testid="marketplace-extension-access"
+      defaultOpen={false}
       icon={Shield}
       summary={`${capabilities.length} ${capabilities.length === 1 ? "capability" : "capabilities"} · ${permissions.length} ${permissions.length === 1 ? "permission" : "permissions"}`}
-      title="Access"
+      title="What it can do"
     >
       <MarketplaceExtensionAccessRow
         description={
-          capabilities.length
-            ? "Other extensions and skills can depend on these."
-            : "None registered."
+          capabilities.length ? "Features other extensions and skills can build on." : "None."
         }
         icon={<BadgeCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />}
-        title="Provides capabilities"
+        title="Capabilities it provides"
         values={capabilities}
       />
       <MarketplaceExtensionAccessRow
         description={
           permissions.length
-            ? "Granted while the extension is enabled, revoked on disable."
-            : "None registered — this kit never calls privileged host APIs."
+            ? "Allowed while the extension is on, removed when you turn it off."
+            : "None — it doesn't ask for any special access."
         }
         icon={<Hand aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />}
-        title="Requires host permissions"
+        title="Permissions it needs"
         values={permissions}
       />
     </MarketplaceDetailSection>
@@ -257,7 +247,7 @@ function MarketplaceExtensionAccessRow({
       {icon}
       <div className="min-w-0">
         <p className="text-small-body font-medium text-fg-strong">{title}</p>
-        <p className="mt-0.5 max-w-[64ch] text-form-label leading-relaxed text-muted">
+        <p className="mt-0.5 max-w-prose text-form-label leading-relaxed text-muted">
           {description}
         </p>
         {values.length ? (
@@ -276,17 +266,19 @@ function MarketplaceExtensionEnvironmentSection({ extension }: { extension: Exte
   const required = extension.requires_env ?? [];
   const missing = extension.missing_env ?? [];
   const bound = extension.bound_env_keys ?? [];
-  const summary = required.length
-    ? missing.length
-      ? `${missing.length} missing`
-      : `${required.length} required · all resolved`
-    : "none required";
+  if (!required.length && !bound.length) return null;
+  const summary = missing.length
+    ? `${missing.length} missing`
+    : required.length
+      ? "all set"
+      : undefined;
   return (
     <MarketplaceDetailSection
       data-testid="marketplace-extension-environment"
+      defaultOpen={missing.length > 0}
       icon={KeyRound}
       summary={summary}
-      title="Environment"
+      title="Setup"
     >
       <div className="px-4 py-3">
         <ExtensionEnvironmentState bound={bound} missing={missing} required={required} />
@@ -295,32 +287,46 @@ function MarketplaceExtensionEnvironmentSection({ extension }: { extension: Exte
   );
 }
 
-function MarketplaceExtensionDiagnosticsSection({ extension }: { extension: ExtensionEntry }) {
+/** Diagnostics, the last error, and trust warnings in one section — absent when all is well. */
+function MarketplaceExtensionProblemsSection({
+  extension,
+  warnings,
+}: {
+  extension: ExtensionEntry;
+  warnings: NonNullable<NonNullable<MarketplaceCatalogEntryResponse["entry"]["trust"]>["warnings"]>;
+}) {
   const diagnostics = extension.diagnostics ?? [];
-  const hasIssues = diagnostics.length > 0 || Boolean(extension.last_error);
+  const count = diagnostics.length + warnings.length + (extension.last_error ? 1 : 0);
+  if (count === 0) return null;
   return (
     <MarketplaceDetailSection
       data-testid="marketplace-extension-diagnostics"
-      defaultOpen={hasIssues}
       icon={Stethoscope}
-      summary={
-        hasIssues ? `${diagnostics.length + (extension.last_error ? 1 : 0)} findings` : "no issues"
-      }
-      title="Diagnostics"
+      summary={`${count} ${count === 1 ? "problem" : "problems"}`}
+      title="Problems"
     >
-      {hasIssues ? (
-        <div className="px-4 py-3">
-          <ExtensionDiagnostics diagnostics={diagnostics} lastError={extension.last_error} />
-        </div>
-      ) : (
-        <Empty
-          className="py-9"
-          description="No diagnostics recorded for this generation. Issues from validation, trust checks, or the process supervisor show up here."
-          fill={false}
-          icon={CircleCheck}
-          title="Nothing to report"
-        />
-      )}
+      <div className="flex flex-col gap-2 p-3">
+        <ExtensionDiagnostics diagnostics={diagnostics} lastError={extension.last_error} />
+        <MarketplaceTrustWarningList items={warnings} />
+      </div>
+    </MarketplaceDetailSection>
+  );
+}
+
+function MarketplaceExtensionProfilesSection({ extension }: { extension: ExtensionEntry }) {
+  const profiles = extension.declared_profiles ?? [];
+  const placements = extension.placements ?? [];
+  if (profiles.length === 0 && placements.length === 0) return null;
+  const needsAttention =
+    profiles.some(profile => profile.needs_setup) ||
+    placements.some(placement => placement.dormant);
+  return (
+    <MarketplaceDetailSection
+      defaultOpen={needsAttention}
+      icon={CircleCheck}
+      title="Profiles and placement"
+    >
+      <ExtensionDeclaredProfiles extension={extension} />
     </MarketplaceDetailSection>
   );
 }

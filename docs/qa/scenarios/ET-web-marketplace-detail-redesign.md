@@ -32,6 +32,18 @@ Status grid never collapses config/auth/runtime/probe into one green. Installed 
 kit inventory, environment bindings, diagnostics, and live logs render in the body, and that Update
 appears only in the head while the rail switch enables/disables with its consequence note.
 
+QA impact 2026-09-28 (ui-normie-pass, marketplace-knowledge-vault slice): the installed extension
+detail is calm by default. Body order: "What's inside" (open), "Setup" (open only when an input is
+missing), "Problems" (diagnostics, last error and trust warnings; absent when there are none),
+"Activity" (logs, closed), "What it can do" (capabilities and permissions, closed), "Profiles and
+placement" (open only when a profile needs setup or a placement is dormant). Rail: Manage (switch,
+one status word — Running / On / Off / Having trouble — and one trust word), Server×N (status and
+actions; Launch/Scope/Owner/runtime name under "Technical details"), About (trust sentence such as
+"Official · checked by CompozyOS", version, author, dates), and a closed Advanced card holding
+process status, provenance badges, remote-access consent and ids (it opens itself when remote
+access needs confirmation). Browse detail leads with identity and warnings; the download source and
+SHA-256 sit last in a closed "Source" section. Reset to untested.
+
 QA impact 2026-09-13 (marketplace-catalog task03, UT038; final tasks09/10 own this walk): change a
 listing after opening confirmation, then attempt installation. Both preview and install refusals with
 extension_source_changed must show the daemon code, refetch the exact origin through Query, and

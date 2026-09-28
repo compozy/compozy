@@ -62,10 +62,10 @@ function MarketplaceInstalledShelf({ items, updates, query }: MarketplaceInstall
         <>
           <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-faint" />
           <span
-            className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-warning"
+            className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-fg"
             data-testid="marketplace-installed-shelf-updates"
           >
-            <StatusDot aria-hidden="true" size="sm" tone="warning" />
+            <StatusDot aria-hidden="true" size="sm" tone="faint" />
             {updatesLabel}
           </span>
         </>

@@ -46,7 +46,7 @@ describe("RemoveExtensionDialog", () => {
     render(<RemoveExtensionDialog extension={extensionFixtures[1]!} onOpenChange={vi.fn()} open />);
 
     expect(screen.getByRole("note")).toHaveTextContent(
-      "Revoked permissions: gateway/status, sessions/list"
+      "Permissions removed: gateway/status, sessions/list"
     );
     await user.type(screen.getByLabelText("Type to confirm"), "slack-notify");
     expect(screen.getByTestId("remove-extension-confirm")).toBeEnabled();
@@ -95,7 +95,7 @@ describe("RemoveExtensionDialog", () => {
 
     expect(screen.getByText(/published installation stays in place/i)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Type to confirm"), extension.name);
-    const confirm = screen.getByRole("button", { name: "Unlink dev overlay" });
+    const confirm = screen.getByRole("button", { name: "Unlink local copy" });
     expect(confirm).toBeEnabled();
     await user.click(confirm);
 

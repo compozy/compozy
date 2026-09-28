@@ -111,8 +111,9 @@ export const DetailExtensionServerInstalled: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await canvas.findByTestId("marketplace-extension-server-runtime-name-github");
     await canvas.findByTestId("marketplace-extension-server-authorize-github");
+    await userEvent.click(await canvas.findByRole("button", { name: "Technical details" }));
+    await canvas.findByTestId("marketplace-extension-server-runtime-name-github");
   },
 };
 
@@ -178,7 +179,9 @@ export const DetailExtensionDevOverlay: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: /^Advanced/ }));
     const devBadge = await canvas.findByTestId("extension-dev-badge");
+    await userEvent.click(await canvas.findByRole("button", { name: /^Activity/ }));
     await userEvent.click(await canvas.findByTestId("extension-logs-follow"));
     await expect(canvas.findByTestId("extension-logs-lines")).resolves.toHaveTextContent(
       "tool.provider registered: archive"

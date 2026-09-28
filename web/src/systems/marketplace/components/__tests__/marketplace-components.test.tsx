@@ -342,7 +342,7 @@ describe("Marketplace page and cards", () => {
   it("Should distinguish an empty catalog from a query with no matches", async () => {
     catalog = { ...catalog, items: [], total: 0 };
     const view = setup(undefined, "/marketplace?q=missing");
-    expect(await screen.findByText("No extensions match this query")).toBeVisible();
+    expect(await screen.findByText(`No results for "missing"`)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() => expect(view.router.state.location.searchStr).toBe(""));
     expect(await screen.findByText("No extensions yet")).toBeVisible();
@@ -905,12 +905,12 @@ describe("Marketplace page and cards", () => {
       "marketplace-installed-card-Zulu",
     ]);
     expect(rows[0]).toHaveTextContent("1 MCP server · 2 skills");
-    expect(rows[0]).toHaveTextContent("workspace · ws-a");
+    expect(rows[0]).toHaveTextContent("This project");
     expect(rows[0]).toHaveTextContent("Local review utilities");
     expect(rows[1]).toHaveTextContent("profile · work");
     expect(rows[2]).toHaveTextContent("profile · engineering");
     expect(rows[3]).not.toHaveTextContent("MCP server");
-    expect(rows[3]).not.toHaveTextContent("workspace ·");
+    expect(rows[3]).not.toHaveTextContent("This project");
     expect(rows[3]).not.toHaveTextContent("profile ·");
     await act(async () => {
       await view.router.navigate({ to: "/marketplace/installed", search: { q: "utilities" } });
@@ -926,7 +926,7 @@ describe("Marketplace page and cards", () => {
       await view.router.navigate({ to: "/marketplace/installed", search: { q: "missing" } });
       await view.client.invalidateQueries();
     });
-    expect(await screen.findByText("No installed extensions match this query")).toBeVisible();
+    expect(await screen.findByText(`No results for "missing"`)).toBeVisible();
   });
 });
 
@@ -962,6 +962,9 @@ describe("Extension source installation", () => {
 
     await user.clear(screen.getByTestId("extension-install-ref"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    // Rarely needed options, including the unverified opt-in, start folded.
+    expect(screen.queryByTestId("extension-install-allow-unverified")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More options" }));
     await user.click(screen.getByTestId("extension-install-allow-unverified"));
     await user.click(screen.getByTestId("extension-install-submit"));
 
@@ -1264,7 +1267,11 @@ describe("Marketplace extension MCP controls", () => {
     const toggle = await screen.findByRole("button", { name: /^Server/ });
     if (toggle.getAttribute("aria-expanded") === "false") await user.click(toggle);
     const section = screen.getByTestId("marketplace-extension-server-github");
-    for (const label of ["Launch", "Auth", "Inputs", "Scope", "Owner"])
+    for (const label of ["Sign-in", "Inputs"])
+      expect(within(section).getByText(label)).toBeVisible();
+    expect(within(section).queryByText("Launch")).not.toBeInTheDocument();
+    await user.click(within(section).getByRole("button", { name: "Technical details" }));
+    for (const label of ["Launch", "Scope", "Owner"])
       expect(within(section).getByText(label)).toBeVisible();
     expect(within(section).getByText("extension:github")).toBeVisible();
     expect(within(section).queryByText("Runtime name")).not.toBeInTheDocument();
@@ -1349,9 +1356,6 @@ describe("Marketplace extension MCP controls", () => {
     const { client } = setup(undefined, "/marketplace/installed");
     const authorize = await screen.findByRole("button", { name: "Authorize github for github" });
     await waitFor(() => expect(authorize).toBeEnabled());
-    expect(screen.getByTestId("marketplace-installed-runtime-name-github")).toHaveTextContent(
-      "github.github"
-    );
     await user.click(authorize);
     await screen.findByRole("dialog", { name: "Authorize github" });
     await waitFor(() => expect(requests).toHaveLength(1));

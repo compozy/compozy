@@ -1,19 +1,19 @@
-import { FileText, Fingerprint, ShieldCheck } from "lucide-react";
+import { FileText, Fingerprint } from "lucide-react";
 
 import { MonoId, PropertyRow, Time } from "@compozy/ui";
 
+import { COMPOZY_CATALOG_SOURCE } from "../lib/marketplace-installed-view";
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionInstalled } from "./marketplace-detail-extension-installed";
 import { MarketplaceExtensionServerSection } from "./marketplace-detail-extension-server";
 import {
   MarketplaceDetailColumns,
-  MarketplaceDetailKvRow,
   MarketplaceDetailRailCard,
   MarketplaceDetailSection,
   MarketplaceRepositoryRow,
 } from "./marketplace-detail-shell";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
-import { formatMarketplaceVersion } from "./marketplace-ui";
+import { formatMarketplaceVersion, marketplaceTrustSentence } from "./marketplace-ui";
 
 interface MarketplaceDetailExtensionViewProps {
   data: MarketplaceCatalogEntryResponse;
@@ -22,7 +22,7 @@ interface MarketplaceDetailExtensionViewProps {
 
 /**
  * Extension detail: installed entries put the kit and its runtime in the body;
- * browse entries lead with the pinned artifact provenance. An entry whose manifest
+ * browse entries lead with identity and any warnings, the pinned download source last and closed. An entry whose manifest
  * provides MCP servers opens the rail with a Server card per server (summaries only
  * until installed).
  */
@@ -37,8 +37,8 @@ function MarketplaceDetailExtensionView({
     <MarketplaceDetailColumns
       main={
         <>
-          <MarketplaceExtensionArtifactSection extension={data.extension} />
           <MarketplaceDetailWarnings warnings={data.entry.trust?.warnings} />
+          <MarketplaceExtensionArtifactSection data={data} />
         </>
       }
       rail={
@@ -47,60 +47,67 @@ function MarketplaceDetailExtensionView({
             inputs={data.extension?.inputs ?? []}
             servers={data.extension?.mcp_servers ?? []}
           />
-          <MarketplaceExtensionDetailsCard data={data} />
-          <MarketplaceExtensionTrustCard trust={data.entry.trust} />
+          <MarketplaceExtensionAboutCard data={data} />
         </>
       }
     />
   );
 }
 
-function MarketplaceExtensionArtifactSection({
-  extension,
-}: {
-  extension: MarketplaceCatalogEntryResponse["extension"];
-}) {
+function MarketplaceExtensionArtifactSection({ data }: { data: MarketplaceCatalogEntryResponse }) {
+  const extension = data.extension;
   if (!extension) return null;
   return (
     <MarketplaceDetailSection
       data-testid="marketplace-extension-artifact"
+      defaultOpen={false}
       icon={Fingerprint}
-      summary="pinned archive"
-      title="Provenance"
+      summary="Where it's downloaded from"
+      title="Source"
     >
-      {extension.repository ? (
-        <MarketplaceDetailKvRow label="Repository">
-          <a
-            className="font-mono text-form-hint break-all text-muted transition-colors duration-base hover:text-fg-strong"
-            href={extension.repository}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {extension.repository} ↗
-          </a>
-        </MarketplaceDetailKvRow>
-      ) : null}
-      <MarketplaceDetailKvRow
-        label="Artifact"
-        sub="Install downloads exactly this archive and verifies it against the digest below."
-      >
-        <a
-          className="font-mono text-form-hint break-all text-muted transition-colors duration-base hover:text-fg-strong"
-          href={extension.artifact_url}
-          rel="noreferrer"
-          target="_blank"
-        >
-          {extension.artifact_url} ↗
-        </a>
-      </MarketplaceDetailKvRow>
-      <MarketplaceDetailKvRow label="SHA-256">
-        <MonoId value={extension.digest_sha256} />
-      </MarketplaceDetailKvRow>
+      <div className="px-4 py-2">
+        {extension.repository ? (
+          <PropertyRow label="Repository" valueTitle={extension.repository}>
+            <MarketplaceExternalLink href={extension.repository} />
+          </PropertyRow>
+        ) : null}
+        {extension.artifact_url ? (
+          <PropertyRow label="Download" valueTitle={extension.artifact_url}>
+            <MarketplaceExternalLink href={extension.artifact_url} />
+          </PropertyRow>
+        ) : null}
+        {extension.digest_sha256 ? (
+          <PropertyRow editor={<MonoId value={extension.digest_sha256} />} label="SHA-256" />
+        ) : null}
+        <PropertyRow label="Entry ID" mono>
+          {data.entry.entry_id}
+        </PropertyRow>
+      </div>
+      <p className="border-t border-line-soft px-4 py-2.5 text-form-label leading-relaxed text-subtle">
+        Installing downloads exactly this file and checks it against the SHA-256 above.
+      </p>
     </MarketplaceDetailSection>
   );
 }
 
-function MarketplaceExtensionDetailsCard({
+function MarketplaceExternalLink({ href }: { href: string }) {
+  return (
+    <a
+      className="min-w-0 truncate font-mono text-mono-id text-muted transition-colors duration-base hover:text-fg-strong"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {href} ↗
+    </a>
+  );
+}
+
+/**
+ * About: identity facts plus the one-sentence trust summary. The catalog's own source is implied,
+ * so it only shows for third-party marketplaces.
+ */
+function MarketplaceExtensionAboutCard({
   data,
   defaultOpen = true,
 }: {
@@ -109,27 +116,30 @@ function MarketplaceExtensionDetailsCard({
 }) {
   const entry = data.entry;
   const version = formatMarketplaceVersion(entry.version);
+  const trust = marketplaceTrustSentence(entry);
   return (
     <MarketplaceDetailRailCard
+      data-testid="marketplace-extension-about"
       defaultOpen={defaultOpen}
       icon={FileText}
-      summary={[version, entry.source].filter(Boolean).join(" · ") || entry.source}
-      title="Details"
+      summary={version ?? undefined}
+      title="About"
     >
       <div className="px-3.5">
+        <PropertyRow label="Trust" valueTitle={trust}>
+          <span data-testid="marketplace-extension-trust">{trust}</span>
+        </PropertyRow>
         {version ? (
           <PropertyRow label="Version" mono>
             {version}
           </PropertyRow>
         ) : null}
-        <PropertyRow label="Entry ID" mono>
-          {entry.entry_id}
-        </PropertyRow>
         {entry.author ? <PropertyRow label="Author">{entry.author}</PropertyRow> : null}
-        <PropertyRow label="Source" mono>
-          {entry.source}
-        </PropertyRow>
-
+        {entry.source !== COMPOZY_CATALOG_SOURCE ? (
+          <PropertyRow label="Marketplace" mono>
+            {entry.source}
+          </PropertyRow>
+        ) : null}
         {entry.published_at ? (
           <PropertyRow label="Published">
             <Time iso={entry.published_at} />
@@ -146,35 +156,5 @@ function MarketplaceExtensionDetailsCard({
   );
 }
 
-function MarketplaceExtensionTrustCard({
-  trust,
-}: {
-  trust: MarketplaceCatalogEntryResponse["entry"]["trust"];
-}) {
-  if (!trust) return null;
-  return (
-    <MarketplaceDetailRailCard
-      icon={ShieldCheck}
-      summary={[trust.decision.replaceAll("_", " "), trust.registry_tier].join(" · ")}
-      title="Trust"
-    >
-      <div className="px-3.5">
-        <PropertyRow label="Decision">{trust.decision.replaceAll("_", " ")}</PropertyRow>
-        <PropertyRow label="Registry tier">{trust.registry_tier}</PropertyRow>
-        <PropertyRow label="Checksum">
-          {trust.checksum_verified ? "verified" : "not yet verified"}
-        </PropertyRow>
-        <PropertyRow label="Warnings" mono>
-          {String(trust.warnings?.length ?? 0)}
-        </PropertyRow>
-      </div>
-    </MarketplaceDetailRailCard>
-  );
-}
-
-export {
-  MarketplaceDetailExtensionView,
-  MarketplaceExtensionDetailsCard,
-  MarketplaceExtensionTrustCard,
-};
+export { MarketplaceDetailExtensionView, MarketplaceExtensionAboutCard };
 export type { MarketplaceDetailExtensionViewProps };

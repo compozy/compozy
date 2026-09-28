@@ -1,12 +1,20 @@
-import { Activity, Fingerprint, Network, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, Wrench } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { MonoId, Pill, PropertyRow } from "@compozy/ui";
+import { Eyebrow, MonoId, Pill, PropertyRow } from "@compozy/ui";
 
 import { formatUptimeSeconds } from "@/lib/format-time";
 
+import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionActions } from "./marketplace-detail-extension-actions";
-import { MarketplaceDetailRailCard, MarketplaceDetailRailNote } from "./marketplace-detail-shell";
-import { type ExtensionEntry, extensionTrustFacts, VerifiedMark } from "@/systems/extensions";
+import { MarketplaceDetailRailCard } from "./marketplace-detail-shell";
+import {
+  type ExtensionEntry,
+  ExtensionFormatBadge,
+  ExtensionTrustBadges,
+  extensionTrustFacts,
+  VerifiedMark,
+} from "@/systems/extensions";
 
 interface MarketplaceExtensionManageCardProps {
   extension: ExtensionEntry;
@@ -25,10 +33,11 @@ function MarketplaceExtensionManageCard({
   onToggleEnabled,
   togglePending,
 }: MarketplaceExtensionManageCardProps) {
+  const status = extensionStatusWord(extension);
   return (
     <MarketplaceDetailRailCard
       icon={SlidersHorizontal}
-      summary={extension.enabled ? "enabled" : "disabled"}
+      summary={<span data-testid="marketplace-extension-status-word">{status}</span>}
       title="Manage"
     >
       <MarketplaceDetailExtensionActions
@@ -39,46 +48,93 @@ function MarketplaceExtensionManageCard({
         onToggleEnabled={onToggleEnabled}
         togglePending={togglePending}
       />
-      {extension.workspace_id ? (
-        <div className="px-3.5">
-          <PropertyRow label="Workspace" mono>
-            {extension.workspace_id}
-          </PropertyRow>
-        </div>
-      ) : null}
       <div className="px-3.5">
-        <PropertyRow label="Profile" mono>
-          {extension.profile || "default"}
-        </PropertyRow>
+        <PropertyRow label="Installed in">{extensionPlacementWord(extension)}</PropertyRow>
       </div>
-      <MarketplaceDetailRailNote>
-        This switch controls the effective state in {extension.profile || "default"}.
-      </MarketplaceDetailRailNote>
     </MarketplaceDetailRailCard>
   );
 }
 
-function MarketplaceExtensionRuntimeCard({
+/** One plain status word for the Manage summary: Off, Running, On, or Having trouble. */
+function extensionStatusWord(extension: ExtensionEntry): string {
+  if (!extension.enabled) return "Off";
+  const troubled =
+    extension.consecutive_failures > 0 ||
+    Boolean(extension.failure_code) ||
+    (Boolean(extension.health) && extension.health !== "healthy");
+  if (troubled)
+    return extension.restart_backoff_ms > 0 ? "Having trouble · restarting" : "Having trouble";
+  return extension.daemon_running ? "Running" : "On";
+}
+
+function extensionPlacementWord(extension: ExtensionEntry): string {
+  const profile = extension.profile || "default";
+  const where = extension.workspace_id ? "This project" : "All projects";
+  return profile === "default" ? where : `${where} · profile ${profile}`;
+}
+
+/**
+ * Advanced: the operator facts — process status, where the package came from, and the remote
+ * access consent — kept one step deeper and closed unless remote access needs confirmation.
+ */
+function MarketplaceExtensionAdvancedCard({
+  data,
+  extension,
+  facts,
+}: {
+  data: MarketplaceCatalogEntryResponse;
+  extension: ExtensionEntry;
+  facts: ReturnType<typeof extensionTrustFacts>;
+}) {
+  return (
+    <MarketplaceDetailRailCard
+      data-testid="marketplace-extension-advanced"
+      defaultOpen={extension.gateway_confirmation_required === true}
+      icon={Wrench}
+      title="Advanced"
+    >
+      <MarketplaceExtensionRuntimeRows extension={extension} facts={facts} />
+      <MarketplaceExtensionProvenanceRows extension={extension} facts={facts} />
+      <MarketplaceExtensionGatewayRows extension={extension} />
+      <MarketplaceRailGroup title="Package">
+        <PropertyRow label="Entry ID" mono>
+          {data.entry.entry_id}
+        </PropertyRow>
+        {extension.workspace_id ? (
+          <PropertyRow label="Project ID" mono>
+            {extension.workspace_id}
+          </PropertyRow>
+        ) : null}
+        <PropertyRow label="Profile" mono>
+          {extension.profile || "default"}
+        </PropertyRow>
+      </MarketplaceRailGroup>
+    </MarketplaceDetailRailCard>
+  );
+}
+
+function MarketplaceRailGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section
+      aria-label={title}
+      className="border-t border-line-soft px-3.5 pt-2 pb-1 first:border-t-0"
+    >
+      <Eyebrow className="text-faint">{title}</Eyebrow>
+      {children}
+    </section>
+  );
+}
+
+function MarketplaceExtensionRuntimeRows({
   extension,
   facts,
 }: {
   extension: ExtensionEntry;
   facts: ReturnType<typeof extensionTrustFacts>;
 }) {
-  const summary = [
-    extension.health ?? undefined,
-    extension.uptime_seconds ? `up ${formatUptimeSeconds(extension.uptime_seconds)}` : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
   return (
-    <MarketplaceDetailRailCard
-      data-testid="marketplace-extension-runtime"
-      icon={Activity}
-      summary={summary || extension.state}
-      title="Runtime"
-    >
-      <div className="px-3.5">
+    <MarketplaceRailGroup title="Status">
+      <div data-testid="marketplace-extension-runtime">
         <PropertyRow
           editor={
             <Pill mono tone={extension.daemon_running ? "success" : "neutral"}>
@@ -102,10 +158,7 @@ function MarketplaceExtensionRuntimeCard({
             {extension.health_message}
           </p>
         ) : null}
-        <PropertyRow label="Runtime">
-          {extension.daemon_running ? "running" : "stopped"}
-        </PropertyRow>
-        <PropertyRow label="PID" mono>
+        <PropertyRow label="Process ID" mono>
           {extension.pid ? String(extension.pid) : "—"}
         </PropertyRow>
         <PropertyRow label="Uptime" mono>
@@ -143,11 +196,11 @@ function MarketplaceExtensionRuntimeCard({
           <PropertyRow editor={<MonoId value={extension.generation_hash} />} label="Generation" />
         ) : null}
       </div>
-    </MarketplaceDetailRailCard>
+    </MarketplaceRailGroup>
   );
 }
 
-function MarketplaceExtensionProvenanceCard({
+function MarketplaceExtensionProvenanceRows({
   extension,
   facts,
 }: {
@@ -156,104 +209,92 @@ function MarketplaceExtensionProvenanceCard({
 }) {
   const provenance = extension.provenance;
   return (
-    <MarketplaceDetailRailCard
-      defaultOpen={false}
-      icon={Fingerprint}
-      summary={facts.digestMatched ? "digest matched" : "no digest recorded"}
-      title="Provenance"
-    >
-      <div className="px-3.5">
-        <PropertyRow label="Installed from" mono>
-          {provenance?.installed_from ?? extension.source}
-        </PropertyRow>
-        <PropertyRow
-          label="Source"
-          mono
-          valueTitle={provenance?.source_url ?? provenance?.slug ?? extension.source}
-        >
-          {provenance?.source_url ?? provenance?.slug ?? extension.source}
-        </PropertyRow>
-        <PropertyRow
-          editor={
-            provenance?.checksum_sha256 ? <MonoId value={provenance.checksum_sha256} /> : undefined
-          }
-          label="Checksum"
-        >
-          {provenance?.checksum_sha256 ? undefined : "—"}
-        </PropertyRow>
-        <PropertyRow
-          editor={
+    <MarketplaceRailGroup title="Provenance">
+      <div
+        className="flex flex-wrap items-center gap-1.5 py-1.5"
+        data-testid="extension-trust-badges"
+      >
+        <ExtensionFormatBadge format={extension.format} />
+        <ExtensionTrustBadges facts={facts} showRegistryTier={false} showSource />
+      </div>
+      <PropertyRow label="Installed from" mono>
+        {provenance?.installed_from ?? extension.source}
+      </PropertyRow>
+      <PropertyRow
+        label="Source"
+        mono
+        valueTitle={provenance?.source_url ?? provenance?.slug ?? extension.source}
+      >
+        {provenance?.source_url ?? provenance?.slug ?? extension.source}
+      </PropertyRow>
+      <PropertyRow
+        editor={
+          provenance?.checksum_sha256 ? <MonoId value={provenance.checksum_sha256} /> : undefined
+        }
+        label="Checksum"
+      >
+        {provenance?.checksum_sha256 ? undefined : "—"}
+      </PropertyRow>
+      <PropertyRow
+        editor={
+          <Pill
+            data-testid="extension-provenance-digest"
+            mono
+            size="xs"
+            tone={facts.digestMatched ? "info" : "neutral"}
+          >
+            {facts.digestMatched ? "digest matched" : "no digest recorded"}
+          </Pill>
+        }
+        label="Archive"
+      />
+      <PropertyRow
+        editor={
+          <span className="inline-flex items-center gap-1.5">
             <Pill
-              data-testid="extension-provenance-digest"
+              data-testid="extension-provenance-checksum"
               mono
               size="xs"
-              tone={facts.digestMatched ? "info" : "neutral"}
+              tone={facts.checksumVerified ? "success" : "neutral"}
             >
-              {facts.digestMatched ? "digest matched" : "no digest recorded"}
+              {facts.checksumVerified ? "verified" : "not pinned"}
             </Pill>
-          }
-          label="Archive"
-        />
-        <PropertyRow
-          editor={
-            <span className="inline-flex items-center gap-1.5">
-              <Pill
-                data-testid="extension-provenance-checksum"
-                mono
-                size="xs"
-                tone={facts.checksumVerified ? "success" : "neutral"}
-              >
-                {facts.checksumVerified ? "verified" : "not pinned"}
-              </Pill>
-              <VerifiedMark verified={facts.checksumVerified} />
-            </span>
-          }
-          label="Curated checksum"
-        />
-        <PropertyRow label="Registry tier" mono>
-          {facts.registryTier ?? "—"}
-        </PropertyRow>
-      </div>
-    </MarketplaceDetailRailCard>
+            <VerifiedMark verified={facts.checksumVerified} />
+          </span>
+        }
+        label="Curated checksum"
+      />
+      <PropertyRow label="Registry tier" mono>
+        {facts.registryTier ?? "—"}
+      </PropertyRow>
+    </MarketplaceRailGroup>
   );
 }
 
-function MarketplaceExtensionGatewayCard({ extension }: { extension: ExtensionEntry }) {
+function MarketplaceExtensionGatewayRows({ extension }: { extension: ExtensionEntry }) {
   if (!extension.gateway_requirement_digest) return null;
   return (
-    <MarketplaceDetailRailCard
-      defaultOpen={extension.gateway_confirmation_required === true}
-      icon={Network}
-      summary={extension.gateway_confirmation_required ? "confirmation required" : "confirmed"}
-      title="Gateway"
-    >
-      <div className="px-3.5">
-        <PropertyRow
-          editor={
-            <Pill
-              data-testid="extension-gateway-consent"
-              mono
-              size="xs"
-              tone={extension.gateway_confirmation_required ? "warning" : "success"}
-            >
-              {extension.gateway_confirmation_required ? "confirmation required" : "confirmed"}
-            </Pill>
-          }
-          label="Consent"
-        />
-        <PropertyRow
-          editor={<MonoId value={extension.gateway_requirement_digest} />}
-          label="Digest"
-        />
-      </div>
-    </MarketplaceDetailRailCard>
+    <MarketplaceRailGroup title="Remote access">
+      <PropertyRow
+        editor={
+          <Pill
+            data-testid="extension-gateway-consent"
+            mono
+            size="xs"
+            tone={extension.gateway_confirmation_required ? "warning" : "success"}
+          >
+            {extension.gateway_confirmation_required ? "confirmation required" : "confirmed"}
+          </Pill>
+        }
+        label="Consent"
+      />
+      <PropertyRow
+        editor={<MonoId value={extension.gateway_requirement_digest} />}
+        label="Digest"
+      />
+    </MarketplaceRailGroup>
   );
 }
 
-export {
-  MarketplaceExtensionManageCard,
-  MarketplaceExtensionGatewayCard,
-  MarketplaceExtensionProvenanceCard,
-  MarketplaceExtensionRuntimeCard,
-};
+export { MarketplaceExtensionAdvancedCard, MarketplaceExtensionManageCard };
 export type { MarketplaceExtensionManageCardProps };
