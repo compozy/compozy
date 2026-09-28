@@ -1,4 +1,4 @@
-import { OverlayContainerContext, Spinner, type TopbarSlotStore } from "@compozy/ui";
+import { OverlayContainerContext, SkeletonRows, Spinner, type TopbarSlotStore } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
 import { Suspense, useState } from "react";
 import { Rnd } from "react-rnd";
@@ -255,13 +255,7 @@ function OsWindowMember({
       <OverlayContainerContext.Provider value={overlayHost}>
         {overlayHost ? (
           <OsWindowErrorBoundary title={app.title}>
-            <Suspense
-              fallback={
-                <div className="flex min-h-32 flex-1 items-center justify-center">
-                  <Spinner className="size-4 text-subtle" />
-                </div>
-              }
-            >
+            <Suspense fallback={<SkeletonRows aria-hidden="true" className="gap-4 p-4" />}>
               <WindowLiveDataContext value={liveDataEnabled}>
                 {/* Scopes per-window selection (e.g. active worktree) without
                     threading windowId through every descendant hook. */}

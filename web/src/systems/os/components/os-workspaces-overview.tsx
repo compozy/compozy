@@ -244,14 +244,13 @@ function OsWorkspacesStage({
     escapeGuardRef.current = switcher.guardEscape;
   });
 
-  const { focusedEntry, menuModel, menuNavRows, scopedRowKey, focusedRowKey } =
-    focusedWorkspacesMenu(
-      switcher,
-      menuModelByKey,
-      scope,
-      activeWorkspaceId,
-      readySelectedWorktreeKey
-    );
+  const { focusedEntry, menuModel, scopedRowKey, focusedRowKey } = focusedWorkspacesMenu(
+    switcher,
+    menuModelByKey,
+    scope,
+    activeWorkspaceId,
+    readySelectedWorktreeKey
+  );
 
   return (
     <>
@@ -352,7 +351,6 @@ function OsWorkspacesStage({
       />
       <OsWorkspacesHints
         layer={switcher.layer === "menu" ? "menu" : "strip"}
-        hasMenuRows={menuNavRows.length > 0}
         empty={empty}
         pickerShortcutLabel={shortcutLabels?.picker ?? null}
         globalScopeShortcutLabel={shortcutLabels?.globalScope ?? null}

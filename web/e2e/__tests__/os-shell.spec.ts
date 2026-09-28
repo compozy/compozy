@@ -1474,6 +1474,8 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.getByRole("menuitem", { name: /^About CompozyOS/ }).click();
   const about = appPage.getByTestId("os-about-dialog");
   await expect(about).toBeVisible();
+  await expect(about.getByTestId("os-about-row-version")).not.toBeEmpty();
+  await about.getByRole("button", { name: "Technical details" }).click();
   await expect(about.getByTestId("os-about-row-pid")).not.toBeEmpty();
   await appPage.keyboard.press("Escape");
   await expect(about).toHaveCount(0);

@@ -6,8 +6,6 @@ function Hint({ children }: { children: React.ReactNode }) {
 
 export interface OsWorkspacesHintsProps {
   layer: "strip" | "menu";
-  /** The focused workspace has arrow-reachable worktree rows. */
-  hasMenuRows: boolean;
   /** Empty state renders only the hints that still apply. */
   empty: boolean;
   pickerShortcutLabel: string | null;
@@ -15,12 +13,12 @@ export interface OsWorkspacesHintsProps {
 }
 
 /**
- * Bottom-pinned shortcut hints. Every configurable hint comes from the live
- * effective keymap. Hidden on compact (<960px) chrome.
+ * Bottom-pinned shortcut hints: switch, close, and the live open/global chords.
+ * Scrolling, typeahead, and worktree-row keys live in Help › Keyboard
+ * shortcuts. Hidden on compact (<960px) chrome.
  */
 export function OsWorkspacesHints({
   layer,
-  hasMenuRows,
   empty,
   pickerShortcutLabel,
   globalScopeShortcutLabel,
@@ -47,23 +45,9 @@ export function OsWorkspacesHints({
       ) : (
         <>
           {empty ? null : (
-            <>
-              <Hint>
-                scroll or <Kbd>←</Kbd>
-                <Kbd>→</Kbd>
-              </Hint>
-              <Hint>
-                <Kbd>a–z</Kbd> jump
-              </Hint>
-              {hasMenuRows ? (
-                <Hint>
-                  <Kbd>↓</Kbd> worktrees
-                </Hint>
-              ) : null}
-              <Hint>
-                <Kbd>↵</Kbd> switch
-              </Hint>
-            </>
+            <Hint>
+              <Kbd>↵</Kbd> switch
+            </Hint>
           )}
           <Hint>
             <Kbd>esc</Kbd> close
