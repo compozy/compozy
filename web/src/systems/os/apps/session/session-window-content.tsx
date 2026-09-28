@@ -7,6 +7,8 @@ import {
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
+import { viewTransitionName } from "@compozy/ui";
+
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
@@ -252,7 +254,10 @@ export function SessionWindowContent({
         onNewSession={sidebar.onNewSession}
         sessionActions={sidebar.sessionActions}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        style={{ viewTransitionName: viewTransitionName("session-pane", windowId) }}
+      >
         <SessionWindowNotice
           agentName={agentName}
           controls={controls}

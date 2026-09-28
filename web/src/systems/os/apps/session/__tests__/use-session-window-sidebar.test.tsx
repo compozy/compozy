@@ -19,6 +19,7 @@ vi.mock("@/systems/workspace", () => ({
 vi.mock("../../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
 }));
+vi.mock("../../../hooks/use-os-reduced-motion", () => ({ useOsReducedMotion: () => true }));
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userRetarget } }),
 }));
