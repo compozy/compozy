@@ -100,6 +100,8 @@ export {
   type SettingsInlineSaveControlsProps,
 } from "./settings-inline-save-controls";
 export { SettingsPageFrame } from "./settings-page-frame";
+export { SettingsPageState } from "./settings-page-state";
+export type { SettingsPageStateProps } from "./settings-page-state";
 export type { SettingsPageFrameProps } from "./settings-page-frame";
 export { SettingsNumberInput } from "./settings-number-input";
 export { SettingsApplyRecordsPanel } from "./settings-apply-records-panel";

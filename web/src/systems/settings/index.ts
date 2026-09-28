@@ -287,6 +287,7 @@ export {
   SettingsUpdateTrackRow,
   SettingsNumberInput,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsProvChip,
   SettingsRestartNotice,
   SettingsRuntimeUnavailable,
