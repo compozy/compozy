@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Disclosure,
   Field,
   FieldDescription,
   FieldError,
@@ -35,7 +36,6 @@ import {
   type ExtensionInstallForm,
   type ExtensionInstallSource,
 } from "./extension-install-model";
-import { MarketplaceDetailFold } from "./marketplace-detail-shell";
 import { useExtensionInputForm } from "./use-extension-input-form";
 
 export interface ExtensionInstallDialogProps {
@@ -173,7 +173,7 @@ function ExtensionInstallMoreOptions({
   onChange: (next: Partial<ExtensionInstallForm>) => void;
 }) {
   return (
-    <MarketplaceDetailFold data-testid="extension-install-more-options" label="More options">
+    <Disclosure data-testid="extension-install-more-options" label="More options">
       <div className="flex flex-col gap-4 pt-3">
         {form.source !== "local_path" ? (
           <Field>
@@ -228,7 +228,7 @@ function ExtensionInstallMoreOptions({
           </div>
         </Field>
       </div>
-    </MarketplaceDetailFold>
+    </Disclosure>
   );
 }
 

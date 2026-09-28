@@ -1,11 +1,10 @@
 import { AlertCircle, RotateCcw } from "lucide-react";
 
-import { Button, Empty, Spinner, Time, TimelineEvent } from "@compozy/ui";
+import { Button, Disclosure, Empty, Spinner, Time, TimelineEvent } from "@compozy/ui";
 
 import { decisionOpLabel, decisionSourceLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryDecision } from "@/systems/knowledge/types";
 
-import { KnowledgeFold } from "./knowledge-fold";
 import { pillToneFromDecisionOp } from "./knowledge-pill-tone";
 
 interface KnowledgeDecisionsSectionProps {
@@ -39,10 +38,13 @@ function KnowledgeDecisionsSection({
   }
 
   return (
-    <KnowledgeFold
+    <Disclosure
       data-testid="knowledge-decisions-section"
       label="History"
-      toggleTestId="knowledge-decisions-toggle"
+      size="md"
+      keepMounted
+      triggerProps={{ "data-testid": "knowledge-decisions-toggle" }}
+      contentProps={{ className: "pt-3" }}
     >
       {isLoading ? (
         <div
@@ -145,7 +147,7 @@ function KnowledgeDecisionsSection({
           })}
         </ul>
       )}
-    </KnowledgeFold>
+    </Disclosure>
   );
 }
 

@@ -1,6 +1,6 @@
 import { Plug, Settings2 } from "lucide-react";
 
-import { Button, PropertyRow } from "@compozy/ui";
+import { Button, Disclosure, PropertyRow } from "@compozy/ui";
 
 import {
   authorizeLabel,
@@ -14,11 +14,7 @@ import {
 
 import { useMarketplaceExtensionMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
 import type { MarketplaceExtensionServer } from "../types";
-import {
-  MarketplaceDetailFold,
-  MarketplaceDetailRailCard,
-  MarketplaceDetailRailNote,
-} from "./marketplace-detail-shell";
+import { MarketplaceDetailRailCard, MarketplaceDetailRailNote } from "./marketplace-detail-shell";
 import {
   liveExtensionServerStatus,
   marketplaceServerStatus,
@@ -136,9 +132,9 @@ function MarketplaceExtensionServerSummaryCard({
     >
       <div className="px-3.5">
         <MarketplaceServerAccessRows inputs={inputs} server={server} />
-        <MarketplaceDetailFold label="Technical details">
+        <Disclosure label="Technical details">
           <MarketplaceServerTechnicalRows server={server} />
-        </MarketplaceDetailFold>
+        </Disclosure>
       </div>
     </MarketplaceDetailRailCard>
   );
@@ -184,14 +180,14 @@ function MarketplaceExtensionServerLiveCard({
             label="Status"
           />
         ) : null}
-        <MarketplaceDetailFold label="Technical details">
+        <Disclosure label="Technical details">
           <MarketplaceServerAccessRows
             inputs={inputs}
             missingInputs={missingInputs}
             server={server}
           />
           <MarketplaceServerTechnicalRows server={server} showRuntimeName />
-        </MarketplaceDetailFold>
+        </Disclosure>
       </div>
       <MarketplaceExtensionServerActions
         server={server}

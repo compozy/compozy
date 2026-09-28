@@ -138,44 +138,6 @@ function MarketplaceDetailRailCard({
   );
 }
 
-interface MarketplaceDetailFoldProps {
-  label: string;
-  children: ReactNode;
-  className?: string;
-  "data-testid"?: string;
-}
-
-/** Closed-by-default inline disclosure for secondary facts ("Technical details", "More options"). */
-function MarketplaceDetailFold({
-  label,
-  children,
-  className,
-  "data-testid": testId,
-}: MarketplaceDetailFoldProps) {
-  return (
-    <Collapsible className={cn("min-w-0", className)} data-testid={testId}>
-      <CollapsibleTrigger
-        className={cn(
-          "group/detail-fold inline-flex items-center gap-1 rounded-sm py-1 text-form-label text-subtle",
-          "transition-colors duration-base hover:text-fg",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-        type="button"
-      >
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 -rotate-90 text-faint",
-            "transition-transform duration-base group-data-panel-open/detail-fold:rotate-0"
-          )}
-        />
-        {label}
-      </CollapsibleTrigger>
-      <CollapsibleContent>{children}</CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 /** Quiet explanatory note inside a rail card body. */
 function MarketplaceDetailRailNote({ children }: { children: ReactNode }) {
   return (
@@ -215,7 +177,6 @@ function formatRepositorySlug(url: string): string {
 
 export {
   MarketplaceDetailColumns,
-  MarketplaceDetailFold,
   MarketplaceDetailRailCard,
   MarketplaceDetailRailNote,
   MarketplaceDetailSection,
