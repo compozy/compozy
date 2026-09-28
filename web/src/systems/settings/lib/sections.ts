@@ -28,8 +28,9 @@ import type {
 
 /**
  * Daemon sections + browser Appearance, grouped so the nav reads as a mental
- * model (design system §03): Workspace = "how my work is set up", Runtime =
- * "what my agents can do", System = "how the daemon itself behaves".
+ * model (design system §03): Workspace = "how my work is set up", Personal =
+ * "how I like to work", Runtime = "what my agents can do", System = "how
+ * CompozyOS itself behaves".
  * Keywords feed the sidebar search.
  */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
@@ -75,13 +76,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: UsersRound,
     group: "workspace",
     keywords: "profile context switch identity archive selection separation",
-  },
-  {
-    slug: "palette",
-    label: "Palette",
-    icon: Command,
-    group: "workspace",
-    keywords: "command palette personalization recents pinned ranking",
   },
   {
     slug: "providers",
@@ -137,6 +131,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
       "gateway remote reachability exposure overlay public pairing devices revoke audit ingress",
   },
   {
+    slug: "palette",
+    label: "Palette",
+    icon: Command,
+    group: "operator",
+    keywords: "command palette personalization recents pinned ranking",
+  },
+  {
     slug: "attention",
     label: "Notifications",
     icon: Bell,
@@ -179,8 +180,8 @@ export const SETTINGS_SECTION_GROUPS: ReadonlyArray<{
   label: string;
 }> = [
   { id: "workspace", label: "Workspace" },
-  { id: "runtime", label: "Runtime" },
   { id: "operator", label: "Personal" },
+  { id: "runtime", label: "Runtime" },
   { id: "system", label: "System" },
 ];
 

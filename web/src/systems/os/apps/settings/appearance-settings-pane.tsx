@@ -1,20 +1,15 @@
 import { useRef } from "react";
 
-import {
-  Field,
-  FieldDescription,
-  FieldHeader,
-  FieldLabel,
-  FieldTitle,
-  HelpTip,
-  PageShell,
-  Switch,
-  cn,
-} from "@compozy/ui";
+import { Switch, cn } from "@compozy/ui";
 
 import { useAppearanceSettingsPane } from "../../hooks/use-appearance-settings-pane";
 import type { OsWallpaper } from "../../lib/os-types";
-import { useSettingsTopbar } from "@/systems/settings";
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsPageFrame,
+  useSettingsTopbar,
+} from "@/systems/settings";
 
 const WALLPAPERS: Array<{ id: OsWallpaper; label: string }> = [
   { id: "ember", label: "Ember" },
@@ -120,47 +115,46 @@ export function AppearanceSettingsPane() {
   const appearance = useAppearanceSettingsPane();
 
   return (
-    <PageShell slug="appearance">
-      <div className="flex max-w-2xl flex-col gap-8" data-testid="os-appearance-pane">
-        <Field>
-          <FieldTitle>Wallpaper</FieldTitle>
+    <SettingsPageFrame slug="appearance">
+      <div className="flex flex-col gap-6" data-testid="os-appearance-pane">
+        <SettingsGroup bare title="Wallpaper">
           <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="os-appearance-magnify">Dock magnification</FieldLabel>
-          <div className="min-w-0">
-            <Switch
-              id="os-appearance-magnify"
-              data-testid="os-appearance-magnify"
-              checked={appearance.dockMagnify}
-              onCheckedChange={checked => appearance.setDockMagnify(checked === true)}
-            />
-          </div>
-        </Field>
-        <Field>
-          <FieldHeader>
-            <FieldLabel htmlFor="os-appearance-reduce-motion">Reduce motion</FieldLabel>
-            {appearance.systemReducedMotion ? null : (
-              <HelpTip label="About reduce motion">
-                Window, dock, and minimize animations become instant.
-              </HelpTip>
-            )}
-          </FieldHeader>
-          {appearance.systemReducedMotion ? (
-            <FieldDescription>
-              Your system already prefers reduced motion — that preference wins while it is on.
-            </FieldDescription>
-          ) : null}
-          <div className="min-w-0">
-            <Switch
-              id="os-appearance-reduce-motion"
-              data-testid="os-appearance-reduce-motion"
-              checked={appearance.reduceMotion}
-              onCheckedChange={checked => appearance.setReduceMotion(checked === true)}
-            />
-          </div>
-        </Field>
+        </SettingsGroup>
+        <SettingsGroup title="Dock and motion">
+          <SettingRow
+            control={
+              <Switch
+                checked={appearance.dockMagnify}
+                data-testid="os-appearance-magnify"
+                onCheckedChange={checked => appearance.setDockMagnify(checked === true)}
+              />
+            }
+            data-testid="os-appearance-magnify-row"
+            label="Dock magnification"
+          />
+          <SettingRow
+            control={
+              <Switch
+                checked={appearance.reduceMotion}
+                data-testid="os-appearance-reduce-motion"
+                onCheckedChange={checked => appearance.setReduceMotion(checked === true)}
+              />
+            }
+            data-testid="os-appearance-reduce-motion-row"
+            description={
+              appearance.systemReducedMotion
+                ? "Your system already prefers reduced motion — that preference wins while it is on."
+                : undefined
+            }
+            help={
+              appearance.systemReducedMotion
+                ? undefined
+                : "Window, dock, and minimize animations become instant."
+            }
+            label="Reduce motion"
+          />
+        </SettingsGroup>
       </div>
-    </PageShell>
+    </SettingsPageFrame>
   );
 }
