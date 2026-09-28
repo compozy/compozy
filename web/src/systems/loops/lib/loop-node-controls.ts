@@ -256,3 +256,18 @@ export function loopControlAnswer(input: LoopControlAnswerInput): LoopControlAns
       };
   }
 }
+
+/**
+ * The `mode` a confirmed verb posts: the chosen pause mode for `pause`, the verb's fixed
+ * resume mode for the resume family, and nothing for every other verb.
+ */
+export function loopNodeVerbCommitMode(
+  verb: LoopNodeVerb,
+  pauseMode: LoopNodePauseMode
+): string | undefined {
+  if (verb === "pause") return LOOP_NODE_PAUSE_MODES[pauseMode];
+  if (verb in LOOP_NODE_RESUME_MODES) {
+    return LOOP_NODE_RESUME_MODES[verb as keyof typeof LOOP_NODE_RESUME_MODES];
+  }
+  return undefined;
+}

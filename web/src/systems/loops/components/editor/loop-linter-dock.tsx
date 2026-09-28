@@ -5,7 +5,12 @@ import { Button, cn, Eyebrow, Pill, Spinner } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 
-import { isBlockingIssue, lintDockCounters, type LoopLintState } from "../../lib/loop-editor-lint";
+import {
+  isBlockingIssue,
+  lintDockCounters,
+  type LoopLintDockCounters,
+  type LoopLintState,
+} from "../../lib/loop-editor-lint";
 import type { LoopValidationIssue } from "../../types";
 
 interface LoopLinterDockProps {
@@ -29,9 +34,6 @@ export function LoopLinterDock({
   const collapsed = collapsedProp ?? localCollapsed;
   const toggleCollapsed = onToggleCollapsed ?? (() => setLocalCollapsed(value => !value));
   const counters = lintDockCounters(lint, validateFailed);
-  const failed = counters.state === "unavailable";
-  const pending = counters.state === "pending";
-  const clean = counters.state === "clean";
 
   return (
     <div
@@ -46,26 +48,7 @@ export function LoopLinterDock({
         data-testid="loop-linter-toggle"
       >
         <Eyebrow className="text-subtle">Validation</Eyebrow>
-        {pending ? (
-          <Pill size="xs" tone="neutral" data-testid="loop-linter-count">
-            Checking…
-          </Pill>
-        ) : null}
-        {failed ? (
-          <Pill size="xs" tone="danger" data-testid="loop-linter-count">
-            Unavailable
-          </Pill>
-        ) : null}
-        {counters.errors !== undefined ? (
-          <Pill size="xs" tone="danger" data-testid="loop-linter-error-count">
-            {counters.errors} error{counters.errors === 1 ? "" : "s"}
-          </Pill>
-        ) : null}
-        {counters.warnings !== undefined ? (
-          <Pill size="xs" tone="warning" data-testid="loop-linter-warning-count">
-            {counters.warnings} warning{counters.warnings === 1 ? "" : "s"}
-          </Pill>
-        ) : null}
+        <LinterDockCounterPills counters={counters} />
         <ChevronDown
           aria-hidden="true"
           className={cn(
@@ -76,37 +59,81 @@ export function LoopLinterDock({
       </button>
       {collapsed ? null : (
         <div className="min-h-0 overflow-y-auto pb-2">
-          {failed ? (
-            <p
-              className="flex items-center gap-2 px-4 py-3 text-small-body text-danger"
-              data-testid="loop-linter-unavailable"
-            >
-              <AlertCircle aria-hidden="true" className="size-4" />
-              Couldn&apos;t check this Loop. Click Validate to try again.
-            </p>
-          ) : pending ? (
-            <p className="flex items-center gap-2 px-4 py-3 text-small-body text-subtle">
-              <Spinner aria-hidden="true" className="size-4" />
-              Checking…
-            </p>
-          ) : clean ? (
-            <p className="flex items-center gap-2 px-4 py-3 text-small-body text-success">
-              <Check aria-hidden="true" className="size-4" />
-              No problems found. Ready to publish.
-            </p>
-          ) : (
-            withOccurrenceKeys(
-              lint.issues,
-              issue =>
-                `${issue.node_id ?? ""}\u0000${issue.code}\u0000${issue.severity}\u0000${issue.message}`
-            ).map(({ item: issue, key }) => (
-              <IssueRow key={key} issue={issue} onReveal={onReveal} />
-            ))
-          )}
+          <LinterDockBody issues={lint.issues} onReveal={onReveal} state={counters.state} />
         </div>
       )}
     </div>
   );
+}
+
+function LinterDockCounterPills({ counters }: { counters: LoopLintDockCounters }) {
+  return (
+    <>
+      {counters.state === "pending" ? (
+        <Pill size="xs" tone="neutral" data-testid="loop-linter-count">
+          Checking…
+        </Pill>
+      ) : null}
+      {counters.state === "unavailable" ? (
+        <Pill size="xs" tone="danger" data-testid="loop-linter-count">
+          Unavailable
+        </Pill>
+      ) : null}
+      {counters.errors !== undefined ? (
+        <Pill size="xs" tone="danger" data-testid="loop-linter-error-count">
+          {counters.errors} error{counters.errors === 1 ? "" : "s"}
+        </Pill>
+      ) : null}
+      {counters.warnings !== undefined ? (
+        <Pill size="xs" tone="warning" data-testid="loop-linter-warning-count">
+          {counters.warnings} warning{counters.warnings === 1 ? "" : "s"}
+        </Pill>
+      ) : null}
+    </>
+  );
+}
+
+function LinterDockBody({
+  state,
+  issues,
+  onReveal,
+}: {
+  state: LoopLintDockCounters["state"];
+  issues: readonly LoopValidationIssue[];
+  onReveal: (nodeId: string) => void;
+}) {
+  if (state === "unavailable") {
+    return (
+      <p
+        className="flex items-center gap-2 px-4 py-3 text-small-body text-danger"
+        data-testid="loop-linter-unavailable"
+      >
+        <AlertCircle aria-hidden="true" className="size-4" />
+        Couldn&apos;t check this Loop. Click Validate to try again.
+      </p>
+    );
+  }
+  if (state === "pending") {
+    return (
+      <p className="flex items-center gap-2 px-4 py-3 text-small-body text-subtle">
+        <Spinner aria-hidden="true" className="size-4" />
+        Checking…
+      </p>
+    );
+  }
+  if (state === "clean") {
+    return (
+      <p className="flex items-center gap-2 px-4 py-3 text-small-body text-success">
+        <Check aria-hidden="true" className="size-4" />
+        No problems found. Ready to publish.
+      </p>
+    );
+  }
+  return withOccurrenceKeys(
+    issues,
+    issue =>
+      `${issue.node_id ?? ""}\u0000${issue.code}\u0000${issue.severity}\u0000${issue.message}`
+  ).map(({ item: issue, key }) => <IssueRow key={key} issue={issue} onReveal={onReveal} />);
 }
 
 function IssueRow({
