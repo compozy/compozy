@@ -17,14 +17,15 @@ const BINDINGS: LoopBindingRow[] = [
 
 /** The rail card folds by default; open it the way an operator would. */
 function openStart() {
-  fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Automations/ }));
 }
 
 describe("LoopStartBindingsPanel", () => {
-  it("Should render the declared start kinds and attached automation rows", () => {
+  it("Should render attached automation rows without the raw declared start kinds", () => {
     render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={BINDINGS} />);
     openStart();
-    expect(screen.getByTestId("loop-declared-kind")).toHaveTextContent(DECLARED.join(" · "));
+    expect(screen.queryByTestId("loop-declared-kind")).not.toBeInTheDocument();
+    expect(screen.queryByText(DECLARED.join(" · "))).not.toBeInTheDocument();
     const row = screen.getByTestId("loop-binding-row");
     expect(row).toHaveAttribute("data-enabled", "false");
     expect(row).toHaveTextContent("nightly");
@@ -34,7 +35,9 @@ describe("LoopStartBindingsPanel", () => {
   it("Should show the empty state when no automations are attached", () => {
     render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={[]} />);
     openStart();
-    expect(screen.getByTestId("loop-bindings-empty")).toHaveTextContent("Runs on demand.");
+    expect(screen.getByTestId("loop-bindings-empty")).toHaveTextContent(
+      "Runs only when you start it."
+    );
     expect(screen.queryByTestId("loop-binding-row")).not.toBeInTheDocument();
   });
 
@@ -88,9 +91,7 @@ describe("LoopStartBindingsPanel", () => {
     );
     openStart();
 
-    expect(screen.getByTestId("loop-bindings-progress")).toHaveTextContent(
-      "68 of 90 attached loaded"
-    );
+    expect(screen.getByTestId("loop-bindings-progress")).toHaveTextContent("Showing 68 of 90");
     fireEvent.click(screen.getByRole("button", { name: "Load more schedules" }));
     expect(loadMoreJobs).toHaveBeenCalledOnce();
 

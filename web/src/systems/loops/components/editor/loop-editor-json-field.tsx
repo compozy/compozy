@@ -60,7 +60,7 @@ export function LoopEditorJsonField({
             setError(null);
             onCommit(parsed);
           } catch {
-            setError("Invalid JSON — not saved");
+            setError("This isn’t valid. Nothing was saved.");
           }
         }}
       />

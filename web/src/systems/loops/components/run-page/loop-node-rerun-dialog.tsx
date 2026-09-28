@@ -55,12 +55,12 @@ function LoopNodeRerunDialogForm({
       }}
       confirmLabel="Rerun"
       contentProps={{ "data-testid": "loop-node-rerun-dialog" }}
-      description="Opens a new generation. Everything else carries forward."
+      description="Starts a new round. Everything else carries forward."
       eyebrow="Node"
       footNote={
         <>
           <Info aria-hidden="true" />
-          <span>{`origin operator_rerun · from gen ${node.generation}`}</span>
+          <span>{`Starts a new round from round ${node.generation}`}</span>
         </>
       }
       icon={LOOP_NODE_VERB_ICONS.rerun}

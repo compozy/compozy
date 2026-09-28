@@ -169,7 +169,7 @@ function LoopNodeControlDialogForm({
           ) : null}
           {isWaitResume ? (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="loop-node-wait-payload">Payload</Label>
+              <Label htmlFor="loop-node-wait-payload">Data</Label>
               <Textarea
                 aria-invalid={waitInvalid || undefined}
                 className="font-mono text-mono-id"

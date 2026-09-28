@@ -1288,7 +1288,7 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
   });
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
 
-  const bestLink = appPage.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
+  const bestLink = appPage.getByRole("link", { name: "Best result · Round 1 · 0.70" });
   await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
   await bestLink.click();
 
@@ -1297,7 +1297,9 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
   await expect(bestGeneration.getByText("Best", { exact: true })).toBeVisible();
 
   const restoredGeneration = appPage.locator("#loop-generation-3");
-  await expect(restoredGeneration.getByText("Restored from gen 1", { exact: true })).toBeVisible();
+  await expect(
+    restoredGeneration.getByText("Restored from round 1", { exact: true })
+  ).toBeVisible();
   await expect(restoredGeneration).toContainText("score 0.50");
 
   await browserArtifacts.captureScreenshot("loop-run-best-on-exhaustion", appPage);

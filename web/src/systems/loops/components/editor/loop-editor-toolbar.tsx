@@ -51,7 +51,7 @@ const VIEW_ITEMS: PillGroupItem<LoopEditorView>[] = [
     label: (
       <span className="flex items-center gap-1.5">
         <Code2 aria-hidden="true" className="size-3.5" />
-        DSL
+        Code
       </span>
     ),
     testId: "loop-editor-view-dsl",
@@ -80,7 +80,7 @@ export function LoopEditorToolbar({
     <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
       {paletteMode === "menu" ? null : (
         <Button
-          aria-label={paletteExpanded ? "Close node palette" : "Open node palette"}
+          aria-label={paletteExpanded ? "Close step list" : "Open step list"}
           aria-pressed={paletteExpanded}
           className={cn(paletteExpanded ? "bg-elevated text-fg" : null)}
           data-state={paletteExpanded ? "open" : "closed"}
@@ -114,7 +114,7 @@ export function LoopEditorToolbar({
           <ToolIcon label="Zoom out" onClick={() => void flow.zoomOut()}>
             <ZoomOut aria-hidden="true" className="size-3.5" />
           </ToolIcon>
-          <span className="min-w-[38px] px-1 text-center font-mono text-mono-id text-subtle">
+          <span className="min-w-10 px-1 text-center font-mono text-mono-id text-subtle">
             {Math.round(zoom * 100)}%
           </span>
           <ToolIcon label="Zoom in" onClick={() => void flow.zoomIn()}>
@@ -130,7 +130,7 @@ export function LoopEditorToolbar({
           disabled={busy || !positionsDirty}
           onClick={onSaveLayout}
           size="sm"
-          title="Persist node positions to the annotations sidecar. Structural edits publish through Publish."
+          title="Saves where the steps sit on the canvas."
           type="button"
           variant="ghost"
         >

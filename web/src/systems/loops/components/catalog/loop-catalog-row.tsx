@@ -46,7 +46,7 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
         {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
         <ListingRow.Stat className="hidden w-20 xl:flex">
           <ListingRow.Stat.Value>{successRateLabel(entry.success_rate_30d)}</ListingRow.Stat.Value>
-          <ListingRow.Stat.Label>{entry.aggregate_30d.runs} runs · 30d</ListingRow.Stat.Label>
+          <ListingRow.Stat.Label>{entry.aggregate_30d.runs} runs this month</ListingRow.Stat.Label>
         </ListingRow.Stat>
         <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
       </ListingRow.Trail>

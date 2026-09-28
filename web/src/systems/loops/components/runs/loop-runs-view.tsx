@@ -40,6 +40,8 @@ export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children
    * the one thing the truthful-UI rule forbids a stale view from doing.
    */
   lastReadAt?: string;
+  /** Display clock for live durations, shared with the Loop page's recent runs. */
+  nowMs: number;
 }
 
 /** Which transport failed. They are told apart because they recover differently. */
@@ -73,11 +75,11 @@ function DegradedNotice({
   const retained = age ? `, from ${age}` : "";
   const body = failed
     ? hasRows
-      ? `This workspace's runs could not be read. The list below is the last read that worked${retained}.`
-      : "This workspace's runs could not be read."
+      ? `This project's runs could not be read. The list below is the last read that worked${retained}.`
+      : "This project's runs could not be read."
     : hasRows
-      ? `Reconnecting to the daemon. The list below is the last read${retained}.`
-      : "Reconnecting to the daemon. No runs have been read yet.";
+      ? `Reconnecting to CompozyOS. The list below is the last read${retained}.`
+      : "Reconnecting to CompozyOS. No runs have been read yet.";
   return (
     <Alert
       data-cause={cause}
@@ -123,6 +125,7 @@ export function LoopRunsView({
   onRetry,
   onEmptyAction,
   lastReadAt,
+  nowMs,
   className,
   ...props
 }: LoopRunsViewProps) {
@@ -151,6 +154,7 @@ export function LoopRunsView({
       <RosterBody
         degraded={degraded}
         hasRows={hasRows}
+        nowMs={nowMs}
         onEmptyAction={onEmptyAction}
         outcome={outcome}
         ownerOf={ownerOf}
@@ -165,6 +169,7 @@ interface RosterBodyProps {
   roster: ReturnType<typeof buildRunsRoster>;
   hasRows: boolean;
   degraded: boolean;
+  nowMs: number;
   onEmptyAction?: () => void;
   outcome: LoopOutcomeValue;
   ownerOf?: ProfileListingScope["ownerOf"];
@@ -175,6 +180,7 @@ function RosterBody({
   roster,
   hasRows,
   degraded,
+  nowMs,
   onEmptyAction,
   outcome,
   ownerOf,
@@ -184,7 +190,7 @@ function RosterBody({
     return (
       <div className="flex flex-col gap-3">
         {roster.groups.map(group => (
-          <LoopRunsTable group={group} key={group.id} ownerOf={ownerOf} />
+          <LoopRunsTable group={group} key={group.id} nowMs={nowMs} ownerOf={ownerOf} />
         ))}
       </div>
     );
@@ -195,7 +201,7 @@ function RosterBody({
     return (
       <SkeletonRows
         aria-hidden="true"
-        className="gap-3 rounded-lg border border-line bg-canvas-soft px-3.5 py-3"
+        className="gap-3 rounded-lg border border-line bg-canvas-soft px-4 py-3"
         count={3}
         data-testid="loop-runs-skeleton"
       >

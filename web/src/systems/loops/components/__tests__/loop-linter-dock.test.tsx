@@ -19,14 +19,14 @@ describe("LoopLinterDock", () => {
   it("Should start collapsed with the count chip visible in the header", () => {
     render(<LoopLinterDock lint={emptyLintState()} validateFailed={false} onReveal={vi.fn()} />);
     expect(screen.getByTestId("loop-linter-toggle")).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("checking…");
+    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Checking…");
     expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
   });
 
   it("Should show a neutral pending state before the first daemon verdict", () => {
     render(<LoopLinterDock lint={emptyLintState()} validateFailed={false} onReveal={vi.fn()} />);
     expandDock();
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("checking…");
+    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Checking…");
     expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
   });
 
@@ -34,9 +34,9 @@ describe("LoopLinterDock", () => {
     render(<LoopLinterDock lint={emptyLintState()} validateFailed onReveal={vi.fn()} />);
     expandDock();
     expect(screen.getByTestId("loop-linter-unavailable")).toHaveTextContent(
-      /couldn't reach the shared linter/i
+      /couldn't check this Loop/i
     );
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable");
+    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Unavailable");
   });
 
   it("WT-007: Should render a warning without a blocking 422 gate (truthful-UI)", () => {
@@ -59,8 +59,8 @@ describe("LoopLinterDock", () => {
     expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument();
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "warning");
-    expect(within(row).getByText(/does not block Publish/i)).toBeInTheDocument();
-    expect(within(row).queryByText(/returns 422/i)).not.toBeInTheDocument();
+    expect(within(row).getByText(/won’t block publishing/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/must be fixed before publishing/i)).not.toBeInTheDocument();
   });
 
   it("WT-007: Should render a blocking error with the 422 gate copy + reveal", () => {
@@ -82,7 +82,7 @@ describe("LoopLinterDock", () => {
     expect(screen.queryByTestId("loop-linter-warning-count")).not.toBeInTheDocument();
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "error");
-    expect(within(row).getByText(/returns 422/i)).toBeInTheDocument();
+    expect(within(row).getByText(/must be fixed before publishing/i)).toBeInTheDocument();
   });
 
   it("WT-007: Should split the counters when a verdict carries both severities", () => {
@@ -111,7 +111,7 @@ describe("LoopLinterDock", () => {
     expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-linter-warning-count")).not.toBeInTheDocument();
     expandDock();
-    expect(screen.getByText(/All invariants pass/i)).toBeInTheDocument();
+    expect(screen.getByText(/No problems found/i)).toBeInTheDocument();
   });
 
   it("Should render duplicate daemon issues without React key collisions", () => {

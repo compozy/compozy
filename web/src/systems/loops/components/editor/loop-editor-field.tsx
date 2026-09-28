@@ -9,6 +9,7 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   RequiredMark,
   Switch,
   Textarea,
@@ -27,7 +28,6 @@ import type {
 } from "../../lib/loop-node-schema";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import type { LoopEnvironmentSpec, LoopValidationIssue } from "../../types";
-import { MonoTag } from "../mono-tag";
 import { LoopEditorCriteria } from "./loop-editor-criteria";
 import { LoopEditorEffectsField } from "./loop-editor-field-effects";
 import { LoopEditorEnvironmentField } from "./loop-editor-environment-field";
@@ -156,9 +156,9 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
         <span className="flex items-center gap-2 text-small-body text-fg">
           <span className="font-mono text-mono-id text-fg-strong">{field.value || "—"}</span>
           {field.badge ? (
-            <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-faint">
+            <Pill size="xs" tone="neutral" mono className="ml-auto">
               {field.badge}
-            </MonoTag>
+            </Pill>
           ) : null}
         </span>
       </Field>

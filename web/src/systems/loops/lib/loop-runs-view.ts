@@ -195,9 +195,37 @@ export function formatTokenCount(tokens: number): string {
   return String(Math.round(tokens));
 }
 
+const ORIGIN_KIND_LABELS: Record<string, string> = {
+  manual: "Started by you",
+  user: "Started by you",
+  operator: "Started by you",
+  cli: "Command line",
+  http: "API",
+  uds: "Local call",
+  native_tool: "An agent",
+  agent: "An agent",
+  schedule: "Scheduled",
+  webhook: "Triggered",
+  trigger: "Triggered",
+  event: "Triggered",
+  session: "From a session",
+};
+
+/** Machine ids (`sess_01J…`, `looprun-8f3a…`) are not names; they stay off the line. */
+const MACHINE_REF = /^[a-z]+[_-][A-Za-z0-9_-]{6,}$/;
+
+function originPart(kind: string, ref: string): string {
+  const label = ORIGIN_KIND_LABELS[kind] ?? kind;
+  const showRef = ref !== "" && kind !== "session" && !MACHINE_REF.test(ref);
+  if (!label) return showRef ? ref : "";
+  return showRef ? `${label} · ${ref}` : label;
+}
+
 /**
- * Where a run came from (`schedule · nightly`, `cli · pedro`), read from the origin
- * the daemon recorded. Falls back to the em dash rather than guessing a starter.
+ * Where a run came from (`Scheduled · nightly`, `Started by you · pedro`), read
+ * from the origin the daemon recorded and put in plain words. Machine ids stay
+ * off the line; the raw pair lives on the run page. Falls back to the em dash
+ * rather than guessing a starter.
  */
 export function loopRunOriginLine(
   run: Pick<
@@ -207,11 +235,13 @@ export function loopRunOriginLine(
 ): string {
   const originKind = run.started_origin_kind || "";
   const originRef = run.started_origin_ref || "";
-  if (originKind && originRef) return `${originKind} · ${originRef}`;
+  if (originKind && originRef) return originPart(originKind, originRef);
   const actorKind = run.started_by_kind || "";
   const actorRef = run.started_by_ref || "";
-  if (actorKind && actorRef) return `${actorKind} · ${actorRef}`;
-  return originKind || originRef || actorKind || actorRef || "—";
+  if (actorKind && actorRef) return originPart(actorKind, actorRef);
+  if (originKind) return originPart(originKind, "");
+  if (actorKind) return originPart(actorKind, "");
+  return originRef || actorRef || "—";
 }
 
 /** `generation / cap` label for a run row (`2 / 50`, `5 / ∞`). */

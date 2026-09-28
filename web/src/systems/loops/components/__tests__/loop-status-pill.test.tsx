@@ -7,7 +7,7 @@ import { LoopStatusPill } from "@/systems/loops";
 describe("LoopStatusPill", () => {
   it("Should render the human label for a known run status", () => {
     render(<LoopStatusPill status="needs-approval" />);
-    expect(screen.getByText("Needs Approval")).toBeInTheDocument();
+    expect(screen.getByText("Needs approval")).toBeInTheDocument();
   });
 
   it("Should fall back to the raw value for an unknown status and Unknown for a blank one", () => {

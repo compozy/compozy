@@ -394,12 +394,12 @@ describe("LoopEditor", () => {
     await screen.findByTestId("loop-editor");
     // The mount auto-validate fails → the dock reports unavailable instead of "all pass".
     await waitFor(() =>
-      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable")
+      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Unavailable")
     );
     expandLinterDock();
     expect(screen.getByTestId("loop-linter-unavailable")).toBeInTheDocument();
     // Header stays truthful — unavailable, never a claimed pass.
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable");
+    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Unavailable");
   });
 
   it("E2E-web-14: Graph/DSL toggle renders compozy.loop/v1 and highlights the offending field", async () => {
@@ -653,7 +653,10 @@ describe("LoopEditor", () => {
     // The gate is the daemon's verdict, surfaced by its own code — not a client-side rule.
     await waitFor(() => expect(screen.getByTestId("loop-linter-error-count")).toBeInTheDocument());
     expandLinterDock();
-    expect(screen.getByTestId("loop-linter-dock")).toHaveTextContent("error_route_conflict");
+    // The code stays reachable as the issue line's tooltip, not as on-screen copy.
+    expect(
+      within(screen.getByTestId("loop-linter-dock")).getByTitle("error_route_conflict")
+    ).toBeInTheDocument();
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
 
     // Resolving it to a single absorption mode clears the gate.
@@ -705,7 +708,7 @@ describe("LoopEditor", () => {
     expandLinterDock();
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "warning");
-    expect(row).toHaveTextContent("wait_expiry_without_path");
+    expect(within(row).getByTitle("wait_expiry_without_path")).toBeInTheDocument();
   });
 
   it("WT-008: keeps a read-only definition immutable through every authoring path", async () => {
@@ -726,7 +729,7 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-readonly-strip")).toHaveTextContent(
       /read-only marketplace source/i
     );
-    expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v1 · marketplace");
+    expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v1 · Built-in");
     fireEvent.contextMenu(nodeCard("implement"));
     expect(await screen.findByText("Read-only definition")).toBeInTheDocument();
     for (const verb of ["duplicate", "copy", "paste", "rename", "delete"]) {
@@ -782,8 +785,8 @@ describe("LoopEditor", () => {
     expandLinterDock();
     const dockIssues = screen.getAllByTestId("loop-linter-issue");
     expect(dockIssues).toHaveLength(2);
-    expect(dockIssues[0]).toHaveTextContent("fan_out_unbounded");
-    expect(dockIssues[1]).toHaveTextContent("error_route_conflict");
+    expect(within(dockIssues[0]!).getByTitle("fan_out_unbounded")).toBeInTheDocument();
+    expect(within(dockIssues[1]!).getByTitle("error_route_conflict")).toBeInTheDocument();
     // Nothing was saved: the compare-and-swap version pill is unchanged.
     expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4");
   });

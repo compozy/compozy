@@ -15,8 +15,8 @@ import { humanizeLoopNodeId } from "./loop-node-labels";
 
 export const LOOP_NODE_INVENTORY_LABELS = {
   waiting: "Waiting",
-  quarantined: "Quarantined",
-  attention: "Attention",
+  quarantined: "Set aside",
+  attention: "Needs attention",
   retrying: "Retrying",
 } as const satisfies Record<LoopNodeInventoryState, string>;
 
@@ -24,7 +24,7 @@ export const LOOP_NODE_INVENTORY_TONES = {
   waiting: "info",
   quarantined: "danger",
   attention: "warning",
-  retrying: "warning",
+  retrying: "neutral",
 } as const satisfies Record<LoopNodeInventoryState, PillTone>;
 
 const INVENTORY_EMPTY_ICONS = {
@@ -49,7 +49,7 @@ export interface LoopNodeInventoryRowView {
   age: string;
   /** Seconds in this state, from `state_at` or the daemon's `age_seconds`. */
   ageSeconds: number;
-  /** Mono identity trail. */
+  /** Plain secondary line under the step name. */
   micro: string;
 }
 
@@ -73,9 +73,9 @@ const WAIT_REASON: Record<string, string> = {
 };
 
 const ATTENTION_REASON: Record<string, string> = {
-  silence: "silence — no evidence of life in the watch window",
-  dependency_quarantined: "dependency — waits on a quarantined lane",
-  expired_wait: "expired wait — no timeout route declared",
+  silence: "No activity for a while",
+  dependency_quarantined: "Waiting on a step that was set aside",
+  expired_wait: "Waited too long with no fallback",
 };
 
 function waitReason(item: LoopNodeInventoryItem, nowMs: number): string {
@@ -95,15 +95,15 @@ function waitReason(item: LoopNodeInventoryItem, nowMs: number): string {
 
 function quarantineReason(item: LoopNodeInventoryItem): string {
   const entry = readQuarantineEntry(item.control?.quarantine_entry);
-  if (!entry) return "quarantined";
+  if (!entry) return "set aside";
   const episodes = entry.episodes.length;
   const attempts = entry.attemptCount;
   const parts = [
-    attempts > 0 ? `${attempts} attempts` : null,
-    episodes > 1 ? `${episodes} episodes` : null,
+    attempts > 0 ? `${attempts} tries` : null,
+    episodes > 1 ? `${episodes} times` : null,
     entry.target === "" ? null : entry.target,
   ].filter(Boolean);
-  return parts.length === 0 ? "quarantined" : parts.join(" · ");
+  return parts.length === 0 ? "set aside" : parts.join(" · ");
 }
 
 function retryReason(item: LoopNodeInventoryItem, nowMs: number): string {
@@ -165,7 +165,7 @@ export function buildInventoryRow(
     reason: rowReason(item, nowMs),
     age: inventoryAgeLabel(ageSeconds),
     ageSeconds,
-    micro: `${item.node_id}[${item.item_index}] · gen ${item.generation}`,
+    micro: `Round ${item.generation}`,
   };
 }
 
@@ -178,7 +178,7 @@ export function inventoryEmptyCopy(
   if (filtered) {
     return {
       title: "Nothing matches these filters",
-      description: `No ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} nodes match the loop and run you picked. Clear the filters to see the whole workspace.`,
+      description: `No ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} steps match the Loop and run you picked. Clear the filters to see the whole project.`,
       icon,
     };
   }
@@ -187,28 +187,27 @@ export function inventoryEmptyCopy(
       return {
         title: "Nothing is waiting",
         description:
-          "No lane in this workspace is parked on a timer, an event, or a decision right now.",
+          "No step in this project is waiting on a timer, an event, or a decision right now.",
         icon,
       };
     case "quarantined":
       return {
-        title: "Nothing is quarantined",
-        description:
-          "No lane has been set aside for repair. Quarantined lanes show up here with their failure chain.",
+        title: "Nothing is set aside",
+        description: "No step has been set aside. Steps that keep failing show up here.",
         icon,
       };
     case "attention":
       return {
         title: "Nothing needs attention",
         description:
-          "No lane is flagged. Flags appear here when a lane goes quiet or blocks on a quarantined dependency.",
+          "No step is flagged. Steps show up here when they go quiet or wait on a step that was set aside.",
         icon,
       };
     case "retrying":
       return {
         title: "Nothing is retrying",
         description:
-          "No lane is inside a retry backoff. Retrying lanes show their attempt and next attempt time here.",
+          "No step is retrying. Retrying steps show their attempt and next try time here.",
         icon,
       };
     default:

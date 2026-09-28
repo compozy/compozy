@@ -141,16 +141,16 @@ export function LoopEditorEffects({
               className="mt-2"
               open={(shape === "emit" ? row.emit?.payload : row.with) !== undefined || undefined}
             >
-              <summary className="cursor-pointer font-mono text-mono-id text-subtle">
-                {shape === "emit" ? "payload" : "with"} · optional
+              <summary className="cursor-pointer text-form-hint text-subtle">
+                {shape === "emit" ? "Event data" : "Tool arguments"} · optional
               </summary>
               <div className="mt-1">
                 <LoopEditorJsonField
                   key={shape}
                   value={shape === "emit" ? row.emit?.payload : row.with}
                   disabled={disabled}
-                  placeholder={shape === "emit" ? "event payload" : "tool arguments"}
-                  ariaLabel={`${rowName} ${shape === "emit" ? "payload" : "arguments"}`}
+                  placeholder={shape === "emit" ? "event details" : "tool arguments"}
+                  ariaLabel={`${rowName} ${shape === "emit" ? "data" : "arguments"}`}
                   testId={`${testId}-${shape === "emit" ? "payload" : "with"}-${index}`}
                   className="min-h-14 resize-y text-form-input leading-relaxed"
                   onCommit={parsed =>

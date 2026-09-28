@@ -1,7 +1,7 @@
-import { Eyebrow } from "@compozy/ui";
+import { Eyebrow, Pill } from "@compozy/ui";
 
+import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import type { LoopDryRunPreview } from "../../types";
-import { MonoTag } from "../mono-tag";
 
 interface LoopRunPlanProps {
   plan: LoopDryRunPreview;
@@ -10,20 +10,16 @@ interface LoopRunPlanProps {
 export function LoopRunPlan({ plan }: LoopRunPlanProps) {
   const inputEntries = Object.entries(plan.resolved_inputs ?? {});
   return (
-    <div
-      className="rounded-lg border border-success/25 bg-success-tint px-4 py-3.5"
-      data-testid="loop-run-plan"
-    >
+    <div className="rounded-lg border border-line bg-canvas-soft p-4" data-testid="loop-run-plan">
       <div className="flex items-center gap-2">
-        <Eyebrow className="text-success">Dry run · generation {plan.generation} plan</Eyebrow>
+        <Eyebrow className="text-muted">Dry run · round {plan.generation} plan</Eyebrow>
       </div>
       <p className="mt-1.5 text-form-label leading-relaxed text-muted">
-        Inputs validated. This is what generation {plan.generation} would run — no run was created
-        and no budget was spent.
+        Your inputs look good. This is what round {plan.generation} would run. Nothing was started.
       </p>
       {inputEntries.length > 0 ? (
         <div className="mt-3">
-          <Eyebrow className="text-faint">Resolved inputs</Eyebrow>
+          <Eyebrow className="text-faint">Inputs</Eyebrow>
           <dl className="mt-1.5 flex flex-col gap-1">
             {inputEntries.map(([key, value]) => (
               <div key={key} className="flex items-baseline justify-between gap-3 text-form-label">
@@ -37,7 +33,9 @@ export function LoopRunPlan({ plan }: LoopRunPlanProps) {
         </div>
       ) : null}
       <div className="mt-3">
-        <Eyebrow className="text-faint">Plan · {plan.nodes.length} nodes</Eyebrow>
+        <Eyebrow className="text-faint">
+          Plan · {plan.nodes.length} {plan.nodes.length === 1 ? "step" : "steps"}
+        </Eyebrow>
         <ol className="mt-1.5 flex flex-col gap-1">
           {plan.nodes.map((node, index) => (
             <li
@@ -46,9 +44,12 @@ export function LoopRunPlan({ plan }: LoopRunPlanProps) {
               data-testid="loop-run-plan-node"
             >
               <span className="w-4 shrink-0 font-mono text-mono-id text-faint">{index + 1}</span>
-              <span className="font-mono text-fg-strong">{node.id}</span>
-              <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5">{node.class}</MonoTag>
-              <span className="truncate font-mono text-mono-id text-subtle">{node.kind}</span>
+              <span className="text-fg-strong" title={node.id}>
+                {humanizeLoopNodeId(node.id)}
+              </span>
+              <Pill mono size="xs" tone="neutral">
+                {node.class}
+              </Pill>
             </li>
           ))}
         </ol>

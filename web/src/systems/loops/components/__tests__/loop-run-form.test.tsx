@@ -97,11 +97,12 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByRole("button", { name }));
   }
 
-  it("Should auto-generate a typed field per declared input with a type badge", () => {
+  it("Should auto-generate a typed field per declared input with a plain label", () => {
     renderForm();
     const slug = screen.getByTestId("loop-run-field-slug");
     expect(slug).toHaveAttribute("data-input-type", "string");
-    expect(slug).toHaveTextContent("string");
+    expect(slug).toHaveTextContent("Slug");
+    expect(slug).not.toHaveTextContent("string");
     expect(screen.getByTestId("loop-run-field-implementer")).toHaveAttribute(
       "data-input-type",
       "agent"
@@ -146,7 +147,7 @@ describe("LoopRunForm", () => {
       expect(screen.getByTestId("loop-run-field-error-slug")).toBeInTheDocument()
     );
     expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
-      "slug is required to run this loop."
+      "Slug is required to run this Loop."
     );
     const runCalls = fetchMock.mock.calls.filter(([input]) => {
       const url = input instanceof Request ? input.url : String(input);
@@ -165,7 +166,7 @@ describe("LoopRunForm", () => {
       expect(screen.getByTestId("loop-run-field-error-slug")).toBeInTheDocument()
     );
     expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
-      "slug is required to run this loop."
+      "Slug is required to run this Loop."
     );
     expect(onRunStarted).not.toHaveBeenCalled();
     const runCalls = fetchMock.mock.calls.filter(([input]) => {
@@ -292,7 +293,9 @@ describe("LoopRunForm", () => {
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "4" } });
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "" } });
@@ -323,7 +326,9 @@ describe("LoopRunForm", () => {
     fireEvent.click(
       await screen.findByRole("option", { name: new RegExp(worktreeBehindFixture.name) })
     );
-    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
     });

@@ -1,11 +1,10 @@
 import { Plus, X } from "lucide-react";
 
-import { Button, Label, NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { Button, Label, NativeSelect, NativeSelectOption, Pill } from "@compozy/ui";
 import { LOOP_WATCH_EVENT_KINDS } from "@/generated/loop-enums";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
-import { MonoTag } from "../mono-tag";
 import { LoopReferenceInput } from "./loop-reference-input";
 
 type Subscription = Record<string, unknown> & { kind?: string; filter?: string };
@@ -69,9 +68,9 @@ export function LoopEditorWatchEvents({
           className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
         >
           <div className="mb-2 flex items-center gap-2">
-            <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-subtle">
-              event
-            </MonoTag>
+            <Pill size="xs" tone="neutral">
+              Event
+            </Pill>
             <span className="font-mono text-mono-id text-fg-strong">#{index + 1}</span>
             <Button
               type="button"

@@ -83,7 +83,7 @@ export function LoopRunStepRow({ step, className, ...props }: LoopRunStepRowProp
   return (
     <li
       className={cn(
-        "flex items-start gap-2.5 border-t border-line-soft py-2.25 first:border-t-0",
+        "flex items-start gap-2.5 border-t border-line-soft py-2 first:border-t-0",
         className
       )}
       data-node-class={step.nodeClass ?? undefined}
