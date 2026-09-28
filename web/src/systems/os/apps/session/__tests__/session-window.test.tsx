@@ -385,7 +385,10 @@ describe("SessionWindow", () => {
     render(<SessionWindow windowId="session:sess-1" />);
 
     await waitFor(() =>
-      expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({ message: "Owner lookup failed" })
+      expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({
+        title: "Couldn't open this session",
+        detail: "Owner lookup failed",
+      })
     );
     expect(userRetireSession).not.toHaveBeenCalled();
     expect(userClose).not.toHaveBeenCalled();

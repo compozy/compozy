@@ -49,7 +49,7 @@ export function SessionWindowView({
     );
   }
   if (!session || sessionWorkspaceId !== workspaceId) {
-    return <SessionWindowNotice message={error?.message ?? "Session not found"} />;
+    return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
   }
 
   const resolvedAgentName = session.agent_name || name;
@@ -74,15 +74,19 @@ export function SessionWindowView({
   );
 }
 
-export function SessionWindowNotice({ message }: { message: string }) {
+/**
+ * A session the window cannot show. The headline is always plain copy; a raw
+ * error message, when there is one, stays behind Empty's "Details" fold.
+ */
+export function SessionWindowNotice({ title, detail }: { title: string; detail?: string | null }) {
   return (
     <Empty
       className="min-h-full"
       icon={AlertCircle}
       role="alert"
       size="compact"
-      title="Couldn't open this session"
-      cause={message}
+      title={title}
+      cause={detail || undefined}
     />
   );
 }
