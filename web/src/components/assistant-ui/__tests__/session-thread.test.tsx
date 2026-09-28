@@ -2102,9 +2102,9 @@ describe("SessionThread transcript states", () => {
   });
 
   it.each([
-    ["goal-work", "Goal work"],
-    ["goal-continuation", "Goal continuation"],
-    ["goal-compaction", "Goal compaction"],
+    ["goal-work", "Working on goal"],
+    ["goal-continuation", "Working on goal"],
+    ["goal-compaction", "Tidying up goal notes"],
   ] as const)(
     "Should render persisted %s prompt identity from the transcript",
     async (kind, label) => {
@@ -2138,7 +2138,9 @@ describe("SessionThread transcript states", () => {
 
       const notice = await screen.findByTestId("goal-prompt-meta");
       expect(notice).toHaveTextContent(label);
-      expect(notice).toHaveTextContent("goal · generation 2 · turn 3");
+      expect(notice).toHaveTextContent("step 3");
+      expect(notice).not.toHaveTextContent("generation");
+      expect(notice).toHaveAttribute("data-goal-kind", kind);
       expect(within(notice).getByRole("link", { name: "Open run" })).toBeInTheDocument();
     }
   );
@@ -4189,7 +4191,9 @@ describe("SessionThread composer running semantics", () => {
     expect(steerNote).toHaveTextContent(
       "Steering — the agent sees it when the current tool finishes"
     );
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("pending_injection");
+    // The daemon's delivery word is diagnostic: an attribute, never on screen.
+    expect(steerNote).toHaveAttribute("data-detail", "pending_injection");
+    expect(steerNote).not.toHaveTextContent("pending_injection");
     await waitFor(() => expect(composerText()).toBe(""));
 
     await setComposerText("ship it with tests");
@@ -4202,7 +4206,8 @@ describe("SessionThread composer running semantics", () => {
         "Queued #2 — runs after the current turn"
       )
     );
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("inp_4d8");
+    expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute("data-detail", "inp_4d8");
+    expect(screen.getByTestId("composer-feedback-note")).not.toHaveTextContent("inp_4d8");
   });
 
   it("Should admit only one busy-input submission while a queue request is pending", async () => {
@@ -4509,9 +4514,8 @@ describe("SessionThread composer running semantics", () => {
     expect(note).toHaveTextContent(
       "Not sent — the turn changed before this went out. Your draft is back."
     );
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent(
-      "active_turn_mismatch"
-    );
+    expect(note).toHaveAttribute("data-detail", "active_turn_mismatch");
+    expect(note).not.toHaveTextContent("active_turn_mismatch");
     expect(composerText()).toBe("Only touch the lifecycle tests");
     expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
@@ -4950,8 +4954,12 @@ describe("SessionThread composer running semantics", () => {
     const row = await screen.findByTestId("composer-queued-prompt-row");
     expect(row).toHaveAttribute("data-local", "unconfirmed");
     expect(within(row).getByTestId("composer-queued-position")).toHaveTextContent("—");
-    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("Not confirmed");
-    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("msg-1");
+    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent(
+      "Not confirmed — retry or discard"
+    );
+    // The message id stays one step deeper, on hover.
+    expect(within(row).getByTestId("composer-queued-state")).not.toHaveTextContent("msg-1");
+    expect(within(row).getByTitle("msg-1")).toBeInTheDocument();
 
     await user.click(within(row).getByTestId("composer-queued-retry"));
     expect(onRetryUnconfirmedSend).toHaveBeenCalledWith("msg-1");
@@ -4960,7 +4968,7 @@ describe("SessionThread composer running semantics", () => {
     expect(note).toHaveAttribute("data-code", "queued");
     expect(note).toHaveTextContent("Queued #2");
     expect(note).toHaveTextContent("nothing was sent twice");
-    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("replayed");
+    expect(note).toHaveAttribute("data-detail", "replayed");
 
     await user.click(within(row).getByTestId("composer-queued-discard"));
     expect(onDiscardUnconfirmedSend).toHaveBeenCalledWith("msg-1");

@@ -70,11 +70,12 @@ describe("ToolApprovalGrantsSection", () => {
       "Always allowed: this exact command"
     );
     expect(screen.getByTestId(`tool-approval-grant-decision-${write.id}`)).toHaveTextContent(
-      "allow"
+      "Allowed"
     );
-    expect(screen.getByText(write.tool_id)).toBeInTheDocument();
+    // Plain tool name on the row; the raw id stays one step deeper, on hover.
+    expect(screen.getByText("terminal write")).toHaveAttribute("title", write.tool_id);
     expect(screen.getByTestId(`tool-approval-grant-scope-${write.id}`)).toHaveTextContent(
-      "exact input"
+      "Only this exact request"
     );
   });
 
@@ -129,20 +130,20 @@ describe("ToolApprovalGrantsSection", () => {
 
     await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
 
-    expect(screen.getByText(allowGrant.tool_id)).toBeInTheDocument();
-    expect(screen.getByText(rejectGrant.tool_id)).toBeInTheDocument();
+    expect(screen.getByTitle(allowGrant.tool_id)).toBeInTheDocument();
+    expect(screen.getByTitle(rejectGrant.tool_id)).toBeInTheDocument();
     expect(screen.getByTestId(`tool-approval-grant-decision-${allowGrant.id}`)).toHaveTextContent(
-      "allow"
+      "Allowed"
     );
     expect(screen.getByTestId(`tool-approval-grant-decision-${rejectGrant.id}`)).toHaveTextContent(
-      "reject"
+      "Blocked"
     );
     // The daemon reports each distinct matching scope truthfully.
     expect(screen.getByText("claude-code")).toBeInTheDocument();
     expect(screen.getByText("openclaw")).toBeInTheDocument();
-    expect(screen.getByText("agent-wide")).toBeInTheDocument();
-    expect(screen.getByText("tool-wide")).toBeInTheDocument();
-    expect(screen.getByText("exact input")).toBeInTheDocument();
+    expect(screen.getByText("Every request from this agent")).toBeInTheDocument();
+    expect(screen.getByText("Every request, any agent")).toBeInTheDocument();
+    expect(screen.getByText("Only this exact request")).toBeInTheDocument();
     expect(
       screen.getByTestId(`tool-approval-grant-last-used-${allowGrant.id}`)
     ).toBeInTheDocument();
@@ -231,7 +232,7 @@ describe("ToolApprovalGrantsSection", () => {
 
     await waitFor(() =>
       expect(screen.getByTestId(`tool-approval-grant-scope-${widerGrant.id}`)).toHaveTextContent(
-        "agent-wide"
+        "Every request from this agent"
       )
     );
     expect(requestBody).toEqual({

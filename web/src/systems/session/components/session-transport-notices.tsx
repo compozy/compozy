@@ -1,6 +1,6 @@
 import { History, WifiOff } from "lucide-react";
 
-import { Button, Marker, MarkerMeta } from "@compozy/ui";
+import { Button, Marker } from "@compozy/ui";
 
 import { useSessionTransportState } from "../hooks/use-session-transcript-thread-messages";
 import { formatMessageTimestamp } from "../lib/format-timestamp";
@@ -55,15 +55,12 @@ export function SessionTransportHistoryResetNotice() {
       role="status"
       data-testid="session-transport-history-reset"
       data-reset-reason={reset.reason ?? undefined}
+      data-reset-generation={reset.generation}
       tone="info"
       icon={<History strokeWidth={1.8} />}
     >
       <b>{sentence.lead}</b>
-      {sentence.rest}{" "}
-      <MarkerMeta data-testid="session-transport-history-reset-generation">
-        generation {reset.generation}
-        {reset.reason ? ` · ${reset.reason}` : ""}
-      </MarkerMeta>
+      {sentence.rest}
     </Marker>
   );
 }

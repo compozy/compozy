@@ -3,6 +3,7 @@ import {
   getToolIcon,
   getToolLabel,
   getToolCompactSummary,
+  humanizeToolId,
   resolveRegisteredToolName,
 } from "../tool-labels";
 import {
@@ -62,10 +63,10 @@ describe("getToolIcon", () => {
 
 describe("getToolLabel", () => {
   it("returns active label for known tools", () => {
-    expect(getToolLabel("Read", "active")).toBe("Reading...");
-    expect(getToolLabel("Bash", "active")).toBe("Running...");
-    expect(getToolLabel("Edit", "active")).toBe("Editing...");
-    expect(getToolLabel("Write", "active")).toBe("Writing...");
+    expect(getToolLabel("Read", "active")).toBe("Reading…");
+    expect(getToolLabel("Bash", "active")).toBe("Running…");
+    expect(getToolLabel("Edit", "active")).toBe("Editing…");
+    expect(getToolLabel("Write", "active")).toBe("Writing…");
   });
 
   it("returns past label for known tools", () => {
@@ -83,7 +84,7 @@ describe("getToolLabel", () => {
   });
 
   it("returns fallback for unknown tool - active", () => {
-    expect(getToolLabel("CustomTool", "active")).toBe("Running CustomTool...");
+    expect(getToolLabel("CustomTool", "active")).toBe("Running CustomTool…");
   });
 
   it("returns fallback for unknown tool - past", () => {
@@ -92,6 +93,19 @@ describe("getToolLabel", () => {
 
   it("returns fallback for unknown tool - failure", () => {
     expect(getToolLabel("CustomTool", "failure")).toBe("use CustomTool");
+  });
+});
+
+describe("humanizeToolId", () => {
+  it("Should read an uncatalogued tool id as plain words, never the raw id", () => {
+    expect(humanizeToolId("compozy__memory_write")).toBe("memory write");
+    expect(humanizeToolId("mcp__github__create_issue")).toBe("create issue (Github)");
+    expect(humanizeToolId("mcp__compozy__compozy__memory_write")).toBe("memory write");
+    expect(humanizeToolId("CustomTool")).toBe("CustomTool");
+    expect(getToolLabel("compozy__memory_write", "past")).toBe("Used memory write");
+    expect(getToolLabel("mcp__github__create_issue", "active")).toBe(
+      "Running create issue (Github)…"
+    );
   });
 });
 
@@ -163,7 +177,7 @@ describe("getToolCompactSummary", () => {
 describe("provider summary presentation", () => {
   it("Should treat a script title as an unknown tool and preserve explicit native identity", () => {
     const title = "python3 - <<'PY'\n" + "print('hello')\n".repeat(30) + "PY";
-    expect(getToolLabel(title, "active")).toBe("Running tool...");
+    expect(getToolLabel(title, "active")).toBe("Running tool…");
     expect(getToolLabel(title, "past")).toBe("Used tool");
     expect(resolveRegisteredToolName(title)).toBe(title);
     expect(resolveRegisteredToolName("mcp__host__compozy__terminal_exec")).toBe(

@@ -544,7 +544,8 @@ test("operator sees the daemon-generated session title and the file-mutation ver
   const markerNotice = sessionWin.getByTestId("transcript-marker-notice");
   await expect(markerNotice).toBeVisible();
   await expect(markerNotice).toHaveAttribute("data-tone", "warning");
-  await expect(sessionWin.getByTestId("transcript-marker-kind")).toContainText(
+  await expect(markerNotice).toHaveAttribute(
+    "data-marker-kind",
     "transcript_marker.file_mutation_unverified"
   );
   await expect(sessionWin.getByTestId("transcript-marker-summary")).toContainText(
