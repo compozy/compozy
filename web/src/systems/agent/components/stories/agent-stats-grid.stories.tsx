@@ -82,18 +82,3 @@ export const MetricsUnavailable: Story = {
     </Frame>
   ),
 };
-
-export const SessionsVariant: Story = {
-  args: {
-    variant: "sessions",
-    active: 2,
-    runtimeLabel: "4h 12m",
-    failed: 1,
-    sessionsTotal: 6,
-  },
-  render: args => (
-    <Frame>
-      <AgentStatsGrid {...args} />
-    </Frame>
-  ),
-};

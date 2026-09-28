@@ -5,7 +5,7 @@ import { AgentStatsGrid } from "../agent-stats-grid";
 import { formatAgentRuntimeDuration } from "../../lib/format-agent-runtime-duration";
 
 describe("AgentStatsGrid", () => {
-  it("Should render Active, Runtime, Failed, and Time-backed Last activity for Overview", () => {
+  it("Should render Active, Time working, Failed, and Time-backed Last activity", () => {
     render(
       <AgentStatsGrid
         active={7}
@@ -21,6 +21,8 @@ describe("AgentStatsGrid", () => {
       within(screen.getByTestId("agent-stat-runtime")).getByText("4h 12m")
     ).toBeInTheDocument();
     expect(within(screen.getByTestId("agent-stat-failed")).getByText("1")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-stat-active")).toHaveTextContent("of 205 sessions");
+    expect(screen.getByTestId("agent-stat-runtime")).toHaveTextContent("Time working");
     const lastActivity = within(screen.getByTestId("agent-stat-last-activity")).getByRole("time", {
       hidden: true,
     });
@@ -29,21 +31,6 @@ describe("AgentStatsGrid", () => {
     expect(lastActivity).toHaveAttribute("title");
     expect(screen.queryByTestId("agent-stat-total")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agent-stat-resumable")).not.toBeInTheDocument();
-  });
-
-  it("Should render Total instead of Last activity in the Sessions variant", () => {
-    render(
-      <AgentStatsGrid
-        variant="sessions"
-        active={2}
-        runtimeLabel="12m"
-        failed={0}
-        sessionsTotal={6}
-      />
-    );
-
-    expect(within(screen.getByTestId("agent-stat-total")).getByText("6")).toBeInTheDocument();
-    expect(screen.queryByTestId("agent-stat-last-activity")).not.toBeInTheDocument();
   });
 
   it("Should dash all four metrics when catalog aggregates are unavailable", () => {

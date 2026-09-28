@@ -6,12 +6,9 @@ import { filterAgentSessionsByStatus, validateAgentDetailSearch } from "../agent
 import { validateAgentSettingsSearch } from "../agent-settings-search";
 import { resolveAgentRuntimeValue } from "../agent-effective-runtime";
 import {
-  countPromptWords,
   formatAbsentList,
   formatAbsentListLabels,
   formatAbsentOverride,
-  formatPromptWordCount,
-  formatSkillsPolicyLine,
 } from "../agent-absent-value";
 import {
   buildSettingsDraftFromAgent,
@@ -109,16 +106,6 @@ describe("agent-absent-value", () => {
     expect(formatAbsentList(0)).toBe("None");
     expect(formatAbsentListLabels([])).toBe("None");
     expect(formatAbsentListLabels(["github", "linear"])).toBe("github · linear");
-  });
-
-  it("Should derive prompt word count and skills policy lines", () => {
-    expect(countPromptWords("one two three")).toBe(3);
-    expect(formatPromptWordCount("one two")).toBe("~2 words");
-    expect(formatSkillsPolicyLine(undefined)).toBe("All skills enabled");
-    expect(formatSkillsPolicyLine({ disabled: ["copywriting"] })).toBe(
-      "1 skill disabled (copywriting)"
-    );
-    expect(formatSkillsPolicyLine({ disabled: ["a", "b"] })).toBe("2 skills disabled");
   });
 });
 

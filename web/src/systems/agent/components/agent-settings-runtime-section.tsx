@@ -3,6 +3,7 @@ import { Settings2 } from "lucide-react";
 import {
   Button,
   Field,
+  FieldDescription,
   FieldError,
   FieldHeader,
   FieldLabel,
@@ -13,10 +14,7 @@ import {
   RadioCard,
 } from "@compozy/ui";
 
-import {
-  AGENT_CREATE_PERMISSION_OPTIONS,
-  type AgentCreatePermissionChoice,
-} from "../lib/agent-create-draft";
+import { AGENT_CREATE_PERMISSION_OPTIONS } from "../lib/agent-permissions";
 import {
   hasAgentRuntimeOverride,
   inheritedAgentRuntimeFields,
@@ -30,13 +28,6 @@ import {
   RuntimeSelector,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
-
-const PERMISSION_DESCRIPTIONS: Record<AgentCreatePermissionChoice, string> = {
-  "": "Use the runtime's default approval mode.",
-  "deny-all": "Ask before every tool call.",
-  "approve-reads": "Auto-approve read-only tools; ask for the rest.",
-  "approve-all": "Auto-approve every allowed tool call.",
-};
 
 export interface AgentSettingsRuntimeSectionProps {
   draft: AgentSettingsDraft;
@@ -105,10 +96,10 @@ export function AgentSettingsRuntimeSection({
           </HelpTip>
         </FieldHeader>
         {inheritedFields.length > 0 ? (
-          <p className="text-form-hint text-info" data-testid="agent-settings-runtime-inherited">
-            Inheriting {inheritedFields.join(", ")} from project runtime defaults. A selection here
-            creates an agent override.
-          </p>
+          <FieldDescription data-testid="agent-settings-runtime-inherited">
+            Using the project's default {inheritedFields.join(", ")}. Pick a different one to
+            override it for this agent.
+          </FieldDescription>
         ) : null}
         <RuntimeSelector
           value={runtimeValue}
@@ -200,7 +191,7 @@ export function AgentSettingsRuntimeSection({
             <RadioCard
               key={option.value || "inherit"}
               data-testid={`agent-settings-permissions-${option.value || "inherit"}`}
-              description={PERMISSION_DESCRIPTIONS[option.value]}
+              description={option.description}
               disabled={disabled}
               aria-disabled={readOnly || undefined}
               onSelect={() => {

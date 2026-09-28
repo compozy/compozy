@@ -1,51 +1,36 @@
 import { Eye, Lock, ShieldCheck, Zap } from "lucide-react";
 import type { ComponentType } from "react";
 
-import { Alert, AlertDescription, Field, FormSection, Pill, RadioCard } from "@compozy/ui";
+import { Alert, AlertDescription, Field, FormSection, RadioCard } from "@compozy/ui";
 
 import {
-  AGENT_CREATE_PERMISSION_OPTIONS,
   type AgentCreateDialogDraft,
   type AgentCreatePermissionChoice,
 } from "../lib/agent-create-draft";
+import { AGENT_CREATE_PERMISSION_OPTIONS } from "../lib/agent-permissions";
 
 interface PermissionPresentation {
-  title: string;
-  description: string;
-  badge: string;
   icon: ComponentType<{ className?: string; size?: number }>;
-  /** What the create request carries for this choice. */
+  /** What the choice means for new sessions. */
   consequence: string;
 }
 
 const PERMISSION_PRESENTATION: Record<AgentCreatePermissionChoice, PermissionPresentation> = {
   "": {
-    title: "Follow the runtime",
-    description: "CompozyOS sends no permission policy; the runtime decides the approval posture.",
-    badge: "Runtime default",
     icon: ShieldCheck,
-    consequence: "The definition omits permissions — the runtime's own default applies.",
+    consequence: "The agent's provider decides when to ask you.",
   },
   "deny-all": {
-    title: "Ask for everything",
-    description: "Every tool call waits for your approval first.",
-    badge: "Safest",
     icon: Lock,
-    consequence: "Sessions inherit deny-all.",
+    consequence: "New sessions wait for your OK before each action.",
   },
   "approve-reads": {
-    title: "Reads are free",
-    description: "Reading is automatic; writes and commands still ask.",
-    badge: "Balanced",
     icon: Eye,
-    consequence: "Sessions inherit approve-reads.",
+    consequence: "New sessions read freely and ask before changing anything.",
   },
   "approve-all": {
-    title: "Run everything",
-    description: "No approval gates. For trusted, well-scoped agents.",
-    badge: "Trusted",
     icon: Zap,
-    consequence: "Sessions inherit approve-all.",
+    consequence: "New sessions act without asking you.",
   },
 };
 
@@ -85,21 +70,12 @@ export function AgentCreatePermissionsSection({
             return (
               <RadioCard
                 data-testid={"agent-create-permissions-" + (option.value || "inherit")}
-                // The posture badge stacks under the description rather than beside
-                // the title: an inline badge pushes the title off its own row.
-                description={
-                  <>
-                    {presentation.description}
-                    <Pill className="mt-1.5 flex w-fit" size="xs">
-                      {presentation.badge}
-                    </Pill>
-                  </>
-                }
+                description={option.description}
                 icon={presentation.icon}
                 key={option.value || "inherit"}
                 onSelect={() => onDraftChange({ ...draft, permissions: option.value })}
                 selected={draft.permissions === option.value}
-                title={presentation.title}
+                title={option.label}
                 titleClassName="min-w-0 flex-1 truncate"
               />
             );

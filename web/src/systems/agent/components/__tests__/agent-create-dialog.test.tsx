@@ -295,13 +295,16 @@ describe("AgentCreateDialog", () => {
     await user.click(screen.getByTestId("agent-create-mode-advanced"));
 
     expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
-      "The definition omits permissions"
+      "The agent's provider decides when to ask you."
     );
 
     await user.click(screen.getByTestId("agent-create-permissions-approve-reads"));
+    expect(screen.getByTestId("agent-create-permissions-approve-reads")).toHaveTextContent(
+      "Ask only before changes"
+    );
 
     expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
-      "Sessions inherit approve-reads."
+      "New sessions read freely and ask before changing anything."
     );
   });
 

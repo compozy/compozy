@@ -70,8 +70,7 @@ export const InstructionsAgent: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-file-agent")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-file-meta")).resolves.toBeDefined();
-    expect(canvas.getByTestId("agent-file-meta")).toHaveTextContent("Read-only here");
+    await expect(canvas.findByTestId("agent-file-prompt")).resolves.toBeDefined();
   },
 };
 

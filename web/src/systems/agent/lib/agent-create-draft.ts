@@ -74,16 +74,6 @@ export type AgentCreateFieldKey =
   | "toolsets"
   | "denyTools";
 
-export const AGENT_CREATE_PERMISSION_OPTIONS: readonly {
-  value: AgentCreatePermissionChoice;
-  label: string;
-}[] = [
-  { value: "", label: "Inherit default" },
-  { value: "deny-all", label: "Deny all" },
-  { value: "approve-reads", label: "Approve reads" },
-  { value: "approve-all", label: "Approve all" },
-] as const;
-
 export function createDefaultAgentCreateDraft(hasActiveWorkspace: boolean): AgentCreateDialogDraft {
   return {
     scope: hasActiveWorkspace ? "workspace" : "global",

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
 
-import { Button, Empty, Pill, Skeleton, Spinner, Textarea } from "@compozy/ui";
+import { Button, Empty, Panel, Pill, Skeleton, Spinner, Textarea } from "@compozy/ui";
 
 import {
   useAgentAuthoredFileEditor,
@@ -13,7 +13,6 @@ import type {
   AgentSoulHistoryResponse,
   AgentSoulPayload,
 } from "../types";
-import { AgentPanelBox } from "./agent-panel-box";
 
 export type { AuthoredFileKind };
 
@@ -118,7 +117,7 @@ export function AgentAuthoredFileEditor(props: AgentAuthoredFileEditorProps) {
     return (
       <div className="flex flex-col gap-4" data-testid={`agent-${kind}-missing`}>
         {headerSlot}
-        <AgentPanelBox>
+        <Panel bodyClassName="p-0">
           <Empty
             icon={FileText}
             title={`No ${editor.fileLabel}`}
@@ -142,7 +141,7 @@ export function AgentAuthoredFileEditor(props: AgentAuthoredFileEditorProps) {
             fill={false}
             className="px-4 py-8"
           />
-        </AgentPanelBox>
+        </Panel>
         <AuthoredFileWriteRecovery
           kind={kind}
           saveError={saveError}
@@ -157,7 +156,7 @@ export function AgentAuthoredFileEditor(props: AgentAuthoredFileEditorProps) {
     <div className="flex flex-col gap-4" data-testid={`agent-${kind}-editor`}>
       {editor.guardDialog}
       {headerSlot}
-      <AgentPanelBox>
+      <Panel bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-line-soft px-4 py-2.5">
           <Pill
             mono
@@ -294,7 +293,7 @@ export function AgentAuthoredFileEditor(props: AgentAuthoredFileEditorProps) {
             )}
           </div>
         ) : null}
-      </AgentPanelBox>
+      </Panel>
       <span className="sr-only" aria-live="polite">
         {saving ? `Saving ${editor.fileLabel}` : validating ? `Validating ${editor.fileLabel}` : ""}
       </span>
