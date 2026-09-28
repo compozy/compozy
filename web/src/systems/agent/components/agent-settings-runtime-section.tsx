@@ -87,11 +87,11 @@ export function AgentSettingsRuntimeSection({
   const hasRuntimeOverride = hasAgentRuntimeOverride(draft);
 
   return (
-    <FormSection data-testid="agent-settings-runtime" icon={Settings2} title="Runtime">
+    <FormSection data-testid="agent-settings-runtime" icon={Settings2} title="Model">
       <Field data-invalid={Boolean(errors.provider)}>
         <FieldHeader>
-          <FieldTitle id="agent-settings-runtime-label">Runtime</FieldTitle>
-          <HelpTip label="About runtime">
+          <FieldTitle id="agent-settings-runtime-label">Model</FieldTitle>
+          <HelpTip label="About model">
             Provider, model, Reasoning, Fast, and advanced options inherited by new sessions.
           </HelpTip>
         </FieldHeader>
@@ -155,7 +155,8 @@ export function AgentSettingsRuntimeSection({
         <FieldHeader>
           <FieldLabel htmlFor="agent-settings-command">Command</FieldLabel>
           <HelpTip label="About command">
-            Optional provider command override for this agent.
+            The program CompozyOS starts for this agent's provider. Leave it empty to use the
+            default.
           </HelpTip>
         </FieldHeader>
         <Input

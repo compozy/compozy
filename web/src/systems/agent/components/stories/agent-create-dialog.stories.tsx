@@ -198,7 +198,7 @@ export const ValidationError: Story = {
       "Start with a lowercase letter and use only lowercase letters, numbers, hyphens, or underscores."
     );
     await expect(canvas.getByTestId("agent-create-category-path-error")).toHaveTextContent(
-      "Category path cannot contain blank segments."
+      "Group can't contain empty parts between slashes."
     );
   },
 };

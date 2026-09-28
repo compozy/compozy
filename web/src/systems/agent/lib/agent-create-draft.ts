@@ -59,6 +59,7 @@ export interface AgentCreateValidation {
 
 /** Advanced-only fields that can produce validation errors hidden by the Simple tier. */
 export const AGENT_CREATE_ADVANCED_FIELDS: readonly AgentCreateFieldKey[] = [
+  "categoryPath",
   "tools",
   "toolsets",
   "denyTools",
@@ -142,7 +143,7 @@ export function parseAgentCreateCategoryPath(rawInput: string): {
     return { segments: [], error: null };
   }
   if (trimmed.includes("\\")) {
-    return { segments: [], error: "Category path cannot contain backslashes." };
+    return { segments: [], error: "Group can't contain backslashes." };
   }
 
   const rawSegments = trimmed.split("/");
@@ -150,13 +151,13 @@ export function parseAgentCreateCategoryPath(rawInput: string): {
   for (const rawSegment of rawSegments) {
     const segment = rawSegment.trim();
     if (segment.length === 0) {
-      return { segments: [], error: "Category path cannot contain blank segments." };
+      return { segments: [], error: "Group can't contain empty parts between slashes." };
     }
     if (segment === "." || segment === "..") {
-      return { segments: [], error: "Category path cannot contain . or .. segments." };
+      return { segments: [], error: "Group can't contain . or .. parts." };
     }
     if (segment.includes("\\") || segment.includes("/")) {
-      return { segments: [], error: "Category path segments cannot contain path separators." };
+      return { segments: [], error: "Group parts can't contain path separators." };
     }
     segments.push(segment);
   }

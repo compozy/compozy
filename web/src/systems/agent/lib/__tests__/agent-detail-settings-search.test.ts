@@ -94,7 +94,9 @@ describe("validateAgentSettingsSearch", () => {
   it("Should default invalid section to basics", () => {
     expect(validateAgentSettingsSearch({})).toEqual({ section: "basics" });
     expect(validateAgentSettingsSearch({ section: "nope" })).toEqual({ section: "basics" });
-    expect(validateAgentSettingsSearch({ section: "danger" })).toEqual({ section: "danger" });
+    expect(validateAgentSettingsSearch({ section: "mcp" })).toEqual({ section: "mcp" });
+    // Delete lives at the bottom of Basics; the retired `danger` deep link lands there.
+    expect(validateAgentSettingsSearch({ section: "danger" })).toEqual({ section: "basics" });
   });
 });
 
