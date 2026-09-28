@@ -45,7 +45,7 @@ export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPane
               onNavigate={setup.browse.navigateTo}
               onPick={setup.selectRoot}
               parentPath={setup.browse.parentPath}
-              pickRowLabel={name => `Use ${name} as the workspace root`}
+              pickRowLabel={name => `Use ${name} as the project folder`}
               roots={setup.browse.roots}
               testIdPrefix="workspace-setup-browser"
             />

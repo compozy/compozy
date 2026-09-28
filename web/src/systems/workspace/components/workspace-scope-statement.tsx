@@ -23,7 +23,7 @@ function statementParts(
     case "install":
       return {
         prefix: isGlobal ? "Installs at " : "Installs to ",
-        suffix: isGlobal ? " — available in every workspace." : ".",
+        suffix: isGlobal ? " — available in every project." : ".",
       };
     case "session":
       return {
@@ -35,12 +35,12 @@ function statementParts(
     case "subscribe":
       return {
         prefix: isGlobal ? "Subscribes at " : "Subscribes in ",
-        suffix: isGlobal ? " — available in every workspace." : ".",
+        suffix: isGlobal ? " — available in every project." : ".",
       };
     default:
       return {
         prefix: "Creates in ",
-        suffix: isGlobal ? " — visible to every workspace." : ".",
+        suffix: isGlobal ? " — visible to every project." : ".",
       };
   }
 }

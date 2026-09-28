@@ -56,7 +56,7 @@ const meta: Meta<typeof WorkspaceCommandSelectHarness> = {
     docs: {
       description: {
         component:
-          "Searchable workspace switcher for the sidebar header. Uses CommandSelect with avatar initials, active checkmarks, and an optional Add workspace action.",
+          "Searchable workspace switcher for the sidebar header. Uses CommandSelect with avatar initials, active checkmarks, and an optional Add project action.",
       },
     },
   },
@@ -129,7 +129,7 @@ export const EmptyRegistry: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("workspace-switcher-name")).toHaveTextContent("No workspace");
+    await expect(canvas.getByTestId("workspace-switcher-name")).toHaveTextContent("No project");
     await expect(canvas.getByTestId("workspace-switcher")).toBeDisabled();
   },
 };
@@ -162,7 +162,7 @@ export const Compact: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId("workspace-compact-switcher")).toBeInTheDocument();
     await expect(canvas.getByTestId("workspace-switcher-name")).toHaveTextContent(
-      workspaceFixtures[0]?.name ?? "No workspace"
+      workspaceFixtures[0]?.name ?? "No project"
     );
   },
 };

@@ -1,7 +1,17 @@
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Field, FieldHeader, FieldLabel, FormSection, HelpTip, Input } from "@compozy/ui";
+import {
+  Button,
+  CommandSelectChip,
+  CommandSelectChipStrip,
+  Field,
+  FieldHeader,
+  FieldLabel,
+  FormSection,
+  HelpTip,
+  Input,
+} from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import type {
@@ -73,7 +83,7 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
   };
 
   return (
-    <FormSection title="Session defaults">
+    <FormSection title="Defaults for new sessions">
       <div className="flex flex-col gap-4">
         <Field>
           <FieldLabel htmlFor="workspace-setup-default-agent">Default agent</FieldLabel>
@@ -103,8 +113,10 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
 
         <Field>
           <FieldHeader>
-            <FieldLabel htmlFor="workspace-setup-add-dir">Additional directories</FieldLabel>
-            <HelpTip label="About additional directories">Extra roots sessions may read.</HelpTip>
+            <FieldLabel htmlFor="workspace-setup-add-dir">Other folders agents can read</FieldLabel>
+            <HelpTip label="About other folders">
+              Sessions in this project can also read these folders.
+            </HelpTip>
           </FieldHeader>
           <div className="flex items-center gap-2">
             <Input
@@ -136,26 +148,18 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
             </Button>
           </div>
           {setup.draft.addDirs.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="workspace-setup-add-dir-list">
+            <CommandSelectChipStrip className="mt-2" data-testid="workspace-setup-add-dir-list">
               {setup.draft.addDirs.map(dir => (
-                <span
-                  className="inline-flex items-center gap-1 rounded-sm bg-canvas px-2 py-1 font-mono text-mono-id tracking-normal text-muted"
+                <CommandSelectChip
+                  aria-label={`Remove ${dir}`}
+                  disabled={disabled}
                   key={dir}
+                  onRemove={() => setup.removeDir(dir)}
                 >
-                  <span className="min-w-0 truncate">{dir}</span>
-                  <Button
-                    aria-label={`Remove ${dir}`}
-                    disabled={disabled}
-                    onClick={() => setup.removeDir(dir)}
-                    size="icon-xs"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </span>
+                  {dir}
+                </CommandSelectChip>
               ))}
-            </div>
+            </CommandSelectChipStrip>
           ) : null}
         </Field>
       </div>

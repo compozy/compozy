@@ -41,7 +41,7 @@ export interface AgentCommandSelectProps {
 function UnknownAgentValue({ name }: { name: string }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-      <span className="truncate font-mono text-sm text-fg">{name}</span>
+      <span className="truncate font-mono text-mono-id text-fg">{name}</span>
       <Eyebrow className="ml-auto shrink-0 text-warning">Not available</Eyebrow>
     </span>
   );
@@ -96,7 +96,7 @@ export function AgentCommandSelect({
               size="xs"
               className="shrink-0 text-muted"
             />
-            <span className="truncate text-sm text-fg">{selectedAgent.name}</span>
+            <span className="truncate text-small-body text-fg">{selectedAgent.name}</span>
             <Eyebrow className="text-muted">{selectedAgent.provider}</Eyebrow>
             {selectedAgent.category_path && selectedAgent.category_path.length > 0 ? (
               <Eyebrow
@@ -145,7 +145,7 @@ export function AgentCommandSelect({
                 data-checked={selectedName ? "false" : "true"}
                 data-testid="agent-command-item-clear"
               >
-                <span className="truncate text-sm text-fg">{clearLabel}</span>
+                <span className="truncate text-small-body text-fg">{clearLabel}</span>
               </CommandItem>
             ) : null
           }

@@ -98,7 +98,7 @@ export function useWorkspaceSetupContent({
     event?.preventDefault();
     const rootDir = draft.rootDir.trim();
     if (rootDir === "") {
-      setCreateError("Pick the workspace root in the browser above.");
+      setCreateError("Pick the project folder in the browser above.");
       return;
     }
 
@@ -115,11 +115,11 @@ export function useWorkspaceSetupContent({
       });
       onWorkspaceResolved(workspace.id);
       resetDraft();
-      toast.success(`Workspace ready: ${workspace.name}`);
+      toast.success(`Project ready: ${workspace.name}`);
       onSuccessClose?.();
     } catch (error) {
       // The draft survives a failed write so nothing typed is lost.
-      setCreateError(getErrorMessage(error, "Failed to add workspace"));
+      setCreateError(getErrorMessage(error, "Couldn't add the project"));
     }
     setSubmissionMode(null);
   };
