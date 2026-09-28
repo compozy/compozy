@@ -88,23 +88,24 @@ describe("DesktopsOverview", () => {
     expect(callbacks.onSwitchDesktop).toHaveBeenCalledWith("research");
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
 
-    await user.click(screen.getByRole("button", { name: "Move Research left" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Research" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move left" }));
     expect(callbacks.onReorderDesktop).toHaveBeenCalledWith("research", 1);
 
-    await user.click(screen.getByRole("button", { name: "Rename Build" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Build" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Rename" }));
     const name = screen.getByLabelText("Desktop name");
     await user.clear(name);
     await user.type(name, "Implementation");
     await user.click(screen.getByRole("button", { name: "Save name" }));
     expect(callbacks.onRenameDesktop).toHaveBeenCalledWith("build", "Implementation");
 
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Move Agents to another desktop" }),
-      "research"
-    );
+    await user.click(screen.getByRole("button", { name: "Move Agents to another desktop" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Research" }));
     expect(callbacks.onMoveWindow).toHaveBeenCalledWith("agents", "build", "research");
 
-    await user.click(screen.getByRole("button", { name: "Delete Build" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Build" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete…" }));
     await user.click(screen.getByRole("button", { name: "Delete desktop" }));
     expect(callbacks.onDeleteDesktop).toHaveBeenCalledWith("build", "control");
   });
@@ -121,10 +122,9 @@ describe("DesktopsOverview", () => {
 
     expect(screen.getByRole("button", { name: "Create desktop" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Switch to Research" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Research left" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Rename Build" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Delete Build" })).toBeDisabled();
-    expect(screen.getByRole("combobox", { name: "Move Agents to another desktop" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Actions for Research" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Actions for Build" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move Agents to another desktop" })).toBeDisabled();
   });
 
   it("Should retry an explicit load failure", async () => {
