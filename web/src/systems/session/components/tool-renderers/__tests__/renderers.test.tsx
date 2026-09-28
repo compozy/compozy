@@ -220,6 +220,28 @@ describe("SearchContent", () => {
     expect(screen.getByText("src/c.ts")).toBeInTheDocument();
   });
 
+  it("names the glob as the search scope, else the shortened path", () => {
+    const { rerender } = render(
+      <SearchContent
+        message={makeMessage({
+          toolName: "Grep",
+          toolInput: { pattern: "TODO", glob: "*.ts", path: "/repo/web/src/systems" },
+        })}
+      />
+    );
+    expect(screen.getByText("in *.ts")).toBeInTheDocument();
+
+    rerender(
+      <SearchContent
+        message={makeMessage({
+          toolName: "Grep",
+          toolInput: { pattern: "TODO", path: "/repo/web/src/systems" },
+        })}
+      />
+    );
+    expect(screen.getByText("in web/src/systems")).toBeInTheDocument();
+  });
+
   it("shows 'No matches' when result exists but empty", () => {
     render(
       <SearchContent

@@ -6,7 +6,7 @@ import { DetailPayload } from "./tool-renderers/detail-payload";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
 import { isDeliberateTerminalTool, readSupervisedTerminalId } from "../lib/session-terminal-tools";
-import { fileDiffStatForTool } from "../lib/tool-diff-stat";
+import { fileDiffStatForTool, type ToolFileDiffStat } from "../lib/tool-diff-stat";
 import {
   getToolCompactSummary,
   getToolIcon,
@@ -15,7 +15,7 @@ import {
   toolHeadingName,
 } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
-import { isToolBodyField } from "../lib/tool-matched-field";
+import { isToolBodyField, type SessionToolBodyField } from "../lib/tool-matched-field";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 import { MatchedToolFieldContent } from "./tool-renderers/matched-field-content";
 import { ToolResultArtifact } from "./tool-result-artifact";
@@ -223,6 +223,75 @@ function toolCallPresentation({
   };
 }
 
+type ToolCallDiffStat = ToolFileDiffStat | null;
+
+/** Accessible stat text: the state word, else the spelled-out diff stat. */
+function toolCallStatLabel(
+  stateWord: string | null,
+  diffStat: ToolCallDiffStat
+): string | undefined {
+  if (stateWord) return stateWord;
+  return diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined;
+}
+
+/** The row's trailing stat: a state word the glyph cannot carry, else the `+a −d` diff stat. */
+function ToolCallStat({
+  stateWord,
+  diffStat,
+}: {
+  stateWord: string | null;
+  diffStat: ToolCallDiffStat;
+}) {
+  if (stateWord) {
+    return (
+      <span className="text-subtle" data-testid="tool-call-state-word">
+        {stateWord}
+      </span>
+    );
+  }
+  if (!diffStat) return null;
+  return (
+    <>
+      {/* Per-call stats stay neutral; the sign carries the meaning. The turn's
+          changed-files row is the one place additions/deletions take color. */}
+      <span className="font-medium text-subtle">+{diffStat.additions}</span>
+      <span className="font-medium text-subtle">−{diffStat.deletions}</span>
+    </>
+  );
+}
+
+/** The expanded body: the original title, the matched field in full, then the tool's own display. */
+function ToolCallBody({
+  message,
+  titleDetail,
+  matchedField,
+  showArtifactResult,
+}: {
+  message: UIMessage;
+  titleDetail?: string;
+  matchedField: SessionToolBodyField | null;
+  showArtifactResult: boolean;
+}) {
+  return (
+    <ToolCallRow.Output>
+      {titleDetail ? (
+        <DetailPayload
+          aria-label="Tool title"
+          text={titleDetail}
+          defaultExpanded
+          downloadName="tool-title.txt"
+        />
+      ) : null}
+      {matchedField ? <MatchedToolFieldContent message={message} field={matchedField} /> : null}
+      {showArtifactResult && message.toolResult ? (
+        <ToolResultArtifact result={message.toolResult} />
+      ) : (
+        <ExpandedToolContent message={message} />
+      )}
+    </ToolCallRow.Output>
+  );
+}
+
 /**
  * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
  * calm 24px line whose status lives in the trailing glyph. Failed rows stay
@@ -273,6 +342,7 @@ export function SessionToolCallRow({
     revealOpen,
     revealField,
   });
+  const statLabel = toolCallStatLabel(stateWord, diffStat);
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
@@ -297,44 +367,16 @@ export function SessionToolCallRow({
           if (!next && revealOpen) onRevealRelease?.();
           setOwnExpanded(next);
         }}
-        statLabel={
-          stateWord ??
-          (diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined)
-        }
-        stat={
-          stateWord ? (
-            <span className="text-subtle" data-testid="tool-call-state-word">
-              {stateWord}
-            </span>
-          ) : diffStat ? (
-            <>
-              {/* Per-call stats stay neutral; the sign carries the meaning. The turn's
-                  changed-files row is the one place additions/deletions take color. */}
-              <span className="font-medium text-subtle">+{diffStat.additions}</span>
-              <span className="font-medium text-subtle">−{diffStat.deletions}</span>
-            </>
-          ) : undefined
-        }
+        statLabel={statLabel}
+        stat={statLabel ? <ToolCallStat stateWord={stateWord} diffStat={diffStat} /> : undefined}
       >
         {showExpandedBody ? (
-          <ToolCallRow.Output>
-            {showTitleDetail && titleDetail ? (
-              <DetailPayload
-                aria-label="Tool title"
-                text={titleDetail}
-                defaultExpanded
-                downloadName="tool-title.txt"
-              />
-            ) : null}
-            {matchedField ? (
-              <MatchedToolFieldContent message={message} field={matchedField} />
-            ) : null}
-            {showArtifactResult && message.toolResult ? (
-              <ToolResultArtifact result={message.toolResult} />
-            ) : (
-              <ExpandedToolContent message={message} />
-            )}
-          </ToolCallRow.Output>
+          <ToolCallBody
+            message={message}
+            titleDetail={showTitleDetail ? titleDetail : undefined}
+            matchedField={matchedField}
+            showArtifactResult={showArtifactResult}
+          />
         ) : null}
       </ToolCallRow>
     </div>
