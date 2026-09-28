@@ -79,7 +79,7 @@ describe("useSessionTopbarSlot", () => {
     expect(screen.getByTestId("session-status-agent")).toHaveTextContent(
       primarySessionFixture.agent_name
     );
-    expect(screen.getByText("Session badge: running")).toHaveClass("sr-only");
+    expect(screen.getByText("Session status: Working")).toHaveClass("sr-only");
     expect(document.querySelector('[data-slot="topbar-crumbs"]')).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));

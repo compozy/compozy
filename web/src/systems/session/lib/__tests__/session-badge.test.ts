@@ -46,14 +46,17 @@ describe("session badge dictionary", () => {
   });
 
   it("Should never convey a state by colour alone (UT-050)", () => {
-    // Every badge carries a glyph, a shape, and the exact CLI state word, so a
-    // shared tone is always disambiguated on a second channel.
+    // Every badge carries a glyph, a shape, a plain state word, and the exact
+    // CLI token, so a shared tone is always disambiguated on a second channel.
     for (const badge of SESSION_BADGES) {
       const signal = SESSION_BADGE_SIGNAL[badge];
       expect(signal.glyph).toBeDefined();
       expect(signal.shape).toBeTruthy();
       expect(signal.label).toBe(badge);
+      expect(signal.displayLabel).toMatch(/^[A-Z][a-z -]+$/);
     }
+    expect(SESSION_BADGE_SIGNAL["waiting-for-input"].displayLabel).toBe("Needs your answer");
+    expect(SESSION_BADGE_SIGNAL.hung.displayLabel).toBe("Stuck");
     const blockedShapes = BLOCKED_ON_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].shape);
     const blockedGlyphs = BLOCKED_ON_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].glyph);
     expect(new Set(BLOCKED_ON_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].tone))).toEqual(
@@ -71,10 +74,12 @@ describe("session badge dictionary", () => {
   });
 
   it("Should ink the locked tone per state (UT-050)", () => {
-    expect(SESSION_BADGE_SIGNAL.done.tone).toBe("info");
+    // Resting states stay neutral: colour is reserved for states that ask
+    // something of the user, and the glyph carries done/idle.
+    expect(SESSION_BADGE_SIGNAL.done.tone).toBe("neutral");
     expect(SESSION_BADGE_SIGNAL.running.tone).toBe("accent");
     expect(SESSION_BADGE_SIGNAL.running.pulse).toBe(true);
-    expect(SESSION_BADGE_SIGNAL.idle.tone).toBe("success");
+    expect(SESSION_BADGE_SIGNAL.idle.tone).toBe("neutral");
     expect(SESSION_BADGE_SIGNAL.hung.tone).toBe("warning");
     expect(SESSION_BADGE_SIGNAL.unhealthy.tone).toBe("warning");
     // An unverified stop asks for attention on warning, never danger: the

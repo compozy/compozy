@@ -132,8 +132,13 @@ function SessionListRowDetails({
       </span>
       <span className="block truncate text-micro text-subtle">
         <span className="font-medium text-muted">{session.agent_name}</span>
-        <span aria-hidden="true"> · </span>
-        <span className={sessionBadgeWordClass(session.badge)}>{signal.label}</span>
+        {/* The mark carries every state; the word only speaks up when the row needs you. */}
+        {signal.attention === "needs-you" ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            <span className={sessionBadgeWordClass(session.badge)}>{signal.displayLabel}</span>
+          </>
+        ) : null}
         {maskedNote !== null ? (
           <>
             <span aria-hidden="true"> · </span>
