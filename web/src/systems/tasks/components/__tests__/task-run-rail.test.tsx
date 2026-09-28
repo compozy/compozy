@@ -125,7 +125,7 @@ describe("TaskRunRail lineage", () => {
       />
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading lineage");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading attempts");
     expect(screen.queryByText("No linked attempts")).toBeNull();
 
     rerender(

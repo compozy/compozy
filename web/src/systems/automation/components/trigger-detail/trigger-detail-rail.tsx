@@ -97,7 +97,7 @@ export function TriggerDetailRail({
   ...props
 }: TriggerDetailRailProps) {
   const target = projectAutomationTarget(trigger);
-  const scopeLabel = trigger.scope === "workspace" ? "This workspace" : "Global";
+  const scopeLabel = trigger.scope === "workspace" ? "This project" : "Global";
   const eventLabel = triggerEventLabel(trigger);
   const isWebhook = trigger.event === "webhook";
   const kindLabel = target.kind === "loop" ? "Loop" : isWebhook ? "Webhook" : eventLabel;
@@ -121,9 +121,7 @@ export function TriggerDetailRail({
           {target.kind === "loop" ? `Loop · ${target.loopName}` : `Agent · ${target.agentName}`}
         </PropertyRow>
         {target.kind === "loop" ? (
-          <PropertyRow label="Loop workspace">
-            {loopWorkspaceName ?? target.workspaceId}
-          </PropertyRow>
+          <PropertyRow label="Loop project">{loopWorkspaceName ?? target.workspaceId}</PropertyRow>
         ) : null}
         {isWebhook && trigger.endpoint_slug ? (
           <PropertyRow label="Endpoint" mono>

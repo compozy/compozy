@@ -1,13 +1,14 @@
 import { AlertCircle, ChevronRight, History } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Empty, Eyebrow, Pill, Section, Spinner } from "@compozy/ui";
+import { cn, Empty, Pill, Section, SkeletonRows } from "@compozy/ui";
 
 import {
   automationRunSkipReason,
   automationSkipReasonDetail,
   automationSkipReasonLabel,
   automationSkipReasonTone,
+  automationRunStatusLabel,
   automationStatusTone,
   formatDateTime,
   formatRunDuration,
@@ -25,13 +26,25 @@ interface AutomationRunHistoryProps {
   title?: string;
 }
 
-function runStatusLabel(run: AutomationRun): string {
-  return run.status.toUpperCase();
-}
-
 interface AutomationRunRowProps {
   loopWorkspaceId?: string;
   run: AutomationRun;
+}
+
+const RUN_ROW_CLASS = "flex min-w-0 items-start gap-4 px-4 py-3";
+const RUN_LINK_CLASS = cn(
+  RUN_ROW_CLASS,
+  "group/run-row text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
+);
+
+function RunRowChevron() {
+  return (
+    <ChevronRight
+      aria-hidden="true"
+      className="ml-2 mt-1 size-3 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
+      strokeWidth={1.75}
+    />
+  );
 }
 
 function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
@@ -39,10 +52,10 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
   const pulse = run.status === "running";
   const startedAt = formatDateTime(run.started_at);
   const duration = formatRunDuration(run);
-  const statusLabel = runStatusLabel(run);
+  const statusLabel = automationRunStatusLabel(run.status);
   // A durable skip (self-overlap / grace exceeded) is a canceled run that never
-  // dispatched: it keeps the CANCELED status but explains why, and drops the
-  // misleading "pending" hint and started/duration slot.
+  // dispatched: it keeps the canceled status but explains why, and drops the
+  // started/duration slot.
   const skipReason = automationRunSkipReason(run);
   const testId = `automation-run-${run.id}`;
   const ariaLabel = skipReason
@@ -52,22 +65,23 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
 
   const body = (
     <>
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Pill.Dot pulse={pulse} tone={tone} />
-          <Pill mono tone={tone}>
+          <Pill tone={tone}>
+            <Pill.Dot pulse={pulse} tone={tone} />
             {statusLabel}
           </Pill>
           {skipReason ? (
             <Pill
               data-testid="automation-run-skip-reason"
-              mono
               tone={automationSkipReasonTone(skipReason)}
             >
-              {automationSkipReasonLabel(skipReason).toUpperCase()}
+              {automationSkipReasonLabel(skipReason)}
             </Pill>
           ) : null}
-          <span className="font-mono text-eyebrow text-subtle">attempt {run.attempt}</span>
+          {run.attempt > 1 ? (
+            <span className="text-form-hint text-subtle">{`Attempt ${run.attempt}`}</span>
+          ) : null}
         </div>
         {skipReason ? (
           <p className="text-xs leading-relaxed text-muted">
@@ -78,21 +92,15 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
         {run.delivery_error ? (
           <p className="text-xs leading-relaxed text-danger">{`Delivery: ${run.delivery_error}`}</p>
         ) : null}
-        {run.fire_id ? (
-          <p className="break-all font-mono text-badge text-subtle">{run.fire_id}</p>
-        ) : null}
-        {run.loop_run_id ? (
-          <p className="break-all font-mono text-badge text-subtle">{run.loop_run_id}</p>
-        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 text-right">
         {skipReason ? null : <span className="text-small-body text-muted">{startedAt}</span>}
         {run.scheduled_at ? (
-          <Eyebrow className="text-subtle">
-            {`scheduled ${formatDateTime(run.scheduled_at)}`}
-          </Eyebrow>
+          <span className="text-form-hint text-subtle">
+            {`Scheduled ${formatDateTime(run.scheduled_at)}`}
+          </span>
         ) : null}
-        {skipReason ? null : <span className="font-mono text-eyebrow text-subtle">{duration}</span>}
+        {skipReason ? null : <span className="text-form-hint text-subtle">{duration}</span>}
       </div>
     </>
   );
@@ -101,20 +109,14 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
     return (
       <Link
         aria-label={`${ariaLabel} · Loop run ${destination.id}`}
-        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
+        className={RUN_LINK_CLASS}
         data-testid={testId}
         params={{ runId: destination.id }}
         search={destination.workspaceId ? { workspace: destination.workspaceId } : {}}
         to="/loop-runs/$runId"
       >
         {body}
-        <ChevronRight
-          aria-hidden="true"
-          className="ml-2 mt-1 size-3 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
-          strokeWidth={1.75}
-          width={12}
-          height={12}
-        />
+        <RunRowChevron />
       </Link>
     );
   }
@@ -123,38 +125,20 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
     return (
       <Link
         aria-label={ariaLabel}
-        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
+        className={RUN_LINK_CLASS}
         data-testid={testId}
         params={{ id: destination.id }}
         to="/session/$id"
       >
         {body}
-        <ChevronRight
-          aria-hidden="true"
-          className="ml-2 mt-1 size-3 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
-          strokeWidth={1.75}
-          width={12}
-          height={12}
-        />
+        <RunRowChevron />
       </Link>
     );
   }
 
   return (
-    <div
-      aria-label={ariaLabel}
-      className="flex min-w-0 items-start gap-4 px-4 py-3"
-      data-testid={testId}
-    >
+    <div aria-label={ariaLabel} className={RUN_ROW_CLASS} data-testid={testId}>
       {body}
-      {skipReason ? null : (
-        <span
-          aria-hidden="true"
-          className="ml-2 mt-1 inline-flex shrink-0 items-center font-mono text-eyebrow text-subtle"
-        >
-          pending
-        </span>
-      )}
     </div>
   );
 }
@@ -169,24 +153,19 @@ export function AutomationRunHistory({
   title = "Runs",
 }: AutomationRunHistoryProps) {
   return (
-    <Section
-      data-testid="automation-run-history"
-      label={title}
-      right={<Pill mono>{runs.length}</Pill>}
-    >
+    <Section data-testid="automation-run-history" label={title} count={runs.length}>
       {isLoading ? (
-        <div
-          className="flex min-h-28 items-center justify-center rounded-md bg-canvas-soft px-4 py-8"
+        <SkeletonRows
+          className="gap-4 rounded-lg bg-canvas-soft px-4 py-4"
+          count={3}
           data-testid="automation-run-history-loading"
-        >
-          <Spinner className="text-subtle" />
-        </div>
+        />
       ) : error ? (
         <div className="flex justify-center px-2 py-6" data-testid="automation-run-history-error">
           <Empty
-            description={error.message ?? "Failed to load automation runs"}
+            description={error.message ?? "Something went wrong loading the runs."}
             icon={AlertCircle}
-            title="Unable to load runs"
+            title="Couldn't load runs"
             fill={false}
           />
         </div>

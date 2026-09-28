@@ -80,12 +80,20 @@ describe("automation formatter helpers", () => {
 
   it("describes schedules for every supported mode", () => {
     expect(describeSchedule()).toBe("Manual");
-    expect(describeSchedule({ mode: "cron", expr: "0 9 * * *" })).toBe("Cron 0 9 * * *");
-    expect(describeSchedule({ mode: "cron" })).toBe("Cron");
-    expect(describeSchedule({ mode: "every", interval: "30m" })).toBe("Every 30m");
-    expect(describeSchedule({ mode: "every" })).toBe("Every interval");
-    expect(describeSchedule({ mode: "at", time: "2026-04-11T12:00:00Z" })).toContain("At Apr 11");
-    expect(describeSchedule({ mode: "at" })).toBe("One-shot");
+    expect(describeSchedule({ mode: "cron", expr: "0 9 * * *" })).toBe("Every day at 09:00 UTC");
+    expect(describeSchedule({ mode: "cron", expr: "0 9 * * 1-5" })).toBe(
+      "Every weekday at 09:00 UTC"
+    );
+    expect(describeSchedule({ mode: "cron", expr: "*/15 * * * *" })).toBe("Every 15 minutes");
+    expect(describeSchedule({ mode: "cron", expr: "0 9 1-7 * 1" })).toBe("Custom schedule");
+    expect(describeSchedule({ mode: "cron" })).toBe("Custom schedule");
+    expect(describeSchedule({ mode: "every", interval: "30m" })).toBe("Every 30 minutes");
+    expect(describeSchedule({ mode: "every", interval: "1h" })).toBe("Every hour");
+    expect(describeSchedule({ mode: "every" })).toBe("Repeats on an interval");
+    expect(describeSchedule({ mode: "at", time: "2026-04-11T12:00:00Z" })).toContain(
+      "Once on Apr 11"
+    );
+    expect(describeSchedule({ mode: "at" })).toBe("Runs once");
   });
 
   it("describes webhook and non-webhook triggers", () => {
@@ -116,10 +124,10 @@ describe("automation formatter helpers", () => {
       "No retries"
     );
     expect(describeRetry({ strategy: "backoff", max_retries: 4, base_delay: "5s" })).toBe(
-      "4 retries from 5s"
+      "Up to 4 retries, first after 5s"
     );
-    expect(describeFireLimit({ max: 12, window: "1h" })).toBe("12 fires / 1h");
-    expect(formatRunTitle({ status: "running", attempt: 2 } as never)).toBe("RUNNING · attempt 2");
+    expect(describeFireLimit({ max: 12, window: "1h" })).toBe("Up to 12 runs per hour");
+    expect(formatRunTitle({ status: "running", attempt: 2 } as never)).toBe("Running · attempt 2");
     expect(
       formatRunDuration({
         started_at: "2026-04-11T10:00:00Z",
@@ -131,18 +139,18 @@ describe("automation formatter helpers", () => {
     ).toBe("Review the session...");
     expect(automationStatusTone("running")).toBe("info");
     expect(automationStatusTone("completed")).toBe("success");
-    expect(automationStatusTone("enabled")).toBe("success");
-    expect(automationStatusTone("scheduled")).toBe("warning");
+    expect(automationStatusTone("enabled")).toBe("neutral");
+    expect(automationStatusTone("scheduled")).toBe("neutral");
     expect(automationStatusTone("failed")).toBe("danger");
     expect(automationStatusTone("canceled")).toBe("neutral");
     expect(automationStatusTone("disabled")).toBe("neutral");
-    expect(automationScopeTone("workspace")).toBe("info");
+    expect(automationScopeTone("workspace")).toBe("neutral");
     expect(automationScopeTone("global")).toBe("neutral");
-    expect(automationSourceTone("dynamic")).toBe("info");
+    expect(automationSourceTone("dynamic")).toBe("neutral");
     expect(automationSourceTone("config")).toBe("neutral");
-    expect(automationSourceLabel("config")).toBe("CONFIG");
-    expect(automationSourceLabel("package")).toBe("PACKAGE");
-    expect(automationSourceLabel("dynamic")).toBe("DYNAMIC");
+    expect(automationSourceLabel("config")).toBe("From config");
+    expect(automationSourceLabel("package")).toBe("From package");
+    expect(automationSourceLabel("dynamic")).toBe("Created here");
   });
 
   it("Should format trigger reliability across singular, plural, and unknown windows", () => {
@@ -183,7 +191,7 @@ describe("automation formatter helpers", () => {
         totalCount: 4,
         visibleCount: 2,
       })
-    ).toBe("Showing 2 of 4 jobs in global scope");
+    ).toBe("Showing 2 of 4 global jobs");
     expect(
       formatAutomationListSummary({
         kind: "jobs",
@@ -208,9 +216,9 @@ describe("automation formatter helpers", () => {
     expect(catchUpPolicyLabel()).toBe("Default");
     expect(catchUpPolicyLabel(undefined)).toBe("Default");
     expect(catchUpPolicyLabel("skip_missed")).toBe("Skip missed");
-    expect(catchUpPolicyLabel("coalesce")).toBe("Coalesce");
-    expect(catchUpPolicyLabel("replay")).toBe("Replay");
-    expect(catchUpPolicyLabel("run_once_on_catchup")).toBe("Run once");
+    expect(catchUpPolicyLabel("coalesce")).toBe("Catch up once");
+    expect(catchUpPolicyLabel("replay")).toBe("Run every missed time");
+    expect(catchUpPolicyLabel("run_once_on_catchup")).toBe("Run once, then continue");
     expect(catchUpPolicyLabel("skip_missed")).not.toBe("skip");
   });
 
@@ -246,11 +254,11 @@ describe("automation formatter helpers", () => {
     expect(automationRunSkipReason({ status: "canceled", metadata: {} } as never)).toBeNull();
     expect(automationRunSkipReason({ status: "canceled" } as never)).toBeNull();
 
-    expect(automationSkipReasonLabel("self_overlap")).toBe("Overlap");
-    expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Grace window");
-    expect(automationSkipReasonTone("self_overlap")).toBe("info");
+    expect(automationSkipReasonLabel("self_overlap")).toBe("Skipped");
+    expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Missed");
+    expect(automationSkipReasonTone("self_overlap")).toBe("neutral");
     expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("warning");
     expect(automationSkipReasonDetail("self_overlap")).toContain("previous run");
-    expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("grace window");
+    expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("start window");
   });
 });

@@ -125,7 +125,7 @@ export function AutomationTriggerForm({
             </Field>
 
             <FormSection
-              help="The runtime event this trigger listens for. A few events need one more detail, shown right under your choice."
+              help="What should start this trigger. A few events need one more detail, shown right under your choice."
               icon={Clock}
               title="An event happens"
             >
@@ -139,7 +139,7 @@ export function AutomationTriggerForm({
             </FormSection>
 
             <FormSection
-              help="Each condition is an exact match on a field from the event above. With none set, every event of that kind fires the trigger."
+              help="Each condition must match the event exactly. With none set, every event of that kind starts the trigger."
               icon={Filter}
               title={
                 <>
@@ -158,7 +158,7 @@ export function AutomationTriggerForm({
             </FormSection>
 
             <FormSection
-              help="Run an agent with a prompt rendered from the event, or start a Loop with typed inputs."
+              help="Ask an agent using details from the event, or start a Loop."
               icon={Bot}
               title="Run an agent, or a Loop"
             >

@@ -42,7 +42,7 @@ function SuggestionsShell({
       count={count}
       data-testid="automation-suggestions-card"
       label="Suggested jobs"
-      note="Review each proposal before creating a workspace Job."
+      note="Review each suggestion before creating the job."
     >
       {children}
     </CatalogEmptyPanel>

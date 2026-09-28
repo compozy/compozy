@@ -272,8 +272,13 @@ describe("TasksInboxView", () => {
     fireEvent.click(screen.getByTestId("tasks-inbox-item-approve-task_apr"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-reject-task_apr"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-retry-task_fail"));
+    // Low-frequency triage verbs live behind each row's overflow menu.
+    expect(screen.queryByTestId("tasks-inbox-item-dismiss-task_fail")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-more-task_fail"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-dismiss-task_fail"));
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-more-task_my"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-mark-read-task_my"));
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-more-task_my"));
     fireEvent.click(screen.getByTestId("tasks-inbox-item-archive-task_my"));
 
     expect(handlers.onApprove).toHaveBeenCalledWith("task_apr");

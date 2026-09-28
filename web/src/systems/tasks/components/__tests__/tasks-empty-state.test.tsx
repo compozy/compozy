@@ -19,13 +19,13 @@ describe("TasksEmptyState", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
-  it("Should paint each template row with the accent / info / warning / neutral tone vocabulary", () => {
+  it("Should keep template rows neutral so no benign template reads as a warning", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
     const expected: Record<string, string> = {
-      one_shot: "accent",
-      recurring: "info",
-      human_in_loop: "warning",
+      one_shot: "neutral",
+      recurring: "neutral",
+      human_in_loop: "neutral",
     };
 
     for (const [templateId, tone] of Object.entries(expected)) {
@@ -76,7 +76,7 @@ describe("TasksEmptyState", () => {
     expect(heading).not.toHaveTextContent("default");
   });
 
-  it("Should invoke onSelectTemplate from Blank task and from Use template", () => {
+  it("Should invoke onSelectTemplate from Start from scratch and from Use template", () => {
     const onSelectTemplate = vi.fn();
     render(<TasksEmptyState onSelectTemplate={onSelectTemplate} />);
 
@@ -130,17 +130,10 @@ describe("TasksEmptyState", () => {
     expect(screen.getByText(/schedule attached in Automation/)).toBeVisible();
   });
 
-  it("Should show an executable CLI command and only render Copy with a handler", async () => {
-    const user = userEvent.setup();
-    const onCopyCli = vi.fn();
-    const { rerender } = render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
-    expect(screen.queryByTestId("tasks-empty-cta-cli")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/compozy task create --scope workspace --title "Your task"/)
-    ).toBeInTheDocument();
-
-    rerender(<TasksEmptyState onCopyCli={onCopyCli} onSelectTemplate={vi.fn()} />);
-    await user.click(screen.getByTestId("tasks-empty-cta-cli"));
-    expect(onCopyCli).toHaveBeenCalledTimes(1);
+  it("Should explain tasks in plain language without CLI commands", () => {
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
+    expect(screen.getByText(/A task is a piece of work you hand to an agent/)).toBeInTheDocument();
+    expect(screen.queryByText(/compozy task create/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-empty-cta-new")).toHaveTextContent("Start from scratch");
   });
 });

@@ -814,7 +814,10 @@ test("tasks list and kanban surface needs_attention as a distinct status", async
   await expect(
     appPage.getByTestId("task-group-blocked").getByTestId(`task-card-${task.id}`)
   ).toHaveCount(0);
-  await expect(appPage.getByTestId(`task-card-needs-attention-${task.id}`)).toBeVisible();
+  await expect(needsAttentionGroup.getByTestId(`task-card-${task.id}`)).toHaveAttribute(
+    "data-status",
+    "needs_attention"
+  );
   await browserArtifacts.captureScreenshot("tasks-list-needs-attention", appPage);
 
   // Distinct kanban column: the same task lands in the needs_attention column.

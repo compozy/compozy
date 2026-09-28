@@ -147,16 +147,18 @@ describe("TaskOverviewPanel", () => {
       />
     );
 
-    fireEvent.click(screen.getByTestId("tasks-detail-now-approve"));
-    fireEvent.click(screen.getByTestId("tasks-detail-now-reject"));
+    // Approval is explained here but decided once, in the window head.
+    expect(screen.getByTestId("tasks-detail-now-approval")).toHaveTextContent(
+      "Waiting for your approval"
+    );
+    expect(screen.queryByTestId("tasks-detail-now-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-now-reject")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("tasks-detail-now-open-blocking-task_dep_001"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-open-blocking-task_dep_002"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-clear-block-block_001"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-clear-block-block_002"));
     fireEvent.click(screen.getByTestId("tasks-detail-now-open-run"));
 
-    expect(handlers.onApprove).toHaveBeenCalledTimes(1);
-    expect(handlers.onReject).toHaveBeenCalledTimes(1);
     expect(handlers.onOpenTask).toHaveBeenNthCalledWith(1, "task_dep_001");
     expect(handlers.onOpenTask).toHaveBeenNthCalledWith(2, "task_dep_002");
     expect(handlers.onClearBlock).toHaveBeenNthCalledWith(1, "block_001");

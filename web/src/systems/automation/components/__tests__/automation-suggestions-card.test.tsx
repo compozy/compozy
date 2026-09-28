@@ -74,7 +74,7 @@ describe("AutomationSuggestionsCard", () => {
     );
 
     expect(screen.getByText("Daily review")).toBeInTheDocument();
-    expect(screen.getByText("Cron 0 9 * * *")).toBeInTheDocument();
+    expect(screen.getByText("Every day at 09:00 UTC")).toBeInTheDocument();
     expect(screen.getByText(/Review changes merged since the previous run/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Daily review/ }));

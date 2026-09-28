@@ -1,4 +1,3 @@
-import { AlertCircle } from "lucide-react";
 import * as React from "react";
 
 import { Button, MonoId, OwnerAvatar, Pill } from "@compozy/ui";
@@ -58,7 +57,9 @@ export function TaskKanbanCard({
   const lastActivity = task.last_activity_at ?? task.updated_at;
   const timestamp = formatRelativeTime(lastActivity);
   const statusTone = taskStatusTone(task.status);
-  const showStatusPill = statusTone !== "neutral";
+  // Single-status columns already name the status; only the mixed Done column
+  // needs to tell failed and canceled cards apart from completed ones.
+  const showStatusPill = task.status === "failed" || task.status === "canceled";
 
   const clickable = onSelect !== undefined;
   const selectTaskCard = clickable ? () => onSelect?.(task.id) : undefined;
@@ -104,16 +105,16 @@ export function TaskKanbanCard({
         ) : null}
       </div>
 
-      <MonoId value={identifier} size="sm" data-slot="k-card-id" />
+      {task.identifier ? <MonoId value={identifier} size="sm" data-slot="k-card-id" /> : null}
 
       {failedError ? (
-        <div
-          className="flex items-start gap-1.5 rounded-xs bg-danger-tint px-2 py-1 font-mono text-mono-id text-danger"
+        <p
+          className="min-w-0 truncate text-form-hint text-danger"
           data-testid={`tasks-kanban-card-error-${task.id}`}
+          title={failedError}
         >
-          <AlertCircle aria-hidden="true" className="mt-px size-3 shrink-0" />
-          <span className="min-w-0 wrap-break-word">{failedError}</span>
-        </div>
+          {failedError}
+        </p>
       ) : null}
 
       <div className="flex min-w-0 items-center justify-between gap-2">
