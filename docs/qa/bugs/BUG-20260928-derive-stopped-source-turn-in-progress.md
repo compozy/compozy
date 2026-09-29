@@ -6,7 +6,7 @@
 - **Persona Affected:** Théo
 - **Journey Step:** J-15-operate-session-via-cli-api, derive branch (continue/fork of an idle source)
 - **Scenarios:** RT-session-lineage-upgrade; ET-web-session-continue; ET-web-session-fork-from-here; ET-cli-session-continue
-- **Found:** 2026-09-28 · **Report:** docs/qa/reports/2026-09-28-session-continue-fork.md
+- **Found:** 2026-09-28 · **Report:** docs/qa/reports/2026-09-28-session-continue-fork-exec-c.md
 
 ## Summary
 

@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pass
 fix_commits: uncommitted (task_08 part B1)
 evidence: docs/qa/evidence/2026-09-28-session-continue-fork-upgrade/walk-summary.json
-last_report: docs/qa/reports/2026-09-28-session-continue-fork.md
+last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-c.md
 overlaps: RT-conversation-rewind; ET-cli-session-continue; RT-session-fallback-chain
 ---
 
