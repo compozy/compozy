@@ -27,6 +27,44 @@ func sessionContinueDescriptor() toolspkg.Descriptor {
 	return descriptor
 }
 
+func sessionForkDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionFork,
+		"session_fork",
+		"Session Fork",
+		"Fork a user session with the same agent, runtime, and account: the whole conversation, or "+
+			"through message_id and its turn (the agent's reply and tool work included). When the agent "+
+			"can clone its own session the new session loads that clone on its first prompt. The source "+
+			"is never changed. Retrying with the same idempotency_key returns the recorded result.",
+		sessionForkInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "fork", "branch"},
+		[]string{"fork session", "branch session", "fork from message"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionDeriveOutputSchema)
+	return descriptor
+}
+
+const sessionForkInputSchema = `{
+	"type":"object",
+	"required":["session_id","idempotency_key"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string","minLength":1},
+		"message_id":{"type":"string","minLength":1},
+		"name":{"type":"string"},
+		"idempotency_key":{"type":"string","minLength":1},
+		"expected_epoch":{"type":"integer","minimum":0},
+		"expected_generation":{"type":"integer","minimum":0},
+		"expected_max_sequence":{"type":"integer","minimum":0}
+	},
+	"additionalProperties":false
+}`
+
 const sessionContinueInputSchema = `{
 	"type":"object",
 	"required":["session_id","agent","idempotency_key"],

@@ -190,6 +190,7 @@ cannot be validated fail closed.
     compozy session history <session-id> --last 20 --after 42
     compozy session rewind <session-id> --message-id <message-id>
     compozy session continue <session-id> --agent <name> --message "Carry on; run the tests first." -o json
+    compozy session fork <session-id> --message-id <message-id> -o json
     compozy session prompt <session-id> "Summarize the last three tool results."
     compozy session runtime set <session-id> --provider cursor --model claude-opus-5 --reasoning-effort high --speed fast --acp-toggle thinking=true
     compozy session runtime clear <session-id>
@@ -276,6 +277,21 @@ When a user session's turn fails as `rate_limited` or `not_authenticated`, the e
 `provider_error.next_action` is `handoff` with guidance naming `compozy session continue <id> --agent
 <name>`. It is an offer only; nothing continues automatically. Spawned, coordinator, and system
 sessions keep `retry` / `login`.
+
+`session fork` (`POST …/sessions/<id>/fork`, `compozy__session_fork`) starts a new session with the
+**same** agent, runtime, and account (a source running on an accepted `fallback_chain` route is forked
+onto that route when the agent still declares it compatibly). Without `--message-id` it carries the
+whole conversation through the last settled turn; with it, through that durable user message **and its
+turn** (reply and tool work included). A cut turn that has not settled fails with
+`session_turn_in_progress`; a message that is not a durable user message fails with `message_not_found`;
+anchors stay valid after compaction or after a rewind followed by new turns. Retries, fences, and the
+carried context behave as for `continue`. When the source is bound, idle, and its agent advertises both
+ACP `session/fork` and `session/load`, a whole-session fork uses the agent's own clone
+(`seed: native_fork`, `native_state: pending`, preview `native_fork_possible: true`); the new session's
+first prompt loads the clone under the same provider identity and the session read then shows
+`derivation.native_state` `loaded`, or `failed` with `native_fork_error` when the clone could not load
+and the carried context was sent instead. A failed clone request yields `seed: replay` with
+`native_fork_error`. The source never receives the clone's traffic.
 
 ### Session attention and pending interactions
 

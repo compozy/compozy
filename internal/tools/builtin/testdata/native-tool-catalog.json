@@ -2292,6 +2292,19 @@
     "output_schema_digest": "772c3e0c1875a21af024e134c5a96ecce8afce1d4634ff6fba55b3dc43a47367"
   },
   {
+    "tool_id": "compozy__session_fork",
+    "native_name": "session_fork",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "baccb4e9c46ae2fed01de94a18f73d2a4e59a6a3fc6a1f203d27044d1d5faf17",
+    "output_schema_digest": "774452442dc7c2352e0f8bf5c586bd337831c27e8ff42c09814bb340e0a27fb2"
+  },
+  {
     "tool_id": "compozy__session_health",
     "native_name": "session_health",
     "toolsets": [

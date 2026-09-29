@@ -69,6 +69,29 @@ func (m *Manager) ContinueSession(ctx context.Context, opts ContinueSessionOpts)
 	return m.deriveSession(ctx, spec)
 }
 
+// ForkSession forks a user session with the same agent: the whole conversation through
+// its last settled turn, or through one durable user message and its turn. When the
+// agent can clone its own session (ADR-003) the child loads that clone at its first
+// bind; otherwise, and as the clone's fallback, it carries the bounded context.
+func (m *Manager) ForkSession(ctx context.Context, opts ForkSessionOpts) (DeriveResult, error) {
+	if m == nil {
+		return DeriveResult{}, errors.New("session: manager is required")
+	}
+	if ctx == nil {
+		return DeriveResult{}, errors.New("session: fork context is required")
+	}
+	return m.deriveSession(ctx, deriveSpec{
+		kind:        store.LineageKindFork,
+		workspaceID: strings.TrimSpace(opts.WorkspaceID),
+		profileID:   strings.TrimSpace(opts.ProfileID),
+		sourceID:    strings.TrimSpace(opts.SourceSessionID),
+		name:        strings.TrimSpace(opts.Name),
+		messageID:   strings.TrimSpace(opts.MessageID),
+		key:         strings.TrimSpace(opts.IdempotencyKey),
+		fences:      opts.Fences,
+	})
+}
+
 func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveResult, error) {
 	if err := validateDeriveSpec(spec); err != nil {
 		return DeriveResult{}, err
@@ -121,6 +144,9 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 		}
 		if refreshed, ok := m.Get(child.ID); ok {
 			result.Child = refreshed.Info()
+			if derivation := result.Child.Derivation; derivation != nil && derivation.Native != nil {
+				result.NativeState = derivation.Native.State
+			}
 		}
 	}
 	return result, nil

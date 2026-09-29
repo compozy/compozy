@@ -16,6 +16,7 @@ type ACPDriverAdapter struct {
 var _ AgentDriver = (*ACPDriverAdapter)(nil)
 var _ ScopedInterrupter = (*ACPDriverAdapter)(nil)
 var _ RuntimeConfigurator = (*ACPDriverAdapter)(nil)
+var _ ForkDriver = (*ACPDriverAdapter)(nil)
 var _ AgentExitVerifier = (*ACPDriverAdapter)(nil)
 var _ AgentKiller = (*ACPDriverAdapter)(nil)
 var _ AgentCooperativeCanceler = (*ACPDriverAdapter)(nil)
@@ -76,6 +77,19 @@ func (a *ACPDriverAdapter) ConfigureRuntime(
 		return err
 	}
 	return a.driver.ConfigureRuntime(ctx, native, config)
+}
+
+// ForkSession calls ACP session/fork on the process's bound session for cwd.
+func (a *ACPDriverAdapter) ForkSession(
+	ctx context.Context,
+	proc *AgentProcess,
+	cwd string,
+) (acp.ForkSessionResult, error) {
+	native, err := a.nativeProcess(proc)
+	if err != nil {
+		return acp.ForkSessionResult{}, err
+	}
+	return native.ForkSession(ctx, cwd, nil)
 }
 
 // NotifyExtension delivers one fire-and-forget extension notification over the

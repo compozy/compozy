@@ -72,7 +72,7 @@ Observe cross-client changes through `cmd_palette.pin.changed`,
 ## Runtime And Workspace Tools
 
 Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,
-`compozy__session_rewind`, `compozy__session_continue`,
+`compozy__session_rewind`, `compozy__session_continue`, `compozy__session_fork`,
 `compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
@@ -146,6 +146,15 @@ Required: `session_id`, `agent`, `idempotency_key`. Optional: `workspace`, `mess
 agent's `fallback_chain`), and the three transcript fences together. The result is `{session,
 derived}`; repeat the same call with the same key to read the recorded outcome (`derived.replayed`,
 `derived.child_deleted`) instead of creating a second session.
+
+`compozy__session_fork` (risk `mutating`, same permission and result shape as
+`compozy__session_continue`) forks a user session with the **same** agent, runtime, and account.
+Required: `session_id`, `idempotency_key`. Optional: `workspace`, `message_id` (fork through that
+durable user message and its turn; the whole session when omitted), `name`, and the three transcript
+fences together. An unsettled cut turn fails with `session_turn_in_progress`; an unknown message with
+`message_not_found`. `derived.seed` is `native_fork` (with `native_state: pending` and the clone's
+`acp_session_id`) when the agent cloned its own session, otherwise `replay`; a failed clone request is
+reported in `derived.native_fork_error`.
 
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional

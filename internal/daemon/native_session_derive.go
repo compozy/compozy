@@ -56,26 +56,14 @@ func (n *daemonNativeTools) sessionContinue(
 		input.ExpectedMaxSequence); err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	deriver, ok := n.deps.Sessions.(core.SessionDeriveManager)
-	if !ok {
-		return toolspkg.ToolResult{}, errors.New("daemon: session continue is unavailable")
-	}
-	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
-	}
-	source, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID)
+	deriver, workspaceID, profileID, err := n.nativeDeriveSource(ctx, scope, req.ToolID, input.Workspace, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	result, err := deriver.ContinueSession(ctx, session.ContinueSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     workspaceID,
-		ProfileID:       source.ProfileID,
+		ProfileID:       profileID,
 		AgentName:       agent,
 		Runtime:         nativeDeriveRuntime(input.Runtime),
 		Route:           input.Route,
@@ -87,6 +75,90 @@ func (n *daemonNativeTools) sessionContinue(
 			ExpectedMaxSequence: input.ExpectedMaxSequence,
 		},
 	})
+	return nativeDeriveResult(result, err)
+}
+
+type sessionForkInput struct {
+	Workspace           string `json:"workspace,omitempty"`
+	SessionID           string `json:"session_id"`
+	MessageID           string `json:"message_id,omitempty"`
+	Name                string `json:"name,omitempty"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch,omitempty"`
+	ExpectedGeneration  *int64 `json:"expected_generation,omitempty"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitempty"`
+}
+
+// sessionFork binds compozy__session_fork to the manager's derive primitive; the
+// invariants (snapshot, cut, native gate, receipt) are owned by session.Manager.
+func (n *daemonNativeTools) sessionFork(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input sessionForkInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	idempotencyKey, err := requiredNativeString(req.ToolID, "idempotency_key", input.IdempotencyKey)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := nativeDeriveFencesComplete(input.ExpectedEpoch, input.ExpectedGeneration,
+		input.ExpectedMaxSequence); err != nil {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+	}
+	deriver, workspaceID, profileID, err := n.nativeDeriveSource(ctx, scope, req.ToolID, input.Workspace, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	result, err := deriver.ForkSession(ctx, session.ForkSessionOpts{
+		SourceSessionID: sessionID,
+		WorkspaceID:     workspaceID,
+		ProfileID:       profileID,
+		MessageID:       strings.TrimSpace(input.MessageID),
+		Name:            strings.TrimSpace(input.Name),
+		IdempotencyKey:  idempotencyKey,
+		Fences: session.DeriveFences{
+			ExpectedEpoch: input.ExpectedEpoch, ExpectedGeneration: input.ExpectedGeneration,
+			ExpectedMaxSequence: input.ExpectedMaxSequence,
+		},
+	})
+	return nativeDeriveResult(result, err)
+}
+
+// nativeDeriveSource resolves the derive manager and the caller-visible source session.
+func (n *daemonNativeTools) nativeDeriveSource(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	toolID toolspkg.ToolID,
+	workspace string,
+	sessionID string,
+) (core.SessionDeriveManager, string, string, error) {
+	deriver, ok := n.deps.Sessions.(core.SessionDeriveManager)
+	if !ok {
+		return nil, "", "", errors.New("daemon: session continue and fork are unavailable")
+	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, toolID, workspace, scope)
+	if err != nil {
+		return nil, "", "", err
+	}
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return nil, "", "", nativeInputError(toolID, err)
+	}
+	source, err := n.nativeSessionInWorkspace(ctx, toolID, workspaceID, sessionID)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return deriver, workspaceID, source.ProfileID, nil
+}
+
+func nativeDeriveResult(result session.DeriveResult, err error) (toolspkg.ToolResult, error) {
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

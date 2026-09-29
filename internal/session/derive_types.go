@@ -71,6 +71,19 @@ type ContinueSessionOpts struct {
 	Fences         DeriveFences
 }
 
+// ForkSessionOpts forks a user session with the same agent, runtime, and account; the
+// whole conversation, or through one durable user message and its turn.
+type ForkSessionOpts struct {
+	SourceSessionID string
+	WorkspaceID     string
+	ProfileID       string
+	// MessageID is the durable user message to cut through; "" forks the whole session.
+	MessageID      string
+	Name           string
+	IdempotencyKey string
+	Fences         DeriveFences
+}
+
 // DeriveResult is the outcome of one continue or fork, fresh or replayed from its receipt.
 type DeriveResult struct {
 	// Child is the derived session's current read model; nil when the child was deleted.

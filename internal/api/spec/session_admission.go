@@ -70,6 +70,28 @@ func sessionAdmissionOperations() []OperationSpec {
 			},
 		},
 		{
+			Method:      httpMethodPost,
+			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
+			OperationID: "forkSession",
+			Summary:     "Fork a session with the same agent, whole or through one user message and its turn",
+			Tags:        []string{specSessionsKey},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("workspace_id", "Workspace id"),
+				pathParam("session_id", "Source session id"),
+			},
+			RequestBody: contract.ForkSessionRequest{},
+			Responses: []ResponseSpec{
+				{Status: 201, Description: "Created", Body: contract.SessionDeriveResponse{}},
+				{Status: 200, Description: "Recorded outcome replayed", Body: contract.SessionDeriveResponse{}},
+				{Status: 400, Description: "Invalid fork request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Session or message not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Session cannot be forked", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
+				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			},
+		},
+		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
 			OperationID: "previewSessionDerive",

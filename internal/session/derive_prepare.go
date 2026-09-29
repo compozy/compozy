@@ -32,13 +32,20 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 	if agentName == "" {
 		agentName = strings.TrimSpace(meta.AgentName)
 	}
-	agentDef, _, err := m.resolveDeriveTargetAgent(ctx, meta, agentName)
+	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, meta, agentName)
 	if err != nil {
 		return preparedDerive{}, err
 	}
 	pendingRoute, routeSelection, err := derivePendingRoute(agentName, agentDef, spec.route)
 	if err != nil {
 		return preparedDerive{}, err
+	}
+	var fork forkChildRoute
+	if spec.kind == store.LineageKindFork {
+		if fork, err = m.resolveForkChildRoute(&workspace, agentDef, &meta); err != nil {
+			return preparedDerive{}, err
+		}
+		pendingRoute, routeSelection = fork.pending, fork.route
 	}
 	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget())
 	if err != nil {
@@ -53,26 +60,20 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 		profileID = normalizeCreateProfileID(meta.ProfileID)
 	}
 	now := m.now().UTC()
-	// The child's meta starts staged and moves to admitted only once the first message's
-	// admission is claimed (a crash in between leaves it staged for the retry to finish);
-	// the receipt's immutable outcome records the request's intent.
-	firstPrompt := store.SessionFirstPrompt{State: store.SessionDerivationFirstPromptStaged}
-	outcomePrompt := firstPrompt
-	if spec.message != "" {
-		firstPrompt.AdmissionKey = deriveFirstAdmissionKey(spec.key)
-		firstPrompt.MessageID = deriveFirstMessageID(spec.workspaceID, spec.key)
-		outcomePrompt = firstPrompt
-		outcomePrompt.State = store.SessionDerivationFirstPromptAdmitted
+	firstPrompt, outcomePrompt := deriveFirstPrompt(spec)
+	seed := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay}
+	if spec.kind == store.LineageKindFork {
+		seed = m.deriveForkSeed(ctx, spec, &snapshot, agentName, fork.resolved)
 	}
 	derivation := &store.SessionDerivation{
 		Kind: spec.kind, SourceSessionID: meta.ID, IdempotencyKey: spec.key,
-		Seed: store.SessionDerivationSeedReplay, PendingRoute: pendingRoute,
+		Seed: seed.seed, Native: seed.native, PendingRoute: pendingRoute,
 		FirstPrompt: firstPrompt, CreatedAt: now,
 	}
 	receipt := store.SessionDerivationReceipt{
 		WorkspaceID: spec.workspaceID, ProfileID: profileID, IdempotencyKey: spec.key,
 		RequestFingerprint: spec.fingerprint, SourceSessionID: meta.ID, ChildSessionID: childID,
-		Kind: spec.kind, Outcome: deriveOutcome(imported, outcomePrompt), CreatedAt: now,
+		Kind: spec.kind, Outcome: deriveOutcome(imported, outcomePrompt, seed), CreatedAt: now,
 	}
 	opts := CreateOpts{
 		DesiredSessionID: childID,
@@ -91,8 +92,40 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 		ImportedContext: imported,
 		deriveReceipt:   &receipt,
 	}
-	applyDeriveRuntime(&opts, spec.runtime, routeSelection)
+	runtime := spec.runtime
+	if spec.kind == store.LineageKindFork {
+		runtime = forkRuntimeFromMeta(&meta)
+	}
+	applyDeriveRuntime(&opts, runtime, routeSelection)
 	return preparedDerive{createOpts: opts, receipt: receipt}, nil
+}
+
+// deriveFirstPrompt returns the child's initial first-prompt record and the receipt's.
+// The child's meta starts staged and moves to admitted only once the first message's
+// admission is claimed (a crash in between leaves it staged for the retry to finish);
+// the receipt's immutable outcome records the request's intent.
+func deriveFirstPrompt(spec deriveSpec) (store.SessionFirstPrompt, store.SessionFirstPrompt) {
+	firstPrompt := store.SessionFirstPrompt{State: store.SessionDerivationFirstPromptStaged}
+	if spec.message == "" {
+		return firstPrompt, firstPrompt
+	}
+	firstPrompt.AdmissionKey = deriveFirstAdmissionKey(spec.key)
+	firstPrompt.MessageID = deriveFirstMessageID(spec.workspaceID, spec.key)
+	outcome := firstPrompt
+	outcome.State = store.SessionDerivationFirstPromptAdmitted
+	return firstPrompt, outcome
+}
+
+// forkRuntimeFromMeta locks a fork child to the source's selected runtime.
+func forkRuntimeFromMeta(meta *store.SessionMeta) *DeriveRuntime {
+	speed, err := normalizeRequestedSpeed(meta.Speed)
+	if err != nil {
+		speed = ""
+	}
+	return normalizeDeriveRuntime(&DeriveRuntime{
+		Provider: meta.Provider, Model: meta.Model, ReasoningEffort: meta.ReasoningEffort, Speed: speed,
+		ACPOptions: ACPOptionSelectionsFromStore(meta.ACPOptionsValue()),
+	})
 }
 
 func applyDeriveRuntime(opts *CreateOpts, runtime *DeriveRuntime, route *FallbackRoute) {
@@ -182,15 +215,21 @@ func (m *Manager) buildImportedContext(
 func deriveOutcome(
 	imported *store.SessionImportedContext,
 	firstPrompt store.SessionFirstPrompt,
+	seed deriveSeedOutcome,
 ) store.SessionDerivationOutcome {
-	return store.SessionDerivationOutcome{
-		Seed: store.SessionDerivationSeedReplay, OriginMessageID: imported.OriginMessageID,
+	outcome := store.SessionDerivationOutcome{
+		Seed: seed.seed, NativeForkError: seed.nativeError, OriginMessageID: imported.OriginMessageID,
 		ThroughTurnID: imported.ThroughTurnID, ReplayMessageCount: imported.MessageCount,
 		ReplayBytes: imported.Bytes, Truncated: imported.Truncated, OmittedCount: imported.OmittedCount,
 		SourceTurnInProgress: imported.SourceTurnInProgress, SourceEpoch: imported.SourceEpoch,
 		SourceGeneration: imported.SourceGeneration, SourceMaxSequence: imported.SourceMaxSequence,
 		FirstPrompt: firstPrompt.State, FirstAdmissionKey: firstPrompt.AdmissionKey,
 	}
+	if seed.native != nil {
+		outcome.NativeState = seed.native.State
+		outcome.ACPSessionID = seed.native.ACPSessionID
+	}
+	return outcome
 }
 
 func (m *Manager) deriveBudget() replayBudget {

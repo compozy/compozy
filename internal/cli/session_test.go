@@ -4070,3 +4070,132 @@ func TestSessionContinueCommand(t *testing.T) {
 		}
 	})
 }
+
+func forkedRecord() SessionDeriveRecord {
+	count, size := 17, 23347
+	return SessionDeriveRecord{
+		Session: &contract.SessionPayload{ID: "sess-fork", AgentName: "codex"},
+		Derived: contract.SessionDerivedPayload{
+			Kind: "fork", SourceSessionID: "sess-src", OriginAgentName: "codex", OriginMessageID: "msg_3",
+			ThroughTurnID: "turn-3", Seed: "replay", ReplayMessageCount: &count, ReplayBytes: &size,
+			FirstPrompt: "staged", ChildSessionID: "sess-fork",
+		},
+	}
+}
+
+func TestSessionForkCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send the _dx fork body with transcript fences and print the fork block", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionForkRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionTranscriptFn: func(context.Context, string) (SessionTranscriptRecord, error) {
+				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
+			},
+			forkSessionFn: func(_ context.Context, id string, request SessionForkRequest) (SessionDeriveRecord, error) {
+				if id != "sess-src" {
+					t.Fatalf("ForkSession() id = %q, want sess-src", id)
+				}
+				captured = request
+				return forkedRecord(), nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--message-id", "msg_3")
+		if err != nil {
+			t.Fatalf("session fork error = %v", err)
+		}
+		if captured.MessageID != "msg_3" || !strings.HasPrefix(captured.IdempotencyKey, "idem") ||
+			captured.ExpectedEpoch == nil || *captured.ExpectedEpoch != 3 || *captured.ExpectedMaxSequence != 418 {
+			t.Fatalf("ForkSession() request = %#v", captured)
+		}
+		for _, want := range []string{
+			"Forked sess-src into sess-fork (codex)",
+			"Origin        fork · from sess-src · through msg_3 (turn turn-3)",
+			"Context       17 messages · 22.8 KiB · nothing omitted",
+			"Seed          replay",
+			"First prompt  staged",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("session fork output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
+	t.Run("Should print the JSON outcome of a whole-session fork", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionForkRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			forkSessionFn: func(_ context.Context, _ string, request SessionForkRequest) (SessionDeriveRecord, error) {
+				captured = request
+				record := forkedRecord()
+				record.Derived.OriginMessageID = ""
+				return record, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--idempotency-key", "idem-f",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3", "-o", "json")
+		if err != nil || captured.MessageID != "" || captured.IdempotencyKey != "idem-f" ||
+			*captured.ExpectedGeneration != 2 {
+			t.Fatalf("session fork error = %v request = %#v", err, captured)
+		}
+		var decoded SessionDeriveRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil || decoded.Derived.Kind != "fork" {
+			t.Fatalf("session fork -o json = %s (%v), want the fork outcome", stdout, err)
+		}
+	})
+
+	t.Run("Should reject partial fences with exit 2", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--expected-epoch", "3")
+		if err == nil || err.Error() != "cli: set all transcript fence flags together or omit all three" ||
+			cliExitCodeForError(err) != 2 {
+			t.Fatalf("session fork error = %v (exit %d), want the fence rule with exit 2",
+				err, cliExitCodeForError(err))
+		}
+	})
+
+	t.Run("Should print the Origin and native Derivation lines in session status", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			derivation contract.SessionDerivationPayload
+			want       string
+		}{
+			{
+				derivation: contract.SessionDerivationPayload{
+					Kind: "fork", SourceSessionID: "sess-src", Seed: "native_fork", NativeState: "loaded",
+				},
+				want: "seed native_fork · loaded",
+			},
+			{
+				derivation: contract.SessionDerivationPayload{
+					Kind: "fork", SourceSessionID: "sess-src", Seed: "native_fork", NativeState: "failed",
+					NativeForkError: "session/load: resource not found",
+				},
+				want: "seed native_fork · failed: session/load: resource not found (replayed the carried context)",
+			},
+		} {
+			derivation := tc.derivation
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
+					return SessionStatusRecord{
+						SessionID: "sess-fork", AgentName: "codex", Derivation: &derivation,
+						Lineage: &contract.SessionLineagePayload{
+							ParentSessionID: "sess-src", Kind: "fork", OriginAgentName: "codex",
+						},
+					}, nil
+				},
+			})
+			stdout, _, err := executeRootCommand(t, deps, "session", "status", "sess-fork")
+			if err != nil || !strings.Contains(stdout, "fork · from sess-src · codex") ||
+				!strings.Contains(stdout, tc.want) {
+				t.Fatalf("session status output = %q (%v), want Origin and %q", stdout, err, tc.want)
+			}
+		}
+	})
+}

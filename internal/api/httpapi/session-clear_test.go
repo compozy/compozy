@@ -268,7 +268,12 @@ func TestContinueSessionHandler(t *testing.T) {
 		recorder := performRequest(t, engine, http.MethodPost, continuePath,
 			[]byte(`{"agent_name":"claude-code","route":2,"idempotency_key":"idem-2"}`))
 		if recorder.Code != http.StatusCreated || route != 2 {
-			t.Fatalf("status = %d route = %d, want 201 with route 2; body=%s", recorder.Code, route, recorder.Body.String())
+			t.Fatalf(
+				"status = %d route = %d, want 201 with route 2; body=%s",
+				recorder.Code,
+				route,
+				recorder.Body.String(),
+			)
 		}
 	})
 
@@ -416,4 +421,121 @@ func TestPreviewSessionDeriveHandler(t *testing.T) {
 			t.Fatalf("status = %d preview = %#v, want whole-session preview without cut", recorder.Code, whole)
 		}
 	})
+}
+
+func forkedResult() session.DeriveResult {
+	child := newSessionInfo("sess-fork")
+	child.WorkspaceID = "ws-workspace"
+	child.ProfileID = store.DefaultProfileID
+	child.Lineage = &store.SessionLineage{
+		ParentSessionID: "sess-123", RootSessionID: "sess-123", SpawnDepth: 1,
+		Kind: store.LineageKindFork, OriginAgentName: "codex", OriginMessageID: "msg-3",
+	}
+	child.Derivation = &store.SessionDerivation{
+		Kind: store.LineageKindFork, SourceSessionID: "sess-123", Seed: store.SessionDerivationSeedNativeFork,
+		Native:      &store.SessionNativeBootstrap{ACPSessionID: "acp-clone", State: store.SessionNativeStatePending},
+		FirstPrompt: store.SessionFirstPrompt{State: store.SessionDerivationFirstPromptStaged},
+	}
+	return session.DeriveResult{
+		Child: child, ChildSessionID: "sess-fork", Kind: store.LineageKindFork, SourceSessionID: "sess-123",
+		OriginAgentName: "codex", OriginMessageID: "msg-3", ThroughTurnID: "turn-3",
+		Seed: session.DeriveSeedNativeFork, NativeState: store.SessionNativeStatePending, ACPSessionID: "acp-clone",
+		ReplayMessageCount: 17, ReplayBytes: 23347, FirstPrompt: store.SessionDerivationFirstPromptStaged,
+	}
+}
+
+func TestForkSessionHandler(t *testing.T) {
+	t.Parallel()
+
+	const forkPath = "/api/workspaces/ws-workspace/sessions/sess-123/fork"
+
+	t.Run("Should create the fork through a message with the native pending shape", func(t *testing.T) {
+		t.Parallel()
+
+		var captured session.ForkSessionOpts
+		manager := continueTestManager(t, "ws-workspace", nil)
+		manager.ForkFn = func(_ context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error) {
+			captured = opts
+			return forkedResult(), nil
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		body := []byte(`{"message_id":"msg-3","name":"alt","idempotency_key":"idem-fork",` +
+			`"expected_epoch":3,"expected_generation":12,"expected_max_sequence":418}`)
+		recorder := performRequest(t, engine, http.MethodPost, forkPath, body)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201; body=%s", recorder.Code, recorder.Body.String())
+		}
+		if captured.SourceSessionID != "sess-123" || captured.WorkspaceID != "ws-workspace" ||
+			captured.MessageID != "msg-3" || captured.Name != "alt" || captured.IdempotencyKey != "idem-fork" ||
+			captured.Fences.ExpectedMaxSequence == nil || *captured.Fences.ExpectedMaxSequence != 418 ||
+			captured.ProfileID != store.DefaultProfileID {
+			t.Fatalf("ForkSession() opts = %#v, want routed request", captured)
+		}
+		var response contract.SessionDeriveResponse
+		decodeJSONResponse(t, recorder, &response)
+		derived := response.Derived
+		if derived.Kind != "fork" || derived.OriginMessageID != "msg-3" || derived.ThroughTurnID != "turn-3" ||
+			derived.Seed != "native_fork" || derived.NativeState != "pending" || derived.ACPSessionID != "acp-clone" ||
+			derived.ReplayMessageCount == nil || *derived.ReplayMessageCount != 17 {
+			t.Fatalf("response.derived = %#v, want the native pending fork outcome", derived)
+		}
+		if response.Session == nil || response.Session.Lineage == nil ||
+			response.Session.Lineage.OriginMessageID != "msg-3" || response.Session.Derivation == nil ||
+			response.Session.Derivation.NativeState != "pending" {
+			t.Fatalf("response.session = %#v, want the fork lineage and native state", response.Session)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{name: "Should reject a missing idempotency key", body: `{"message_id":"msg-3"}`},
+		{name: "Should reject partial fences", body: `{"idempotency_key":"k","expected_epoch":3}`},
+		{name: "Should reject agent fields", body: `{"idempotency_key":"k","agent_name":"b"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := continueTestManager(t, "ws-workspace", nil)
+			manager.ForkFn = func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error) {
+				t.Fatal("ForkSession() called for an invalid request")
+				return session.DeriveResult{}, nil
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(t, engine, http.MethodPost, forkPath, []byte(tc.body))
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"Should map an unknown message", session.ErrDeriveMessageNotFound, http.StatusNotFound, "message_not_found"},
+		{"Should map an unsettled cut turn", session.ErrDeriveTurnInProgress, http.StatusConflict, "session_turn_in_progress"},
+		{"Should map a fence conflict", session.ErrDeriveFenceConflict, http.StatusConflict, "session_fence_conflict"},
+		{"Should map a non-user source", session.ErrSessionNotDerivable, http.StatusBadRequest, "session_not_derivable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := continueTestManager(t, "ws-workspace", nil)
+			manager.ForkFn = func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error) {
+				return session.DeriveResult{}, tc.err
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(t, engine, http.MethodPost, forkPath, []byte(`{"idempotency_key":"k"}`))
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if recorder.Code != tc.status || payload.Code != tc.code {
+				t.Fatalf("status = %d code = %q, want %d %q; body=%s",
+					recorder.Code, payload.Code, tc.status, tc.code, recorder.Body.String())
+			}
+		})
+	}
 }

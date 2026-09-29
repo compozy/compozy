@@ -1,0 +1,59 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "fork-native-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You exercise native session fork.",
+            "fork_session": true,
+            "turns": [
+                {
+                    "name": "source-turn",
+                    "match": { "turn_source": "user", "user_text": "Start the migration" },
+                    "steps": [{ "kind": "assistant", "text": "Started the migration." }]
+                },
+                {
+                    "name": "child-turn",
+                    "match": { "turn_source": "user", "user_text": "Child ask" },
+                    "steps": [{ "kind": "assistant", "text": "Child answered from the clone." }]
+                }
+            ]
+        },
+        {
+            "name": "fork-load-missing-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You exercise a native fork whose clone cannot load.",
+            "fork_session": true,
+            "load_missing": true,
+            "turns": [
+                {
+                    "name": "source-turn",
+                    "match": { "turn_source": "user", "user_text": "Start the migration" },
+                    "steps": [{ "kind": "assistant", "text": "Started the migration." }]
+                },
+                {
+                    "name": "child-fallback-turn",
+                    "match": { "turn_source": "user", "user_text_contains": "Child fallback ask" },
+                    "steps": [
+                        { "kind": "assistant", "text": "Child answered from the carried context." }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "fork-replay-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You exercise a replay-only fork.",
+            "turns": [
+                {
+                    "name": "source-turn",
+                    "match": { "turn_source": "user", "user_text": "Start the migration" },
+                    "steps": [{ "kind": "assistant", "text": "Started the migration." }]
+                }
+            ]
+        }
+    ]
+}

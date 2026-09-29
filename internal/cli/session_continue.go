@@ -67,7 +67,8 @@ func newSessionContinueCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if request.ExpectedEpoch == nil {
-				if err := fillDeriveFencesFromTranscript(cmd.Context(), client, args[0], &request); err != nil {
+				if err := fillDeriveFencesFromTranscript(cmd.Context(), client, args[0],
+					&request.ExpectedEpoch, &request.ExpectedGeneration, &request.ExpectedMaxSequence); err != nil {
 					return err
 				}
 			}
@@ -189,18 +190,20 @@ func deriveIdempotencyKey(value string) (string, error) {
 	return store.NewID("idem")
 }
 
+// fillDeriveFencesFromTranscript reads the source transcript fences when the operator
+// set none, so the derive refuses a transcript that moved in between.
 func fillDeriveFencesFromTranscript(
 	ctx context.Context,
 	client sessionClientAPI,
 	sessionID string,
-	request *SessionContinueRequest,
+	epochOut, generationOut, maxSequenceOut **int64,
 ) error {
 	transcript, err := client.GetSessionTranscript(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	epoch, generation, maxSequence := transcript.Epoch, transcript.Generation, transcript.MaxSequence
-	request.ExpectedEpoch, request.ExpectedGeneration, request.ExpectedMaxSequence = &epoch, &generation, &maxSequence
+	*epochOut, *generationOut, *maxSequenceOut = &epoch, &generation, &maxSequence
 	return nil
 }
 
@@ -242,12 +245,11 @@ func renderSessionDeriveHuman(record *SessionDeriveRecord) string {
 	if record.Session != nil {
 		childAgent = stringOrDash(record.Session.AgentName)
 	}
-	verb := "Continued"
-	if derived.Kind == string(store.LineageKindFork) {
-		verb = "Forked"
-	}
-	headline := fmt.Sprintf("%s %s (%s) into %s (%s)", verb, derived.SourceSessionID,
+	headline := fmt.Sprintf("Continued %s (%s) into %s (%s)", derived.SourceSessionID,
 		stringOrDash(derived.OriginAgentName), derived.ChildSessionID, childAgent)
+	if derived.Kind == string(store.LineageKindFork) {
+		headline = fmt.Sprintf("Forked %s into %s (%s)", derived.SourceSessionID, derived.ChildSessionID, childAgent)
+	}
 	lines := []keyValue{
 		{Label: "Origin", Value: deriveOriginValue(derived)},
 		{Label: "Context", Value: deriveContextValue(derived)},
@@ -308,13 +310,23 @@ func deriveSeedValue(derived contract.SessionDerivedPayload) string {
 }
 
 func sessionDerivationLines(info *SessionRecord) []keyValue {
-	if info == nil || info.Derivation == nil {
+	if info == nil {
 		return nil
 	}
-	derivation := info.Derivation
+	return derivationLines(info.Lineage, info.Derivation)
+}
+
+// derivationLines renders the Origin and Derivation lines of a continued or forked session.
+func derivationLines(
+	lineage *contract.SessionLineagePayload,
+	derivation *contract.SessionDerivationPayload,
+) []keyValue {
+	if derivation == nil {
+		return nil
+	}
 	origin := string(derivation.Kind) + " · from " + derivation.SourceSessionID
-	if info.Lineage != nil && info.Lineage.OriginAgentName != "" {
-		origin += " · " + info.Lineage.OriginAgentName
+	if lineage != nil && lineage.OriginAgentName != "" {
+		origin += " · " + lineage.OriginAgentName
 	}
 	detail := "seed " + stringOrDash(derivation.Seed)
 	switch {

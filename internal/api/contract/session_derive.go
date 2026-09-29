@@ -15,6 +15,18 @@ type ContinueSessionRequest struct {
 	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitempty"`
 }
 
+// ForkSessionRequest forks a user session with the same agent, runtime, and account.
+// MessageID cuts through that durable user message and its turn; absent forks the whole
+// session. The three fences are optional and must be sent together.
+type ForkSessionRequest struct {
+	MessageID           string `json:"message_id,omitempty"`
+	Name                string `json:"name,omitempty"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch,omitempty"`
+	ExpectedGeneration  *int64 `json:"expected_generation,omitempty"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitempty"`
+}
+
 // SessionDerivedPayload is the recorded outcome of one continue or fork.
 type SessionDerivedPayload struct {
 	Kind                 string `json:"kind"`

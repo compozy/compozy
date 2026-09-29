@@ -138,7 +138,7 @@ func (m *Manager) readDeriveSnapshotEvents(
 		snapshot.cut = DeriveCut{TurnID: turnID, ThroughSequence: through, TurnSettled: true}
 		snapshot.sourceTurnInProgress = laterOpen
 	} else {
-		cut, cutErr := deriveAnchorCut(ctx, recorder, messageID, events)
+		cut, cutErr := deriveAnchorCut(ctx, recorder, snapshot.meta.ID, messageID, events)
 		if cutErr != nil && !errors.Is(cutErr, ErrDeriveTurnInProgress) {
 			return cutErr
 		}
@@ -173,26 +173,29 @@ func deriveRewindBaseline(ctx context.Context, recorder EventReadCloser) ([]tran
 }
 
 // deriveAnchorCut resolves a fork anchor through the durable transcript entry of the
-// user message, then cuts through that turn's terminal event.
+// user message (TranscriptUserAnchor: complete user entry, active start event, no
+// archived-prefix guard), then cuts through that turn's terminal event.
 func deriveAnchorCut(
 	ctx context.Context,
 	recorder EventReadCloser,
+	sourceID string,
 	messageID string,
 	events []store.SessionEvent,
 ) (DeriveCut, error) {
-	reader, ok := recorder.(store.ConversationRewindReader)
+	reader, ok := recorder.(store.TranscriptAnchorReader)
 	if !ok {
 		return DeriveCut{}, errors.New("session: event recorder does not resolve transcript anchors")
 	}
-	target, err := reader.ConversationRewindTarget(ctx, messageID)
-	if errors.Is(err, store.ErrConversationRewindTargetNotFound) ||
-		errors.Is(err, store.ErrConversationRewindTargetInvalid) {
-		return DeriveCut{}, deriveErr(ErrDeriveMessageNotFound, "message %s not found in session", messageID)
+	anchor, err := reader.TranscriptUserAnchor(ctx, messageID)
+	if errors.Is(err, store.ErrTranscriptAnchorNotFound) || errors.Is(err, store.ErrTranscriptAnchorInvalid) {
+		return DeriveCut{}, deriveErr(
+			ErrDeriveMessageNotFound, "message %s not found in session %s", messageID, sourceID,
+		)
 	}
 	if err != nil {
 		return DeriveCut{}, fmt.Errorf("session: resolve derive anchor %q: %w", messageID, err)
 	}
-	return resolveDeriveCut(messageID, target.StartSequence, events)
+	return resolveDeriveCut(anchor, events)
 }
 
 // openDeriveQueryRecorder opens the source's events without the repairing metadata read

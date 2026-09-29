@@ -99,3 +99,35 @@ func (s *Session) markDeriveFirstPromptAdmitted(admissionKey string) bool {
 	s.derivation.FirstPrompt.State = store.SessionDerivationFirstPromptAdmitted
 	return true
 }
+
+// pendingNativeBootstrap returns the native clone bootstrap while it waits for the first bind.
+func (s *Session) pendingNativeBootstrap() *store.SessionNativeBootstrap {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.derivation == nil || s.derivation.Native == nil ||
+		s.derivation.Native.State != store.SessionNativeStatePending {
+		return nil
+	}
+	return store.CloneSessionDerivation(s.derivation).Native
+}
+
+// settleNativeBootstrap records the first-bind outcome of a pending native clone once;
+// the caller persists it with the binding it belongs to.
+func (s *Session) settleNativeBootstrap(state string, errText string, at time.Time) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.derivation == nil || s.derivation.Native == nil ||
+		s.derivation.Native.State != store.SessionNativeStatePending {
+		return
+	}
+	settled := at.UTC()
+	s.derivation.Native.State = state
+	s.derivation.Native.Error = errText
+	s.derivation.Native.SettledAt = &settled
+}

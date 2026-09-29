@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
 type ProfileLensID string
 
 type PromptDelivery string
@@ -146,9 +151,4 @@ type ResourceRecord struct {
 	Spec      json.RawMessage `json:"spec"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
-}
-
-type ResourceScope struct {
-	Kind ResourceScopeKind `json:"kind"`
-	ID   string            `json:"id,omitempty"`
 }

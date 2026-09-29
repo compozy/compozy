@@ -24,6 +24,7 @@ var (
 // SessionDeriveManager continues sessions and previews what a derive would carry.
 type SessionDeriveManager interface {
 	ContinueSession(ctx context.Context, opts session.ContinueSessionOpts) (session.DeriveResult, error)
+	ForkSession(ctx context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error)
 	DerivePreview(
 		ctx context.Context,
 		workspaceID string,
@@ -71,6 +72,50 @@ func (h *BaseHandlers) ContinueSession(c *gin.Context) {
 			ExpectedMaxSequence: req.ExpectedMaxSequence,
 		},
 	})
+	h.respondDerive(c, result, err)
+}
+
+// ForkSession forks the session with the same agent into a new session.
+func (h *BaseHandlers) ForkSession(c *gin.Context) {
+	var req contract.ForkSessionRequest
+	if err := decodeStrictJSONBody(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode fork request: %w", h.transportName(), err),
+		)
+		return
+	}
+	if err := validateForkSessionRequest(req); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	scope, sessionID, origin, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	deriver, ok := h.Sessions.(SessionDeriveManager)
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errDeriveUnavailable)
+		return
+	}
+	result, err := deriver.ForkSession(c.Request.Context(), session.ForkSessionOpts{
+		SourceSessionID: sessionID,
+		WorkspaceID:     scope.SessionWorkspaceID(),
+		ProfileID:       origin.ProfileID,
+		MessageID:       strings.TrimSpace(req.MessageID),
+		Name:            req.Name,
+		IdempotencyKey:  strings.TrimSpace(req.IdempotencyKey),
+		Fences: session.DeriveFences{
+			ExpectedEpoch: req.ExpectedEpoch, ExpectedGeneration: req.ExpectedGeneration,
+			ExpectedMaxSequence: req.ExpectedMaxSequence,
+		},
+	})
+	h.respondDerive(c, result, err)
+}
+
+// respondDerive writes a continue/fork outcome: 201 for a new child, 200 for a replayed receipt.
+func (h *BaseHandlers) respondDerive(c *gin.Context, result session.DeriveResult, err error) {
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -121,6 +166,13 @@ func validateContinueSessionRequest(req contract.ContinueSessionRequest) error {
 		return fmt.Errorf("%w: route must be a positive 1-based index", session.ErrValidation)
 	case req.Runtime != nil && req.Route > 0:
 		return errDeriveRuntimeRouteExclusive
+	}
+	return validateDeriveFences(req.ExpectedEpoch, req.ExpectedGeneration, req.ExpectedMaxSequence)
+}
+
+func validateForkSessionRequest(req contract.ForkSessionRequest) error {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		return fmt.Errorf("%w: idempotency_key is required", session.ErrValidation)
 	}
 	return validateDeriveFences(req.ExpectedEpoch, req.ExpectedGeneration, req.ExpectedMaxSequence)
 }

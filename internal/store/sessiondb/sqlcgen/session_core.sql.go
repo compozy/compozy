@@ -293,6 +293,38 @@ func (q *Queries) GetEventByID(ctx context.Context, id string) (GetEventByIDRow,
 	return i, err
 }
 
+const getTranscriptUserAnchor = `-- name: GetTranscriptUserAnchor :one
+SELECT kind, message_id, turn_id, start_sequence, complete
+FROM transcript_entries
+WHERE message_id = ?1
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.sequence = transcript_entries.start_sequence
+      AND events.archived = 0
+  )
+`
+
+type GetTranscriptUserAnchorRow struct {
+	Kind          string         `json:"kind"`
+	MessageID     sql.NullString `json:"message_id"`
+	TurnID        string         `json:"turn_id"`
+	StartSequence int64          `json:"start_sequence"`
+	Complete      int64          `json:"complete"`
+}
+
+func (q *Queries) GetTranscriptUserAnchor(ctx context.Context, messageID sql.NullString) (GetTranscriptUserAnchorRow, error) {
+	row := q.db.QueryRowContext(ctx, getTranscriptUserAnchor, messageID)
+	var i GetTranscriptUserAnchorRow
+	err := row.Scan(
+		&i.Kind,
+		&i.MessageID,
+		&i.TurnID,
+		&i.StartSequence,
+		&i.Complete,
+	)
+	return i, err
+}
+
 const initializeTranscriptProjectionState = `-- name: InitializeTranscriptProjectionState :exec
 INSERT OR IGNORE INTO transcript_projection_state (
     singleton, projection_version, generation, active_entry_key

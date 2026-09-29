@@ -173,6 +173,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__session_create":                nativeEntry("Creating", " ", false, "💬", "auto"),
 	"compozy__session_describe":              nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_events":                nativeEntry("Reading", " ", false, "💬", "auto"),
+	"compozy__session_fork":                  nativeEntry("Forking", " ", false, "💬", "auto"),
 	"compozy__session_health":                nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_history":               nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_input_cancel":          nativeEntry("Canceling", " ", false, "💬", "auto"),

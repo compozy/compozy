@@ -2220,7 +2220,8 @@ func TestMarketplaceWireFixtures(t *testing.T) {
 }
 
 // Invariant: the public continue/derive wire fixtures from _dx.md survive strict decoding and
-// encoding byte-for-byte. Owner: API contract; canonical contract suite (UT-042 goldens).
+// encoding byte-for-byte. Owner: API contract; canonical contract suite (UT-042 and UT-043
+// goldens, including the native fork pending and failed shapes).
 func TestSessionDeriveWireFixtures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -2231,6 +2232,10 @@ func TestSessionDeriveWireFixtures(t *testing.T) {
 		{"continue-route.json", &contract.ContinueSessionRequest{}},
 		{"continue-replay-child-deleted.json", &contract.SessionDeriveResponse{}},
 		{"preview.json", &contract.SessionDerivePreviewResponse{}},
+		{"fork-message.json", &contract.ForkSessionRequest{}},
+		{"fork-native-pending.json", &contract.SessionDeriveResponse{}},
+		{"fork-native-attempt-failed.json", &contract.SessionDeriveResponse{}},
+		{"derivation-native-failed.json", &contract.SessionDerivationPayload{}},
 	} {
 		t.Run("Should preserve "+tc.name, func(t *testing.T) {
 			t.Parallel()

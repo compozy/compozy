@@ -33,24 +33,9 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.New("session: start spec is required")
 	}
 
-	runtime, err := m.resolveSessionStartRuntime(acceptCtx, spec, true)
+	runtime, err := m.resolveAcceptedStartRuntime(acceptCtx, spec)
 	if err != nil {
-		spec.startLogger(m).Warn(
-			"session.start.runtime_prepare_failed",
-			"phase", spec.startAction,
-			"error", err,
-		)
-		return nil, fmt.Errorf("session: resolve %s runtime for %q: %w", spec.startAction, spec.sessionID, err)
-	}
-	if !spec.deferRuntimeValidation {
-		if err := m.validateExplicitStartModel(acceptCtx, &runtime, spec); err != nil {
-			return nil, err
-		}
-	}
-	if spec.creationIdentityPinned {
-		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
-			return nil, fmt.Errorf("session: prepare creation identity for %q: %w", spec.sessionID, err)
-		}
+		return nil, err
 	}
 	releaseLifecycle, err := m.reserveStartLifecycle(acceptCtx, spec.sessionID, spec.workspace.ID)
 	if err != nil {
@@ -103,6 +88,40 @@ func (m *Manager) acceptSessionStart(
 		spec: spec, runtime: runtime, session: session, storage: storage, run: run,
 		catalogPending: spec.deriveReceipt != nil,
 	}, nil
+}
+
+// resolveAcceptedStartRuntime resolves and validates the start's runtime and pins its
+// creation identity before anything is persisted.
+func (m *Manager) resolveAcceptedStartRuntime(
+	acceptCtx context.Context,
+	spec *sessionStartSpec,
+) (sessionStartRuntime, error) {
+	runtime, err := m.resolveSessionStartRuntime(acceptCtx, spec, true)
+	if err != nil {
+		spec.startLogger(m).Warn(
+			"session.start.runtime_prepare_failed",
+			"phase", spec.startAction,
+			"error", err,
+		)
+		return sessionStartRuntime{}, fmt.Errorf(
+			"session: resolve %s runtime for %q: %w", spec.startAction, spec.sessionID, err,
+		)
+	}
+	if !spec.deferRuntimeValidation {
+		if err := m.validateExplicitStartModel(acceptCtx, &runtime, spec); err != nil {
+			return sessionStartRuntime{}, err
+		}
+	}
+	if spec.creationIdentityPinned {
+		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
+			return sessionStartRuntime{}, fmt.Errorf(
+				"session: prepare creation identity for %q: %w",
+				spec.sessionID,
+				err,
+			)
+		}
+	}
+	return runtime, nil
 }
 
 // persistAcceptedStart writes the accepted start. A derived child only writes its meta

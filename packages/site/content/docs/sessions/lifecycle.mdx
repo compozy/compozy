@@ -513,6 +513,67 @@ if that route was removed or its command changed by then, the bind fails with
 `route_not_found: agent "…" declares N route(s); route M does not exist`, the session stays unbound, and
 nothing runs on the default account. Send a prompt with an explicit runtime or restore the route.
 
+### Forking a session
+
+Fork a user session to try another direction with the **same** agent, runtime, and account. The whole
+conversation is carried through its last settled turn, or pass a durable user message to fork through
+that message **and its turn**: the message, the agent's reply, and its tool work are included; nothing
+after that turn is.
+
+```bash
+compozy session fork sess_01J9R2K7M4T1 --message-id msg_01J9R2N3V0QF
+```
+
+```
+Forked sess_01J9R2K7M4T1 into sess_01J9R2T5H2CD (codex)
+  Origin        fork · from sess_01J9R2K7M4T1 · through msg_01J9R2N3V0QF (turn turn_01J9R2N3V1)
+  Context       17 messages · 22.8 KiB · nothing omitted
+  Seed          replay
+  First prompt  staged
+```
+
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/fork` with
+`idempotency_key` (required), an optional `message_id` and `name`, and the three transcript fences
+together or none. Agents use the `compozy__session_fork` native tool. Forks accept no agent or runtime
+fields; retries, fences, and the carried context behave as for continue. The new session reads
+`lineage.kind = "fork"` and, for a message cut, `lineage.origin_message_id`; the response reports the
+cut turn as `through_turn_id`.
+
+A cut turn must have settled: it ended with `done`, an error, or a cancellation. A message whose turn
+is still running returns `session_turn_in_progress`; wait or fork from an earlier message. A message
+that is not a durable user message in the session returns `message_not_found`. Messages remain valid
+fork points after compaction or after a rewind followed by new turns; only rewind itself refuses those.
+`GET …/derive/preview?message_id=…` reports the cut as `cut.turn_id` and `cut.turn_settled` before you
+fork.
+
+When the source runs on an overridden account (an accepted `fallback_chain` route), the fork is created
+on that same declared route when the agent still declares it compatibly; otherwise it binds the agent's
+default route.
+
+#### The agent's own clone
+
+Some agents can clone their own session (ACP `session/fork` together with `session/load`). A
+whole-session fork uses that clone when the source is bound on a live process, idle (no prompt in
+progress and nothing queued), and the fork resolves to the same provider identity. The preview reports
+this as `native_fork_possible` (`false` when not possible or unknown). A fork through a message, a
+running or stopped source, or an agent without both capabilities uses the carried context instead.
+
+A native fork responds with `seed: native_fork`, `native_state: pending`, and the clone's
+`acp_session_id`; the carried context is still stored as a fallback. The clone is loaded by the new
+session's own process at its first prompt, and only under the provider identity it was created with.
+The session read then reports `derivation.native_state` as:
+
+| State | Meaning |
+| --- | --- |
+| `pending` | The clone exists and has not been loaded yet. |
+| `loaded` | The first prompt loaded the clone; the carried context was not sent. |
+| `failed` | The clone could not be loaded (`native_fork_error`, for example `session/load: resource not found`) or the route differed from the clone's; the first prompt carried the context instead. |
+
+When the clone request itself fails, the fork is created with `seed: replay` and the redacted error in
+`native_fork_error`. The source never receives the clone's traffic, and its events, fences, and runtime
+stay unchanged. A loaded native session replays its history from the agent, so its log is not empty
+before your first message; a later provider replacement still prepends the carried context.
+
 ## Stopping a session
 
 Request a stop immediately, or wait for its verified result:

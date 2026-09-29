@@ -54,6 +54,8 @@ func (m *Manager) DerivePreview(
 	if spec.messageID != "" {
 		cut := snapshot.cut
 		preview.Cut = &cut
+	} else {
+		preview.NativeForkPossible = m.previewNativeForkPossible(ctx, &snapshot)
 	}
 	return preview, nil
 }

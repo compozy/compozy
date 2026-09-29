@@ -48,6 +48,7 @@ type StubSessionManager struct {
 	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
 	ClearFn                 func(context.Context, string) (*session.Session, error)
 	ContinueFn              func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error)
+	ForkFn                  func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error)
 	DerivePreviewFn         func(context.Context, string, string, string) (session.DerivePreview, error)
 	RewindFn                func(
 		context.Context,
@@ -397,6 +398,17 @@ func (s StubSessionManager) ContinueSession(
 ) (session.DeriveResult, error) {
 	if s.ContinueFn != nil {
 		return s.ContinueFn(ctx, opts)
+	}
+	return session.DeriveResult{}, session.ErrSessionNotFound
+}
+
+// ForkSession delegates to ForkFn.
+func (s StubSessionManager) ForkSession(
+	ctx context.Context,
+	opts session.ForkSessionOpts,
+) (session.DeriveResult, error) {
+	if s.ForkFn != nil {
+		return s.ForkFn(ctx, opts)
 	}
 	return session.DeriveResult{}, session.ErrSessionNotFound
 }

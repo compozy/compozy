@@ -26,16 +26,23 @@ type Fixture struct {
 
 // AgentFixture describes one named ACP mock agent inside a fixture file.
 type AgentFixture struct {
-	Name            string                       `json:"name"`
-	Provider        string                       `json:"provider"`
-	Model           string                       `json:"model,omitempty"`
-	ReasoningEffort string                       `json:"reasoning_effort,omitempty"`
-	Permissions     string                       `json:"permissions,omitempty"`
-	Tools           []string                     `json:"tools,omitempty"`
-	Prompt          string                       `json:"prompt,omitempty"`
-	LoadSession     *bool                        `json:"load_session,omitempty"`
-	ConfigOptions   []SessionConfigOptionFixture `json:"config_options,omitempty"`
-	Turns           []TurnFixture                `json:"turns"`
+	Name            string   `json:"name"`
+	Provider        string   `json:"provider"`
+	Model           string   `json:"model,omitempty"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	Permissions     string   `json:"permissions,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
+	Prompt          string   `json:"prompt,omitempty"`
+	LoadSession     *bool    `json:"load_session,omitempty"`
+	// ForkSession advertises the unstable ACP session/fork capability; the driver answers
+	// session/fork with a clone id after sending clone-id updates first (OpenCode shape).
+	ForkSession bool `json:"fork_session,omitempty"`
+	// ForkError makes session/fork fail with this message.
+	ForkError string `json:"fork_error,omitempty"`
+	// LoadMissing makes session/load fail with ACP resource-not-found for any id.
+	LoadMissing   bool                         `json:"load_missing,omitempty"`
+	ConfigOptions []SessionConfigOptionFixture `json:"config_options,omitempty"`
+	Turns         []TurnFixture                `json:"turns"`
 }
 
 // SupportsLoadSession reports the fixture's advertised ACP session/load capability.

@@ -96,14 +96,19 @@ func lastSettledTurn(events []store.SessionEvent) (string, int64, bool) {
 	return turns[last].id, turns[last].lastSequence, laterOpen
 }
 
-// resolveDeriveCut maps the anchor's start event to its turn and that turn's terminal
-// event; a turn without a terminal event is ErrDeriveTurnInProgress.
-func resolveDeriveCut(messageID string, startSequence int64, events []store.SessionEvent) (DeriveCut, error) {
-	turnID := ""
-	for _, event := range events {
-		if event.Sequence == startSequence {
-			turnID = strings.TrimSpace(event.TurnID)
-			break
+// resolveDeriveCut maps a durable user anchor to its turn and that turn's terminal
+// event (inclusive: the message, the agent's reply, and its tool work); a turn without a
+// terminal event is ErrDeriveTurnInProgress. The anchor's turn id comes from its
+// transcript entry; its start event is the fallback for entries written without one.
+func resolveDeriveCut(anchor store.TranscriptUserAnchor, events []store.SessionEvent) (DeriveCut, error) {
+	messageID := strings.TrimSpace(anchor.MessageID)
+	turnID := strings.TrimSpace(anchor.TurnID)
+	if turnID == "" {
+		for _, event := range events {
+			if event.Sequence == anchor.StartSequence {
+				turnID = strings.TrimSpace(event.TurnID)
+				break
+			}
 		}
 	}
 	if turnID == "" {

@@ -178,6 +178,18 @@ func TestLastSettledTurn(t *testing.T) {
 		if len(carried) != 3 {
 			t.Fatalf("carriedEvents() = %d events, want the 3 of t1", len(carried))
 		}
+		cut, err := resolveDeriveCut(
+			store.TranscriptUserAnchor{MessageID: "msg_1", TurnID: "t1", StartSequence: 1},
+			events,
+		)
+		if err != nil || !cut.TurnSettled || cut.ThroughSequence != 3 {
+			t.Fatalf("resolveDeriveCut(t1 before open synthetic t2) = %+v, %v, want settled through 3", cut, err)
+		}
+		if _, err := resolveDeriveCut(store.TranscriptUserAnchor{MessageID: "msg_x", TurnID: "t9"}, events); !errors.Is(
+			err, ErrDeriveMessageNotFound,
+		) {
+			t.Fatalf("resolveDeriveCut(unknown turn) error = %v, want ErrDeriveMessageNotFound", err)
+		}
 	})
 
 	t.Run("Should treat error and cancel markers as settlement but not a trailing tool call", func(t *testing.T) {
@@ -200,10 +212,19 @@ func TestLastSettledTurn(t *testing.T) {
 		if turnID != "t2" || through != 4 || !laterOpen {
 			t.Fatalf("lastSettledTurn() = %q/%d/%t, want t2/4/true", turnID, through, laterOpen)
 		}
-		if _, err := resolveDeriveCut("msg_3", 5, events); !errors.Is(err, ErrDeriveTurnInProgress) {
+		if _, err := resolveDeriveCut(
+			store.TranscriptUserAnchor{MessageID: "msg_3", StartSequence: 5},
+			events,
+		); !errors.Is(
+			err,
+			ErrDeriveTurnInProgress,
+		) {
 			t.Fatalf("resolveDeriveCut(open turn) error = %v, want ErrDeriveTurnInProgress", err)
 		}
-		cut, err := resolveDeriveCut("msg_1", 1, events)
+		cut, err := resolveDeriveCut(
+			store.TranscriptUserAnchor{MessageID: "msg_1", TurnID: "t1", StartSequence: 1},
+			events,
+		)
 		if err != nil || cut.TurnID != "t1" || cut.ThroughSequence != 2 || !cut.TurnSettled {
 			t.Fatalf("resolveDeriveCut(settled) = %+v, %v, want t1 through 2", cut, err)
 		}

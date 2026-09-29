@@ -111,3 +111,102 @@ func assertCLIExitCode(
 		t.Fatalf("%v: err = %v stderr = %q, want exit %d with %q", args, err, stderr, want, message)
 	}
 }
+
+// IT-013/IT-014/IT-015: `compozy session fork` against acpmock agents that clone natively,
+// whose clone cannot load, and that cannot clone.
+func TestDaemonE2ESessionForkCLI(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	t.Run("Should fork natively, replay without fork support, and fall back when the clone cannot load",
+		func(t *testing.T) {
+			t.Parallel()
+			runDaemonE2ESessionForkCLI(t)
+		})
+}
+
+func runDaemonE2ESessionForkCLI(t *testing.T) {
+	t.Helper()
+
+	fixture := mockFixturePath(t, "session_fork_fixture.json")
+	agents := []string{"fork-native-agent", "fork-load-missing-agent", "fork-replay-agent"}
+	specs := make([]e2etest.MockAgentSpec, 0, len(agents))
+	for _, agent := range agents {
+		specs = append(specs, e2etest.MockAgentSpec{FixturePath: fixture, FixtureAgent: agent, AgentName: agent})
+	}
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Roles.AutoTitle.Enabled = false
+			cfg.Roles.MemoryExtractor.Enabled = false
+		}},
+		MockAgents: specs,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	fork := func(agent string, key string) compozycontract.SessionDeriveResponse {
+		t.Helper()
+		source := createFixtureBackedSession(t, ctx, harness, agent, "Migration cleanup")
+		if _, err := harness.PromptSession(ctx, source.ID, "Start the migration"); err != nil {
+			t.Fatalf("PromptSession(%s source) error = %v", agent, err)
+		}
+		var response compozycontract.SessionDeriveResponse
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &response,
+			"session", "fork", source.ID, "--idempotency-key", key, "-o", "json"); err != nil {
+			t.Fatalf("session fork (%s) error = %v", agent, err)
+		}
+		if response.Session == nil || response.Derived.Kind != "fork" || response.Session.AgentName != agent ||
+			response.Derived.SourceSessionID != source.ID {
+			t.Fatalf("session fork (%s) = %+v, want a fork on the same agent", agent, response)
+		}
+		return response
+	}
+	derivationAfterPrompt := func(childID string, message string) *compozycontract.SessionDerivationPayload {
+		t.Helper()
+		if _, err := harness.PromptSession(ctx, childID, message); err != nil {
+			t.Fatalf("PromptSession(child %q) error = %v", message, err)
+		}
+		child, err := harness.GetSession(ctx, childID)
+		if err != nil || child.Derivation == nil {
+			t.Fatalf("GetSession(child) = %+v, %v, want a derivation", child, err)
+		}
+		return child.Derivation
+	}
+
+	native := fork("fork-native-agent", "idem_e2e_fork_native")
+	if native.Derived.Seed != "native_fork" || native.Derived.NativeState != "pending" ||
+		native.Derived.ACPSessionID == "" || native.Session.Derivation == nil ||
+		native.Session.Derivation.NativeState != "pending" {
+		t.Fatalf("native fork = %+v, want seed native_fork pending with the clone id", native.Derived)
+	}
+	sourceEvents, _, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot,
+		"session", "events", native.Derived.SourceSessionID, "-o", "json")
+	if err != nil || !strings.Contains(sourceEvents, "Started the migration.") ||
+		strings.Contains(
+			sourceEvents,
+			"replayed history for",
+		) || strings.Contains(sourceEvents, native.Derived.ACPSessionID) {
+		t.Fatalf("source events = %q (%v), want no clone-id traffic in the source log", sourceEvents, err)
+	}
+	if derivation := derivationAfterPrompt(native.Session.ID, "Child ask"); derivation.NativeState != "loaded" {
+		t.Fatalf("native child derivation = %+v, want loaded after the first prompt", derivation)
+	}
+	status, _, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "session", "status", native.Session.ID)
+	if err != nil || !strings.Contains(status, "seed native_fork · loaded") {
+		t.Fatalf("session status = %q (%v), want the loaded Derivation line", status, err)
+	}
+
+	missing := fork("fork-load-missing-agent", "idem_e2e_fork_missing")
+	if missing.Derived.Seed != "native_fork" || missing.Derived.NativeState != "pending" {
+		t.Fatalf("load-missing fork = %+v, want a pending native fork", missing.Derived)
+	}
+	derivation := derivationAfterPrompt(missing.Session.ID, "Child fallback ask")
+	if derivation.NativeState != "failed" || derivation.NativeForkError != "session/load: resource not found" {
+		t.Fatalf("load-missing child derivation = %+v, want failed with the load error", derivation)
+	}
+
+	replay := fork("fork-replay-agent", "idem_e2e_fork_replay")
+	if replay.Derived.Seed != "replay" || replay.Derived.NativeState != "" || replay.Derived.NativeForkError != "" {
+		t.Fatalf("replay-only fork = %+v, want seed replay without a native attempt", replay.Derived)
+	}
+}

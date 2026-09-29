@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type MessageDeltaPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
+}
+
 type MessageDeltaPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -280,8 +288,4 @@ type ObserveHealth struct {
 	Tasks              TaskHealth              `json:"tasks"`
 	Activities         []SessionActivityHealth `json:"activities,omitempty"`
 	Version            string                  `json:"version"`
-}
-
-type OpenAppEffect struct {
-	App string `json:"app"`
 }

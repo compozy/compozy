@@ -49,6 +49,12 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		PendingInteractions: make([]contract.PendingInteractionPayload, 0),
 		UpdatedAt:           health.UpdatedAt,
 	}
+	if info != nil {
+		if derivation := sessionDerivationPayload(info.Derivation); derivation != nil {
+			response.Derivation = derivation
+			response.Lineage = contract.SessionLineagePayloadFromStore(info.Lineage)
+		}
+	}
 	queue, err := h.Sessions.InputQueueSummary(c.Request.Context(), health.SessionID)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)

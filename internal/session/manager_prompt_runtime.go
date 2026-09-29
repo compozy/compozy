@@ -170,21 +170,23 @@ func (m *Manager) replacePromptRuntime(
 	plan.spec.resumeReplay = snapshot.process != nil || session.hasImportedContext()
 	plan.spec.startAction = "bind runtime"
 
+	// A fork child's first bind loads its pending native clone instead of replaying.
+	native := m.prepareNativeBootstrapBind(session, snapshot, plan)
+
 	if err := session.beginRuntimeTransition(status, strategy, m.now()); err != nil {
 		return nil, err
 	}
-	startOpts, err := m.prepareSessionLaunch(ctx, &plan.spec, session, &runtime, nil)
-	if err != nil {
-		return nil, m.restorePromptRuntime(session, snapshot, err)
-	}
-	candidate, err := m.startAgentProcess(ctx, &plan.spec, startOpts)
+	candidate, err := m.launchPromptRuntimeCandidate(ctx, session, plan, &runtime, native)
 	if err != nil {
 		return nil, m.restorePromptRuntime(session, snapshot, err)
 	}
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
 	// The accepted binding is committed with the ACP id in the same meta write.
-	session.commitAcceptedRoute(acceptedRouteRecord(plan.attempt, runtime.agent, plan.selection.Model), plan.spec.command)
+	session.commitAcceptedRoute(
+		acceptedRouteRecord(plan.attempt, runtime.agent, plan.selection.Model),
+		plan.spec.command,
+	)
 	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())

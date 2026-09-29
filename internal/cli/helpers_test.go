@@ -150,6 +150,7 @@ type stubClient struct {
 	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
 	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	continueSessionFn            func(context.Context, string, SessionContinueRequest) (SessionDeriveRecord, error)
+	forkSessionFn                func(context.Context, string, SessionForkRequest) (SessionDeriveRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
 	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
@@ -1427,6 +1428,17 @@ func (s *stubClient) ContinueSession(
 		return s.continueSessionFn(ctx, id, request)
 	}
 	return SessionDeriveRecord{}, errors.New("unexpected ContinueSession call")
+}
+
+func (s *stubClient) ForkSession(
+	ctx context.Context,
+	id string,
+	request SessionForkRequest,
+) (SessionDeriveRecord, error) {
+	if s.forkSessionFn != nil {
+		return s.forkSessionFn(ctx, id, request)
+	}
+	return SessionDeriveRecord{}, errors.New("unexpected ForkSession call")
 }
 
 func (s *stubClient) GetSessionTranscript(ctx context.Context, id string) (SessionTranscriptRecord, error) {

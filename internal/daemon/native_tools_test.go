@@ -7338,6 +7338,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		rewindSubmitCalls := 0
 		var submittedContinue session.ContinueSessionOpts
 		continueSubmitCalls := 0
+		var submittedFork session.ForkSessionOpts
 		var selectedRuntime session.RuntimeSelection
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
@@ -7528,6 +7529,15 @@ func TestDaemonNativeTools(t *testing.T) {
 						SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
 						Seed: session.DeriveSeedReplay, ReplayMessageCount: 4, ReplayBytes: 512,
 						FirstPrompt: store.SessionDerivationFirstPromptAdmitted,
+					}, nil
+				},
+				ForkFn: func(_ context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error) {
+					submittedFork = opts
+					return session.DeriveResult{
+						ChildSessionID: "sess-forked", Kind: store.LineageKindFork,
+						SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
+						OriginMessageID: opts.MessageID, ThroughTurnID: "turn-3",
+						Seed: session.DeriveSeedReplay, FirstPrompt: store.SessionDerivationFirstPromptStaged,
 					}, nil
 				},
 				RewindFn: func(
@@ -8082,6 +8092,38 @@ func TestDaemonNativeTools(t *testing.T) {
 		if continueSubmitCalls != 1 {
 			t.Fatalf("ContinueSession calls = %d, want 1 after denied workspace", continueSubmitCalls)
 		}
+
+		forkResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionFork,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message_id":"msg_3",` +
+						`"idempotency_key":"idem-native-fork"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_fork) error = %v", err)
+		}
+		if submittedFork.SourceSessionID != "sess-1" || submittedFork.MessageID != "msg_3" ||
+			submittedFork.IdempotencyKey != "idem-native-fork" || submittedFork.WorkspaceID == "" {
+			t.Fatalf("session_fork opts = %#v", submittedFork)
+		}
+		requireNativeStructuredContains(t, forkResult, []byte(`"kind":"fork"`))
+		requireNativeStructuredContains(t, forkResult, []byte(`"origin_message_id":"msg_3"`))
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionFork,
+				Input: json.RawMessage(
+					`{"workspace":"ws-foreign-stable","session_id":"sess-1","idempotency_key":"idem-foreign-fork"}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 
 		_, err = registry.Call(
 			t.Context(),

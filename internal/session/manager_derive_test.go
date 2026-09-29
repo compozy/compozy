@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	acpsdk "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/acp"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -640,7 +643,11 @@ func TestDerivePreview(t *testing.T) {
 		if err != nil || result.ReplayMessageCount != 0 || result.Truncated {
 			t.Fatalf("ContinueSession(empty) = %+v, %v, want zero carried messages", result, err)
 		}
-		if imported := h.childMeta(t, result.Child.ID).ImportedContext; imported == nil || imported.MessagesJSON != "[]" {
+		if imported := h.childMeta(
+			t,
+			result.Child.ID,
+		).ImportedContext; imported == nil ||
+			imported.MessagesJSON != "[]" {
 			t.Fatalf("imported context = %+v, want an empty array", imported)
 		}
 	})
@@ -1356,6 +1363,654 @@ func TestDeriveCarriesAttachmentMetadata(t *testing.T) {
 			if strings.Contains(event.Content, "att_") {
 				t.Fatalf("child event %s references an attachment, want none copied", event.Type)
 			}
+		}
+	})
+}
+
+func (h *deriveHarness) forkOpts(source *Session, key string) ForkSessionOpts {
+	return ForkSessionOpts{SourceSessionID: source.ID, WorkspaceID: h.workspaceID, IdempotencyKey: key}
+}
+
+func (h *deriveHarness) promptSource(t *testing.T, sessionID string, texts ...string) {
+	t.Helper()
+	for _, text := range texts {
+		events, err := h.manager.Prompt(testutil.Context(t), sessionID, text)
+		if err != nil {
+			t.Fatalf("Prompt(%q) error = %v", text, err)
+		}
+		collectEvents(t, events)
+	}
+}
+
+func (h *deriveHarness) startCallsSnapshot() []acp.StartOpts {
+	h.driver.mu.Lock()
+	defer h.driver.mu.Unlock()
+	return append([]acp.StartOpts(nil), h.driver.startCalls...)
+}
+
+func TestForkSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fork the whole session on the source agent and runtime and leave the source untouched",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			sourceMetaBefore, err := os.ReadFile(source.MetaPath())
+			if err != nil {
+				t.Fatalf("ReadFile(source meta) error = %v", err)
+			}
+			sourceEventsBefore := len(readStoredEvents(t, source))
+			result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_whole"))
+			if err != nil {
+				t.Fatalf("ForkSession() error = %v", err)
+			}
+			child := result.Child
+			lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
+			sourceInfo := source.Info()
+			if child.AgentName != "coder" || lineage.Kind != store.LineageKindFork || lineage.OriginMessageID != "" ||
+				lineage.OriginAgentName != "coder" || result.OriginMessageID != "" || result.ThroughTurnID == "" {
+				t.Fatalf("child = %s lineage %+v result %+v, want a whole-session fork on coder",
+					child.AgentName, lineage, result)
+			}
+			meta := h.childMeta(t, child.ID)
+			if meta.Provider != sourceInfo.Provider || meta.Model != sourceInfo.Model {
+				t.Fatalf("child runtime = %s/%s, want the source runtime %s/%s",
+					meta.Provider, meta.Model, sourceInfo.Provider, sourceInfo.Model)
+			}
+			if result.Seed != DeriveSeedReplay || result.ReplayMessageCount != 4 || h.driver.forkCallCount() != 0 {
+				t.Fatalf("result = %+v fork calls = %d, want replay of 4 messages without session/fork",
+					result, h.driver.forkCallCount())
+			}
+			sourceMetaAfter, err := os.ReadFile(source.MetaPath())
+			if err != nil {
+				t.Fatalf("ReadFile(source meta) error = %v", err)
+			}
+			if !bytes.Equal(sourceMetaBefore, sourceMetaAfter) ||
+				len(readStoredEvents(t, source)) != sourceEventsBefore {
+				t.Fatal("ForkSession() changed the source meta or events")
+			}
+		})
+
+	t.Run("Should fork a stopped source through the read-only path", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		if err := h.manager.Stop(testutil.Context(t), source.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		before, err := os.ReadFile(source.MetaPath())
+		if err != nil {
+			t.Fatalf("ReadFile(source meta) error = %v", err)
+		}
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_stopped"))
+		if err != nil || result.Seed != DeriveSeedReplay || result.Child.AgentName != "coder" {
+			t.Fatalf("ForkSession(stopped) = %+v, %v, want a replay fork on coder", result, err)
+		}
+		after, err := os.ReadFile(source.MetaPath())
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("stopped source meta changed (err=%v)", err)
+		}
+	})
+
+	t.Run("Should cut through the chosen message's turn inclusively", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		h.promptSource(t, source.ID, "Third step", "Fourth step", "Fifth step")
+		third := h.rewindOpts(t, source.ID, "Third step", "unused").MessageID
+		opts := h.forkOpts(source, "idem_fork_third")
+		opts.MessageID = third
+		result, err := h.manager.ForkSession(testutil.Context(t), opts)
+		if err != nil {
+			t.Fatalf("ForkSession(msg) error = %v", err)
+		}
+		messages := h.importedMessages(t, result.Child.ID)
+		if len(messages) != 6 || !importedContains(messages, "Third step") ||
+			importedContains(messages, "Fourth step") || importedContains(messages, "Fifth step") ||
+			messages[len(messages)-1].Role != "assistant" {
+			t.Fatalf("carried messages = %+v, want t1..t3 ending with t3's reply", messages)
+		}
+		lineage := store.NormalizeSessionLineage(result.Child.ID, result.Child.Lineage)
+		if lineage.OriginMessageID != third || result.OriginMessageID != third || result.ThroughTurnID == "" {
+			t.Fatalf("lineage = %+v result = %+v, want origin %s", lineage, result, third)
+		}
+
+		last := h.forkOpts(source, "idem_fork_last")
+		last.MessageID = h.rewindOpts(t, source.ID, "Fifth step", "unused").MessageID
+		lastResult, err := h.manager.ForkSession(testutil.Context(t), last)
+		if err != nil {
+			t.Fatalf("ForkSession(last message) error = %v", err)
+		}
+		whole, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_all"))
+		if err != nil {
+			t.Fatalf("ForkSession(whole) error = %v", err)
+		}
+		if lastResult.ReplayMessageCount != whole.ReplayMessageCount ||
+			lastResult.ThroughTurnID != whole.ThroughTurnID {
+			t.Fatalf("last-message fork %d/%s, whole fork %d/%s, want equal", lastResult.ReplayMessageCount,
+				lastResult.ThroughTurnID, whole.ReplayMessageCount, whole.ThroughTurnID)
+		}
+	})
+
+	t.Run("Should refuse a cut whose turn has not settled and report it in the preview", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				close(entered)
+				<-release
+				emitDonePromptEvents(events, proc.handle.SessionID, req.TurnID)
+			}()
+			return events, nil
+		}
+		running, err := h.manager.Prompt(testutil.Context(t), source.ID, "still running")
+		if err != nil {
+			t.Fatalf("Prompt(running) error = %v", err)
+		}
+		<-entered
+		defer func() {
+			close(release)
+			collectEvents(t, running)
+		}()
+		messageID := h.rewindOpts(t, source.ID, "still running", "unused").MessageID
+		preview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, messageID)
+		if err != nil || preview.Cut == nil || preview.Cut.TurnSettled || preview.NativeForkPossible {
+			t.Fatalf("DerivePreview(open turn) = %+v, %v, want an unsettled cut", preview, err)
+		}
+		opts := h.forkOpts(source, "idem_fork_running")
+		opts.MessageID = messageID
+		_, err = h.manager.ForkSession(testutil.Context(t), opts)
+		if !errors.Is(err, ErrDeriveTurnInProgress) || !strings.Contains(err.Error(), "has not settled") {
+			t.Fatalf("ForkSession(open turn) error = %v, want ErrDeriveTurnInProgress", err)
+		}
+	})
+
+	t.Run("Should refuse stale fences and unknown messages and record the snapshot fences", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		preview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, "")
+		if err != nil {
+			t.Fatalf("DerivePreview() error = %v", err)
+		}
+		stale := preview.MaxSequence - 1
+		opts := h.forkOpts(source, "idem_fork_stale")
+		opts.Fences = DeriveFences{
+			ExpectedEpoch: &preview.Epoch, ExpectedGeneration: &preview.Generation, ExpectedMaxSequence: &stale,
+		}
+		if _, err := h.manager.ForkSession(testutil.Context(t), opts); !errors.Is(err, ErrDeriveFenceConflict) {
+			t.Fatalf("ForkSession(stale fences) error = %v, want ErrDeriveFenceConflict", err)
+		}
+		if _, found, err := h.db.SessionDerivationReceipt(
+			testutil.Context(t), h.workspaceID, "idem_fork_stale",
+		); err != nil || found {
+			t.Fatalf("receipt after fence conflict found=%t err=%v, want none", found, err)
+		}
+		unknown := h.forkOpts(source, "idem_fork_unknown")
+		unknown.MessageID = "msg_missing"
+		_, err = h.manager.ForkSession(testutil.Context(t), unknown)
+		if !errors.Is(err, ErrDeriveMessageNotFound) ||
+			err.Error() != "message msg_missing not found in session "+source.ID {
+			t.Fatalf("ForkSession(unknown message) error = %v, want ErrDeriveMessageNotFound", err)
+		}
+		if _, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_nofence")); err != nil {
+			t.Fatalf("ForkSession(no fences) error = %v", err)
+		}
+		receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), h.workspaceID, "idem_fork_nofence")
+		if err != nil || !found || receipt.Outcome.SourceMaxSequence != preview.MaxSequence ||
+			receipt.Outcome.SourceGeneration != preview.Generation || receipt.Kind != store.LineageKindFork {
+			t.Fatalf("receipt = %+v found=%t err=%v, want the snapshot fences", receipt, found, err)
+		}
+	})
+
+	t.Run("Should accept anchors after a compacted prefix and after a rewind with new turns", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		h.promptSource(t, source.ID, "Third step")
+		events := readStoredEvents(t, source)
+		firstTurn := events[0].TurnID
+		var through int64
+		for _, event := range events {
+			if event.TurnID == firstTurn {
+				through = max(through, event.Sequence)
+			}
+		}
+		archiver, ok := source.recorderHandle().(store.EventArchiver)
+		if !ok {
+			t.Fatal("source recorder cannot archive events")
+		}
+		if _, err := archiver.ArchiveEvents(testutil.Context(t), store.EventArchiveRequest{
+			FromSequence: events[0].Sequence, ToSequence: through,
+		}); err != nil {
+			t.Fatalf("ArchiveEvents(prefix) error = %v", err)
+		}
+		third := h.rewindOpts(t, source.ID, "Third step", "idem_rewind_compacted")
+		if _, err := h.manager.RewindConversation(testutil.Context(t), source.ID, third); !errors.Is(
+			err, store.ErrConversationRewindTargetInvalid,
+		) {
+			t.Fatalf("RewindConversation(after compaction) error = %v, want ErrConversationRewindTargetInvalid", err)
+		}
+		opts := h.forkOpts(source, "idem_fork_compacted")
+		opts.MessageID = third.MessageID
+		result, err := h.manager.ForkSession(testutil.Context(t), opts)
+		if err != nil || !importedContains(h.importedMessages(t, result.Child.ID), "Third step") {
+			t.Fatalf("ForkSession(after compaction) = %+v, %v, want the anchor accepted", result, err)
+		}
+
+		h2 := newDeriveHarness(t)
+		rewound := h2.newDeriveSource(t)
+		rewind := h2.rewindOpts(t, rewound.ID, "Now run the tests", "idem_rewind_then_turns")
+		if _, err := h2.manager.RewindConversation(testutil.Context(t), rewound.ID, rewind); err != nil {
+			t.Fatalf("RewindConversation() error = %v", err)
+		}
+		h2.promptSource(t, rewound.ID, "New direction", "Keep going")
+		newTurn := h2.forkOpts(rewound, "idem_fork_after_rewind")
+		newTurn.MessageID = h2.rewindOpts(t, rewound.ID, "New direction", "unused").MessageID
+		forked, err := h2.manager.ForkSession(testutil.Context(t), newTurn)
+		if err != nil {
+			t.Fatalf("ForkSession(after rewind) error = %v", err)
+		}
+		messages := h2.importedMessages(t, forked.Child.ID)
+		if !importedContains(messages, "Start the migration") || !importedContains(messages, "New direction") ||
+			importedContains(messages, "Keep going") || importedContains(messages, "Now run the tests") {
+			t.Fatalf("carried = %+v, want the rewind baseline plus the new turn through the cut", messages)
+		}
+	})
+}
+
+// newNativeForkHarness is a derive harness whose fake processes advertise session/fork
+// and session/load, with a bound, idle source.
+func newNativeForkHarness(t *testing.T) (*deriveHarness, *Session) {
+	t.Helper()
+	h := newDeriveHarness(t)
+	h.driver.mu.Lock()
+	h.driver.advertiseFork = true
+	h.driver.mu.Unlock()
+	source := h.newDeriveSource(t)
+	return h, source
+}
+
+func (h *deriveHarness) childNative(t *testing.T, childID string) store.SessionNativeBootstrap {
+	t.Helper()
+	derivation := h.childMeta(t, childID).Derivation
+	if derivation == nil || derivation.Native == nil {
+		t.Fatalf("child %s derivation = %+v, want a native bootstrap", childID, derivation)
+	}
+	return *derivation.Native
+}
+
+func TestForkNativeSeed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clone natively, keep the carried context, and load the clone at the first bind",
+		func(t *testing.T) {
+			t.Parallel()
+			h, source := newNativeForkHarness(t)
+			preview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, "")
+			if err != nil || !preview.NativeForkPossible {
+				t.Fatalf("DerivePreview() = %+v, %v, want native_fork_possible", preview, err)
+			}
+			sourceEvents := len(readStoredEvents(t, source))
+			result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native"))
+			if err != nil {
+				t.Fatalf("ForkSession() error = %v", err)
+			}
+			clone := source.Info().ACPSessionID + "-fork"
+			if result.Seed != DeriveSeedNativeFork || result.NativeState != store.SessionNativeStatePending ||
+				result.ACPSessionID != clone || result.ReplayBytes == 0 || h.driver.forkCallCount() != 1 {
+				t.Fatalf("result = %+v fork calls = %d, want a pending native fork of %s",
+					result, h.driver.forkCallCount(), clone)
+			}
+			native := h.childNative(t, result.Child.ID)
+			if native.ACPSessionID != clone || native.State != store.SessionNativeStatePending ||
+				native.Provider == "" || native.CommandFingerprint == "" {
+				t.Fatalf("child native = %+v, want the pinned pending clone", native)
+			}
+			if imported := h.childMeta(t, result.Child.ID).ImportedContext; imported == nil || imported.Bytes == 0 {
+				t.Fatalf("imported context = %+v, want it persisted for fallback", imported)
+			}
+			if got := len(readStoredEvents(t, source)); got != sourceEvents {
+				t.Fatalf("source events = %d, want %d unchanged", got, sourceEvents)
+			}
+
+			before := len(h.promptMessages())
+			sendDeriveChildPrompt(t, h, result.Child.ID, "child ask", "msg_native_child", "idem_native_child")
+			starts := h.startCallsSnapshot()
+			if last := starts[len(starts)-1]; last.ResumeSessionID != clone {
+				t.Fatalf("child bind resume id = %q, want the clone %q", last.ResumeSessionID, clone)
+			}
+			if prompts := h.promptMessages(); len(prompts) != before+1 || prompts[before] != "child ask" {
+				t.Fatalf("child prompts = %q, want the bare message without a replay block", prompts[before:])
+			}
+			loaded := h.childNative(t, result.Child.ID)
+			if loaded.State != store.SessionNativeStateLoaded || loaded.SettledAt == nil || loaded.Error != "" {
+				t.Fatalf("child native after bind = %+v, want loaded", loaded)
+			}
+			child, _ := h.manager.Get(result.Child.ID)
+			replay, _, err := h.manager.buildResumeReplay(testutil.Context(t), child)
+			if err != nil || !strings.Contains(replay, "This session was forked from "+source.ID) {
+				t.Fatalf("rebuild of a loaded child = %q, %v, want the carried context prepended", replay, err)
+			}
+		})
+
+	t.Run("Should replay without calling session/fork when the clone is not possible", func(t *testing.T) {
+		t.Parallel()
+		plain := newDeriveHarness(t)
+		plainSource := plain.newDeriveSource(t)
+		preview, err := plain.manager.DerivePreview(testutil.Context(t), plain.workspaceID, plainSource.ID, "")
+		if err != nil || preview.NativeForkPossible {
+			t.Fatalf("DerivePreview(no fork caps) = %+v, %v, want not possible", preview, err)
+		}
+		result, err := plain.manager.ForkSession(testutil.Context(t), plain.forkOpts(plainSource, "idem_plain"))
+		if err != nil || result.Seed != DeriveSeedReplay || plain.driver.forkCallCount() != 0 {
+			t.Fatalf("ForkSession(no fork caps) = %+v, %v, want replay without session/fork", result, err)
+		}
+
+		h, source := newNativeForkHarness(t)
+		cut := h.forkOpts(source, "idem_native_cut")
+		cut.MessageID = h.rewindOpts(t, source.ID, "Start the migration", "unused").MessageID
+		if result, err := h.manager.ForkSession(
+			testutil.Context(t),
+			cut,
+		); err != nil ||
+			result.Seed != DeriveSeedReplay {
+			t.Fatalf("ForkSession(message cut) = %+v, %v, want replay", result, err)
+		}
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(unbound) error = %v", err)
+		}
+		if preview, err := h.manager.DerivePreview(
+			testutil.Context(t), h.workspaceID, created.ID, "",
+		); err != nil || preview.NativeForkPossible {
+			t.Fatalf("DerivePreview(unbound) = %+v, %v, want not possible", preview, err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), source.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		stopped, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_stopped"))
+		if err != nil || stopped.Seed != DeriveSeedReplay || h.driver.forkCallCount() != 0 {
+			t.Fatalf("ForkSession(stopped) = %+v, %v fork calls %d, want replay without session/fork",
+				stopped, err, h.driver.forkCallCount())
+		}
+	})
+
+	t.Run("Should record a redacted, bounded error and replay when session/fork fails", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		const token = "sk-live-0123456789abcdefghijklmnopqrstuv"
+		var command string
+		h.driver.forkHook = func(proc *AgentProcess, _ string) (acp.ForkSessionResult, error) {
+			command = proc.Command
+			return acp.ForkSessionResult{}, fmt.Errorf(
+				"acp: session/fork %q: agent %s failed: Authorization: Bearer %s %s",
+				proc.SessionID, proc.Command, token, strings.Repeat("x", 10*1024),
+			)
+		}
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_error"))
+		if err != nil || result.Child == nil || result.Seed != DeriveSeedReplay {
+			t.Fatalf("ForkSession(fork error) = %+v, %v, want a replay child", result, err)
+		}
+		text := result.NativeForkError
+		if !strings.HasPrefix(text, "session/fork: ") || len(text) > maxSessionFailureSummaryBytes ||
+			strings.Contains(text, token) || command == "" || strings.Contains(text, command) {
+			t.Fatalf("native_fork_error = %q (%d bytes), want redacted, bounded, without the command", text, len(text))
+		}
+		if derivation := h.childMeta(t, result.Child.ID).Derivation; derivation.Native != nil ||
+			derivation.Seed != store.SessionDerivationSeedReplay {
+			t.Fatalf("child derivation = %+v, want a replay seed without a native bootstrap", derivation)
+		}
+	})
+
+	t.Run("Should settle failed and replay the carried context when the clone cannot load", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_missing"))
+		if err != nil || result.Seed != DeriveSeedNativeFork {
+			t.Fatalf("ForkSession() = %+v, %v, want a native fork", result, err)
+		}
+		h.driver.mu.Lock()
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: load session %q: %w", acp.ErrLoadSessionFailed, opts.ResumeSessionID,
+					&acpsdk.RequestError{Code: -32002, Message: "Resource not found"})
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+		h.driver.mu.Unlock()
+		before := len(h.promptMessages())
+		sendDeriveChildPrompt(t, h, result.Child.ID, "child ask", "msg_missing_child", "idem_missing_child")
+		native := h.childNative(t, result.Child.ID)
+		if native.State != store.SessionNativeStateFailed || native.Error != "session/load: resource not found" {
+			t.Fatalf("child native = %+v, want failed with the load error", native)
+		}
+		info, err := h.manager.Status(testutil.Context(t), result.Child.ID)
+		if err != nil || info.Derivation == nil || info.Derivation.Native.State != store.SessionNativeStateFailed {
+			t.Fatalf("Status(child) = %+v, %v, want the failed native state on the read model", info, err)
+		}
+		prompt := h.promptMessages()[before]
+		if !strings.Contains(prompt, resumeReplayOpenTag) || !strings.Contains(prompt, "Start the migration") ||
+			!strings.HasSuffix(prompt, "child ask") {
+			t.Fatalf("child first prompt = %q, want the carried context before the ask", prompt)
+		}
+	})
+
+	t.Run("Should never load the clone under a route that differs from the pinned identity", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_mismatch"))
+		if err != nil || result.Seed != DeriveSeedNativeFork {
+			t.Fatalf("ForkSession() = %+v, %v, want a native fork", result, err)
+		}
+		child, _ := h.manager.Get(result.Child.ID)
+		child.mu.Lock()
+		child.derivation.Native.CommandFingerprint = "another-account"
+		child.mu.Unlock()
+		startsBefore := len(h.startCallsSnapshot())
+		sendDeriveChildPrompt(t, h, result.Child.ID, "child ask", "msg_mismatch_child", "idem_mismatch_child")
+		for _, start := range h.startCallsSnapshot()[startsBefore:] {
+			if start.ResumeSessionID != "" {
+				t.Fatalf("child bind loaded %q under a mismatched route", start.ResumeSessionID)
+			}
+		}
+		if native := h.childNative(t, result.Child.ID); native.State != store.SessionNativeStateFailed ||
+			!strings.HasPrefix(native.Error, "route_mismatch") {
+			t.Fatalf("child native = %+v, want failed route_mismatch", native)
+		}
+	})
+}
+
+func TestForkNativeGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should gate the clone on idleness, agent, and route compatibility", func(t *testing.T) {
+		t.Parallel()
+		_, source := newNativeForkHarness(t)
+		route := source.providerRoutingSnapshot()
+		otherHome := route
+		otherHome.HomePolicy = "isolated-elsewhere"
+		otherCommand := route
+		otherCommand.Command = route.Command + " --account 2"
+		for _, tc := range []struct {
+			name   string
+			agent  string
+			route  compozyconfig.ResolvedAgent
+			queued int
+			want   string
+		}{
+			{name: "eligible", agent: "coder", route: route},
+			{name: "queued input", agent: "coder", route: route, queued: 1, want: nativeForkReasonBusy},
+			{name: "other agent", agent: "b", route: route, want: nativeForkReasonAgent},
+			{name: "other home policy", agent: "coder", route: otherHome, want: nativeForkReasonRoute},
+			{name: "other command", agent: "coder", route: otherCommand, want: nativeForkReasonRoute},
+		} {
+			decision := nativeForkEligible(source, "", tc.agent, tc.route, tc.queued)
+			if decision.Eligible != (tc.want == "") || decision.Reason != tc.want {
+				t.Fatalf("%s: decision = %+v, want reason %q", tc.name, decision, tc.want)
+			}
+		}
+		if decision := nativeForkEligible(
+			source,
+			"msg_1",
+			"coder",
+			route,
+			0,
+		); decision.Reason != nativeForkReasonMessageCut {
+			t.Fatalf("message cut decision = %+v, want %s", decision, nativeForkReasonMessageCut)
+		}
+		if decision := nativeForkEligible(nil, "", "coder", route, 0); decision.Reason != nativeForkReasonUnbound {
+			t.Fatalf("unbound decision = %+v, want %s", decision, nativeForkReasonUnbound)
+		}
+	})
+
+	t.Run("Should fall back to replay while the source is running a prompt", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				close(entered)
+				<-release
+				emitDonePromptEvents(events, proc.handle.SessionID, req.TurnID)
+			}()
+			return events, nil
+		}
+		running, err := h.manager.Prompt(testutil.Context(t), source.ID, "busy turn")
+		if err != nil {
+			t.Fatalf("Prompt(busy) error = %v", err)
+		}
+		<-entered
+		preview, previewErr := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, "")
+		result, forkErr := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_busy"))
+		close(release)
+		collectEvents(t, running)
+		if previewErr != nil || preview.NativeForkPossible {
+			t.Fatalf("DerivePreview(busy) = %+v, %v, want not possible", preview, previewErr)
+		}
+		if forkErr != nil || result.Seed != DeriveSeedReplay || !result.SourceTurnInProgress ||
+			h.driver.forkCallCount() != 0 {
+			t.Fatalf("ForkSession(busy) = %+v, %v, want a replay fork without session/fork", result, forkErr)
+		}
+	})
+
+	t.Run("Should hold the source's prompt slot for the whole session/fork call", func(t *testing.T) {
+		t.Parallel()
+		h, source := newNativeForkHarness(t)
+		promptsBefore := len(h.promptMessages())
+		inFork := make(chan struct{})
+		releaseFork := make(chan struct{})
+		h.driver.forkHook = func(proc *AgentProcess, _ string) (acp.ForkSessionResult, error) {
+			close(inFork)
+			<-releaseFork
+			return acp.ForkSessionResult{SessionID: acpsdk.SessionId(proc.SessionID + "-clone")}, nil
+		}
+		forked := make(chan DeriveResult, 1)
+		go func() {
+			result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_slot"))
+			if err != nil {
+				t.Errorf("ForkSession() error = %v", err)
+			}
+			forked <- result
+		}()
+		<-inFork
+		_, promptErr := h.manager.Prompt(testutil.Context(t), source.ID, "concurrent")
+		reachedAgent := len(h.promptMessages()) != promptsBefore
+		close(releaseFork)
+		result := <-forked
+		if reachedAgent || !errors.Is(promptErr, ErrPromptInProgress) {
+			t.Fatalf("concurrent source prompt reached agent=%t err=%v, want it refused while forking",
+				reachedAgent, promptErr)
+		}
+		if result.Seed != DeriveSeedNativeFork || result.ACPSessionID != source.Info().ACPSessionID+"-clone" {
+			t.Fatalf("ForkSession() = %+v, want the native clone", result)
+		}
+		h.promptSource(t, source.ID, "after fork")
+	})
+}
+
+func TestForkAccountInheritance(t *testing.T) {
+	t.Parallel()
+
+	commitSourceRoute := func(t *testing.T, h *deriveHarness, source *Session, mutate func(*compozyconfig.ResolvedAgent)) {
+		t.Helper()
+		workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		var agentB compozyconfig.AgentDef
+		for _, agent := range workspace.Agents {
+			if agent.Name == "b" {
+				agentB = agent
+			}
+		}
+		resolved, err := workspace.Config.ResolveSessionAgentWithRuntime(agentB, compozyconfig.RuntimeOverrides{
+			Provider: "codex", Model: h.cfg.Providers["codex"].Models.Default, Command: deriveRouteTwoCommand,
+		})
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime(route 2) error = %v", err)
+		}
+		if mutate != nil {
+			mutate(&resolved)
+		}
+		source.commitAcceptedRoute(acceptedRouteRecord(2, resolved, ""), deriveRouteTwoCommand)
+		if err := h.manager.persistSessionMetadataOnly(source); err != nil {
+			t.Fatalf("persistSessionMetadataOnly(source) error = %v", err)
+		}
+	}
+	newRouteSource := func(t *testing.T, h *deriveHarness) *Session {
+		t.Helper()
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "b", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(b) error = %v", err)
+		}
+		source, _ := h.manager.Get(created.ID)
+		h.promptSource(t, source.ID, "Work on route two")
+		return source
+	}
+
+	t.Run("Should inherit the source's accepted route as the child's pending route", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := newRouteSource(t, h)
+		commitSourceRoute(t, h, source, nil)
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_route"))
+		if err != nil {
+			t.Fatalf("ForkSession() error = %v", err)
+		}
+		pending := h.childMeta(t, result.Child.ID).Derivation.PendingRoute
+		if pending == nil || pending.Index != 2 ||
+			pending.CommandFingerprint != compozyconfig.CommandFingerprint(deriveRouteTwoCommand) {
+			t.Fatalf("child pending route = %+v, want route 2 with its fingerprint", pending)
+		}
+	})
+
+	t.Run("Should not inherit an accepted route the child cannot bind compatibly", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := newRouteSource(t, h)
+		commitSourceRoute(t, h, source, func(resolved *compozyconfig.ResolvedAgent) {
+			resolved.HomePolicy = "isolated-elsewhere"
+		})
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_no_route"))
+		if err != nil {
+			t.Fatalf("ForkSession() error = %v", err)
+		}
+		if pending := h.childMeta(t, result.Child.ID).Derivation.PendingRoute; pending != nil {
+			t.Fatalf("child pending route = %+v, want none for an incompatible accepted route", pending)
 		}
 	})
 }
