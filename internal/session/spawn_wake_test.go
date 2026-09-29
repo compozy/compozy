@@ -80,6 +80,53 @@ func TestSpawnWakeEventContract(t *testing.T) {
 	})
 }
 
+func TestSpawnWakeReasonForBadge(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		badge      Badge
+		wantReason SpawnWakeReason
+		wantOK     bool
+	}{
+		{name: "Should map stopped", badge: BadgeStopped, wantReason: SpawnWakeReasonStopped, wantOK: true},
+		{name: "Should map failed", badge: BadgeFailed, wantReason: SpawnWakeReasonFailed, wantOK: true},
+		{name: "Should map done to completed", badge: BadgeDone, wantReason: SpawnWakeReasonCompleted, wantOK: true},
+		{
+			name:       "Should map waiting for auth",
+			badge:      BadgeWaitingForAuth,
+			wantReason: SpawnWakeReasonNeedsAttention,
+			wantOK:     true,
+		},
+		{
+			name:       "Should map waiting for input",
+			badge:      BadgeWaitingForInput,
+			wantReason: SpawnWakeReasonNeedsAttention,
+			wantOK:     true,
+		},
+		{
+			name:       "Should map needs attention",
+			badge:      BadgeNeedsAttention,
+			wantReason: SpawnWakeReasonNeedsAttention,
+			wantOK:     true,
+		},
+		{name: "Should not wake on plain idle", badge: BadgeIdle, wantOK: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			reason, ok := spawnWakeReasonForBadge(test.badge)
+			if ok != test.wantOK || reason != test.wantReason {
+				t.Fatalf(
+					"spawnWakeReasonForBadge(%q) = (%q, %v), want (%q, %v)",
+					test.badge, reason, ok, test.wantReason, test.wantOK,
+				)
+			}
+		})
+	}
+}
+
 func TestManagerDispatchSpawnWake(t *testing.T) {
 	t.Parallel()
 
