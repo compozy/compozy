@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-cli-session-continue, RT-session-fallback-chain
+overlaps: ET-cli-session-continue; RT-session-fallback-chain
 ---
 
 Planning 2026-09-28 (session-continue-fork task_03): new behavior. Walk with an acpmock provider scripted
@@ -31,3 +31,9 @@ to rate-limit `session/prompt` (or a real provider out of quota):
 
 Automated evidence at authoring time: the session-owner decoration unit cases and the prompt contract
 case for a user session. task_07/08 own the walk.
+
+Planning 2026-09-28 (session-continue-fork task_07): task_08 adds an acpmock step that fails
+`session/prompt` with a JSON-RPC error whose text the classifier maps to `rate_limited` (for example
+"429 rate limit exceeded") and a second variant for `not_authenticated`, then un-fixmes E2E-004 in
+`web/e2e/__tests__/session-derive.spec.ts` and walks steps 1–5 against that fixture. Step 5's
+spawned-child leg uses the same fixture agent under a spawning parent. Plan: `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`.

@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: RT-session-derive-retry, RT-provider-error-handoff
+overlaps: RT-session-derive-retry; RT-provider-error-handoff
 ---
 
 Planning 2026-09-28 (session-continue-fork task_03): new behavior. Walk against a dev daemon with two

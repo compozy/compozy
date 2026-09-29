@@ -13,7 +13,7 @@ retest_status:
 fix_commits: 6c8deff
 evidence:
 last_report:
-overlaps: ET-web-session-fork-from-here
+overlaps: ET-web-session-fork-from-here; RT-session-lineage-upgrade
 ---
 
 Conversation rewind does not restore files, tool effects, network calls, or memory. The confirmation and structured output must preserve that boundary.

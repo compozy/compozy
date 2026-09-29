@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: RT-session-derive-retry, ET-cli-session-continue
+overlaps: RT-session-derive-retry; ET-cli-session-continue
 ---
 
 Planning 2026-09-28 (session-continue-fork task_05): new behavior. Needs a live OpenCode agent (ACP
@@ -41,3 +41,9 @@ Automated evidence at authoring time: `TestForkSession`, `TestForkNativeSeed`, `
 `TestForkAccountInheritance` (session manager), `TestForkSessionHandler` (HTTP), `TestSessionForkCommand`
 (CLI), and `TestDaemonE2ESessionForkCLI` (daemon + acpmock: native pending → loaded, load failure →
 failed + carried context, replay-only agent, no clone traffic in the source log).
+
+Planning 2026-09-28 (session-continue-fork task_07): task_08 runs steps 1–4 and 8 on the real
+`opencode` binary (`opencode acp`; also confirms `runtime.acp_caps.supports_fork_session: true`, the
+task_02 deferral) and step 5 on the real `claude` binary, plus a Codex source as the second replay
+agent. acpmock `session_fork_fixture.json` (`fork-native-agent`, `fork-load-missing-agent`) is the
+fallback for step 8 when the real adapter cannot be made to lose its stored session. Plan: `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`.

@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-cli-session-continue, RT-session-derive-retry, RT-provider-error-handoff, ET-web-session-sidebar-threads, ET-web-sessions-catalog-modal, ET-web-session-context-sidebar
+overlaps: ET-cli-session-continue; RT-session-derive-retry; RT-provider-error-handoff; ET-web-session-sidebar-threads; ET-web-sessions-catalog-modal; ET-web-session-context-sidebar
 ---
 
 Planning 2026-09-28 (session-continue-fork task_04): new behavior. Walk against a lab daemon with two

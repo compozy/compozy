@@ -36,3 +36,9 @@ Planning 2026-09-28 (fallback-account task_02): new behavior. Walk with a seat t
 
 Automated evidence at authoring time: session manager suites (bind, eager create, spawn, resume) and the
 real-daemon `TestDaemonE2EAgentFallbackChain` integration case. task_04/05 own the walk.
+
+Planning 2026-09-28 (session-continue-fork task_07): fallback-account tasks 01+02 ship on the
+`continue-fork` branch as the D8 prerequisite, so session-continue-fork task_08 owns this walk (the
+fallback-account task_04/05 owners are not on this branch). Plan: `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`.
+The daemon bundles an agent named `reviewer`; the walk authors its own agent (`seat-reviewer`, as in
+`TestDaemonE2EAgentFallbackChain`) instead of updating the bundled one.

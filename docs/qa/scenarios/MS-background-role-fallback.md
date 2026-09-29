@@ -58,3 +58,7 @@ event, start logs, or exhaustion error. Acceptance is now one structured fact
 failed stops the chain. The memory controller is a live consumer again (tiebreaker, unless
 `memory.controller.mode = "rules"`), superseding the 2026-07-24 config-only note. Status reset to
 `untested`; task_04/05 own the re-walk.
+
+Planning 2026-09-28 (session-continue-fork task_07): fallback-account tasks 01+02 ship on the
+`continue-fork` branch as the D8 prerequisite, so session-continue-fork task_08 owns this walk (the
+fallback-account task_04/05 owners are not on this branch). Plan: `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`.

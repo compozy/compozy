@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-web-session-continue, RT-session-derive-native-fork, RT-conversation-rewind, ET-cli-session-continue, ET-web-sessions-catalog-modal
+overlaps: ET-web-session-continue; RT-session-derive-native-fork; RT-conversation-rewind; ET-cli-session-continue; ET-web-sessions-catalog-modal
 ---
 
 Planning 2026-09-28 (session-continue-fork task_06): new behavior. Walk against a lab daemon with an

@@ -28,6 +28,13 @@ flowchart TD
     LAND --> LIVE[Read under scroll ownership; return to live bottom explicitly]
     LIVE --> TE
     E --> CLR[Branch: clear conversation]
+    T --> DRV[Branch: Continue with another agent / Fork session / Fork from here / provider-error marker]
+    DRV --> DLG{Daemon preview measured?}
+    DLG -->|yes| DSUB[Submit: exactly one child opens per Open in; pill + divider + inspector Origin/Seed]
+    DLG -->|error, unsettled cut, or transcript changed| DREF[Primary stays disabled; refusal text shown; nothing created]
+    DSUB --> DSRC[Source transcript and max_sequence unchanged]
+    DSRC --> TE
+    DRV -.->|Cancel or Change| AB
     CLR --> CLR2[Messages removed AND stay removed after reload]
     T -.->|leaves mid-read| AB[Abandon: return — same view warm]
     AB -.-> T
@@ -61,6 +68,9 @@ journey:
     - step: 5
       verb: "Find an old message or tool field and revisit it through the message trail"
       expected_observable: "Search spans unloaded history; the exact matching part opens and receives a highlight; no-matches preserves input; trail previews land on the chosen message without live output stealing scroll ownership"
+    - step: 6
+      verb: "Continue the session with another agent, or fork it whole or from a user message"
+      expected_observable: "One dialog per verb shows the daemon-measured context line and refuses truthfully (preview error, unsettled cut, transcript changed); submit creates exactly one child that opens per Open in, carries the origin pill, divider, and inspector Origin/Seed rows, and leaves the source transcript and fences unchanged (session-continue-fork, 2026-09-28)"
   goal:
     observable: "The full audit trail is readable; every tool call is inspectable inline; usage is truthful; status glyphs match reality (no false success/danger)"
     side_effects: [transcript-paged, clear-persisted]
@@ -74,6 +84,9 @@ journey:
     - at_step: 4
       how: "Paging older history skips or duplicates messages; the reviewer loses trust in the audit trail."
       resume: "Pages must be turn/message-aligned and gap-free against the full `/transcript` read."
+    - at_step: 6
+      how: "The reviewer opens Continue or Fork, then cancels (or picks Change on a message fork)."
+      resume: "Nothing was created; reopening measures a fresh preview with a new idempotency key."
   crosses: [transcript-derive-layer, tool-call-row, turn-fold, usage-surface, transcript-pagination, clear-epoch]
 
 design_reference:
