@@ -305,6 +305,43 @@ describe("SessionContinueDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  // Invariant: a post-commit runtime refusal reads as its structured diagnostic, never the
+  // daemon's wrapped error chain or the agent's stderr, above the offer to open the child.
+  it("Should show a post-commit refusal's diagnostic instead of the raw error chain", async () => {
+    const user = userEvent.setup();
+    const child = continuedSessionFixture(source);
+    renderDialog({
+      result: {
+        status: 422,
+        error:
+          'session: admit first message of derived session "sess-x": acp: start failed after ' +
+          'session acceptance: acp: model "gone" is unavailable: stderr=INFO connection closed',
+        code: "model_unavailable",
+        child_session_id: child.id,
+        diagnostic: {
+          id: "provider.negotiation.model_unavailable",
+          code: "model_unavailable",
+          category: "provider",
+          severity: "error",
+          data_freshness: "live",
+          title: "Provider configuration is unavailable",
+          message: 'acp: model "gone" is unavailable',
+        },
+      },
+      committedChild: child,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    const refusal = await screen.findByTestId("session-continue-submit-error");
+    expect(refusal).toHaveTextContent(
+      'Provider configuration is unavailable: acp: model "gone" is unavailable'
+    );
+    expect(refusal).not.toHaveTextContent("stderr");
+    expect(refusal).not.toHaveTextContent("admit first message");
+    expect(screen.getByTestId("session-continue-open-committed-child")).toBeEnabled();
+  });
+
   // Invariant: once a refusal named the committed child, that child stays reachable for the
   // rest of the dialog: editing the form (which clears the refusal) and resubmitting the edited
   // request under the same key (an idempotency conflict that names no child) never hide it.

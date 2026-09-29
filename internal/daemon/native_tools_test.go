@@ -7544,16 +7544,21 @@ func TestDaemonNativeTools(t *testing.T) {
 								Requested: "gone",
 							},
 						)
+						// The first message's runtime start refused the model after the commit; the
+						// chain carries the agent's stderr, which only the daemon log may show.
+						startErr := &acp.AcceptedStartError{
+							Cause: fmt.Errorf("%w: stderr=2026/09/29 INFO connection closed", modelErr),
+						}
 						return session.DeriveResult{
 							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
 							SourceSessionID: opts.SourceSessionID,
-						}, modelErr
+						}, fmt.Errorf("session: admit first message of derived session %q: %w", "sess-committed", startErr)
 					case "idem-native-activation":
 						// Registration committed, then the child's activation failed.
 						return session.DeriveResult{
 							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
 							SourceSessionID: opts.SourceSessionID,
-						}, errors.New("session: hydrate attention projection: attention store unavailable")
+						}, errors.New("session: activate: acp: subprocess exited: exit status 1: stderr=panic: boom")
 					}
 					return session.DeriveResult{
 						Child: &session.Info{
@@ -8143,9 +8148,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		)
 		requireNativeDerivePartial(t, err, `"child_session_id":"sess-committed"`)
-		for _, tc := range []struct{ key, want string }{
-			{"idem-native-model", `"code":"model_unavailable"`},
-			{"idem-native-activation", `"child_session_id":"sess-committed"`},
+		for _, tc := range []struct{ key, want, message string }{
+			{
+				"idem-native-model", `"code":"model_unavailable"`,
+				`Provider configuration is unavailable: acp: model "gone" is unavailable`,
+			},
+			{"idem-native-activation", `"child_session_id":"sess-committed"`, "The new session couldn't start."},
 		} {
 			_, err = registry.Call(
 				t.Context(),
@@ -8160,6 +8168,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 			requireNativeDerivePartial(t, err, tc.want)
 			requireNativeDerivePartial(t, err, `"child_session_id":"sess-committed"`)
+			requireNativeDeriveMessage(t, err, tc.message)
 		}
 
 		forkResult, err := registry.Call(
@@ -13949,6 +13958,26 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			}
 			requireNativeStructuredContains(t, result, []byte(`"digest":"`+digests[profileName]+`"`))
 		})
+	}
+}
+
+// requireNativeDeriveMessage asserts the calling agent reads the derive failure's user
+// message, in the tool error and its structured payload, and never the agent's stderr.
+func requireNativeDeriveMessage(t *testing.T, err error, want string) {
+	t.Helper()
+
+	toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+	if !ok || toolErr.PartialResult == nil {
+		t.Fatalf("derive tool error = %#v, want a tool error with the error payload", err)
+	}
+	var payload contract.SessionDeriveErrorPayload
+	if unmarshalErr := json.Unmarshal(toolErr.PartialResult.Structured, &payload); unmarshalErr != nil {
+		t.Fatalf("derive tool partial result = %s: %v", toolErr.PartialResult.Structured, unmarshalErr)
+	}
+	if toolErr.Message != want || payload.Error != want ||
+		strings.Contains(string(toolErr.PartialResult.Structured), "stderr") {
+		t.Fatalf("derive tool message = %q payload = %s, want %q without agent stderr",
+			toolErr.Message, toolErr.PartialResult.Structured, want)
 	}
 }
 

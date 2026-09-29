@@ -182,6 +182,13 @@ func nativeDeriveToolError(toolID toolspkg.ToolID, err error) error {
 		return err
 	}
 	payload := core.DeriveErrorPayload(err)
+	// The calling agent reads the payload's user message, never the wrapped chain (which can
+	// carry the child agent's stderr); the chain stays in the tool error's cause.
+	if message := strings.TrimSpace(payload.Error); message != "" {
+		cleaned := *toolErr
+		cleaned.Message = message
+		toolErr = &cleaned
+	}
 	structured, marshalErr := json.Marshal(payload)
 	if marshalErr != nil {
 		return toolErr

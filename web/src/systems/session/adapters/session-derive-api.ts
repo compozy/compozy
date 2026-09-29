@@ -1,6 +1,7 @@
 import {
   apiClient,
   apiErrorCode,
+  apiErrorDiagnosticMessage,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
@@ -44,8 +45,10 @@ function committedChildSessionId(error: unknown): string {
 function throwSessionDeriveError(response: Response, error: unknown, fallback: string): never {
   const childSessionId = committedChildSessionId(error);
   if (!childSessionId) throwSessionRequestError(response, error, fallback);
+  // After the commit the daemon's structured diagnostic is the refusal to show; the raw
+  // error text is only the fallback.
   throw new SessionDeriveCommittedError(
-    defaultApiErrorMessage(fallback, response, error),
+    apiErrorDiagnosticMessage(error) ?? defaultApiErrorMessage(fallback, response, error),
     response.status,
     apiErrorCode(error),
     childSessionId

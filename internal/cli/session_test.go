@@ -4398,7 +4398,8 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 			getSessionOwnerFn: deriveSourceOwner,
 			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
 				_, err := parseSessionDeriveAPIError(http.StatusUnprocessableEntity, "422 Unprocessable Entity",
-					[]byte(`{"error":"acp: model \"gone\" is unavailable","code":"model_unavailable",`+
+					[]byte(`{"error":"Provider configuration is unavailable: acp: model \"gone\" is unavailable",`+
+						`"code":"model_unavailable",`+
 						`"diagnostic":{"code":"model_unavailable"},"child_session_id":"sess-child"}`))
 				return SessionDeriveRecord{}, err
 			},
@@ -4406,7 +4407,8 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
 			"--message", "go", "--idempotency-key", "idem-m",
 			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
-		if err == nil || !strings.HasPrefix(err.Error(), `model_unavailable: acp: model "gone" is unavailable`) ||
+		if err == nil || !strings.HasPrefix(err.Error(),
+			`model_unavailable: Provider configuration is unavailable: acp: model "gone" is unavailable`) ||
 			!strings.Contains(err.Error(), "session sess-child was already created") || cliExitCodeForError(err) != 1 {
 			t.Fatalf("session continue error = %v (exit %d), want model_unavailable with the committed child",
 				err, cliExitCodeForError(err))

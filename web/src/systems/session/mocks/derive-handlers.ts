@@ -1,5 +1,6 @@
 import { delay, HttpResponse, type HttpHandler } from "msw";
 
+import type { OperationResponse } from "@/lib/api-contract";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import type {
@@ -13,10 +14,16 @@ import { derivePreviewFixture, deriveResultFixture } from "./derive-fixtures";
 
 export type SessionDerivePreviewMock = SessionDerivePreview | "error" | "pending";
 
-export type SessionDeriveMockResult =
-  | SessionDeriveResult
-  | "pending"
-  | { status: number; error: string; code?: string; child_session_id?: string };
+export type SessionDeriveMockResult = SessionDeriveResult | "pending" | SessionDeriveMockError;
+
+/** A derive refusal body; `diagnostic` is the structured item a runtime refusal carries. */
+export interface SessionDeriveMockError {
+  status: number;
+  error: string;
+  code?: string;
+  child_session_id?: string;
+  diagnostic?: OperationResponse<"continueSession", 422>["diagnostic"];
+}
 
 export interface SessionDeriveHandlerOptions {
   preview?: SessionDerivePreviewMock;
@@ -101,10 +108,11 @@ export function sessionDeriveHandlers({
   ];
 }
 
-function deriveErrorBody(result: { error: string; code?: string; child_session_id?: string }) {
+function deriveErrorBody(result: SessionDeriveMockError) {
   return {
     error: result.error,
     ...(result.code ? { code: result.code } : {}),
+    ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}),
     ...(result.child_session_id ? { child_session_id: result.child_session_id } : {}),
   };
 }

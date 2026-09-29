@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -395,6 +397,42 @@ func TestContinueSessionHandler(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name        string
+		cause       error
+		wantMessage string
+	}{
+		{
+			name:        "Should report a post-commit refusal by its diagnostic without the wrapped chain or agent stderr",
+			cause:       deriveModelUnavailableError(),
+			wantMessage: `Provider configuration is unavailable: acp: model "gone" is unavailable`,
+		},
+		{
+			name:        "Should report a post-commit failure without a diagnostic in a plain sentence",
+			cause:       errors.New("acp: subprocess exited: exit status 1"),
+			wantMessage: "The new session couldn't start.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := continueTestManager(t, "ws-workspace",
+				func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					return continuedResult(false), deriveFirstMessageStartFailure(tc.cause)
+				})
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(t, engine, http.MethodPost, continuePath,
+				[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
+			var payload contract.SessionDeriveErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if payload.ChildSessionID != "sess-child" || payload.Error != tc.wantMessage ||
+				strings.Contains(recorder.Body.String(), "stderr") {
+				t.Fatalf("status = %d payload error = %q, want %q with the child and no agent stderr; body=%s",
+					recorder.Code, payload.Error, tc.wantMessage, recorder.Body.String())
+			}
+		})
+	}
+
 	t.Run("Should return the committed child id when activation fails after the commit", func(t *testing.T) {
 		t.Parallel()
 
@@ -666,6 +704,16 @@ func TestForkSessionHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// deriveFirstMessageStartFailure wraps cause the way a derive's first-message admission
+// reports a runtime start failure after the child was committed: the session and ACP
+// chain plus the agent's stderr, which only the daemon log may show.
+func deriveFirstMessageStartFailure(cause error) error {
+	return fmt.Errorf("session: admit first message of derived session %q: %w", "sess-child",
+		&acp.AcceptedStartError{Cause: fmt.Errorf(
+			"acp: set session model for %q: %w: stderr=2026/09/29 INFO connection closed", "b", cause,
+		)})
 }
 
 // deriveModelUnavailableError is the provider refusal of a derive's first message after

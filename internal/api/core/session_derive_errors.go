@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -101,15 +102,24 @@ func committedDeriveChildID(result session.DeriveResult) string {
 	return ""
 }
 
+// deriveCommittedFailureMessage is what a failure after the child was committed says when
+// it carries no structured diagnostic: its wrapped chain can hold the agent's stderr.
+const deriveCommittedFailureMessage = "The new session couldn't start."
+
 // respondDeriveError writes a continue/fork/preview failure with its derive code and,
-// after the child was committed, its id.
+// after the child was committed, its id. The full error chain goes to the log only.
 func (h *BaseHandlers) respondDeriveError(c *gin.Context, status int, err error) {
 	err = deriveFailure(err, "")
 	normalized := normalizeErrorStatus(status, err, h.MaskInternalErrors)
-	c.JSON(normalized.status, deriveErrorPayload(
+	payload := deriveErrorPayload(
 		errorPayloadForNormalizedStatus(normalized.status, normalized.err, normalized.maskInternalErrors),
 		err,
-	))
+	)
+	if payload.ChildSessionID != "" {
+		h.Logger.Warn("api: session derive failed after the child was committed",
+			"child_session_id", payload.ChildSessionID, "code", payload.Code, "error", err)
+	}
+	c.JSON(normalized.status, payload)
 }
 
 // DeriveErrorPayload is the continue/fork error payload for non-HTTP transports.
@@ -120,12 +130,21 @@ func DeriveErrorPayload(err error) contract.SessionDeriveErrorPayload {
 // deriveErrorPayload completes a continue/fork error payload: the committed child id and,
 // when no derive code applies, the structured diagnostic's code as the top-level code, so a
 // provider/model refusal after the commit (for example model_unavailable) reads the same
-// on HTTP, UDS, native tools, and the CLI.
+// on HTTP, UDS, native tools, and the CLI. The message is the structured diagnostic's own
+// title and message when the failure carries one, and a plain sentence for any other
+// failure after the commit: the wrapped chain (runtime binding, ACP start, agent stderr)
+// is never user-facing.
 func deriveErrorPayload(payload contract.ErrorPayload, err error) contract.SessionDeriveErrorPayload {
 	if payload.Code == "" && payload.Diagnostic != nil {
 		payload.Code = strings.TrimSpace(payload.Diagnostic.Code)
 	}
-	return contract.SessionDeriveErrorPayload{ErrorPayload: payload, ChildSessionID: DeriveChildSessionID(err)}
+	childSessionID := DeriveChildSessionID(err)
+	if item, ok := diagnosticspkg.ItemFromError(err); ok {
+		payload.Error = (&diagnosticspkg.StructuredError{Item: item}).Error()
+	} else if childSessionID != "" {
+		payload.Error = deriveCommittedFailureMessage
+	}
+	return contract.SessionDeriveErrorPayload{ErrorPayload: payload, ChildSessionID: childSessionID}
 }
 
 // deriveBoundaryCode maps a derive failure to its public code, including the

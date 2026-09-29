@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -3008,32 +3009,41 @@ func TestSessionDeriveRoutesOverUDS(t *testing.T) {
 		return newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 	}
 
-	t.Run("Should carry the committed child id and model code on a post-commit continue failure", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should carry the committed child id, model code, and diagnostic message on a post-commit continue failure",
+		func(t *testing.T) {
+			t.Parallel()
 
-		engine := newEngine(t, stubSessionManager{
-			ContinueFn: func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
-				return derivedChild(), diagnostics.NewStructuredError(
-					diagnostics.NewItem(diagnostics.ItemSpec{
-						ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
-						Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
-						Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
-						DataFreshness: contract.FreshnessLive,
-					}),
-					&acp.NegotiationError{Code: contract.CodeModelUnavailable, Stage: "model", Requested: "gone"},
-				)
-			},
-		})
-		recorder := performRequest(t, engine, http.MethodPost, base+"sess-src/continue",
-			[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
-		var payload contract.SessionDeriveErrorPayload
-		decodeJSONResponse(t, recorder, &payload)
-		if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" ||
-			payload.Code != contract.CodeModelUnavailable {
-			t.Fatalf("status = %d payload = %#v, want 422 model_unavailable with child_session_id",
-				recorder.Code, payload)
-		}
-	})
+			engine := newEngine(t, stubSessionManager{
+				ContinueFn: func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					modelErr := diagnostics.NewStructuredError(
+						diagnostics.NewItem(diagnostics.ItemSpec{
+							ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+							Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+							Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+							DataFreshness: contract.FreshnessLive,
+						}),
+						&acp.NegotiationError{Code: contract.CodeModelUnavailable, Stage: "model", Requested: "gone"},
+					)
+					return derivedChild(), fmt.Errorf("session: admit first message of derived session %q: %w",
+						"sess-child", &acp.AcceptedStartError{
+							Cause: fmt.Errorf("%w: stderr=2026/09/29 INFO connection closed", modelErr),
+						})
+				},
+			})
+			recorder := performRequest(t, engine, http.MethodPost, base+"sess-src/continue",
+				[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
+			var payload contract.SessionDeriveErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" ||
+				payload.Code != contract.CodeModelUnavailable ||
+				payload.Error != `Provider configuration is unavailable: acp: model "gone" is unavailable` ||
+				strings.Contains(recorder.Body.String(), "stderr") {
+				t.Fatalf("status = %d payload = %#v, want 422 model_unavailable with its diagnostic message, "+
+					"child_session_id, and no agent stderr", recorder.Code, payload)
+			}
+		},
+	)
 
 	t.Run("Should replay a fork receipt for a deleted source without a source read", func(t *testing.T) {
 		t.Parallel()
