@@ -120,6 +120,42 @@ func TestAgentProcessRouteSessionUpdate(t *testing.T) {
 			t.Fatalf("bound prompt stream = %+v, want no permission events", events)
 		}
 	})
+
+	t.Run("Should decide a daemon-originated permission request keyed by the Compozy session id", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		proc.bindSessionRoute("acp-bound")
+		request := acpsdk.RequestPermissionRequest{
+			SessionId: "sess-compozy",
+			ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "tool-approval-1", Kind: new(acpsdk.ToolKindEdit)},
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow", Name: "Allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+				{OptionId: "reject", Name: "Reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			},
+		}
+
+		response, err := proc.RequestPermission(testutil.Context(t), request)
+		if err != nil {
+			t.Fatalf("RequestPermission() error = %v", err)
+		}
+		if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "allow" {
+			t.Fatalf("RequestPermission() outcome = %+v, want the policy decision, not a cancel", response.Outcome)
+		}
+		if got := proc.foreignSessionTrafficDropped(); got != 0 {
+			t.Fatalf("foreignSessionTrafficDropped() = %d, want 0 for a daemon-originated request", got)
+		}
+
+		inbound, reqErr := proc.handleInbound(testutil.Context(t), acpsdk.ClientMethodSessionRequestPermission,
+			mustMarshalJSON(request))
+		if reqErr != nil {
+			t.Fatalf("inbound session/request_permission error = %v", reqErr)
+		}
+		outcome, ok := inbound.(acpsdk.RequestPermissionResponse)
+		if !ok || outcome.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+			t.Fatalf("inbound session/request_permission = %+v, want canceled for a non-bound agent id", inbound)
+		}
+	})
 }
 
 func TestAgentProcessForkSession(t *testing.T) {

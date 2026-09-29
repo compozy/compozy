@@ -1101,26 +1101,26 @@ duplicate, and extension agent publication. Their embedded prompts are fixed; se
 These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, and
 `auto_title`.
 
-| Field              | Type                  | Default       | Valid values                                                                 | Description                                                                                                |
-| ------------------ | --------------------- | ------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `enabled`          | boolean               | role-specific | `true` or `false`                                                            | Admits new work for the role. Disabling a role does not stop an already accepted session.                  |
-| `agent`            | string                | empty         | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters) | Selects an authored agent. Empty resolves to the builtin or invoking-context behavior in the roster above. |
-| `provider`         | string                | empty         | Empty or a configured provider key                                           | Optional provider override applied after agent resolution.                                                 |
-| `model`            | string                | empty         | Empty or an exact provider model ID                                          | Optional model override.                                                                                   |
-| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                   | Optional reasoning override.                                                                               |
-| `speed`            | string                | empty         | Empty, `normal`, or `fast`                                                   | Optional speed override; `fast` must be valid for the resolved model and provider strategy.                |
-| `acp_options`      | array of typed tables | empty         | Each entry has `id` and exactly one of `value_id` or `bool_value`            | Optional provider-advertised configuration overrides, merged by option ID.                                 |
+| Field              | Type                  | Default       | Valid values                                                                 | Description                                                                                                 |
+| ------------------ | --------------------- | ------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `enabled`          | boolean               | role-specific | `true` or `false`                                                            | Admits new work for the role. Disabling a role does not stop an already accepted session.                   |
+| `agent`            | string                | empty         | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters) | Selects an authored agent. Empty resolves to the builtin or invoking-context behavior in the roster above.  |
+| `provider`         | string                | empty         | Empty or a configured provider key                                           | Optional provider override applied after agent resolution.                                                  |
+| `model`            | string                | empty         | Empty or an exact provider model ID                                          | Optional model override.                                                                                    |
+| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                   | Optional reasoning override.                                                                                |
+| `speed`            | string                | empty         | Empty, `normal`, or `fast`                                                   | Optional speed override; `fast` must be valid for the resolved model and provider strategy.                 |
+| `acp_options`      | array of typed tables | empty         | Each entry has `id` and exactly one of `value_id` or `bool_value`            | Optional provider-advertised configuration overrides, merged by option ID.                                  |
 | `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`, `speed`, `acp_options`, and `command`. |
 
 Each route table accepts these keys:
 
-| Key                | Type                  | Default | Description                                                                                                                                                                  |
-| ------------------ | --------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `provider`         | string                | —       | Required. A configured provider key.                                                                                                                                         |
-| `model`            | string                | —       | Required. The model to run on this route.                                                                                                                                    |
-| `reasoning_effort` | string                | empty   | Optional reasoning override for this route.                                                                                                                                  |
-| `speed`            | string                | empty   | Optional speed override for this route.                                                                                                                                      |
-| `acp_options`      | array of typed tables | empty   | Optional provider-advertised configuration for this route.                                                                                                                   |
+| Key                | Type                  | Default | Description                                                                                                                                                                   |
+| ------------------ | --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`         | string                | —       | Required. A configured provider key.                                                                                                                                          |
+| `model`            | string                | —       | Required. The model to run on this route.                                                                                                                                     |
+| `reasoning_effort` | string                | empty   | Optional reasoning override for this route.                                                                                                                                   |
+| `speed`            | string                | empty   | Optional speed override for this route.                                                                                                                                       |
+| `acp_options`      | array of typed tables | empty   | Optional provider-advertised configuration for this route.                                                                                                                    |
 | `command`          | string                | `""`    | Optional account for this route. Same grammar as `providers.<name>.command`. Empty inherits: the agent's command on its own provider, otherwise the route provider's command. |
 
 `command` selects which account (seat) the route launches. It is parsed without a shell:
@@ -1318,10 +1318,10 @@ drops even those down to one. Every omission is stated in the carried context
 (`[N earlier messages omitted to fit the context budget]`) and in the response (`truncated`,
 `omitted_count`). Bounding never fails a continue.
 
-| Field               | Type    | Default  | Valid values                         | Description                                                   |
-| ------------------- | ------- | -------- | ------------------------------------ | ------------------------------------------------------------- |
-| `max_replay_bytes`  | integer | `131072` | `4096` or more.                      | Hard upper bound of the carried transcript, in bytes.         |
-| `max_message_bytes` | integer | `16384`  | `1024` through `max_replay_bytes`.   | Per-message cap; a cut body ends with ` [content truncated]`. |
+| Field               | Type    | Default  | Valid values                       | Description                                                   |
+| ------------------- | ------- | -------- | ---------------------------------- | ------------------------------------------------------------- |
+| `max_replay_bytes`  | integer | `131072` | `4096` or more.                    | Hard upper bound of the carried transcript, in bytes.         |
+| `max_message_bytes` | integer | `16384`  | `1024` through `max_replay_bytes`. | Per-message cap; a cut body ends with ` [content truncated]`. |
 
 Invalid values fail config validation with
 `session.derive.max_replay_bytes must be at least 4096` or

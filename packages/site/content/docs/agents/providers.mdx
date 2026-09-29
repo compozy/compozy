@@ -303,8 +303,14 @@ On a user session, a `session/prompt` failure classified `rate_limited` or `not_
 command.
 
 ```json
-{ "provider_error": { "code": "provider_rate_limited", "provider": "claude", "next_action": "handoff",
-                      "guidance": "continue this session with another agent or route: compozy session continue <id> --agent <name>" } }
+{
+  "provider_error": {
+    "code": "provider_rate_limited",
+    "provider": "claude",
+    "next_action": "handoff",
+    "guidance": "continue this session with another agent or route: compozy session continue <id> --agent <name>"
+  }
+}
 ```
 
 `handoff` is an offer, never automatic: CompozyOS does not create a session on its own. Continue the

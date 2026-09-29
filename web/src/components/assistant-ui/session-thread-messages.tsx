@@ -1,6 +1,6 @@
 import { ReadonlyThreadProvider, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import type { VirtualItem } from "@tanstack/react-virtual";
-import { type ComponentProps, use, useEffect } from "react";
+import { type ComponentProps, type ContextType, use, useEffect } from "react";
 
 import {
   SessionContinueDivider,
@@ -120,6 +120,45 @@ function hasNarrativeMessage(
   );
 }
 
+// A derived child's placeholder shows only once the transcript settled with no
+// sync, startup, or failure state that the status pane must explain instead.
+function isDerivedChildReady({
+  transcriptStatus,
+  syncFailure,
+  sessionState,
+  startupFailed,
+  failure,
+}: {
+  transcriptStatus: ReturnType<typeof useSessionTranscriptThreadState>["status"];
+  syncFailure: unknown;
+  sessionState?: SessionState;
+  startupFailed: boolean;
+  failure?: SessionFailurePayload | null;
+}): boolean {
+  return (
+    transcriptStatus === "success" &&
+    syncFailure === null &&
+    sessionState !== "starting" &&
+    !(startupFailed && failure)
+  );
+}
+
+// Before its first message a derived child shows only where it came from;
+// while that first prompt runs, the divider stands alone above the status row.
+function DerivedChildPlaceholder({
+  origin,
+  isSessionRunning,
+}: {
+  origin: NonNullable<ContextType<typeof SessionOriginContext>>;
+  isSessionRunning: boolean;
+}) {
+  return isSessionRunning ? (
+    <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+  ) : (
+    <SessionContinueEmptyChild onOpenSource={origin.onOpenSource} origin={origin.origin} />
+  );
+}
+
 export function ThreadMessages({
   agentName,
   sessionId,
@@ -182,20 +221,12 @@ export function ThreadMessages({
   // older history still unloaded the window cannot claim the session is empty.
   const saidNothing =
     messageCount === 0 || (!showLoadOlder && !hasNarrativeMessage(transcriptMessages));
-  const derivedChildReady =
+  if (
+    origin !== null &&
     saidNothing &&
-    transcriptStatus === "success" &&
-    syncFailure === null &&
-    sessionState !== "starting" &&
-    !(startupFailed && failure);
-  if (origin !== null && derivedChildReady) {
-    // Before its first message a derived child shows only where it came from;
-    // while that first prompt runs, the divider stands alone above the status row.
-    return isSessionRunning ? (
-      <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
-    ) : (
-      <SessionContinueEmptyChild onOpenSource={origin.onOpenSource} origin={origin.origin} />
-    );
+    isDerivedChildReady({ transcriptStatus, syncFailure, sessionState, startupFailed, failure })
+  ) {
+    return <DerivedChildPlaceholder origin={origin} isSessionRunning={isSessionRunning} />;
   }
 
   if (saidNothing) {

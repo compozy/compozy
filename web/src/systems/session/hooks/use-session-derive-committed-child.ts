@@ -46,18 +46,27 @@ export function useSessionDeriveCommittedChild({
     if (!childSessionId || isOpening) return;
     setIsOpening(true);
     setOpenError(null);
-    try {
-      const child = await queryClient.fetchQuery(sessionDetailOptions(workspaceId, childSessionId));
-      onClose();
-      openDerivedChild(child, placement, handlers);
-    } catch (cause) {
-      setOpenError(cause instanceof Error ? cause.message : "Couldn't open the new session.");
-    } finally {
-      setIsOpening(false);
-    }
+    const failure = await fetchAndOpenChild(() =>
+      queryClient.fetchQuery(sessionDetailOptions(workspaceId, childSessionId)).then(child => {
+        onClose();
+        openDerivedChild(child, placement, handlers);
+      })
+    );
+    setIsOpening(false);
+    if (failure) setOpenError(failure);
   };
 
   return { childSessionId, isOpening, openError, open, noteFailure };
+}
+
+/** Runs the open and reports its failure as a message; null when it opened. */
+async function fetchAndOpenChild(run: () => Promise<void>): Promise<string | null> {
+  try {
+    await run();
+    return null;
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : "Couldn't open the new session.";
+  }
 }
 
 export type SessionDeriveCommittedChildModel = ReturnType<typeof useSessionDeriveCommittedChild>;

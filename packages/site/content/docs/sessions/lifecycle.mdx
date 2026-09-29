@@ -117,14 +117,14 @@ Every session read (`GET …/sessions/{id}`, `compozy session status`, and each 
 `compozy session list -o json`) carries `lineage.kind`, which says how the session relates to its
 parent:
 
-| Kind | Meaning |
-| --- | --- |
-| `""` | A root session with no parent relation. |
+| Kind         | Meaning                                                            |
+| ------------ | ------------------------------------------------------------------ |
+| `""`         | A root session with no parent relation.                            |
 | `provenance` | A user session created with a parent (the default for `--parent`). |
-| `recovery` | A user session created to recover a failed parent. |
-| `spawn` | A governed spawned or spawn-role session. |
-| `continue` | A session continued from another session with another agent. |
-| `fork` | A session forked from another session. |
+| `recovery`   | A user session created to recover a failed parent.                 |
+| `spawn`      | A governed spawned or spawn-role session.                          |
+| `continue`   | A session continued from another session with another agent.       |
+| `fork`       | A session forked from another session.                             |
 
 `continue` and `fork` sessions also carry `origin_agent_name`, and forks carry `origin_message_id`.
 A plain create accepts only `provenance` or `recovery`, and only together with a parent:
@@ -268,13 +268,13 @@ revision returns `409`; read the session again before deciding what to save.
 While a session has a live agent process, session reads include `runtime.acp_caps`: what the agent
 advertised during the ACP `initialize` handshake. The field is absent when no process is bound.
 
-| Field | Meaning |
-| --- | --- |
-| `supports_load_session` | The agent can reopen a stored conversation with `session/load`. |
-| `supports_fork_session` | The agent advertises the unstable `session/fork` capability. |
-| `supports_resume_session` | The agent advertises the `session/resume` capability. |
-| `prompt_image`, `prompt_audio`, `prompt_embedded_context` | Prompt content the agent accepts. |
-| `supported_modes`, `config_options` | Session modes and ACP config options reported at setup. |
+| Field                                                     | Meaning                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| `supports_load_session`                                   | The agent can reopen a stored conversation with `session/load`. |
+| `supports_fork_session`                                   | The agent advertises the unstable `session/fork` capability.    |
+| `supports_resume_session`                                 | The agent advertises the `session/resume` capability.           |
+| `prompt_image`, `prompt_audio`, `prompt_embedded_context` | Prompt content the agent accepts.                               |
+| `supported_modes`, `config_options`                       | Session modes and ACP config options reported at setup.         |
 
 Each value is `true` only when the agent declared it. Traffic that an agent sends for any ACP session
 other than the one bound to the CompozyOS session is dropped and logged, so it never appears in that
@@ -579,11 +579,11 @@ A native fork responds with `seed: native_fork`, `native_state: pending`, and th
 session's own process at its first prompt, and only under the provider identity it was created with.
 The session read then reports `derivation.native_state` as:
 
-| State | Meaning |
-| --- | --- |
-| `pending` | The clone exists and has not been loaded yet. |
-| `loaded` | The first prompt loaded the clone; the carried context was not sent. |
-| `failed` | The clone could not be loaded (`native_fork_error`, for example `session/load: resource not found`) or the route differed from the clone's; the first prompt carried the context instead. |
+| State     | Meaning                                                                                                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pending` | The clone exists and has not been loaded yet.                                                                                                                                             |
+| `loaded`  | The first prompt loaded the clone; the carried context was not sent.                                                                                                                      |
+| `failed`  | The clone could not be loaded (`native_fork_error`, for example `session/load: resource not found`) or the route differed from the clone's; the first prompt carried the context instead. |
 
 When the clone request itself fails, the fork is created with `seed: replay` and the redacted error in
 `native_fork_error`. The source never receives the clone's traffic, and its events, fences, and runtime

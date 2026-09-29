@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Eraser, GitFork, Pencil, Square, Trash2 } from "lucide-react";
+import { Eraser, Pencil, Square, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import {
@@ -12,6 +12,7 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
+import { SessionDeriveMenuItems } from "../components/session-derive-menu-items";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
 
@@ -99,6 +100,27 @@ function sessionTopbarActions({
 
 type SessionTopbarActions = ReturnType<typeof sessionTopbarActions>;
 
+/**
+ * Overflow-menu open state whose dialog-opening items wait for the menu to finish
+ * closing, so its focus return does not land on the trigger after the dialog
+ * took focus.
+ */
+function useDeferredMenuAction() {
+  const [open, setOpen] = useState(false);
+  const deferredAction = useRef<(() => void) | null>(null);
+  const deferToClose = (action: () => void) => {
+    deferredAction.current = action;
+    setOpen(false);
+  };
+  const onOpenChangeComplete = (nextOpen: boolean) => {
+    const action = deferredAction.current;
+    if (nextOpen || !action) return;
+    deferredAction.current = null;
+    action();
+  };
+  return { open, setOpen, deferToClose, onOpenChangeComplete };
+}
+
 function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: SessionTopbarActions) {
   const {
     onRename,
@@ -115,24 +137,12 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
     session,
   } = input;
   const { lifecycleControllable, controlsBusy, isActive, canResume } = actions;
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  // Dialog-opening items wait for the menu to finish closing so its focus
-  // return does not land on the trigger after the dialog took focus.
-  const deferredAction = useRef<(() => void) | null>(null);
-  const deferToMenuClose = (action: () => void) => {
-    deferredAction.current = action;
-    setOverflowOpen(false);
-  };
+  const menu = useDeferredMenuAction();
   return lifecycleControllable ? (
     <DropdownMenu
-      open={overflowOpen}
-      onOpenChange={setOverflowOpen}
-      onOpenChangeComplete={open => {
-        const action = deferredAction.current;
-        if (open || !action) return;
-        deferredAction.current = null;
-        action();
-      }}
+      open={menu.open}
+      onOpenChange={menu.setOpen}
+      onOpenChangeComplete={menu.onOpenChangeComplete}
     >
       <DropdownMenuTrigger
         aria-label="More actions"
@@ -156,31 +166,18 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
         <DropdownMenuItem
           data-testid="rename-button"
           disabled={controlsBusy}
-          onClick={() => deferToMenuClose(onRename)}
+          onClick={() => menu.deferToClose(onRename)}
         >
           {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
           Rename session
         </DropdownMenuItem>
-        {onContinue && session.archived_at === null ? (
-          <DropdownMenuItem
-            data-testid="continue-menu-item"
-            disabled={controlsBusy}
-            onClick={() => deferToMenuClose(onContinue)}
-          >
-            <ArrowRightLeft className="size-3" />
-            Continue with another agent…
-          </DropdownMenuItem>
-        ) : null}
-        {onFork && session.archived_at === null ? (
-          <DropdownMenuItem
-            data-testid="fork-menu-item"
-            disabled={controlsBusy}
-            onClick={() => deferToMenuClose(onFork)}
-          >
-            <GitFork className="size-3" />
-            Fork session…
-          </DropdownMenuItem>
-        ) : null}
+        <SessionDeriveMenuItems
+          archived={session.archived_at !== null}
+          disabled={controlsBusy}
+          onContinue={onContinue}
+          onFork={onFork}
+          onSelect={menu.deferToClose}
+        />
         {isActive && canResume ? (
           <DropdownMenuItem
             data-testid="stop-menu-item"
