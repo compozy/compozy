@@ -12,7 +12,7 @@ export function ControllerSection({
   return (
     <SettingsGroup
       title="Write controller"
-      help="lexical/entity-only ADD / UPDATE / DELETE / NOOP / REJECT pipeline"
+      help="Decides whether each new memory is added, updated, removed, or skipped"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-mode`}
@@ -61,7 +61,7 @@ export function ControllerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-default-op`}
         label="Default op on fail"
-        description="Decision used when the controller bails (e.g. timeout, schema drift)"
+        description="Decision used when the controller bails (for example, it took too long or the data didn't match)"
         control={
           <Input
             className="w-32 font-mono"

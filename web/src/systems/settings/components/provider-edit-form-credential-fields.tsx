@@ -163,10 +163,10 @@ function CredentialSlotBlock({
           />
         }
         data-testid={`${testId}-target-env`}
-        description="Environment variable injected into the provider subprocess."
+        description="Passed to the agent when it starts."
         label={
           <>
-            Target env
+            Variable name
             <RequiredMark />
           </>
         }
@@ -187,10 +187,10 @@ function CredentialSlotBlock({
           />
         }
         data-testid={`${testId}-secret-ref`}
-        description="Bound credential source. Use env: to read the operator environment, vault: to store the value in CompozyOS."
+        description="Where the key comes from. Start with env: to read it from your computer's settings, or vault: to store it in the Vault."
         label={
           <>
-            Secret ref
+            Key source
             <RequiredMark />
           </>
         }

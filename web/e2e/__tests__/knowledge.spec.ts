@@ -176,7 +176,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(knowledgeUI.contentPreview).toContainText(originalContent);
 
   await knowledgeUI.searchInput.fill("auth migration sessions");
-  await expect(knowledgeUI.searchInfo).toContainText("Recall");
+  await expect(knowledgeUI.searchInfo).toContainText(/\d+ match/);
   await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible();
 
   const httpEntry = await readMemoryHTTP(runtime, filename, workspace.id);
@@ -222,6 +222,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(knowledgeUI.editDialog).toBeHidden();
   await expect(knowledgeUI.contentPreview).toContainText(editedContent);
 
+  await kWin.getByTestId("knowledge-decisions-toggle").click();
   await expect(knowledgeUI.revertDecision(editPayload.decision.id)).toBeVisible({
     timeout: 20_000,
   });
@@ -305,7 +306,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
     "data-variant",
     "ruled"
   );
-  await appPage.getByTestId("knowledge-delete-confirm-typing").fill(filename);
+  await appPage.getByTestId("knowledge-delete-confirm-typing").fill(memoryName);
   const deleteResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "DELETE" &&

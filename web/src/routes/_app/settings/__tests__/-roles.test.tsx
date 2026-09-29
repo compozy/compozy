@@ -151,24 +151,24 @@ describe("RolesSettingsPage", () => {
   it("renders the empty-projection anomaly with retry only", () => {
     pageState.isEmpty = true;
     render(<RolesSettingsPage />);
-    expect(screen.getByTestId("settings-page-roles-empty")).toHaveTextContent(
-      "Roles unavailable — no role projection was returned."
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    const empty = screen.getByTestId("settings-page-roles-empty");
+    expect(empty).toHaveTextContent("Couldn't load Roles");
+    expect(empty).toHaveTextContent("No roles were returned.");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
   it("renders the server error with a retry action", () => {
     pageState.error = new Error("roles service unavailable");
     render(<RolesSettingsPage />);
-    expect(screen.getByTestId("settings-page-roles-error")).toHaveTextContent(
-      "roles service unavailable"
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    const error = screen.getByTestId("settings-page-roles-error");
+    expect(error).toHaveTextContent("Couldn't load Roles");
+    expect(error).toHaveTextContent("roles service unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("renders six collapsed role rows in product order with builtin badges (UT-074)", () => {
+  it("renders six collapsed role rows in product order with built-in resolution lines (UT-074)", () => {
     render(<RolesSettingsPage />);
 
     const groups = screen.getAllByTestId(/^settings-page-roles-group-/);
@@ -181,7 +181,10 @@ describe("RolesSettingsPage", () => {
       "settings-page-roles-group-memory_controller",
     ]);
     for (const role of ["coordinator", "dream", "checkpoint_summary"]) {
-      expect(within(group(role)).getByText("BUILTIN")).toBeInTheDocument();
+      expect(screen.getByTestId(`settings-page-roles-${role}-resolution`)).toHaveTextContent(
+        /^Built in/
+      );
+      expect(within(group(role)).queryByText("BUILTIN")).not.toBeInTheDocument();
     }
     // Every row starts closed, so the routing controls stay out of the way.
     expect(screen.queryByTestId("settings-page-roles-dream-runtime-select")).not.toBeVisible();
@@ -201,18 +204,18 @@ describe("RolesSettingsPage", () => {
     expect(pageState.setRoleEnabled).toHaveBeenCalledWith("coordinator", true);
   });
 
-  it("shows inherit badge and resolves-at-invocation for inherit roles (UT-075)", () => {
+  it("states the default-agent resolution for inherit roles without a pill (UT-075)", () => {
     pageState.disclosure = disclosureFor(new Set(["auto_title", "memory_extractor"]));
     render(<RolesSettingsPage />);
 
     for (const role of ["auto_title", "memory_extractor"]) {
-      expect(within(group(role)).getByText("INHERIT")).toBeInTheDocument();
+      expect(within(group(role)).queryByText("INHERIT")).not.toBeInTheDocument();
       expect(screen.getByTestId(`settings-page-roles-${role}-resolution`)).toHaveTextContent(
-        "Resolves at invocation."
+        "Uses your default agent."
       );
       // A null projection is stated as unresolved, never as a fabricated route.
       expect(screen.getByTestId(`settings-page-roles-${role}-runtime`)).toHaveTextContent(
-        "Resolves at invocation."
+        "Decided when the role runs."
       );
       expect(screen.queryByTestId(`settings-page-roles-${role}-route`)).not.toBeInTheDocument();
     }

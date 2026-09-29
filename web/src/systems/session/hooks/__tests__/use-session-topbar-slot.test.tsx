@@ -79,7 +79,7 @@ describe("useSessionTopbarSlot", () => {
     expect(screen.getByTestId("session-status-agent")).toHaveTextContent(
       primarySessionFixture.agent_name
     );
-    expect(screen.getByText("Session badge: running")).toHaveClass("sr-only");
+    expect(screen.getByText("Session status: Working")).toHaveClass("sr-only");
     expect(document.querySelector('[data-slot="topbar-crumbs"]')).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
@@ -171,7 +171,7 @@ describe("useSessionTopbarSlot", () => {
 
     renderWithTopbar(<IdlePublisher />);
 
-    expect(screen.getByRole("button", { name: "Attach session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume session" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "More actions" }));
@@ -216,7 +216,7 @@ describe("useSessionTopbarSlot", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Unarchive session" }));
     expect(onUnarchive).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: "Attach session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
   });
 

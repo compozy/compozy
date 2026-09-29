@@ -91,7 +91,7 @@ describe("LoopConfigureDialog", () => {
   it("Should lock structural edits and label the workspace editor action truthfully", () => {
     const { onOpenEditor } = renderSheet({ config: null });
     expect(screen.getByTestId("loop-configure-structural-note")).toHaveTextContent(
-      /steps, inputs, node kinds and the goal stay fixed/i
+      /steps, inputs, and the goal stay fixed/i
     );
     const editAction = screen.getByTestId("loop-configure-edit-link");
     expect(editAction).toHaveTextContent("Edit");

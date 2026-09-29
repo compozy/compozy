@@ -798,17 +798,15 @@ test.describe("Loop record legibility", () => {
     await emptyWin.getByTestId("tasks-records-filter-loop").click();
     const revealEmpty = emptyWin.getByTestId("tasks-list-surface-loop-empty");
     await expect(revealEmpty).toBeVisible();
-    await expect(revealEmpty).toContainText("No loop records in this workspace");
-    await expect(revealEmpty).toContainText(
-      "Turn the filter back to work items to see your tasks."
-    );
+    await expect(revealEmpty).toContainText("No loop steps in this project");
+    await expect(revealEmpty).toContainText("Switch back to Tasks to see your work.");
     // The filter-scoped empty replaces the generic one rather than sitting beside it.
     await expect(emptyWin.getByTestId("tasks-list-surface-empty")).toHaveCount(0);
     await expect(emptyWin.getByTestId("tasks-empty-state")).toHaveCount(0);
     await browserArtifacts.captureScreenshot("tasks-loop-reveal-empty", appPage);
 
     // Its action is the way out of the filter it named.
-    await emptyWin.getByRole("button", { name: "Show work items" }).click();
+    await emptyWin.getByRole("button", { name: "Show tasks" }).click();
     await expect(emptyWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
       "aria-pressed",
       "true"

@@ -73,7 +73,7 @@ const PRIMARY_LABEL: Record<NonNullable<TaskCommandState["primary"]>["kind"], st
   start: "Start run",
   open_run: "Open run",
   resume: "Resume",
-  recover: "Recover",
+  recover: "Try again",
   retry: "Retry",
 };
 
@@ -83,7 +83,7 @@ const PRIMARY_PENDING_LABEL: Record<
 > = {
   approve: "Approving…",
   publish: "Publishing…",
-  recover: "Recovering…",
+  recover: "Restarting…",
   resume: "Resuming…",
   retry: "Retrying…",
   start: "Starting…",
@@ -103,49 +103,40 @@ function primaryActionTitle(primary: TaskPrimaryCommand): string | undefined {
   }
 }
 
+function runPrimaryCommand(primary: TaskPrimaryCommand, handlers: TaskPageActionHandlers) {
+  switch (primary.kind) {
+    case "publish":
+      return handlers.onPublish();
+    case "approve":
+      return handlers.onApprove();
+    case "start":
+      return handlers.onStartRun();
+    case "open_run":
+      return handlers.onOpenRun(primary.runId);
+    case "resume":
+      return handlers.onResume();
+    case "recover":
+      return handlers.onRecover();
+    case "retry":
+      return handlers.onRetry(primary.runId);
+  }
+}
+
 /**
  * The one accent target in the head, driven by the task command state machine.
  *
  * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §6
  */
 export function TaskPageActions({ command, handlers, pending = {} }: TaskPageActionsProps) {
-  const primary = command.primary;
-  const primaryPending =
-    primary?.kind === "open_run" ? false : Boolean(primary && pending[primary.kind]);
-  const anyPending = Object.values(pending).some(Boolean);
-
-  const onClick = () => {
-    if (!primary) return;
-    switch (primary.kind) {
-      case "publish":
-        return handlers.onPublish();
-      case "approve":
-        return handlers.onApprove();
-      case "start":
-        return handlers.onStartRun();
-      case "open_run":
-        return handlers.onOpenRun(primary.runId);
-      case "resume":
-        return handlers.onResume();
-      case "recover":
-        return handlers.onRecover();
-      case "retry":
-        return handlers.onRetry(primary.runId);
-    }
-  };
-
-  if (
-    !primary &&
-    !command.secondary.edit &&
-    !command.secondary.pause &&
-    !command.secondary.reject
-  ) {
+  const { primary, secondary } = command;
+  if (!primary && !secondary.edit && !secondary.pause && !secondary.reject) {
     return null;
   }
+  const anyPending = Object.values(pending).some(Boolean);
 
   return (
     <div className="flex items-center gap-1.5">
-      {command.secondary.edit ? (
+      {secondary.edit ? (
         <Button
           className="min-h-6"
           data-testid="tasks-detail-edit-button"
@@ -158,7 +149,7 @@ export function TaskPageActions({ command, handlers, pending = {} }: TaskPageAct
           Edit
         </Button>
       ) : null}
-      {command.secondary.pause ? (
+      {secondary.pause ? (
         <Button
           className="min-h-6"
           disabled={anyPending}
@@ -170,7 +161,7 @@ export function TaskPageActions({ command, handlers, pending = {} }: TaskPageAct
           Pause
         </Button>
       ) : null}
-      {command.secondary.reject ? (
+      {secondary.reject ? (
         <Button
           aria-busy={pending.reject || undefined}
           className="min-h-6"
@@ -186,32 +177,53 @@ export function TaskPageActions({ command, handlers, pending = {} }: TaskPageAct
         </Button>
       ) : null}
       {primary ? (
-        <Button
-          aria-busy={primaryPending || undefined}
-          className="min-h-6"
-          data-testid={`tasks-detail-primary-${primary.kind}`}
+        <TaskPrimaryActionButton
           disabled={anyPending}
-          onClick={onClick}
-          size="sm"
-          title={primaryActionTitle(primary)}
-          type="button"
-        >
-          {primaryPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-          {!primaryPending && primary.kind === "recover" ? (
-            <LifeBuoy aria-hidden="true" className="size-3" />
-          ) : null}
-          {!primaryPending && primary.kind === "retry" ? (
-            <RotateCw aria-hidden="true" className="size-3" />
-          ) : null}
-          {primaryPending && primary.kind !== "open_run"
-            ? PRIMARY_PENDING_LABEL[primary.kind]
-            : PRIMARY_LABEL[primary.kind]}
-          {primary.kind === "open_run" ? (
-            <ArrowUpRight aria-hidden="true" className="size-3" />
-          ) : null}
-        </Button>
+          onClick={() => runPrimaryCommand(primary, handlers)}
+          pending={primary.kind !== "open_run" && Boolean(pending[primary.kind])}
+          primary={primary}
+        />
       ) : null}
     </div>
+  );
+}
+
+function TaskPrimaryActionButton({
+  primary,
+  pending,
+  disabled,
+  onClick,
+}: {
+  primary: TaskPrimaryCommand;
+  pending: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const label =
+    pending && primary.kind !== "open_run"
+      ? PRIMARY_PENDING_LABEL[primary.kind]
+      : PRIMARY_LABEL[primary.kind];
+  return (
+    <Button
+      aria-busy={pending || undefined}
+      className="min-h-6"
+      data-testid={`tasks-detail-primary-${primary.kind}`}
+      disabled={disabled}
+      onClick={onClick}
+      size="sm"
+      title={primaryActionTitle(primary)}
+      type="button"
+    >
+      {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+      {!pending && primary.kind === "recover" ? (
+        <LifeBuoy aria-hidden="true" className="size-3" />
+      ) : null}
+      {!pending && primary.kind === "retry" ? (
+        <RotateCw aria-hidden="true" className="size-3" />
+      ) : null}
+      {label}
+      {primary.kind === "open_run" ? <ArrowUpRight aria-hidden="true" className="size-3" /> : null}
+    </Button>
   );
 }
 
@@ -269,51 +281,47 @@ export function TaskPageOverflow({
           </DropdownMenuItem>
         ) : null}
         {overflow.pause ? (
-          <DropdownMenuItem
-            data-testid="tasks-detail-pause"
-            disabled={pending.pause}
+          <TaskOverflowPendingItem
+            label="Pause"
             onClick={onPause}
-          >
-            {pending.pause ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending.pause ? "Pausing…" : "Pause"}
-          </DropdownMenuItem>
+            pending={pending.pause}
+            pendingLabel="Pausing…"
+            testId="tasks-detail-pause"
+          />
         ) : null}
         {overflow.resume ? (
-          <DropdownMenuItem
-            aria-busy={pending.resume || undefined}
-            data-testid="tasks-detail-resume"
-            disabled={pending.resume}
+          <TaskOverflowPendingItem
+            announceBusy
+            label="Resume"
             onClick={onResume}
-          >
-            {pending.resume ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending.resume ? "Resuming…" : "Resume"}
-          </DropdownMenuItem>
+            pending={pending.resume}
+            pendingLabel="Resuming…"
+            testId="tasks-detail-resume"
+          />
         ) : null}
         {overflow.cancel ? (
-          <DropdownMenuItem
-            aria-busy={pending.cancel || undefined}
-            data-testid="tasks-detail-cancel"
-            disabled={pending.cancel}
+          <TaskOverflowPendingItem
+            announceBusy
+            label="Cancel task"
             onClick={onCancel}
-          >
-            {pending.cancel ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending.cancel ? "Canceling…" : "Cancel task"}
-          </DropdownMenuItem>
+            pending={pending.cancel}
+            pendingLabel="Canceling…"
+            testId="tasks-detail-cancel"
+          />
         ) : null}
         {overflow.startNewRun ? (
-          <DropdownMenuItem
-            aria-busy={pending.enqueue || undefined}
-            data-testid="tasks-detail-start-new-run"
-            disabled={pending.enqueue}
+          <TaskOverflowPendingItem
+            announceBusy
+            label="Start new run"
             onClick={onStartNewRun}
-          >
-            {pending.enqueue ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending.enqueue ? "Starting…" : "Start new run"}
-          </DropdownMenuItem>
+            pending={pending.enqueue}
+            pendingLabel="Starting…"
+            testId="tasks-detail-start-new-run"
+          />
         ) : null}
         {showFanOut ? (
           <DropdownMenuItem data-testid="tasks-detail-fan-out" onClick={onFanOut}>
-            Fan out runs…
+            Run in parallel…
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem data-testid="tasks-detail-copy-id" onClick={onCopyId}>
@@ -333,5 +341,34 @@ export function TaskPageOverflow({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function TaskOverflowPendingItem({
+  testId,
+  label,
+  pendingLabel,
+  pending,
+  announceBusy = false,
+  onClick,
+}: {
+  testId: string;
+  label: string;
+  pendingLabel: string;
+  pending?: boolean;
+  /** Mirrors `pending` into `aria-busy`. */
+  announceBusy?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      aria-busy={(announceBusy && pending) || undefined}
+      data-testid={testId}
+      disabled={pending}
+      onClick={onClick}
+    >
+      {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+      {pending ? pendingLabel : label}
+    </DropdownMenuItem>
   );
 }

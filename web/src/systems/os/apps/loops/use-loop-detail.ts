@@ -58,7 +58,7 @@ export function useLoopDetail(name: string, routeWorkspaceId?: string) {
       }
       try {
         await deleteLoop.mutateAsync({ workspaceId, name });
-        toast.success(`Deleted workspace loop ${name}`);
+        toast.success(`Deleted loop ${name}`);
         void navigate({ to: "/loops", replace: true });
       } catch {
         // The mutation retains the primary error for the confirmation dialog.

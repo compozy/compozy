@@ -24,47 +24,39 @@ export function compareKnowledgeScope(left: KnowledgeScope, right: KnowledgeScop
 }
 
 export function knowledgeScopeLabel(scope: KnowledgeScope): string {
-  if (scope === "workspace") return "Workspace";
+  if (scope === "workspace") return "Project";
   if (scope === "agent") return "Agent";
   return "Profile";
 }
 
-export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
-  if (scope === "workspace") return "ws";
-  if (scope === "agent") return "agent";
-  return "profile";
-}
-
 export function knowledgeAgentTierLabel(tier: KnowledgeAgentTier): string {
-  return tier === "global" ? "Agent · global" : "Agent · workspace";
+  return tier === "global" ? "Agent · all projects" : "Agent · this project";
 }
 
-export function knowledgeAgentTierShortLabel(tier: KnowledgeAgentTier): string {
-  return tier === "global" ? "ag-global" : "ag-ws";
-}
+const MEMORY_TYPE_LABEL: Record<MemoryType, string> = {
+  user: "About you",
+  feedback: "Feedback",
+  project: "Project decision",
+  reference: "Reference",
+};
 
-export type KnowledgeTone = MemoryType | KnowledgeScope;
-
-export function memoryTypeTone(type: MemoryType): KnowledgeTone {
-  return type;
-}
-
-export function memoryScopeTone(scope: KnowledgeScope): KnowledgeTone {
-  return scope;
+/** Display label for the wire `MemoryType`; the enum itself never renders. */
+export function knowledgeTypeLabel(type: MemoryType): string {
+  return MEMORY_TYPE_LABEL[type] ?? type;
 }
 
 const DECISION_OP_LABEL: Record<MemoryDecisionOp, string> = {
-  noop: "noop",
-  add: "add",
-  update: "update",
-  delete: "delete",
-  reject: "reject",
+  noop: "No change",
+  add: "Added",
+  update: "Updated",
+  delete: "Deleted",
+  reject: "Rejected",
 };
 
 export function decisionOpLabel(op: MemoryDecisionOp): string {
-  return DECISION_OP_LABEL[op] ?? op.toLowerCase();
+  return DECISION_OP_LABEL[op] ?? op;
 }
 
 export function decisionSourceLabel(source: MemoryDecisionSource): string {
-  return source === "rule" ? "rule" : "llm";
+  return source === "rule" ? "Rule" : "Automatic";
 }

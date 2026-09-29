@@ -114,7 +114,7 @@ describe("captureRouteState", () => {
         <button data-testid="tab-workspace" aria-pressed="true"></button>
         <button data-testid="tab-agent" aria-pressed="false"></button>
         <aside data-testid="knowledge-list-panel">
-          <p data-testid="knowledge-search-info">Recall 1 of top-K</p>
+          <p data-testid="knowledge-search-info">1 match</p>
           <button data-testid="memory-item-workspace:launch-memory.md" data-state="selected">
             Launch Memory
           </button>
@@ -306,7 +306,7 @@ describe("captureRouteState", () => {
             <span data-slot="metric-value">3</span>
           </article>
           <article data-slot="metric">
-            <span data-slot="metric-label">Usage · 30d</span>
+            <span data-slot="metric-label">Usage, last 30 days</span>
             <span data-slot="metric-value">4K</span>
           </article>
         </section>

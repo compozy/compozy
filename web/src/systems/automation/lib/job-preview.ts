@@ -119,7 +119,7 @@ function scopeLabel(draft: Draft): string {
   if (draft.scope === "workspace") {
     return `in ${draft.workspace_id ?? ""}`;
   }
-  return "across the whole runtime";
+  return "in every project";
 }
 
 function buildSummary(draft: Draft, now: number): JobPreviewSummary {

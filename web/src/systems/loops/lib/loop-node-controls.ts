@@ -147,10 +147,10 @@ export const LOOP_NODE_VERB_PRESENTATION: Record<LoopNodeVerb, LoopNodeVerbPrese
     destructive: false,
   },
   "resume-immediate": { label: "Resume now", mode: "immediate", destructive: false },
-  "resume-wait": { label: "Resume with payload…", destructive: false },
+  "resume-wait": { label: "Resume with data…", destructive: false },
   cancel: { label: "Cancel…", destructive: true },
-  requeue: { label: "Requeue…", destructive: false },
-  "open-quarantine": { label: "Open quarantine entry", destructive: false },
+  requeue: { label: "Retry…", destructive: false },
+  "open-quarantine": { label: "View details", destructive: false },
   amend: { label: "Amend output…", destructive: false },
   rerun: { label: "Rerun from here…", destructive: false },
 };
@@ -255,4 +255,19 @@ export function loopControlAnswer(input: LoopControlAnswerInput): LoopControlAns
         detail: input.message,
       };
   }
+}
+
+/**
+ * The `mode` a confirmed verb posts: the chosen pause mode for `pause`, the verb's fixed
+ * resume mode for the resume family, and nothing for every other verb.
+ */
+export function loopNodeVerbCommitMode(
+  verb: LoopNodeVerb,
+  pauseMode: LoopNodePauseMode
+): string | undefined {
+  if (verb === "pause") return LOOP_NODE_PAUSE_MODES[pauseMode];
+  if (verb in LOOP_NODE_RESUME_MODES) {
+    return LOOP_NODE_RESUME_MODES[verb as keyof typeof LOOP_NODE_RESUME_MODES];
+  }
+  return undefined;
 }

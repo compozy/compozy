@@ -1,0 +1,62 @@
+import { useId, type ComponentProps } from "react";
+
+import { Switch, cn } from "@compozy/ui";
+
+interface AutomationEnableSwitchProps extends Omit<ComponentProps<"div">, "children"> {
+  enabled: boolean;
+  pending: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  labelTestId: string;
+  switchTestId: string;
+}
+
+/**
+ * The labeled enable switch shown in job and trigger detail heads.
+ *
+ * While the PATCH is in flight the track keeps the state the daemon last
+ * confirmed; the label announces the transition instead. An optimistic flip
+ * would claim a state the runtime has not agreed to yet.
+ */
+export function AutomationEnableSwitch({
+  enabled,
+  pending,
+  onEnabledChange,
+  labelTestId,
+  switchTestId,
+  className,
+  ...props
+}: AutomationEnableSwitchProps) {
+  const labelId = useId();
+  const label = pending ? (enabled ? "Disabling…" : "Enabling…") : enabled ? "Enabled" : "Disabled";
+  return (
+    <div
+      aria-busy={pending || undefined}
+      className={cn(
+        "mt-0.5 flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1",
+        pending && "pointer-events-none opacity-55",
+        className
+      )}
+      {...props}
+    >
+      <span
+        className={cn(
+          "text-form-label font-medium transition-colors duration-fast ease-out",
+          enabled ? "text-fg" : "text-muted"
+        )}
+        data-testid={labelTestId}
+        id={labelId}
+      >
+        {label}
+      </span>
+      <Switch
+        aria-labelledby={labelId}
+        checked={enabled}
+        data-testid={switchTestId}
+        disabled={pending}
+        onCheckedChange={next => {
+          if (!pending) onEnabledChange(next);
+        }}
+      />
+    </div>
+  );
+}

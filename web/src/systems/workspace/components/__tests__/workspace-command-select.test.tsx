@@ -117,7 +117,7 @@ describe("WorkspaceCommandSelect", () => {
       </UIProvider>
     );
 
-    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("No workspace");
+    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("No project");
     expect(screen.getByTestId("workspace-switcher")).toBeDisabled();
   });
 

@@ -95,7 +95,7 @@ const SCHEDULE_MODE_ITEMS: PillGroupItem<AutomationScheduleMode>[] = [
     label: (
       <span className="flex items-center gap-1.5">
         <Repeat aria-hidden="true" className="size-3" />
-        Repeat on cron
+        Repeats
       </span>
     ),
     testId: "job-schedule-mode-cron",
@@ -286,11 +286,7 @@ function JobScheduleSection({
   schedule: CreateAutomationJobRequest["schedule"];
 }) {
   return (
-    <FormSection
-      help="All times evaluate in UTC, the runtime's automation timezone."
-      icon={Clock}
-      title="On this schedule"
-    >
+    <FormSection help="Times are in UTC." icon={Clock} title="On this schedule">
       <div className="space-y-4">
         <PillGroup
           aria-label="Schedule mode"
@@ -353,9 +349,9 @@ function JobTargetSection({
 > & { form: ReturnType<typeof useAutomationJobForm> }) {
   return (
     <FormSection
-      help="Prompt an agent, hand the work to a durable task, or start a Loop with typed inputs."
+      help="Ask an agent, create a task, or start a Loop."
       icon={Bot}
-      title="What fires on each tick"
+      title="What should run"
     >
       <div className="space-y-4">
         <PillGroup

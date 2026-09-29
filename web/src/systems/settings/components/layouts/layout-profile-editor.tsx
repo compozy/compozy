@@ -18,13 +18,13 @@ const SCOPES: ReadonlyArray<{ value: WindowManagerLayoutScopeKind; label: string
   [
     {
       value: "workspace",
-      label: "This workspace",
-      hint: "Visible only inside this workspace.",
+      label: "This project",
+      hint: "Visible only inside this project.",
     },
     {
       value: "global",
-      label: "Every workspace",
-      hint: "Available in every workspace on this machine.",
+      label: "Every project",
+      hint: "Available in every project on this machine.",
     },
   ];
 
@@ -76,7 +76,7 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
           hint={
             forking
               ? "Changing the id saves a new layout instead of replacing this one."
-              : "Unique within this scope. A workspace layout may override a global layout with the same id."
+              : "Unique among these layouts. A project layout replaces an everywhere layout with the same ID."
           }
           htmlFor="layout-profile-id"
           label="Resource ID"

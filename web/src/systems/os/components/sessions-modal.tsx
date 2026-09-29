@@ -70,7 +70,7 @@ export function OsSessionsModal({
         unframed
         showCloseButton={false}
         data-testid="os-sessions-modal"
-        className="top-[9vh] flex h-[min(var(--height-modal-md),70vh)] max-h-[70vh] w-full translate-y-0 flex-col overflow-hidden min-[960px]:top-[16vh] sm:w-detail-inspector-inline sm:max-w-none"
+        className="top-[9vh] flex h-[min(var(--height-modal-md),70vh)] max-h-[70vh] w-full translate-y-0 flex-col overflow-hidden shell-wide:top-[16vh] sm:w-detail-inspector-inline sm:max-w-none"
       >
         <DialogTitle className="sr-only">Sessions</DialogTitle>
         <DialogDescription className="sr-only">

@@ -300,7 +300,7 @@ describe("extension lifecycle mutations", () => {
       profileName: "default",
       workspaceId: "ws_northstar",
     });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify dev overlay unlinked");
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify local copy unlinked");
     await act(async () => {
       await result.current.mutateAsync({
         dev: false,

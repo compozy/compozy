@@ -9,7 +9,7 @@ export function SettingsSkillsInstallPolicySection({
   onChange,
 }: SettingsSkillsDraftSectionProps) {
   return (
-    <SettingsGroup title="Install policy" description="restart required to apply">
+    <SettingsGroup title="Install policy" description="Applies after CompozyOS restarts">
       <SettingsFieldRow
         data-testid="settings-page-skills-allowed-hooks"
         label="Allowed hook installs"

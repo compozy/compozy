@@ -13,7 +13,6 @@ import {
   paletteKindKey,
   type PaletteItem,
 } from "../../lib/loop-palette";
-import { MonoTag } from "../mono-tag";
 
 interface LoopEditorPaletteProps {
   onAddNode: (item: PaletteItem) => void;
@@ -110,9 +109,9 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
               key={group.label}
               role="group"
             >
-              <MonoTag className="px-0.5 text-pill-group-badge tracking-[0.09em] text-faint">
+              <Eyebrow variant="caps" className="px-0.5 text-faint">
                 {group.label}
-              </MonoTag>
+              </Eyebrow>
               {group.items.map(item => {
                 const active = item === activeItem;
                 return (

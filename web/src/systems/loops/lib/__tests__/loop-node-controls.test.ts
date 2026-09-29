@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
 import type { LoopNodeLifecycle } from "../loop-node-lifecycle";
-import { loopNodeVerbs, loopNodeWaitResumeItemIndex } from "../loop-node-controls";
+import {
+  loopNodeVerbCommitMode,
+  loopNodeVerbs,
+  loopNodeWaitResumeItemIndex,
+} from "../loop-node-controls";
 
 // The verb policy is a pure function that lives here, so its contract is
 // asserted here. It was previously exercised from the run-page component suite,
@@ -89,5 +93,23 @@ describe("loopNodeVerbs", () => {
     for (const status of ["done", "failed", "canceled", "exhausted"]) {
       expect(loopNodeVerbs(node({ paused: true, state: "paused" }), status)).toEqual([]);
     }
+  });
+});
+
+describe("loopNodeVerbCommitMode", () => {
+  it("Should post the chosen pause mode for pause", () => {
+    expect(loopNodeVerbCommitMode("pause", "drain")).toBe("drain");
+    expect(loopNodeVerbCommitMode("pause", "cancel")).toBe("cancel");
+  });
+
+  it("Should post each resume verb's fixed mode", () => {
+    expect(loopNodeVerbCommitMode("resume", "drain")).toBe("plain");
+    expect(loopNodeVerbCommitMode("resume-reset-attempts", "drain")).toBe("reset_attempts");
+    expect(loopNodeVerbCommitMode("resume-immediate", "drain")).toBe("immediate");
+  });
+
+  it("Should post no mode for verbs without one", () => {
+    expect(loopNodeVerbCommitMode("resume-wait", "drain")).toBeUndefined();
+    expect(loopNodeVerbCommitMode("requeue", "cancel")).toBeUndefined();
   });
 });

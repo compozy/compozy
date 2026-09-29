@@ -9,10 +9,11 @@ import {
 } from "../session-working-status";
 
 // Suite: working-status derivation (S3, US-027, UT-109, UT-110).
-// Invariant: the status row reads "Working for {elapsed} · {activity}" from the
-// daemon's durable turn start and its current tool / decision / children, stays
-// working while children run, and freezes into a truthful sentence after a stop
-// or failure. Elapsed derives from `turn_started_at`, never a browser stopwatch.
+// Invariant: the status row reads "Working for {elapsed}" from the daemon's
+// durable turn start plus a pending decision and children (the running tool is
+// the transcript live row's), stays working while children run, and after a
+// stop or failure speaks only when it adds attribution or cause the turn fold
+// does not already say. Elapsed derives from `turn_started_at`, never a browser stopwatch.
 const NOW = Date.parse("2026-09-06T12:02:14Z");
 
 function session(overrides: Partial<Parameters<typeof deriveWorkingStatus>[0]["session"]> = {}) {
@@ -34,7 +35,7 @@ function session(overrides: Partial<Parameters<typeof deriveWorkingStatus>[0]["s
 }
 
 describe("working status", () => {
-  it("Should derive Working for {elapsed} · Running {tool} from the session payload", () => {
+  it("Should derive Working for {elapsed} from the session payload, leaving the tool to the live row", () => {
     expect(
       deriveWorkingStatus({
         session: session(),
@@ -47,12 +48,12 @@ describe("working status", () => {
       kind: "working",
       startedAtMs: Date.parse("2026-09-06T12:00:00Z"),
       elapsed: "2m 14s",
-      activity: "Running shell",
+      activity: null,
       agentCount: 0,
     });
   });
 
-  it("Should count parallel tools honestly and prefer a pending decision", () => {
+  it("Should leave parallel tools to the live row and surface a pending decision", () => {
     const parallel = session({
       supervision: {
         quiet_warning: null,
@@ -71,7 +72,7 @@ describe("working status", () => {
       lastTurn: null,
       nowMs: NOW,
     });
-    expect(status).toMatchObject({ kind: "working", activity: "Running 3 tools" });
+    expect(status).toMatchObject({ kind: "working", activity: null });
 
     const waiting = session({
       pending_interactions: [{ kind: "permission" }] as never,
@@ -136,7 +137,7 @@ describe("working status", () => {
         lastTurn: stopped,
         nowMs: NOW,
       })
-    ).toEqual({ kind: "stopped", duration: "1m 40s", byYou: true, detail: null });
+    ).toEqual({ kind: "hidden" });
     // Only the operator's own stop reads "by you"; the daemon's stops say what they were.
     expect(
       deriveWorkingStatus({
@@ -171,6 +172,17 @@ describe("working status", () => {
         nowMs: NOW,
       })
     ).toEqual({ kind: "failed", duration: "1m 40s", cause: "rate limited" });
+    // The fold already reads "You stopped after …" / "Failed after …": the row
+    // stays silent unless it adds who stopped the turn or why it failed.
+    expect(
+      deriveWorkingStatus({
+        session: session(),
+        running: false,
+        thinking: false,
+        lastTurn: { ...stopped, cause: "failed" },
+        nowMs: NOW,
+      })
+    ).toEqual({ kind: "hidden" });
     expect(
       deriveWorkingStatus({
         session: session(),

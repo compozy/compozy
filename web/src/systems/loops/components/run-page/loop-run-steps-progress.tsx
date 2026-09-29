@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, Gauge } from "lucide-react";
 
-import { Button, cn } from "@compozy/ui";
+import { Button, HelpTip, cn } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 
@@ -47,32 +47,31 @@ export function LoopRunStepsProgress({
   const rows = fold && !showAll ? progress.steps.filter(step => !step.quiet) : progress.steps;
   return (
     <LoopSection
-      className="mb-0"
       data-testid="loop-run-progress"
       gist={progress.label}
       icon={<Gauge aria-hidden="true" />}
       title="Progress"
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        <div className="px-4.5 pt-4 pb-4.25">
-          <h2
-            className="text-item-title font-medium tracking-tight text-pretty text-fg-strong"
-            data-testid="loop-run-progress-label"
-          >
-            {goal ?? progress.label}
-          </h2>
-          {doneWhen ? (
-            <p
-              className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted"
-              data-testid="loop-run-done-when"
+        <div className="p-4">
+          <div className="flex items-start gap-1">
+            <h2
+              className="text-item-title font-medium tracking-tight text-pretty text-fg-strong"
+              data-testid="loop-run-progress-label"
             >
-              {doneWhen}
-            </p>
-          ) : null}
+              {goal ?? progress.label}
+            </h2>
+            {/* The finish line is reference, not headline: one tap away. */}
+            {doneWhen ? (
+              <HelpTip className="mt-1" data-testid="loop-run-done-when" label="When is it done?">
+                {doneWhen}
+              </HelpTip>
+            ) : null}
+          </div>
           {progress.segments.length > 0 ? (
             <div
               aria-label={progress.ariaLabel}
-              className="mt-3.75 flex h-1.5 gap-0.75"
+              className="mt-4 flex h-1.5 gap-1"
               data-testid="loop-run-progress-bar"
               role="img"
             >
@@ -87,7 +86,7 @@ export function LoopRunStepsProgress({
               )}
             </div>
           ) : null}
-          <div className="mt-2.25 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-form-label text-muted">
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-form-label text-muted">
             <span data-testid="loop-run-progress-meta">{progress.leftMeta}</span>
             {progress.rightMeta ? (
               <span className="whitespace-nowrap text-subtle" data-testid="loop-run-progress-right">
@@ -96,7 +95,7 @@ export function LoopRunStepsProgress({
             ) : null}
           </div>
           {rows.length > 0 ? (
-            <ul className="mt-3.5 flex flex-col" data-testid="loop-run-step-list" id={listId}>
+            <ul className="mt-4 flex flex-col" data-testid="loop-run-step-list" id={listId}>
               {rows.map(step => (
                 <LoopRunStepRow key={step.key} step={step} />
               ))}

@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Search } from "lucide-react";
 
-import { Button, cn } from "@compozy/ui";
+import { Button, PAGE_CONTENT_GUTTER, cn } from "@compozy/ui";
 
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 
@@ -147,11 +147,6 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   onForkGeneration?: (generation: number) => void;
 }
 
-/** `sha256:4f9c2a1…` → `4f9c2a1` for the rail foot. */
-function shortDigest(digest: string): string {
-  return digest.replace(/^sha256:/, "").slice(0, 7);
-}
-
 /** Composes run content from the page model while keeping data reads and controls with its owner. */
 export function LoopRunPageBody({
   goalTurns,
@@ -208,9 +203,9 @@ export function LoopRunPageBody({
       data-testid="loop-run-detail-content"
       {...divProps}
     >
-      <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-18 max-[1080px]:px-5">
-        <div className="grid grid-cols-1 items-start gap-8 min-[1080px]:grid-cols-[minmax(0,1fr)_320px]">
-          <main className="flex min-w-0 flex-col gap-6.5">
+      <div className={cn(PAGE_CONTENT_GUTTER, "pt-6 pb-16")}>
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
+          <main className="flex min-w-0 flex-col gap-6">
             {/* Four elements, in order, and nothing competing with them. Failure
                 and needs-you render here whatever is collapsed below: a signal
                 you have to expand to see is a signal you will miss. */}
@@ -306,7 +301,7 @@ export function LoopRunPageBody({
                   inspect.onOpenChange(true);
                 }}
               />
-              <div className="flex items-center justify-between border-t border-line-soft px-3 py-2.5">
+              <div className="flex items-center border-t border-line-soft px-3 py-2">
                 <Button
                   className="min-h-6"
                   data-testid="loop-run-open-inspect"
@@ -318,11 +313,6 @@ export function LoopRunPageBody({
                   <Search aria-hidden="true" className="size-3" />
                   Inspect
                 </Button>
-                {run.definition_digest ? (
-                  <span className="font-mono text-pill-group-badge text-faint">
-                    digest {shortDigest(run.definition_digest)}
-                  </span>
-                ) : null}
               </div>
             </div>
           </aside>

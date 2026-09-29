@@ -108,7 +108,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
   it("Should surface the tense-aware verb (not the raw tool name) in the row heading slot", () => {
     render(<SessionToolCallRow message={makeToolMessage()} />);
     // Read fixture is in-flight (no result) → active verb.
-    expect(queryToolName()).toHaveTextContent("Reading...");
+    expect(queryToolName()).toHaveTextContent("Reading…");
     expect(queryToolName()).not.toHaveTextContent("Read file");
   });
 
@@ -135,7 +135,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
         })}
       />
     );
-    expect(queryToolName()).toHaveTextContent("Running...");
+    expect(queryToolName()).toHaveTextContent("Running…");
     const preview = queryPreview();
     expect(preview).not.toBeNull();
     expect(preview?.textContent).toContain("compozy tool invoke");
@@ -157,7 +157,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(indicator).not.toHaveClass("text-success");
     expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
-    expect(queryToolName()).toHaveTextContent("Reading...");
+    expect(queryToolName()).toHaveTextContent("Reading…");
   });
 
   it("Should read a resultless tool as an absorbed failure once the owning turn settles", () => {
@@ -168,7 +168,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryRoot()).toHaveAttribute("data-status", "absorbed");
     expect(queryStatusIndicator()).toHaveAttribute("aria-label", "Failed");
     expect(queryToolName()).toHaveTextContent("Read file");
-    expect(queryToolName()).not.toHaveTextContent("Reading...");
+    expect(queryToolName()).not.toHaveTextContent("Reading…");
     expect(queryPreview()).toHaveTextContent("Tool call failed");
   });
 
@@ -379,7 +379,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
 
     expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
     expect(queryRoot()).toBeNull();
-    expect(screen.queryByRole("button", { name: "Copy tool payload" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy tool details" })).not.toBeInTheDocument();
     expect(screen.queryByText("Output")).not.toBeInTheDocument();
   });
 
@@ -459,7 +459,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
     fireEvent.click(rowTrigger as HTMLElement);
 
-    expect(queryToolName()).toHaveTextContent("mcp__context7__resolve-library-id");
+    expect(queryToolName()).toHaveTextContent("resolve library id (Context7)");
+    expect(queryToolName()).not.toHaveTextContent("mcp__context7");
     expect(queryBody()).toHaveTextContent('"libraryName": "react"');
     expect(queryBody()).toHaveTextContent("/websites/react_dev");
   });
@@ -482,7 +483,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     });
     render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy tool payload" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy tool details" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const payload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
@@ -674,7 +675,7 @@ it("Should disclose a long provider title and copy its exact original payload", 
   await user.keyboard("{Enter}");
   expect(screen.getByLabelText("Tool title").textContent).toBe(title);
   const writeText = vi.spyOn(navigator.clipboard, "writeText");
-  await user.click(screen.getByRole("button", { name: "Copy tool payload" }));
+  await user.click(screen.getByRole("button", { name: "Copy tool details" }));
   await waitFor(() => expect(writeText).toHaveBeenCalled());
   expect(JSON.parse(writeText.mock.calls[0]![0])).toMatchObject({
     tool: "Bash",

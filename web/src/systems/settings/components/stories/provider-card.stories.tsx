@@ -6,7 +6,6 @@ import type { SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
 import { ProviderCard } from "../provider-card";
-import { ProviderRow } from "../provider-row";
 
 const claudeFixture: SettingsProviderEntry = {
   ...settingsProviderFixtures[0]!,
@@ -114,24 +113,6 @@ export const CardStates: Story = {
       <ProviderCard onOpen={fn()} provider={needsSignInFixture} />
       <ProviderCard onOpen={fn()} provider={unknownAuthFixture} />
       <ProviderCard onOpen={fn()} provider={binaryMissingFixture} />
-    </PanelSurface>
-  ),
-};
-
-/**
- * Rows view of the same listing data.
- */
-export const RowStates: Story = {
-  args: {},
-  render: () => (
-    <PanelSurface className="max-w-[860px] p-6">
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        <ProviderRow onOpen={fn()} provider={claudeFixture} />
-        <ProviderRow onOpen={fn()} provider={needsSetupFixture} />
-        <ProviderRow onOpen={fn()} provider={needsSignInFixture} />
-        <ProviderRow onOpen={fn()} provider={unknownAuthFixture} />
-        <ProviderRow onOpen={fn()} provider={binaryMissingFixture} />
-      </div>
     </PanelSurface>
   ),
 };

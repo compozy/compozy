@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 
 import { Button, Empty, Spinner } from "@compozy/ui";
 
-import { OnboardingSetupPanel, useOnboardingStatus } from "@/systems/onboarding";
+import {
+  OnboardingApiError,
+  OnboardingSetupPanel,
+  useOnboardingStatus,
+} from "@/systems/onboarding";
 
 /**
  * Desktop-level onboarding gate: first-run setup renders **over** the shell, not
@@ -32,16 +36,15 @@ export function DesktopGate({ children }: { children: ReactNode }) {
   }
 
   if (onboarding.isError) {
+    const view = gateErrorView(onboarding.error);
     return (
       <GateFrame testId="onboarding-gate-error">
         <Empty
           className="max-w-xl"
-          description={describeGateError(
-            onboarding.error,
-            "CompozyOS could not confirm whether first-run setup is complete."
-          )}
+          cause={view.cause}
+          description={view.description}
           icon={AlertTriangle}
-          title="Unable to check onboarding"
+          title={view.title}
           titleAs="h1"
           action={
             <Button
@@ -78,9 +81,28 @@ function GateFrame({ children, testId }: { children: ReactNode; testId: string }
   );
 }
 
-function describeGateError(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
+interface GateErrorView {
+  title: string;
+  description: string;
+  cause?: string;
+}
+
+/**
+ * What the gate says when onboarding status fails. A 403 is the daemon's access
+ * policy answering with fixed, daemon-authored text (e.g. the non-loopback HTTP
+ * guard), so the operator reads it verbatim; any other failure keeps runtime
+ * messages off screen because they may contain secrets.
+ */
+function gateErrorView(error: unknown): GateErrorView {
+  const refusal =
+    error instanceof OnboardingApiError && error.status === 403 ? error.message.trim() : "";
+  if (refusal) {
+    return { title: "CompozyOS refused this connection", description: refusal };
   }
-  return fallback;
+  return {
+    title: "CompozyOS isn't responding",
+    description: "Make sure CompozyOS is running, then try again.",
+    cause:
+      error instanceof Error ? "CompozyOS couldn't confirm whether setup is complete." : undefined,
+  };
 }

@@ -9,7 +9,8 @@ describe("SettingsSourceBadge", () => {
       <SettingsSourceBadge data-testid="badge" source={{ kind: "global-config", scope: "user" }} />
     );
     const effective = screen.getByTestId("badge-effective");
-    expect(effective).toHaveTextContent("CONFIG");
+    expect(effective).toHaveTextContent("From settings");
+    expect(effective).toHaveAttribute("title", "config.toml");
   });
 
   it("annotates workspace sources with their workspace id", () => {
@@ -19,7 +20,7 @@ describe("SettingsSourceBadge", () => {
         source={{ kind: "workspace-config", scope: "workspace", workspace_id: "ws_alpha" }}
       />
     );
-    expect(screen.getByTestId("badge-effective")).toHaveTextContent("WORKSPACE · ws_alpha");
+    expect(screen.getByTestId("badge-effective")).toHaveTextContent("From project · ws_alpha");
   });
 
   it("shows profile and workspace-profile sources with their owner identity", () => {
@@ -29,7 +30,7 @@ describe("SettingsSourceBadge", () => {
         source={{ kind: "profile-config", scope: "profile", profile: "marketing" }}
       />
     );
-    expect(screen.getByTestId("badge-effective")).toHaveTextContent("PROFILE · marketing");
+    expect(screen.getByTestId("badge-effective")).toHaveTextContent("From profile · marketing");
 
     rerender(
       <SettingsSourceBadge
@@ -43,20 +44,20 @@ describe("SettingsSourceBadge", () => {
       />
     );
     expect(screen.getByTestId("badge-effective")).toHaveTextContent(
-      "WORKSPACE PROFILE · ws_alpha · marketing"
+      "From project profile · ws_alpha · marketing"
     );
   });
 
   it.each([
     {
       kind: "profile-mcp-sidecar" as const,
-      label: "PROFILE MCP.JSON · marketing",
+      label: "From profile · marketing",
       tone: "info",
       workspace_id: undefined,
     },
     {
       kind: "workspace-profile-mcp-sidecar" as const,
-      label: "WS-PROFILE MCP.JSON · ws_alpha · marketing",
+      label: "From project profile · ws_alpha · marketing",
       tone: "warning",
       workspace_id: "ws_alpha",
     },
@@ -84,7 +85,7 @@ describe("SettingsSourceBadge", () => {
         source={{ kind: "builtin-provider", scope: "user" }}
       />
     );
-    expect(screen.getByTestId("badge-effective")).toHaveTextContent("BUILTIN");
+    expect(screen.getByTestId("badge-effective")).toHaveTextContent("Built in");
   });
 
   it("lists shadowed sources when lower precedence definitions exist", () => {
@@ -99,9 +100,9 @@ describe("SettingsSourceBadge", () => {
       />
     );
     const shadow = screen.getByTestId("badge-shadowed");
-    expect(shadow).toHaveTextContent("shadows");
-    expect(shadow).toHaveTextContent("CONFIG");
-    expect(shadow).toHaveTextContent("BUILTIN");
+    expect(shadow).toHaveTextContent("replaces");
+    expect(shadow).toHaveTextContent("From settings");
+    expect(shadow).toHaveTextContent("Built in");
   });
 
   it("includes agent identity for agent-scoped file sources", () => {
@@ -117,7 +118,7 @@ describe("SettingsSourceBadge", () => {
       />
     );
     expect(screen.getByTestId("badge-effective")).toHaveTextContent(
-      "WS-AGENT · reviewer · ws_alpha"
+      "From project agent file · reviewer · ws_alpha"
     );
   });
 

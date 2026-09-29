@@ -86,12 +86,9 @@ export {
   decisionOpLabel,
   decisionSourceLabel,
   knowledgeAgentTierLabel,
-  knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
   knowledgeScopeLabel,
-  knowledgeScopeShortLabel,
-  memoryScopeTone,
-  memoryTypeTone,
+  knowledgeTypeLabel,
 } from "./lib/knowledge-formatters";
 export { groupKnowledgeMemoriesByScope } from "./lib/knowledge-list";
 export { DEFAULT_MEMORY_LIST_LIMIT } from "./lib/memory-list-query";

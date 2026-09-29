@@ -20,7 +20,10 @@
  * not the operator, is what could not be confirmed. Two presentation
  * scales, one meaning: 7–9 px shapes on rows, 18 px tinted glyph roundels on
  * bell rows, toasts, palette rows, and the window status line. The state word
- * is the exact CLI vocabulary and is always present.
+ * is plain language (`displayLabel`); the exact CLI vocabulary stays
+ * one step deeper, in the accessible label and `data-*` attributes. Colour is
+ * reserved for states that ask something of the user: resting states (`idle`,
+ * `done`) are neutral and lean on their glyph.
  */
 import {
   Activity,
@@ -67,8 +70,10 @@ export interface SessionBadgeSignal {
   /** 18 px roundel glyph. */
   glyph: LucideIcon;
   pulse: boolean;
-  /** Exact CLI vocabulary — the accessible label lane. */
+  /** Exact CLI vocabulary — the accessible label and `data-*` lane. */
   label: SessionBadgeToken;
+  /** Plain-language state word shown on screen. */
+  displayLabel: string;
   attention: SessionAttentionClass;
 }
 
@@ -83,6 +88,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: TriangleAlert,
     pulse: false,
     label: "needs-attention",
+    displayLabel: "Needs attention",
     attention: "needs-you",
   },
   "waiting-for-input": {
@@ -91,6 +97,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: CircleHelp,
     pulse: false,
     label: "waiting-for-input",
+    displayLabel: "Needs your answer",
     attention: "needs-you",
   },
   "waiting-for-auth": {
@@ -99,6 +106,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: Shield,
     pulse: false,
     label: "waiting-for-auth",
+    displayLabel: "Needs sign-in",
     attention: "needs-you",
   },
   failed: {
@@ -107,14 +115,16 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: X,
     pulse: false,
     label: "failed",
+    displayLabel: "Failed",
     attention: "needs-you",
   },
   done: {
-    tone: "info",
+    tone: "neutral",
     shape: "check",
     glyph: Check,
     pulse: false,
     label: "done",
+    displayLabel: "Done",
     attention: "finished",
   },
   running: {
@@ -123,14 +133,16 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: Circle,
     pulse: true,
     label: "running",
+    displayLabel: "Working",
     attention: "none",
   },
   idle: {
-    tone: "success",
+    tone: "neutral",
     shape: "dot",
     glyph: Circle,
     pulse: false,
     label: "idle",
+    displayLabel: "Idle",
     attention: "none",
   },
   hung: {
@@ -139,6 +151,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: Activity,
     pulse: false,
     label: "hung",
+    displayLabel: "Stuck",
     attention: "none",
   },
   unhealthy: {
@@ -147,6 +160,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: Activity,
     pulse: false,
     label: "unhealthy",
+    displayLabel: "Having trouble",
     attention: "none",
   },
   stopped: {
@@ -155,6 +169,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: Circle,
     pulse: false,
     label: "stopped",
+    displayLabel: "Stopped",
     attention: "none",
   },
   unknown: {
@@ -163,6 +178,7 @@ export const SESSION_BADGE_SIGNAL = {
     glyph: Minus,
     pulse: false,
     label: "unknown",
+    displayLabel: "Unknown",
     attention: "none",
   },
 } as const satisfies Record<SessionBadgeToken, SessionBadgeSignal>;

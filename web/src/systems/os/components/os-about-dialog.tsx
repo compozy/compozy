@@ -4,7 +4,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Disclosure,
   Logo,
+  MetadataList,
+  MetadataListRow,
   Time,
 } from "@compozy/ui";
 
@@ -34,6 +37,11 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
           label: "Started",
           value: <Time iso={daemon.data.started_at} />,
         },
+      ]
+    : [];
+  // Operator detail stays one step deeper: closed by default (calm defaults).
+  const technicalRows = daemon.data
+    ? [
         { id: "pid", label: "Process", value: String(daemon.data.pid) },
         { id: "http", label: "HTTP", value: `${daemon.data.http_host}:${daemon.data.http_port}` },
         { id: "socket", label: "Socket", value: daemon.data.socket },
@@ -72,23 +80,36 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
             </p>
           ) : null}
           {rows.length > 0 ? (
-            <dl className="flex flex-col">
-              {rows.map(row => (
-                <div
-                  key={row.id}
-                  data-testid={`os-about-row-${row.id}`}
-                  className="flex min-h-7 items-start justify-between gap-6 border-b border-line-soft py-1.5 last:border-b-0"
-                >
-                  <dt className="shrink-0 text-small-body text-muted">{row.label}</dt>
-                  <dd className="min-w-0 truncate text-right font-mono text-micro text-fg">
-                    {row.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="flex flex-col gap-4">
+              <AboutRows rows={rows} />
+              <Disclosure label="Technical details" size="md">
+                <AboutRows rows={technicalRows} />
+              </Disclosure>
+            </div>
           ) : null}
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AboutRows({
+  rows,
+}: {
+  rows: readonly { id: string; label: string; value: React.ReactNode }[];
+}) {
+  return (
+    <MetadataList>
+      {rows.map(row => (
+        <MetadataListRow
+          key={row.id}
+          data-testid={`os-about-row-${row.id}`}
+          label={row.label}
+          valueProps={{ className: "truncate font-mono text-micro text-fg" }}
+        >
+          {row.value}
+        </MetadataListRow>
+      ))}
+    </MetadataList>
   );
 }

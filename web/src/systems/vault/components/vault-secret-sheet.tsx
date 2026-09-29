@@ -1,9 +1,17 @@
-import { Check, Copy, KeyRound, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { KeyRound, X } from "lucide-react";
 
-import { Button, Eyebrow, Input, Pill, Sheet, SheetContent, Time } from "@compozy/ui";
+import {
+  Button,
+  CopyIconButton,
+  Eyebrow,
+  Input,
+  MetadataList,
+  Pill,
+  Sheet,
+  SheetContent,
+  Time,
+} from "@compozy/ui";
 
-import { vaultNamespaceTone } from "../lib/vault-tones";
 import { vaultSecretTitle } from "../lib/vault-secret-title";
 import type { VaultSecret } from "../types";
 
@@ -34,66 +42,19 @@ export function VaultSecretSheet({
   onReplace,
   onRequestDelete,
 }: VaultSecretSheetProps) {
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState(false);
-  const copyResetTimerRef = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (copyResetTimerRef.current) window.clearTimeout(copyResetTimerRef.current);
-    },
-    []
-  );
-
-  const handleCopy = async () => {
-    if (!secret || !navigator.clipboard) {
-      setCopied(false);
-      setCopyError(true);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(secret.ref);
-      setCopyError(false);
-      setCopied(true);
-      if (copyResetTimerRef.current) window.clearTimeout(copyResetTimerRef.current);
-      copyResetTimerRef.current = window.setTimeout(() => {
-        setCopied(false);
-        copyResetTimerRef.current = null;
-      }, 1500);
-    } catch {
-      setCopied(false);
-      setCopyError(true);
-    }
-  };
-
   return (
-    <Sheet
-      open={open}
-      onOpenChange={next => {
-        if (!next) {
-          setCopied(false);
-          setCopyError(false);
-        }
-        onOpenChange(next);
-      }}
-    >
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        className="grid w-full grid-rows-[auto_1fr_auto] gap-0 p-0 sm:max-w-[32.5rem]"
+        className="grid w-full grid-rows-[auto_1fr_auto] gap-0 p-0 sm:max-w-(--width-modal-sm)"
         data-testid="vault-secret-sheet"
         showCloseButton={false}
         side="right"
       >
         {secret ? (
           <>
-            <SheetHead
-              copied={copied}
-              copyError={copyError}
-              onClose={() => onOpenChange(false)}
-              onCopy={handleCopy}
-              secret={secret}
-            />
+            <SheetHead onClose={() => onOpenChange(false)} secret={secret} />
             <div className="min-h-0 overflow-y-auto px-5 py-4.5">
-              <SheetTiles secret={secret} />
+              <SheetFacts secret={secret} />
               <SheetValueSection present={secret.present} />
               <SheetReplaceSection
                 error={replaceError}
@@ -103,18 +64,24 @@ export function VaultSecretSheet({
                 onReplaceValueChange={onReplaceValueChange}
                 replaceValue={replaceValue}
               />
-              <SheetDangerZone
-                disabled={deleteIsDisabled}
-                onRequestDelete={() => onRequestDelete(secret)}
-              />
             </div>
             <footer
-              className="flex items-center gap-2.5 border-t border-line-soft px-5 py-3"
-              data-testid="vault-secret-sheet-foot"
+              className="flex items-center justify-between gap-3 border-t border-line-soft px-5 py-3"
+              data-testid="vault-secret-sheet-danger"
             >
-              <span className="min-w-0 truncate font-mono text-mono-id text-faint">
-                compozy vault put {secret.ref} --value-stdin
-              </span>
+              <p className="min-w-0 text-form-hint leading-snug text-muted">
+                Anything that uses this secret stops working.
+              </p>
+              <Button
+                data-testid="vault-secret-sheet-delete"
+                disabled={deleteIsDisabled}
+                onClick={() => onRequestDelete(secret)}
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                Delete
+              </Button>
             </footer>
           </>
         ) : null}
@@ -123,105 +90,67 @@ export function VaultSecretSheet({
   );
 }
 
-function SheetHead({
-  secret,
-  copied,
-  copyError,
-  onCopy,
-  onClose,
-}: {
-  secret: VaultSecret;
-  copied: boolean;
-  copyError: boolean;
-  onCopy: () => void;
-  onClose: () => void;
-}) {
+function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => void }) {
   return (
     <header className="flex items-start gap-3 border-b border-line px-5 py-4.5">
       <span
         aria-hidden="true"
-        className="grid size-9 shrink-0 place-items-center rounded-md bg-accent-tint text-accent-strong"
+        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-glaze text-muted"
       >
         <KeyRound className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <Eyebrow className="text-subtle">Vault secret</Eyebrow>
         <h2
-          className="mt-0.5 break-all text-item-title font-medium tracking-tight text-fg-strong"
+          className="break-all text-item-title font-medium tracking-tight text-fg-strong"
           data-testid="vault-secret-sheet-title"
           id="vault-secret-sheet-title"
         >
           {vaultSecretTitle(secret.ref)}
         </h2>
-        <div className="mt-1.5 flex min-w-0 items-center gap-1.5 font-mono text-mono-id text-muted">
+        <div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-mono-id text-muted">
           <span className="min-w-0 truncate" data-testid="vault-secret-sheet-ref">
             {secret.ref}
           </span>
-          <button
-            aria-label={copied ? "Copied vault reference" : "Copy vault reference"}
-            className="inline-grid size-6 shrink-0 place-items-center rounded-xxs text-faint transition-colors hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+          <CopyIconButton
+            copiedLabel="Copied name"
+            copiedToastLabel="Secret name copied"
+            copyFailedLabel="Couldn't copy name"
+            copyFailedToastLabel="Couldn't copy the secret name"
+            copyLabel="Copy secret name"
             data-testid="vault-secret-sheet-copy"
-            onClick={onCopy}
-            type="button"
-          >
-            {copied ? (
-              <Check aria-hidden="true" className="size-[11px] text-success" />
-            ) : (
-              <Copy aria-hidden="true" className="size-[11px]" />
-            )}
-          </button>
+            value={secret.ref}
+          />
         </div>
-        {copyError ? (
-          <p
-            className="mt-1 text-caption text-danger"
-            data-testid="vault-secret-sheet-copy-error"
-            role="alert"
-          >
-            Vault reference could not be copied.
-          </p>
-        ) : null}
       </div>
-      <button
+      <Button
         aria-label="Close"
-        className="inline-grid size-[26px] shrink-0 place-items-center rounded-sm text-muted transition-colors hover:bg-row-hover hover:text-fg-strong"
         data-testid="vault-secret-sheet-close"
         onClick={onClose}
+        size="icon-sm"
         type="button"
+        variant="ghost"
       >
         <X aria-hidden="true" className="size-3.5" />
-      </button>
+      </Button>
     </header>
   );
 }
 
-function SheetTiles({ secret }: { secret: VaultSecret }) {
+function SheetFacts({ secret }: { secret: VaultSecret }) {
   const trimmedKind = secret.kind?.trim();
+  const edited = secret.created_at !== secret.updated_at;
   return (
-    <div className="mb-4 grid grid-cols-2 gap-2.5" data-testid="vault-secret-sheet-tiles">
-      <Tile label="Namespace">
-        <Pill mono size="sm" tone={vaultNamespaceTone(secret.namespace)}>
-          {secret.namespace}
-        </Pill>
-      </Tile>
-      <Tile label="Kind">
-        <span className="font-mono text-mono-id text-muted">{trimmedKind || "--"}</span>
-      </Tile>
-      <Tile label="Created">
-        <Time className="text-small-body font-medium text-fg" iso={secret.created_at} />
-      </Tile>
-      <Tile label="Updated">
-        <Time className="text-small-body font-medium text-fg" iso={secret.updated_at} />
-      </Tile>
-    </div>
-  );
-}
-
-function Tile({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="rounded-md border border-line-soft bg-input-fill px-3.5 py-2.5">
-      <Eyebrow className="mb-1.5 text-subtle">{label}</Eyebrow>
-      <div className="flex min-w-0 items-center gap-1.5">{children}</div>
-    </div>
+    <MetadataList className="mb-4" data-testid="vault-secret-sheet-facts">
+      <MetadataList.Row label="Updated">
+        <Time className="text-small-body text-fg" iso={secret.updated_at} />
+      </MetadataList.Row>
+      {edited ? (
+        <MetadataList.Row label="Created">
+          <Time className="text-small-body text-fg" iso={secret.created_at} />
+        </MetadataList.Row>
+      ) : null}
+      {trimmedKind ? <MetadataList.Row label="Label">{trimmedKind}</MetadataList.Row> : null}
+    </MetadataList>
   );
 }
 
@@ -234,21 +163,13 @@ function SheetValueSection({ present }: { present: boolean }) {
           • • • • • • • •
         </span>
         {present ? (
-          <Pill size="sm" tone="success">
-            present
-          </Pill>
+          <span className="text-small-body text-muted">Saved</span>
         ) : (
           <Pill size="sm" tone="warning">
-            missing
+            Missing
           </Pill>
         )}
-        <Pill mono size="sm" tone="neutral">
-          write-only
-        </Pill>
       </div>
-      <p className="mt-1.5 text-form-hint leading-normal text-subtle">
-        CompozyOS never returns secret values. Reads expose redacted metadata only.
-      </p>
     </section>
   );
 }
@@ -278,7 +199,7 @@ function SheetReplaceSection({
           className="min-w-0 flex-1 font-mono"
           data-testid="vault-secret-sheet-replace-input"
           onChange={event => onReplaceValueChange(event.target.value)}
-          placeholder="Stored without plaintext readback"
+          placeholder="Paste the new value"
           spellCheck={false}
           type="password"
           value={replaceValue}
@@ -291,7 +212,7 @@ function SheetReplaceSection({
           type="button"
           variant="outline"
         >
-          {isPending ? "Storing…" : "Store"}
+          {isPending ? "Saving…" : "Save"}
         </Button>
       </div>
       {error ? (
@@ -303,40 +224,9 @@ function SheetReplaceSection({
         </p>
       ) : (
         <p className="mt-1.5 text-form-hint leading-normal text-subtle">
-          Re-storing overwrites the value in place — the rotate path. Kind metadata is preserved.
+          Replacing updates everything that uses this secret.
         </p>
       )}
-    </section>
-  );
-}
-
-function SheetDangerZone({
-  disabled,
-  onRequestDelete,
-}: {
-  disabled: boolean;
-  onRequestDelete: () => void;
-}) {
-  return (
-    <section data-testid="vault-secret-sheet-danger">
-      <div className="flex items-center justify-between gap-3 rounded-md border border-danger/20 bg-danger-tint px-3.5 py-3">
-        <div className="min-w-0">
-          <b className="block text-small-body font-medium text-danger">Delete secret</b>
-          <p className="mt-0.5 text-form-hint leading-snug text-muted">
-            Configs that reference this ref will fail to resolve it at spawn time.
-          </p>
-        </div>
-        <Button
-          data-testid="vault-secret-sheet-delete"
-          disabled={disabled}
-          onClick={onRequestDelete}
-          size="sm"
-          type="button"
-          variant="destructive"
-        >
-          Delete
-        </Button>
-      </div>
     </section>
   );
 }

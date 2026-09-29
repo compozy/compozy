@@ -91,8 +91,9 @@ export const Error: Story = {
 };
 
 /**
- * VC-08 capture target: the production create body — reference and value
- * sections with the write-only SecretField and the write-only boundary notice.
+ * VC-08 capture target: the production create body — a Name field that adds the
+ * `vault:` prefix for you, the write-only SecretField, and the optional label
+ * behind "More options".
  */
 export const CreateSecret: Story = {
   args: {},
@@ -103,7 +104,8 @@ export const CreateSecret: Story = {
     const canvas = await openCreateEditor(canvasElement);
     const ref = await canvas.findByTestId("settings-vault-editor-ref-input");
     await userEvent.clear(ref);
-    await userEvent.type(ref, "vault:providers/openai/api-key");
+    await userEvent.type(ref, "providers/openai/api-key");
+    await userEvent.click(await canvas.findByText("More options"));
     await userEvent.type(await canvas.findByTestId("settings-vault-editor-kind-input"), "api_key");
   },
 };

@@ -1089,7 +1089,7 @@ test("E2E-012: blocked window-manager stream degrades without blocking work and 
 
   const degradedStatus = degradedPage
     .getByRole("status")
-    .filter({ hasText: /Layout reconnecting|Live layout disconnected/ });
+    .filter({ hasText: /Reconnecting…|Can.t save window layout/ });
   await expect(degradedStatus).toBeVisible();
   const tasks = await openDockApp(degradedPage, "Tasks", "tasks");
   const before = await windowPosition(degradedPage, tasks);
@@ -1474,6 +1474,8 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.getByRole("menuitem", { name: /^About CompozyOS/ }).click();
   const about = appPage.getByTestId("os-about-dialog");
   await expect(about).toBeVisible();
+  await expect(about.getByTestId("os-about-row-version")).not.toBeEmpty();
+  await about.getByRole("button", { name: "Technical details" }).click();
   await expect(about.getByTestId("os-about-row-pid")).not.toBeEmpty();
   await appPage.keyboard.press("Escape");
   await expect(about).toHaveCount(0);
@@ -2697,7 +2699,7 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
   const shell = osShellSelectors(appPage);
   const layoutUnavailable = appPage
     .getByRole("status")
-    .filter({ hasText: /Layout reconnecting|Live layout disconnected/ });
+    .filter({ hasText: /Reconnecting…|Can.t save window layout/ });
   await expect(shell.tab(sessionID)).toBeVisible();
   await shell.tab(sessionID).click();
   const composer = shell.window(sessionID).getByRole("textbox", { name: "Session prompt" });
@@ -2851,7 +2853,9 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   await composer.fill("exercise permission hardening");
   await composer.press("Enter");
   await expect(sessionWindow.getByTestId("permission-dock")).toBeVisible();
-  await expect(shell.tab(sessionID).locator('[data-slot="os-window-tab-badge"]')).toBeVisible();
+  await expect(
+    shell.tab(sessionID).getByRole("img", { name: "Session needs input" })
+  ).toBeVisible();
 
   const snapshot = await windowManagerSnapshot(runtime, workspace.id);
   await runWindowManagerCLI(runtime, [
@@ -4393,13 +4397,15 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   // but the unavailable primary action is described and refused at the shared
   // dispatch seam without closing the palette or changing the window topology.
   const closeRow = paletteRow(palette, "window.close");
-  await expect(paletteRowReason(palette, "window.close")).toHaveText("runtime unavailable");
-  await expect(closeRow).toHaveAccessibleDescription("runtime unavailable");
+  await expect(paletteRowReason(palette, "window.close")).toHaveText(
+    "CompozyOS isn't reachable right now"
+  );
+  await expect(closeRow).toHaveAccessibleDescription("CompozyOS isn't reachable right now");
   await palette.getByPlaceholder("Search apps, sessions, and actions…").press("Home");
   await expect(closeRow).toHaveAttribute("data-selected", "true");
   await appPage.keyboard.press("Enter");
   await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
-    "Close window — runtime unavailable"
+    "Close window — CompozyOS isn't reachable right now"
   );
   await expect(palette).toBeVisible();
 
@@ -4408,7 +4414,7 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   await expect(unavailablePanel.getByTestId("os-palette-action-primary.run")).toHaveCount(0);
   await expect(unavailablePanel.getByTestId("os-palette-action-meta.pin")).toBeVisible();
   await expect(unavailablePanel.getByTestId("os-palette-action-reason")).toHaveText(
-    "runtime unavailable"
+    "CompozyOS isn't reachable right now"
   );
   await appPage.keyboard.press("Escape");
   // Availability-exempt commands survive the reconnect (US-001.EC-1).

@@ -8,7 +8,8 @@ import { knowledgeScopeLabel } from "../lib/knowledge-formatters";
 interface KnowledgeDeleteDialogProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  filename: string;
+  /** Memory display name; the user types it to confirm. */
+  name: string;
   scope: KnowledgeScope;
   isPending: boolean;
   error?: string | null;
@@ -18,7 +19,7 @@ interface KnowledgeDeleteDialogProps {
 function KnowledgeDeleteDialog({
   open,
   onOpenChange,
-  filename,
+  name,
   scope,
   isPending,
   error,
@@ -32,13 +33,12 @@ function KnowledgeDeleteDialog({
       confirmIcon={Trash2}
       confirmInputProps={{ "data-testid": "knowledge-delete-confirm-typing" }}
       confirmLabel="Delete"
-      confirmTyping={filename}
+      confirmTyping={name}
       contentProps={{ "data-testid": "knowledge-delete-dialog" }}
       description={
         <>
-          This removes <span className="font-mono">{filename}</span> from the {scope} scope. The
-          controller records the delete decision; the file is removed from{" "}
-          {knowledgeScopeLabel(scope)} after the decision applies.
+          This removes “{name}” from {knowledgeScopeLabel(scope)} knowledge. Agents won’t see it
+          anymore.
         </>
       }
       error={error}

@@ -34,7 +34,7 @@ export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
           <ListingRow.Title>{label}</ListingRow.Title>
         </ListingRow.Name>
         <ListingRow.Meta>
-          <MonoId copy copyLabel="Copy input digest" size="sm" value={grant.inputDigest} />
+          <MonoId copy copyLabel="Copy fingerprint" size="sm" value={grant.inputDigest} />
           <ListingRow.MetaDot />
           <span>{grant.agentName}</span>
           <ListingRow.MetaDot />

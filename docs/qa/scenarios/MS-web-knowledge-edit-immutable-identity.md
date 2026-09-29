@@ -4,7 +4,7 @@ area: MS
 title: Knowledge edit locks name and type and omits them from the PATCH
 persona: Dora
 journey: J-25
-expected: Editing a knowledge entry shows its name, type, and filename as a readable locked summary — not as disabled inputs — with a hint naming retrieval stability as the reason they cannot change. Only description and content are editable, and the save enables on a change to either one (a description-only edit is savable). The request sent to `PATCH /api/memory/{filename}` carries `content`, `description`, and the scope keys, and never `name` or `type`. Knowledge create keeps its four-card type picker with the runtime memory types, and both dialogs render on the compact modal host with the shared ruled header, a single close control, and one primary action.
+expected: Editing a knowledge entry shows its name, kind (plain label such as "About you"), and filename as a readable locked summary — not as disabled inputs — with the hint "Name and kind can't change. Create a new entry to use different ones." Only description and content are editable, and the save enables on a change to either one (a description-only edit is savable). The request sent to `PATCH /api/memory/{filename}` carries `content`, `description`, and the scope keys, and never `name` or `type`. Knowledge create keeps its four-card type picker with the runtime memory types shown as "About you", "Feedback", "Project decision", and "Reference", and both dialogs render on the compact modal host with the shared ruled header, a single close control, and one primary action.
 entry_points: web knowledge window → entry detail → Edit; web knowledge window → Create entry
 qa_status: untested
 bug_ids:
@@ -25,3 +25,5 @@ src: web/src/systems/knowledge/components/knowledge-edit-dialog.tsx; web/src/sys
 inventory: Needs QA
 
 QA impact 2026-08-20: helper copy on knowledge create/edit moved into HelpTip or was deleted. Reset to untested.
+
+QA impact 2026-09-28 (ui-normie-pass): edit identity row "Type" → "Kind" with plain labels, eyebrow "Catalog · Knowledge" → "Knowledge", edit description now "Update the summary or the content.", content FormSection help removed. Reset to untested.

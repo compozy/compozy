@@ -321,7 +321,7 @@ describe("useKnowledgePage", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.guardMessage).toMatch(/agent name/i);
+      expect(result.current.guard?.title).toBe("Choose an agent");
     });
 
     act(() => {
@@ -329,7 +329,7 @@ describe("useKnowledgePage", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.guardMessage).toBeNull();
+      expect(result.current.guard).toBeNull();
     });
 
     expect(useMemoriesMock).toHaveBeenLastCalledWith(
@@ -375,7 +375,7 @@ describe("useKnowledgePage", () => {
     expect(result.current.memories.map(memory => memory.filename)).toEqual([
       "launch-brief-0425.md",
     ]);
-    expect(result.current.searchInfo).toContain("Recall");
+    expect(result.current.searchInfo).toBe("1 match");
   });
 
   it("Should delete the selected memory using its full selector", async () => {

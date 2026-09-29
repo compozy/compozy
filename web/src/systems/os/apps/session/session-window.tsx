@@ -20,6 +20,9 @@ void Promise.allSettled([preloadSessionWindowModules()]);
  * neither: closing it while that request is in flight is what made a perfectly
  * visible session look deleted.
  */
+
+const PROJECT_UNAVAILABLE = "This session's project isn't available right now";
+
 export function SessionWindow({ windowId }: { windowId: string }) {
   const {
     agentName,
@@ -43,7 +46,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
   }
   if (crossesWorkspace) {
-    return <SessionWindowNotice message={error?.message ?? "Session workspace unavailable"} />;
+    return <SessionWindowNotice title={PROJECT_UNAVAILABLE} detail={error?.message} />;
   }
   if (foreign.status === "found") {
     return (
@@ -72,10 +75,12 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     );
   }
   if (foreign.status === "error") {
-    return <SessionWindowNotice message={foreign.error.message} />;
+    return (
+      <SessionWindowNotice title="Couldn't open this session" detail={foreign.error.message} />
+    );
   }
   if (workspaceId === null) {
-    return <SessionWindowNotice message={error?.message ?? "Session workspace unavailable"} />;
+    return <SessionWindowNotice title={PROJECT_UNAVAILABLE} detail={error?.message} />;
   }
 
   return (

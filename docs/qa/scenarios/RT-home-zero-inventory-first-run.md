@@ -4,7 +4,7 @@ area: RT
 title: Home offers one honest start when nothing has run
 persona: Lea
 journey: J-operate-home-dashboard
-expected: When `GET /api/observe/overview` reports no work at all — every counter zero, `has_live_work` false, no pulse bucket, busiest and longest_session absent — Home replaces the seven zones with one heading ("No agent work yet", or "No agent work yet in <workspace>" in a project scope) and exactly three actions that really exist: Start a session (opens the session-create dialog in place), Create a task (`/tasks/new`), Browse the marketplace (`/marketplace/skills`); no zero-filled panels, no subtitle paragraph, and the seven zones return as soon as any counter, live work, or pulse bucket is non-zero.
+expected: When `GET /api/observe/overview` reports no work at all — every counter zero, `has_live_work` false, no pulse bucket, busiest and longest_session absent — Home replaces the seven zones with one heading ("No agent work yet", or "No agent work yet in <project>" in a project scope), one support line ("Start a session with an agent, or set up a task that runs on its own."), and exactly three actions that really exist: Start a session (primary; opens the session-create dialog in place), Create a task (`/tasks/new`), Browse the marketplace (`/marketplace/skills`); no zero-filled panels — neither the KPI strip nor an empty Needs you zone renders above it, and the seven zones return as soon as any counter, live work, or pulse bucket is non-zero.
 entry_points: web `/` (dashboard OS window) on a fresh install or an empty project workspace; `GET /api/observe/overview` (HTTP+UDS)
 qa_status: untested
 bug_ids: BUG-20260820-global-home-deleted-onboarding; BUG-20260826-onboarding-pulse-hides-empty-home
@@ -65,3 +65,7 @@ they do not read as covered:
 
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+QA impact 2026-09-28 (ui-normie-pass): the KPI strip now renders only once work exists, the Needs you
+zone hides when nothing is waiting (the menubar bell stays the entry point), the first-run state gains
+the Empty-state support line, and Start a session is the primary action. Not walked.

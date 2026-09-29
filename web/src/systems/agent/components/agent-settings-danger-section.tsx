@@ -17,21 +17,18 @@ export function AgentSettingsDangerSection({
   isDeleting,
   disabled = false,
 }: AgentSettingsDangerSectionProps) {
-  const scopeLabel = agent.origin === "workspace" ? "this workspace" : "the global agent home";
+  const scopeLabel = agent.origin === "workspace" ? "this project" : "all projects";
   return (
     <FormSection
       data-testid="agent-settings-danger"
       icon={AlertTriangle}
-      title="Danger zone"
+      title="Delete agent"
       description={`Permanently remove ${agent.name} from ${scopeLabel}.`}
       className="border-danger/30"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <div className="min-w-0">
-          <p className="text-small-body font-medium text-danger">Delete agent</p>
-          <p className="text-small-body text-muted">
-            Existing session records are kept. This cannot be undone from the UI.
-          </p>
+          <p className="text-small-body text-muted">Past sessions stay. This can't be undone.</p>
         </div>
         <Button
           type="button"

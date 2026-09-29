@@ -1,6 +1,9 @@
 import { useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
+import { runViewTransition } from "@compozy/ui";
+
+import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 import {
@@ -75,6 +78,8 @@ export function useSessionWindowSidebar({
     },
   });
 
+  const reducedMotion = useOsReducedMotion();
+
   const onSelectSession = (target: SessionPayload) => {
     if (sessionId !== undefined && target.id === sessionId) return;
     if (target.workspace_id !== workspaceId) {
@@ -85,14 +90,21 @@ export function useSessionWindowSidebar({
       });
       return;
     }
-    void coordinator.userRetarget(windowId, {
-      app: "session",
-      instanceKey: target.id,
-      route: {
-        pathname: `/agents/${encodeURIComponent(target.agent_name)}/sessions/${encodeURIComponent(target.id)}`,
-        search: {},
+    // Same window, different conversation: the pane (named per window in
+    // session-window-content) cross-fades instead of snapping to the skeleton.
+    void runViewTransition(
+      () => {
+        void coordinator.userRetarget(windowId, {
+          app: "session",
+          instanceKey: target.id,
+          route: {
+            pathname: `/agents/${encodeURIComponent(target.agent_name)}/sessions/${encodeURIComponent(target.id)}`,
+            search: {},
+          },
+        });
       },
-    });
+      { reduced: reducedMotion }
+    );
   };
 
   return {

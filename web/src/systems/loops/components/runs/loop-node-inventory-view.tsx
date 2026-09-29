@@ -16,6 +16,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SkeletonRows,
 } from "@compozy/ui";
 
 import {
@@ -104,7 +105,6 @@ export function LoopNodeInventoryView({
 }: LoopNodeInventoryViewProps) {
   const rows = items.map(item => buildInventoryRow(item, nowMs));
   const filtered = loopFilter !== "" || runFilter !== "";
-  const empty = inventoryEmptyCopy(state, filtered);
   return (
     <Section
       data-testid="loop-node-inventory"
@@ -126,41 +126,16 @@ export function LoopNodeInventoryView({
             onChange={onStateChange}
             value={state}
           />
-          <Select
-            onValueChange={value => onLoopFilterChange(value === ALL_LOOPS ? "" : (value ?? ""))}
-            value={loopFilter === "" ? ALL_LOOPS : loopFilter}
-          >
-            <SelectTrigger className="w-48" data-testid="loop-node-inventory-loop-filter" size="sm">
-              <SelectValue>{loopFilter === "" ? "All loops" : loopFilter}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_LOOPS}>All loops</SelectItem>
-              {loopOptions.map(name => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            onValueChange={value => onRunFilterChange(value === ALL_RUNS ? "" : (value ?? ""))}
-            value={runFilter === "" ? ALL_RUNS : runFilter}
-          >
-            <SelectTrigger className="w-48" data-testid="loop-node-inventory-run-filter" size="sm">
-              <SelectValue>{runFilter === "" ? "All runs" : runFilter}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_RUNS}>All runs</SelectItem>
-              {runOptions.map(id => (
-                <SelectItem key={id} value={id}>
-                  {id}
-                </SelectItem>
-              ))}
-              {runFilter !== "" && !runOptions.includes(runFilter) ? (
-                <SelectItem value={runFilter}>{runFilter}</SelectItem>
-              ) : null}
-            </SelectContent>
-          </Select>
+          <InventoryLoopFilter
+            loopFilter={loopFilter}
+            loopOptions={loopOptions}
+            onLoopFilterChange={onLoopFilterChange}
+          />
+          <InventoryRunFilter
+            onRunFilterChange={onRunFilterChange}
+            runFilter={runFilter}
+            runOptions={runOptions}
+          />
           {filtered ? (
             <Button
               data-testid="loop-node-inventory-clear-filters"
@@ -177,49 +152,128 @@ export function LoopNodeInventoryView({
           <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
         </ListingToolbar.Trailing>
       </ListingToolbar>
-      <p className="font-mono text-pill-group-badge text-faint">
-        {`state=${state}`}
-        {loopFilter === "" ? "" : ` · loop=${loopFilter}`}
-        {runFilter === "" ? "" : ` · run_id=${runFilter}`}
-      </p>
-      {isLoading ? (
-        <p className="px-1 text-small-body text-muted" data-testid="loop-node-inventory-loading">
-          Loading {LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} nodes…
-        </p>
-      ) : rows.length === 0 ? (
-        <Empty
-          action={
-            filtered ? (
-              <Button onClick={onClearFilters} size="sm" type="button" variant="outline">
-                Clear filters
-              </Button>
-            ) : undefined
-          }
-          className="mx-auto my-8 max-w-md"
-          data-testid="loop-node-inventory-empty"
-          description={empty.description}
-          icon={empty.icon}
-          title={empty.title}
-        />
-      ) : view === "cards" ? (
-        <InventoryCards
-          hasMore={hasMore}
-          isFetchingNextPage={isFetchingNextPage}
-          loadedCount={loadedCount}
-          onLoadMore={onLoadMore}
-          rows={rows}
-        />
-      ) : (
-        <InventoryRows
-          hasMore={hasMore}
-          isFetchingNextPage={isFetchingNextPage}
-          loadedCount={loadedCount}
-          onLoadMore={onLoadMore}
-          rows={rows}
-        />
-      )}
+      <InventoryResults
+        filtered={filtered}
+        hasMore={hasMore}
+        isFetchingNextPage={isFetchingNextPage}
+        isLoading={isLoading}
+        loadedCount={loadedCount}
+        onClearFilters={onClearFilters}
+        onLoadMore={onLoadMore}
+        rows={rows}
+        state={state}
+        view={view}
+      />
     </Section>
   );
+}
+
+function InventoryLoopFilter({
+  loopFilter,
+  loopOptions,
+  onLoopFilterChange,
+}: Pick<LoopNodeInventoryViewProps, "loopFilter" | "loopOptions" | "onLoopFilterChange">) {
+  return (
+    <Select
+      onValueChange={value => onLoopFilterChange(value === ALL_LOOPS ? "" : (value ?? ""))}
+      value={loopFilter === "" ? ALL_LOOPS : loopFilter}
+    >
+      <SelectTrigger className="w-48" data-testid="loop-node-inventory-loop-filter" size="sm">
+        <SelectValue>{loopFilter === "" ? "All loops" : loopFilter}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_LOOPS}>All loops</SelectItem>
+        {loopOptions.map(name => (
+          <SelectItem key={name} value={name}>
+            {name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function InventoryRunFilter({
+  runFilter,
+  runOptions,
+  onRunFilterChange,
+}: Pick<LoopNodeInventoryViewProps, "runFilter" | "runOptions" | "onRunFilterChange">) {
+  return (
+    <Select
+      onValueChange={value => onRunFilterChange(value === ALL_RUNS ? "" : (value ?? ""))}
+      value={runFilter === "" ? ALL_RUNS : runFilter}
+    >
+      <SelectTrigger className="w-48" data-testid="loop-node-inventory-run-filter" size="sm">
+        <SelectValue>{runFilter === "" ? "All runs" : runFilter}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_RUNS}>All runs</SelectItem>
+        {runOptions.map(id => (
+          <SelectItem key={id} value={id}>
+            {id}
+          </SelectItem>
+        ))}
+        {runFilter !== "" && !runOptions.includes(runFilter) ? (
+          <SelectItem value={runFilter}>{runFilter}</SelectItem>
+        ) : null}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function InventoryResults({
+  state,
+  rows,
+  view,
+  filtered,
+  isLoading,
+  onClearFilters,
+  ...page
+}: {
+  state: LoopNodeInventoryState;
+  rows: readonly LoopNodeInventoryRowView[];
+  view: ListingViewMode;
+  filtered: boolean;
+  isLoading: boolean;
+  hasMore: boolean;
+  isFetchingNextPage: boolean;
+  loadedCount: number;
+  onClearFilters: () => void;
+  onLoadMore: () => void;
+}) {
+  if (isLoading) {
+    return (
+      <div
+        aria-busy="true"
+        aria-label={`Loading ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} steps`}
+        className="rounded-lg border border-line bg-canvas-soft p-4"
+        data-testid="loop-node-inventory-loading"
+      >
+        <SkeletonRows className="gap-4" count={4} />
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    const empty = inventoryEmptyCopy(state, filtered);
+    return (
+      <Empty
+        action={
+          filtered ? (
+            <Button onClick={onClearFilters} size="sm" type="button" variant="outline">
+              Clear filters
+            </Button>
+          ) : undefined
+        }
+        className="mx-auto my-8 max-w-md"
+        data-testid="loop-node-inventory-empty"
+        description={empty.description}
+        icon={empty.icon}
+        title={empty.title}
+      />
+    );
+  }
+  if (view === "cards") return <InventoryCards rows={rows} {...page} />;
+  return <InventoryRows rows={rows} {...page} />;
 }
 
 function InventoryStateGlyph({ state }: { state: LoopNodeInventoryState }) {
@@ -280,14 +334,14 @@ function InventoryRows({
     <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
       <div className="flex items-center gap-4 border-b border-line px-4 py-2">
         <Eyebrow className="min-w-0 flex-1 text-muted">Step</Eyebrow>
-        <Eyebrow className="hidden min-w-0 flex-1 text-muted min-[900px]:block">Loop · run</Eyebrow>
-        <Eyebrow className="hidden min-w-0 flex-1 text-muted min-[720px]:block">Reason</Eyebrow>
-        <Eyebrow className="shrink-0 text-right text-muted">Age</Eyebrow>
+        <Eyebrow className="hidden min-w-0 flex-1 text-muted lg:block">Loop</Eyebrow>
+        <Eyebrow className="hidden min-w-0 flex-1 text-muted md:block">Reason</Eyebrow>
+        <Eyebrow className="shrink-0 text-right text-muted">Time in state</Eyebrow>
         <span aria-hidden="true" className="size-3.5 shrink-0" />
       </div>
       {rows.map((row, index) => (
         <Link
-          className={`flex items-center gap-4 px-4 py-3 hover:bg-canvas-tint focus-visible:bg-canvas-tint ${
+          className={`flex items-center gap-4 px-4 py-3 hover:bg-row-hover focus-visible:bg-row-hover ${
             index > 0 ? "border-t border-line-soft" : ""
           }`}
           data-testid={`loop-node-inventory-row-${row.key}`}
@@ -298,23 +352,26 @@ function InventoryRows({
           <span className="flex min-w-0 flex-1 items-start gap-2">
             <InventoryStateGlyph state={row.state} />
             <span className="min-w-0">
-              <span className="block truncate text-ws-name font-medium text-fg-strong">
+              <span
+                className="block truncate text-ws-name font-medium text-fg-strong"
+                title={row.nodeId}
+              >
                 {row.label}
               </span>
-              <span className="mt-0.5 block truncate font-mono text-pill-group-badge text-faint">
-                {row.micro}
-              </span>
+              <span className="mt-0.5 block truncate text-small-body text-faint">{row.micro}</span>
             </span>
           </span>
-          <span className="hidden min-w-0 flex-1 truncate text-small-body text-muted min-[900px]:block">
-            {row.loopName} <span className="font-mono text-mono-id text-faint">{row.runId}</span>
+          <span
+            className="hidden min-w-0 flex-1 truncate text-small-body text-muted lg:block"
+            title={row.runId}
+          >
+            {row.loopName}
           </span>
-          <span className="hidden min-w-0 flex-1 truncate text-small-body text-muted min-[720px]:block">
+          <span className="hidden min-w-0 flex-1 truncate text-small-body text-muted md:block">
             {row.reason}
           </span>
           <span className="shrink-0 text-right">
             <span className="block font-mono text-mono-id tabular-nums text-subtle">{row.age}</span>
-            <span className="block font-mono text-pill-group-badge text-faint">in this state</span>
           </span>
           <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
         </Link>
@@ -367,8 +424,8 @@ function InventoryCards({
               <CatalogCard.Description className="line-clamp-2">
                 {row.reason}
               </CatalogCard.Description>
-              <span className="font-mono text-mono-id text-faint">
-                {row.micro} · {row.age} in this state
+              <span className="text-small-body text-faint">
+                {row.micro} · <span className="font-mono text-mono-id tabular-nums">{row.age}</span>
               </span>
             </Link>
           </CatalogCard>

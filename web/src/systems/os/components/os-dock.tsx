@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Plus } from "lucide-react";
 
-import { Icon, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { Icon, PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -49,10 +49,6 @@ interface OsDockNewSessionProps extends Omit<
 }
 
 /** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
-function formatBadge(count: number): string {
-  return count > 9 ? "9+" : String(count);
-}
-
 function DockTip({ label }: { label: string }) {
   return (
     <TooltipContent
@@ -92,12 +88,11 @@ function DockItem({
         <DockIcon name={item.icon} className="size-dock-icon" />
       </span>
       {item.badge ? (
-        <span
+        <PillCount
           data-slot="os-dock-badge"
-          className="absolute top-0.5 right-0.5 grid h-dock-badge min-w-dock-badge place-items-center rounded-lg bg-accent px-1 font-mono text-micro font-bold text-accent-ink"
-        >
-          {formatBadge(item.badge)}
-        </span>
+          count={item.badge}
+          className="absolute top-0.5 right-0.5"
+        />
       ) : null}
       <span
         data-slot="os-dock-indicator"
@@ -134,7 +129,7 @@ function DockItem({
         >
           {body}
         </TooltipTrigger>
-        <DockTip label={item.name} />
+        <DockTip label={dockItemAccessibleName(item)} />
       </Tooltip>
     );
   }
@@ -156,7 +151,7 @@ function DockItem({
       >
         {body}
       </TooltipTrigger>
-      <DockTip label={item.name} />
+      <DockTip label={dockItemAccessibleName(item)} />
     </Tooltip>
   );
   return renderItemMenu ? <>{renderItemMenu(item, interactiveItem)}</> : interactiveItem;

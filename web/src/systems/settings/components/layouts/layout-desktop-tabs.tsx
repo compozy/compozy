@@ -69,7 +69,7 @@ export function LayoutDesktopTabs({
       })}
       <span className="flex-1" />
       <span className="text-form-hint text-faint">
-        Desktops are created and removed in the workspace, not here
+        Desktops are created and removed in the project, not here
       </span>
     </div>
   );

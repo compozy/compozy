@@ -5,7 +5,6 @@ import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@compozy/u
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
-import { AgentLayerProvenance } from "./agent-layer-provenance";
 
 export interface AgentFleetRowProps {
   row: AgentFleetRowModel;
@@ -15,11 +14,11 @@ export interface AgentFleetRowProps {
 
 function agentFleetMetaSegments(
   agent: AgentFleetRowModel["agent"]
-): Array<{ key: "category" | "provider" | "model"; value: string }> {
-  const segments: Array<{ key: "category" | "provider" | "model"; value: string }> = [];
+): Array<{ key: "category" | "model"; value: string }> {
+  // The provider already shows as the row icon, so the meta line skips it.
+  const segments: Array<{ key: "category" | "model"; value: string }> = [];
   const category = formatCategoryMetaSegment(agent.category_path);
   if (category) segments.push({ key: "category", value: category });
-  if (agent.provider?.trim()) segments.push({ key: "provider", value: agent.provider.trim() });
   if (agent.model?.trim()) segments.push({ key: "model", value: agent.model.trim() });
   return segments;
 }
@@ -61,16 +60,11 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
               {metaSegments.map((segment, index) => (
                 <Fragment key={segment.key}>
                   {index > 0 ? <ListingRow.MetaDot /> : null}
-                  <span className="font-mono text-badge text-subtle">{segment.value}</span>
+                  <span>{segment.value}</span>
                 </Fragment>
               ))}
             </ListingRow.Meta>
           ) : null}
-          <AgentLayerProvenance
-            data-testid={`agent-fleet-provenance-${agent.name}`}
-            layer={row.layer}
-            shadows={row.shadowLayers}
-          />
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="gap-3">

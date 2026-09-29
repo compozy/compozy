@@ -7,7 +7,9 @@ import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
 import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-selection";
 import { useDesktop } from "../hooks/use-desktop";
+import { useWindowManagerDiagnostic } from "../hooks/use-window-manager-store";
 import { desktopMenubarScopeModel } from "../lib/desktop-menubar-model";
+import { primaryShortcutModifier, shortcutAriaKeys } from "../lib/window-manager-shortcuts";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
@@ -69,6 +71,30 @@ export interface DesktopMenubarProps {
    * injected rather than constructed here — the bar stays presentational.
    */
   profileSwitcher?: React.ReactNode;
+  /** No project is bound, so there is no layout stream to report on. */
+  layoutUnbound?: boolean;
+}
+
+/** Live window-layout status: stream health plus the latest refused-command notice. */
+/** The palette chord as `aria-keyshortcuts`, mapped to this platform's primary modifier. */
+function paletteKeyShortcuts(binding: string | undefined): string | undefined {
+  if (!binding) return undefined;
+  const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+  return shortcutAriaKeys(binding, primaryShortcutModifier(platform)) || undefined;
+}
+
+function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
+  const hydration = useDesktop(state => state.hydration);
+  const connectionStatus = useDesktop(state => state.connectionStatus);
+  const diagnostic = useWindowManagerDiagnostic();
+  return (
+    <OsHydrationStatus
+      hydration={hydration}
+      connectionStatus={connectionStatus}
+      diagnostic={diagnostic}
+      unbound={unbound}
+    />
+  );
 }
 
 /**
@@ -106,8 +132,8 @@ export function DesktopMenubar({
   removalProfile,
   onRemoveWorktrees,
   profileSwitcher,
+  layoutUnbound = false,
 }: DesktopMenubarProps) {
-  const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const paletteOpen = usePaletteCommand("palette.open");
   const scopeModel = desktopMenubarScopeModel({
@@ -130,20 +156,18 @@ export function DesktopMenubar({
   return (
     <OsMenuBar
       className={className}
-      workspace={scopeModel.workspace}
+      workspace={{ ...scopeModel.workspace, warning: scopeModel.fallbackNotice }}
+      // The sentence lives on the chip (warning dot) and atop the project menu;
+      // this live region only announces it.
       scopeNotice={
         scopeModel.fallback ? (
-          <span
-            role="status"
-            data-testid="os-worktree-fallback-notice"
-            className="inline-flex items-center gap-1.5 rounded-md bg-info-tint px-2 py-1 text-form-label text-info"
-          >
+          <span role="status" data-testid="os-worktree-fallback-notice" className="sr-only">
             {scopeModel.fallbackNotice}
           </span>
         ) : null
       }
       // No workspace means no layout stream — there is nothing to be out of sync with.
-      status={<OsHydrationStatus hydration={hydration} />}
+      status={<MenubarLayoutStatus unbound={layoutUnbound} />}
       updateIndicator={
         <MenubarUpdateIndicator available={updateAvailable} onActivate={actions.openUpdates} />
       }
@@ -151,6 +175,7 @@ export function DesktopMenubar({
       onCommandClick={() => onRunCommand("palette.open")}
       onSettingsClick={() => onRunCommand("settings.general")}
       commandShortcutLabel={paletteOpen?.chords[0]}
+      commandKeyShortcuts={paletteKeyShortcuts(paletteOpen?.bindings[0])}
       logoMenu={trigger => (
         <CompozyMenu
           trigger={trigger}
@@ -191,6 +216,7 @@ export function DesktopMenubar({
           onRemoveWorktree={onRemoveWorktree}
           removalProfile={removalProfile}
           onRemoveWorktrees={onRemoveWorktrees}
+          notice={scopeModel.fallbackNotice}
         />
       )}
       menus={

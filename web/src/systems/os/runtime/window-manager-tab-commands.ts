@@ -1,3 +1,5 @@
+import { runViewTransition } from "@compozy/ui";
+
 import type {
   OsCloseScope,
   OsNavigateMode,
@@ -16,6 +18,8 @@ import { WindowManagerRuntimeCore } from "./window-manager-runtime-core";
 import { randomWindowManagerId } from "./window-manager-runtime-helpers";
 import { windowCloseTargets, type WindowCloseGuard } from "../lib/window-close-targets";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
+import { sameOsWindowRoute } from "../lib/window-manager-route";
+import { isOsReducedMotion } from "../lib/reduced-motion";
 
 /**
  * Builders for the tab half of the command surface. They live apart from
@@ -160,20 +164,56 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   ): WindowManagerCommandOutcome => {
     const outcome = this.dispatch(navigateWindowCommand(id, route, mode));
     if (!outcome.accepted) return outcome;
-    // The daemon owns the route, but the URL and the deck label must not lag a
-    // round trip behind the click that caused them.
+    return this.withRouteIntent(id, route, outcome, mode === "push" ? "drill-in" : null);
+  };
+
+  /**
+   * The daemon owns the route, but the URL and the deck label must not lag a
+   * round trip behind the click that caused them: publish the route as an
+   * intent until the command settles.
+   */
+  private withRouteIntent(
+    id: string,
+    route: OsWindowRoute,
+    outcome: WindowManagerCommandOutcome,
+    transition: "drill-in" | "drill-out" | null
+  ): WindowManagerCommandOutcome {
     const intentId = randomWindowManagerId("wm-route");
-    windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
-    this.publish();
+    let settled = false;
+    const applyIntent = () => {
+      // A transition's update runs a frame later; never resurrect a settled intent.
+      if (settled) return;
+      windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
+      this.publish();
+    };
+    if (transition && this.animatesInWindow(id)) {
+      void runViewTransition(applyIntent, { types: [transition] });
+    } else {
+      applyIntent();
+    }
     return {
       accepted: true,
       completion: outcome.completion.then(applied => {
+        settled = true;
         windowManagerStore.trigger.routeIntentCleared({ windowId: id, intentId });
         this.publish();
         return applied;
       }),
     };
-  };
+  }
+
+  /**
+   * In-window drill only: a push/pop inside the focused, visible window with no
+   * layout gesture in flight and motion allowed. Focus changes, remote routes,
+   * and everything else stay un-animated.
+   */
+  private animatesInWindow(id: string): boolean {
+    const view = this.view;
+    const win = view.windows[id];
+    if (!win || win.minimized || view.focusedId !== id) return false;
+    if (windowManagerStore.getSnapshot().context.gesture?.status === "active") return false;
+    return !isOsReducedMotion(view);
+  }
 
   /**
    * In-place instance switch: the window keeps its frame while the daemon
@@ -201,13 +241,22 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     };
   };
 
-  /** Breadcrumb / ⌘[ : the daemon resolves the destination from the nav stack. */
-  popWindowRoute = (id: string): WindowManagerCommandOutcome => {
+  /**
+   * Breadcrumb / ⌘[ : the daemon resolves the destination from the nav stack.
+   * When the caller already knows the destination and it matches the stack
+   * top, it renders optimistically so the drill-out can animate like a push.
+   */
+  popWindowRoute = (id: string, expectedRoute?: OsWindowRoute): WindowManagerCommandOutcome => {
     const win = this.view.windows[id];
     if (!win || win.navStack.length === 0) {
       return { accepted: false, completion: Promise.resolve(false) };
     }
-    return this.dispatch(navigateWindowCommand(id, null, "pop"));
+    const outcome = this.dispatch(navigateWindowCommand(id, null, "pop"));
+    const top = win.navStack[win.navStack.length - 1];
+    if (!outcome.accepted || !expectedRoute || !top || !sameOsWindowRoute(top, expectedRoute)) {
+      return outcome;
+    }
+    return this.withRouteIntent(id, expectedRoute, outcome, "drill-out");
   };
 
   groupWindows = (

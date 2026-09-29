@@ -643,7 +643,9 @@ test.describe("Profiles", () => {
     await switchWorkspace(appPage, workspace.id, workspace.name);
 
     const hint = appPage.getByTestId("workspace-profiles-hint");
-    await expect(hint).toContainText("This project declares content for profile dev.");
+    await expect(hint).toContainText(
+      "This project includes settings for the profile “dev”. Create it to use them."
+    );
     await hint.getByRole("button", { name: "Create dev" }).click();
 
     const profiles = profilesOperatorSelectors(appPage);

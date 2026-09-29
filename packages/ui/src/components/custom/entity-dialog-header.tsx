@@ -15,8 +15,11 @@ export interface EntityDialogHeaderProps extends Omit<
 > {
   /** Entity glyph rendered inside the accent icon well. */
   icon: LucideIcon;
-  /** Domain path above the title, e.g. `Autonomy · Task`. */
-  eyebrow: string;
+  /**
+   * Optional domain path above the title, e.g. `Autonomy · Task`. Omit it when
+   * the title already names the entity — a repeated eyebrow is noise.
+   */
+  eyebrow?: string;
   title: React.ReactNode;
   description?: React.ReactNode;
   /** Renders a trailing close control. Omit when the host owns dismissal. */
@@ -26,7 +29,7 @@ export interface EntityDialogHeaderProps extends Omit<
 
 /**
  * Canonical entity-editor modal header: a 36px accent icon well beside an
- * accent-strong eyebrow, the dialog title, and an optional description.
+ * optional accent-strong eyebrow, the dialog title, and an optional description.
  *
  * The icon well is the only accent-tinted surface in the modal shell.
  * `ConfirmDialog` keeps its neutral well and does not use this composition.
@@ -55,8 +58,8 @@ function EntityDialogHeader({
           <Icon aria-hidden="true" className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <Eyebrow className="text-accent-strong">{eyebrow}</Eyebrow>
-          <DialogTitle className="mt-1">{title}</DialogTitle>
+          {eyebrow ? <Eyebrow className="text-accent-strong">{eyebrow}</Eyebrow> : null}
+          <DialogTitle className={eyebrow ? "mt-1" : undefined}>{title}</DialogTitle>
           {description ? (
             <DialogDescription className="mt-1">{description}</DialogDescription>
           ) : null}

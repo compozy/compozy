@@ -1,4 +1,4 @@
-import { Button, Spinner } from "@compozy/ui";
+import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 import { Play, RotateCcw, Square } from "lucide-react";
 
 interface SessionPrimaryActionProps {
@@ -39,7 +39,7 @@ function primaryAction(props: SessionPrimaryActionProps) {
       disabled: props.controlsBusy && !props.isResuming,
       busy: props.isResuming,
       testId: "resume-button",
-      label: "Attach session",
+      label: "Resume session",
       Glyph: Play,
     };
   return null;
@@ -50,17 +50,24 @@ export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
   if (!action) return null;
   const Glyph = action.busy ? Spinner : action.Glyph;
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-11 focus-visible:shadow-focus-inset"
-      onClick={action.onClick}
-      disabled={action.disabled}
-      data-testid={action.testId}
-      aria-label={action.label}
-    >
-      <Glyph className="size-3" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-11 focus-visible:shadow-focus-inset"
+            onClick={action.onClick}
+            disabled={action.disabled}
+            data-testid={action.testId}
+            aria-label={action.label}
+          />
+        }
+      >
+        <Glyph aria-hidden="true" className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipContent>{action.label}</TooltipContent>
+    </Tooltip>
   );
 }

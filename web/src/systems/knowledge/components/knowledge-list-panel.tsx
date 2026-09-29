@@ -11,7 +11,6 @@ import {
   ItemTitle,
   ListGroup,
   Pill,
-  type PillTone,
   SearchInput,
   Skeleton,
   SkeletonRows,
@@ -19,20 +18,10 @@ import {
   Time,
 } from "@compozy/ui";
 
-import {
-  knowledgeAgentTierShortLabel,
-  knowledgeMemoryKey,
-  knowledgeScopeShortLabel,
-  memoryScopeTone,
-} from "../lib/knowledge-formatters";
+import { knowledgeMemoryKey, knowledgeTypeLabel } from "../lib/knowledge-formatters";
 import { groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
-import {
-  KNOWLEDGE_TYPE_TONE,
-  type KnowledgeTypeTone,
-  knowledgeTypeFor,
-} from "../lib/knowledge-type-tone";
+import { knowledgeTypeFor } from "../lib/knowledge-type-tone";
 import type { KnowledgeMemoryItem } from "../types";
-import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
 interface KnowledgeListPanelProps {
   memories: KnowledgeMemoryItem[];
@@ -57,15 +46,8 @@ interface KnowledgeListItemProps {
   onSelect: () => void;
 }
 
-function pillToneFromKnowledgeType(tone: KnowledgeTypeTone): PillTone {
-  return tone === "faint" ? "neutral" : tone;
-}
-
 function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemProps) {
   const memoryKey = knowledgeMemoryKey(memory);
-  const scope = memory.scope;
-  const knowledgeType = knowledgeTypeFor(memory.type);
-  const typeTone = pillToneFromKnowledgeType(KNOWLEDGE_TYPE_TONE[knowledgeType]);
   return (
     <Item
       as="button"
@@ -88,45 +70,17 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
           {memory.description}
         </ItemDescription>
       ) : null}
-      <ItemFooter className="justify-start gap-1.5">
-        <Pill
-          mono
+      <ItemFooter className="justify-start gap-2">
+        <span
+          className="text-xs text-subtle"
+          data-knowledge-type={knowledgeTypeFor(memory.type)}
           data-testid={`type-badge-${memory.type}`}
-          data-knowledge-type={knowledgeType}
-          tone={typeTone}
         >
-          {memory.type}
-        </Pill>
-        <Pill
-          mono
-          data-testid={`scope-badge-${scope}`}
-          tone={pillToneFromKnowledgeTone(memoryScopeTone(scope))}
-        >
-          {knowledgeScopeShortLabel(scope)}
-        </Pill>
-        {memory.scope === "agent" && memory.agent_tier ? (
-          <Pill mono data-testid={`agent-tier-badge-${memory.agent_tier}`} tone="warning">
-            {knowledgeAgentTierShortLabel(memory.agent_tier)}
-          </Pill>
-        ) : null}
-        {memory.agent_name ? (
-          <Pill mono data-testid="agent-name-badge" tone="neutral">
-            {memory.agent_name}
-          </Pill>
-        ) : null}
-        {memory.recall_count > 0 ? (
-          <Pill mono data-testid="recall-count-badge" tone="info">
-            ↻ {memory.recall_count}
-          </Pill>
-        ) : null}
+          {knowledgeTypeLabel(memory.type)}
+        </span>
         {memory.staleness_banner ? (
-          <Pill mono data-testid="staleness-badge" tone="warning">
-            stale
-          </Pill>
-        ) : null}
-        {memory.system_managed ? (
-          <Pill mono data-testid="system-managed-badge" tone="neutral">
-            system
+          <Pill data-testid="staleness-badge" size="xs" tone="warning">
+            Outdated
           </Pill>
         ) : null}
       </ItemFooter>
@@ -150,18 +104,16 @@ function KnowledgeListPanel({
   onLoadMore,
   onRetry,
 }: KnowledgeListPanelProps) {
-  const resolvedTotalCount = totalCount === undefined ? memories.length : totalCount;
-  const groups = groupKnowledgeMemoriesByScope(memories);
   const isEmpty = memories.length === 0;
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
       <div className="border-b border-line p-3">
         <SearchInput
-          aria-label="Recall knowledge"
+          aria-label="Search knowledge"
           data-testid="knowledge-search-input"
           onChange={onSearchChange}
-          placeholder="Recall knowledge..."
+          placeholder="Search knowledge"
           value={searchQuery}
         />
         {searchInfo ? (
@@ -172,110 +124,193 @@ function KnowledgeListPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && isEmpty ? (
-          <div aria-busy="true" data-testid="knowledge-list-loading" role="status">
-            <SkeletonRows className="min-h-full" count={6} rowClassName="border-b border-line p-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <Skeleton className="h-3.5 w-2/5" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-                <Skeleton className="h-3 w-3/4" />
-                <div className="flex gap-1.5">
-                  <Skeleton className="h-5 w-14" />
-                  <Skeleton className="h-5 w-20" />
-                </div>
-              </div>
-            </SkeletonRows>
-            <span className="sr-only">Loading knowledge</span>
-          </div>
-        ) : errorMessage && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-            data-testid="knowledge-list-error"
-          >
-            <Empty
-              className="max-w-sm"
-              description={errorMessage}
-              icon={AlertCircle}
-              title="Unable to load knowledge"
-            />
-          </div>
-        ) : isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-            data-testid="knowledge-list-empty"
-          >
-            <Empty
-              className="max-w-sm"
-              description={
-                searchMode
-                  ? "No memories matched this recall query."
-                  : searchQuery.trim() !== ""
-                    ? "Try a different search term or adjust the scope filter."
-                    : "No knowledge items found"
-              }
-              icon={BookOpen}
-              title="No knowledge items found"
-            />
-          </div>
+        {isEmpty ? (
+          <KnowledgeListEmptyState
+            errorMessage={errorMessage}
+            isLoading={isLoading}
+            searching={searchMode || searchQuery.trim() !== ""}
+          />
         ) : (
           <div data-testid="knowledge-list-groups">
-            {groups.map(group => (
-              <ListGroup
-                count={group.memories.length}
-                data-testid={`knowledge-group-${group.scope}`}
-                headerProps={{ "data-testid": `knowledge-group-header-${group.scope}` }}
-                key={group.scope}
-                label={group.label}
-              >
-                {group.memories.map(memory => (
-                  <KnowledgeListItem
-                    isSelected={knowledgeMemoryKey(memory) === selectedMemoryKey}
-                    key={knowledgeMemoryKey(memory)}
-                    memory={memory}
-                    onSelect={() => onSelectMemory(knowledgeMemoryKey(memory))}
-                  />
-                ))}
-              </ListGroup>
-            ))}
+            <KnowledgeListGroups
+              memories={memories}
+              onSelectMemory={onSelectMemory}
+              selectedMemoryKey={selectedMemoryKey}
+            />
             {errorMessage ? (
-              <div
-                className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-danger"
-                data-testid="knowledge-list-pagination-error"
-                role="alert"
-              >
-                <span>{errorMessage}</span>
-                {onRetry ? (
-                  <Button onClick={onRetry} size="sm" type="button" variant="neutral">
-                    Retry loading knowledge
-                  </Button>
-                ) : null}
-              </div>
+              <KnowledgeListRetryRow errorMessage={errorMessage} onRetry={onRetry} />
             ) : null}
             {!searchMode && !errorMessage && hasMore && onLoadMore ? (
-              <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
-                <span className="text-xs tabular-nums text-subtle">
-                  {memories.length} of {resolvedTotalCount}
-                </span>
-                <Button
-                  aria-busy={isLoadingMore}
-                  aria-label={isLoadingMore ? "Loading more knowledge" : "Load more knowledge"}
-                  disabled={isLoadingMore}
-                  onClick={onLoadMore}
-                  size="sm"
-                  type="button"
-                  variant="neutral"
-                >
-                  {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
-                  {isLoadingMore ? "Loading more knowledge" : "Load more knowledge"}
-                </Button>
-              </div>
+              <KnowledgeListLoadMore
+                isLoadingMore={isLoadingMore}
+                loadedCount={memories.length}
+                onLoadMore={onLoadMore}
+                totalCount={totalCount ?? memories.length}
+              />
             ) : null}
           </div>
         )}
       </div>
     </aside>
+  );
+}
+
+interface KnowledgeListEmptyStateProps {
+  isLoading: boolean;
+  errorMessage: string | null;
+  searching: boolean;
+}
+
+/** No rows yet: first-load skeleton, then a blocking error, then the empty copy. */
+function KnowledgeListEmptyState({
+  isLoading,
+  errorMessage,
+  searching,
+}: KnowledgeListEmptyStateProps) {
+  if (isLoading) {
+    return (
+      <div aria-busy="true" data-testid="knowledge-list-loading" role="status">
+        <SkeletonRows className="min-h-full" count={6} rowClassName="border-b border-line p-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-3.5 w-2/5" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </SkeletonRows>
+        <span className="sr-only">Loading knowledge</span>
+      </div>
+    );
+  }
+  if (errorMessage) {
+    return (
+      <div
+        className="flex min-h-full items-center justify-center p-4"
+        data-testid="knowledge-list-error"
+      >
+        <Empty
+          className="max-w-sm"
+          description={errorMessage}
+          icon={AlertCircle}
+          title="Couldn't load knowledge"
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="flex min-h-full items-center justify-center p-4"
+      data-testid="knowledge-list-empty"
+    >
+      <Empty
+        className="max-w-sm"
+        description={
+          searching
+            ? "Try a different word."
+            : "Agents save what they learn here. Use Create to add your own."
+        }
+        icon={BookOpen}
+        title={searching ? "No matches" : "No knowledge yet"}
+      />
+    </div>
+  );
+}
+
+interface KnowledgeListGroupsProps {
+  memories: KnowledgeMemoryItem[];
+  selectedMemoryKey: string | null;
+  onSelectMemory: (memoryKey: string) => void;
+}
+
+/** A single scope renders flat; several scopes render under group headers. */
+function KnowledgeListGroups({
+  memories,
+  selectedMemoryKey,
+  onSelectMemory,
+}: KnowledgeListGroupsProps) {
+  const groups = groupKnowledgeMemoriesByScope(memories);
+  const renderItem = (memory: KnowledgeMemoryItem) => (
+    <KnowledgeListItem
+      isSelected={knowledgeMemoryKey(memory) === selectedMemoryKey}
+      key={knowledgeMemoryKey(memory)}
+      memory={memory}
+      onSelect={() => onSelectMemory(knowledgeMemoryKey(memory))}
+    />
+  );
+
+  if (groups.length === 1) {
+    return groups[0].memories.map(renderItem);
+  }
+  return groups.map(group => (
+    <ListGroup
+      count={group.memories.length}
+      data-testid={`knowledge-group-${group.scope}`}
+      headerProps={{ "data-testid": `knowledge-group-header-${group.scope}` }}
+      key={group.scope}
+      label={group.label}
+    >
+      {group.memories.map(renderItem)}
+    </ListGroup>
+  ));
+}
+
+function KnowledgeListRetryRow({
+  errorMessage,
+  onRetry,
+}: {
+  errorMessage: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-danger"
+      data-testid="knowledge-list-pagination-error"
+      role="alert"
+    >
+      <span>{errorMessage}</span>
+      {onRetry ? (
+        <Button onClick={onRetry} size="sm" type="button" variant="neutral">
+          Retry loading knowledge
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+interface KnowledgeListLoadMoreProps {
+  loadedCount: number;
+  totalCount: number;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+}
+
+function KnowledgeListLoadMore({
+  loadedCount,
+  totalCount,
+  isLoadingMore,
+  onLoadMore,
+}: KnowledgeListLoadMoreProps) {
+  const label = isLoadingMore ? "Loading more knowledge" : "Load more knowledge";
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+      <span className="text-xs tabular-nums text-subtle">
+        {loadedCount} of {totalCount}
+      </span>
+      <Button
+        aria-busy={isLoadingMore}
+        aria-label={label}
+        disabled={isLoadingMore}
+        onClick={onLoadMore}
+        size="sm"
+        type="button"
+        variant="neutral"
+      >
+        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {label}
+      </Button>
+    </div>
   );
 }
 

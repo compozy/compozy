@@ -1,7 +1,3 @@
-import { AlertCircle } from "lucide-react";
-
-import { Button, Spinner } from "@compozy/ui";
-
 import {
   GatewayAuditPanel,
   GatewayDeviceList,
@@ -10,12 +6,11 @@ import {
   GatewayProviderSection,
   useGatewaySettingsPage,
   useGatewayAccessTier,
-  type GatewaySettingsViewModel,
 } from "@/systems/gateway";
-import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
+import { SettingsPageFrame, SettingsPageState, useSettingsTopbar } from "@/systems/settings";
 
 /**
- * The gateway operator surface: how this daemon is reachable, which devices
+ * The Remote access surface: how CompozyOS is reachable, which devices
  * hold a session, and what the self-audit says about the current posture.
  */
 export function GatewaySettingsPage() {
@@ -24,20 +19,18 @@ export function GatewaySettingsPage() {
   useSettingsTopbar("gateway");
 
   if (view.page.isLoading) {
-    return (
-      <div
-        aria-label="Loading gateway settings"
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-gateway-loading"
-        role="status"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="gateway" state="loading" />;
   }
 
   if (view.page.error || !view.page.exposure) {
-    return <GatewayLoadFailure view={view} />;
+    return (
+      <SettingsPageState
+        error={view.page.error}
+        onRetry={view.page.refetch}
+        slug="gateway"
+        state="error"
+      />
+    );
   }
 
   return (
@@ -47,7 +40,7 @@ export function GatewaySettingsPage() {
         {
           key: "reach",
           content: view.page.exposure.localOnly ? (
-            <span data-testid="gateway-local-only">local only</span>
+            <span data-testid="gateway-local-only">This computer only</span>
           ) : (
             <span data-testid="gateway-reachable">
               <span className="font-medium text-muted">
@@ -112,24 +105,5 @@ export function GatewaySettingsPage() {
         />
       )}
     </SettingsPageFrame>
-  );
-}
-
-function GatewayLoadFailure({ view }: { view: GatewaySettingsViewModel }) {
-  return (
-    <div
-      className="flex flex-1 items-center justify-center"
-      data-testid="settings-page-gateway-error"
-    >
-      <div className="flex flex-col items-center gap-2 text-center">
-        <AlertCircle className="size-6 text-danger" />
-        <p className="text-sm text-subtle">
-          {view.page.error?.message ?? "Failed to load gateway status"}
-        </p>
-        <Button onClick={view.page.refetch} size="sm" type="button" variant="neutral">
-          Retry
-        </Button>
-      </div>
-    </div>
   );
 }

@@ -1,16 +1,11 @@
 import { Clock3, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, CatalogCard, Pill } from "@compozy/ui";
+import { Button, CatalogCard } from "@compozy/ui";
 
-import {
-  automationSourceLabel,
-  automationSourceTone,
-  automationStatusTone,
-  describeSchedule,
-  formatRelativeTime,
-} from "../lib/automation-formatters";
+import { describeSchedule, formatRelativeTime } from "../lib/automation-formatters";
 import type { AutomationJob } from "../types";
+import { AutomationStateBadges } from "./automation-state-badges";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationJobCardProps {
@@ -30,7 +25,6 @@ function AutomationJobCard({
   onRun,
   runDisabled,
 }: AutomationJobCardProps) {
-  const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
 
   return (
@@ -59,10 +53,7 @@ function AutomationJobCard({
       </Link>
       <CatalogCard.Actions className="justify-between">
         <span className="flex items-center gap-1.5">
-          <Pill.Dot tone={enabledTone} />
-          <Pill mono size="sm" tone={automationSourceTone(job.source)}>
-            {automationSourceLabel(job.source)}
-          </Pill>
+          <AutomationStateBadges enabled={job.enabled} source={job.source} />
         </span>
         <Button
           aria-label={`Run ${job.name} now`}
@@ -74,7 +65,7 @@ function AutomationJobCard({
           variant="outline"
         >
           <Play aria-hidden="true" className="size-3" />
-          {isRunPending ? "Queuing..." : "Run now"}
+          {isRunPending ? "Starting…" : "Run now"}
         </Button>
       </CatalogCard.Actions>
     </CatalogCard>

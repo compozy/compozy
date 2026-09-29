@@ -73,7 +73,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
         {command.alias ? <span className="text-muted"> ({command.alias})</span> : null}
       </span>
       {extension ? (
-        <Pill className="shrink-0 font-mono" size="xs" tone="info">
+        <Pill className="shrink-0" size="xs" tone="neutral">
           {extension}
         </Pill>
       ) : null}
@@ -94,8 +94,8 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
           className="ms-auto flex shrink-0 items-center gap-1.5 text-small-body leading-none text-subtle"
           data-testid={`os-palette-pending-${command.id}`}
         >
-          <StatusDot className="motion-safe:animate-pulse" label="Running" tone="accent" />
-          pending
+          <StatusDot className="motion-safe:animate-pulse" aria-hidden="true" tone="accent" />
+          Running…
         </span>
       ) : command.chords.length > 0 ? (
         <CommandShortcut>{command.chords.join(" / ")}</CommandShortcut>

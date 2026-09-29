@@ -1,9 +1,13 @@
 import { CalendarClock, Plus, Zap } from "lucide-react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button, Pill, Spinner, StatusDot } from "@compozy/ui";
 
-import { bindingKindLabel, type LoopBindingRow } from "../../lib/loop-bindings";
-import { MonoTag } from "../mono-tag";
+import {
+  bindingKindLabel,
+  bindingsGist,
+  countLoopBindings,
+  type LoopBindingRow,
+} from "../../lib/loop-bindings";
 import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopStartBindingsPanelProps {
@@ -39,164 +43,200 @@ export function LoopStartBindingsPanel({
   onAddTrigger,
   onAddSchedule,
 }: LoopStartBindingsPanelProps) {
-  const canAddSchedule = declaredKinds.includes(SCHEDULE_KIND);
-  const canAddTrigger = declaredKinds.some(kind => TRIGGER_KINDS.has(kind));
-  const hasPagination = Boolean(jobs || triggers);
-  const loadedBindings = hasPagination
-    ? (jobs?.loaded ?? 0) + (triggers?.loaded ?? 0)
-    : bindings.length;
-  const totalBindings = hasPagination
-    ? (jobs?.total ?? 0) + (triggers?.total ?? 0)
-    : bindings.length;
+  const counts = countLoopBindings(bindings.length, jobs, triggers);
   return (
     <LoopRailSection
       data-testid="loop-start-bindings"
-      gist={`${declaredKinds.length} ways · ${totalBindings} attached`}
+      gist={bindingsGist(counts.total)}
       icon={<Zap aria-hidden="true" className="size-3.5" />}
-      title="Start"
+      title="Automations"
     >
-      <div>
-        <p
-          className="px-3.5 py-3 font-mono text-mono-id text-subtle"
-          data-testid="loop-declared-kind"
-        >
-          {declaredKinds.join(" · ")}
-        </p>
-
-        {hasPagination ? (
+      <div className="[&>*:first-child]:border-t-0">
+        {counts.paginated && counts.hasMore ? (
           <p
-            className="border-t border-line-soft px-3.5 py-2 font-mono text-mono-id text-faint"
+            className="border-t border-line-soft px-4 py-2 text-form-hint text-faint"
             data-testid="loop-bindings-progress"
           >
-            {loadedBindings} of {totalBindings} attached loaded
+            Showing {counts.loaded} of {counts.total}
           </p>
         ) : null}
-
-        {isLoading ? (
-          <div className="flex items-center gap-2 border-t border-line-soft px-3.5 py-3 text-form-hint text-subtle">
-            <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
-            Loading attached automations…
-          </div>
-        ) : bindings.length === 0 ? (
-          <p
-            className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-subtle"
-            data-testid="loop-bindings-empty"
-          >
-            Runs on demand.
-          </p>
-        ) : (
-          bindings.map(binding => (
-            <div
-              key={binding.id}
-              className="border-t border-line-soft px-3.5 py-2.5"
-              data-testid="loop-binding-row"
-              data-enabled={binding.enabled}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={`size-1.5 shrink-0 rounded-full ${
-                    binding.enabled ? "bg-success" : "bg-neutral"
-                  }`}
-                  title={binding.enabled ? "Enabled" : "Disabled"}
-                />
-                <span
-                  className={`min-w-0 truncate font-mono text-xs ${
-                    binding.enabled ? "text-fg-strong" : "text-muted"
-                  }`}
-                >
-                  {binding.name}
-                </span>
-                <MonoTag className="ml-auto shrink-0 rounded-xs bg-badge-fill px-1.5 py-0.5">
-                  {bindingKindLabel(binding.kind)}
-                </MonoTag>
-              </div>
-              <div className="mt-1.5 pl-3.5 font-mono text-mono-id text-subtle">{binding.meta}</div>
-            </div>
-          ))
-        )}
-
-        {jobs?.error ? (
-          <p
-            className="border-t border-line-soft px-3.5 py-2 text-caption text-danger"
-            role="alert"
-          >
-            {jobs.error.message}
-          </p>
-        ) : null}
-        {triggers?.error ? (
-          <p
-            className="border-t border-line-soft px-3.5 py-2 text-caption text-danger"
-            role="alert"
-          >
-            {triggers.error.message}
-          </p>
-        ) : null}
-        {jobs?.hasMore || triggers?.hasMore ? (
-          <div className="flex flex-wrap gap-2 border-t border-line-soft px-3.5 py-2.5">
-            {jobs?.hasMore ? (
-              <Button
-                aria-busy={jobs.isFetchingMore}
-                data-testid="loop-bindings-load-more-jobs"
-                disabled={jobs.isFetchingMore}
-                onClick={jobs.loadMore}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                {jobs.isFetchingMore ? "Loading schedules…" : "Load more schedules"}
-              </Button>
-            ) : null}
-            {triggers?.hasMore ? (
-              <Button
-                aria-busy={triggers.isFetchingMore}
-                data-testid="loop-bindings-load-more-triggers"
-                disabled={triggers.isFetchingMore}
-                onClick={triggers.loadMore}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                {triggers.isFetchingMore ? "Loading triggers…" : "Load more triggers"}
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {canAddTrigger || canAddSchedule ? (
-          <div className="flex gap-2 border-t border-line-soft px-3.5 py-2.5">
-            {canAddTrigger ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="loop-add-trigger"
-                onClick={onAddTrigger}
-              >
-                <Zap aria-hidden="true" className="size-3" />
-                Add trigger
-              </Button>
-            ) : null}
-            {canAddSchedule ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="loop-add-schedule"
-                onClick={onAddSchedule}
-              >
-                <CalendarClock aria-hidden="true" className="size-3" />
-                Add schedule
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 border-t border-line-soft px-3.5 py-2.5 text-badge text-faint">
-            <Plus aria-hidden="true" className="size-3" />
-            This Loop declares no automatable start kind.
-          </div>
-        )}
+        <LoopBindingsList bindings={bindings} isLoading={isLoading} />
+        <LoopBindingsPageError pagination={jobs} />
+        <LoopBindingsPageError pagination={triggers} />
+        <LoopBindingsLoadMore jobs={jobs} triggers={triggers} />
+        <LoopBindingsAddActions
+          declaredKinds={declaredKinds}
+          onAddSchedule={onAddSchedule}
+          onAddTrigger={onAddTrigger}
+        />
       </div>
     </LoopRailSection>
+  );
+}
+
+function LoopBindingsList({
+  bindings,
+  isLoading,
+}: {
+  bindings: readonly LoopBindingRow[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 border-t border-line-soft px-4 py-3 text-form-hint text-subtle">
+        <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
+        Loading attached automations…
+      </div>
+    );
+  }
+  if (bindings.length === 0) {
+    return (
+      <p
+        className="border-t border-line-soft px-4 py-3 text-form-hint leading-relaxed text-subtle"
+        data-testid="loop-bindings-empty"
+      >
+        Runs only when you start it.
+      </p>
+    );
+  }
+  return bindings.map(binding => <LoopBindingItem key={binding.id} binding={binding} />);
+}
+
+function LoopBindingItem({ binding }: { binding: LoopBindingRow }) {
+  return (
+    <div
+      className="border-t border-line-soft px-4 py-2.5"
+      data-testid="loop-binding-row"
+      data-enabled={binding.enabled}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <StatusDot
+          label={binding.enabled ? "On" : "Off"}
+          size="sm"
+          tone={binding.enabled ? "success" : "faint"}
+        />
+        <span
+          className={`min-w-0 truncate text-form-label ${
+            binding.enabled ? "text-fg-strong" : "text-muted"
+          }`}
+        >
+          {binding.name}
+        </span>
+        <Pill className="ml-auto shrink-0" size="xs" tone="neutral">
+          {bindingKindLabel(binding.kind)}
+        </Pill>
+      </div>
+      <div className="mt-1 pl-3.5 text-form-hint text-subtle">{binding.meta}</div>
+    </div>
+  );
+}
+
+function LoopBindingsPageError({ pagination }: { pagination?: LoopBindingPagination }) {
+  if (!pagination?.error) return null;
+  return (
+    <p className="border-t border-line-soft px-4 py-2 text-caption text-danger" role="alert">
+      {pagination.error.message}
+    </p>
+  );
+}
+
+function LoopBindingsLoadMore({
+  jobs,
+  triggers,
+}: {
+  jobs?: LoopBindingPagination;
+  triggers?: LoopBindingPagination;
+}) {
+  if (!jobs?.hasMore && !triggers?.hasMore) return null;
+  return (
+    <div className="flex flex-wrap gap-2 border-t border-line-soft px-4 py-2.5">
+      {jobs?.hasMore ? (
+        <LoadMoreButton
+          idleLabel="Load more schedules"
+          loadingLabel="Loading schedules…"
+          pagination={jobs}
+          testId="loop-bindings-load-more-jobs"
+        />
+      ) : null}
+      {triggers?.hasMore ? (
+        <LoadMoreButton
+          idleLabel="Load more triggers"
+          loadingLabel="Loading triggers…"
+          pagination={triggers}
+          testId="loop-bindings-load-more-triggers"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LoadMoreButton({
+  pagination,
+  idleLabel,
+  loadingLabel,
+  testId,
+}: {
+  pagination: LoopBindingPagination;
+  idleLabel: string;
+  loadingLabel: string;
+  testId: string;
+}) {
+  return (
+    <Button
+      aria-busy={pagination.isFetchingMore}
+      data-testid={testId}
+      disabled={pagination.isFetchingMore}
+      onClick={pagination.loadMore}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
+      {pagination.isFetchingMore ? loadingLabel : idleLabel}
+    </Button>
+  );
+}
+
+function LoopBindingsAddActions({
+  declaredKinds,
+  onAddTrigger,
+  onAddSchedule,
+}: Pick<LoopStartBindingsPanelProps, "declaredKinds" | "onAddTrigger" | "onAddSchedule">) {
+  const canAddSchedule = declaredKinds.includes(SCHEDULE_KIND);
+  const canAddTrigger = declaredKinds.some(kind => TRIGGER_KINDS.has(kind));
+  if (!canAddTrigger && !canAddSchedule) {
+    return (
+      <div className="flex items-center gap-1.5 border-t border-line-soft px-4 py-2.5 text-badge text-faint">
+        <Plus aria-hidden="true" className="size-3" />
+        This Loop can only be started by hand.
+      </div>
+    );
+  }
+  return (
+    <div className="flex gap-2 border-t border-line-soft px-4 py-2.5">
+      {canAddTrigger ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="loop-add-trigger"
+          onClick={onAddTrigger}
+        >
+          <Zap aria-hidden="true" className="size-3" />
+          Add trigger
+        </Button>
+      ) : null}
+      {canAddSchedule ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="loop-add-schedule"
+          onClick={onAddSchedule}
+        >
+          <CalendarClock aria-hidden="true" className="size-3" />
+          Add schedule
+        </Button>
+      ) : null}
+    </div>
   );
 }

@@ -188,7 +188,7 @@ test.describe("skill sources", () => {
     await sources.toggle("claude").click();
     await sources.save.click();
     await expect(sources.message).toContainText("applied immediately");
-    await expect(sources.keyPosture("sources")).toContainText("custom for this workspace");
+    await expect(sources.keyPosture("sources")).toContainText("custom for this project");
     // The untouched key never left inheritance.
     await expect(sources.keyPosture("custom_sources")).toContainText("inherited");
     await browserArtifacts.captureScreenshot("e2e-009-workspace-override", appPage);

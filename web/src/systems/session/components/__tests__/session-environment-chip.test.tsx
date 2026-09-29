@@ -23,7 +23,7 @@ describe("SessionEnvironmentChip", () => {
     renderChip(<SessionEnvironmentChip label={workspacePath} state="root" />);
 
     const button = screen.getByRole("button", {
-      name: `Workspace: ${workspacePath} — fork into a new worktree`,
+      name: `Project: ${workspacePath} — move to a separate copy (worktree)`,
     });
     expect(button).toHaveAttribute("data-binding", "root");
     expect(button).toHaveAttribute("data-locked", "");
@@ -42,7 +42,7 @@ describe("SessionEnvironmentChip", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(`Workspace: ${workspacePath} — fork into a new worktree`)
+        screen.getByText(`Project: ${workspacePath} — move to a separate copy (worktree)`)
       ).toBeInTheDocument();
     });
   });
@@ -59,7 +59,7 @@ describe("SessionEnvironmentChip", () => {
     );
 
     const button = screen.getByRole("button", {
-      name: /Worktree: payments-retry — fork into a new worktree/,
+      name: /Worktree: payments-retry — move to a separate copy \(worktree\)/,
     });
     expect(button).toHaveAttribute("data-binding", "worktree");
     expect(button).toHaveAttribute("data-fork", "unavailable");
@@ -70,7 +70,7 @@ describe("SessionEnvironmentChip", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(`Worktree: payments-retry — fork into a new worktree. ${reason}`)
+        screen.getByText(`Worktree: payments-retry — move to a separate copy (worktree). ${reason}`)
       ).toBeInTheDocument();
     });
   });
@@ -81,7 +81,7 @@ describe("SessionEnvironmentChip", () => {
     renderChip(<SessionEnvironmentChip label="payments-retry" onFork={onFork} state="worktree" />);
 
     const button = screen.getByRole("button", {
-      name: "Worktree: payments-retry — fork into a new worktree",
+      name: "Worktree: payments-retry — move to a separate copy (worktree)",
     });
     expect(button).toHaveAttribute("data-fork", "available");
     expect(button).not.toHaveAttribute("aria-disabled");
@@ -106,7 +106,7 @@ describe("SessionEnvironmentChip", () => {
     state => {
       renderChip(<SessionEnvironmentChip label="docs-refresh" presentational state={state} />);
 
-      const button = screen.getByRole("button", { name: "Workspace: docs-refresh" });
+      const button = screen.getByRole("button", { name: "Project: docs-refresh" });
       expect(button).toHaveAttribute("data-presentational", "true");
       expect(button).toHaveAttribute("data-state", state);
       expect(button).toHaveAttribute("aria-disabled", "true");

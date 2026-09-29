@@ -45,9 +45,11 @@ export function SessionEnvironmentChip({
 }: SessionEnvironmentChipProps) {
   const Glyph = ICON[state];
   const forkAvailable = Boolean(onFork);
-  const environmentName = `${state === "worktree" ? "Worktree" : "Workspace"}: ${label}`;
+  const environmentName = `${state === "worktree" ? "Worktree" : "Project"}: ${label}`;
   const isLiveState = state === "root" || state === "worktree";
-  const tooltip = isLiveState ? `${environmentName} — fork into a new worktree` : environmentName;
+  const tooltip = isLiveState
+    ? `${environmentName} — move to a separate copy (worktree)`
+    : environmentName;
   const accessibleName = forkUnavailableReason ? `${tooltip}. ${forkUnavailableReason}` : tooltip;
   const toneClass = cn(
     state === "pending" && "border-dashed text-warning [&_svg]:text-warning",

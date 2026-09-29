@@ -61,7 +61,7 @@ function jobHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
     title: mode === "create" ? "Create job" : "Edit job",
     description: (
       <>
-        A job runs an agent, materializes a task, or starts a Loop on a schedule.{" "}
+        A job runs an agent, creates a task, or starts a Loop on a schedule.{" "}
         <b className="font-medium text-muted">Choose the target and when it should run.</b>
       </>
     ),
@@ -75,7 +75,7 @@ function triggerHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
     title: mode === "create" ? "Create trigger" : "Edit trigger",
     description: (
       <>
-        A trigger watches for a runtime event and, when it matches, runs an agent or starts a Loop.{" "}
+        A trigger waits for something to happen, then runs an agent or starts a Loop.{" "}
         <b className="font-medium text-muted">When this happens → run that.</b>
       </>
     ),

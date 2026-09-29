@@ -238,6 +238,9 @@ function DesktopShellScopedBody({
           "transition-opacity duration-shell-slow motion-reduce:transition-none",
           firstRun && "opacity-68"
         )}
+        // Global changes the data lens, not the desktop layout partition. The
+        // window manager stays on the remembered project while data aggregates.
+        layoutUnbound={!model.pending && model.desktopWorkspaceId === null}
         workspaces={model.workspaces}
         activeWorkspace={model.activeWorkspace}
         chip={model.chip}
@@ -298,9 +301,6 @@ function DesktopShellScopedBody({
         />
         <DesktopManagerSurfaces
           model={managerSurfaces}
-          // Global changes the data lens, not the desktop layout partition. The
-          // window manager stays on the remembered project while data aggregates.
-          unbound={!model.pending && model.desktopWorkspaceId === null}
           onCreateDesktop={() => manager.createDesktop()}
           onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
           onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}

@@ -99,7 +99,7 @@ export function humanizeTaskEvent(item: TaskTimelineItem): TaskActivityView {
     case "task.run_released":
       return { title: byActor("Run released", item), detail, category: "runs" };
     case "task.run_starved":
-      return { title: "Waiting for a worker to pick this up", detail, category: "runs" };
+      return { title: "Waiting for an agent to pick this up", detail, category: "runs" };
     case "task.run_operator_retry":
       return { title: byActor("Retry queued", item), detail, category: "runs" };
     case "task.run_operator_forced_fail":

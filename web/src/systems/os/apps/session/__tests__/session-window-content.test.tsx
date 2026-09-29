@@ -98,7 +98,7 @@ vi.mock("@/systems/session", async () => ({
     maxAttempts?: number;
   }) => (
     <div role="status">
-      Recovering runtime · Attempt {attempt} of {maxAttempts}
+      Reconnecting to the agent… · Attempt {attempt} of {maxAttempts}
     </div>
   ),
   SessionSidebar: () => null,
@@ -276,10 +276,9 @@ describe("SessionWindowContent", () => {
     expect(screen.getByTestId("session-stop-attention-title")).toHaveTextContent(
       "Couldn’t confirm the agent stopped."
     );
-    expect(screen.getByTestId("session-stop-attention-meta")).toHaveTextContent(
-      "stop_verification_failed"
-    );
-    expect(screen.queryByRole("button", { name: "Fork into a new session" })).toBeNull();
+    // The attention code rides on data-attention; it never reads on screen.
+    expect(notice).not.toHaveTextContent("stop_verification_failed");
+    expect(screen.queryByRole("button", { name: "Continue in a new session" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry stop" }));
 
@@ -394,7 +393,7 @@ describe("SessionWindowContent", () => {
     const notice = await screen.findByTestId("session-quiet-warning");
     expect(notice).toHaveAttribute("data-quiet-stop", "off");
     expect(screen.getByTestId("session-quiet-warning-message")).toHaveTextContent(
-      "Automatic stop is off, so this session keeps waiting until the agent gets back to work or you stop it."
+      "The agent hasn't done any work in a while. Stop it if it looks stuck."
     );
     expect(screen.getByTestId("session-quiet-warning-message")).not.toHaveTextContent("stops in");
   });
@@ -446,7 +445,7 @@ describe("SessionWindowContent", () => {
       </Suspense>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Fork into a new session" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue in a new session" }));
 
     expect(mocks.forkMutation.mutate).toHaveBeenCalledWith(
       {
@@ -498,10 +497,10 @@ describe("SessionWindowContent", () => {
     );
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Recovering runtime · Attempt 2 of 3"
+      "Reconnecting to the agent… · Attempt 2 of 3"
     );
     expect(
-      screen.queryByRole("button", { name: "Fork into a new session" })
+      screen.queryByRole("button", { name: "Continue in a new session" })
     ).not.toBeInTheDocument();
   });
 

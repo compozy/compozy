@@ -324,8 +324,11 @@ describe("TaskKanbanCard", () => {
     );
   });
 
-  it("Should render needs_attention cards with a human status label", () => {
-    const tasks = [buildTask({ id: "attention", status: "needs_attention" })];
+  it("Should label status on cards only where the column mixes statuses", () => {
+    const tasks = [
+      buildTask({ id: "attention", status: "needs_attention" }),
+      buildTask({ id: "canceled", status: "canceled" }),
+    ];
     render(
       <TasksKanbanBoard
         columns={groupTasksForKanban(tasks)}
@@ -335,8 +338,9 @@ describe("TaskKanbanCard", () => {
     );
 
     const card = screen.getByTestId("tasks-kanban-card-attention");
-    expect(card).toHaveTextContent("Needs attention");
+    expect(card).not.toHaveTextContent("Needs attention");
     expect(card).not.toHaveTextContent("needs_attention");
+    expect(screen.getByTestId("tasks-kanban-card-canceled")).toHaveTextContent("Canceled");
   });
 
   it("Should paint the card with an inset ring instead of a border class", () => {

@@ -447,7 +447,7 @@ export class RoutingCoordinator {
     // Breadcrumb back: the durable nav stack owns the destination — the
     // reported route is the app's own rendering of the same pop.
     if (mode === "pop" && existing && !existing.minimized && existing.navStack.length > 0) {
-      const outcome = this.manager.popWindowRoute(existing.id);
+      const outcome = this.manager.popWindowRoute(existing.id, route);
       this.startRouteReconciliation(pending, { windowId: existing.id, ...outcome });
       return;
     }

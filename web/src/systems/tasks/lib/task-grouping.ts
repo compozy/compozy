@@ -83,11 +83,19 @@ const LIST_GROUPS: TaskListGroupDefinition[] = [
     dotTone: "faint",
     dotVariant: "ring",
   },
-  { id: "done", label: "Done", statuses: ["completed"], dotTone: "faint", dotVariant: "solid" },
+  {
+    // Canceled work is finished on purpose, so it reads as Done (like the
+    // kanban Done column) rather than as a danger-toned failure.
+    id: "done",
+    label: "Done",
+    statuses: ["completed", "canceled"],
+    dotTone: "faint",
+    dotVariant: "solid",
+  },
   {
     id: "failed",
     label: "Failed",
-    statuses: ["failed", "canceled"],
+    statuses: ["failed"],
     dotTone: "danger",
     dotVariant: "solid",
   },

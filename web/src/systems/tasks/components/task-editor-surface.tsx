@@ -126,10 +126,7 @@ export function TaskEditorSurface({
         ) : null}
 
         <EntityDialogBody data-testid="task-editor-modal-body">
-          <FormSection
-            help="The title and description a person or agent reads when the task is claimed."
-            title="The contract"
-          >
+          <FormSection help="The title and details the agent will read." title="What needs doing">
             <ContractSection
               description={draft.description}
               onDescription={setField("description")}
@@ -142,7 +139,7 @@ export function TaskEditorSurface({
             <FormSection
               help={
                 advanced
-                  ? "Presets the contract fields below — tweak any of them."
+                  ? "Fills in the fields below — tweak any of them."
                   : "Pick the closest fit — you can change details after."
               }
               title={advanced ? "Template" : "How should it run?"}
@@ -151,7 +148,7 @@ export function TaskEditorSurface({
             </FormSection>
           ) : null}
 
-          <FormSection help="Higher priority gets claimed sooner." title="Priority">
+          <FormSection help="Higher priority starts sooner." title="Priority">
             <PrioritySection onPriority={form.updatePriority} priority={draft.priority} />
           </FormSection>
 
@@ -163,10 +160,7 @@ export function TaskEditorSurface({
                   parentTaskId={draft.parentTaskId}
                 />
               </FormSection>
-              <FormSection
-                help="Who runs it, and how retries behave."
-                title="Queue &amp; ownership"
-              >
+              <FormSection help="Who works on it, and how retries behave." title="Who works on it">
                 <QueueOwnershipSection
                   approvalPolicy={draft.approvalPolicy}
                   maxAttempts={draft.maxAttempts}
@@ -179,8 +173,8 @@ export function TaskEditorSurface({
                 />
               </FormSection>
               <FormSection
-                help="A stable identifier override. Leave it empty and CompozyOS assigns one."
-                title="Identity"
+                help="Leave it empty and CompozyOS picks one."
+                title="Custom ID (optional)"
               >
                 <IngressIdentitySection
                   identifier={draft.identifier}
@@ -197,7 +191,7 @@ export function TaskEditorSurface({
           ) : null}
 
           {!isNewMode ? (
-            <FormSection help="Who runs it, and how retries behave." title="Queue &amp; ownership">
+            <FormSection help="Who works on it, and how retries behave." title="Who works on it">
               <QueueOwnershipSection
                 approvalPolicy={draft.approvalPolicy}
                 maxAttempts={draft.maxAttempts}
@@ -217,8 +211,8 @@ export function TaskEditorSurface({
           hint={
             draft.saveAsDraft ? (
               <>
-                Saved as a <b className="font-medium text-muted">draft</b>; no run is queued until
-                you enqueue it. {scopeStatement}
+                Saved as a <b className="font-medium text-muted">draft</b>. Nothing runs until you
+                start it. {scopeStatement}
               </>
             ) : (
               scopeStatement

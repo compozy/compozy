@@ -1,24 +1,12 @@
 import { useState } from "react";
 import { AlertCircle, PauseCircle, PlayCircle, RotateCw } from "lucide-react";
 
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Empty,
-  Eyebrow,
-  Pill,
-  Skeleton,
-  Textarea,
-  Time,
-} from "@compozy/ui";
+import { Button, ConfirmDialog, Empty } from "@compozy/ui";
 
 import type { SchedulerBacklog, SchedulerStatus } from "../types";
 import { SchedulerBacklogPanel } from "./scheduler-backlog-panel";
+import { SchedulerPauseDialog } from "./scheduler-pause-dialog";
+import { SchedulerStatusSummary } from "./scheduler-status-summary";
 
 export interface SchedulerControlsPanelProps {
   status: SchedulerStatus | null;
@@ -50,39 +38,7 @@ export function SchedulerControlsPanel({
   onDrain,
 }: SchedulerControlsPanelProps) {
   const [pauseOpen, setPauseOpen] = useState(false);
-  const [pauseReason, setPauseReason] = useState("");
-  const [pauseError, setPauseError] = useState<string | null>(null);
-  const isPausePending = pending?.pause ?? false;
-  const isResumePending = pending?.resume ?? false;
-  const isDrainPending = pending?.drain ?? false;
-  const isActionPending = isPausePending || isResumePending || isDrainPending;
-  const isInitialStatusLoading = isLoading && !status;
-
-  const handlePauseOpenChange = (next: boolean) => {
-    setPauseOpen(next);
-    if (!next) {
-      setPauseError(null);
-    }
-  };
-
-  const handlePauseConfirm = async () => {
-    const reason = pauseReason.trim();
-    if (!reason) {
-      setPauseError("Provide a pause reason.");
-      return;
-    }
-    if (!onPause) {
-      return;
-    }
-    try {
-      await onPause(reason);
-      setPauseReason("");
-      setPauseError(null);
-      setPauseOpen(false);
-    } catch (error) {
-      setPauseError(error instanceof Error ? error.message : "Failed to pause scheduler.");
-    }
-  };
+  const [drainOpen, setDrainOpen] = useState(false);
 
   if (errorMessage && !status) {
     return (
@@ -95,7 +51,7 @@ export function SchedulerControlsPanel({
           description={errorMessage}
           fill={false}
           icon={AlertCircle}
-          title="Unable to load scheduler"
+          title="Couldn't load the task queue"
         />
       </section>
     );
@@ -106,128 +62,17 @@ export function SchedulerControlsPanel({
       className="border-b border-line-soft bg-canvas-soft px-5 py-4"
       data-testid="scheduler-controls-panel"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <Eyebrow className="text-muted">Scheduler</Eyebrow>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-            <h2 className="text-item-title font-medium text-fg-strong">Dispatch controls</h2>
-            <Pill
-              data-testid="scheduler-controls-state"
-              tone={isInitialStatusLoading ? "neutral" : status?.paused ? "warning" : "success"}
-            >
-              {isInitialStatusLoading ? "Loading" : status?.paused ? "Paused" : "Running"}
-            </Pill>
-            {isLoading && status ? (
-              <Pill data-testid="scheduler-controls-loading" tone="neutral">
-                Loading
-              </Pill>
-            ) : null}
-          </div>
-          {isInitialStatusLoading ? (
-            <div
-              aria-label="Loading scheduler status"
-              className="mt-2 flex items-center gap-3"
-              data-testid="scheduler-controls-meta-loading"
-              role="status"
-            >
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-3 w-28" />
-            </div>
-          ) : (
-            <div
-              className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted"
-              data-testid="scheduler-controls-meta"
-            >
-              <span>{status?.active_claim_count ?? 0} active claims</span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span>{status?.queued_run_count ?? 0} queued runs</span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span>{status?.paused_task_count ?? 0} paused tasks</span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span
-                className={(status?.starved_run_count ?? 0) > 0 ? "text-warning" : undefined}
-                data-testid="scheduler-controls-starved-count"
-              >
-                {status?.starved_run_count ?? 0} starved runs
-              </span>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span
-                className={
-                  (status?.needs_attention_run_count ?? 0) > 0 ? "text-warning" : undefined
-                }
-                data-testid="scheduler-controls-needs-attention-count"
-              >
-                {status?.needs_attention_run_count ?? 0} needs attention
-              </span>
-              {status?.paused_at ? (
-                <>
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                  <span>
-                    Paused <Time iso={status.paused_at} mode="relative" />
-                  </span>
-                </>
-              ) : null}
-            </div>
-          )}
-          {status?.paused_reason ? (
-            <p
-              className="mt-2 max-w-3xl text-form-label text-muted"
-              data-testid="scheduler-controls-reason"
-            >
-              {status.paused_reason}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {status?.paused ? (
-            <Button
-              data-testid="scheduler-controls-resume"
-              disabled={isInitialStatusLoading || isActionPending || !onResume}
-              onClick={() => void onResume?.()}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              <PlayCircle className="size-3" aria-hidden="true" />
-              Resume
-            </Button>
-          ) : (
-            <Button
-              data-testid="scheduler-controls-pause"
-              disabled={isInitialStatusLoading || isActionPending || !onPause}
-              onClick={() => setPauseOpen(true)}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              <PauseCircle className="size-3" aria-hidden="true" />
-              Pause
-            </Button>
-          )}
-          <Button
-            data-testid="scheduler-controls-drain"
-            disabled={isInitialStatusLoading || isActionPending || !onDrain}
-            onClick={() => void onDrain?.()}
-            size="sm"
-            title="Pause dispatch and wait for active claims to finish."
-            type="button"
-          >
-            <RotateCw className="size-3" aria-hidden="true" />
-            Drain
-          </Button>
-        </div>
+      <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-start @3xl:justify-between">
+        <SchedulerStatusSummary isLoading={isLoading} status={status} />
+        <SchedulerControlActions
+          actionsDisabled={(isLoading && !status) || isAnyActionPending(pending)}
+          onDrainRequest={() => setDrainOpen(true)}
+          onPause={onPause}
+          onPauseRequest={() => setPauseOpen(true)}
+          onResume={onResume}
+          onDrain={onDrain}
+          paused={status?.paused ?? false}
+        />
       </div>
 
       <SchedulerBacklogPanel
@@ -236,66 +81,94 @@ export function SchedulerControlsPanel({
         isLoading={isBacklogLoading}
       />
 
-      <Dialog open={pauseOpen} onOpenChange={handlePauseOpenChange}>
-        <DialogContent
-          data-testid="scheduler-controls-pause-dialog"
-          showCloseButton={!isPausePending}
-          className="max-w-md"
-        >
-          <DialogHeader>
-            <DialogTitle>Pause scheduler?</DialogTitle>
-            <DialogDescription>New claims stop; active runs continue.</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <label className="eyebrow text-muted" htmlFor="scheduler-controls-pause-reason">
-              Reason
-            </label>
-            <Textarea
-              aria-describedby={pauseError ? "scheduler-controls-pause-error" : undefined}
-              aria-invalid={Boolean(pauseError)}
-              data-testid="scheduler-controls-pause-reason"
-              disabled={isPausePending}
-              id="scheduler-controls-pause-reason"
-              onChange={event => {
-                setPauseReason(event.target.value);
-                setPauseError(null);
-              }}
-              rows={3}
-              value={pauseReason}
-            />
-            {pauseError ? (
-              <p
-                className="text-form-hint text-danger"
-                data-testid="scheduler-controls-pause-error"
-                id="scheduler-controls-pause-error"
-                role="alert"
-              >
-                {pauseError}
-              </p>
-            ) : null}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button
-              disabled={isPausePending}
-              onClick={() => handlePauseOpenChange(false)}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              Cancel
-            </Button>
-            <Button
-              data-testid="scheduler-controls-pause-confirm"
-              disabled={isPausePending}
-              onClick={() => void handlePauseConfirm()}
-              size="sm"
-              type="button"
-            >
-              Pause
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SchedulerPauseDialog
+        isPending={pending?.pause ?? false}
+        onOpenChange={setPauseOpen}
+        onPause={onPause}
+        open={pauseOpen}
+      />
+
+      <ConfirmDialog
+        cancelLabel="Cancel"
+        confirmButtonProps={{ "data-testid": "scheduler-controls-drain-confirm" }}
+        confirmLabel="Finish current and pause"
+        contentProps={{ "data-testid": "scheduler-controls-drain-dialog" }}
+        description="New work won't start. Work that is already running gets up to a minute to finish, then the queue stays paused until you resume it."
+        isPending={pending?.drain ?? false}
+        onConfirm={async () => {
+          await onDrain?.();
+          setDrainOpen(false);
+        }}
+        onOpenChange={setDrainOpen}
+        open={drainOpen}
+        title="Finish current work and pause?"
+        tone="warning"
+      />
     </section>
+  );
+}
+
+function isAnyActionPending(pending: SchedulerControlsPanelProps["pending"]): boolean {
+  return Boolean(pending?.pause || pending?.resume || pending?.drain);
+}
+
+interface SchedulerControlActionsProps {
+  paused: boolean;
+  actionsDisabled: boolean;
+  onPause?: SchedulerControlsPanelProps["onPause"];
+  onResume?: SchedulerControlsPanelProps["onResume"];
+  onDrain?: SchedulerControlsPanelProps["onDrain"];
+  onPauseRequest: () => void;
+  onDrainRequest: () => void;
+}
+
+function SchedulerControlActions({
+  paused,
+  actionsDisabled,
+  onPause,
+  onResume,
+  onDrain,
+  onPauseRequest,
+  onDrainRequest,
+}: SchedulerControlActionsProps) {
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      {paused ? (
+        <Button
+          data-testid="scheduler-controls-resume"
+          disabled={actionsDisabled || !onResume}
+          onClick={() => void onResume?.()}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          <PlayCircle className="size-3" aria-hidden="true" />
+          Resume
+        </Button>
+      ) : (
+        <Button
+          data-testid="scheduler-controls-pause"
+          disabled={actionsDisabled || !onPause}
+          onClick={onPauseRequest}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          <PauseCircle className="size-3" aria-hidden="true" />
+          Pause
+        </Button>
+      )}
+      <Button
+        data-testid="scheduler-controls-drain"
+        disabled={actionsDisabled || !onDrain}
+        onClick={onDrainRequest}
+        size="sm"
+        type="button"
+        variant="neutral"
+      >
+        <RotateCw className="size-3" aria-hidden="true" />
+        Finish current and pause
+      </Button>
+    </div>
   );
 }

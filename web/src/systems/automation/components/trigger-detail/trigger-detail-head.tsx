@@ -1,64 +1,10 @@
-import { useId, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 
-import { Pill, Switch, Time, cn } from "@compozy/ui";
+import { Pill, Time, cn } from "@compozy/ui";
 
 import { buildTriggerLede, triggerEventLabel, triggerPauseLine } from "../../lib/trigger-sentence";
 import type { AutomationTrigger } from "../../types";
-
-interface TriggerEnableSwitchProps extends Omit<ComponentProps<"div">, "children"> {
-  enabled: boolean;
-  pending: boolean;
-  onEnabledChange: (enabled: boolean) => void;
-}
-
-/**
- * The labeled enable switch — the only accent on the page.
- *
- * While the PATCH is in flight the track keeps the state the daemon last
- * confirmed; the label announces the transition instead. An optimistic flip
- * would claim a state the runtime has not agreed to yet.
- */
-function TriggerEnableSwitch({
-  enabled,
-  pending,
-  onEnabledChange,
-  className,
-  ...props
-}: TriggerEnableSwitchProps) {
-  const labelId = useId();
-  const label = pending ? (enabled ? "Disabling…" : "Enabling…") : enabled ? "Enabled" : "Disabled";
-  return (
-    <div
-      aria-busy={pending || undefined}
-      className={cn(
-        "mt-0.5 flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1",
-        pending && "pointer-events-none opacity-55",
-        className
-      )}
-      {...props}
-    >
-      <span
-        className={cn(
-          "text-form-label font-medium transition-colors duration-fast ease-out",
-          enabled ? "text-fg" : "text-muted"
-        )}
-        data-testid="trigger-enable-label"
-        id={labelId}
-      >
-        {label}
-      </span>
-      <Switch
-        aria-labelledby={labelId}
-        checked={enabled}
-        data-testid="trigger-enable-switch"
-        disabled={pending}
-        onCheckedChange={next => {
-          if (!pending) onEnabledChange(next);
-        }}
-      />
-    </div>
-  );
-}
+import { AutomationEnableSwitch } from "../automation-enable-switch";
 
 const DOT_SEPARATOR = (
   <span aria-hidden="true" className="mx-1.5 inline-block size-0.5 rounded-full bg-faint" />
@@ -118,8 +64,10 @@ export function TriggerDetailHead({
             </p>
           )}
         </div>
-        <TriggerEnableSwitch
+        <AutomationEnableSwitch
           enabled={trigger.enabled}
+          labelTestId="trigger-enable-label"
+          switchTestId="trigger-enable-switch"
           onEnabledChange={onToggleEnabled}
           pending={isTogglePending}
         />
@@ -134,13 +82,13 @@ export function TriggerDetailHead({
         <span>
           {trigger.scope === "workspace" ? (
             <>
-              Workspace{" "}
+              Project{" "}
               <b className="font-medium text-muted">
                 {workspaceName ?? trigger.workspace_id ?? ""}
               </b>
             </>
           ) : (
-            "Every workspace"
+            "Every project"
           )}
         </span>
         {lastRanAt ? (

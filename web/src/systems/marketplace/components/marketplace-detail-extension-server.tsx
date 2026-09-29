@@ -1,6 +1,6 @@
 import { Plug, Settings2 } from "lucide-react";
 
-import { Button, PropertyRow } from "@compozy/ui";
+import { Button, Disclosure, PropertyRow } from "@compozy/ui";
 
 import {
   authorizeLabel,
@@ -41,9 +41,9 @@ interface MarketplaceExtensionServerSectionProps {
 
 /**
  * The detail's Server section: one rail card per declared server (stable identity = owner +
- * logical name), with the facts the retired MCP detail showed — Launch · Auth · Inputs · Scope ·
- * Owner — and, once installed, the truthful status, the allocated runtime name and the owner-
- * qualified Authorize / Edit configuration actions. Absent entirely when the entry has no server.
+ * logical name). Before install it shows what the server needs (sign-in, inputs); once installed,
+ * the truthful status and the owner-qualified Authorize / Edit configuration actions. Launch ·
+ * Scope · Owner · runtime name stay under "Technical details". Absent when there is no server.
  */
 function MarketplaceExtensionServerSection({
   servers,
@@ -131,7 +131,10 @@ function MarketplaceExtensionServerSummaryCard({
       title="Server"
     >
       <div className="px-3.5">
-        <MarketplaceServerFactRows inputs={inputs} server={server} />
+        <MarketplaceServerAccessRows inputs={inputs} server={server} />
+        <Disclosure label="Technical details">
+          <MarketplaceServerTechnicalRows server={server} />
+        </Disclosure>
       </div>
     </MarketplaceDetailRailCard>
   );
@@ -177,12 +180,14 @@ function MarketplaceExtensionServerLiveCard({
             label="Status"
           />
         ) : null}
-        <MarketplaceServerFactRows
-          inputs={inputs}
-          missingInputs={missingInputs}
-          server={server}
-          showRuntimeName
-        />
+        <Disclosure label="Technical details">
+          <MarketplaceServerAccessRows
+            inputs={inputs}
+            missingInputs={missingInputs}
+            server={server}
+          />
+          <MarketplaceServerTechnicalRows server={server} showRuntimeName />
+        </Disclosure>
       </div>
       <MarketplaceExtensionServerActions
         server={server}
@@ -195,28 +200,21 @@ function MarketplaceExtensionServerLiveCard({
   );
 }
 
-/** Launch · Auth · Inputs · Scope · Owner (· runtime name). Every value is a payload field. */
-function MarketplaceServerFactRows({
+/** Auth · Inputs: what the server needs from the user. Every value is a payload field. */
+function MarketplaceServerAccessRows({
   server,
   inputs,
   missingInputs = [],
-  showRuntimeName = false,
 }: {
   server: MarketplaceExtensionServer;
   inputs: readonly MarketplaceServerInput[];
   missingInputs?: readonly string[];
-  showRuntimeName?: boolean;
 }) {
-  const launch = [server.transport, server.launch].filter(value => value?.trim()).join(" · ");
   const auth = formatServerAuth(server.auth);
-  const scope = formatServerScope(server);
   const missing = missingInputs.length;
   return (
     <>
-      <PropertyRow label="Launch" mono valueTitle={launch || undefined}>
-        {launch || "—"}
-      </PropertyRow>
-      <PropertyRow label="Auth" valueTitle={auth.title}>
+      <PropertyRow label="Sign-in" valueTitle={auth.title}>
         {auth.label}
       </PropertyRow>
       <PropertyRow
@@ -238,6 +236,25 @@ function MarketplaceServerFactRows({
             ) : null}
           </span>
         )}
+      </PropertyRow>
+    </>
+  );
+}
+
+/** Launch · Scope · Owner (· runtime name): operator facts kept one step deeper. */
+function MarketplaceServerTechnicalRows({
+  server,
+  showRuntimeName = false,
+}: {
+  server: MarketplaceExtensionServer;
+  showRuntimeName?: boolean;
+}) {
+  const launch = [server.transport, server.launch].filter(value => value?.trim()).join(" · ");
+  const scope = formatServerScope(server);
+  return (
+    <>
+      <PropertyRow label="Launch" mono valueTitle={launch || undefined}>
+        {launch || "—"}
       </PropertyRow>
       {scope ? <PropertyRow label="Scope">{scope}</PropertyRow> : null}
       {server.owner?.trim() ? (
@@ -296,9 +313,9 @@ function formatServerScope(server: MarketplaceExtensionServer): string | null {
   const profile = server.profile?.trim();
   const profileWord = profile && profile !== "default" ? ` · profile ${profile}` : "";
   if (server.scope === "workspace" && server.workspace_id?.trim()) {
-    return `Workspace · ${server.workspace_id}${profileWord}`;
+    return `This project${profileWord}`;
   }
-  if (server.scope === "global") return `Everywhere (global)${profileWord}`;
+  if (server.scope === "global") return `All projects${profileWord}`;
   return server.scope?.trim() ? `${server.scope}${profileWord}` : null;
 }
 
@@ -320,11 +337,7 @@ function MarketplaceExtensionServerActions({
 }) {
   const entry = live.server;
   if (!server.runtime_name?.trim())
-    return (
-      <MarketplaceDetailRailNote>
-        Not published yet — no runtime name has been allocated.
-      </MarketplaceDetailRailNote>
-    );
+    return <MarketplaceDetailRailNote>Not running yet.</MarketplaceDetailRailNote>;
   const repair = missingInputs.length === 0 && entry ? authorizeLabel(entry) : null;
   return (
     <>

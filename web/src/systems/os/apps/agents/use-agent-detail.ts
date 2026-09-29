@@ -50,6 +50,7 @@ export interface UseAgentDetailResult {
   sessionsLoading: boolean;
   /** Row-page error only — never OR'd with the metrics query. */
   sessionsError: boolean;
+  onRetrySessions: () => void;
   search: ResolvedAgentDetailSearch;
   setTab: (tab: AgentDetailTab) => void;
   setFile: (file: AgentInstructionFile) => void;
@@ -94,6 +95,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     loadMoreArchived: onLoadMoreArchivedSessions,
     isLoading: sessionsLoading,
     isError: sessionsError,
+    retry: onRetrySessions,
   } = useAgentSessions(runtimeWorkspaceId, name);
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: runtimeWorkspaceId });
 
@@ -173,6 +175,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     onLoadMoreArchivedSessions,
     sessionsLoading,
     sessionsError,
+    onRetrySessions,
     search,
     setTab,
     setFile,

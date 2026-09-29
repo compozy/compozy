@@ -37,7 +37,7 @@ export function WorkspaceProfilesHint({ hints, workspaceId }: WorkspaceProfilesH
     >
       <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        <span className="mr-auto text-sm text-fg">{workspaceProfileHintLabel(absent)}</span>
+        <span className="mr-auto text-small-body text-fg">{workspaceProfileHintLabel(absent)}</span>
         {absent.map(hint => (
           <Button
             data-testid={`workspace-profiles-hint-create-${hint.name}`}
@@ -65,7 +65,9 @@ export function WorkspaceProfilesHint({ hints, workspaceId }: WorkspaceProfilesH
 
 function workspaceProfileHintLabel(hints: readonly WorkspaceProfileHint[]): string {
   const names = hints.map(hint => hint.name);
-  if (names.length === 1) return `This project declares content for profile ${names[0]}.`;
+  if (names.length === 1) {
+    return `This project includes settings for the profile “${names[0]}”. Create it to use them.`;
+  }
   const last = names.at(-1);
-  return `This project declares content for profiles ${names.slice(0, -1).join(", ")} and ${last}.`;
+  return `This project includes settings for the profiles ${names.slice(0, -1).join(", ")} and ${last}. Create them to use them.`;
 }

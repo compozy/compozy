@@ -1,6 +1,14 @@
 import { RefreshCw, Store } from "lucide-react";
 
-import { Button, ListingPage, Spinner, useTopbarSlot } from "@compozy/ui";
+import {
+  Button,
+  ListingPage,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  useTopbarSlot,
+} from "@compozy/ui";
 
 import type { MarketplaceSearch } from "../lib/marketplace-search";
 import { MarketplaceAddMenu } from "./marketplace-add-menu";
@@ -28,21 +36,28 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
     count: page.isLoading && !page.total ? "–" : page.total,
     actions: (
       <>
-        <Button
-          data-testid="marketplace-refresh"
-          disabled={page.isRefreshing}
-          onClick={() => void page.refresh()}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          {page.isRefreshing ? (
-            <Spinner aria-hidden="true" className="size-3" />
-          ) : (
-            <RefreshCw aria-hidden="true" className="size-3" />
-          )}
-          Refresh
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="Refresh"
+                data-testid="marketplace-refresh"
+                disabled={page.isRefreshing}
+                onClick={() => void page.refresh()}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            {page.isRefreshing ? (
+              <Spinner aria-hidden="true" className="size-3" />
+            ) : (
+              <RefreshCw aria-hidden="true" className="size-3.5" />
+            )}
+          </TooltipTrigger>
+          <TooltipContent>Refresh catalog</TooltipContent>
+        </Tooltip>
         <MarketplaceAddMenu onAddMarketplace={addMarketplace.open} onInstall={install.open} />
       </>
     ),

@@ -30,7 +30,7 @@ const REFUSAL_NOTICES: Readonly<Record<string, string>> = {
   window_manager_unavailable: "The saved window layout is unavailable.",
   window_manager_slow_consumer: "The live layout fell behind. Reconnecting.",
 };
-const GENERIC_REFUSAL_NOTICE = "The window command failed.";
+const GENERIC_REFUSAL_NOTICE = "Couldn't change the window layout.";
 
 function commandDiagnostic(error: unknown): WindowManagerDiagnosticPayload {
   if (error instanceof WindowManagerApiError && error.payload?.diagnostics[0]) {
@@ -40,12 +40,8 @@ function commandDiagnostic(error: unknown): WindowManagerDiagnosticPayload {
     const code = error.payload?.code ?? "command_failed";
     return { code, path: null, message: REFUSAL_NOTICES[code] ?? GENERIC_REFUSAL_NOTICE };
   }
-  return {
-    code: "command_failed",
-    path: null,
-    message:
-      error instanceof Error && error.message !== "" ? error.message : GENERIC_REFUSAL_NOTICE,
-  };
+  // Transport errors carry engineer text; the status pill only speaks plain language.
+  return { code: "command_failed", path: null, message: GENERIC_REFUSAL_NOTICE };
 }
 
 /** Reports a command the daemon applied, carrying its first advisory if any. */

@@ -2,6 +2,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@compozy/ui";
 
 import { hasNoRecordedWork } from "../lib/home-overview-empty";
+import type { HomeSystemModel } from "../lib/home-system";
 import { homeScopeForActiveWorkspace, type HomeScope } from "../lib/home-scope";
 import { homeActivityOptions, homeOverviewOptions } from "../lib/query-options";
 import type {
@@ -15,7 +16,7 @@ import { useHomeAttentionActions, type HomeAttentionActions } from "./use-home-a
 import { useHomeAgents, type HomeAgentsModel } from "./use-home-agents";
 import { useHomeLive } from "./use-home-live";
 import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
-import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
+import { useHomeSystem } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
 import { useDaemonHealth } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";

@@ -25,10 +25,11 @@ export interface OsPaletteSessionRowProps {
 
 /**
  * One session inside the palette Sessions view: the 18 px roundel, the title,
- * the exact state word beside its agent, and how long ago that state changed.
+ * the plain state word beside its agent, and how long ago that state changed.
  *
- * The state word is always spelled out in the daemon's own vocabulary, so the
- * roundel's tone is never the only thing carrying the state.
+ * The state is always spelled out in plain words (`displayLabel`), so the
+ * roundel's tone is never the only thing carrying it; the exact state token
+ * stays one step deeper in `data-session-state`.
  */
 export function OsPaletteSessionRow({ session, owner, workspaceLabel }: OsPaletteSessionRowProps) {
   const signal = sessionBadgeSignal(session.badge);
@@ -41,8 +42,11 @@ export function OsPaletteSessionRow({ session, owner, workspaceLabel }: OsPalett
           {getSessionDisplayTitle(session)}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-micro leading-snug text-subtle">
-          <span className={cn("shrink-0", sessionBadgeWordClass(session.badge))}>
-            {signal.label}
+          <span
+            className={cn("shrink-0", sessionBadgeWordClass(session.badge))}
+            data-session-state={signal.label}
+          >
+            {signal.displayLabel}
           </span>
           {agentName === "" ? null : <span className="truncate">{agentName}</span>}
           {workspaceLabel === undefined ? null : (

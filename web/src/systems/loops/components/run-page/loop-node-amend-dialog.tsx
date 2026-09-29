@@ -59,7 +59,6 @@ type OpenLoopNodeAmendDialogProps = Omit<LoopNodeAmendDialogProps, "node"> & {
 const DIALOG_WIDTH = { className: "sm:max-w-(--width-modal-md)" };
 const EDITOR_LABEL_ID = "loop-amend-editor-label";
 const ORIGINAL_LABEL_ID = "loop-amend-original-label";
-const MICRO_FIELD_LIMIT = 3;
 
 export function LoopNodeAmendDialog({ node, ...props }: LoopNodeAmendDialogProps) {
   if (!node) return null;
@@ -108,7 +107,7 @@ function LoopNodeAmendDialogForm({
       footNote={
         <>
           <Info aria-hidden="true" />
-          <span>{amendMicro(node, fields, structured)}</span>
+          <span>{amendMicro(node)}</span>
         </>
       }
       icon={LOOP_NODE_VERB_ICONS.amend}
@@ -340,14 +339,6 @@ function rawSeed(value: unknown): string {
   return JSON.stringify(value, null, 2) ?? "";
 }
 
-function amendMicro(
-  node: LoopNodeLifecycle,
-  fields: readonly LoopRequestField[],
-  structured: boolean
-): string {
-  if (!structured) return `gen ${node.generation} · rev ${node.revision} · output_shape raw json`;
-  const shown = fields.slice(0, MICRO_FIELD_LIMIT).map(field => field.name);
-  const remaining = fields.length - shown.length;
-  const names = remaining > 0 ? `${shown.join(", ")} +${remaining}` : shown.join(", ");
-  return `gen ${node.generation} · rev ${node.revision} · output_shape {${names}}`;
+function amendMicro(node: LoopNodeLifecycle): string {
+  return `Round ${node.generation} · revision ${node.revision}`;
 }

@@ -114,18 +114,19 @@ describe("AutomationRunHistory", () => {
     expect(failedRow.tagName).toBe("A");
     expect(within(failedRow).getByText("timeout")).toBeInTheDocument();
     expect(within(failedRow).getByText("Delivery: dispatcher unavailable")).toBeInTheDocument();
-    expect(within(completedRow).getByText("fire_daily_review_001")).toBeInTheDocument();
-    expect(screen.getByText(/scheduled Apr 11, 2026/)).toBeInTheDocument();
+    expect(within(completedRow).queryByText("fire_daily_review_001")).not.toBeInTheDocument();
+    expect(screen.getByText(/Scheduled Apr 11, 2026/)).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getAllByRole("listitem").every(item => item.tagName === "LI")).toBe(true);
   });
 
-  it("Should render rows without a session as static rows that surface a pending hint", () => {
+  it("Should render rows without a session as static rows without a chevron", () => {
     render(<AutomationRunHistory error={null} isLoading={false} runs={[pendingRun]} />);
 
     const row = screen.getByTestId("automation-run-run_003");
     expect(row.tagName).toBe("DIV");
-    expect(within(row).getByText("pending")).toBeInTheDocument();
+    expect(row.querySelector("svg.lucide-chevron-right")).toBeNull();
+    expect(within(row).queryByText("pending")).not.toBeInTheDocument();
   });
 
   it("Should surface a durable skip reason on a canceled run without inventing a new status", () => {
@@ -144,9 +145,11 @@ describe("AutomationRunHistory", () => {
     render(<AutomationRunHistory error={null} isLoading={false} runs={[overlapSkip]} />);
 
     const row = screen.getByTestId("automation-run-run_skip");
-    expect(within(row).getByText("CANCELED")).toBeInTheDocument();
-    expect(within(row).getByTestId("automation-run-skip-reason")).toHaveTextContent("OVERLAP");
-    expect(within(row).getByText("A previous run was still active.")).toBeInTheDocument();
+    expect(within(row).getByText("Canceled")).toBeInTheDocument();
+    expect(within(row).getByTestId("automation-run-skip-reason")).toHaveTextContent("Skipped");
+    expect(
+      within(row).getByText("Skipped because the previous run was still going.")
+    ).toBeInTheDocument();
     expect(within(row).queryByText("pending")).not.toBeInTheDocument();
   });
 
@@ -171,7 +174,7 @@ describe("AutomationRunHistory", () => {
     const row = screen.getByTestId("automation-run-run_loop");
     expect(row.tagName).toBe("A");
     expect(row).toHaveAttribute("href", "/loop-runs/looprun_aeb24d4f17cf1feb?workspace=ws_target");
-    expect(within(row).getByText("looprun_aeb24d4f17cf1feb")).toBeInTheDocument();
+    expect(within(row).queryByText("looprun_aeb24d4f17cf1feb")).not.toBeInTheDocument();
     expect(within(row).queryByText("pending")).not.toBeInTheDocument();
   });
 });

@@ -11,13 +11,19 @@ import {
   type LaneTabsItem,
 } from "@compozy/ui";
 
+import {
+  type TaskOverviewCompletedResult,
+  useCompletedRunResult,
+} from "./hooks/use-completed-run-result";
 import { TaskDetailOverlays } from "./task-detail-overlays";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
 import { TaskDetailTopbar } from "./task-detail-topbar";
-import { useTaskDetailLocation } from "./use-task-detail-location";
+import {
+  type TaskDetailLocationController,
+  useTaskDetailLocation,
+} from "./use-task-detail-location";
 import {
   type ResolvedTaskDetailSearch,
-  latestTaskRun,
   TaskActivityPanel,
   type TaskDetailTab,
   TaskOverviewPanel,
@@ -25,7 +31,6 @@ import {
   type TaskRunReview,
   TaskRunsPanel,
   TasksDetailSubhead,
-  useTaskRunResult,
 } from "@/systems/tasks";
 
 function buildTabItems(runCount: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
@@ -72,6 +77,12 @@ function TaskDetailLoading() {
   );
 }
 
+type TaskDetailData = {
+  detail: NonNullable<TaskDetailLocationController["detail"]>;
+  record: NonNullable<TaskDetailLocationController["record"]>;
+  command: NonNullable<TaskDetailLocationController["command"]>;
+};
+
 export function TaskDetailLocation({
   taskId,
   search,
@@ -81,61 +92,94 @@ export function TaskDetailLocation({
 }) {
   const controller = useTaskDetailLocation(taskId, search);
   const { page, detail, record, command } = controller;
-  const completedRun = latestTaskRun(page.runs, "completed");
-  const completedRunResult = useTaskRunResult({
-    resultBytes: completedRun?.result_bytes ?? 0,
-    resultRef: completedRun?.result_ref ?? "",
-    runId: completedRun?.id ?? "",
-    workspaceId: record?.workspace_id ?? "",
-  });
+  const completedResult = useCompletedRunResult(page.runs, record?.workspace_id);
 
   if (page.detailLoading) {
     return <TaskDetailLoading />;
   }
-
   if (!page.notFound && page.detailError) {
-    return (
-      <div
-        className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
-        data-testid="tasks-detail-error"
-      >
-        <Empty
-          action={
-            <Button onClick={() => void page.handleRetryDetail()} size="sm" type="button">
-              Retry
-            </Button>
-          }
-          description={page.detailError.message}
-          icon={AlertCircle}
-          title="Couldn't load task"
-        />
-      </div>
-    );
+    return <TaskDetailError message={page.detailError.message} onRetry={page.handleRetryDetail} />;
   }
-
   if (page.notFound || !detail || !record || !command) {
     return (
-      <div
-        className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
-        data-testid="tasks-detail-not-found"
-      >
-        <Empty
-          icon={AlertCircle}
-          title="Task not found"
-          description={page.fatalError?.message ?? `No task with id "${taskId}" in this workspace.`}
-          action={
-            <Button onClick={controller.backToTasks} size="sm" type="button" variant="ghost">
-              <ClipboardList aria-hidden="true" className="size-3" />
-              Back to tasks
-            </Button>
-          }
-        />
-      </div>
+      <TaskDetailNotFound message={page.fatalError?.message} onBack={controller.backToTasks} />
     );
   }
+  return (
+    <TaskDetailContent
+      command={command}
+      completedResult={completedResult}
+      controller={controller}
+      detail={detail}
+      record={record}
+      taskId={taskId}
+    />
+  );
+}
 
+function TaskDetailError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => Promise<unknown> | void;
+}) {
+  return (
+    <div
+      className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
+      data-testid="tasks-detail-error"
+    >
+      <Empty
+        action={
+          <Button onClick={() => void onRetry()} size="sm" type="button">
+            Retry
+          </Button>
+        }
+        description={message}
+        icon={AlertCircle}
+        title="Couldn't load task"
+      />
+    </div>
+  );
+}
+
+function TaskDetailNotFound({ message, onBack }: { message?: string; onBack: () => void }) {
+  return (
+    <div
+      className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
+      data-testid="tasks-detail-not-found"
+    >
+      <Empty
+        icon={AlertCircle}
+        title="Task not found"
+        description={message ?? `This task isn't in this project.`}
+        action={
+          <Button onClick={onBack} size="sm" type="button" variant="ghost">
+            <ClipboardList aria-hidden="true" className="size-3" />
+            Back to tasks
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
+function TaskDetailContent({
+  controller,
+  taskId,
+  detail,
+  record,
+  command,
+  completedResult,
+}: TaskDetailData & {
+  controller: TaskDetailLocationController;
+  taskId: string;
+  completedResult: TaskOverviewCompletedResult;
+}) {
+  const { page } = controller;
   const reviewsByRun = groupReviewsByRun(page.reviews);
   const canStartRun = command.primary?.kind === "start";
+  const isDraft = record.draft || record.status === "draft";
 
   return (
     <div
@@ -162,14 +206,7 @@ export function TaskDetailLocation({
                 <TabsContent value="overview">
                   <TaskOverviewPanel
                     activeRunElapsed={controller.activeElapsed}
-                    completedResult={
-                      completedRun
-                        ? {
-                            external: completedRun.result_ref ? completedRunResult : undefined,
-                            run: completedRun,
-                          }
-                        : undefined
-                    }
+                    completedResult={completedResult}
                     detail={detail}
                     isLive={page.isLive}
                     nowHandlers={{
@@ -197,7 +234,7 @@ export function TaskDetailLocation({
                 <TabsContent value="runs">
                   <TaskRunsPanel
                     emptyDescription={
-                      record.draft || record.status === "draft"
+                      isDraft
                         ? "Saved intent only. Runs appear after you publish, start, or approve a task."
                         : undefined
                     }
@@ -225,17 +262,11 @@ export function TaskDetailLocation({
               </main>
               <aside className={TASK_DETAIL_RAIL_CLASS}>
                 <TaskPropertiesRail
-                  approvalPending={{
-                    approve: page.isApprovePending,
-                    reject: page.isRejectPending,
-                  }}
                   detail={detail}
-                  onApprove={() => void page.handleApproveTask()}
                   onAutoEnqueueChange={enabled => void controller.handleAutoEnqueueChange(enabled)}
                   onEditSetup={() => controller.setSetupOpen(true)}
                   onInspect={() => controller.setInspectOpen(true)}
                   onPriorityChange={priority => void controller.handlePriorityChange(priority)}
-                  onReject={() => void page.handleRejectTask()}
                   profile={page.profile}
                   runs={page.runs}
                   updatePending={controller.updatePending}

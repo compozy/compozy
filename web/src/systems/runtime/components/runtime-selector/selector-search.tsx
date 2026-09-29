@@ -54,7 +54,7 @@ export function SelectorSearch({
         <>
           <Plus aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
           <label htmlFor={exactInputId} className="shrink-0 text-badge font-medium text-fg">
-            {allowCustomProvider ? "Exact runtime ID" : "Exact model ID"}
+            {allowCustomProvider ? "Use this exact provider name" : "Use this exact model name"}
           </label>
         </>
       ) : (

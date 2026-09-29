@@ -72,21 +72,23 @@ export function LoopConfigureDialog({
         <EntityDialogBody className="flex flex-col" data-testid="loop-configure-body">
           <Alert data-testid="loop-configure-structural-note" variant="neutral">
             <AlertDescription>
-              Steps, inputs, node kinds and the goal stay fixed here. To change those,{" "}
-              <button
-                className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:no-underline disabled:opacity-70"
+              Steps, inputs, and the goal stay fixed here. To change those,{" "}
+              <Button
+                className="h-auto px-0 align-baseline"
                 data-testid="loop-configure-edit-link"
                 disabled={!onOpenEditor || model.busy}
                 onClick={onOpenEditor}
+                size="sm"
                 type="button"
+                variant="link"
               >
-                {loop.source === "workspace" ? "Edit" : "Fork & edit"}
-              </button>{" "}
-              the definition in the builder.
+                {loop.source === "workspace" ? "Edit" : "Copy and edit"}
+              </Button>{" "}
+              it in the builder.
             </AlertDescription>
           </Alert>
 
-          <FormSection rightLabel="declared in the loop" title="Review gate">
+          <FormSection title="Checks">
             <LoopConfigureChecks
               descriptors={model.descriptors}
               disabled={model.busy}
@@ -96,21 +98,20 @@ export function LoopConfigureDialog({
             />
           </FormSection>
 
-          <FormSection title="Human approval gate">
+          <FormSection title="Your approval">
             <div className="overflow-hidden rounded-lg border border-line-soft bg-canvas-tint">
               <LoopConfigureSwitchRow
                 checked={model.draft.humanGateEnabled}
                 disabled={model.busy}
-                help="Pauses the run as needs-approval for a human decision before it completes. Off by default."
+                help="Pauses the run and asks you to approve before it finishes. Off by default."
                 onCheckedChange={model.setHumanGate}
                 testId="loop-configure-human-gate"
-                title="Pause for a human decision"
-                typeLabel="human"
+                title="Ask me before finishing"
               />
             </div>
           </FormSection>
 
-          <FormSection title="Re-attempt strategy">
+          <FormSection title="If a round fails">
             <LoopConfigureStrategy
               disabled={model.busy}
               onChange={model.setStrategy}
@@ -153,7 +154,7 @@ export function LoopConfigureDialog({
             />
           ) : null}
 
-          <FormSection rightLabel="per-loop defaults" title="Stop limits">
+          <FormSection title="Limits">
             <LoopConfigureLimits
               disabled={model.busy}
               draft={model.draft.limits}

@@ -1,11 +1,17 @@
-import { AlertCircle } from "lucide-react";
-
-import { Alert, AlertDescription, Button, Spinner, Switch } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  NativeSelect,
+  NativeSelectOption,
+  Switch,
+} from "@compozy/ui";
 
 import {
   AttentionSystemStateChip,
   SettingsGroup,
   SettingsPageFrame,
+  SettingsPageState,
   SettingRow,
   attentionSystemStateNote,
   useSettingsAttentionPage,
@@ -24,30 +30,30 @@ function MutedWorkspaces({
   const mutedIds = new Set(muted);
   const available = workspaces.filter(workspace => !mutedIds.has(workspace.id));
   return (
-    <SettingsGroup title="Muted workspaces">
+    <SettingsGroup title="Muted projects">
       <SettingRow
-        label="Silence a workspace"
-        description="Silenced everywhere; bell rows and counts remain"
+        label="Mute a project"
+        description="You won't be alerted; they still appear in the bell."
         control={
-          <select
-            aria-label="Mute a workspace"
+          <NativeSelect
+            aria-label="Mute a project"
             data-testid="settings-attention-mute-picker"
-            className="h-7 rounded-sm border border-line bg-canvas px-2 text-small-body text-fg"
+            size="sm"
             value=""
             disabled={page.isSaving || available.length === 0}
             onChange={event => page.muteWorkspace(event.target.value)}
           >
-            <option value="">Mute a workspace…</option>
+            <NativeSelectOption value="">Choose a project…</NativeSelectOption>
             {available.map(workspace => (
-              <option key={workspace.id} value={workspace.id}>
+              <NativeSelectOption key={workspace.id} value={workspace.id}>
                 {workspace.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         }
       />
       {muted.length === 0 ? (
-        <SettingRow label="Nothing muted" control={null} />
+        <p className="px-4 py-3 text-form-label text-subtle">No muted projects.</p>
       ) : (
         muted.map(workspaceId => (
           <SettingRow
@@ -77,34 +83,17 @@ export function AttentionSettingsPage() {
   const { workspaces } = useActiveWorkspace();
 
   if (page.isLoading) {
-    return (
-      <div
-        aria-label="Loading attention settings"
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-attention-loading"
-        role="status"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="attention" state="loading" />;
   }
 
   if (page.error || page.config === null) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-attention-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load attention settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="attention"
+        state="error"
+      />
     );
   }
 
@@ -121,12 +110,12 @@ export function AttentionSettingsPage() {
       ) : null}
       <SettingsGroup title="Delivery">
         <SettingRow
-          label="Toasts"
+          label="Pop-up alerts"
           control={
             <Switch
               checked={page.config.toasts}
               disabled={page.isSaving}
-              aria-label="Toasts"
+              aria-label="Pop-up alerts"
               data-testid="settings-attention-toasts"
               onCheckedChange={page.setToasts}
             />

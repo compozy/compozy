@@ -43,13 +43,21 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-5">
       <AgentSettingsBanners {...props} />
       {section === "basics" ? (
-        <AgentSettingsBasicsSection
-          draft={draft}
-          errors={errors}
-          disabled={disabled}
-          readOnly={fieldsReadOnly}
-          onPatch={props.onPatch}
-        />
+        <>
+          <AgentSettingsBasicsSection
+            draft={draft}
+            errors={errors}
+            disabled={disabled}
+            readOnly={fieldsReadOnly}
+            onPatch={props.onPatch}
+          />
+          <AgentSettingsDangerSection
+            agent={agent}
+            onDelete={props.onDelete}
+            isDeleting={props.isDeleting}
+            disabled={disabled || fieldsReadOnly}
+          />
+        </>
       ) : null}
       {section === "runtime" ? (
         <AgentSettingsRuntimeSection
@@ -87,14 +95,6 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
         />
       ) : null}
       {section === "mcp" ? <AgentSettingsMcpSection agent={agent} /> : null}
-      {section === "danger" ? (
-        <AgentSettingsDangerSection
-          agent={agent}
-          onDelete={props.onDelete}
-          isDeleting={props.isDeleting}
-          disabled={disabled || fieldsReadOnly}
-        />
-      ) : null}
     </div>
   );
 }
@@ -105,8 +105,8 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
       {props.phase === "denied" ? (
         <ActionResultBanner
           tone="danger"
-          title="Editing requires an operator token"
-          description="Add an operator token, then reload this page to edit the definition."
+          title="You can't edit this agent"
+          description="You don't have permission to edit this agent. Ask the person who runs CompozyOS for access."
           data-testid="agent-settings-mutation-denied"
         />
       ) : null}

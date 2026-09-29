@@ -13,6 +13,9 @@ import { Provider as TanStackQueryProvider } from "./integrations/tanstack-query
 import "./styles.css";
 
 const TanStackQueryProviderContext = getContext();
+// No `defaultViewTransition`: the router cannot tell an in-window drill from a
+// window focus change, and its callback resolves before React commits. The OS
+// window-manager runtime owns view transitions (`runViewTransition`).
 const router = createRouter({
   routeTree,
   context: {

@@ -95,7 +95,7 @@ describe("LoopRunInputField", () => {
       />
     );
     expect(screen.getByTestId("loop-run-field-input-runtime").tagName).toBe("BUTTON");
-    expect(screen.getByTestId("loop-run-field-runtime")).toHaveTextContent("runtime");
+    expect(screen.getByTestId("loop-run-field-runtime")).toHaveTextContent("Runtime");
     fireEvent.click(screen.getByTestId("loop-run-field-input-runtime"));
     fireEvent.click(screen.getByTestId("runtime-selector-speed"));
     expect(onRuntimeChange).toHaveBeenCalledWith({
@@ -105,7 +105,7 @@ describe("LoopRunInputField", () => {
     });
   });
 
-  it("Should render the declared type verbatim in the badge (boolean, not bool)", () => {
+  it("Should label an input in plain words and keep the key and type off screen", () => {
     render(
       <LoopRunInputField
         name="auto_commit"
@@ -114,7 +114,11 @@ describe("LoopRunInputField", () => {
         onChange={vi.fn()}
       />
     );
-    expect(screen.getByTestId("loop-run-field-auto_commit")).toHaveTextContent("boolean");
+    const wrapper = screen.getByTestId("loop-run-field-auto_commit");
+    expect(wrapper).toHaveAttribute("data-input-type", "boolean");
+    expect(wrapper).toHaveTextContent("Auto commit");
+    expect(wrapper).not.toHaveTextContent("boolean");
+    expect(screen.getByTitle("auto_commit")).toBeInTheDocument();
   });
 
   it("Should surface the required marker and inline error", () => {
@@ -123,12 +127,12 @@ describe("LoopRunInputField", () => {
         name="slug"
         field={field({ type: "string", required: true })}
         value=""
-        error="slug is required to run this loop."
+        error="Slug is required to run this Loop."
         onChange={vi.fn()}
       />
     );
     expect(screen.getByText("required")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent("slug is required");
+    expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent("Slug is required");
   });
 
   it("Should mark a required boolean with the same required affix", () => {

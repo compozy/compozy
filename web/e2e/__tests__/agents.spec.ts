@@ -155,7 +155,7 @@ test.describe("seeded agent detail", () => {
     expect((await saveResponse).ok()).toBe(true);
     await expect(appPage.getByTestId("agent-settings-unsaved")).toHaveCount(0);
 
-    await appPage.getByTestId("agent-settings-close").click();
+    await appPage.getByRole("button", { name: "Close settings" }).click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
     await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
   });
@@ -174,9 +174,7 @@ test.describe("seeded agent detail", () => {
     await expect(appPage.getByText("MCP servers are not copied.")).toHaveCount(0);
   });
 
-  test("operator deletes an agent from settings danger zone with typed confirm", async ({
-    appPage,
-  }) => {
+  test("operator deletes an agent from settings basics with typed confirm", async ({ appPage }) => {
     const ui = sessionLifecycleSelectors(appPage);
     await completeOnboardingIfPrompted(ui);
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
@@ -184,7 +182,6 @@ test.describe("seeded agent detail", () => {
     await fleet.agentRow("agent-detail-secondary").click();
     await appPage.getByTestId("agent-page-overflow").click();
     await appPage.getByTestId("agent-page-edit-settings").click();
-    await appPage.getByTestId("agent-settings-nav-danger").click();
     await appPage.getByTestId("agent-settings-delete").click();
     await expect(appPage.getByTestId("agent-delete-dialog")).toBeVisible();
     await expect(appPage.getByTestId("agent-delete-confirm")).toBeDisabled();
@@ -389,7 +386,9 @@ test.describe("empty-fleet first-contact journey", () => {
     await expect(appPage.getByTestId("agent-fleet-empty")).toBeVisible();
     await expect(appPage.getByText("No agents yet")).toBeVisible();
     await expect(
-      appPage.getByText("Agents define the provider, model, and instructions a session runs with.")
+      appPage.getByText(
+        "An agent is an assistant with its own instructions and model. Create one to start working with it."
+      )
     ).toBeVisible();
     await expect(appPage.getByTestId("agents-topbar-create")).toHaveCount(0);
     await appPage.getByTestId("agent-fleet-empty-create").click();

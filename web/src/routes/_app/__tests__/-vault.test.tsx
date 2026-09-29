@@ -9,18 +9,16 @@ import {
   type VaultDeleteState,
   type VaultDraft,
   type VaultEditorState,
-  type VaultLastAction,
   type VaultNamespaceFilter,
 } from "@/systems/vault";
 
 import type { ListingViewMode } from "@compozy/ui";
 
 type PageState = {
-  counts: { total: number; sessions: number; providers: number };
+  counts: { total: number };
   deleteError: string | null;
   deleteIsPending: boolean;
   deleteTarget: VaultDeleteState;
-  dismissLastAction: ReturnType<typeof vi.fn>;
   editor: VaultEditorState;
   editorError: string | null;
   editorIsSaving: boolean;
@@ -29,7 +27,6 @@ type PageState = {
   filter: VaultListFilter;
   isLoading: boolean;
   isRefetching: boolean;
-  lastAction: VaultLastAction | null;
   namespace: VaultNamespaceFilter;
   prefix: string;
   queryError: string | null;
@@ -80,11 +77,10 @@ const sessionSecret: VaultSecret = {
 
 function makeState(overrides: Partial<PageState> = {}): PageState {
   return {
-    counts: { total: 1, sessions: 1, providers: 0 },
+    counts: { total: 1 },
     deleteError: null,
     deleteIsPending: false,
     deleteTarget: { mode: "closed" },
-    dismissLastAction: vi.fn(),
     editor: { mode: "closed" },
     editorError: null,
     editorIsSaving: false,
@@ -93,7 +89,6 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     filter: {},
     isLoading: false,
     isRefetching: false,
-    lastAction: null,
     namespace: "all",
     prefix: "",
     queryError: null,
@@ -128,16 +123,15 @@ beforeEach(() => {
 });
 
 describe("VaultPage", () => {
-  it("renders vault counts, filters, and redacted metadata rows", () => {
+  it("renders the security note, filters, and friendly secret rows", () => {
     render(<VaultPage />);
 
-    expect(screen.getByTestId("vault-page-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("vault-page-sessions")).toHaveTextContent("1 session-scoped");
     expect(screen.getByTestId("vault-list-filters-add")).toBeInTheDocument();
     expect(screen.getByTestId("vault-page-sec-note")).toHaveTextContent(
-      "1 redacted metadata entry"
+      "Values are encrypted. You can't view a secret after you save it."
     );
-    expect(screen.getByTestId("vault-page-list")).toHaveTextContent(sessionSecret.ref);
+    expect(screen.getByTestId("vault-page-sec-note")).not.toHaveTextContent("1");
+    expect(screen.getByTestId("vault-page-list")).toHaveTextContent("github-token");
     expect(screen.getByTestId("vault-page-list")).not.toHaveTextContent("super-secret-token");
     expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
   });
@@ -197,7 +191,7 @@ describe("VaultPage", () => {
     render(<VaultPage />);
 
     expect(screen.getByTestId("settings-vault-editor-overwrite")).toHaveTextContent(
-      /rotates its write-only value/i
+      /replaces its value everywhere/i
     );
     expect(screen.getByTestId("settings-vault-editor-overwrite-confirm")).toHaveAttribute(
       "aria-checked",
@@ -240,7 +234,7 @@ describe("VaultPage", () => {
 
     expect(screen.getByTestId("vault-secret-sheet")).toBeInTheDocument();
     expect(screen.getByTestId("vault-secret-sheet-ref")).toHaveTextContent(sessionSecret.ref);
-    expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("write-only");
+    expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("Saved");
     expect(screen.queryByText("super-secret-token")).toBeNull();
 
     fireEvent.click(screen.getByTestId(`vault-secrets-select-${sessionSecret.ref}`));
@@ -283,7 +277,7 @@ describe("VaultPage", () => {
     expect(confirmDelete).toHaveBeenCalled();
   });
 
-  it("session-scoped delete uses a single Confirm button without confirmTyping", () => {
+  it("session-scoped delete confirms without typing", () => {
     mockUseVaultPage.mockReturnValue(
       makeState({
         deleteTarget: { mode: "open", secret: sessionSecret },
@@ -298,7 +292,7 @@ describe("VaultPage", () => {
     expect(screen.getByTestId("settings-vault-delete-confirm")).toBeEnabled();
   });
 
-  it("cross-scope delete gates the Confirm button behind confirmTyping", () => {
+  it("cross-scope delete gates the Confirm button behind typing the secret name", () => {
     const providerSecret: VaultSecret = {
       ref: "vault:providers/codex/api_key",
       namespace: "providers",
@@ -322,6 +316,8 @@ describe("VaultPage", () => {
     expect(typingInput).toBeInTheDocument();
     expect(screen.getByTestId("settings-vault-delete-confirm")).toBeDisabled();
     fireEvent.change(typingInput, { target: { value: providerSecret.ref } });
+    expect(screen.getByTestId("settings-vault-delete-confirm")).toBeDisabled();
+    fireEvent.change(typingInput, { target: { value: "api_key" } });
     expect(screen.getByTestId("settings-vault-delete-confirm")).toBeEnabled();
   });
 

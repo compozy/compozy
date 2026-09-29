@@ -50,7 +50,7 @@ export function SessionWorktreeBindingChip({
         aria-label={
           missing ? `Worktree ${name} is missing — resolve` : `Worktree ${name} — open its context`
         }
-        className={cn(CHIP_CLASS, missing && "border-dashed text-info [&_svg]:text-info")}
+        className={cn(CHIP_CLASS, missing && "border-dashed text-warning [&_svg]:text-warning")}
         onClick={missing ? onResolve : onOpenContext}
         size="sm"
         type="button"

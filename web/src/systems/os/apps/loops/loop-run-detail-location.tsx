@@ -2,7 +2,7 @@ import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
+import { Empty, PAGE_CONTENT_GUTTER, Skeleton, SkeletonRows, cn, useTopbarSlot } from "@compozy/ui";
 import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDetail } from "./use-loop-run-detail";
 import { useLoopRunTopbar } from "./hooks/use-loop-run-topbar";
@@ -55,9 +55,9 @@ export function LoopRunDetailLocation({
       >
         <Empty
           className="max-w-md"
-          description="Select a workspace to monitor this run."
+          description="Select a project to monitor this run."
           icon={Activity}
-          title="No workspace selected"
+          title="No project selected"
         />
       </div>
     );
@@ -110,10 +110,12 @@ function LoopRunDetail({
   if (page.runQuery.isLoading) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center"
+        aria-busy="true"
+        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-6 pt-6")}
         data-testid="loop-run-detail-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+        <Skeleton className="h-7 w-48" />
+        <SkeletonRows count={3} rowClassName="border-b border-line-soft py-3" />
       </div>
     );
   }
@@ -121,13 +123,15 @@ function LoopRunDetail({
   if (page.runQuery.error || !page.effectiveRun || !page.materializedContract) {
     return (
       <div
-        className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="loop-run-detail-not-found"
       >
-        <AlertCircle className="size-6 text-danger" />
-        <p className="text-sm text-muted">
-          {page.runQuery.error?.message || `Run ${runId} not found.`}
-        </p>
+        <Empty
+          className="max-w-md"
+          description={page.runQuery.error?.message || "This run no longer exists."}
+          icon={AlertCircle}
+          title="Couldn't open this run"
+        />
       </div>
     );
   }
@@ -313,7 +317,6 @@ function LoopRunDetailDialogs({
         }}
         onVerb={nodeControls.onVerb}
         open={quarantineNode !== null}
-        runId={runId}
       >
         {sheetNestsNodeDialog ? (
           <LoopNodeControlDialog

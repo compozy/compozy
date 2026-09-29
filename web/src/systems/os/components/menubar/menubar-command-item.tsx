@@ -27,7 +27,6 @@ export function MenubarCommandItem({ commandId, onRun }: MenubarCommandItemProps
     <MenubarItem
       data-testid={`os-menubar-command-${commandId}`}
       disabled={!command.available}
-      title={command.available ? undefined : command.reason}
       onClick={() => onRun(commandId)}
     >
       <span className="min-w-0 flex-1">

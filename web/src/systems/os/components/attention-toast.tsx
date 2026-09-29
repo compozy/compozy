@@ -1,6 +1,6 @@
 import { Megaphone } from "lucide-react";
 
-import { Button, Icon } from "@compozy/ui";
+import { Button, cn, Icon } from "@compozy/ui";
 
 import { SessionBadgeGlyph } from "@/systems/session";
 
@@ -32,32 +32,32 @@ function ToastFrame({
 }) {
   return (
     <div
-      role={onActivate ? "button" : undefined}
-      tabIndex={onActivate ? 0 : undefined}
       data-testid={testId}
-      className="pointer-events-auto flex w-full items-start gap-2.5 rounded-lg border border-line bg-canvas-soft p-3 text-left shadow-overlay"
-      onClick={onActivate}
-      onKeyDown={event => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onActivate?.();
-      }}
+      className="pointer-events-auto relative flex w-full items-start gap-2.5 rounded-lg border border-line bg-canvas-soft p-3 text-left shadow-overlay"
     >
       {mark}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-small-body font-semibold text-fg-strong">{title}</span>
+        {onActivate ? (
+          // The title's stretched overlay makes the whole card the jump without
+          // nesting the action button inside another interactive element.
+          <button
+            type="button"
+            onClick={onActivate}
+            className={cn(
+              "truncate text-left text-small-body font-semibold text-fg-strong focus-visible:outline-none",
+              "after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring"
+            )}
+          >
+            {title}
+          </button>
+        ) : (
+          <span className="truncate text-small-body font-semibold text-fg-strong">{title}</span>
+        )}
         {body ? <span className="text-small-body text-fg">{body}</span> : null}
-        <span className="mt-0.5 font-mono text-micro text-faint">{meta}</span>
+        {meta ? <span className="mt-0.5 font-mono text-micro text-faint">{meta}</span> : null}
         {action ? (
-          <span className="mt-1.5 flex">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={event => {
-                event.stopPropagation();
-                action.onClick();
-              }}
-            >
+          <span className="relative z-10 mt-1.5 flex">
+            <Button size="sm" variant="outline" onClick={action.onClick}>
               {action.label}
             </Button>
           </span>
@@ -141,7 +141,8 @@ export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
       }
       title={notification.title}
       {...(notification.body ? { body: notification.body } : {})}
-      meta={`${target?.workspaceLabel ?? notification.workspace_id} · ${target?.agentName ?? notification.session_id}`}
+      // Unresolved targets omit the missing half rather than print raw IDs.
+      meta={[target?.workspaceLabel, target?.agentName].filter(Boolean).join(" · ")}
       onActivate={onActivate}
     />
   );

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn, HelpTip, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { Button, cn, HelpTip, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 import type { CronFrequency, CronModel } from "../../lib/cron-engine";
 import { formatClock, SCHEDULE_CONSTANTS } from "../../lib/cron-engine";
@@ -49,7 +49,7 @@ interface FrequencyOption {
 const CRON_PRESETS: CronPreset[] = [
   { label: "Weekdays 9am", expr: "0 9 * * 1-5" },
   { label: "Daily 9am", expr: "0 9 * * *" },
-  { label: "Hourly", expr: "0 * * * *" },
+  { label: "Every hour", expr: "0 * * * *" },
   { label: "Every 15 min", expr: "*/15 * * * *" },
   { label: "Mondays 8am", expr: "0 8 * * 1" },
   { label: "Midnight", expr: "0 0 * * *" },
@@ -143,17 +143,10 @@ export function CronBuilder({
               aria-pressed={pressed}
               className={cn(CHIP_BASE, pressed ? CHIP_SELECTED : CHIP_RESTING)}
               onClick={() => onPreset(preset.expr)}
+              title={preset.expr}
               type="button"
             >
               {preset.label}
-              <span
-                className={cn(
-                  "font-mono text-form-hint",
-                  pressed ? "text-accent-strong opacity-75" : "text-subtle"
-                )}
-              >
-                {preset.expr}
-              </span>
             </button>
           );
         })}
@@ -326,13 +319,9 @@ export function CronBuilder({
         <div className="mb-1.5 flex items-center justify-between">
           <span className="eyebrow text-faint">Cron expression</span>
           {isCustom ? null : (
-            <button
-              className="rounded-xs px-1.5 py-0.5 text-form-label font-medium text-accent-strong transition-colors outline-none hover:bg-accent-tint focus-visible:shadow-focus-ring"
-              onClick={() => onFrequency("custom")}
-              type="button"
-            >
-              Edit raw →
-            </button>
+            <Button onClick={() => onFrequency("custom")} size="sm" type="button" variant="link">
+              Edit expression
+            </Button>
           )}
         </div>
         <Input
@@ -344,13 +333,15 @@ export function CronBuilder({
           readOnly={!isCustom}
           value={expr}
         />
-        <div className="mt-2 grid grid-cols-5 gap-2">
-          {CRON_LEGEND.map(cell => (
-            <span key={cell} className="eyebrow text-center text-subtle">
-              {cell}
-            </span>
-          ))}
-        </div>
+        {isCustom ? (
+          <div className="mt-2 grid grid-cols-5 gap-2">
+            {CRON_LEGEND.map(cell => (
+              <span key={cell} className="eyebrow text-center text-subtle">
+                {cell}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <output

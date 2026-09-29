@@ -40,6 +40,17 @@ describe("runElapsedSeconds", () => {
 
     expect(runElapsedSeconds(historical, Date.parse("2026-07-22T15:00:00Z"))).toBe(18 * 60);
   });
+
+  it("Should stop a finished run at its completion time", () => {
+    const finished = run({
+      status: "done",
+      created_at: "2026-07-22T14:00:00Z",
+      completed_at: "2026-07-22T14:05:00Z",
+      last_progress_at: "2026-07-22T14:18:00Z",
+    });
+
+    expect(runElapsedSeconds(finished, Date.parse("2026-07-22T15:00:00Z"))).toBe(5 * 60);
+  });
 });
 
 describe("terminalRunElapsedSeconds", () => {

@@ -3,7 +3,7 @@ import { Check, LoaderCircle } from "lucide-react";
 import { SessionWorkEntryView } from "./session-work-entry";
 import { summaryFailureSuffix } from "./session-timeline-summary";
 import { isStreamingState, type SessionWorkRow } from "./session-timeline.logic";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 export interface SessionToolGroupRowProps {
   row: SessionWorkRow;
