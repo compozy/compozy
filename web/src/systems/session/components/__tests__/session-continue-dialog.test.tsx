@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { HttpHandler } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 import type { AgentPayload } from "@/systems/agent";
@@ -303,6 +303,34 @@ describe("SessionContinueDialog", () => {
     await waitFor(() => expect(openInNewWindow).toHaveBeenCalledTimes(1));
     expect(openInNewWindow.mock.calls[0]?.[0].id).toBe(child.id);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // Invariant: the body scrolls inside the session window, so a refusal (and the committed
+  // session it names) is brought into view instead of landing below the fold.
+  it("Should bring a post-commit refusal into view when it appears", async () => {
+    const user = userEvent.setup();
+    // jsdom has no layout, so it implements no scrollIntoView.
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    });
+    const child = continuedSessionFixture(source);
+    renderDialog({
+      result: { status: 422, error: "provider not authenticated", child_session_id: child.id },
+      committedChild: child,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    const outcome = await screen.findByTestId("session-continue-submit-outcome");
+
+    expect(outcome).toContainElement(screen.getByTestId("session-continue-open-committed-child"));
+    expect(scrollIntoView.mock.contexts).toContain(outcome);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
   });
 
   it("Should offer no committed session for a refusal before the commit", async () => {

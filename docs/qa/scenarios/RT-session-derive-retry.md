@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: Repeating compozy session continue (or POST …/continue, or compozy__session_continue) with the same idempotency key and the same request returns the recorded outcome with replayed true (HTTP 200, CLI "Replayed  yes") even after the source gained new turns; after the child is deleted it returns the outcome with child_deleted true and creates nothing; the same key with a different request returns idempotency_conflict; stale fences return session_fence_conflict; a first message admitted but never dispatched before a restart is dispatched exactly once by the retry; a retry after the source was deleted still replays; a failure after the child was committed names it as child_session_id.
 entry_points: compozy session continue <id> --agent <name> --idempotency-key <key> [--message …] [-o json]; POST /api/workspaces/{workspace_id}/sessions/{session_id}/continue; compozy session delete <child>; compozy session list -o json; compozy logs --session <child> --type session.derived -o json
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260928-derive-replay-deleted-child-origin-lost
 fix_status: fixed
 retest_status: pass
 fix_commits: uncommitted (task_08 part B1)
-evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-1.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-2.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-3-4.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-5b.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-6g-events-after-restart.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-6h-events-after-retry.txt
-last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b1.md
+evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/retry-deleted-source.txt; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/http-committed-child.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-1.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-2.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-3-4.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-5b.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-6g-events-after-restart.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-6h-events-after-retry.txt
+last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
 overlaps: ET-cli-session-continue
 ---
 
@@ -53,3 +53,7 @@ same command returned the same child, `Replayed yes`, the recorded `2 messages �
 Walked instead: `kill -9` of the daemon right after the return (turn in flight), restart, same command → `replayed true`, and the
 child has exactly one `user_message` and one `session/prompt` in the driver diagnostics (the interrupted turn is recorded as
 `agent_crashed`, not re-run).
+
+## 2026-09-29 re-walk (review round 1) — PASS
+
+Théo, lab `…-r1-rewalk-…`, acpmock. Step 7 (deleted source): `continue A --agent beta --idempotency-key qa-r1-delsrc` → child B; `session remove B`, `session remove A` (`session status A` now 404). The same command from A's workspace (cwd resolution) printed `Replayed yes` and `Child deleted yes` with origin `alpha`. `-o json` has `replayed: true`, `child_deleted: true`, and HTTP `POST …/continue` answers `200` with the same outcome. Nothing was created. Preview of the deleted source answers `404 session_not_found`. The derive and preview routes leave the source `meta.json` sha unchanged. Step 8: HTTP `422` carries `child_session_id`. The CLI prints the child id and the rerun key. The Web dialog shows **Open new session** and opens the child (after BUG-20260929-derive-refusal-below-fold was fixed, the offer is scrolled into view). "A committed child survives a post-commit failure" stays owned by `TestDeriveCommitBoundaries` and cannot be reached from the CLI. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/retry-deleted-source.txt`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/http-committed-child.txt`.

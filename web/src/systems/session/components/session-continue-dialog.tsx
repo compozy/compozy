@@ -8,7 +8,6 @@ import {
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
-  FieldError,
   Spinner,
 } from "@compozy/ui";
 
@@ -19,7 +18,7 @@ import { getSessionDisplayTitle } from "../lib/session-display-title";
 import type { SessionPayload } from "../types";
 import { SessionContinueFields } from "./session-continue-fields";
 import { SessionDerivePlacementField } from "./session-derive-placement";
-import { SessionDeriveCommittedChild } from "./session-derive-committed-child";
+import { SessionDeriveSubmitOutcome } from "./session-derive-committed-child";
 import { SessionDerivePreviewLine } from "./session-derive-preview";
 
 export interface SessionContinueDialogProps {
@@ -93,13 +92,8 @@ export function SessionContinueDialog({
               />
             ) : null}
 
-            {model.submitError ? (
-              <FieldError data-testid="session-continue-submit-error">
-                {model.submitError}
-              </FieldError>
-            ) : null}
-
-            <SessionDeriveCommittedChild
+            <SessionDeriveSubmitOutcome
+              error={model.submitError}
               model={model.committedChild}
               testIdPrefix="session-continue"
             />

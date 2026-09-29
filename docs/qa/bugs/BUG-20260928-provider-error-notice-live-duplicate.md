@@ -1,6 +1,6 @@
 # BUG-20260928-provider-error-notice-live-duplicate: A rate-limited turn shows its provider notice twice until reload
 
-- **Status:** fixed (retest owed: web walk while the stream is live)
+- **Status:** fixed (retested 2026-09-29: one notice while the stream is live)
 - **Impact (user-side):** Cosmetic
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -23,3 +23,7 @@ The daemon records both an `error` event (with `provider_error`) and a `transcri
 ## Evidence
 
 docs/qa/evidence/2026-09-28-session-continue-fork-b2/live-duplicate-provider-notice.png; transcript read shows one `error` (seq 10) + one marker (seq 11), same `turn_id`.
+
+## Retest 2026-09-29
+
+Review round 1 QA re-walk (`docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md`): with the window open, "rate limit this turn" was sent from the `handoff-agent` composer. The live window shows exactly one notice across 10 samples over 4 s (`data-provider-next-action="handoff"`), and one after reload. VC-22 was recaptured on the live state. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-handoff-live.png`.

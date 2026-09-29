@@ -4,41 +4,59 @@ import type { SessionDeriveCommittedChildModel } from "../hooks/use-session-deri
 
 const COMMITTED_NOTE = "The new session was already created.";
 
-export interface SessionDeriveCommittedChildProps {
+export interface SessionDeriveSubmitOutcomeProps {
+  /** The derive refusal shown verbatim; nothing renders without one. */
+  error: string | null;
   model: SessionDeriveCommittedChildModel;
   /** The dialog's own test-id prefix (`session-continue`, `session-fork`). */
   testIdPrefix: string;
 }
 
+// The dialog body scrolls inside the session window, so a refusal can land below
+// the fold after the primary re-enables. Bring it into view once it appears.
+function revealOutcome(node: HTMLDivElement | null) {
+  node?.scrollIntoView?.({ block: "nearest" });
+}
+
 /**
- * Shown under a derive refusal that came after the child was created: the
- * session exists, so the next safe action is to open it rather than retry.
+ * The refusal of a continue or fork. A refusal that came after the child was
+ * created also offers to open that session, the next safe action instead of a retry.
  */
-export function SessionDeriveCommittedChild({
+export function SessionDeriveSubmitOutcome({
+  error,
   model,
   testIdPrefix,
-}: SessionDeriveCommittedChildProps) {
-  if (!model.childSessionId) return null;
+}: SessionDeriveSubmitOutcomeProps) {
+  if (!error) return null;
   return (
     <div
-      className="flex flex-col gap-2 text-form-hint text-subtle"
-      data-testid={`${testIdPrefix}-committed-child`}
+      className="flex flex-col gap-4"
+      data-testid={`${testIdPrefix}-submit-outcome`}
+      ref={revealOutcome}
     >
-      <div className="flex items-center justify-between gap-3">
-        <span>{COMMITTED_NOTE}</span>
-        <Button
-          data-testid={`${testIdPrefix}-open-committed-child`}
-          disabled={model.isOpening}
-          onClick={() => void model.open()}
-          size="sm"
-          type="button"
-          variant="outline"
+      <FieldError data-testid={`${testIdPrefix}-submit-error`}>{error}</FieldError>
+      {model.childSessionId ? (
+        <div
+          className="flex flex-col gap-2 text-form-hint text-subtle"
+          data-testid={`${testIdPrefix}-committed-child`}
         >
-          {model.isOpening ? <Spinner aria-hidden="true" className="size-3" /> : null}
-          Open new session
-        </Button>
-      </div>
-      {model.openError ? <FieldError>{model.openError}</FieldError> : null}
+          <div className="flex items-center justify-between gap-3">
+            <span>{COMMITTED_NOTE}</span>
+            <Button
+              data-testid={`${testIdPrefix}-open-committed-child`}
+              disabled={model.isOpening}
+              onClick={() => void model.open()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {model.isOpening ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              Open new session
+            </Button>
+          </div>
+          {model.openError ? <FieldError>{model.openError}</FieldError> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

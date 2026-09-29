@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: compozy session continue <id> --agent <name> [--message …] creates exactly one new user session in the source's workspace with lineage.kind continue, prints the Golden Path block (Continued … into …, Origin, Context N messages · X KiB · nothing omitted, Seed replay, First prompt admitted|staged), -o json matches the API SessionDeriveResponse, the child's first prompt carries the source conversation as "Context rebuilt from log." + <compozy_context_replay> ahead of "User request:", the source session's max_sequence and meta are unchanged, usage errors exit 2 with the documented messages, and an unknown agent prints agent_not_found.
 entry_points: compozy session continue <id> --agent <name> [--provider/--model/--reasoning-effort/--speed/--acp-option | --route <n>] [--name] [--message] [--expected-epoch --expected-generation --expected-max-sequence] [--idempotency-key] [-o json]; POST /api/workspaces/{workspace_id}/sessions/{session_id}/continue; GET …/derive/preview; compozy session status <child>; compozy logs --session <child> --type session.derived -o json; compozy__session_continue
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cl.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-transcript.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-derived-logs.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cli.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-api.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-usage-errors.txt
-last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b1.md
+evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-errors.txt; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-committed-child.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cl.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-transcript.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-child-derived-logs.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-cli.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-api.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-continue-usage-errors.txt
+last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
 overlaps: RT-session-derive-retry; RT-provider-error-handoff
 ---
 
@@ -55,3 +55,7 @@ from … · cx-agent` and `Derivation seed replay · first prompt admitted`; `GE
 `agent_not_found`). CLI `-o json` and `POST …/continue` have identical field sets.
 Paper cuts: the human output of an unknown agent does not print the `agent_not_found` code; `compozy logs --session <id>` needs a
 registered cwd or `--workspace` although the session id identifies the workspace. Native-tool parity not re-walked (automated).
+
+## 2026-09-29 re-walk (review round 1) — PASS
+
+Rafa, isolated lab `compozy-session-continue-fork-r1-rewalk-20260929-041438-936027-lab`, branch head `62bdd8054`, acpmock. Golden Path re-checked (`alpha` → `beta` with `--message`: `First prompt admitted`). Step 8: `--agent` missing, `--route 2 --speed fast`, and a partial fence exit 2 with the documented messages. `--agent nope` prints `error: agent_not_found: no agent named "nope"` and exits 1; `-o json` has `code: agent_not_found`. A missing source prints `error: session_not_found: …` and exits 1. The CLI renderer prefixes errors with lowercase `error:`; `_dx.md` examples show `Error:`, which is illustrative only. Post-commit failure (`bad-model`, `--message`): exit 1, the daemon error, then `session sess-… was already created; open it with `compozy session status sess-…`, or rerun with --idempotency-key qa-r1-committed to get it back`. `-o json` carries `child_session_id`, and the same key reuses that one child. Paper cut: the 422 has no top-level `code` (only `diagnostic.code: model_unavailable`), so the human line has no `<code>:` prefix and shows the raw internal chain. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-errors.txt`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-committed-child.txt`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-continue.txt`.

@@ -1,5 +1,5 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useSessionComposerPrefill } from "@/components/assistant-ui/hooks/use-session-composer-prefill";
@@ -21,13 +21,6 @@ export function useSessionRewindMessageAction() {
   const rewind = useSessionRewind(workspaceId);
   const busy = gate.busy || rewind.isPending;
   const available = Boolean(resetRuntime && composerPrefill) && gate.durable;
-
-  useEffect(
-    () => () => {
-      abortControllerRef.current?.abort();
-    },
-    []
-  );
 
   const setOpen = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -58,6 +51,9 @@ export function useSessionRewindMessageAction() {
       toast.warning("Clear the draft before rewinding.");
       return;
     }
+    // Only dismissing the dialog aborts the request. The row that owns this action can unmount
+    // mid-request (the live transcript drops the rewound message first); the daemon's rewind
+    // still lands, so its draft and runtime reset must still apply.
     const idempotencyKey = idempotencyKeyRef.current ?? createClientId();
     idempotencyKeyRef.current = idempotencyKey;
     abortControllerRef.current?.abort();

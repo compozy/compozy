@@ -8,7 +8,6 @@ import {
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
-  FieldError,
   Spinner,
 } from "@compozy/ui";
 
@@ -18,7 +17,7 @@ import { useSessionForkDialog } from "../hooks/use-session-fork-dialog";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import type { SessionPayload } from "../types";
 import { SessionDerivePlacementField } from "./session-derive-placement";
-import { SessionDeriveCommittedChild } from "./session-derive-committed-child";
+import { SessionDeriveSubmitOutcome } from "./session-derive-committed-child";
 import { SessionDerivePreviewLine } from "./session-derive-preview";
 import { SessionForkFields } from "./session-fork-fields";
 
@@ -106,11 +105,11 @@ export function SessionForkDialog({
               />
             ) : null}
 
-            {model.submitError ? (
-              <FieldError data-testid="session-fork-submit-error">{model.submitError}</FieldError>
-            ) : null}
-
-            <SessionDeriveCommittedChild model={model.committedChild} testIdPrefix="session-fork" />
+            <SessionDeriveSubmitOutcome
+              error={model.submitError}
+              model={model.committedChild}
+              testIdPrefix="session-fork"
+            />
 
             {model.isSubmitting ? (
               <p

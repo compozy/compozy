@@ -11,8 +11,8 @@ bug_ids: BUG-20260928-native-fork-clone-load-refused
 fix_status: fixed
 retest_status: pass
 fix_commits: uncommitted (task_08 part B1)
-evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b1/oc-fork.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/oc-fork-p1.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-fork.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork3.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork3-p1.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork-msg.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/long-fork-running-cut.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/codex-acp-fork-close-probe.txt
-last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b1.md
+evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/native-fork.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/oc-fork.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/oc-fork-p1.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-fork.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork3.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork3-p1.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork-msg.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/long-fork-running-cut.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/codex-acp-fork-close-probe.txt
+last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
 overlaps: RT-session-derive-retry; ET-cli-session-continue
 ---
 
@@ -20,8 +20,8 @@ Planning 2026-09-28 (session-continue-fork task_05): new behavior. Needs a live 
 ACP `session/fork` + `session/load` and a replay-only source (non-advertising agent or ineligible source);
 task_07/08 own the walk.
 
-Capability-based: pick sources by what the agent advertises (`compozy session status <src> -o json` →
-`runtime.acp_caps.supports_fork_session` and `supports_load_session`), not by provider name. As of
+Capability-based: pick sources by what the agent advertises (`GET /api/sessions/<src>` →
+`session.runtime.acp_caps.supports_fork_session` and `supports_load_session`), not by provider name. As of
 2026-09-28 all three real adapters (opencode, claude, codex) advertise fork and load; Codex refuses to
 load the clone while the source process lives, which exercises step 8.
 
@@ -73,3 +73,7 @@ Re-walk: child answered `PELICAN-42`, status `seed native_fork · failed: sessio
 6. Fork through message 2 of 4 (Codex): `origin_message_id` + `through_turn_id` set, `seed replay`, 4 of 8 messages; the child quoted
 the second question, not the later ones. 7. acpmock `long-agent` mid-turn: fork through the running message → `session_turn_in_progress`
 (CLI exit 65, HTTP 409); whole fork → `seed replay`, `source_turn_in_progress: true`; the source kept running until cancel.
+
+## 2026-09-29 spot check (review round 1) — PASS
+
+Capability-based, acpmock. `fork-native-agent` source: `GET /api/sessions/<id>` → `session.runtime.acp_caps.supports_fork_session: true`, `supports_load_session: true`. Preview `native_fork_possible: true`; `session fork -o json` → `seed native_fork`, `native_state pending`, clone `fork-native-agent-fork-2`. The child's first prompt printed `Derivation seed native_fork · loaded`, and no source event mentions a clone. `alpha` source (`supports_fork_session: false`) → `seed replay`, no `native_state`. The new snapshot revalidation under the prompt slot kept an idle source native. The advance-between-snapshot-and-slot race stays owned by `TestForkNativeGate`. Wording fix: `acp_caps` is on `GET /api/sessions/<id>` (`session.runtime.acp_caps`), not on `compozy session status -o json`, which has no `runtime` block. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/native-fork.txt`.
