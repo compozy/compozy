@@ -149,8 +149,8 @@ type stubClient struct {
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
 	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
-	continueSessionFn            func(context.Context, string, SessionContinueRequest) (SessionDeriveRecord, error)
-	forkSessionFn                func(context.Context, string, SessionForkRequest) (SessionDeriveRecord, error)
+	continueSessionFn            func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
+	forkSessionFn                func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
 	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
@@ -1421,22 +1421,22 @@ func (s *stubClient) RewindSession(
 
 func (s *stubClient) ContinueSession(
 	ctx context.Context,
-	id string,
+	target SessionDeriveTarget,
 	request SessionContinueRequest,
 ) (SessionDeriveRecord, error) {
 	if s.continueSessionFn != nil {
-		return s.continueSessionFn(ctx, id, request)
+		return s.continueSessionFn(ctx, target, request)
 	}
 	return SessionDeriveRecord{}, errors.New("unexpected ContinueSession call")
 }
 
 func (s *stubClient) ForkSession(
 	ctx context.Context,
-	id string,
+	target SessionDeriveTarget,
 	request SessionForkRequest,
 ) (SessionDeriveRecord, error) {
 	if s.forkSessionFn != nil {
-		return s.forkSessionFn(ctx, id, request)
+		return s.forkSessionFn(ctx, target, request)
 	}
 	return SessionDeriveRecord{}, errors.New("unexpected ForkSession call")
 }

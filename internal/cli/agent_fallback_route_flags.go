@@ -182,3 +182,21 @@ func agentFallbackChainRows(chain []contract.RoleFallbackStatus) [][]string {
 	}
 	return rows
 }
+
+// agentFallbackChainToonRows keeps every route field, in declared order, for
+// the machine-readable TOON projection (task 01 projection contract).
+func agentFallbackChainToonRows(chain []contract.RoleFallbackStatus) [][]string {
+	rows := make([][]string, 0, len(chain))
+	for _, route := range chain {
+		rows = append(rows, []string{
+			route.Provider,
+			route.Model,
+			route.ReasoningEffort,
+			string(route.Speed),
+			agentACPOptionsLabel(route.ACPOptions),
+			route.Command,
+			route.CommandFingerprint,
+		})
+	}
+	return rows
+}

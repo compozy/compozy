@@ -67,7 +67,7 @@ func (l *localLauncher) Launch(
 		ShutdownTimeout:  l.stopTimeout,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("acp: start subprocess %q: %w", prepared.Command, err)
+		return nil, fmt.Errorf("acp: start subprocess %s: %w", launchCommandIdentity(prepared.Command), err)
 	}
 
 	return &localProcessHandle{

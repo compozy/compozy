@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 import type { AgentPayload } from "@/systems/agent";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { createMswFetch } from "@/test/msw-fetch";
 
 import type { ContinueSessionRequest } from "../../adapters/session-derive-api";
@@ -31,6 +32,10 @@ import type { SessionPayload } from "../../types";
 import { SessionContinueDialog } from "../session-continue-dialog";
 
 const agents = vi.hoisted(() => ({ data: [] as AgentPayload[] }));
+const runtimeCatalog = vi.hoisted(() => ({
+  providers: [] as RuntimeProviderOption[],
+  models: [] as RuntimeModelOption[],
+}));
 
 vi.mock("@/systems/agent", async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -38,8 +43,8 @@ vi.mock("@/systems/agent", async importOriginal => ({
 }));
 vi.mock("../../hooks/use-session-continue-runtime-options", () => ({
   useSessionContinueRuntimeOptions: () => ({
-    providers: [],
-    models: [],
+    providers: runtimeCatalog.providers,
+    models: runtimeCatalog.models,
     loading: false,
     refreshing: false,
     refresh: () => undefined,
@@ -78,6 +83,8 @@ function renderDialog(options: SessionDeriveHandlerOptions = {}) {
 describe("SessionContinueDialog", () => {
   beforeEach(() => {
     agents.data = deriveAgentsFixture;
+    runtimeCatalog.providers = [];
+    runtimeCatalog.models = [];
     vi.stubGlobal(
       "fetch",
       createMswFetch(() => handlers)
@@ -166,6 +173,52 @@ describe("SessionContinueDialog", () => {
     expect(sent[0]).not.toHaveProperty("runtime");
   });
 
+  // Invariant: an explicit speed choice travels as-is. Omitting `normal` would let the
+  // daemon restore a fast-default agent's speed, so the child would run fast anyway.
+  it("Should send normal speed when a fast-default agent is switched to normal", async () => {
+    const user = userEvent.setup();
+    agents.data = deriveAgentsFixture.map(agent =>
+      agent.name === "codex"
+        ? {
+            ...agent,
+            model: "gpt-5.4",
+            speed: "fast",
+            effective_runtime: {
+              provider: "codex",
+              model: "gpt-5.4",
+              speed: "fast",
+              sources: { provider: "agent", model: "agent", speed: "agent" },
+            },
+          }
+        : agent
+    );
+    runtimeCatalog.providers = [{ id: "codex", name: "Codex", runtime_provider: "codex" }];
+    runtimeCatalog.models = [
+      {
+        id: "gpt-5.4",
+        provider: "codex",
+        name: "gpt-5.4",
+        efforts: [],
+        availability: "live",
+        curated: true,
+        configurations: [{ reasoning_effort: "", fast: true }],
+      },
+    ];
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({ onContinue: request => sent.push(request) });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-runtime-select"));
+    const speedSwitch = await screen.findByTestId("runtime-selector-speed");
+    expect(speedSwitch).toHaveAttribute("aria-checked", "true");
+    await user.click(speedSwitch);
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.runtime).toMatchObject({ provider: "codex", speed: "normal" });
+  });
+
   it("Should open a new window by default and never the current one", async () => {
     const user = userEvent.setup();
     const sent: ContinueSessionRequest[] = [];
@@ -221,6 +274,45 @@ describe("SessionContinueDialog", () => {
 
     await waitFor(() => expect(sent).toHaveLength(2));
     expect(sent[1]?.idempotency_key).toBe(sent[0]?.idempotency_key);
+  });
+
+  it("Should offer to open the session a post-commit refusal already created", async () => {
+    // The daemon created the child, then refused its first message: the error names the child
+    // (child_session_id) and the dialog opens it where the operator chose instead of retrying.
+    const user = userEvent.setup();
+    const child = continuedSessionFixture(source);
+    const { openInNewWindow, onOpenChange } = renderDialog({
+      result: {
+        status: 422,
+        error: "provider not authenticated",
+        child_session_id: child.id,
+      },
+      committedChild: child,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "provider not authenticated"
+    );
+    expect(screen.getByTestId("session-continue-committed-child")).toHaveTextContent(
+      "The new session was already created."
+    );
+    await user.click(screen.getByTestId("session-continue-open-committed-child"));
+
+    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledTimes(1));
+    expect(openInNewWindow.mock.calls[0]?.[0].id).toBe(child.id);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Should offer no committed session for a refusal before the commit", async () => {
+    const user = userEvent.setup();
+    renderDialog({ result: { status: 409, error: "route_not_found", code: "route_not_found" } });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    await screen.findByTestId("session-continue-submit-error");
+    expect(screen.queryByTestId("session-continue-committed-child")).not.toBeInTheDocument();
   });
 
   it("Should show the daemon's refusal verbatim", async () => {

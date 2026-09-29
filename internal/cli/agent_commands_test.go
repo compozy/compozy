@@ -153,6 +153,44 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 	})
 }
 
+func TestAgentInfoToonFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit every configured fallback route in order with all route fields", func(t *testing.T) {
+		t.Parallel()
+
+		agent := AgentRecord{
+			Name:     "reviewer",
+			Provider: "codex",
+			FallbackChain: []contract.RoleFallbackStatus{
+				{
+					Provider: "claude", Model: "opus-4-8", ReasoningEffort: "high", Speed: contract.SpeedFast,
+					ACPOptions:         []contract.AgentACPOptionSelection{{ID: "context", ValueID: "1m"}},
+					Command:            "SEAT=2 claude --acp",
+					CommandFingerprint: "sha256:seat-two",
+				},
+				{Provider: "codex", Model: "gpt-5.4"},
+			},
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return agent, nil
+			},
+		})
+
+		toon, _, err := executeRootCommand(t, deps, "agent", "info", agent.Name, "-o", "toon")
+		if err != nil {
+			t.Fatalf("agent info toon error = %v", err)
+		}
+		header := "fallback_chain[2]{provider,model,reasoning_effort,speed,acp_options,command,command_fingerprint}:"
+		first := strings.Index(toon, "claude,opus-4-8,high,fast,context=1m,SEAT=2 claude --acp,sha256:seat-two")
+		second := strings.Index(toon, "codex,gpt-5.4,")
+		if !strings.Contains(toon, header) || first < 0 || second < first {
+			t.Fatalf("agent info toon output = %q, want ordered fallback_chain rows", toon)
+		}
+	})
+}
+
 func TestAgentCommandsPassWorkspaceQuery(t *testing.T) {
 	t.Parallel()
 

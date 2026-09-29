@@ -22,6 +22,7 @@ const (
 	nativeForkReasonRoute        = "route_incompatible"
 	nativeForkReasonDriver       = "driver_unsupported"
 	nativeForkReasonQueueUnknown = "queue_unknown"
+	nativeForkReasonSourceMoved  = "source_moved"
 )
 
 // nativeForkDecision reports whether a fork can use the agent's own session clone now.
@@ -132,7 +133,7 @@ func (m *Manager) deriveForkSeed(
 	if !ok {
 		return replay
 	}
-	native, errText := m.attemptNativeFork(ctx, source, childRoute)
+	native, errText := m.attemptNativeFork(ctx, source, snapshot, childRoute)
 	if native == nil {
 		replay.nativeError = errText
 		return replay
@@ -159,14 +160,16 @@ func (m *Manager) previewNativeForkPossible(ctx context.Context, snapshot *deriv
 // attemptNativeFork runs session/fork on the source's process while holding its exclusive
 // prompt slot, so no prompt starts during the call. It returns the pinned bootstrap
 // (state pending), or the redacted, bounded error of a failed attempt; a source that
-// became busy since the decision returns neither and the fork replays.
+// became busy, or whose conversation moved past the snapshot, returns neither and the
+// fork replays: the clone must hold exactly the conversation the receipt records.
 func (m *Manager) attemptNativeFork(
 	ctx context.Context,
 	source *Session,
+	snapshot *deriveSnapshot,
 	childRoute compozyconfig.ResolvedAgent,
 ) (*store.SessionNativeBootstrap, string) {
 	forker, ok := m.driver.(ForkDriver)
-	if !ok || source == nil {
+	if !ok || source == nil || snapshot == nil || snapshot.sourceTurnInProgress {
 		return nil, ""
 	}
 	proc, err := source.beginExclusivePromptSetup()
@@ -176,6 +179,12 @@ func (m *Manager) attemptNativeFork(
 	}
 	defer source.finishPromptSetup()
 	if proc == nil || isProcessDone(proc) {
+		return nil, ""
+	}
+	if moved, err := m.deriveSourceMoved(ctx, snapshot); err != nil || moved {
+		m.sessionLogger(source).Info(
+			"session.fork.native_skipped", "reason", nativeForkReasonSourceMoved, "error", err,
+		)
 		return nil, ""
 	}
 	result, err := forker.ForkSession(ctx, proc, proc.Cwd)
@@ -262,6 +271,7 @@ func (m *Manager) resolveForkChildRoute(
 		if pendingErr != nil {
 			return forkChildRoute{}, pendingErr
 		}
+		inheritSourceRuntime(pending, meta)
 		return forkChildRoute{resolved: resolved, pending: pending, route: selected}, nil
 	}
 	m.logger.Info(
@@ -272,6 +282,20 @@ func (m *Manager) resolveForkChildRoute(
 		"accepted_route.attempt", record.Attempt,
 	)
 	return forkChildRoute{resolved: primary}, nil
+}
+
+// inheritSourceRuntime makes the inherited pending route carry the source's selected
+// runtime, which the fork child copies too: the route index and command fingerprint name
+// the account, and the runtime the source changed to live on that account is not an
+// explicit child selection that would replace it at the first bind.
+func inheritSourceRuntime(pending *store.SessionPendingRoute, meta *store.SessionMeta) {
+	runtime := forkRuntimeFromMeta(meta)
+	if pending == nil || runtime == nil {
+		return
+	}
+	pending.Provider, pending.Model = runtime.Provider, runtime.Model
+	pending.ReasoningEffort, pending.Speed = runtime.ReasoningEffort, runtime.Speed
+	pending.ACPOptions = storeOptionSelectionsFromACP(runtime.ACPOptions)
 }
 
 func acceptedRouteMatchesResolved(record store.SessionAcceptedRoute, resolved compozyconfig.ResolvedAgent) bool {

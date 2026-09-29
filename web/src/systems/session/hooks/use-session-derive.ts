@@ -41,12 +41,21 @@ export function landDerivedSession(
 ): SessionDeriveLanding {
   const child = result.session;
   if (result.derived.child_deleted || !child) return "child_deleted";
+  openDerivedChild(child, placement, handlers);
+  return "opened";
+}
+
+/** Opens one derived child where the operator chose (This window only when the host has one). */
+export function openDerivedChild(
+  child: SessionPayload,
+  placement: SessionDerivePlacement,
+  handlers: SessionDerivePlacementHandlers
+): void {
   if (placement === "this-window" && handlers.openInThisWindow) {
     handlers.openInThisWindow(child);
   } else {
     handlers.openInNewWindow(child);
   }
-  return "opened";
 }
 
 export interface UseSessionDerivePreviewOptions {
@@ -54,7 +63,13 @@ export interface UseSessionDerivePreviewOptions {
   messageId?: string;
 }
 
-/** The dialog's context line: measured on open, projected to its view model. */
+/**
+ * The dialog's context line: measured on open, projected to its view model.
+ * Each open mounts a fresh dialog (the host's nonce), so only an answer fetched
+ * after this mount counts. A previous open's cached answer can outlive `gcTime: 0`
+ * while the next open remeasures, and it would show an old size and hand Fork
+ * obsolete fences; until this open's own answer arrives the line reads measuring.
+ */
 export function useSessionDerivePreview(
   workspaceId: string,
   sessionId: string,
@@ -62,9 +77,11 @@ export function useSessionDerivePreview(
 ) {
   const options = sessionDerivePreviewOptions(workspaceId, sessionId, messageId);
   const query = useQuery({ ...options, enabled: enabled && options.enabled === true });
+  const measuredThisOpen = query.isFetchedAfterMount;
+  const preview = measuredThisOpen ? query.data : undefined;
   return {
-    preview: query.data,
-    view: sessionDerivePreviewView(query.data, query.status),
+    preview,
+    view: sessionDerivePreviewView(preview, measuredThisOpen ? query.status : "pending"),
   };
 }
 

@@ -178,8 +178,12 @@ export function ThreadMessages({
     });
   }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
 
+  // Nothing said yet: no messages, or only status events that render no row. With
+  // older history still unloaded the window cannot claim the session is empty.
+  const saidNothing =
+    messageCount === 0 || (!showLoadOlder && !hasNarrativeMessage(transcriptMessages));
   const derivedChildReady =
-    (messageCount === 0 || !hasNarrativeMessage(transcriptMessages)) &&
+    saidNothing &&
     transcriptStatus === "success" &&
     syncFailure === null &&
     sessionState !== "starting" &&
@@ -194,7 +198,7 @@ export function ThreadMessages({
     );
   }
 
-  if (messageCount === 0) {
+  if (saidNothing) {
     return (
       <>
         {showLoadOlder ? (

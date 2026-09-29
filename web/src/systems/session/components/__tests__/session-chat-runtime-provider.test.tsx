@@ -1798,7 +1798,8 @@ describe("SessionChatRuntimeProvider", () => {
     try {
       const composer = await screen.findByTestId("composer-input");
       await waitFor(() => {
-        expect(screen.getAllByTestId("thread-message-row")).toHaveLength(2);
+        // Hook dispatches render no row: the loaded transcript reads as a fresh session.
+        expect(screen.getByText(/Start the conversation/i)).toBeInTheDocument();
         // The Lexical composer opts out of interaction via `inert`, not `disabled`.
         expect(composer).not.toHaveAttribute("inert");
         expect(sources).toHaveLength(2);
@@ -2206,6 +2207,50 @@ describe("SessionChatRuntimeProvider", () => {
     const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
 
     expect(merged.map(message => message.id)).toEqual(["client_user_001", "server_assistant_001"]);
+  });
+
+  // Invariant: one provider failure renders one notice. The live stream's failure message
+  // has its own id, so the durable-only dedup (error vs provider_failure marker) cannot see it;
+  // the merge must not append a runtime failure the durable transcript already records for
+  // that turn, while a failure for a turn the transcript lacks stays visible.
+  it("Should not append a live provider failure the durable transcript already records", () => {
+    const rateLimited = (turnID: string) => ({
+      type: "data-compozy-event",
+      data: {
+        type: "error",
+        turn_id: turnID,
+        error: "acpmock is rate limited",
+        provider_error: {
+          code: "provider_rate_limited",
+          provider: "acpmock",
+          next_action: "handoff",
+          occurrence_count: 1,
+        },
+      },
+    });
+    const transcriptMessages = toReadonlyThreadMessages([
+      {
+        id: "evt_010",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_001")],
+      } as unknown as TranscriptMessage,
+    ]);
+    const runtimeMessages = toReadonlyThreadMessages([
+      {
+        id: "stream_assistant_001",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_001")],
+      } as unknown as TranscriptMessage,
+      {
+        id: "stream_assistant_002",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_002")],
+      } as unknown as TranscriptMessage,
+    ]);
+
+    const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
+
+    expect(merged.map(message => message.id)).toEqual(["evt_010", "stream_assistant_002"]);
   });
 
   it("Should let an empty authoritative transcript replace a stale runtime tail", () => {

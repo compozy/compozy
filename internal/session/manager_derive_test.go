@@ -851,6 +851,53 @@ func (s *deriveFaultStore) RegisterDerivedSession(
 	return s.GlobalDB.RegisterDerivedSession(ctx, info, identity, receipt)
 }
 
+// deriveAttentionFault fails attention reads for every session except spared while armed,
+// a transient attention-store error right after a derived child's registration commits.
+type deriveAttentionFault struct {
+	*globaldb.GlobalDB
+	armed  atomic.Bool
+	spared atomic.Value
+	failed atomic.Int32
+}
+
+func (a *deriveAttentionFault) option(db *globaldb.GlobalDB) Option {
+	a.GlobalDB = db
+	return WithSessionCatalog(a)
+}
+
+func (a *deriveAttentionFault) GetSessionAttention(
+	ctx context.Context,
+	sessionID string,
+) (store.SessionAttention, error) {
+	if spared, _ := a.spared.Load().(string); a.armed.Load() && sessionID != spared {
+		a.failed.Add(1)
+		return store.SessionAttention{}, errDeriveInjectedCrash
+	}
+	return a.GlobalDB.GetSessionAttention(ctx, sessionID)
+}
+
+// deriveQueueSummaryHook runs hook once, on the first input-queue read after it is set:
+// the native gate's read, between the fork's source snapshot and its prompt slot.
+type deriveQueueSummaryHook struct {
+	*globaldb.GlobalDB
+	hook atomic.Pointer[func()]
+}
+
+func (q *deriveQueueSummaryHook) option(db *globaldb.GlobalDB) Option {
+	q.GlobalDB = db
+	return WithSessionInputQueueStore(q)
+}
+
+func (q *deriveQueueSummaryHook) SessionInputQueueSummary(
+	ctx context.Context,
+	sessionID string,
+) (store.SessionInputQueueSummary, error) {
+	if hook := q.hook.Swap(nil); hook != nil {
+		(*hook)()
+	}
+	return q.GlobalDB.SessionInputQueueSummary(ctx, sessionID)
+}
+
 // deriveLedgerFault drops session.derived writes while dropDerived is set, the durable
 // state a crash between the child's commit and its event write leaves behind.
 type deriveLedgerFault struct {
@@ -1023,6 +1070,61 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 			t.Fatalf("session.derived rows = %d, want 1", len(rows))
 		}
 	})
+
+	t.Run("Should never sweep a child whose registration committed before a failing projection",
+		func(t *testing.T) {
+			t.Parallel()
+			fault := &deriveAttentionFault{}
+			h := newDeriveHarness(t, fault.option)
+			source := h.newDeriveSource(t)
+			fault.spared.Store(source.ID)
+			fault.armed.Store(true)
+			result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_post_commit"))
+			fault.armed.Store(false)
+			if fault.failed.Load() == 0 {
+				t.Fatal("attention fault never fired after the registration")
+			}
+			receipt, found, receiptErr := h.db.SessionDerivationReceipt(
+				testutil.Context(t), h.workspaceID, "idem_post_commit",
+			)
+			if receiptErr != nil || !found || receipt.ChildDeletedAt != nil {
+				t.Fatalf("receipt found=%t err=%v tombstone=%v, want the committed receipt",
+					found, receiptErr, receipt.ChildDeletedAt)
+			}
+			childID := receipt.ChildSessionID
+			if err == nil && (result.Child == nil || result.Child.ID != childID) {
+				t.Fatalf("ContinueSession() child = %+v, want the committed child %s", result.Child, childID)
+			}
+			assertCommittedChild := func(stage string) {
+				t.Helper()
+				metaPath := filepath.Join(h.homePaths.SessionsDir, childID, store.SessionMetaName)
+				if _, statErr := os.Stat(metaPath); statErr != nil {
+					t.Fatalf("%s: committed child meta stat error = %v, want it kept", stage, statErr)
+				}
+				if _, lookupErr := store.LookupSessionDBOwner(testutil.Context(t), h.db, childID); lookupErr != nil {
+					t.Fatalf("%s: committed child catalog row error = %v, want it kept", stage, lookupErr)
+				}
+			}
+			assertCommittedChild("after the failing projection")
+			retry, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_post_commit"))
+			if err != nil || !retry.Replayed || retry.ChildDeleted || retry.Child == nil || retry.Child.ID != childID {
+				t.Fatalf("ContinueSession(retry) = %+v, %v, want the committed child %s replayed", retry, err, childID)
+			}
+			if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+			h.restartManager(t)
+			assertCommittedChild("after restart")
+			restarted, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_post_commit"))
+			if err != nil || !restarted.Replayed || restarted.Child == nil || restarted.Child.ID != childID {
+				t.Fatalf(
+					"ContinueSession(after restart) = %+v, %v, want the committed child %s",
+					restarted,
+					err,
+					childID,
+				)
+			}
+		})
 
 	t.Run("Should re-emit a session.derived lost after the commit exactly once after restart", func(t *testing.T) {
 		t.Parallel()
@@ -1605,6 +1707,31 @@ func TestForkSession(t *testing.T) {
 		}
 	})
 
+	t.Run("Should cut a retained pre-rewind anchor through its own turn", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		h.promptSource(t, source.ID, "Third step")
+		rewind := h.rewindOpts(t, source.ID, "Third step", "idem_rewind_retained")
+		if _, err := h.manager.RewindConversation(testutil.Context(t), source.ID, rewind); err != nil {
+			t.Fatalf("RewindConversation() error = %v", err)
+		}
+		opts := h.forkOpts(source, "idem_fork_retained")
+		opts.MessageID = h.rewindOpts(t, source.ID, "Start the migration", "unused").MessageID
+		result, err := h.manager.ForkSession(testutil.Context(t), opts)
+		if err != nil {
+			t.Fatalf("ForkSession(retained anchor) error = %v", err)
+		}
+		messages := h.importedMessages(t, result.Child.ID)
+		if !importedContains(messages, "Start the migration") || importedContains(messages, "Now run the tests") ||
+			importedContains(messages, "Third step") {
+			t.Fatalf("carried = %+v, want only the retained first turn", messages)
+		}
+		if result.ReplayMessageCount != len(messages) {
+			t.Fatalf("replay message count = %d, want %d", result.ReplayMessageCount, len(messages))
+		}
+	})
+
 	t.Run("Should accept anchors after a compacted prefix and after a rewind with new turns", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
@@ -1961,6 +2088,32 @@ func TestForkNativeGate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should replay when the source advances between the snapshot and the prompt slot", func(t *testing.T) {
+		t.Parallel()
+		queue := &deriveQueueSummaryHook{}
+		h := newDeriveHarness(t, queue.option)
+		h.driver.mu.Lock()
+		h.driver.advertiseFork = true
+		h.driver.mu.Unlock()
+		source := h.newDeriveSource(t)
+		advance := func() { h.promptSource(t, source.ID, "Advanced after the snapshot") }
+		queue.hook.Store(&advance)
+		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_moved"))
+		if err != nil {
+			t.Fatalf("ForkSession() error = %v", err)
+		}
+		if queue.hook.Load() != nil {
+			t.Fatal("the source was never advanced between the snapshot and the native gate")
+		}
+		if result.Seed != DeriveSeedReplay || h.driver.forkCallCount() != 0 {
+			t.Fatalf("ForkSession() = %+v fork calls = %d, want a replay without session/fork",
+				result, h.driver.forkCallCount())
+		}
+		if importedContains(h.importedMessages(t, result.Child.ID), "Advanced after the snapshot") {
+			t.Fatal("carried context includes the turn that settled after the snapshot")
+		}
+	})
+
 	t.Run("Should hold the source's prompt slot for the whole session/fork call", func(t *testing.T) {
 		t.Parallel()
 		h, source := newNativeForkHarness(t)
@@ -2053,6 +2206,36 @@ func TestForkAccountInheritance(t *testing.T) {
 			t.Fatalf("child pending route = %+v, want route 2 with its fingerprint", pending)
 		}
 	})
+
+	t.Run("Should keep the inherited account through the child's first bind after a live model change",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := newRouteSource(t, h)
+			commitSourceRoute(t, h, source, nil)
+			source.mu.Lock()
+			source.Model = "gpt-live-switched"
+			source.mu.Unlock()
+			if err := h.manager.persistSessionMetadataOnly(source); err != nil {
+				t.Fatalf("persistSessionMetadataOnly(source) error = %v", err)
+			}
+			result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_live_model"))
+			if err != nil {
+				t.Fatalf("ForkSession() error = %v", err)
+			}
+			startsBefore := len(h.startCallsSnapshot())
+			sendDeriveChildPrompt(t, h, result.Child.ID, "go", "msg_fork_live_model", "idem_fork_live_model_go")
+			starts := h.startCallsSnapshot()
+			if len(starts) <= startsBefore {
+				t.Fatal("child first prompt started no process")
+			}
+			if command := starts[startsBefore].Command; command != deriveRouteTwoCommand {
+				t.Fatalf("child first bind command = %q, want route 2's command %q", command, deriveRouteTwoCommand)
+			}
+			if model := h.childMeta(t, result.Child.ID).Model; model != "gpt-live-switched" {
+				t.Fatalf("child model = %q, want the source's live model", model)
+			}
+		})
 
 	t.Run("Should not inherit an accepted route the child cannot bind compatibly", func(t *testing.T) {
 		t.Parallel()

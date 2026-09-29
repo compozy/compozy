@@ -35,9 +35,9 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
-			"acp: start agent %q subprocess %q in %q: %w",
+			"acp: start agent %q subprocess %s in %q: %w",
 			normalized.AgentName,
-			normalized.Command,
+			launchCommandIdentity(normalized.Command),
 			normalized.Cwd,
 			err,
 		)

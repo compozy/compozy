@@ -204,6 +204,9 @@ type Session struct {
 	importedContext *store.SessionImportedContext
 	// pendingDeriveReceipt is taken by the first catalog registration of a derived child.
 	pendingDeriveReceipt *store.SessionDerivationReceipt
+	// deriveCommitted marks the irreversible commit of a derived child's registration
+	// transaction; from then on a failed start retains the child instead of sweeping it.
+	deriveCommitted bool
 	// acceptedCommand is the explicit route command of the accepted attempt ("" when the
 	// route inherited its command); in-memory only, so automatic recovery keeps the seat.
 	acceptedCommand string

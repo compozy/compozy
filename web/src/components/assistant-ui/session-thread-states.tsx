@@ -76,7 +76,8 @@ function ThreadMessageSkeleton() {
 }
 
 /**
- * Empty transcript pane — shown ONLY when the fetch succeeded with zero messages.
+ * Empty transcript pane — shown ONLY when the fetch succeeded and nothing has been said
+ * yet (zero messages, or only status events that render no row).
  */
 function ThreadEmpty({ agentName }: { agentName: string }) {
   return (

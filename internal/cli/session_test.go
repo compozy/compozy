@@ -3935,6 +3935,10 @@ func continuedRecord(replayed bool) SessionDeriveRecord {
 	}
 }
 
+func deriveSourceSession(_ context.Context, id string) (SessionRecord, error) {
+	return SessionRecord{ID: id, WorkspaceID: "ws-src"}, nil
+}
+
 func TestSessionContinueCommand(t *testing.T) {
 	t.Parallel()
 
@@ -3943,12 +3947,13 @@ func TestSessionContinueCommand(t *testing.T) {
 
 		var captured SessionContinueRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: deriveSourceSession,
 			getSessionTranscriptFn: func(_ context.Context, _ string) (SessionTranscriptRecord, error) {
 				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
 			},
-			continueSessionFn: func(_ context.Context, id string, request SessionContinueRequest) (SessionDeriveRecord, error) {
-				if id != "sess-src" {
-					t.Fatalf("ContinueSession() id = %q, want sess-src", id)
+			continueSessionFn: func(_ context.Context, target SessionDeriveTarget, request SessionContinueRequest) (SessionDeriveRecord, error) {
+				if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
+					t.Fatalf("ContinueSession() target = %#v, want sess-src in ws-src", target)
 				}
 				captured = request
 				return continuedRecord(false), nil
@@ -3978,7 +3983,8 @@ func TestSessionContinueCommand(t *testing.T) {
 
 		var captured SessionContinueRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			continueSessionFn: func(_ context.Context, _ string, request SessionContinueRequest) (SessionDeriveRecord, error) {
+			getSessionFn: deriveSourceSession,
+			continueSessionFn: func(_ context.Context, _ SessionDeriveTarget, request SessionContinueRequest) (SessionDeriveRecord, error) {
 				captured = request
 				return continuedRecord(false), nil
 			},
@@ -4023,7 +4029,8 @@ func TestSessionContinueCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			continueSessionFn: func(context.Context, string, SessionContinueRequest) (SessionDeriveRecord, error) {
+			getSessionFn: deriveSourceSession,
+			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
 				return continuedRecord(true), nil
 			},
 		})
@@ -4091,12 +4098,13 @@ func TestSessionForkCommand(t *testing.T) {
 
 		var captured SessionForkRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: deriveSourceSession,
 			getSessionTranscriptFn: func(context.Context, string) (SessionTranscriptRecord, error) {
 				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
 			},
-			forkSessionFn: func(_ context.Context, id string, request SessionForkRequest) (SessionDeriveRecord, error) {
-				if id != "sess-src" {
-					t.Fatalf("ForkSession() id = %q, want sess-src", id)
+			forkSessionFn: func(_ context.Context, target SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
+				if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
+					t.Fatalf("ForkSession() target = %#v, want sess-src in ws-src", target)
 				}
 				captured = request
 				return forkedRecord(), nil
@@ -4128,7 +4136,8 @@ func TestSessionForkCommand(t *testing.T) {
 
 		var captured SessionForkRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			forkSessionFn: func(_ context.Context, _ string, request SessionForkRequest) (SessionDeriveRecord, error) {
+			getSessionFn: deriveSourceSession,
+			forkSessionFn: func(_ context.Context, _ SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
 				captured = request
 				record := forkedRecord()
 				record.Derived.OriginMessageID = ""
@@ -4182,6 +4191,7 @@ func TestSessionForkCommand(t *testing.T) {
 		} {
 			derivation := tc.derivation
 			deps := newWorkspaceTestDeps(t, &stubClient{
+				getSessionFn: deriveSourceSession,
 				getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
 					return SessionStatusRecord{
 						SessionID: "sess-fork", AgentName: "codex", Derivation: &derivation,
@@ -4196,6 +4206,93 @@ func TestSessionForkCommand(t *testing.T) {
 				!strings.Contains(stdout, tc.want) {
 				t.Fatalf("session status output = %q (%v), want Origin and %q", stdout, err, tc.want)
 			}
+		}
+	})
+}
+
+func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should print code: message with exit 1 for a daemon derive error", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: deriveSourceSession,
+			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
+				return SessionDeriveRecord{}, &daemonAPIError{
+					statusCode: http.StatusNotFound, status: "404 Not Found",
+					payload: contract.ErrorPayload{Error: `no agent named "nope"`, Code: "agent_not_found"},
+				}
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "nope",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
+		if err == nil || err.Error() != `agent_not_found: no agent named "nope"` || cliExitCodeForError(err) != 1 {
+			t.Fatalf("session continue error = %v (exit %d), want agent_not_found with exit 1",
+				err, cliExitCodeForError(err))
+		}
+	})
+
+	t.Run("Should name the committed child when the fork failed after creating it", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: deriveSourceSession,
+			forkSessionFn: func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error) {
+				_, err := parseSessionDeriveAPIError(http.StatusUnprocessableEntity, "422 Unprocessable Entity",
+					[]byte(`{"error":"provider not authenticated","child_session_id":"sess-child"}`))
+				return SessionDeriveRecord{}, err
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--idempotency-key", "idem-f",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
+		if err == nil || !strings.Contains(err.Error(), "provider not authenticated") ||
+			!strings.Contains(err.Error(), "session sess-child was already created") ||
+			!strings.Contains(err.Error(), "--idempotency-key idem-f") || cliExitCodeForError(err) != 1 {
+			t.Fatalf("session fork error = %v (exit %d), want the committed child and retry key",
+				err, cliExitCodeForError(err))
+		}
+		payload, ok := marshalStructuredExecutionError([]string{"session", "fork", "-o", "json"}, err)
+		if !ok || !strings.Contains(string(payload), `"child_session_id":"sess-child"`) {
+			t.Fatalf("structured error = %s (%t), want child_session_id", payload, ok)
+		}
+	})
+
+	t.Run("Should reach the daemon for a replay after the source was deleted", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionForkRequest
+		var target SessionDeriveTarget
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{}, &daemonAPIError{
+					statusCode: http.StatusNotFound, status: "404 Not Found",
+					payload: contract.ErrorPayload{Error: "session sess-gone not found"},
+				}
+			},
+			getSessionTranscriptFn: func(context.Context, string) (SessionTranscriptRecord, error) {
+				t.Fatal("GetSessionTranscript() called for a deleted source")
+				return SessionTranscriptRecord{}, nil
+			},
+			forkSessionFn: func(_ context.Context, got SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
+				target, captured = got, request
+				record := forkedRecord()
+				record.Session = nil
+				record.Derived.Replayed, record.Derived.ChildDeleted = true, true
+				return record, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-gone",
+			"--idempotency-key", "idem-f", "-o", "json")
+		if err != nil {
+			t.Fatalf("session fork replay error = %v", err)
+		}
+		if target.SessionID != "sess-gone" || target.WorkspaceRef != "/workspace/project" ||
+			captured.ExpectedEpoch != nil || captured.IdempotencyKey != "idem-f" {
+			t.Fatalf("ForkSession() target = %#v request = %#v, want cwd workspace without fences", target, captured)
+		}
+		if !strings.Contains(stdout, `"child_deleted": true`) {
+			t.Fatalf("session fork replay output = %s, want child_deleted", stdout)
 		}
 	})
 }

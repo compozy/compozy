@@ -145,7 +145,10 @@ Required: `session_id`, `agent`, `idempotency_key`. Optional: `workspace`, `mess
 `{provider, model, reasoning_effort, speed, acp_options}` **or** `route` (1-based declared route of the
 agent's `fallback_chain`), and the three transcript fences together. The result is `{session,
 derived}`; repeat the same call with the same key to read the recorded outcome (`derived.replayed`,
-`derived.child_deleted`) instead of creating a second session.
+`derived.child_deleted`) instead of creating a second session, even after the source was deleted. A
+source outside the resolved workspace is `session_not_found`. A failure carries the HTTP error payload
+(`code`, and `child_session_id` when the session was already created before the failure) as the tool
+error's partial result: open that session or retry with the same key.
 
 `compozy__session_fork` (risk `mutating`, same permission and result shape as
 `compozy__session_continue`) forks a user session with the **same** agent, runtime, and account.

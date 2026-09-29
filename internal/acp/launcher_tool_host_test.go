@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1030,9 +1031,49 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 	if !errors.Is(err, launchErr) {
 		t.Fatalf("launchAgentProcess() error = %v, want wrapped launch error", err)
 	}
-	if !strings.Contains(err.Error(), `helper`) || !strings.Contains(err.Error(), `sh -c 'cat'`) {
-		t.Fatalf("launchAgentProcess() error = %v, want agent and command context", err)
+	if !strings.Contains(err.Error(), `helper`) ||
+		!strings.Contains(err.Error(), compozyconfig.CommandFingerprint(`sh -c 'cat'`)) {
+		t.Fatalf("launchAgentProcess() error = %v, want agent and command fingerprint context", err)
 	}
+	if strings.Contains(err.Error(), `sh -c 'cat'`) {
+		t.Fatalf("launchAgentProcess() error = %v, want no raw command", err)
+	}
+}
+
+func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a route's private assignment and arguments out of errors and logs", func(t *testing.T) {
+		t.Parallel()
+
+		const command = "ACCOUNT=private-seat /missing-compozy-route-executable --account private-seat"
+		var logs bytes.Buffer
+		driver := New(WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))))
+		_, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:   "route-helper",
+			Command:     command,
+			Cwd:         t.TempDir(),
+			Env:         []string{"PATH=" + os.Getenv("PATH")},
+			Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		if err == nil {
+			t.Fatal("Start(missing route executable) error = nil, want resolution failure")
+		}
+		for _, leak := range []string{"private-seat", "ACCOUNT=", "--account", command} {
+			if strings.Contains(err.Error(), leak) {
+				t.Fatalf("Start() error = %v, want no %q", err, leak)
+			}
+			if strings.Contains(logs.String(), leak) {
+				t.Fatalf("driver logs contain %q:\n%s", leak, logs.String())
+			}
+		}
+		if !strings.Contains(err.Error(), compozyconfig.CommandFingerprint(command)) {
+			t.Fatalf("Start() error = %v, want the command fingerprint", err)
+		}
+		if !strings.Contains(err.Error(), "missing-compozy-route-executable") {
+			t.Fatalf("Start() error = %v, want the safe executable identity", err)
+		}
+	})
 }
 
 type recordingLauncher struct {

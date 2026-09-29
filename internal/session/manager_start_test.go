@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -535,13 +536,14 @@ func persistedSessionMetas(t *testing.T, h *harness) []store.SessionMeta {
 func TestCreateFallbackChain(t *testing.T) {
 	t.Parallel()
 
-	newLedgerHarness := func(t *testing.T) (*harness, *globaldb.GlobalDB) {
+	newLedgerHarness := func(t *testing.T, extraOpts ...Option) (*harness, *globaldb.GlobalDB) {
 		t.Helper()
 		h := newHarness(t)
 		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
 		db := openManagerInputQueueStore(t)
 		registerManagerInputQueueWorkspace(t, db, h)
-		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithEventLedger(db))
+		opts := append([]Option{WithSessionCatalog(db), WithEventLedger(db)}, extraOpts...)
+		h.manager = newManagerWithHarness(t, h, opts...)
 		cleanupTestManager(t, h.manager)
 		return h, db
 	}
@@ -667,6 +669,103 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 		if got := markers[2].Evidence["provider_command_fingerprint"]; got != providerCommandFingerprint(codexCommand) {
 			t.Fatalf("failed-start marker fingerprint = %v, want the last refused route", got)
+		}
+	})
+
+	// refuseWithProcess makes the fake driver return a live process together with a
+	// pre-acceptance refusal for the given commands; stopping such a process fails.
+	refuseWithProcess := func(h *harness, commands map[string]bool, stopErr error) {
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			sessionID := fmt.Sprintf("acp-%d", sequence)
+			if commands[opts.Command] {
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "refused-"+sessionID),
+					rateLimitRefusal()
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, sessionID), nil
+		}
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			if strings.HasPrefix(proc.handle.SessionID, "refused-") {
+				return stopErr
+			}
+			proc.exit()
+			return nil
+		}
+	}
+	cleanupFailures := func(logs *captureLogHandler) []capturedLogRecord {
+		var failures []capturedLogRecord
+		for _, record := range logs.Records() {
+			if record.Message == "session.fallback.cleanup_failed" {
+				failures = append(failures, record)
+			}
+		}
+		return failures
+	}
+
+	t.Run("Should log a failed refused-process cleanup and continue to the next route", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, db := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		stopErr := errors.New("refused seat process would not stop")
+		refuseWithProcess(h, map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true}, stopErr)
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v, want the chain to continue past the cleanup failure", err)
+		}
+		cleanupSessionStop(t, h, created.ID)
+		if info := created.Info(); info.Provider != "codex" || info.State != StateActive {
+			t.Fatalf("created = %s on %s, want active on the codex route", info.State, info.Provider)
+		}
+		failures := cleanupFailures(logs)
+		if len(failures) != 2 {
+			t.Fatalf("cleanup_failed records = %#v, want one per refused attempt", failures)
+		}
+		for index, record := range failures {
+			if record.Level != slog.LevelWarn || record.Attrs["attempt"] != fmt.Sprint(index) ||
+				record.Attrs["phase"] != fallbackPhaseCreate ||
+				!strings.Contains(record.Attrs["error"], stopErr.Error()) {
+				t.Fatalf(
+					"cleanup_failed record %d = %#v, want warn attempt %d with the stop error",
+					index,
+					record,
+					index,
+				)
+			}
+		}
+		if got := ledgerRows(t, db); got != 2 {
+			t.Fatalf("ledger rows = %d, want one per fallback attempt", got)
+		}
+	})
+
+	t.Run("Should join the refused-process cleanup failure into the exhausted error", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, _ := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		stopErr := errors.New("refused seat process would not stop")
+		codexCommand := h.cfg.Providers["codex"].Command
+		refuseWithProcess(
+			h,
+			map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true, codexCommand: true},
+			stopErr,
+		)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
+			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
+		}
+		if !errors.Is(err, stopErr) {
+			t.Fatalf("Create() error = %v, want the last attempt's cleanup failure joined", err)
+		}
+		if got := strings.Count(err.Error(), stopErr.Error()); got != 3 {
+			t.Fatalf("Create() error names the cleanup failure %d time(s), want once per attempt: %v", got, err)
+		}
+		if got := len(cleanupFailures(logs)); got != 3 {
+			t.Fatalf("cleanup_failed records = %d, want one per refused attempt", got)
+		}
+		metas := persistedSessionMetas(t, h)
+		if len(metas) != 1 || metas[0].Failure == nil {
+			t.Fatalf("persisted sessions = %#v, want exactly one failed start", metas)
 		}
 	})
 

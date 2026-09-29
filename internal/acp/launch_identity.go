@@ -96,14 +96,27 @@ func (d *Driver) prepareLaunchIdentity(
 	next = applyProviderLaunchIdentity(next)
 	if err != nil {
 		return next, fmt.Errorf(
-			"acp: start agent %q subprocess %q in %q: %w",
+			"acp: start agent %q subprocess %s in %q: %w",
 			strings.TrimSpace(opts.AgentName),
-			strings.TrimSpace(opts.Command),
+			launchCommandIdentity(opts.Command),
 			strings.TrimSpace(opts.Cwd),
 			err,
 		)
 	}
 	return next, nil
+}
+
+// launchCommandIdentity names a launch command in errors and logs without its
+// raw text: a route command can carry private NAME=value assignments and
+// account arguments (fallback-account ADR-001/002). It keeps the executable
+// name and the shared sha256 fingerprint.
+func launchCommandIdentity(command string) string {
+	fingerprint := compozyconfig.CommandFingerprint(strings.TrimSpace(command))
+	parsed, err := compozyconfig.ParseLaunchCommand(command)
+	if err != nil || parsed.Executable == "" {
+		return fmt.Sprintf("(command %s)", fingerprint)
+	}
+	return fmt.Sprintf("%q (command %s)", parsed.Executable, fingerprint)
 }
 
 func launchSpecFromStartOpts(opts StartOpts) LaunchSpec {

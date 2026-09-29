@@ -340,4 +340,28 @@ describe("SessionDeriveHost fork", () => {
     expect(screen.getByTestId("session-fork-point")).toHaveTextContent("Whole session");
     expect(screen.queryByTestId("session-continue-dialog")).not.toBeInTheDocument();
   });
+  // Invariant: readiness belongs to this opening's own measurement. A reopened dialog
+  // must not show the previous open's size or submit its fences while it remeasures.
+  it("Should keep a reopened dialog measuring until its own preview answers", async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient()}>
+        <UIProvider reducedMotion="never" skipAnimations>
+          <HostHarness />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Fork entry" }));
+    await measured();
+    expect(screen.getByTestId("session-fork-submit")).toBeEnabled();
+    await user.click(screen.getByTestId("session-fork-cancel"));
+
+    handlers = sessionDeriveHandlers({ preview: "pending" });
+    await user.click(screen.getByRole("button", { name: "Fork entry" }));
+
+    const preview = await screen.findByTestId("session-derive-preview");
+    expect(preview).toHaveAttribute("data-state", "measuring");
+    expect(screen.getByTestId("session-fork-submit")).toBeDisabled();
+  });
 });

@@ -22,4 +22,4 @@ A new session's transcript already holds `hook.dispatch.start/complete` status e
 
 ## Note
 
-A plain new session has the same blank pane: its generic empty state is suppressed the same way. That's pre-existing and out of this feature's scope; see the report's Decisions for a Human.
+A plain new session had the same blank pane: its generic empty state was suppressed the same way. Resolved in review round 1 (option 1 of the report's decision): `ThreadMessages` now shares one "said nothing yet" check between the derived-child branch and the generic `ThreadStatePane` branch, so a fresh session holding only status events shows "Start the conversation…" (or the running/starting/failure states that pane already owns). When older history is still unloaded, the window does not claim the session is empty. Regression: `session-thread.test.tsx` "Should keep ThreadEmpty for a fresh session whose transcript holds only status events" (failed before the fix). The Goal-transport provider case's readiness gate in `session-chat-runtime-provider.test.tsx` asserted two rendered rows for a hook-only transcript (the blank-pane behavior); it now waits for the empty state.

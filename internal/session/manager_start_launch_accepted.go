@@ -154,8 +154,13 @@ func (m *Manager) discardAcceptedSessionStart(
 	accepted *acceptedSessionStart,
 	startErr error,
 ) error {
-	if accepted.catalogPending {
-		return m.discardUncommittedSessionStart(accepted, startErr)
+	if accepted.spec.deriveReceipt != nil {
+		if !accepted.session.isDeriveCommitted() {
+			return m.discardUncommittedSessionStart(accepted, startErr)
+		}
+		// A committed derived child is named by its receipt: keep its files and catalog
+		// row so a retry with the same key, or a restart, recovers it.
+		return errors.Join(startErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
 	}
 	session := accepted.session
 	var staged *stagedSessionDelete

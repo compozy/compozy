@@ -23,6 +23,7 @@ import {
   useSessionDeriveIdempotencyKey,
   useSessionDerivePreview,
 } from "./use-session-derive";
+import { useSessionDeriveCommittedChild } from "./use-session-derive-committed-child";
 
 /** `route` 0 is the agent's own provider, model and account. */
 export const SESSION_CONTINUE_DEFAULT_ROUTE = 0;
@@ -54,7 +55,9 @@ function runtimeRequest(override: RuntimeOverride): ContinueSessionRequest["runt
     ...(override.value.reasoning_effort
       ? { reasoning_effort: override.value.reasoning_effort }
       : {}),
-    ...(override.speed === "fast" ? { speed: override.speed } : {}),
+    // Always explicit: an omitted speed inherits the agent's default, so a
+    // fast-default agent switched to normal would still run fast.
+    speed: override.speed,
     ...(override.value.acp_options ? { acp_options: override.value.acp_options } : {}),
   };
 }
@@ -90,6 +93,13 @@ export function useSessionContinueDialog({
   const idempotencyKey = useSessionDeriveIdempotencyKey();
   const preview = useSessionDerivePreview(workspaceId, source.id, { enabled: open });
   const mutation = useSessionContinue();
+  const committedChild = useSessionDeriveCommittedChild({
+    workspaceId,
+    error: mutation.error,
+    placement,
+    handlers,
+    onClose,
+  });
 
   const agentName = chosenAgent ?? defaultContinueAgentName(agents, source.agent_name);
   const agent = agents.find(candidate => candidate.name === agentName);
@@ -166,6 +176,7 @@ export function useSessionContinueDialog({
     isSubmitting,
     canSubmit,
     submit,
+    committedChild,
   };
 }
 

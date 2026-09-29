@@ -7518,8 +7518,18 @@ func TestDaemonNativeTools(t *testing.T) {
 					_ context.Context,
 					opts session.ContinueSessionOpts,
 				) (session.DeriveResult, error) {
+					// The manager owns source ownership: a foreign workspace finds no source.
+					if opts.WorkspaceID != info.WorkspaceID {
+						return session.DeriveResult{}, session.ErrSessionNotFound
+					}
 					continueSubmitCalls++
 					submittedContinue = opts
+					if opts.IdempotencyKey == "idem-native-postcommit" {
+						return session.DeriveResult{
+							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+							SourceSessionID: opts.SourceSessionID,
+						}, &acp.FailureError{Kind: store.FailureProviderAuth, Summary: "not authenticated"}
+					}
 					return session.DeriveResult{
 						Child: &session.Info{
 							ID: "sess-continued", AgentName: "codex", WorkspaceID: info.WorkspaceID,
@@ -7532,6 +7542,9 @@ func TestDaemonNativeTools(t *testing.T) {
 					}, nil
 				},
 				ForkFn: func(_ context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error) {
+					if opts.WorkspaceID != info.WorkspaceID {
+						return session.DeriveResult{}, session.ErrSessionNotFound
+					}
 					submittedFork = opts
 					return session.DeriveResult{
 						ChildSessionID: "sess-forked", Kind: store.LineageKindFork,
@@ -8088,10 +8101,23 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		requireNativeDerivePartial(t, err, `"code":"session_not_found"`)
 		if continueSubmitCalls != 1 {
-			t.Fatalf("ContinueSession calls = %d, want 1 after denied workspace", continueSubmitCalls)
+			t.Fatalf("ContinueSession calls = %d, want 1 after a foreign-workspace source", continueSubmitCalls)
 		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionContinue,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","agent":"codex","message":"go",` +
+						`"idempotency_key":"idem-native-postcommit"}`,
+				),
+			},
+		)
+		requireNativeDerivePartial(t, err, `"child_session_id":"sess-committed"`)
 
 		forkResult, err := registry.Call(
 			t.Context(),
@@ -8123,7 +8149,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
 
 		_, err = registry.Call(
 			t.Context(),
@@ -13880,5 +13906,17 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			}
 			requireNativeStructuredContains(t, result, []byte(`"digest":"`+digests[profileName]+`"`))
 		})
+	}
+}
+
+func requireNativeDerivePartial(t *testing.T, err error, want string) {
+	t.Helper()
+
+	toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+	if !ok || toolErr.PartialResult == nil {
+		t.Fatalf("derive tool error = %#v, want a tool error with the error payload", err)
+	}
+	if !strings.Contains(string(toolErr.PartialResult.Structured), want) {
+		t.Fatalf("derive tool partial result = %s, want %s", toolErr.PartialResult.Structured, want)
 	}
 }

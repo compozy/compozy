@@ -68,7 +68,15 @@ func (m *Manager) registerDerivedSession(
 	); err != nil {
 		return fmt.Errorf("session: register derived session %q: %w", meta.ID, err)
 	}
-	return m.finishSessionCatalogPersistence(ctx, session)
+	// The commit is irreversible: the receipt now names this child, so nothing after it
+	// may fail the registration or sweep the child. The attention projection of a child
+	// that was never visible is empty, and the next lifecycle write hydrates it again.
+	session.markDeriveCommitted()
+	if err := m.hydrateSessionAttention(ctx, session); err != nil {
+		m.sessionLogger(session).Warn("session.derived.attention_hydrate_failed", "error", err)
+	}
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
+	return nil
 }
 
 // recordSessionDerivedEvent appends session.derived for the committed child to the

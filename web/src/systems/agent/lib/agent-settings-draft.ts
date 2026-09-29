@@ -11,6 +11,11 @@ import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-r
 import type { AgentPayload, UpdateAgentParams } from "../types";
 import { runtimeACPSelectionsEqual, type RuntimeACPOptionSelection } from "@/systems/runtime";
 
+/** Authored fallback route in its replacement (write) shape. */
+export type AgentSettingsFallbackRoute = NonNullable<
+  UpdateAgentParams["agent"]["fallback_chain"]
+>[number];
+
 const KNOWN_PERMISSIONS = new Set<AgentCreatePermission>(
   AGENT_CREATE_PERMISSION_OPTIONS.map(option => option.value).filter(
     (value): value is AgentCreatePermission => value !== ""
@@ -36,6 +41,11 @@ export interface AgentSettingsDraft {
   toolsets: string[];
   denyTools: string[];
   disabledSkills: string[];
+  /**
+   * Authored fallback routes carried verbatim: the update is a full replacement,
+   * so omitting them would erase routes the Web offers no controls for.
+   */
+  fallbackChain: AgentSettingsFallbackRoute[];
   definitionDigest: string;
   origin: AgentPayload["origin"];
 }
@@ -76,6 +86,7 @@ export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsD
     toolsets: [...(agent.toolsets ?? [])],
     denyTools: [...(agent.deny_tools ?? [])],
     disabledSkills: [...(agent.skills?.disabled ?? [])],
+    fallbackChain: (agent.fallback_chain ?? []).map(toFallbackRouteInput),
     definitionDigest: agent.definition_digest,
     origin: agent.origin,
   };
@@ -167,7 +178,28 @@ export function buildUpdateAgentParams(
       ...(draft.disabledSkills.length > 0
         ? { skills: { disabled: [...draft.disabledSkills] } }
         : { skills: null }),
+      ...(draft.fallbackChain.length > 0
+        ? { fallback_chain: draft.fallbackChain.map(route => ({ ...route })) }
+        : {}),
     },
+  };
+}
+
+/** Drops read-only projection fields (command_fingerprint) and empty optionals. */
+function toFallbackRouteInput(
+  route: NonNullable<AgentPayload["fallback_chain"]>[number]
+): AgentSettingsFallbackRoute {
+  const reasoningEffort = route.reasoning_effort?.trim() ?? "";
+  const command = route.command?.trim() ?? "";
+  return {
+    provider: route.provider,
+    model: route.model,
+    ...(reasoningEffort.length > 0 ? { reasoning_effort: reasoningEffort } : {}),
+    ...(route.speed ? { speed: route.speed } : {}),
+    ...(route.acp_options && route.acp_options.length > 0
+      ? { acp_options: route.acp_options.map(option => ({ ...option })) }
+      : {}),
+    ...(command.length > 0 ? { command } : {}),
   };
 }
 

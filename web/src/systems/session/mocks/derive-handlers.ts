@@ -8,6 +8,7 @@ import type {
   SessionDerivePreview,
   SessionDeriveResult,
 } from "../adapters/session-derive-api";
+import type { SessionPayload } from "../types";
 import { derivePreviewFixture, deriveResultFixture } from "./derive-fixtures";
 
 export type SessionDerivePreviewMock = SessionDerivePreview | "error" | "pending";
@@ -18,7 +19,12 @@ export interface SessionDeriveHandlerOptions {
    * The continue or fork outcome; `"pending"` never answers (the pending
    * state). Replayed outcomes answer `200` instead of `201`.
    */
-  result?: SessionDeriveResult | "pending" | { status: number; error: string; code?: string };
+  result?:
+    | SessionDeriveResult
+    | "pending"
+    | { status: number; error: string; code?: string; child_session_id?: string };
+  /** Served on the session detail route: the child a post-commit refusal names. */
+  committedChild?: SessionPayload;
   onContinue?: (request: ContinueSessionRequest) => void;
   onFork?: (request: ForkSessionRequest) => void;
   /** Sees each preview request's `message_id` (absent for the whole session). */
@@ -32,8 +38,16 @@ export function sessionDeriveHandlers({
   onContinue,
   onFork,
   onPreview,
+  committedChild,
 }: SessionDeriveHandlerOptions = {}): HttpHandler[] {
   return [
+    ...(committedChild
+      ? [
+          compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", () =>
+            HttpResponse.json({ session: committedChild })
+          ),
+        ]
+      : []),
     compozyApiMock.get(
       "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
       async ({ request }) => {
@@ -56,10 +70,7 @@ export function sessionDeriveHandlers({
           return HttpResponse.json({ error: "never" }, { status: 500 });
         }
         if ("error" in result) {
-          return HttpResponse.json(
-            { error: result.error, ...(result.code ? { code: result.code } : {}) },
-            { status: result.status }
-          );
+          return HttpResponse.json(deriveErrorBody(result), { status: result.status });
         }
         return HttpResponse.json(result, { status: result.derived.replayed ? 200 : 201 });
       }
@@ -73,13 +84,18 @@ export function sessionDeriveHandlers({
           return HttpResponse.json({ error: "never" }, { status: 500 });
         }
         if ("error" in result) {
-          return HttpResponse.json(
-            { error: result.error, ...(result.code ? { code: result.code } : {}) },
-            { status: result.status }
-          );
+          return HttpResponse.json(deriveErrorBody(result), { status: result.status });
         }
         return HttpResponse.json(result, { status: result.derived.replayed ? 200 : 201 });
       }
     ),
   ];
+}
+
+function deriveErrorBody(result: { error: string; code?: string; child_session_id?: string }) {
+  return {
+    error: result.error,
+    ...(result.code ? { code: result.code } : {}),
+    ...(result.child_session_id ? { child_session_id: result.child_session_id } : {}),
+  };
 }

@@ -14,6 +14,7 @@ import { AgentRuntimeControl } from "../agent-runtime-control";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  mutate: vi.fn(),
   settings: {
     data: undefined as { providers: [] } | undefined,
     error: null as Error | null,
@@ -57,20 +58,30 @@ vi.mock("@/systems/runtime/components/runtime-selector", async importOriginal =>
     ...actual,
     RuntimeSelector: ({
       disabled,
+      onChange,
       value,
     }: {
       disabled?: boolean;
+      onChange: (next: { provider: string; model: string; reasoning_effort: string }) => void;
       value: { provider: string; model: string; reasoning_effort: string };
     }) => (
-      <button
-        disabled={disabled}
-        type="button"
-        data-provider={value.provider}
-        data-model={value.model}
-        data-reasoning-effort={value.reasoning_effort}
-      >
-        Runtime selector
-      </button>
+      <>
+        <button
+          disabled={disabled}
+          type="button"
+          data-provider={value.provider}
+          data-model={value.model}
+          data-reasoning-effort={value.reasoning_effort}
+        >
+          Runtime selector
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ provider: "codex", model: "gpt-5.4", reasoning_effort: "" })}
+        >
+          Choose codex runtime
+        </button>
+      </>
     ),
   };
 });
@@ -84,7 +95,7 @@ vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
 }));
 
 vi.mock("../../hooks/use-agents", () => ({
-  useUpdateAgent: () => ({ isPending: false, mutate: vi.fn() }),
+  useUpdateAgent: () => ({ isPending: false, mutate: mocks.mutate }),
 }));
 
 function renderControl(ui: ReactElement) {
@@ -168,5 +179,34 @@ describe("AgentRuntimeControl provider sources", () => {
     await user.click(screen.getByRole("button", { name: "Retry providers" }));
     expect(mocks.workspace.refetch).toHaveBeenCalledTimes(1);
     expect(mocks.settings.refetch).not.toHaveBeenCalled();
+  });
+
+  // Invariant: the immediate runtime edit writes a full replacement, so it keeps
+  // the agent's authored fallback chain instead of erasing it.
+  it("Should keep the authored fallback chain when the runtime changes", async () => {
+    const user = userEvent.setup();
+    mocks.workspace.data = { providers: [] };
+
+    renderControl(
+      <AgentRuntimeControl
+        agent={{
+          ...primaryAgentFixture,
+          origin: "workspace",
+          fallback_chain: [
+            { provider: "claude", model: "sonnet", command_fingerprint: "sha256:abc" },
+          ],
+        }}
+        workspaceId="workspace-a"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose codex runtime" }));
+    expect(mocks.mutate).toHaveBeenCalledTimes(1);
+    const [{ params }] = mocks.mutate.mock.calls[0] as [{ params: { agent: unknown } }];
+    expect(params.agent).toMatchObject({
+      provider: "codex",
+      model: "gpt-5.4",
+      fallback_chain: [{ provider: "claude", model: "sonnet" }],
+    });
   });
 });

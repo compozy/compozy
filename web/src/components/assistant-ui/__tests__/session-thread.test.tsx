@@ -762,6 +762,27 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
   });
 
+  // Invariant: a transcript that has said nothing yet reads as empty. Hook dispatches and
+  // other status-only events render no row, so a fresh session holding only those keeps
+  // the generic empty state instead of a blank viewport.
+  it("Should keep ThreadEmpty for a fresh session whose transcript holds only status events", async () => {
+    const transcript = [
+      {
+        id: "hook-start",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ] as SessionMessage[];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByText(/Start the conversation/i)).toBeInTheDocument();
+  });
+
   // Invariant (UT-071): a derived child marks where its own transcript starts — one divider
   // before its first message, or the divider alone above a compact empty state before any.
   // Owning layer: the thread message list. Canonical suite: this file.

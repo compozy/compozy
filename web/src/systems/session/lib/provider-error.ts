@@ -57,3 +57,18 @@ export function providerErrorView(event: AgentEventPayload): ProviderErrorView |
 export function isProviderErrorEvent(event: AgentEventPayload): boolean {
   return event.type === "error" && knownDiagnostic(event) !== null;
 }
+
+const PROVIDER_FAILURE_MARKER = "transcript_marker.provider_failure";
+
+/** The daemon's `provider_failure` marker, recorded beside the turn's raw `error` event. */
+export function isProviderFailureMarker(event: AgentEventPayload): boolean {
+  return (
+    event.type === "transcript_marker.created" &&
+    (event.marker?.kind ?? event.title) === PROVIDER_FAILURE_MARKER
+  );
+}
+
+/** Either record of one provider failure: the diagnostic `error` event or its marker. */
+export function isProviderFailureRecord(event: AgentEventPayload): boolean {
+  return isProviderErrorEvent(event) || isProviderFailureMarker(event);
+}

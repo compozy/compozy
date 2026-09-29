@@ -1017,9 +1017,11 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 		proc = newFakeProcess(copied.AgentName, copied.Command, copied.Cwd, sessionID)
 		proc.handle.caps.SupportsForkSession = d.advertiseFork
 	}
-	if err != nil {
+	if err != nil && proc == nil {
 		return nil, err
 	}
+	// A hook may return a process together with a refusal: the process is registered
+	// so the caller can stop it, and the refusal is returned alongside its handle.
 
 	proc.handle.toolHost = copied.ToolHost
 	proc.handle.approvePermissionFn = func(ctx context.Context, req acp.ApproveRequest) error {
@@ -1038,6 +1040,9 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 	}
 
 	d.processes[proc.handle] = proc
+	if err != nil {
+		return proc.handle, err
+	}
 	d.lastProc = proc
 	return proc.handle, nil
 }

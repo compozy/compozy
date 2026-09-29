@@ -17,7 +17,7 @@ import (
 func parseCommandString(command string) (string, []string, error) {
 	parts, err := shellquote.Split(command)
 	if err != nil {
-		return "", nil, fmt.Errorf("acp: parse command %q: %w", command, err)
+		return "", nil, fmt.Errorf("acp: parse command %s: %w", compozyconfig.CommandFingerprint(command), err)
 	}
 	if len(parts) == 0 {
 		return "", nil, errors.New("acp: command is empty")

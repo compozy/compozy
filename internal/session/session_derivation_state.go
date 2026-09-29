@@ -72,6 +72,23 @@ func (s *Session) markImportedContextConsumed(admissionKey string, messageID str
 	return true
 }
 
+// markDeriveCommitted records that the child's registration transaction committed.
+func (s *Session) markDeriveCommitted() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deriveCommitted = true
+}
+
+// isDeriveCommitted reports whether the derived child's registration committed.
+func (s *Session) isDeriveCommitted() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.deriveCommitted
+}
+
 // takePendingDeriveReceipt returns the derive receipt once, for the child's commit.
 func (s *Session) takePendingDeriveReceipt() *store.SessionDerivationReceipt {
 	if s == nil {

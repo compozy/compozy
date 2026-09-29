@@ -109513,6 +109513,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -109543,6 +109544,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -109573,6 +109575,38 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -109603,6 +109637,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -109633,6 +109668,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -109737,6 +109773,36 @@ export interface operations {
       };
       /** @description Session or message not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session is archived */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -110707,6 +110773,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -110737,6 +110804,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -110767,6 +110835,38 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -110797,6 +110897,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {
@@ -110827,6 +110928,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            child_session_id?: string;
             code?: string;
             current_turn_id?: string;
             details?: {

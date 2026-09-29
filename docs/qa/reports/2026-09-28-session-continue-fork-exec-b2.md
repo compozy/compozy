@@ -118,6 +118,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - What's broken: `hook.dispatch.*` status messages suppress `ThreadStatePane`'s empty state for every fresh session (outside this feature, whose branch is fixed).
 - Options: 1. apply the same narrative check to the generic empty branch. 2. project status-only lifecycle messages out of the transcript.
 - Recommendation: 1, in a follow-up owned by the sessions surface.
+- Resolution (review round 1, W3): option 1 applied in `session-thread-messages.tsx`; see BUG-20260928-derived-child-empty-state-hidden § Note.
 
 ## Learnings
 

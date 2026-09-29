@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -40,15 +39,14 @@ func newSessionForkCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if request.ExpectedEpoch == nil {
-				if err := fillDeriveFencesFromTranscript(cmd.Context(), client, args[0],
-					&request.ExpectedEpoch, &request.ExpectedGeneration, &request.ExpectedMaxSequence); err != nil {
-					return err
-				}
-			}
-			record, err := client.ForkSession(cmd.Context(), args[0], request)
+			target, err := resolveSessionDeriveTarget(cmd, deps, client, args[0],
+				&request.ExpectedEpoch, &request.ExpectedGeneration, &request.ExpectedMaxSequence)
 			if err != nil {
 				return err
+			}
+			record, err := client.ForkSession(cmd.Context(), target, request)
+			if err != nil {
+				return sessionDeriveCommandFailure(err, request.IdempotencyKey)
 			}
 			return writeCommandOutput(cmd, sessionDeriveBundle(&record))
 		},
@@ -79,16 +77,8 @@ func buildSessionForkRequest(cmd *cobra.Command, flags *sessionForkFlags) (Sessi
 
 func (c *daemonClient) ForkSession(
 	ctx context.Context,
-	id string,
+	target SessionDeriveTarget,
 	request SessionForkRequest,
 ) (SessionDeriveRecord, error) {
-	var response SessionDeriveRecord
-	path, err := c.sessionScopedPath(ctx, id, "/fork")
-	if err != nil {
-		return SessionDeriveRecord{}, err
-	}
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
-		return SessionDeriveRecord{}, err
-	}
-	return response, nil
+	return c.deriveSession(ctx, target, "/fork", request)
 }

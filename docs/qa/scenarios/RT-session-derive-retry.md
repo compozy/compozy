@@ -4,9 +4,9 @@ area: RT
 title: Retrying a continue returns the recorded outcome and never creates a second session
 persona: Rafa
 journey: J-15-operate-session-via-cli-api
-expected: Repeating compozy session continue (or POST …/continue, or compozy__session_continue) with the same idempotency key and the same request returns the recorded outcome with replayed true (HTTP 200, CLI "Replayed  yes") even after the source gained new turns; after the child is deleted it returns the outcome with child_deleted true and creates nothing; the same key with a different request returns idempotency_conflict; stale fences return session_fence_conflict; a first message admitted but never dispatched before a restart is dispatched exactly once by the retry.
+expected: Repeating compozy session continue (or POST …/continue, or compozy__session_continue) with the same idempotency key and the same request returns the recorded outcome with replayed true (HTTP 200, CLI "Replayed  yes") even after the source gained new turns; after the child is deleted it returns the outcome with child_deleted true and creates nothing; the same key with a different request returns idempotency_conflict; stale fences return session_fence_conflict; a first message admitted but never dispatched before a restart is dispatched exactly once by the retry; a retry after the source was deleted still replays; a failure after the child was committed names it as child_session_id.
 entry_points: compozy session continue <id> --agent <name> --idempotency-key <key> [--message …] [-o json]; POST /api/workspaces/{workspace_id}/sessions/{session_id}/continue; compozy session delete <child>; compozy session list -o json; compozy logs --session <child> --type session.derived -o json
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260928-derive-replay-deleted-child-origin-lost
 fix_status: fixed
 retest_status: pass
@@ -29,6 +29,13 @@ Planning 2026-09-28 (session-continue-fork task_03): new behavior.
    `child_deleted: true`, no `session`, and no new session is listed.
 6. Restart window: stop the daemon right after a continue with `--message` returns (before the first
    turn runs), start it, and repeat the same command: the message is dispatched exactly once.
+7. Deleted source (review round 1 #10): continue A→B with key K, delete B, delete A, then repeat the
+   same command from A's workspace: the recorded outcome returns with `replayed: true`,
+   `child_deleted: true` (HTTP `200`), not `404`. The derive and preview routes never rewrite the
+   source's metadata (no repairing read).
+8. Post-commit failure (review round 1 #9): continue with `--message` onto an agent whose runtime
+   cannot authenticate: `422` carries `child_session_id`; the CLI prints the session id and the key to
+   rerun with; the web dialog shows **Open new session** and opens that child.
 
 Automated evidence at authoring time: session manager derive receipt/idempotency cases and the HTTP
 replay transport cases (`TestContinueSessionHandler`). task_07/08 own the walk.

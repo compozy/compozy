@@ -256,7 +256,7 @@ func agentBundle(item AgentRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			// Detail output emits tool names; list output keeps the table dense with tool_count.
-			return renderToonObject(agentAgentKey, []string{
+			header := renderToonObject(agentAgentKey, []string{
 				automationNameKey,
 				cliProviderKey,
 				agentCommandKey,
@@ -292,7 +292,20 @@ func agentBundle(item AgentRecord) outputBundle {
 				strings.Join(item.Tools, "|"),
 				item.Permissions,
 				item.Prompt,
-			}), nil
+			})
+			return renderHumanBlocks(header, renderToonArray(
+				"fallback_chain",
+				[]string{
+					cliProviderKey,
+					agentModelKey,
+					agentReasoningEffortField,
+					agentSpeedField,
+					agentACPOptionsField,
+					agentCommandKey,
+					"command_fingerprint",
+				},
+				agentFallbackChainToonRows(item.FallbackChain),
+			)), nil
 		},
 	}
 }

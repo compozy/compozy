@@ -19,6 +19,7 @@ import { getSessionDisplayTitle } from "../lib/session-display-title";
 import type { SessionPayload } from "../types";
 import { SessionContinueFields } from "./session-continue-fields";
 import { SessionDerivePlacementField } from "./session-derive-placement";
+import { SessionDeriveCommittedChild } from "./session-derive-committed-child";
 import { SessionDerivePreviewLine } from "./session-derive-preview";
 
 export interface SessionContinueDialogProps {
@@ -97,6 +98,11 @@ export function SessionContinueDialog({
                 {model.submitError}
               </FieldError>
             ) : null}
+
+            <SessionDeriveCommittedChild
+              model={model.committedChild}
+              testIdPrefix="session-continue"
+            />
 
             {model.isSubmitting ? (
               <p

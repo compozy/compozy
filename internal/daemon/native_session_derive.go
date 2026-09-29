@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -56,14 +57,13 @@ func (n *daemonNativeTools) sessionContinue(
 		input.ExpectedMaxSequence); err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	deriver, workspaceID, profileID, err := n.nativeDeriveSource(ctx, scope, req.ToolID, input.Workspace, sessionID)
+	deriver, workspaceID, err := n.nativeDeriveTarget(ctx, scope, req.ToolID, input.Workspace)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	result, err := deriver.ContinueSession(ctx, session.ContinueSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     workspaceID,
-		ProfileID:       profileID,
 		AgentName:       agent,
 		Runtime:         nativeDeriveRuntime(input.Runtime),
 		Route:           input.Route,
@@ -75,7 +75,7 @@ func (n *daemonNativeTools) sessionContinue(
 			ExpectedMaxSequence: input.ExpectedMaxSequence,
 		},
 	})
-	return nativeDeriveResult(result, err)
+	return nativeDeriveResult(req.ToolID, result, err)
 }
 
 type sessionForkInput struct {
@@ -112,14 +112,13 @@ func (n *daemonNativeTools) sessionFork(
 		input.ExpectedMaxSequence); err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	deriver, workspaceID, profileID, err := n.nativeDeriveSource(ctx, scope, req.ToolID, input.Workspace, sessionID)
+	deriver, workspaceID, err := n.nativeDeriveTarget(ctx, scope, req.ToolID, input.Workspace)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	result, err := deriver.ForkSession(ctx, session.ForkSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     workspaceID,
-		ProfileID:       profileID,
 		MessageID:       strings.TrimSpace(input.MessageID),
 		Name:            strings.TrimSpace(input.Name),
 		IdempotencyKey:  idempotencyKey,
@@ -128,39 +127,44 @@ func (n *daemonNativeTools) sessionFork(
 			ExpectedMaxSequence: input.ExpectedMaxSequence,
 		},
 	})
-	return nativeDeriveResult(result, err)
+	return nativeDeriveResult(req.ToolID, result, err)
 }
 
-// nativeDeriveSource resolves the derive manager and the caller-visible source session.
-func (n *daemonNativeTools) nativeDeriveSource(
+// nativeDeriveTarget resolves the derive manager and the caller-visible workspace. It
+// does not read the source: the repairing Status read would rewrite an inactive
+// source, and the manager validates ownership with its non-repairing snapshot after
+// replaying a matching receipt, so a retry survives the source's deletion (ADR-007).
+func (n *daemonNativeTools) nativeDeriveTarget(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	toolID toolspkg.ToolID,
 	workspace string,
-	sessionID string,
-) (core.SessionDeriveManager, string, string, error) {
+) (core.SessionDeriveManager, string, error) {
 	deriver, ok := n.deps.Sessions.(core.SessionDeriveManager)
 	if !ok {
-		return nil, "", "", errors.New("daemon: session continue and fork are unavailable")
+		return nil, "", errors.New("daemon: session continue and fork are unavailable")
 	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, toolID, workspace, scope)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", err
 	}
 	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
-		return nil, "", "", nativeInputError(toolID, err)
+		return nil, "", nativeInputError(toolID, err)
 	}
-	source, err := n.nativeSessionInWorkspace(ctx, toolID, workspaceID, sessionID)
-	if err != nil {
-		return nil, "", "", err
-	}
-	return deriver, workspaceID, source.ProfileID, nil
+	return deriver, workspaceID, nil
 }
 
-func nativeDeriveResult(result session.DeriveResult, err error) (toolspkg.ToolResult, error) {
+// nativeDeriveResult projects a derive outcome. A failure keeps the HTTP/UDS error
+// payload (code and, after the child was committed, child_session_id) as the tool
+// error's partial result, so the calling agent can still reach the committed child.
+func nativeDeriveResult(
+	toolID toolspkg.ToolID,
+	result session.DeriveResult,
+	err error,
+) (toolspkg.ToolResult, error) {
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, nativeDeriveToolError(toolID, core.DeriveFailure(err, result))
 	}
 	payload := contract.SessionDeriveResponse{Derived: core.SessionDerivedPayloadFromResult(result)}
 	if result.Child != nil {
@@ -168,6 +172,26 @@ func nativeDeriveResult(result session.DeriveResult, err error) (toolspkg.ToolRe
 		payload.Session = &child
 	}
 	return structuredResult(payload, result.ChildSessionID)
+}
+
+func nativeDeriveToolError(toolID toolspkg.ToolID, err error) error {
+	toolErr, ok := errors.AsType[*toolspkg.ToolError](
+		nativeHTTPStatusToolError(toolID, err, core.StatusForSessionError(err)),
+	)
+	if !ok {
+		return err
+	}
+	payload := core.DeriveErrorPayload(err)
+	structured, marshalErr := json.Marshal(payload)
+	if marshalErr != nil {
+		return toolErr
+	}
+	preview := payload.Code
+	if payload.ChildSessionID != "" {
+		preview = "session " + payload.ChildSessionID +
+			" was created before the failure; open it or retry the same idempotency_key"
+	}
+	return toolErr.WithPartialResult(toolspkg.ToolResult{Structured: structured, Preview: preview})
 }
 
 func nativeDeriveRuntime(payload *contract.PromptRuntimeSelectionPayload) *session.DeriveRuntime {

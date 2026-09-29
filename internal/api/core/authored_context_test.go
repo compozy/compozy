@@ -640,6 +640,100 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 	}
 }
 
+func TestSessionStatusCarriesLineage(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		lineage        *store.SessionLineage
+		derivation     *store.SessionDerivation
+		wantKind       any
+		wantDerivation bool
+	}{
+		{name: "Should omit lineage for a root session"},
+		{
+			name:     "Should carry provenance lineage without a derivation",
+			lineage:  &store.SessionLineage{ParentSessionID: "sess-parent", Kind: store.LineageKindProvenance},
+			wantKind: string(store.LineageKindProvenance),
+		},
+		{
+			name: "Should carry spawn lineage without a derivation",
+			lineage: &store.SessionLineage{
+				ParentSessionID: "sess-parent", SpawnDepth: 1, SpawnRole: "worker", Kind: store.LineageKindSpawn,
+			},
+			wantKind: string(store.LineageKindSpawn),
+		},
+		{
+			name: "Should carry continue lineage and its derivation",
+			lineage: &store.SessionLineage{
+				ParentSessionID: "sess-parent", SpawnDepth: 1, Kind: store.LineageKindContinue,
+				OriginAgentName: "codex",
+			},
+			derivation: &store.SessionDerivation{
+				Kind: store.LineageKindContinue, SourceSessionID: "sess-parent",
+				Seed: store.SessionDerivationSeedReplay,
+			},
+			wantKind:       string(store.LineageKindContinue),
+			wantDerivation: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID: id, WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID,
+						AgentName: "coder", State: session.StateActive,
+						Lineage: tc.lineage, Derivation: tc.derivation,
+					}, nil
+				},
+			}
+			workspaces := testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: t.TempDir()},
+						WorkspaceID: "ws-stable",
+					}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
+				SessionID: "sess-child", WorkspaceID: "ws-registry", AgentName: "coder",
+				State: heartbeat.SessionHealthStateIdle, Health: heartbeat.SessionHealthHealthy,
+			}}
+			fixture.Engine.GET(
+				"/workspaces/:workspace_id/sessions/:session_id/status",
+				fixture.Handlers.GetSessionStatus,
+			)
+
+			req := httptest.NewRequestWithContext(
+				context.Background(), http.MethodGet, "/workspaces/ws-stable/sessions/sess-child/status", nil,
+			)
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("response code = %d body=%s", recorder.Code, recorder.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("Unmarshal(response) error = %v", err)
+			}
+			lineage, hasLineage := payload["lineage"].(map[string]any)
+			if tc.wantKind == nil {
+				if hasLineage {
+					t.Fatalf("lineage = %#v, want omitted for a root session", lineage)
+				}
+			} else if !hasLineage || lineage["kind"] != tc.wantKind {
+				t.Fatalf("lineage = %#v, want kind %v", payload["lineage"], tc.wantKind)
+			}
+			if _, hasDerivation := payload["derivation"]; hasDerivation != tc.wantDerivation {
+				t.Fatalf("derivation present = %t, want %t", hasDerivation, tc.wantDerivation)
+			}
+		})
+	}
+}
+
 func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {
 	t.Parallel()
 

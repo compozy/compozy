@@ -1,7 +1,13 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClient,
+  apiErrorCode,
+  apiRequestFailed,
+  defaultApiErrorMessage,
+  requireResponseData,
+} from "@/lib/api-client";
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
-import { throwSessionRequestError } from "./session-api-errors";
+import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
 
 /** The daemon's measurement of what a continue or fork of one session would carry. */
 export type SessionDerivePreview = OperationResponse<"previewSessionDerive", 200>;
@@ -11,6 +17,40 @@ export type ForkSessionRequest = OperationRequestBody<"forkSession">;
 /** `201` for a new child, `200` for a replayed idempotency key — one shape. */
 export type SessionDeriveResult = OperationResponse<"continueSession", 201>;
 export type SessionDerivedOutcome = SessionDeriveResult["derived"];
+
+/**
+ * A continue or fork refused after the daemon already created the new session
+ * (its first message could not be admitted, say): `childSessionId` names it so
+ * the dialog can still open it. Retrying with the same idempotency key returns it.
+ */
+export class SessionDeriveCommittedError extends SessionApiError {
+  constructor(
+    message: string,
+    status: number,
+    code: string | undefined,
+    public readonly childSessionId: string
+  ) {
+    super(message, status, undefined, code ? { code } : {});
+    this.name = "SessionDeriveCommittedError";
+  }
+}
+
+function committedChildSessionId(error: unknown): string {
+  if (typeof error !== "object" || error === null || !("child_session_id" in error)) return "";
+  const id = (error as { child_session_id?: unknown }).child_session_id;
+  return typeof id === "string" ? id.trim() : "";
+}
+
+function throwSessionDeriveError(response: Response, error: unknown, fallback: string): never {
+  const childSessionId = committedChildSessionId(error);
+  if (!childSessionId) throwSessionRequestError(response, error, fallback);
+  throw new SessionDeriveCommittedError(
+    defaultApiErrorMessage(fallback, response, error),
+    response.status,
+    apiErrorCode(error),
+    childSessionId
+  );
+}
 
 export interface SessionDerivePreviewParams {
   /** Durable user message to cut through (fork from here); absent for the whole session. */
@@ -59,7 +99,7 @@ export async function continueSession(
   if (apiRequestFailed(response, error)) {
     // The source was found when the dialog opened; a 404 now names the daemon's
     // reason (agent or source gone) and must reach the operator verbatim.
-    throwSessionRequestError(response, error, fallback);
+    throwSessionDeriveError(response, error, fallback);
   }
   return requireResponseData(data, response, fallback);
 }
@@ -82,7 +122,7 @@ export async function forkSession(
   if (apiRequestFailed(response, error)) {
     // A 404 here is the daemon's `message_not_found` (or the source gone): its
     // text names the reason and reaches the operator verbatim.
-    throwSessionRequestError(response, error, fallback);
+    throwSessionDeriveError(response, error, fallback);
   }
   return requireResponseData(data, response, fallback);
 }

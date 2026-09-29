@@ -165,20 +165,77 @@ func (m *Manager) readDeriveSnapshotEvents(
 	return nil
 }
 
+// deriveSourceMoved reports whether the source recorded any unarchived event after the
+// snapshot's cut. The derive holds the source's conversation operation lock, so its epoch
+// and generation cannot change; only appended events can move it.
+func (m *Manager) deriveSourceMoved(ctx context.Context, snapshot *deriveSnapshot) (_ bool, retErr error) {
+	recorder, cleanup, err := m.openDeriveQueryRecorder(ctx, snapshot)
+	if err != nil {
+		return false, err
+	}
+	defer func() { retErr = errors.Join(retErr, cleanup()) }()
+	later, err := recorder.Query(ctx, store.EventQuery{
+		Forward: true, AfterSequence: snapshot.maxSequence, Limit: 1, Archive: store.EventArchiveUnarchived,
+	})
+	if err != nil {
+		return false, fmt.Errorf("session: query derive source events of %q: %w", snapshot.meta.ID, err)
+	}
+	return len(later) > 0, nil
+}
+
 // assembleDeriveMessages assembles the rewind baseline plus the carried events in
-// (afterSequence, throughSequence], deduplicated the way a derive carries them.
+// (afterSequence, throughSequence], deduplicated the way a derive carries them. A cut
+// inside the baseline (a retained pre-rewind turn) also cuts the baseline there.
 func assembleDeriveMessages(
 	baseline []transcript.Message,
 	events []store.SessionEvent,
 	afterSequence int64,
 	throughSequence int64,
 ) ([]transcript.Message, error) {
+	if throughSequence < afterSequence {
+		cut, err := cutDeriveBaseline(baseline, events, throughSequence, afterSequence)
+		if err != nil {
+			return nil, err
+		}
+		return transcript.Prune(cut, transcript.PruneOptions{Dedup: true}), nil
+	}
 	own, err := transcript.Assemble(carriedEvents(events, afterSequence, throughSequence))
 	if err != nil {
 		return nil, err
 	}
 	merged := append(append([]transcript.Message(nil), baseline...), own...)
 	return transcript.Prune(merged, transcript.PruneOptions{Dedup: true}), nil
+}
+
+// cutDeriveBaseline keeps the baseline messages before the first one the retained events
+// in (throughSequence, coveredThrough] assemble: those are the turns after the cut. The
+// baseline was assembled from the same events, so their message ids match.
+func cutDeriveBaseline(
+	baseline []transcript.Message,
+	events []store.SessionEvent,
+	throughSequence int64,
+	coveredThrough int64,
+) ([]transcript.Message, error) {
+	later := make([]store.SessionEvent, 0)
+	for _, event := range events {
+		if event.Sequence > throughSequence && event.Sequence <= coveredThrough {
+			later = append(later, event)
+		}
+	}
+	excluded, err := transcript.Assemble(later)
+	if err != nil {
+		return nil, err
+	}
+	afterCut := make(map[string]struct{}, len(excluded))
+	for _, message := range excluded {
+		afterCut[message.ID] = struct{}{}
+	}
+	for index, message := range baseline {
+		if _, ok := afterCut[message.ID]; ok {
+			return append([]transcript.Message(nil), baseline[:index]...), nil
+		}
+	}
+	return append([]transcript.Message(nil), baseline...), nil
 }
 
 // deriveRewindBaseline returns the rewind baseline messages and the sequence they cover.

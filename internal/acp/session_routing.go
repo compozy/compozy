@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"encoding/json"
 	"sync"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -153,4 +154,44 @@ func (p *AgentProcess) permissionRequestIsBound(id acpsdk.SessionId) bool {
 	case sessionUpdateRouteFork:
 	}
 	return false
+}
+
+// sessionScopedCallbackMethods are the client callbacks that act through the
+// bound session's tool host. A clone or foreign session id must never reach it.
+var sessionScopedCallbackMethods = map[string]struct{}{
+	acpsdk.ClientMethodFsReadTextFile:      {},
+	acpsdk.ClientMethodFsWriteTextFile:     {},
+	acpsdk.ClientMethodTerminalCreate:      {},
+	acpsdk.ClientMethodTerminalKill:        {},
+	acpsdk.ClientMethodTerminalOutput:      {},
+	acpsdk.ClientMethodTerminalWaitForExit: {},
+	acpsdk.ClientMethodTerminalRelease:     {},
+}
+
+type wireSessionScopedCallback struct {
+	SessionID acpsdk.SessionId `json:"sessionId"`
+}
+
+// rejectNonBoundSessionCallback quarantines filesystem and terminal callbacks
+// whose sessionId is not the bound session (ADR-003): a fork clone's callbacks
+// are refused, foreign ones are refused, counted, and logged once. Undecodable
+// params fall through so the method handler reports its own invalid-params error.
+func (p *AgentProcess) rejectNonBoundSessionCallback(method string, params json.RawMessage) *acpsdk.RequestError {
+	if _, scoped := sessionScopedCallbackMethods[method]; !scoped {
+		return nil
+	}
+	var callback wireSessionScopedCallback
+	if err := json.Unmarshal(params, &callback); err != nil {
+		return nil
+	}
+	switch p.routeSessionUpdate(callback.SessionID) {
+	case sessionUpdateRouteBound:
+		return nil
+	case sessionUpdateRouteForeign:
+		p.dropForeignSessionTraffic(callback.SessionID, method)
+	case sessionUpdateRouteFork:
+	}
+	return acpsdk.NewInvalidParams(map[string]any{
+		EventTypeError: "session " + string(callback.SessionID) + " is not bound to this client",
+	})
 }

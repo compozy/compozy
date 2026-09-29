@@ -2,14 +2,19 @@ package acp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -231,4 +236,105 @@ func jsonEqual(t *testing.T, left any, right any) bool {
 		t.Fatalf("json.Marshal(right) error = %v", err)
 	}
 	return bytes.Equal(leftJSON, rightJSON)
+}
+
+func TestAgentProcessNonBoundSessionCallbacks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject clone and foreign filesystem callbacks without touching the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		proc.bindSessionRoute("sess-direct")
+		existing := filepath.Join(proc.Cwd, "existing.txt")
+		if err := os.WriteFile(existing, []byte("source secret"), 0o600); err != nil {
+			t.Fatalf("WriteFile(existing) error = %v", err)
+		}
+		capture := proc.openForkCapture()
+		assertNonBoundFSCallbacksRejected(t, proc, "sess-clone", existing)
+		proc.closeForkCapture(capture)
+		assertNonBoundFSCallbacksRejected(t, proc, "sess-foreign", existing)
+		if got := proc.foreignSessionTrafficDropped(); got != 2 {
+			t.Fatalf("foreignSessionTrafficDropped() = %d, want 2 (foreign read + write only)", got)
+		}
+
+		written := filepath.Join(proc.Cwd, "bound.txt")
+		_, reqErr := proc.handleInbound(testutil.Context(t), acpsdk.ClientMethodFsWriteTextFile,
+			mustMarshalJSON(acpsdk.WriteTextFileRequest{SessionId: "sess-direct", Path: written, Content: "ok"}))
+		if reqErr != nil {
+			t.Fatalf("bound fs/write_text_file error = %v", reqErr)
+		}
+		if content, err := os.ReadFile(written); err != nil || string(content) != "ok" {
+			t.Fatalf("bound write content = %q, %v; want ok", content, err)
+		}
+	})
+
+	t.Run("Should reject clone and foreign terminal callbacks before the tool host runs", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		var calls atomic.Int32
+		record := func(string) error {
+			calls.Add(1)
+			return nil
+		}
+		proc.toolHost = contextAwareToolHost{
+			createTerminalFn: func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
+				calls.Add(1)
+				return acpsdk.CreateTerminalResponse{TerminalId: "term-clone"}, nil
+			},
+			killTerminalFn:    record,
+			releaseTerminalFn: record,
+		}
+		proc.bindSessionRoute("sess-direct")
+		capture := proc.openForkCapture()
+		defer proc.closeForkCapture(capture)
+
+		const id acpsdk.SessionId = "sess-clone"
+		requests := map[string]any{
+			acpsdk.ClientMethodTerminalCreate: acpsdk.CreateTerminalRequest{
+				SessionId: id, Command: "sh", Args: []string{"-c", "touch pwned"}, Cwd: new(proc.Cwd),
+			},
+			acpsdk.ClientMethodTerminalKill:   acpsdk.KillTerminalRequest{SessionId: id, TerminalId: "term-1"},
+			acpsdk.ClientMethodTerminalOutput: acpsdk.TerminalOutputRequest{SessionId: id, TerminalId: "term-1"},
+			acpsdk.ClientMethodTerminalWaitForExit: acpsdk.WaitForTerminalExitRequest{
+				SessionId:  id,
+				TerminalId: "term-1",
+			},
+			acpsdk.ClientMethodTerminalRelease: acpsdk.ReleaseTerminalRequest{SessionId: id, TerminalId: "term-1"},
+		}
+		for method, request := range requests {
+			if _, reqErr := proc.handleInbound(testutil.Context(t), method, mustMarshalJSON(request)); reqErr == nil {
+				t.Fatalf("%s for %q error = nil, want non-bound rejection", method, id)
+			}
+		}
+		if got := calls.Load(); got != 0 {
+			t.Fatalf("tool host terminal calls = %d, want 0", got)
+		}
+		if _, err := os.Stat(filepath.Join(proc.Cwd, "pwned")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(pwned) error = %v, want not exist", err)
+		}
+	})
+}
+
+func assertNonBoundFSCallbacksRejected(t *testing.T, proc *AgentProcess, id acpsdk.SessionId, existing string) {
+	t.Helper()
+
+	target := filepath.Join(proc.Cwd, string(id)+".txt")
+	_, reqErr := proc.handleInbound(testutil.Context(t), acpsdk.ClientMethodFsWriteTextFile,
+		mustMarshalJSON(acpsdk.WriteTextFileRequest{SessionId: id, Path: target, Content: "leak"}))
+	if reqErr == nil {
+		t.Fatalf("fs/write_text_file for %q error = nil, want non-bound rejection", id)
+	}
+	if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(%s) error = %v, want not exist", target, err)
+	}
+	result, reqErr := proc.handleInbound(testutil.Context(t), acpsdk.ClientMethodFsReadTextFile,
+		mustMarshalJSON(acpsdk.ReadTextFileRequest{SessionId: id, Path: existing}))
+	if reqErr == nil {
+		t.Fatalf("fs/read_text_file for %q = %+v, want non-bound rejection", id, result)
+	}
+	if strings.Contains(reqErr.Error(), "source secret") {
+		t.Fatalf("fs/read_text_file rejection leaked content: %v", reqErr)
+	}
 }

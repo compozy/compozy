@@ -37,30 +37,22 @@ type SessionDeriveManager interface {
 func (h *BaseHandlers) ContinueSession(c *gin.Context) {
 	var req contract.ContinueSessionRequest
 	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
+		h.respondDeriveError(c, http.StatusBadRequest, invalidDeriveRequest(
 			fmt.Errorf("%s: decode continue request: %w", h.transportName(), err),
-		)
+		))
 		return
 	}
 	if err := validateContinueSessionRequest(req); err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
+		h.respondDeriveError(c, http.StatusBadRequest, err)
 		return
 	}
-	scope, sessionID, origin, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, deriver, ok := h.deriveRoute(c)
 	if !ok {
-		return
-	}
-	deriver, ok := h.Sessions.(SessionDeriveManager)
-	if !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errDeriveUnavailable)
 		return
 	}
 	result, err := deriver.ContinueSession(c.Request.Context(), session.ContinueSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     scope.SessionWorkspaceID(),
-		ProfileID:       origin.ProfileID,
 		AgentName:       strings.TrimSpace(req.AgentName),
 		Runtime:         deriveRuntimeFromPayload(req.Runtime),
 		Route:           req.Route,
@@ -79,30 +71,22 @@ func (h *BaseHandlers) ContinueSession(c *gin.Context) {
 func (h *BaseHandlers) ForkSession(c *gin.Context) {
 	var req contract.ForkSessionRequest
 	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
+		h.respondDeriveError(c, http.StatusBadRequest, invalidDeriveRequest(
 			fmt.Errorf("%s: decode fork request: %w", h.transportName(), err),
-		)
+		))
 		return
 	}
 	if err := validateForkSessionRequest(req); err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
+		h.respondDeriveError(c, http.StatusBadRequest, err)
 		return
 	}
-	scope, sessionID, origin, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, deriver, ok := h.deriveRoute(c)
 	if !ok {
-		return
-	}
-	deriver, ok := h.Sessions.(SessionDeriveManager)
-	if !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errDeriveUnavailable)
 		return
 	}
 	result, err := deriver.ForkSession(c.Request.Context(), session.ForkSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     scope.SessionWorkspaceID(),
-		ProfileID:       origin.ProfileID,
 		MessageID:       strings.TrimSpace(req.MessageID),
 		Name:            req.Name,
 		IdempotencyKey:  strings.TrimSpace(req.IdempotencyKey),
@@ -115,14 +99,18 @@ func (h *BaseHandlers) ForkSession(c *gin.Context) {
 }
 
 // respondDerive writes a continue/fork outcome: 201 for a new child, 200 for a replayed receipt.
+// A failure after the child was committed (first-message admission, projection) keeps the
+// child reachable: the error carries child_session_id.
 func (h *BaseHandlers) respondDerive(c *gin.Context, result session.DeriveResult, err error) {
 	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+		err = deriveFailure(err, committedDeriveChildID(result))
+		h.respondDeriveError(c, StatusForSessionError(err), err)
 		return
 	}
 	response, err := h.sessionDeriveResponse(c.Request.Context(), result)
 	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+		err = deriveFailure(err, committedDeriveChildID(result))
+		h.respondDeriveError(c, StatusForSessionError(err), err)
 		return
 	}
 	status := http.StatusCreated
@@ -132,15 +120,36 @@ func (h *BaseHandlers) respondDerive(c *gin.Context, result session.DeriveResult
 	c.JSON(status, response)
 }
 
-// PreviewSessionDerive reports what a continue or fork of the session would carry; it never writes.
-func (h *BaseHandlers) PreviewSessionDerive(c *gin.Context) {
-	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+// deriveRoute resolves the workspace scope and the path's source session id without
+// reading the source: Status repairs an inactive session's metadata, and a derive or
+// preview never writes the source (ADR-007). The manager validates source ownership
+// with its non-repairing snapshot read, after replaying a matching receipt, so a retry
+// still returns its recorded outcome once the source was deleted. The child inherits
+// the source's profile inside the manager.
+func (h *BaseHandlers) deriveRoute(c *gin.Context) (workspaceScope, string, SessionDeriveManager, bool) {
+	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
-		return
+		return workspaceScope{}, "", nil, false
+	}
+	sessionID := strings.TrimSpace(c.Param("session_id"))
+	if sessionID == "" {
+		h.respondDeriveError(c, http.StatusBadRequest, invalidDeriveRequest(
+			fmt.Errorf("%s: session_id path is required", h.transportName()),
+		))
+		return workspaceScope{}, "", nil, false
 	}
 	deriver, ok := h.Sessions.(SessionDeriveManager)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errDeriveUnavailable)
+		return workspaceScope{}, "", nil, false
+	}
+	return scope, sessionID, deriver, true
+}
+
+// PreviewSessionDerive reports what a continue or fork of the session would carry; it never writes.
+func (h *BaseHandlers) PreviewSessionDerive(c *gin.Context) {
+	scope, sessionID, deriver, ok := h.deriveRoute(c)
+	if !ok {
 		return
 	}
 	preview, err := deriver.DerivePreview(
@@ -150,7 +159,7 @@ func (h *BaseHandlers) PreviewSessionDerive(c *gin.Context) {
 		strings.TrimSpace(c.Query("message_id")),
 	)
 	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+		h.respondDeriveError(c, StatusForSessionError(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, SessionDerivePreviewPayload(preview))
@@ -283,46 +292,4 @@ func sessionDerivationPayload(derivation *store.SessionDerivation) *contract.Ses
 		payload.NativeForkError = strings.TrimSpace(native.Error)
 	}
 	return payload
-}
-
-// DeriveErrorCode returns the stable public code of a continue/fork failure.
-func DeriveErrorCode(err error) string {
-	switch {
-	case err == nil:
-		return ""
-	case errors.Is(err, session.ErrSessionNotDerivable):
-		return "session_not_derivable"
-	case errors.Is(err, session.ErrDeriveSourceArchived):
-		return "session_archived"
-	case errors.Is(err, session.ErrDeriveAgentNotFound):
-		return "agent_not_found"
-	case errors.Is(err, session.ErrDeriveRouteNotFound):
-		return "route_not_found"
-	case errors.Is(err, session.ErrDeriveFenceConflict):
-		return "session_fence_conflict"
-	case errors.Is(err, session.ErrDeriveIdempotencyConflict):
-		return "idempotency_conflict"
-	case errors.Is(err, session.ErrDeriveTurnInProgress):
-		return "session_turn_in_progress"
-	case errors.Is(err, session.ErrDeriveMessageNotFound):
-		return "message_not_found"
-	case errors.Is(err, errDeriveRuntimeRouteExclusive), errors.Is(err, errDerivePartialFences):
-		return "invalid_request"
-	default:
-		return ""
-	}
-}
-
-func statusForDeriveError(err error) (int, bool) {
-	switch DeriveErrorCode(err) {
-	case "session_not_derivable", "invalid_request":
-		return http.StatusBadRequest, true
-	case "agent_not_found", "message_not_found":
-		return http.StatusNotFound, true
-	case "session_archived", "route_not_found", "session_fence_conflict",
-		"idempotency_conflict", "session_turn_in_progress":
-		return http.StatusConflict, true
-	default:
-		return 0, false
-	}
 }

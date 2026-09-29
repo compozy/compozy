@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -169,14 +170,12 @@ func continueTestManager(
 ) stubSessionManager {
 	t.Helper()
 	return stubSessionManager{
+		// Derive routes never read the source through Status: it repairs an inactive
+		// session's metadata, and ownership is validated by the manager's
+		// non-repairing snapshot after receipt replay (ADR-007).
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			if id != "sess-123" {
-				return nil, session.ErrSessionNotFound
-			}
-			info := newSessionInfo(id)
-			info.WorkspaceID = workspaceID
-			info.ProfileID = store.DefaultProfileID
-			return info, nil
+			t.Errorf("Status(%q) called by a derive route; want no repairing source read in %s", id, workspaceID)
+			return nil, session.ErrSessionNotFound
 		},
 		ContinueFn: continueFn,
 		DerivePreviewFn: func(_ context.Context, _, _, messageID string) (session.DerivePreview, error) {
@@ -240,7 +239,7 @@ func TestContinueSessionHandler(t *testing.T) {
 		}
 		if captured.SourceSessionID != "sess-123" || captured.WorkspaceID != "ws-workspace" ||
 			captured.AgentName != "claude-code" || captured.Runtime == nil || captured.Runtime.Model != "opus" ||
-			captured.Message != "go" || captured.IdempotencyKey != "idem-1" || captured.ProfileID != store.DefaultProfileID {
+			captured.Message != "go" || captured.IdempotencyKey != "idem-1" || captured.ProfileID != "" {
 			t.Fatalf("ContinueSession() opts = %#v, want routed request", captured)
 		}
 		var response contract.SessionDeriveResponse
@@ -299,31 +298,95 @@ func TestContinueSessionHandler(t *testing.T) {
 				})
 			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 			recorder := performRequest(t, engine, http.MethodPost, continuePath, []byte(tc.body))
-			if recorder.Code != http.StatusBadRequest || called {
-				t.Fatalf("status = %d called = %t, want 400 without a derive; body=%s",
-					recorder.Code, called, recorder.Body.String())
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if recorder.Code != http.StatusBadRequest || called || payload.Code != "invalid_request" {
+				t.Fatalf("status = %d code = %q called = %t, want 400 invalid_request without a derive; body=%s",
+					recorder.Code, payload.Code, called, recorder.Body.String())
 			}
 		})
 	}
 
-	t.Run("Should return 404 for an unknown or foreign-workspace source", func(t *testing.T) {
+	t.Run("Should return 404 session_not_found when the manager finds no source in the workspace", func(t *testing.T) {
 		t.Parallel()
 
-		for _, path := range []string{
+		var sources []string
+		manager := continueTestManager(t, "ws-workspace",
+			func(_ context.Context, opts session.ContinueSessionOpts) (session.DeriveResult, error) {
+				sources = append(sources, opts.SourceSessionID+"@"+opts.WorkspaceID)
+				return session.DeriveResult{}, session.ErrSessionNotFound
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-missing/continue",
-			continuePath,
-		} {
-			manager := continueTestManager(t, "ws-other",
-				func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
-					t.Fatalf("ContinueSession() called for %s", path)
-					return session.DeriveResult{}, nil
-				})
-			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
-			recorder := performRequest(t, engine, http.MethodPost, path,
-				[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
-			if recorder.Code != http.StatusNotFound {
-				t.Fatalf("%s status = %d, want 404; body=%s", path, recorder.Code, recorder.Body.String())
-			}
+			[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != http.StatusNotFound || payload.Code != "session_not_found" ||
+			len(sources) != 1 || sources[0] != "sess-missing@ws-workspace" {
+			t.Fatalf("status = %d code = %q sources = %v, want 404 session_not_found from the manager; body=%s",
+				recorder.Code, payload.Code, sources, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should replay a recorded outcome after both child and source were deleted", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(_ context.Context, opts session.ContinueSessionOpts) (session.DeriveResult, error) {
+				if opts.IdempotencyKey != "idem-deleted" {
+					t.Fatalf("ContinueSession() key = %q, want idem-deleted", opts.IdempotencyKey)
+				}
+				result := continuedResult(true)
+				result.Child = nil
+				result.ChildDeleted = true
+				return result, nil
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-deleted/continue",
+			[]byte(`{"agent_name":"b","idempotency_key":"idem-deleted"}`))
+		var response contract.SessionDeriveResponse
+		decodeJSONResponse(t, recorder, &response)
+		if recorder.Code != http.StatusOK || !response.Derived.Replayed || !response.Derived.ChildDeleted {
+			t.Fatalf("status = %d response = %#v, want 200 replayed child_deleted", recorder.Code, response)
+		}
+	})
+
+	t.Run("Should return the committed child id with a post-commit 422", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				return continuedResult(false), &acp.FailureError{
+					Kind: store.FailureProviderAuth, Summary: "not authenticated",
+				}
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
+		var payload contract.SessionDeriveErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" {
+			t.Fatalf("status = %d payload = %#v, want 422 with child_session_id sess-child; body=%s",
+				recorder.Code, payload, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should not report a child for a failure before the commit", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				return session.DeriveResult{}, session.ErrDeriveFenceConflict
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+		var payload contract.SessionDeriveErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if payload.ChildSessionID != "" {
+			t.Fatalf("payload = %#v, want no child_session_id before the commit", payload)
 		}
 	})
 
@@ -333,7 +396,9 @@ func TestContinueSessionHandler(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"Should map draining admission to 503", admission.ErrDraining, http.StatusServiceUnavailable, ""},
+		{"Should map draining admission to 503", admission.ErrDraining, http.StatusServiceUnavailable, "new_work_admission_unavailable"},
+		{"Should map a missing source", session.ErrSessionNotFound, http.StatusNotFound, "session_not_found"},
+		{"Should map a manager validation failure", session.ErrValidation, http.StatusBadRequest, "invalid_request"},
 		{"Should map a non-user source", session.ErrSessionNotDerivable, http.StatusBadRequest, "session_not_derivable"},
 		{"Should map an archived source", session.ErrDeriveSourceArchived, http.StatusConflict, "session_archived"},
 		{"Should map an unknown agent", session.ErrDeriveAgentNotFound, http.StatusNotFound, "agent_not_found"},
@@ -424,6 +489,24 @@ func TestPreviewSessionDeriveHandler(t *testing.T) {
 			t.Fatalf("status = %d preview = %#v, want whole-session preview without cut", recorder.Code, whole)
 		}
 	})
+
+	t.Run("Should report a missing source with session_not_found from the manager", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace", nil)
+		manager.DerivePreviewFn = func(context.Context, string, string, string) (session.DerivePreview, error) {
+			return session.DerivePreview{}, session.ErrSessionNotFound
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodGet,
+			"/api/workspaces/ws-workspace/sessions/sess-missing/derive/preview", nil)
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != http.StatusNotFound || payload.Code != "session_not_found" {
+			t.Fatalf("status = %d code = %q, want 404 session_not_found; body=%s",
+				recorder.Code, payload.Code, recorder.Body.String())
+		}
+	})
 }
 
 func forkedResult() session.DeriveResult {
@@ -471,7 +554,7 @@ func TestForkSessionHandler(t *testing.T) {
 		if captured.SourceSessionID != "sess-123" || captured.WorkspaceID != "ws-workspace" ||
 			captured.MessageID != "msg-3" || captured.Name != "alt" || captured.IdempotencyKey != "idem-fork" ||
 			captured.Fences.ExpectedMaxSequence == nil || *captured.Fences.ExpectedMaxSequence != 418 ||
-			captured.ProfileID != store.DefaultProfileID {
+			captured.ProfileID != "" {
 			t.Fatalf("ForkSession() opts = %#v, want routed request", captured)
 		}
 		var response contract.SessionDeriveResponse

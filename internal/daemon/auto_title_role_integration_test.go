@@ -56,6 +56,124 @@ func TestAutoTitleRoleIntegration(t *testing.T) {
 		t.Parallel()
 		runAutoTitleRolePostAcceptanceFailureIntegration(t)
 	})
+
+	t.Run("Should run only the role chain when the inherited agent also declares one", func(t *testing.T) { // IT-007
+		t.Parallel()
+		runAutoTitleRoleSingleChainOwnerIntegration(t)
+	})
+}
+
+// runAutoTitleRoleSingleChainOwnerIntegration proves one chain owner per launch: the
+// auto-title role inherits an agent whose own fallback_chain route would accept, so the
+// role's refused primary must advance through the role chain (ChainOwnerCaller) and never
+// through the agent chain.
+func runAutoTitleRoleSingleChainOwnerIntegration(t *testing.T) {
+	t.Helper()
+
+	const (
+		ownerAgent    = "title-owner"
+		agentProvider = "agent-chain-a1"
+		agentModel    = "primary-title-model"
+		roleModel     = "fallback-title-model"
+	)
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
+		for _, provider := range []string{"role-primary", "role-r1"} {
+			cfg.Providers[provider] = compozyconfig.ProviderConfig{
+				Command:      "/missing/" + provider,
+				Harness:      compozyconfig.ProviderHarnessACP,
+				AuthMode:     compozyconfig.ProviderAuthModeNone,
+				NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+			}
+		}
+		cfg.Providers[agentProvider] = acpmock.ProviderConfig("/missing/" + agentProvider)
+		cfg.Roles.AutoTitle.Provider = "role-primary"
+		cfg.Roles.AutoTitle.Model = "primary-model"
+		cfg.Roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{
+			{Provider: "role-r1", Model: "r1-model"},
+			{Provider: acpmock.ProviderName, Model: roleModel},
+		}
+	})
+	registration, ok := harness.MockAgentRegistration("auto-title-agent")
+	if !ok {
+		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	// The agent chain route A1 launches the working mock: had it run, the role's primary
+	// attempt would have been accepted on A1 with no role fallback at all.
+	var created compozycontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &created,
+		"agent", "create", ownerAgent,
+		"--workspace", harness.WorkspaceRoot,
+		"--provider", acpmock.ProviderName,
+		"--model", roleModel,
+		"--command", registration.Command,
+		"--prompt", "Implement work.",
+		"--fallback-route", "provider="+agentProvider+",model="+agentModel+",command="+registration.Command,
+		"-o", "json",
+	); err != nil {
+		t.Fatalf("CLI agent create %s error = %v", ownerAgent, err)
+	}
+	if len(created.FallbackChain) != 1 {
+		t.Fatalf("agent fallback_chain = %#v, want the A1 route", created.FallbackChain)
+	}
+
+	root := createFixtureBackedSession(t, ctx, harness, ownerAgent, "")
+	if _, err := harness.PromptSession(ctx, root.ID, "Implement checkout retry fencing"); err != nil {
+		t.Fatalf("PromptSession(single chain owner) error = %v", err)
+	}
+	waitForRuntimeCondition(t, "role-chain auto-title applied", 15*time.Second, func() bool {
+		current, err := harness.GetSession(ctx, root.ID)
+		return err == nil && current.Name == "Checkout Retry Fencing"
+	})
+
+	readEvents := func(eventType string) []compozycontract.LogEventPayload {
+		var logs compozycontract.LogsListResponse
+		path := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) + "&type=" + eventType + "&limit=10"
+		if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &logs); err != nil {
+			t.Fatalf("UDS %s logs error = %v", eventType, err)
+		}
+		return logs.Events
+	}
+	roleEvents := readEvents("role.fallback.used")
+	if len(roleEvents) != 2 {
+		t.Fatalf("role.fallback.used events = %#v, want R1 and R2", roleEvents)
+	}
+	attempts := map[int]string{}
+	for _, event := range roleEvents {
+		var content roleFallbackEventPayload
+		if err := json.Unmarshal(event.Content, &content); err != nil {
+			t.Fatalf("json.Unmarshal(role fallback event) error = %v", err)
+		}
+		attempts[content.Attempt] = content.Provider
+	}
+	if attempts[1] != "role-r1" || attempts[2] != acpmock.ProviderName {
+		t.Fatalf("role fallback attempts = %#v, want 1=role-r1 2=%s", attempts, acpmock.ProviderName)
+	}
+	if sessionEvents := readEvents("session.fallback.used"); len(sessionEvents) != 0 {
+		t.Fatalf("session.fallback.used events = %#v, want none for a role-owned launch", sessionEvents)
+	}
+
+	var children []store.SessionInfo
+	for _, candidate := range readWorkspaceRoleSessions(t, ctx, harness) {
+		if candidate.Lineage != nil && candidate.Lineage.SpawnRole == sessionpkg.SpawnRoleAutoTitle {
+			children = append(children, candidate)
+		}
+	}
+	if len(children) != 1 || children[0].Provider != acpmock.ProviderName || children[0].Model != roleModel {
+		t.Fatalf("auto-title children = %#v, want only the accepted R2 child", children)
+	}
+	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(single chain owner) error = %v", err)
+	}
+	for _, record := range acpmock.ProtocolDiagnostics(records) {
+		if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption && record.ConfigOptionValue == agentModel {
+			t.Fatalf("agent chain route A1 launched for a role-owned launch: %#v", record)
+		}
+	}
 }
 
 func startAutoTitleRoleHarness(

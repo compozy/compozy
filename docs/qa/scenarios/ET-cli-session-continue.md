@@ -6,7 +6,7 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: compozy session continue <id> --agent <name> [--message …] creates exactly one new user session in the source's workspace with lineage.kind continue, prints the Golden Path block (Continued … into …, Origin, Context N messages · X KiB · nothing omitted, Seed replay, First prompt admitted|staged), -o json matches the API SessionDeriveResponse, the child's first prompt carries the source conversation as "Context rebuilt from log." + <compozy_context_replay> ahead of "User request:", the source session's max_sequence and meta are unchanged, usage errors exit 2 with the documented messages, and an unknown agent prints agent_not_found.
 entry_points: compozy session continue <id> --agent <name> [--provider/--model/--reasoning-effort/--speed/--acp-option | --route <n>] [--name] [--message] [--expected-epoch --expected-generation --expected-max-sequence] [--idempotency-key] [-o json]; POST /api/workspaces/{workspace_id}/sessions/{session_id}/continue; GET …/derive/preview; compozy session status <child>; compozy logs --session <child> --type session.derived -o json; compozy__session_continue
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -34,7 +34,8 @@ agents (acpmock or real Codex + Claude):
 6. The source's `max_sequence`, `epoch`, `generation`, runtime, and `meta.json` bytes are unchanged.
 7. `compozy logs --session <child> --type session.derived -o json` shows one event.
 8. Usage errors exit 2: no `--agent` (`cli: --agent is required`), `--route 2 --speed fast` (route/runtime
-   rule), `--expected-epoch 3` alone (fence rule). `--agent nope` prints `agent_not_found`.
+   rule), `--expected-epoch 3` alone (fence rule). `--agent nope` prints
+   `Error: agent_not_found: no agent named "nope"` and exits 1 (daemon errors print `<code>: <message>`).
 
 Automated evidence at authoring time: CLI command tests (`TestSessionContinueCommand`), HTTP transport
 tests (`TestContinueSessionHandler`, `TestPreviewSessionDeriveHandler`), the native tool binding case in

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -85,16 +86,22 @@ func (m *Manager) fallbackRouteMatchesAcceptedRoute(
 		providerCommandFingerprint(resolved.Command) == record.CommandFingerprint
 }
 
-// resetSpecToPrimaryRoute replaces a chain route's selection with the session's primary
-// route: the operator-selected runtime when one exists, else the agent defaults.
+// resetSpecToPrimaryRoute replaces a chain route's complete runtime selection (provider,
+// model, reasoning, speed, and ACP options) with the session's primary route: the
+// operator-selected runtime when one exists, else the agent defaults. No setting of the
+// removed route survives to be merged over the primary defaults.
 func resetSpecToPrimaryRoute(spec *sessionStartSpec) {
 	if selected := spec.selectedRuntime; selected != nil {
 		spec.provider = strings.TrimSpace(selected.Provider)
 		spec.model = strings.TrimSpace(selected.Model)
 		spec.reasoningEffort = strings.TrimSpace(selected.ReasoningEffort)
+		spec.speed = selected.Speed
+		spec.acpOptions = acp.CloneSessionConfigOptionSelections(selected.ACPOptions)
 		return
 	}
 	spec.provider = ""
 	spec.model = ""
 	spec.reasoningEffort = ""
+	spec.speed = ""
+	spec.acpOptions = nil
 }

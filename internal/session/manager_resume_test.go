@@ -19,6 +19,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1149,6 +1150,48 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 		})
 	}
 
+	t.Run("Should reset the removed route's speed and ACP options when resuming on the primary route",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			seatOne := claudeSeatOneRoute(h)
+			seatOne.Speed = speedpkg.SpeedFast
+			seatOne.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "route_mode", ValueID: "seat_one"}}
+			installFallbackAgent(t, h, seatOne, codexRoute(h))
+			refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+			created, err := h.manager.Create(
+				testutil.Context(t),
+				CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			)
+			if err != nil {
+				t.Fatalf("Create(reviewer) error = %v", err)
+			}
+			if call := lastStartCall(h); call.Command != fallbackSeatOne || call.Speed != speedpkg.SpeedFast ||
+				!hasACPOption(call.ACPOptions, "route_mode") {
+				t.Fatalf("accepted start = %q speed=%q options=%+v, want seat one fast with its option",
+					call.Command, call.Speed, call.ACPOptions)
+			}
+			if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			setReviewerChain(t, h, codexRoute(h))
+			refuseStartCommands(h, nil)
+			resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+			if err != nil {
+				t.Fatalf("Resume() error = %v", err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+			call := lastStartCall(h)
+			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
+				t.Fatalf("resume start = %q/%q, want the primary route without a native id",
+					call.Command, call.ResumeSessionID)
+			}
+			if call.Speed == speedpkg.SpeedFast || hasACPOption(call.ACPOptions, "route_mode") {
+				t.Fatalf("primary resume speed=%q options=%+v, want the primary runtime without the removed route's",
+					call.Speed, call.ACPOptions)
+			}
+		})
+
 	t.Run("Should resume old metadata without an accepted route unchanged", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -1175,4 +1218,13 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 			t.Fatalf("resume ResumeSessionID = %q, want stored %q", got, originalACP)
 		}
 	})
+}
+
+func hasACPOption(options []acp.SessionConfigOptionSelection, id string) bool {
+	for _, option := range options {
+		if option.ID == id {
+			return true
+		}
+	}
+	return false
 }

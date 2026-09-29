@@ -85,3 +85,12 @@ type SessionDerivePreviewResponse struct {
 	Cut                  *SessionDeriveCutPayload `json:"cut,omitempty"`
 	Transcript           SessionTranscriptFences  `json:"transcript"`
 }
+
+// SessionDeriveErrorPayload is a continue/fork error. ChildSessionID is set when the
+// failure happened after the new session was committed (for example its first message
+// could not be admitted): the child exists and can be opened, and a retry with the
+// same idempotency_key returns it instead of creating another.
+type SessionDeriveErrorPayload struct {
+	ErrorPayload
+	ChildSessionID string `json:"child_session_id,omitempty"`
+}

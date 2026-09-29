@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -66,15 +68,14 @@ func newSessionContinueCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if request.ExpectedEpoch == nil {
-				if err := fillDeriveFencesFromTranscript(cmd.Context(), client, args[0],
-					&request.ExpectedEpoch, &request.ExpectedGeneration, &request.ExpectedMaxSequence); err != nil {
-					return err
-				}
-			}
-			record, err := client.ContinueSession(cmd.Context(), args[0], request)
+			target, err := resolveSessionDeriveTarget(cmd, deps, client, args[0],
+				&request.ExpectedEpoch, &request.ExpectedGeneration, &request.ExpectedMaxSequence)
 			if err != nil {
 				return err
+			}
+			record, err := client.ContinueSession(cmd.Context(), target, request)
+			if err != nil {
+				return sessionDeriveCommandFailure(err, request.IdempotencyKey)
 			}
 			return writeCommandOutput(cmd, sessionDeriveBundle(&record))
 		},
@@ -190,30 +191,82 @@ func deriveIdempotencyKey(value string) (string, error) {
 	return store.NewID("idem")
 }
 
-// fillDeriveFencesFromTranscript reads the source transcript fences when the operator
-// set none, so the derive refuses a transcript that moved in between.
-func fillDeriveFencesFromTranscript(
-	ctx context.Context,
-	client sessionClientAPI,
+// SessionDeriveTarget names the source session of a continue or fork and the
+// workspace whose route serves it.
+type SessionDeriveTarget struct {
+	SessionID    string
+	WorkspaceRef string
+}
+
+// resolveSessionDeriveTarget finds the source's workspace and, when the operator set no
+// fences, reads the source transcript fences so the derive refuses a transcript that
+// moved in between. A source that no longer exists is not an error here: a retry with
+// the same --idempotency-key must still reach the daemon, which replays its recorded
+// outcome before validating the source; the command workspace (flag/env/cwd) then
+// names the route and no fences are sent.
+func resolveSessionDeriveTarget(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
 	sessionID string,
 	epochOut, generationOut, maxSequenceOut **int64,
-) error {
-	transcript, err := client.GetSessionTranscript(ctx, sessionID)
+) (SessionDeriveTarget, error) {
+	ctx := cmd.Context()
+	target := SessionDeriveTarget{SessionID: strings.TrimSpace(sessionID)}
+	record, err := client.GetSession(ctx, target.SessionID)
+	switch {
+	case err == nil:
+		target.WorkspaceRef = strings.TrimSpace(record.WorkspaceID)
+	case isDaemonNotFound(err):
+		resolution, resolveErr := resolveCommandWorkspace(ctx, cmd, deps, client, workspaceResolutionRequest{})
+		if resolveErr != nil {
+			return SessionDeriveTarget{}, fmt.Errorf(
+				"cli: resolve session %q workspace: %w",
+				sessionID,
+				errors.Join(err, resolveErr),
+			)
+		}
+		target.WorkspaceRef = strings.TrimSpace(resolution.ID)
+		return target, nil
+	default:
+		return SessionDeriveTarget{}, fmt.Errorf("cli: resolve session %q workspace: %w", sessionID, err)
+	}
+	if target.WorkspaceRef == "" {
+		return SessionDeriveTarget{}, fmt.Errorf("cli: session %q has no workspace_id", sessionID)
+	}
+	if *epochOut != nil {
+		return target, nil
+	}
+	transcript, err := client.GetSessionTranscript(ctx, target.SessionID)
 	if err != nil {
-		return err
+		return SessionDeriveTarget{}, err
 	}
 	epoch, generation, maxSequence := transcript.Epoch, transcript.Generation, transcript.MaxSequence
 	*epochOut, *generationOut, *maxSequenceOut = &epoch, &generation, &maxSequence
-	return nil
+	return target, nil
+}
+
+func isDaemonNotFound(err error) bool {
+	apiErr, ok := errors.AsType[*daemonAPIError](err)
+	return ok && apiErr != nil && apiErr.statusCode == http.StatusNotFound
 }
 
 func (c *daemonClient) ContinueSession(
 	ctx context.Context,
-	id string,
+	target SessionDeriveTarget,
 	request SessionContinueRequest,
 ) (SessionDeriveRecord, error) {
+	return c.deriveSession(ctx, target, "/continue", request)
+}
+
+func (c *daemonClient) deriveSession(
+	ctx context.Context,
+	target SessionDeriveTarget,
+	suffix string,
+	request any,
+) (SessionDeriveRecord, error) {
 	var response SessionDeriveRecord
-	path, err := c.sessionScopedPath(ctx, id, "/continue")
+	path, err := c.sessionDerivePath(ctx, target, suffix)
 	if err != nil {
 		return SessionDeriveRecord{}, err
 	}
@@ -221,6 +274,22 @@ func (c *daemonClient) ContinueSession(
 		return SessionDeriveRecord{}, err
 	}
 	return response, nil
+}
+
+func (c *daemonClient) sessionDerivePath(
+	ctx context.Context,
+	target SessionDeriveTarget,
+	suffix string,
+) (string, error) {
+	workspaceRef := strings.TrimSpace(target.WorkspaceRef)
+	if workspaceRef == "" {
+		return c.sessionScopedPath(ctx, target.SessionID, suffix)
+	}
+	sessionID, err := requirePathValue("session_id", target.SessionID)
+	if err != nil {
+		return "", err
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/sessions/" + url.PathEscape(sessionID) + suffix, nil
 }
 
 func sessionDeriveBundle(record *SessionDeriveRecord) outputBundle {

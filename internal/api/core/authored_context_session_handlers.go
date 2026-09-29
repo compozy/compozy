@@ -50,10 +50,8 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		UpdatedAt:           health.UpdatedAt,
 	}
 	if info != nil {
-		if derivation := sessionDerivationPayload(info.Derivation); derivation != nil {
-			response.Derivation = derivation
-			response.Lineage = contract.SessionLineagePayloadFromStore(info.Lineage)
-		}
+		response.Lineage = contract.SessionLineagePayloadFromStore(info.Lineage)
+		response.Derivation = sessionDerivationPayload(info.Derivation)
 	}
 	queue, err := h.Sessions.InputQueueSummary(c.Request.Context(), health.SessionID)
 	if err != nil {

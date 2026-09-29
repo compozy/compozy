@@ -13,6 +13,7 @@ import {
   useSessionDerivePreview,
   useSessionFork,
 } from "./use-session-derive";
+import { useSessionDeriveCommittedChild } from "./use-session-derive-committed-child";
 
 export const SESSION_FORK_TURN_UNSETTLED = "That turn hasn't settled yet.";
 export const SESSION_FORK_FENCE_CONFLICT =
@@ -74,6 +75,13 @@ export function useSessionForkDialog({
     ...(messageId ? { messageId } : {}),
   });
   const mutation = useSessionFork();
+  const committedChild = useSessionDeriveCommittedChild({
+    workspaceId,
+    error: mutation.error,
+    placement,
+    handlers,
+    onClose,
+  });
 
   const measured = preview.view.state === "ready" || preview.view.state === "truncated";
   const cutUnsettled =
@@ -136,6 +144,7 @@ export function useSessionForkDialog({
     isSubmitting,
     canSubmit,
     submit,
+    committedChild,
   };
 }
 

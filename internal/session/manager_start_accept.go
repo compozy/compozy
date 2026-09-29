@@ -15,9 +15,6 @@ type acceptedSessionStart struct {
 	proc           *AgentProcess
 	async          bool
 	persistFailure bool
-	// catalogPending marks a derived child whose catalog registration has not committed
-	// yet; a discard then sweeps its reserved directory instead of a catalog delete.
-	catalogPending bool
 }
 
 // acceptSessionStart resolves routing before persistence so invalid configuration cannot create sessions.
@@ -86,7 +83,6 @@ func (m *Manager) acceptSessionStart(
 
 	return &acceptedSessionStart{
 		spec: spec, runtime: runtime, session: session, storage: storage, run: run,
-		catalogPending: spec.deriveReceipt != nil,
 	}, nil
 }
 

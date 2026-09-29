@@ -84,6 +84,9 @@ func (p *AgentProcess) handleInbound(
 		}
 		return nil, nil
 	}
+	if reqErr := p.rejectNonBoundSessionCallback(method, params); reqErr != nil {
+		return nil, reqErr
+	}
 
 	switch method {
 	case acpsdk.ClientMethodFsReadTextFile:

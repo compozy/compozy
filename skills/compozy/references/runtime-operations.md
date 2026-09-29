@@ -270,8 +270,13 @@ returns the recorded outcome with `replayed: true` (and `child_deleted: true` if
 deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
 and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at
 the new session's first bind; if it was removed or its command changed, that bind fails with
-`route_not_found` and the session stays unbound. Errors: `session_not_derivable`, `session_archived`,
-`agent_not_found`, `route_not_found`.
+`route_not_found` and the session stays unbound. Errors carry a stable `code`: `invalid_request`,
+`session_not_found`, `session_not_derivable`, `session_archived`, `agent_not_found`,
+`message_not_found`, `route_not_found`, `session_turn_in_progress`, `session_fence_conflict`,
+`idempotency_conflict`, `new_work_admission_unavailable`. A failure after the new session was created
+(for example a `422` when its first message cannot be admitted) also carries `child_session_id`; open
+that session or retry the same key. A retry replays its recorded outcome even after the source was
+deleted.
 
 When a user session's turn fails as `rate_limited` or `not_authenticated`, the error event's
 `provider_error.next_action` is `handoff` with guidance naming `compozy session continue <id> --agent

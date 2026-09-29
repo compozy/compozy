@@ -499,7 +499,18 @@ One `(workspace, idempotency_key)` creates at most one session. Repeating the sa
 recorded outcome with `replayed: true` (HTTP `200` instead of `201`, CLI `Replayed  yes`), even when the
 source changed since. If the new session was deleted since, the recorded outcome returns with
 `child_deleted: true` and nothing is created. The same key with a different request is
-`idempotency_conflict`. The CLI generates a key when `--idempotency-key` is omitted.
+`idempotency_conflict`. The CLI generates a key when `--idempotency-key` is omitted. A retry still
+returns its recorded outcome after the source session was deleted: the daemon looks up the key before
+it checks the source.
+
+Some failures happen after the new session already exists, for example when its first message cannot
+be admitted because the runtime is not authenticated (`422`). The error then carries
+`child_session_id`: open that session, or repeat the request with the same key to get it back. The web
+dialog offers **Open new session**, and the CLI prints the session id and the key to rerun with.
+Errors carry a stable `code`: `invalid_request`, `session_not_found`, `session_not_derivable`,
+`session_archived`, `agent_not_found`, `message_not_found`, `route_not_found`,
+`session_turn_in_progress`, `session_fence_conflict`, `idempotency_conflict`,
+`new_work_admission_unavailable`. The CLI prints them as `Error: <code>: <message>` and exits `1`.
 
 When you send fences (`--expected-epoch`, `--expected-generation`, `--expected-max-sequence`, all three
 or none), they must match the snapshot; otherwise the request fails with `session_fence_conflict`.
