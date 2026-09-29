@@ -1230,6 +1230,22 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		if err := (DriverControlStep{Action: DriverControlDelay, DelayMS: 1}).Validate("driver_control"); err != nil {
 			t.Fatalf("DriverControlStep.Validate(delay) error = %v", err)
 		}
+		err = (DriverControlStep{Action: DriverControlFailPrompt}).Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "error_message is required for fail_prompt") {
+			t.Fatalf("DriverControlStep.Validate(fail_prompt without message) error = %v, want message diagnostic", err)
+		}
+		err = (DriverControlStep{Action: DriverControlDelay, DelayMS: 1, ErrorMessage: "429"}).
+			Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "only valid for fail_prompt") {
+			t.Fatalf(
+				"DriverControlStep.Validate(delay with error_message) error = %v, want fail_prompt-only diagnostic",
+				err,
+			)
+		}
+		if err := (DriverControlStep{Action: DriverControlFailPrompt, ErrorMessage: "429 rate limit exceeded"}).
+			Validate("driver_control"); err != nil {
+			t.Fatalf("DriverControlStep.Validate(fail_prompt) error = %v", err)
+		}
 		if (TurnFixture{}).Validate("turn") == nil {
 			t.Fatal("TurnFixture.Validate(no steps) error = nil, want non-nil")
 		}

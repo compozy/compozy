@@ -17,7 +17,21 @@ func (d DriverControlStep) Validate(path string) error {
 	if int64(d.DelayMS) > math.MaxInt64/int64(time.Millisecond) {
 		return fmt.Errorf("acpmock: %s.delay_ms exceeds duration capacity", path)
 	}
+	if d.Action != DriverControlFailPrompt &&
+		(strings.TrimSpace(d.ErrorMessage) != "" || d.ErrorCode != 0) {
+		return fmt.Errorf("acpmock: %s.error_message and error_code are only valid for fail_prompt", path)
+	}
 	switch d.Action {
+	case DriverControlFailPrompt:
+		if strings.TrimSpace(d.RawJSONRPC) != "" {
+			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)
+		}
+		if strings.TrimSpace(d.ErrorMessage) == "" {
+			return fmt.Errorf("acpmock: %s.error_message is required for fail_prompt", path)
+		}
+		if d.Async {
+			return fmt.Errorf("acpmock: %s.async is invalid for fail_prompt", path)
+		}
 	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay, DriverControlHoldIgnoringCancel:
 		if strings.TrimSpace(d.RawJSONRPC) != "" {
 			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)

@@ -46,3 +46,12 @@ Automated evidence at authoring time: `session-continue-dialog.test.tsx`, `use-s
 `session-window-content.test.tsx`. Web E2E `web/e2e/__tests__/session-derive.spec.ts` (E2E-001 written,
 E2E-004 `fixme` until acpmock can rate-limit a prompt) — not run by task_04. task_08 owns the walk,
 the E2E run, and the visual-contract bundles (VC-01..03, VC-06..10, VC-16, VC-18..22).
+
+Automated evidence 2026-09-28 (session-continue-fork task_08, part A; not a walk verdict): E2E-001 and
+E2E-004 in `web/e2e/__tests__/session-derive.spec.ts` pass against the daemon-served e2e fixture
+(focused Playwright run with the lane's `COMPOZY_TEST_DAEMON_BIN`/`COMPOZY_TEST_ACPMOCK_DRIVER_BIN`/
+`COMPOZY_WEB_DIST_DIR`). E2E-004 is no longer `fixme`: it uses `handoff-agent` from
+`internal/testutil/acpmock/testdata/provider_error_fixture.json`, whose `fail_prompt` driver_control
+step fails the second prompt with "429 rate limit exceeded". Storybook: every
+`session-continue-dialog.stories.tsx` and `session-origin.stories.tsx` story renders from a static
+build with no page error. The walk (steps 1–9) remains with task_08.

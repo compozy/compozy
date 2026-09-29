@@ -43,3 +43,8 @@ Automated evidence at authoring time: `session-fork-dialog.test.tsx`, `session-t
 `sessions-modal.test.tsx`, `use-session-topbar-slot.test.tsx`, `session-inspector.test.tsx`. Web E2E
 `web/e2e/__tests__/session-derive.spec.ts` E2E-002 written, not run by task_06. task_08 owns the walk,
 the E2E run, and the visual-contract bundles (VC-04, VC-05, VC-11..15, VC-17, VC-23).
+
+Automated evidence 2026-09-28 (session-continue-fork task_08, part A; not a walk verdict): E2E-002 in
+`web/e2e/__tests__/session-derive.spec.ts` passes against the daemon-served e2e fixture (focused
+Playwright run). Storybook: every `session-fork-dialog.stories.tsx` story renders from a static build
+with no page error. The walk (steps 1–8) remains with task_08.

@@ -180,6 +180,10 @@ type DriverControlStep struct {
 	RawJSONRPC string              `json:"raw_jsonrpc,omitempty"`
 	Async      bool                `json:"async,omitempty"`
 	DelayMS    int                 `json:"delay_ms,omitempty"`
+	// ErrorMessage is the JSON-RPC error message fail_prompt answers session/prompt with.
+	ErrorMessage string `json:"error_message,omitempty"`
+	// ErrorCode is the optional JSON-RPC error code for fail_prompt (default -32603).
+	ErrorCode int `json:"error_code,omitempty"`
 }
 
 // DriverControlAction identifies one supported driver fault injection action.
@@ -193,4 +197,8 @@ const (
 	// DriverControlHoldIgnoringCancel keeps the turn open for delay_ms while ignoring
 	// prompt cancellation, so stop ladders must escalate past the cooperative phase.
 	DriverControlHoldIgnoringCancel DriverControlAction = "hold_ignoring_cancel"
+	// DriverControlFailPrompt answers the matched session/prompt with a JSON-RPC error
+	// carrying error_message, the shape a provider rate limit or auth lapse reaches the
+	// daemon in after the session was accepted.
+	DriverControlFailPrompt DriverControlAction = "fail_prompt"
 )

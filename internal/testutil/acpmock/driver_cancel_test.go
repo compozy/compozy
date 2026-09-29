@@ -311,6 +311,79 @@ func TestDriverLateCancelDoesNotPoisonNextPrompt(t *testing.T) {
 	})
 }
 
+func TestDriverFailPromptClassifiesProviderError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		message string
+		code    string
+	}{
+		{
+			name:    "Should fail the prompt as a provider rate limit",
+			message: "rate limit this turn",
+			code:    acp.ProviderErrorRateLimited,
+		},
+		{
+			name:    "Should fail the prompt as a provider auth lapse",
+			message: "auth lapse this turn",
+			code:    acp.ProviderErrorAuthRequired,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driverPath, err := DefaultDriverPath()
+			if err != nil {
+				t.Fatalf("DefaultDriverPath() error = %v", err)
+			}
+			fixturePath, err := filepath.Abs(filepath.Join("testdata", "provider_error_fixture.json"))
+			if err != nil {
+				t.Fatalf("filepath.Abs(fixture) error = %v", err)
+			}
+			driver := acp.New()
+			proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+				AgentName: "handoff-agent",
+				Command: BuildCommand(
+					driverPath,
+					fixturePath,
+					"handoff-agent",
+					filepath.Join(t.TempDir(), "fail-prompt-diagnostics.jsonl"),
+				),
+				Cwd:         t.TempDir(),
+				Permissions: compozyconfig.PermissionModeApproveAll,
+			})
+			if err != nil {
+				t.Fatalf("driver.Start() error = %v", err)
+			}
+			defer stopDriverProcess(t, driver, proc)
+
+			eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+				TurnID:  "turn-fail-prompt",
+				Message: tc.message,
+				Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+			})
+			if err != nil {
+				t.Fatalf("driver.Prompt() error = %v", err)
+			}
+			events := collectPromptEvents(t, eventsCh, nil)
+			var failed *acp.AgentEvent
+			for index := range events {
+				if events[index].Type == acp.EventTypeError {
+					failed = &events[index]
+				}
+			}
+			if failed == nil || failed.ProviderError == nil {
+				t.Fatalf("events = %#v, want a prompt error with a provider diagnostic", events)
+			}
+			if got := failed.ProviderError.Code; got != tc.code {
+				t.Fatalf("ProviderError.Code = %q, want %q (error %q)", got, tc.code, failed.Error)
+			}
+		})
+	}
+}
+
 func waitForTerminalRecords(
 	t testing.TB,
 	store *toolruntime.MemoryStore,

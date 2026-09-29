@@ -37,3 +37,12 @@ Planning 2026-09-28 (session-continue-fork task_07): task_08 adds an acpmock ste
 "429 rate limit exceeded") and a second variant for `not_authenticated`, then un-fixmes E2E-004 in
 `web/e2e/__tests__/session-derive.spec.ts` and walks steps 1–5 against that fixture. Step 5's
 spawned-child leg uses the same fixture agent under a spawning parent. Plan: `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`.
+
+Automated evidence 2026-09-28 (session-continue-fork task_08, part A; not a walk verdict): acpmock
+gained the `fail_prompt` driver_control action (`error_message`, optional `error_code`, default
+-32603). `internal/testutil/acpmock/testdata/provider_error_fixture.json` agent `handoff-agent` answers
+`rate limit this turn` with "429 rate limit exceeded" and `auth lapse this turn` with "401
+unauthorized: authentication required". `TestDriverFailPromptClassifiesProviderError` proves the two
+turns classify as `provider_rate_limited` and `provider_auth_required` through the real ACP driver, and
+web E2E-004 proves the user-session marker carries `data-provider-next-action="handoff"`. Use this
+agent for steps 1–5 of the walk.

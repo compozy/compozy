@@ -17,9 +17,13 @@ const acpmockTestdata = path.resolve(
 );
 const fixturePath = path.join(acpmockTestdata, "multi_agent_fixture.json");
 const forkFixturePath = path.join(acpmockTestdata, "browser_session_fork_fixture.json");
+const providerErrorFixturePath = path.join(acpmockTestdata, "provider_error_fixture.json");
 const sourceAgent = "alpha";
 const targetAgent = "beta";
 const forkAgent = "fork-web-agent";
+const handoffAgent = "handoff-agent";
+// The virtualized row; assistant-ui also stamps data-message-id on the message root inside it.
+const messageRow = '[data-testid="thread-message-row"]';
 
 test.use({
   runtimeOptions: {
@@ -28,6 +32,7 @@ test.use({
         { fixturePath, fixtureAgent: sourceAgent },
         { fixturePath, fixtureAgent: targetAgent },
         { fixturePath: forkFixturePath, fixtureAgent: forkAgent },
+        { fixturePath: providerErrorFixturePath, fixtureAgent: handoffAgent },
       ],
     },
   },
@@ -53,6 +58,25 @@ function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): st
   )}${suffix}`;
 }
 
+// The prompt route answers with an event stream; drain it so the turn has settled.
+async function promptSession(
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  sessionID: string,
+  message: string
+): Promise<void> {
+  const response = await fetch(runtime.url(sessionAPIPath(workspaceID, sessionID, "/prompt")), {
+    headers: { "content-type": "application/json" },
+    method: "POST",
+    body: JSON.stringify({ idempotency_key: randomUUID(), message, message_id: randomUUID() }),
+  });
+  if (!response.ok) {
+    throw new Error(`prompt failed with ${response.status}: ${await response.text()}`);
+  }
+  expect(response.headers.get("content-type")).toContain("text/event-stream");
+  await response.text();
+}
+
 async function prepareWorkspace(
   runtime: BrowserRuntime,
   page: import("@playwright/test").Page
@@ -69,20 +93,15 @@ async function prepareWorkspace(
 
 async function createPromptedSource(
   runtime: BrowserRuntime,
-  workspace: WorkspacePayload
+  workspace: WorkspacePayload,
+  agentName = sourceAgent,
+  message = "hello alpha"
 ): Promise<SessionPayload> {
   const { session } = await runtime.requestJSON<{ session: SessionPayload }>("/api/sessions", {
     method: "POST",
-    body: JSON.stringify({ agent_name: sourceAgent, workspace: workspace.id }),
+    body: JSON.stringify({ agent_name: agentName, workspace: workspace.id }),
   });
-  await runtime.requestJSON(sessionAPIPath(workspace.id, session.id, "/prompt"), {
-    method: "POST",
-    body: JSON.stringify({
-      idempotency_key: randomUUID(),
-      message: "hello alpha",
-      message_id: randomUUID(),
-    }),
-  });
+  await promptSession(runtime, workspace.id, session.id, message);
   await expect
     .poll(async () => {
       const transcript = await runtime.requestJSON<TranscriptPayload>(
@@ -153,7 +172,9 @@ test("E2E-001: operator continues a session with another agent in a new window",
   );
   expect(after.max_sequence).toBe(before.max_sequence);
   for (const entry of before.entries) {
-    await expect(sourceWin.locator(`[data-message-id="${entry.message.id}"]`)).toHaveCount(1);
+    await expect(
+      sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
+    ).toHaveCount(1);
   }
 });
 
@@ -164,10 +185,7 @@ async function promptAndSettle(
   message: string,
   entriesAfter: number
 ): Promise<void> {
-  await runtime.requestJSON(sessionAPIPath(workspace.id, sessionID, "/prompt"), {
-    method: "POST",
-    body: JSON.stringify({ idempotency_key: randomUUID(), message, message_id: randomUUID() }),
-  });
+  await promptSession(runtime, workspace.id, sessionID, message);
   await expect
     .poll(async () => {
       const transcript = await runtime.requestJSON<TranscriptPayload>(
@@ -204,7 +222,7 @@ test("E2E-002: operator forks a session from a message and the source keeps ever
   const sourceWin = sessionWindow(appPage, source.id);
   await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
 
-  const row = sourceWin.locator(`[data-message-id="${secondUser}"]`);
+  const row = sourceWin.locator(`${messageRow}[data-message-id="${secondUser}"]`);
   await row.hover();
   const forkFromHere = row.getByTestId("user-message-fork");
   await expect(forkFromHere).toBeEnabled();
@@ -255,31 +273,25 @@ test("E2E-002: operator forks a session from a message and the source keeps ever
     before.entries.map(entry => entry.message.id)
   );
   for (const entry of before.entries) {
-    await expect(sourceWin.locator(`[data-message-id="${entry.message.id}"]`)).toHaveCount(1);
+    await expect(
+      sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
+    ).toHaveCount(1);
   }
 });
 
-// E2E-004 needs an acpmock turn that fails `session/prompt` as a provider rate limit (or auth
-// lapse) so the daemon decorates the error with `next_action: "handoff"`. acpmock has no such
-// step today (internal/testutil/acpmock StepKind has no prompt-error kind); task_08 adds that
-// capability or walks it with a real rate-limited provider (RT-provider-error-handoff).
-test.fixme("E2E-004: a rate-limited turn offers Continue with this session as the source", async ({
+// E2E-004: `handoff-agent` (provider_error_fixture.json) answers its second prompt with a
+// `fail_prompt` driver_control error ("429 rate limit exceeded"), which the daemon classifies
+// as rate limited and decorates with `next_action: "handoff"` on a user session.
+test("E2E-004: a rate-limited turn offers Continue with this session as the source", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareWorkspace(runtime, appPage);
-  const source = await createPromptedSource(runtime, workspace);
-  // Second prompt: scripted by the (future) fixture to rate-limit the turn.
-  await runtime.requestJSON(sessionAPIPath(workspace.id, source.id, "/prompt"), {
-    method: "POST",
-    body: JSON.stringify({
-      idempotency_key: randomUUID(),
-      message: "rate limit this turn",
-      message_id: randomUUID(),
-    }),
-  });
+  const source = await createPromptedSource(runtime, workspace, handoffAgent, "hello handoff");
+  // Second prompt: scripted by the fixture to fail as a provider rate limit.
+  await promptSession(runtime, workspace.id, source.id, "rate limit this turn");
 
-  await appPage.goto(runtime.url(`/agents/${sourceAgent}/sessions/${source.id}`), {
+  await appPage.goto(runtime.url(`/agents/${handoffAgent}/sessions/${source.id}`), {
     waitUntil: "domcontentloaded",
   });
   const sourceWin = sessionWindow(appPage, source.id);
@@ -293,7 +305,7 @@ test.fixme("E2E-004: a rate-limited turn offers Continue with this session as th
   await marker.getByTestId("provider-error-continue").click();
   const dialog = appPage.getByTestId("session-continue-dialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("session-continue-source-note")).toContainText(sourceAgent);
+  await expect(dialog.getByTestId("session-continue-source-note")).toContainText(handoffAgent);
 
   // Nothing is created until Continue.
   const { sessions: afterSessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
