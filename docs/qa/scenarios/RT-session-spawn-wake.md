@@ -4,7 +4,7 @@ area: RT
 title: Wake a parent when its child settles
 persona: Cora
 journey: J-respond-to-agent-attention
-expected: A governed child that stops, fails, or enters a needs-you state queues one sanitized synthetic turn on its live parent by default, never interrupts an active parent prompt, and explicit notify_creator false suppresses only that child's wake with an auditable reason.
+expected: A governed child that stops, fails, enters a needs-you state, or completes its turn normally queues one sanitized synthetic turn on its live parent by default, never interrupts an active parent prompt, and explicit notify_creator false suppresses only that child's wake with an auditable reason; a canceled child turn delivers no completed wake while its catalog, wait-badge, and attention effects still fire.
 entry_points: compozy spawn --no-notify-creator; POST /api/agent/spawn over HTTP and UDS; compozy__session_spawn; parent session transcript
 qa_status: blocked-verify
 bug_ids:
@@ -28,6 +28,26 @@ opt-out on every spawn surface. Flag only; task_08 owns execution.
 QA impact 2026-08-24: ENG-147 changes the stopped-child wake classification for settled TTL
 cleanup. The focused lifecycle contract verifies one clean stopped wake; a provider-backed
 public-surface walk remains blocked pending an isolated ACP provider and human verification.
+
+QA impact 2026-09-29: PR #685 adds `SpawnWakeReasonCompleted` for a governed child's normal turn
+completion, so `BadgeDone` now maps to a delivered `completed` wake. When the just-finished turn was
+canceled, that completed spawn-wake is suppressed, while the catalog event, wait-badge edge, and
+attention hook still fire; no badge semantics changed. Plan only — the owning unit regressions are
+the `BadgeDone` delivery case and the canceled-turn suppression case in
+`internal/session/spawn_wake_test.go`.
+
+Extend the walk with two turns of a governed child whose parent is idle:
+
+- Let the child finish a normal turn (`done`/`end_turn`). Confirm exactly one `completed` parent wake
+  with the child's identity and badge metadata, that it never interrupts an active parent prompt, and
+  that the existing `NotifyCreator`/opt-out gate still governs delivery.
+- Cancel the child's in-flight turn. Confirm the parent receives NO completed wake, while the
+  catalog event, wait-badge edge, and attention hook for the canceled turn still occur. Confirm
+  `BadgeDone` still computes for the canceled turn — only its wake delivery is suppressed.
+
+Automated evidence: `spawn_wake_test.go` `BadgeDone` delivery case and the canceled-turn suppression
+regression. A provider-backed public-surface walk remains blocked on an isolated ACP provider, as in
+the earlier entries.
 
 QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Playwright lane, and full Web E2E exercised cross-workspace landing, permission resolution, counts, channel suppression, task canary, catalog scope/order, finished presence clearing, and honest quiet/stale states. The lab browser exposed its real notification capability; deterministic granted and denied branches ran in the canonical browser suite.
 
