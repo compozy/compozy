@@ -148,6 +148,8 @@ type stubClient struct {
 	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
+	getSessionOwnerFn            func(context.Context, string) (contract.SessionOwner, error)
+	previewSessionDeriveFn       func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error)
 	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	continueSessionFn            func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
 	forkSessionFn                func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
@@ -1439,6 +1441,23 @@ func (s *stubClient) ForkSession(
 		return s.forkSessionFn(ctx, target, request)
 	}
 	return SessionDeriveRecord{}, errors.New("unexpected ForkSession call")
+}
+
+func (s *stubClient) GetSessionOwner(ctx context.Context, id string) (contract.SessionOwner, error) {
+	if s.getSessionOwnerFn != nil {
+		return s.getSessionOwnerFn(ctx, id)
+	}
+	return contract.SessionOwner{}, errors.New("unexpected GetSessionOwner call")
+}
+
+func (s *stubClient) PreviewSessionDerive(
+	ctx context.Context,
+	target SessionDeriveTarget,
+) (SessionDerivePreviewRecord, error) {
+	if s.previewSessionDeriveFn != nil {
+		return s.previewSessionDeriveFn(ctx, target)
+	}
+	return SessionDerivePreviewRecord{}, errors.New("unexpected PreviewSessionDerive call")
 }
 
 func (s *stubClient) GetSessionTranscript(ctx context.Context, id string) (SessionTranscriptRecord, error) {

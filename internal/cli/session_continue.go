@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -189,66 +188,6 @@ func deriveIdempotencyKey(value string) (string, error) {
 		return key, nil
 	}
 	return store.NewID("idem")
-}
-
-// SessionDeriveTarget names the source session of a continue or fork and the
-// workspace whose route serves it.
-type SessionDeriveTarget struct {
-	SessionID    string
-	WorkspaceRef string
-}
-
-// resolveSessionDeriveTarget finds the source's workspace and, when the operator set no
-// fences, reads the source transcript fences so the derive refuses a transcript that
-// moved in between. A source that no longer exists is not an error here: a retry with
-// the same --idempotency-key must still reach the daemon, which replays its recorded
-// outcome before validating the source; the command workspace (flag/env/cwd) then
-// names the route and no fences are sent.
-func resolveSessionDeriveTarget(
-	cmd *cobra.Command,
-	deps commandDeps,
-	client DaemonClient,
-	sessionID string,
-	epochOut, generationOut, maxSequenceOut **int64,
-) (SessionDeriveTarget, error) {
-	ctx := cmd.Context()
-	target := SessionDeriveTarget{SessionID: strings.TrimSpace(sessionID)}
-	record, err := client.GetSession(ctx, target.SessionID)
-	switch {
-	case err == nil:
-		target.WorkspaceRef = strings.TrimSpace(record.WorkspaceID)
-	case isDaemonNotFound(err):
-		resolution, resolveErr := resolveCommandWorkspace(ctx, cmd, deps, client, workspaceResolutionRequest{})
-		if resolveErr != nil {
-			return SessionDeriveTarget{}, fmt.Errorf(
-				"cli: resolve session %q workspace: %w",
-				sessionID,
-				errors.Join(err, resolveErr),
-			)
-		}
-		target.WorkspaceRef = strings.TrimSpace(resolution.ID)
-		return target, nil
-	default:
-		return SessionDeriveTarget{}, fmt.Errorf("cli: resolve session %q workspace: %w", sessionID, err)
-	}
-	if target.WorkspaceRef == "" {
-		return SessionDeriveTarget{}, fmt.Errorf("cli: session %q has no workspace_id", sessionID)
-	}
-	if *epochOut != nil {
-		return target, nil
-	}
-	transcript, err := client.GetSessionTranscript(ctx, target.SessionID)
-	if err != nil {
-		return SessionDeriveTarget{}, err
-	}
-	epoch, generation, maxSequence := transcript.Epoch, transcript.Generation, transcript.MaxSequence
-	*epochOut, *generationOut, *maxSequenceOut = &epoch, &generation, &maxSequence
-	return target, nil
-}
-
-func isDaemonNotFound(err error) bool {
-	apiErr, ok := errors.AsType[*daemonAPIError](err)
-	return ok && apiErr != nil && apiErr.statusCode == http.StatusNotFound
 }
 
 func (c *daemonClient) ContinueSession(

@@ -275,8 +275,9 @@ the new session's first bind; if it was removed or its command changed, that bin
 `message_not_found`, `route_not_found`, `session_turn_in_progress`, `session_fence_conflict`,
 `idempotency_conflict`, `new_work_admission_unavailable`. A failure after the new session was created
 (for example a `422` when its first message cannot be admitted) also carries `child_session_id`; open
-that session or retry the same key. A retry replays its recorded outcome even after the source was
-deleted.
+that session or retry the same key. A provider or model refusal's diagnostic code is also the error
+`code` (for example `model_unavailable`). A retry replays its recorded outcome even after the source was
+deleted or can no longer be read; the CLI resolves the source only through read-only lookups.
 
 When a user session's turn fails as `rate_limited` or `not_authenticated`, the error event's
 `provider_error.next_action` is `handoff` with guidance naming `compozy session continue <id> --agent

@@ -277,6 +277,33 @@ describe("SessionForkDialog", () => {
     expect(screen.getByTestId("session-fork-submit")).toBeEnabled();
   });
 
+  // Invariant: the committed child a refusal named stays reachable when a retry fails again
+  // without naming it (the shared committed-child path of both derive dialogs).
+  it("Should keep the committed session reachable when a retry fails without naming it", async () => {
+    const user = userEvent.setup();
+    const child = forkedSessionFixture(source);
+    const { openInNewWindow } = renderDialog({
+      preview: forkNativePreviewFixture,
+      result: [
+        { status: 422, error: "provider not authenticated", child_session_id: child.id },
+        { status: 500, error: "daemon unavailable" },
+      ],
+      committedChild: child,
+    });
+
+    await measured();
+    await user.click(screen.getByTestId("session-fork-submit"));
+    expect(await screen.findByTestId("session-fork-committed-child")).toBeInTheDocument();
+    await user.click(screen.getByTestId("session-fork-submit"));
+    expect(await screen.findByTestId("session-fork-submit-error")).toHaveTextContent(
+      "daemon unavailable"
+    );
+    await user.click(screen.getByTestId("session-fork-open-committed-child"));
+
+    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledTimes(1));
+    expect(openInNewWindow.mock.calls[0]?.[0].id).toBe(child.id);
+  });
+
   it("Should leave the fences out for a running source", async () => {
     const user = userEvent.setup();
     const onFork = vi.fn<(request: ForkSessionRequest) => void>();

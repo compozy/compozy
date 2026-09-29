@@ -77,7 +77,6 @@ export function useSessionForkDialog({
   const mutation = useSessionFork();
   const committedChild = useSessionDeriveCommittedChild({
     workspaceId,
-    error: mutation.error,
     placement,
     handlers,
     onClose,
@@ -123,6 +122,7 @@ export function useSessionForkDialog({
           landDerivedSession(result, placement, handlers);
         },
         onError: error => {
+          committedChild.noteFailure(error);
           setRefusal(forkRefusal(error));
         },
       }

@@ -740,6 +740,10 @@ func TestDerivePreview(t *testing.T) {
 		if _, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, ""); err != nil {
 			t.Fatalf("DerivePreview(stopped) error = %v", err)
 		}
+		owner, err := h.manager.SessionOwner(testutil.Context(t), source.ID)
+		if err != nil || owner.SessionID != source.ID || owner.WorkspaceID != h.workspaceID {
+			t.Fatalf("SessionOwner(stopped) = %+v, %v, want %s in %s", owner, err, source.ID, h.workspaceID)
+		}
 		after, _ := os.ReadFile(metaPath)
 		if !bytes.Equal(before, after) {
 			t.Fatal("derive read path repaired the stopped source meta")
@@ -1092,8 +1096,12 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 					found, receiptErr, receipt.ChildDeletedAt)
 			}
 			childID := receipt.ChildSessionID
-			if err == nil && (result.Child == nil || result.Child.ID != childID) {
-				t.Fatalf("ContinueSession() child = %+v, want the committed child %s", result.Child, childID)
+			if err == nil {
+				t.Fatal("ContinueSession() error = nil, want the post-commit activation failure")
+			}
+			if result.ChildSessionID != childID {
+				t.Fatalf("ContinueSession() error result child = %q (err %v), want the committed child %s",
+					result.ChildSessionID, err, childID)
 			}
 			assertCommittedChild := func(stage string) {
 				t.Helper()
@@ -1106,6 +1114,15 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 				}
 			}
 			assertCommittedChild("after the failing projection")
+			fault.armed.Store(true)
+			failedReplay, err := h.manager.ContinueSession(
+				testutil.Context(t), h.continueOpts(source, "idem_post_commit"),
+			)
+			fault.armed.Store(false)
+			if err == nil || failedReplay.ChildSessionID != childID {
+				t.Fatalf("ContinueSession(failing replay read) child = %q (err %v), want the committed child %s",
+					failedReplay.ChildSessionID, err, childID)
+			}
 			retry, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_post_commit"))
 			if err != nil || !retry.Replayed || retry.ChildDeleted || retry.Child == nil || retry.Child.ID != childID {
 				t.Fatalf("ContinueSession(retry) = %+v, %v, want the committed child %s replayed", retry, err, childID)

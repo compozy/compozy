@@ -5,7 +5,7 @@ import type { SessionDeriveCommittedChildModel } from "../hooks/use-session-deri
 const COMMITTED_NOTE = "The new session was already created.";
 
 export interface SessionDeriveSubmitOutcomeProps {
-  /** The derive refusal shown verbatim; nothing renders without one. */
+  /** The latest derive refusal, shown verbatim. */
   error: string | null;
   model: SessionDeriveCommittedChildModel;
   /** The dialog's own test-id prefix (`session-continue`, `session-fork`). */
@@ -19,22 +19,23 @@ function revealOutcome(node: HTMLDivElement | null) {
 }
 
 /**
- * The refusal of a continue or fork. A refusal that came after the child was
- * created also offers to open that session, the next safe action instead of a retry.
+ * The refusal of a continue or fork. Once a refusal came after the child was
+ * created, the dialog keeps offering to open that session, the next safe action
+ * instead of a retry, through later edits and refusals.
  */
 export function SessionDeriveSubmitOutcome({
   error,
   model,
   testIdPrefix,
 }: SessionDeriveSubmitOutcomeProps) {
-  if (!error) return null;
+  if (!error && !model.childSessionId) return null;
   return (
     <div
       className="flex flex-col gap-4"
       data-testid={`${testIdPrefix}-submit-outcome`}
       ref={revealOutcome}
     >
-      <FieldError data-testid={`${testIdPrefix}-submit-error`}>{error}</FieldError>
+      {error ? <FieldError data-testid={`${testIdPrefix}-submit-error`}>{error}</FieldError> : null}
       {model.childSessionId ? (
         <div
           className="flex flex-col gap-2 text-form-hint text-subtle"

@@ -3939,6 +3939,40 @@ func deriveSourceSession(_ context.Context, id string) (SessionRecord, error) {
 	return SessionRecord{ID: id, WorkspaceID: "ws-src"}, nil
 }
 
+func deriveSourceOwner(_ context.Context, id string) (contract.SessionOwner, error) {
+	return contract.SessionOwner{SessionID: id, WorkspaceID: "ws-src"}, nil
+}
+
+// deriveSourcePreview answers the derive preview of sess-src in ws-src with its fences.
+func deriveSourcePreview(t *testing.T) func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+	t.Helper()
+	return func(_ context.Context, target SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+		if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
+			t.Errorf("PreviewSessionDerive() target = %#v, want sess-src in ws-src", target)
+		}
+		return SessionDerivePreviewRecord{
+			Transcript: contract.SessionTranscriptFences{Epoch: 3, Generation: 12, MaxSequence: 418},
+		}, nil
+	}
+}
+
+// repairingSourceReads fail the test when a derive reads its source through the
+// session detail or transcript routes, which repair an inactive source's metadata.
+func repairingSourceReads(t *testing.T, client *stubClient) *stubClient {
+	t.Helper()
+	client.getSessionFn = func(context.Context, string) (SessionRecord, error) {
+		t.Error("GetSession() called: a derive must not read its source through the repairing detail route")
+		return SessionRecord{}, errors.New("repairing read")
+	}
+	client.getSessionTranscriptFn = func(context.Context, string) (SessionTranscriptRecord, error) {
+		t.Error(
+			"GetSessionTranscript() called: a derive must not read its source through the repairing transcript route",
+		)
+		return SessionTranscriptRecord{}, errors.New("repairing read")
+	}
+	return client
+}
+
 func TestSessionContinueCommand(t *testing.T) {
 	t.Parallel()
 
@@ -3946,11 +3980,9 @@ func TestSessionContinueCommand(t *testing.T) {
 		t.Parallel()
 
 		var captured SessionContinueRequest
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
-			getSessionTranscriptFn: func(_ context.Context, _ string) (SessionTranscriptRecord, error) {
-				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
-			},
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn:      deriveSourceOwner,
+			previewSessionDeriveFn: deriveSourcePreview(t),
 			continueSessionFn: func(_ context.Context, target SessionDeriveTarget, request SessionContinueRequest) (SessionDeriveRecord, error) {
 				if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
 					t.Fatalf("ContinueSession() target = %#v, want sess-src in ws-src", target)
@@ -3958,7 +3990,7 @@ func TestSessionContinueCommand(t *testing.T) {
 				captured = request
 				return continuedRecord(false), nil
 			},
-		})
+		}))
 		stdout, _, err := executeRootCommand(t, deps,
 			"session", "continue", "sess-src", "--agent", "b", "--message", "go", "-o", "json")
 		if err != nil {
@@ -3983,7 +4015,7 @@ func TestSessionContinueCommand(t *testing.T) {
 
 		var captured SessionContinueRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
+			getSessionOwnerFn: deriveSourceOwner,
 			continueSessionFn: func(_ context.Context, _ SessionDeriveTarget, request SessionContinueRequest) (SessionDeriveRecord, error) {
 				captured = request
 				return continuedRecord(false), nil
@@ -4029,7 +4061,7 @@ func TestSessionContinueCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
+			getSessionOwnerFn: deriveSourceOwner,
 			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
 				return continuedRecord(true), nil
 			},
@@ -4097,11 +4129,9 @@ func TestSessionForkCommand(t *testing.T) {
 		t.Parallel()
 
 		var captured SessionForkRequest
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
-			getSessionTranscriptFn: func(context.Context, string) (SessionTranscriptRecord, error) {
-				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
-			},
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn:      deriveSourceOwner,
+			previewSessionDeriveFn: deriveSourcePreview(t),
 			forkSessionFn: func(_ context.Context, target SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
 				if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
 					t.Fatalf("ForkSession() target = %#v, want sess-src in ws-src", target)
@@ -4109,7 +4139,7 @@ func TestSessionForkCommand(t *testing.T) {
 				captured = request
 				return forkedRecord(), nil
 			},
-		})
+		}))
 		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--message-id", "msg_3")
 		if err != nil {
 			t.Fatalf("session fork error = %v", err)
@@ -4136,7 +4166,7 @@ func TestSessionForkCommand(t *testing.T) {
 
 		var captured SessionForkRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
+			getSessionOwnerFn: deriveSourceOwner,
 			forkSessionFn: func(_ context.Context, _ SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
 				captured = request
 				record := forkedRecord()
@@ -4217,7 +4247,7 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
+			getSessionOwnerFn: deriveSourceOwner,
 			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
 				return SessionDeriveRecord{}, &daemonAPIError{
 					statusCode: http.StatusNotFound, status: "404 Not Found",
@@ -4237,7 +4267,7 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: deriveSourceSession,
+			getSessionOwnerFn: deriveSourceOwner,
 			forkSessionFn: func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error) {
 				_, err := parseSessionDeriveAPIError(http.StatusUnprocessableEntity, "422 Unprocessable Entity",
 					[]byte(`{"error":"provider not authenticated","child_session_id":"sess-child"}`))
@@ -4263,16 +4293,16 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 
 		var captured SessionForkRequest
 		var target SessionDeriveTarget
-		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionFn: func(context.Context, string) (SessionRecord, error) {
-				return SessionRecord{}, &daemonAPIError{
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn: func(context.Context, string) (contract.SessionOwner, error) {
+				return contract.SessionOwner{}, &daemonAPIError{
 					statusCode: http.StatusNotFound, status: "404 Not Found",
 					payload: contract.ErrorPayload{Error: "session sess-gone not found"},
 				}
 			},
-			getSessionTranscriptFn: func(context.Context, string) (SessionTranscriptRecord, error) {
-				t.Fatal("GetSessionTranscript() called for a deleted source")
-				return SessionTranscriptRecord{}, nil
+			previewSessionDeriveFn: func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+				t.Error("PreviewSessionDerive() called for a deleted source")
+				return SessionDerivePreviewRecord{}, errors.New("unexpected preview")
 			},
 			forkSessionFn: func(_ context.Context, got SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
 				target, captured = got, request
@@ -4281,7 +4311,7 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 				record.Derived.Replayed, record.Derived.ChildDeleted = true, true
 				return record, nil
 			},
-		})
+		}))
 		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-gone",
 			"--idempotency-key", "idem-f", "-o", "json")
 		if err != nil {
@@ -4293,6 +4323,93 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 		}
 		if !strings.Contains(stdout, `"child_deleted": true`) {
 			t.Fatalf("session fork replay output = %s, want child_deleted", stdout)
+		}
+	})
+
+	t.Run("Should reach the daemon receipt lookup for a same-key retry when the source reads fail", func(t *testing.T) {
+		t.Parallel()
+
+		ownerFailure := &daemonAPIError{
+			statusCode: http.StatusInternalServerError, status: "500 Internal Server Error",
+			payload: contract.ErrorPayload{Error: "session: recover source: catalog unavailable"},
+		}
+		for _, tc := range []struct {
+			name          string
+			owner         func(context.Context, string) (contract.SessionOwner, error)
+			wantWorkspace string
+		}{
+			{
+				name: "owner read fails",
+				owner: func(context.Context, string) (contract.SessionOwner, error) {
+					return contract.SessionOwner{}, ownerFailure
+				},
+				wantWorkspace: "/workspace/project",
+			},
+			{name: "preview read fails", owner: deriveSourceOwner, wantWorkspace: "ws-src"},
+		} {
+			var target SessionDeriveTarget
+			var captured SessionContinueRequest
+			deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+				getSessionOwnerFn: tc.owner,
+				previewSessionDeriveFn: func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+					return SessionDerivePreviewRecord{}, ownerFailure
+				},
+				continueSessionFn: func(
+					_ context.Context, got SessionDeriveTarget, request SessionContinueRequest,
+				) (SessionDeriveRecord, error) {
+					target, captured = got, request
+					return continuedRecord(true), nil
+				},
+			}))
+			stdout, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
+				"--idempotency-key", "idem-retry", "-o", "json")
+			if err != nil {
+				t.Fatalf("%s: session continue retry error = %v", tc.name, err)
+			}
+			if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: tc.wantWorkspace}) ||
+				captured.IdempotencyKey != "idem-retry" || captured.ExpectedEpoch != nil {
+				t.Fatalf("%s: ContinueSession() target = %#v request = %#v, want %s without fences",
+					tc.name, target, captured, tc.wantWorkspace)
+			}
+			if !strings.Contains(stdout, `"replayed": true`) {
+				t.Fatalf("%s: session continue retry output = %s, want the replayed outcome", tc.name, stdout)
+			}
+		}
+	})
+
+	t.Run("Should report a failing source owner read when no retry key was given", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn: func(context.Context, string) (contract.SessionOwner, error) {
+				return contract.SessionOwner{}, errors.New("catalog unavailable")
+			},
+		}))
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b")
+		if err == nil || !strings.Contains(err.Error(), "catalog unavailable") {
+			t.Fatalf("session continue error = %v, want the owner read failure", err)
+		}
+	})
+
+	t.Run("Should print the promoted model code with the committed child", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
+				_, err := parseSessionDeriveAPIError(http.StatusUnprocessableEntity, "422 Unprocessable Entity",
+					[]byte(`{"error":"acp: model \"gone\" is unavailable","code":"model_unavailable",`+
+						`"diagnostic":{"code":"model_unavailable"},"child_session_id":"sess-child"}`))
+				return SessionDeriveRecord{}, err
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
+			"--message", "go", "--idempotency-key", "idem-m",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
+		if err == nil || !strings.HasPrefix(err.Error(), `model_unavailable: acp: model "gone" is unavailable`) ||
+			!strings.Contains(err.Error(), "session sess-child was already created") || cliExitCodeForError(err) != 1 {
+			t.Fatalf("session continue error = %v (exit %d), want model_unavailable with the committed child",
+				err, cliExitCodeForError(err))
 		}
 	})
 }

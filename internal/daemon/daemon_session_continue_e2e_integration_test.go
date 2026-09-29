@@ -3,15 +3,19 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -25,6 +29,68 @@ func TestDaemonE2ESessionContinueCLI(t *testing.T) {
 		t.Parallel()
 		runDaemonE2ESessionContinueCLI(t)
 	})
+
+	t.Run("Should leave an inactive source with stale metadata byte-for-byte unchanged", func(t *testing.T) {
+		t.Parallel()
+		runDaemonE2ESessionContinueStaleSourceCLI(t)
+	})
+}
+
+// runDaemonE2ESessionContinueStaleSourceCLI continues a stopped source whose metadata still
+// claims a live process through the CLI without fences: resolving the source (owner lookup,
+// derive preview) and the derive itself never repair it.
+func runDaemonE2ESessionContinueStaleSourceCLI(t *testing.T) {
+	t.Helper()
+
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Roles.AutoTitle.Enabled = false
+			cfg.Roles.MemoryExtractor.Enabled = false
+		}},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
+			FixtureAgent: "auto-title-agent",
+			AgentName:    "auto-title-agent",
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	source := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "Migration cleanup")
+	if _, err := harness.PromptSession(ctx, source.ID, "Start the migration"); err != nil {
+		t.Fatalf("PromptSession(source) error = %v", err)
+	}
+	if err := harness.StopSession(ctx, source.ID); err != nil {
+		t.Fatalf("StopSession(source) error = %v", err)
+	}
+	metaPath := store.SessionMetaFile(filepath.Join(harness.HomePaths.SessionsDir, source.ID))
+	meta := mustReadSessionMeta(t, harness, source.ID)
+	meta.State = "active"
+	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: 999999}
+	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+		t.Fatalf("WriteSessionMeta(stale source) error = %v", err)
+	}
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(source meta) error = %v", err)
+	}
+
+	var response compozycontract.SessionDeriveResponse
+	if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &response,
+		"session", "continue", source.ID, "--agent", "auto-title-agent",
+		"--idempotency-key", "idem_e2e_stale_source", "-o", "json"); err != nil {
+		t.Fatalf("session continue (stale source) error = %v", err)
+	}
+	if response.Derived.SourceSessionID != source.ID || response.Derived.ChildSessionID == "" {
+		t.Fatalf("session continue (stale source) = %+v, want a child of %s", response.Derived, source.ID)
+	}
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(source meta after) error = %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("source meta changed by session continue:\nbefore=%s\nafter=%s", before, after)
+	}
 }
 
 func runDaemonE2ESessionContinueCLI(t *testing.T) {

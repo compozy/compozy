@@ -305,6 +305,59 @@ describe("SessionContinueDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  // Invariant: once a refusal named the committed child, that child stays reachable for the
+  // rest of the dialog: editing the form (which clears the refusal) and resubmitting the edited
+  // request under the same key (an idempotency conflict that names no child) never hide it.
+  it("Should keep the committed session reachable through an edit and a conflicting retry", async () => {
+    const user = userEvent.setup();
+    const child = continuedSessionFixture(source);
+    const sent: ContinueSessionRequest[] = [];
+    const { openInNewWindow } = renderDialog({
+      onContinue: request => sent.push(request),
+      result: [
+        {
+          status: 422,
+          error: 'acp: model "gone" is unavailable',
+          code: "model_unavailable",
+          child_session_id: child.id,
+        },
+        {
+          status: 409,
+          error: "idempotency key was used with a different request",
+          code: "idempotency_conflict",
+        },
+      ],
+      committedChild: child,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      'acp: model "gone" is unavailable'
+    );
+
+    await user.click(screen.getByTestId("session-continue-agent-select"));
+    await user.click(await screen.findByRole("option", { name: /claude/ }));
+    expect(screen.queryByTestId("session-continue-submit-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-continue-committed-child")).toHaveTextContent(
+      "The new session was already created."
+    );
+
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "idempotency key was used with a different request"
+    );
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({
+      agent_name: "claude",
+      idempotency_key: sent[0]?.idempotency_key,
+    });
+    await user.click(screen.getByTestId("session-continue-open-committed-child"));
+
+    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledTimes(1));
+    expect(openInNewWindow.mock.calls[0]?.[0].id).toBe(child.id);
+  });
+
   // Invariant: the body scrolls inside the session window, so a refusal (and the committed
   // session it names) is brought into view instead of landing below the fold.
   it("Should bring a post-commit refusal into view when it appears", async () => {

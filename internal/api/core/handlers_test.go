@@ -1138,6 +1138,37 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 }
 
+func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve the owner through the non-repairing owner read", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				t.Fatal("Status() called: an owner lookup must not repair the session")
+				return nil, nil
+			},
+			SessionOwnerFn: func(_ context.Context, id string) (store.SessionDBOwner, error) {
+				return store.SessionDBOwner{SessionID: id, WorkspaceID: "ws-workspace"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+			},
+		}, nil, nil)
+		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-stale/owner", nil)
+		var owner contract.SessionOwner
+		if err := json.Unmarshal(ownerResp.Body.Bytes(), &owner); err != nil || ownerResp.Code != http.StatusOK {
+			t.Fatalf("owner status = %d body = %s (%v), want 200", ownerResp.Code, ownerResp.Body.String(), err)
+		}
+		if owner.SessionID != "sess-stale" || owner.WorkspaceID != "ws-workspace" {
+			t.Fatalf("owner = %#v, want sess-stale in ws-workspace", owner)
+		}
+	})
+}
+
 func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 	t.Parallel()
 

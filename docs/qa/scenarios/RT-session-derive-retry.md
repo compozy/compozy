@@ -36,6 +36,14 @@ Planning 2026-09-28 (session-continue-fork task_03): new behavior.
 8. Post-commit failure (review round 1 #9): continue with `--message` onto an agent whose runtime
    cannot authenticate: `422` carries `child_session_id`; the CLI prints the session id and the key to
    rerun with; the web dialog shows **Open new session** and opens that child.
+9. Round 2 (review round 2 #1–#3): after step 8's refusal, change the agent in the web dialog and
+   submit again: the `idempotency_conflict` refusal shows and **Open new session** stays offered and
+   opens the first child. A model refusal (`model_unavailable`) prints `model_unavailable: …` in the
+   CLI and carries `"code": "model_unavailable"` over HTTP. Continue a stopped source whose
+   `meta.json` still claims a live process through the CLI without fences: its `meta.json` bytes are
+   unchanged afterward. Retest owed on the next walk (automated: `TestDeriveCommitBoundaries`,
+   `TestContinueSessionHandler`, `TestSessionDeriveCommandDaemonFailures`,
+   `TestDaemonE2ESessionContinueCLI`, `session-continue-dialog.test.tsx`).
 
 Automated evidence at authoring time: session manager derive receipt/idempotency cases and the HTTP
 replay transport cases (`TestContinueSessionHandler`). task_07/08 own the walk.

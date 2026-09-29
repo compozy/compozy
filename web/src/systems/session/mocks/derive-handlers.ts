@@ -13,16 +13,19 @@ import { derivePreviewFixture, deriveResultFixture } from "./derive-fixtures";
 
 export type SessionDerivePreviewMock = SessionDerivePreview | "error" | "pending";
 
+export type SessionDeriveMockResult =
+  | SessionDeriveResult
+  | "pending"
+  | { status: number; error: string; code?: string; child_session_id?: string };
+
 export interface SessionDeriveHandlerOptions {
   preview?: SessionDerivePreviewMock;
   /**
    * The continue or fork outcome; `"pending"` never answers (the pending
-   * state). Replayed outcomes answer `200` instead of `201`.
+   * state). Replayed outcomes answer `200` instead of `201`. A list answers
+   * successive submits in order and repeats its last entry.
    */
-  result?:
-    | SessionDeriveResult
-    | "pending"
-    | { status: number; error: string; code?: string; child_session_id?: string };
+  result?: SessionDeriveMockResult | readonly SessionDeriveMockResult[];
   /** Served on the session detail route: the child a post-commit refusal names. */
   committedChild?: SessionPayload;
   onContinue?: (request: ContinueSessionRequest) => void;
@@ -40,6 +43,10 @@ export function sessionDeriveHandlers({
   onPreview,
   committedChild,
 }: SessionDeriveHandlerOptions = {}): HttpHandler[] {
+  const results: readonly SessionDeriveMockResult[] = Array.isArray(result) ? result : [result];
+  let submits = 0;
+  const nextResult = (): SessionDeriveMockResult =>
+    results[Math.min(submits++, results.length - 1)] ?? deriveResultFixture();
   return [
     ...(committedChild
       ? [
@@ -65,6 +72,7 @@ export function sessionDeriveHandlers({
       "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
       async ({ request }) => {
         onContinue?.((await request.json()) as ContinueSessionRequest);
+        const result = nextResult();
         if (result === "pending") {
           await delay("infinite");
           return HttpResponse.json({ error: "never" }, { status: 500 });
@@ -79,6 +87,7 @@ export function sessionDeriveHandlers({
       "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
       async ({ request }) => {
         onFork?.((await request.json()) as ForkSessionRequest);
+        const result = nextResult();
         if (result === "pending") {
           await delay("infinite");
           return HttpResponse.json({ error: "never" }, { status: 500 });

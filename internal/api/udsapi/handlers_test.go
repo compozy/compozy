@@ -21,6 +21,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -3007,20 +3008,30 @@ func TestSessionDeriveRoutesOverUDS(t *testing.T) {
 		return newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 	}
 
-	t.Run("Should carry the committed child id on a post-commit continue failure", func(t *testing.T) {
+	t.Run("Should carry the committed child id and model code on a post-commit continue failure", func(t *testing.T) {
 		t.Parallel()
 
 		engine := newEngine(t, stubSessionManager{
 			ContinueFn: func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
-				return derivedChild(), &acp.FailureError{Kind: store.FailureProviderAuth, Summary: "not authenticated"}
+				return derivedChild(), diagnostics.NewStructuredError(
+					diagnostics.NewItem(diagnostics.ItemSpec{
+						ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+						Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+						Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+						DataFreshness: contract.FreshnessLive,
+					}),
+					&acp.NegotiationError{Code: contract.CodeModelUnavailable, Stage: "model", Requested: "gone"},
+				)
 			},
 		})
 		recorder := performRequest(t, engine, http.MethodPost, base+"sess-src/continue",
 			[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
 		var payload contract.SessionDeriveErrorPayload
 		decodeJSONResponse(t, recorder, &payload)
-		if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" {
-			t.Fatalf("status = %d payload = %#v, want 422 with child_session_id", recorder.Code, payload)
+		if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" ||
+			payload.Code != contract.CodeModelUnavailable {
+			t.Fatalf("status = %d payload = %#v, want 422 model_unavailable with child_session_id",
+				recorder.Code, payload)
 		}
 	})
 

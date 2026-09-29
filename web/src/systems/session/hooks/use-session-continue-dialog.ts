@@ -95,7 +95,6 @@ export function useSessionContinueDialog({
   const mutation = useSessionContinue();
   const committedChild = useSessionDeriveCommittedChild({
     workspaceId,
-    error: mutation.error,
     placement,
     handlers,
     onClose,
@@ -147,6 +146,7 @@ export function useSessionContinueDialog({
           landDerivedSession(result, placement, handlers);
         },
         onError: error => {
+          committedChild.noteFailure(error);
           setSubmitError(error.message);
         },
       }

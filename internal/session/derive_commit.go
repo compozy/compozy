@@ -186,7 +186,8 @@ func (m *Manager) replayDeriveReceipt(
 		return result, true, nil
 	}
 	if err != nil {
-		return DeriveResult{}, true, err
+		// The receipt already names the child: the failed read does not hide its identity.
+		return result, true, err
 	}
 	result.Child = child
 	if lineage := store.NormalizeSessionLineage(child.ID, child.Lineage); lineage != nil {

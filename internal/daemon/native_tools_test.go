@@ -7524,11 +7524,35 @@ func TestDaemonNativeTools(t *testing.T) {
 					}
 					continueSubmitCalls++
 					submittedContinue = opts
-					if opts.IdempotencyKey == "idem-native-postcommit" {
+					switch opts.IdempotencyKey {
+					case "idem-native-postcommit":
 						return session.DeriveResult{
 							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
 							SourceSessionID: opts.SourceSessionID,
 						}, &acp.FailureError{Kind: store.FailureProviderAuth, Summary: "not authenticated"}
+					case "idem-native-model":
+						return session.DeriveResult{
+								ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+								SourceSessionID: opts.SourceSessionID,
+							}, diagnostics.NewStructuredError(
+								diagnostics.NewItem(diagnostics.ItemSpec{
+									ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+									Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+									Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+									DataFreshness: contract.FreshnessLive,
+								}),
+								&acp.NegotiationError{
+									Code:      contract.CodeModelUnavailable,
+									Stage:     "model",
+									Requested: "gone",
+								},
+							)
+					case "idem-native-activation":
+						// Registration committed, then the child's activation failed.
+						return session.DeriveResult{
+							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+							SourceSessionID: opts.SourceSessionID,
+						}, errors.New("session: hydrate attention projection: attention store unavailable")
 					}
 					return session.DeriveResult{
 						Child: &session.Info{
@@ -8118,6 +8142,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		)
 		requireNativeDerivePartial(t, err, `"child_session_id":"sess-committed"`)
+		for _, tc := range []struct{ key, want string }{
+			{"idem-native-model", `"code":"model_unavailable"`},
+			{"idem-native-activation", `"child_session_id":"sess-committed"`},
+		} {
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionContinue,
+					Input: json.RawMessage(
+						`{"workspace":"ws-stable","session_id":"sess-1","agent":"codex","message":"go",` +
+							`"idempotency_key":"` + tc.key + `"}`,
+					),
+				},
+			)
+			requireNativeDerivePartial(t, err, tc.want)
+			requireNativeDerivePartial(t, err, `"child_session_id":"sess-committed"`)
+		}
 
 		forkResult, err := registry.Call(
 			t.Context(),

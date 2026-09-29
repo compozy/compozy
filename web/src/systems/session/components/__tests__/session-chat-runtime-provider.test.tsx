@@ -2599,7 +2599,7 @@ describe("SessionChatRuntimeProvider", () => {
     sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
     transcriptMessages = sessionTranscriptFixture.slice(0, 2);
 
-    renderSessionThread({ queryClient });
+    const view = renderSessionThread({ queryClient });
 
     await waitFor(() => expect(screen.getByTestId("user-message-rewind")).toBeEnabled());
     await user.click(screen.getByTestId("user-message-rewind"));
@@ -2615,10 +2615,17 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument()
     );
-    gate.resolve();
-    await waitFor(() =>
-      expect(composerText()).toBe("Summarize the launch blockers before the 18:30 UTC cutover.")
-    );
+    // The draft lands from the rewind response, outside any user event: wait inside act until
+    // the composer the operator sees renders it, not only until its store holds it.
+    const draft = "Summarize the launch blockers before the 18:30 UTC cutover.";
+    await act(async () => {
+      gate.resolve();
+      await vi.waitFor(() => expect(screen.getByTestId("composer-input")).toHaveTextContent(draft));
+    });
+    expect(composerText()).toBe(draft);
+    // The editor tears down asynchronously and updates its placeholder and cursor; let it
+    // settle inside act so no update lands after the test.
+    await act(async () => view.unmount());
   });
 
   function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {

@@ -106,22 +106,26 @@ func committedDeriveChildID(result session.DeriveResult) string {
 func (h *BaseHandlers) respondDeriveError(c *gin.Context, status int, err error) {
 	err = deriveFailure(err, "")
 	normalized := normalizeErrorStatus(status, err, h.MaskInternalErrors)
-	c.JSON(normalized.status, contract.SessionDeriveErrorPayload{
-		ErrorPayload: errorPayloadForNormalizedStatus(
-			normalized.status,
-			normalized.err,
-			normalized.maskInternalErrors,
-		),
-		ChildSessionID: DeriveChildSessionID(err),
-	})
+	c.JSON(normalized.status, deriveErrorPayload(
+		errorPayloadForNormalizedStatus(normalized.status, normalized.err, normalized.maskInternalErrors),
+		err,
+	))
 }
 
 // DeriveErrorPayload is the continue/fork error payload for non-HTTP transports.
 func DeriveErrorPayload(err error) contract.SessionDeriveErrorPayload {
-	return contract.SessionDeriveErrorPayload{
-		ErrorPayload:   ErrorPayloadForError(err),
-		ChildSessionID: DeriveChildSessionID(err),
+	return deriveErrorPayload(ErrorPayloadForError(err), err)
+}
+
+// deriveErrorPayload completes a continue/fork error payload: the committed child id and,
+// when no derive code applies, the structured diagnostic's code as the top-level code, so a
+// provider/model refusal after the commit (for example model_unavailable) reads the same
+// on HTTP, UDS, native tools, and the CLI.
+func deriveErrorPayload(payload contract.ErrorPayload, err error) contract.SessionDeriveErrorPayload {
+	if payload.Code == "" && payload.Diagnostic != nil {
+		payload.Code = strings.TrimSpace(payload.Diagnostic.Code)
 	}
+	return contract.SessionDeriveErrorPayload{ErrorPayload: payload, ChildSessionID: DeriveChildSessionID(err)}
 }
 
 // deriveBoundaryCode maps a derive failure to its public code, including the

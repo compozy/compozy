@@ -3,12 +3,14 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -373,6 +375,46 @@ func TestContinueSessionHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("Should promote a post-commit model refusal's diagnostic code to the top-level code", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				return continuedResult(false), deriveModelUnavailableError()
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
+		var payload contract.SessionDeriveErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" ||
+			payload.Code != contract.CodeModelUnavailable || payload.Diagnostic == nil ||
+			payload.Diagnostic.Code != contract.CodeModelUnavailable {
+			t.Fatalf("status = %d payload = %#v, want 422 code model_unavailable with the child; body=%s",
+				recorder.Code, payload, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should return the committed child id when activation fails after the commit", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				return session.DeriveResult{
+					ChildSessionID: "sess-child", Kind: store.LineageKindContinue, SourceSessionID: "sess-123",
+				}, errors.New("session: hydrate attention projection: attention store unavailable")
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","idempotency_key":"k"}`))
+		var payload contract.SessionDeriveErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != http.StatusInternalServerError || payload.ChildSessionID != "sess-child" {
+			t.Fatalf("status = %d payload = %#v, want 500 with child_session_id sess-child; body=%s",
+				recorder.Code, payload, recorder.Body.String())
+		}
+	})
+
 	t.Run("Should not report a child for a failure before the commit", func(t *testing.T) {
 		t.Parallel()
 
@@ -624,4 +666,18 @@ func TestForkSessionHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// deriveModelUnavailableError is the provider refusal of a derive's first message after
+// the child was committed: a model_unavailable diagnostic over the negotiation failure.
+func deriveModelUnavailableError() error {
+	return diagnostics.NewStructuredError(
+		diagnostics.NewItem(diagnostics.ItemSpec{
+			ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+			Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+			Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+			DataFreshness: contract.FreshnessLive,
+		}),
+		&acp.NegotiationError{Code: contract.CodeModelUnavailable, Stage: "model", Requested: "gone"},
+	)
 }

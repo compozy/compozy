@@ -126,13 +126,13 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 	if errors.Is(err, store.ErrSessionDerivationExists) {
 		release()
 		result, found, replayErr := m.replayDeriveReceipt(ctx, derivations, spec)
-		if replayErr != nil || !found {
+		if !found {
 			return DeriveResult{}, errors.Join(err, replayErr)
 		}
-		return result, nil
+		return result, replayErr
 	}
 	if err != nil {
-		return DeriveResult{}, err
+		return m.committedDeriveFailure(ctx, derivations, spec), err
 	}
 	release()
 	result := deriveResultFromReceipt(prepared.receipt)
@@ -150,6 +150,24 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 		}
 	}
 	return result, nil
+}
+
+// committedDeriveFailure is the result a failed child creation returns: the child its
+// receipt names when the registration committed before the failure (activation, lifecycle
+// persistence), so the caller can still open it; empty when nothing was committed.
+func (m *Manager) committedDeriveFailure(
+	ctx context.Context,
+	derivations store.SessionDerivationStore,
+	spec deriveSpec,
+) DeriveResult {
+	// The request may already be canceled; the receipt lookup still answers it.
+	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	receipt, found, err := derivations.SessionDerivationReceipt(lookupCtx, spec.workspaceID, spec.key)
+	if err != nil || !found || receipt.RequestFingerprint != spec.fingerprint {
+		return DeriveResult{}
+	}
+	return deriveResultFromReceipt(receipt)
 }
 
 func validateDeriveSpec(spec deriveSpec) error {

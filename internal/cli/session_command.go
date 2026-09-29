@@ -26,8 +26,6 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionRecapCommand(deps))
 	cmd.AddCommand(newSessionRepairCommand(deps))
 	cmd.AddCommand(newSessionRewindCommand(deps))
-	cmd.AddCommand(newSessionContinueCommand(deps))
-	cmd.AddCommand(newSessionForkCommand(deps))
 	cmd.AddCommand(newSessionApproveCommand(deps))
 	cmd.AddCommand(newSessionClarifyCommand(deps))
 	cmd.AddCommand(newSessionWaitCommand(deps))
@@ -42,6 +40,12 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionRuntimeCommand(deps))
 	cmd.AddCommand(newSessionGoalCommand(deps))
 	configureSessionProfileCommands(cmd, deps)
+	// Continue and fork are not profile-scoped reads (the new session inherits the
+	// source's profile), and the profile read step resolves the cwd workspace through
+	// a detail read that lists, and so repairs, its sessions: the source must stay
+	// unchanged, so they resolve their source themselves.
+	cmd.AddCommand(newSessionContinueCommand(deps))
+	cmd.AddCommand(newSessionForkCommand(deps))
 
 	return cmd
 }

@@ -506,7 +506,9 @@ it checks the source.
 Some failures happen after the new session already exists, for example when its first message cannot
 be admitted because the runtime is not authenticated (`422`). The error then carries
 `child_session_id`: open that session, or repeat the request with the same key to get it back. The web
-dialog offers **Open new session**, and the CLI prints the session id and the key to rerun with.
+dialog keeps offering **Open new session** for the rest of that dialog, even after you edit the request
+or it is refused again, and the CLI prints the session id and the key to rerun with. When the refusal
+names a provider or model problem, its code is the error's `code` too (for example `model_unavailable`).
 Errors carry a stable `code`: `invalid_request`, `session_not_found`, `session_not_derivable`,
 `session_archived`, `agent_not_found`, `message_not_found`, `route_not_found`,
 `session_turn_in_progress`, `session_fence_conflict`, `idempotency_conflict`,
@@ -514,7 +516,9 @@ Errors carry a stable `code`: `invalid_request`, `session_not_found`, `session_n
 
 When you send fences (`--expected-epoch`, `--expected-generation`, `--expected-max-sequence`, all three
 or none), they must match the snapshot; otherwise the request fails with `session_fence_conflict`.
-Without fence flags the CLI reads the source's current fences first.
+Without fence flags the CLI reads the source's current fences first, through the same read-only
+preview the web dialog uses; looking up the source never changes it. A rerun with the same
+`--idempotency-key` still reaches the daemon when the source can no longer be read.
 
 ### Continuing on a declared route
 
