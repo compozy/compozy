@@ -235,7 +235,7 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 	}
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
 		ID:            "sess-stopped",
 		ProfileID:     store.DefaultProfileID,
 		Name:          "Stopped",
@@ -270,7 +270,7 @@ func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 	h.observer.logger = slog.New(slog.NewTextHandler(&logs, nil))
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-without-provider")
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
 		ID:            "sess-without-provider",
 		ProfileID:     store.DefaultProfileID,
 		Name:          "Missing Provider",

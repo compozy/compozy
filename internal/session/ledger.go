@@ -66,8 +66,11 @@ func (m *Manager) discardOwnedMaterializedSessionLedger(
 
 func (m *Manager) discardMaterializedSessionLedgerForResume(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) error {
+	if meta == nil {
+		return errors.New("session: resume ledger metadata is required")
+	}
 	owner, err := m.resolveStoredSessionOwner(ctx, meta.ID, meta.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("session: resolve ledger owner before resume %q: %w", meta.ID, err)
@@ -89,7 +92,7 @@ func (m *Manager) rematerializeStoppedSessionLedger(ctx context.Context, session
 		return fmt.Errorf("session: resolve ledger owner after failed resume %q: %w", sessionID, err)
 	}
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, owner.SessionID))
-	record := sessionLedgerRecordFromInfo(sessionInfoFromMeta(meta), dbPath)
+	record := sessionLedgerRecordFromInfo(sessionInfoFromMeta(&meta), dbPath)
 	record.SessionID = owner.SessionID
 	record.WorkspaceID = owner.WorkspaceID
 	ledgerCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)

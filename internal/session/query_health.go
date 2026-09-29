@@ -39,7 +39,7 @@ func (m *Manager) SessionMetadataHealth(ctx context.Context) (int, loggerpkg.Fai
 		}
 		checked++
 		if err == nil {
-			err = m.verifyMetadataHealthWitness(ctx, entry.Name(), meta)
+			err = m.verifyMetadataHealthWitness(ctx, entry.Name(), &meta)
 		}
 		if err != nil {
 			failures.Add(entry.Name(), err)
@@ -48,8 +48,8 @@ func (m *Manager) SessionMetadataHealth(ctx context.Context) (int, loggerpkg.Fai
 	return checked, failures, nil
 }
 
-func (m *Manager) verifyMetadataHealthWitness(ctx context.Context, id string, meta store.SessionMeta) error {
-	if meta.ID != id {
+func (m *Manager) verifyMetadataHealthWitness(ctx context.Context, id string, meta *store.SessionMeta) error {
+	if meta == nil || meta.ID != id {
 		return errors.New("session: metadata identity does not match directory")
 	}
 	if meta.CreationProfileRef == "" || m.creationStore == nil {

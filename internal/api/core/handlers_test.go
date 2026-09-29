@@ -5432,7 +5432,12 @@ func TestCreateSessionLineageKind(t *testing.T) {
 				fixture := newFixture(t, &captured)
 				response := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(tt.body))
 				if response.Code != http.StatusCreated {
-					t.Fatalf("create status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
+					t.Fatalf(
+						"create status = %d, want %d; body=%s",
+						response.Code,
+						http.StatusCreated,
+						response.Body.String(),
+					)
 				}
 				opts := captured.Load()
 				if opts == nil || opts.Lineage == nil || opts.Lineage.ParentSessionID != "sess-p" ||
@@ -5471,7 +5476,12 @@ func TestCreateSessionLineageKind(t *testing.T) {
 				fixture := newFixture(t, &captured)
 				response := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(tt.body))
 				if response.Code != http.StatusBadRequest {
-					t.Fatalf("create status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+					t.Fatalf(
+						"create status = %d, want %d; body=%s",
+						response.Code,
+						http.StatusBadRequest,
+						response.Body.String(),
+					)
 				}
 				if captured.Load() != nil {
 					t.Fatal("CreateAccepted() called for a rejected lineage kind")

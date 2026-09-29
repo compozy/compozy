@@ -3943,7 +3943,7 @@ func TestSessionContinueCommand(t *testing.T) {
 
 		var captured SessionContinueRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			getSessionTranscriptFn: func(_ context.Context, id string) (SessionTranscriptRecord, error) {
+			getSessionTranscriptFn: func(_ context.Context, _ string) (SessionTranscriptRecord, error) {
 				return SessionTranscriptRecord{Epoch: 3, Generation: 12, MaxSequence: 418}, nil
 			},
 			continueSessionFn: func(_ context.Context, id string, request SessionContinueRequest) (SessionDeriveRecord, error) {

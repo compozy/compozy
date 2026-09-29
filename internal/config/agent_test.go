@@ -1028,7 +1028,12 @@ You review pull requests.
 					t.Fatalf("ParseAgentDef(%s) error = %v", testCase.name, err)
 				}
 				if !reflect.DeepEqual(agent.FallbackChain, want) {
-					t.Fatalf("ParseAgentDef(%s).FallbackChain = %#v, want %#v", testCase.name, agent.FallbackChain, want)
+					t.Fatalf(
+						"ParseAgentDef(%s).FallbackChain = %#v, want %#v",
+						testCase.name,
+						agent.FallbackChain,
+						want,
+					)
 				}
 				cloned := CloneAgentDef(agent)
 				cloned.FallbackChain[0].Command = "changed"
@@ -1046,9 +1051,13 @@ You review pull requests.
 			Name:     "reviewer",
 			Provider: "claude",
 			Prompt:   "You review pull requests.",
-			FallbackChain: []RoleFallback{{
-				Provider: "claude", Model: "opus-4-8", Command: "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp",
-			}},
+			FallbackChain: []RoleFallback{
+				{
+					Provider: "claude",
+					Model:    "opus-4-8",
+					Command:  "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp",
+				},
+			},
 		}
 		contents, agent, err := RenderAgentDefinition(draft)
 		if err != nil {

@@ -73,10 +73,13 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 }
 
 func normalizePromptRuntimeSelectionFromMeta(
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	requested *RuntimeSelection,
 ) (*RuntimeSelection, error) {
 	selection := requested
+	if selection == nil && meta == nil {
+		return nil, errors.New("session: prompt runtime metadata is required")
+	}
 	if selection == nil {
 		selected, _ := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 		selection = runtimeSelectionFromSessionStore(selected)
@@ -104,7 +107,8 @@ func (m *Manager) resolvePromptRuntimeAtAdmission(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, session, *selection, session.Meta()); err != nil {
+	meta := session.Meta()
+	if err := m.validateRuntimeModelAtAdmission(ctx, session, *selection, &meta); err != nil {
 		return nil, err
 	}
 	return selection, nil

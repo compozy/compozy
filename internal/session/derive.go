@@ -118,7 +118,7 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 		return DeriveResult{}, err
 	}
 	defer release()
-	prepared, err := m.prepareDerive(ctx, spec, snapshot)
+	prepared, err := m.prepareDerive(ctx, spec, &snapshot)
 	if err != nil {
 		return DeriveResult{}, err
 	}
@@ -238,8 +238,11 @@ func (m *Manager) lockDeriveAdmission(workspaceID string, key string) func() {
 }
 
 // validateDeriveSource refuses sources that cannot be continued or forked.
-func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, snapshot deriveSnapshot) error {
-	meta := snapshot.meta
+func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, snapshot *deriveSnapshot) error {
+	if snapshot == nil {
+		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
+	}
+	meta := &snapshot.meta
 	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID {
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
@@ -266,7 +269,7 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 // resolveDeriveTargetAgent resolves the child's agent in the source workspace.
 func (m *Manager) resolveDeriveTargetAgent(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	agentName string,
 ) (compozyconfig.AgentDef, workspacepkg.ResolvedWorkspace, error) {
 	resolved, err := m.resolveResumeWorkspace(ctx, meta)

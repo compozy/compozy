@@ -24,7 +24,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		manager := &checkpointSummarySessionManagerStub{}
 		summarizer := newDaemonCheckpointSummarizer(
 			manager,
-			resolvedRoleResolver(ResolvedRole{Enabled: false}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: false}),
 		)
 		summary, err := summarizer.Summarize(testutil.Context(t), checkpointSummaryRequestFixture())
 		if !errors.Is(err, memory.ErrCheckpointSummaryDisabled) {
@@ -74,7 +74,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		}}
 		summarizer := newDaemonCheckpointSummarizer(
 			manager,
-			resolvedRoleResolver(ResolvedRole{
+			resolvedRoleResolver(&ResolvedRole{
 				Enabled:   true,
 				AgentName: compozyconfig.BuiltinDreamingCuratorAgentName,
 				Builtin:   true,
@@ -118,7 +118,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		manager := &checkpointSummarySessionManagerStub{promptErr: wantErr}
 		summarizer := newDaemonCheckpointSummarizer(
 			manager,
-			resolvedRoleResolver(ResolvedRole{
+			resolvedRoleResolver(&ResolvedRole{
 				Enabled:   true,
 				AgentName: compozyconfig.BuiltinDreamingCuratorAgentName,
 				Builtin:   true,

@@ -19,7 +19,7 @@ const (
 	errDeriveFencesTogether = "cli: set all transcript fence flags together or omit all three"
 )
 
-var sessionContinueRuntimeFlags = []string{"provider", "model", "reasoning-effort", "speed", "acp-option"}
+var sessionContinueRuntimeFlags = []string{"provider", "model", "reasoning-effort", agentSpeedField, "acp-option"}
 
 // SessionContinueRequest is the daemon continue request.
 type SessionContinueRequest = contract.ContinueSessionRequest
@@ -83,7 +83,7 @@ func newSessionContinueCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.provider, "provider", "", "Provider for the new session's runtime")
 	cmd.Flags().StringVar(&flags.model, "model", "", "Model for the new session's runtime")
 	cmd.Flags().StringVar(&flags.reasoningEffort, "reasoning-effort", "", "Reasoning effort for the new session")
-	cmd.Flags().StringVar(&flags.speed, "speed", "", "Speed for the new session (normal|fast)")
+	cmd.Flags().StringVar(&flags.speed, agentSpeedField, "", "Speed for the new session (normal|fast)")
 	cmd.Flags().StringArrayVar(&flags.acpOptions, "acp-option", nil, "ACP config option as id=value (repeatable)")
 	cmd.Flags().IntVar(&flags.route, sessionContinueRouteFlag, 0,
 		"1-based declared route of the agent's fallback_chain (excludes every runtime flag)")
@@ -251,7 +251,7 @@ func renderSessionDeriveHuman(record *SessionDeriveRecord) string {
 		headline = fmt.Sprintf("Forked %s into %s (%s)", derived.SourceSessionID, derived.ChildSessionID, childAgent)
 	}
 	lines := []keyValue{
-		{Label: "Origin", Value: deriveOriginValue(derived)},
+		{Label: taskOriginValue, Value: deriveOriginValue(derived)},
 		{Label: "Context", Value: deriveContextValue(derived)},
 		{Label: "Seed", Value: deriveSeedValue(derived)},
 		{Label: "First prompt", Value: stringOrDash(derived.FirstPrompt)},
@@ -337,5 +337,5 @@ func derivationLines(
 	default:
 		detail += " · first prompt " + stringOrDash(derivation.FirstPrompt)
 	}
-	return []keyValue{{Label: "Origin", Value: origin}, {Label: "Derivation", Value: detail}}
+	return []keyValue{{Label: taskOriginValue, Value: origin}, {Label: "Derivation", Value: detail}}
 }

@@ -35,20 +35,10 @@ func (s *Session) commitAcceptedRoute(route *store.SessionAcceptedRoute, command
 	s.mu.Unlock()
 }
 
-// acceptedRouteCommand returns the explicit command of the accepted route ("" = inherit).
-func (s *Session) acceptedRouteCommand() string {
-	if s == nil {
-		return ""
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.acceptedCommand
-}
-
 // applyStartAttemptRoute points a starting session at one eager fallback attempt so the
 // launch, its logs, and a later failed start describe the attempted route.
-func (s *Session) applyStartAttemptRoute(spec *sessionStartSpec, runtime sessionStartRuntime) {
-	if s == nil || spec == nil {
+func (s *Session) applyStartAttemptRoute(spec *sessionStartSpec, runtime *sessionStartRuntime) {
+	if s == nil || spec == nil || runtime == nil {
 		return
 	}
 	s.mu.Lock()

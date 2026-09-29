@@ -570,7 +570,10 @@ func TestCreateFallbackChain(t *testing.T) {
 			}
 			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence)), nil
 		}
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v", err)
 		}
@@ -581,7 +584,12 @@ func TestCreateFallbackChain(t *testing.T) {
 		codexCommand := h.cfg.Providers["codex"].Command
 		info := created.Info()
 		if info.Provider != "codex" || info.ACPSessionID != "acp-3" || info.State != StateActive {
-			t.Fatalf("created = %s on %s acp=%q, want active on codex with acp-3", info.State, info.Provider, info.ACPSessionID)
+			t.Fatalf(
+				"created = %s on %s acp=%q, want active on codex with acp-3",
+				info.State,
+				info.Provider,
+				info.ACPSessionID,
+			)
 		}
 		metas := persistedSessionMetas(t, h)
 		if len(metas) != 1 || metas[0].Failure != nil || metas[0].ID != created.ID {
@@ -595,10 +603,20 @@ func TestCreateFallbackChain(t *testing.T) {
 			if markers[index].Evidence["attempt"] != float64(index) ||
 				markers[index].Evidence["provider_command_fingerprint"] != providerCommandFingerprint(command) ||
 				markers[index].Evidence["next_action"] != string(acp.ProviderFailureActionUseFallback) {
-				t.Fatalf("marker %d evidence = %#v, want attempt %d attributed to %q", index, markers[index].Evidence, index, command)
+				t.Fatalf(
+					"marker %d evidence = %#v, want attempt %d attributed to %q",
+					index,
+					markers[index].Evidence,
+					index,
+					command,
+				)
 			}
 		}
-		if got := providerCommandFingerprint(created.providerRoutingSnapshot().Command); got != providerCommandFingerprint(codexCommand) {
+		if got := providerCommandFingerprint(
+			created.providerRoutingSnapshot().Command,
+		); got != providerCommandFingerprint(
+			codexCommand,
+		) {
 			t.Fatalf("routing snapshot fingerprint = %s, want the accepted codex route", got)
 		}
 		rows, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{

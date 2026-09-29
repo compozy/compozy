@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -9,10 +10,13 @@ import (
 )
 
 func sessionStartSpecFromMeta(
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	workspace *workspacepkg.ResolvedWorkspace,
 	cwd string,
 ) (sessionStartSpec, error) {
+	if meta == nil || workspace == nil {
+		return sessionStartSpec{}, errors.New("session: start metadata and workspace are required")
+	}
 	requestedSpeed, err := normalizeRequestedSpeed(meta.Speed)
 	if err != nil {
 		return sessionStartSpec{}, err

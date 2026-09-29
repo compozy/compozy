@@ -185,7 +185,7 @@ func (m *Manager) persistRecoveredStop(
 	}
 	meta.UpdatedAt = m.now().UTC()
 	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, id))
-	if err := store.WriteSessionMeta(path, meta); err != nil {
+	if err := store.WriteSessionMeta(path, &meta); err != nil {
 		return err
 	}
 	return m.persistRecoveryCatalog(ctx, &meta)

@@ -19,7 +19,7 @@ func (m *Manager) persistRecoveryCatalog(ctx context.Context, meta *store.Sessio
 	if err != nil {
 		return err
 	}
-	after := sessionInfoFromMeta(*meta)
+	after := sessionInfoFromMeta(meta)
 	if before.State == after.State && before.StopReason == after.StopReason &&
 		before.StopDetail == after.StopDetail && before.StopEscalated == after.StopEscalated &&
 		before.StopVerificationFailed == after.StopVerificationFailed &&

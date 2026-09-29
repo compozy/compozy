@@ -43,7 +43,7 @@ func ReadSessionMeta(path string) (SessionMeta, error) {
 }
 
 // WriteSessionMeta writes the metadata file atomically via temp file and rename.
-func WriteSessionMeta(path string, meta SessionMeta) error {
+func WriteSessionMeta(path string, meta *SessionMeta) error {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return errors.New("store: session meta path is required")

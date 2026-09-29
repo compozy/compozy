@@ -1322,10 +1322,15 @@ func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
 		meta := readMeta(t, child.MetaPath())
 		if meta.Failure != nil || meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 ||
 			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
-			t.Fatalf("child meta failure=%#v accepted_route=%#v, want seat one accepted", meta.Failure, meta.AcceptedRoute)
+			t.Fatalf(
+				"child meta failure=%#v accepted_route=%#v, want seat one accepted",
+				meta.Failure,
+				meta.AcceptedRoute,
+			)
 		}
 		rows := ledger.fallbackRows()
-		if len(rows) != 1 || rows[0].SessionID != child.ID || decodeFallbackPayload(t, rows[0]).Phase != fallbackPhaseCreate {
+		if len(rows) != 1 || rows[0].SessionID != child.ID ||
+			decodeFallbackPayload(t, rows[0]).Phase != fallbackPhaseCreate {
 			t.Fatalf("session.fallback.used rows = %#v, want one create row for the child", rows)
 		}
 	})

@@ -251,51 +251,54 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate route commands by parsing only, with no count or length limit", func(t *testing.T) { // UT-003
-		t.Parallel()
+	t.Run(
+		"Should validate route commands by parsing only, with no count or length limit",
+		func(t *testing.T) { // UT-003
+			t.Parallel()
 
-		longChain := make([]RoleFallback, 20)
-		for index := range longChain {
-			longChain[index] = RoleFallback{Provider: "claude", Model: "haiku-4-5"}
-		}
-		longChain[19].Command = "claude --acp " + strings.Repeat("x", 10*1024)
-		for _, testCase := range []struct {
-			name    string
-			chain   []RoleFallback
-			wantErr string
-		}{
-			{
-				name:    "missing executable",
-				chain:   []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "FOO=bar"}},
-				wantErr: "roles.auto_title.fallback_chain[0].command: command is missing an executable",
-			},
-			{
-				name:    "unterminated quote",
-				chain:   []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "claude 'unterminated"}},
-				wantErr: "roles.auto_title.fallback_chain[0].command: parse command: ",
-			},
-			{
-				name:  "whitespace inherits",
-				chain: []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "   "}},
-			},
-			{name: "twenty routes and a ten kilobyte command", chain: longChain},
-		} {
-			t.Run("Should handle "+testCase.name, func(t *testing.T) {
-				t.Parallel()
+			longChain := make([]RoleFallback, 20)
+			for index := range longChain {
+				longChain[index] = RoleFallback{Provider: "claude", Model: "haiku-4-5"}
+			}
+			longChain[19].Command = "claude --acp " + strings.Repeat("x", 10*1024)
+			for _, testCase := range []struct {
+				name    string
+				chain   []RoleFallback
+				wantErr string
+			}{
+				{
+					name:    "missing executable",
+					chain:   []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "FOO=bar"}},
+					wantErr: "roles.auto_title.fallback_chain[0].command: command is missing an executable",
+				},
+				{
+					name:    "unterminated quote",
+					chain:   []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "claude 'unterminated"}},
+					wantErr: "roles.auto_title.fallback_chain[0].command: parse command: ",
+				},
+				{
+					name:  "whitespace inherits",
+					chain: []RoleFallback{{Provider: "claude", Model: "haiku-4-5", Command: "   "}},
+				},
+				{name: "twenty routes and a ten kilobyte command", chain: longChain},
+			} {
+				t.Run("Should handle "+testCase.name, func(t *testing.T) {
+					t.Parallel()
 
-				cfg := DefaultRolesConfig()
-				cfg.AutoTitle.FallbackChain = testCase.chain
-				err := cfg.Validate("roles", &Config{})
-				if testCase.wantErr == "" {
-					if err != nil {
-						t.Fatalf("Validate() error = %v, want accepted", err)
+					cfg := DefaultRolesConfig()
+					cfg.AutoTitle.FallbackChain = testCase.chain
+					err := cfg.Validate("roles", &Config{})
+					if testCase.wantErr == "" {
+						if err != nil {
+							t.Fatalf("Validate() error = %v, want accepted", err)
+						}
+						return
 					}
-					return
-				}
-				assertErrorContains(t, err, testCase.wantErr)
-			})
-		}
-	})
+					assertErrorContains(t, err, testCase.wantErr)
+				})
+			}
+		},
+	)
 
 	t.Run("Should reject an invalid reasoning effort", func(t *testing.T) {
 		t.Parallel()
@@ -416,7 +419,11 @@ func TestLoadKeepsPreReleaseFallbackChains(t *testing.T) {
 		}
 		var fixture strings.Builder
 		for index := range 12 {
-			fmt.Fprintf(&fixture, "[[roles.auto_title.fallback_chain]]\nprovider = \"claude\"\nmodel = \"model-%02d\"\n", index)
+			fmt.Fprintf(
+				&fixture,
+				"[[roles.auto_title.fallback_chain]]\nprovider = \"claude\"\nmodel = \"model-%02d\"\n",
+				index,
+			)
 		}
 		writeFile(t, homePaths.ConfigFile, fixture.String())
 
@@ -425,7 +432,8 @@ func TestLoadKeepsPreReleaseFallbackChains(t *testing.T) {
 			t.Fatalf("LoadForHome(pre-release chain) error = %v", err)
 		}
 		chain := cfg.Roles.AutoTitle.FallbackChain
-		if len(chain) != 12 || chain[0].Model != "model-00" || chain[11].Model != "model-11" || chain[11].Command != "" {
+		if len(chain) != 12 || chain[0].Model != "model-00" || chain[11].Model != "model-11" ||
+			chain[11].Command != "" {
 			t.Fatalf("Roles.AutoTitle.FallbackChain = %#v, want 12 unchanged routes", chain)
 		}
 	})

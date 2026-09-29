@@ -28,7 +28,7 @@ func (m *Manager) applyResumeRouteAffinity(
 	primary := FallbackRoute{Provider: spec.provider, Model: spec.model, ReasoningEffort: spec.reasoningEffort}
 	candidates := append([]FallbackRoute{primary}, fallbackRoutesForAgent(agentDef)...)
 	for index, route := range candidates {
-		if m.fallbackRouteMatchesAcceptedRoute(ctx, *spec, agentDef, route, record) {
+		if m.fallbackRouteMatchesAcceptedRoute(ctx, spec, agentDef, route, record) {
 			spec.command = strings.TrimSpace(route.Command)
 			spec.fallbackAttempt = index
 			return
@@ -57,11 +57,15 @@ func (m *Manager) applyResumeRouteAffinity(
 
 func (m *Manager) fallbackRouteMatchesAcceptedRoute(
 	ctx context.Context,
-	spec sessionStartSpec,
+	base *sessionStartSpec,
 	agentDef compozyconfig.AgentDef,
 	route FallbackRoute,
 	record *store.SessionAcceptedRoute,
 ) bool {
+	if base == nil {
+		return false
+	}
+	spec := *base
 	spec.provider = strings.TrimSpace(route.Provider)
 	spec.model = strings.TrimSpace(route.Model)
 	spec.command = strings.TrimSpace(route.Command)

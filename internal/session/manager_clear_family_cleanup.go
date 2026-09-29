@@ -66,8 +66,11 @@ func (m *Manager) restoreClearedConversationFailure(
 	manifest sessionDBClearManifest,
 	dbPath string,
 	metaPath string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) error {
+	if meta == nil {
+		return errors.New("session: cleared conversation metadata is required")
+	}
 	lease, err := acquireVerifiedSessionDBFamilyLease(
 		ctx,
 		owner,

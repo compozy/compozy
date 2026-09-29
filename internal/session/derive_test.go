@@ -401,7 +401,7 @@ func TestValidateDeriveSource(t *testing.T) {
 	} {
 		t.Run("Should refuse "+tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := (&Manager{}).validateDeriveSource(t.Context(), spec, deriveSnapshot{meta: tc.meta})
+			err := (&Manager{}).validateDeriveSource(t.Context(), spec, &deriveSnapshot{meta: tc.meta})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("validateDeriveSource() error = %v, want %v", err, tc.want)
 			}

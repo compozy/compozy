@@ -15,7 +15,7 @@ func worktreeRecordBundle(item WorktreeRecord) outputBundle {
 				{Label: worktreeBranchLabel, Value: stringOrDash(item.Branch)},
 				{Label: "Path", Value: stringOrDash(item.Path)},
 				{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
-				{Label: "Origin", Value: stringOrDash(item.Origin)},
+				{Label: taskOriginValue, Value: stringOrDash(item.Origin)},
 				{Label: "Agent Activity", Value: stringOrDash(item.AgentActivity)},
 			}), nil
 		},

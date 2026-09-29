@@ -287,7 +287,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 		return nil, ErrSessionNotFound
 	}
 	meta := session.Meta()
-	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	workspace, err := m.resolveResumeWorkspace(ctx, &meta)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve runtime workspace: %w", err)
 	}
@@ -299,11 +299,11 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	if worktreeRoot != "" {
 		executionRoot = worktreeRoot
 	}
-	cwd, err := resumeSessionCWD(meta, executionRoot)
+	cwd, err := resumeSessionCWD(&meta, executionRoot)
 	if err != nil {
 		return nil, err
 	}
-	spec, err := sessionStartSpecFromMeta(meta, &workspace, cwd)
+	spec, err := sessionStartSpecFromMeta(&meta, &workspace, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("session: reconstruct runtime start spec: %w", err)
 	}

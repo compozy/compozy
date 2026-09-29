@@ -919,7 +919,7 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 	}
 
 	sessionDir := filepath.Join(homePaths.SessionsDir, "sess-stored")
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
 		ID:            "sess-stored",
 		AgentName:     "coder",
 		WorkspaceID:   "ws-stored",

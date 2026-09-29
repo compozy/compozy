@@ -1363,7 +1363,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 					if previousState == StateStarting {
 						meta.Failure = nil
 					}
-					if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
+					if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -1375,7 +1375,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 						}
 					} else {
 						meta := readMeta(t, active.MetaPath())
-						classified, changed := ClassifyInactiveMetaForRecovery(manager.now(), meta)
+						classified, changed := ClassifyInactiveMetaForRecovery(manager.now(), &meta)
 						if !changed {
 							t.Fatal("expected interrupted metadata classification")
 						}
@@ -2320,7 +2320,7 @@ func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
 	meta := readMeta(t, active.MetaPath())
 	meta.State = string(StateStopping)
 	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: cmd.Process.Pid, SubprocessStartedAt: &started}
-	if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
 		t.Fatal(err)
 	}
 	h.manager.mu.Lock()
@@ -2348,7 +2348,7 @@ func seedRecoveredUnverifiedStop(t *testing.T, h *harness) *Session {
 	meta := readMeta(t, active.MetaPath())
 	meta.State = string(StateStopping)
 	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid()}
-	if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
 		t.Fatal(err)
 	}
 	h.manager.mu.Lock()

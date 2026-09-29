@@ -640,7 +640,7 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 

@@ -849,7 +849,11 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 		}
 		session, _ := h.manager.Get(created.ID)
 		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
+			if err := h.manager.Stop(
+				testutil.Context(t),
+				session.ID,
+			); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
 				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
 			}
 		})
@@ -928,7 +932,11 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 		resumeCall := h.driver.startCalls[len(h.driver.startCalls)-1]
 		h.driver.mu.Unlock()
 		if resumeCall.Command != codexCommand || resumeCall.ResumeSessionID != "acp-2" {
-			t.Fatalf("resume start = %q/%q, want the codex route loading acp-2", resumeCall.Command, resumeCall.ResumeSessionID)
+			t.Fatalf(
+				"resume start = %q/%q, want the codex route loading acp-2",
+				resumeCall.Command,
+				resumeCall.ResumeSessionID,
+			)
 		}
 		session = resumed
 	})
@@ -3247,7 +3255,16 @@ func TestPromptBindFallbackChain(t *testing.T) {
 			t.Fatalf("Prompt() events = %#v, want a completed turn", got)
 		}
 		codexCommand := h.cfg.Providers["codex"].Command
-		if got, want := startCommands(h), []string{fallbackSeatZero, fallbackSeatOne, codexCommand}; !slices.Equal(got, want) {
+		if got, want := startCommands(
+			h,
+		), []string{
+			fallbackSeatZero,
+			fallbackSeatOne,
+			codexCommand,
+		}; !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("start commands = %v, want %v", got, want)
 		}
 		info := session.Info()
@@ -3285,7 +3302,8 @@ func TestPromptBindFallbackChain(t *testing.T) {
 				t.Fatalf("marker %d evidence = %#v, want %s for %q", index, evidence, want.action, want.command)
 			}
 		}
-		if strings.Contains(markers[0].Summary, "SEAT=") || !strings.HasPrefix(markers[0].Summary, "Provider refused route 1") {
+		if strings.Contains(markers[0].Summary, "SEAT=") ||
+			!strings.HasPrefix(markers[0].Summary, "Provider refused route 1") {
 			t.Fatalf("marker summary = %q", markers[0].Summary)
 		}
 		if stored := readStoredEvents(t, session); countEventType(stored, acp.EventTypeError) != 0 ||
@@ -3296,7 +3314,11 @@ func TestPromptBindFallbackChain(t *testing.T) {
 		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 2 || meta.AcceptedRoute.Provider != "codex" ||
 			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(codexCommand) ||
 			derefString(meta.ACPSessionID) != "acp-3" {
-			t.Fatalf("meta accepted route = %#v acp=%v, want codex attempt 2 with acp-3", meta.AcceptedRoute, meta.ACPSessionID)
+			t.Fatalf(
+				"meta accepted route = %#v acp=%v, want codex attempt 2 with acp-3",
+				meta.AcceptedRoute,
+				meta.ACPSessionID,
+			)
 		}
 	})
 
@@ -3411,7 +3433,14 @@ func TestPromptBindFallbackChain(t *testing.T) {
 		if got := startCommands(h); len(got) != 2 {
 			t.Fatalf("start commands = %v, want no attempt after cancellation", got)
 		}
-		if markers := transcriptMarkersOfKind(t, h.manager, session.ID, transcript.MarkerProviderFailure); len(markers) != 1 ||
+		if markers := transcriptMarkersOfKind(
+			t,
+			h.manager,
+			session.ID,
+			transcript.MarkerProviderFailure,
+		); len(
+			markers,
+		) != 1 ||
 			markers[0].Evidence["provider_command_fingerprint"] != providerCommandFingerprint(fallbackSeatZero) {
 			t.Fatalf("provider_failure markers = %#v, want the primary refusal retained", markers)
 		}

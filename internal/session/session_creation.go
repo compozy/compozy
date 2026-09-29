@@ -163,21 +163,21 @@ func (m *Manager) matchExistingCreation(
 		}
 		return false, creationError(EffectUnknown, SessionCreationCodeEffectUnknown, metaErr)
 	}
-	if creationIdentityFromMeta(meta) == nil {
+	if creationIdentityFromMeta(&meta) == nil {
 		return false, creationError(
 			EffectKnownFalse,
 			SessionCreationCodeIdentityMismatch,
 			errors.New("session: existing metadata has no creation identity"),
 		)
 	}
-	if *creationIdentityFromMeta(meta) != expected {
+	if *creationIdentityFromMeta(&meta) != expected {
 		return false, creationError(
 			EffectKnownFalse,
 			SessionCreationCodeIdentityMismatch,
 			store.ErrSessionCreationIdentityMismatch,
 		)
 	}
-	if err := m.persistSessionCatalogFromMeta(ctx, meta); err != nil {
+	if err := m.persistSessionCatalogFromMeta(ctx, &meta); err != nil {
 		return false, creationError(EffectUnknown, SessionCreationCodeEffectUnknown, err)
 	}
 	return m.ensureExistingSessionActive(ctx, sessionID)
@@ -365,7 +365,10 @@ func validateRequestedCreationIdentity(opts CreateOpts) error {
 	return nil
 }
 
-func creationIdentityFromMeta(meta store.SessionMeta) *store.SessionCreationIdentity {
+func creationIdentityFromMeta(meta *store.SessionMeta) *store.SessionCreationIdentity {
+	if meta == nil {
+		return nil
+	}
 	identity := &store.SessionCreationIdentity{
 		CreationProfileRef: strings.TrimSpace(meta.CreationProfileRef),
 		PolicySpecDigest:   strings.TrimSpace(meta.PolicySpecDigest),

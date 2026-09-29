@@ -28,7 +28,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		now := h.now.Add(30 * time.Minute)
 		stopReason := store.StopUserCanceled
 
-		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
+		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
 			ID:            "sess-new",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "New",
@@ -147,8 +147,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)),
-			store.SessionMeta{
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)), &store.SessionMeta{
 				ID:            rootID,
 				ProfileID:     store.DefaultProfileID,
 				Name:          "Root",
@@ -159,13 +158,11 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				CreatedAt:     now,
 				UpdatedAt:     now,
-			},
-		); err != nil {
+			}); err != nil {
 			t.Fatalf("WriteSessionMeta(root) error = %v", err)
 		}
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)),
-			store.SessionMeta{
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)), &store.SessionMeta{
 				ID:            parentID,
 				ProfileID:     store.DefaultProfileID,
 				Name:          "Parent",
@@ -182,13 +179,11 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
-			},
-		); err != nil {
+			}); err != nil {
 			t.Fatalf("WriteSessionMeta(parent) error = %v", err)
 		}
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)),
-			store.SessionMeta{
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)), &store.SessionMeta{
 				ID:              childID,
 				ProfileID:       store.DefaultProfileID,
 				Name:            "Child",
@@ -255,8 +250,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				CreationDigest:     creationIdentity.CreationDigest,
 				CreatedAt:          now,
 				UpdatedAt:          now,
-			},
-		); err != nil {
+			}); err != nil {
 			t.Fatalf("WriteSessionMeta(child) error = %v", err)
 		}
 
@@ -496,9 +490,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 		meta.SetCWD(worktreePath)
 		meta.SetWorktreeID(worktreeID)
 		if err := store.WriteSessionMeta(
-			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sessionID)),
-			meta,
-		); err != nil {
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sessionID)), &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
@@ -590,7 +582,7 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		validDir := filepath.Join(h.home.SessionsDir, "sess-valid")
 		validMetaPath := store.SessionMetaFile(validDir)
 		now := h.now.Add(45 * time.Minute)
-		if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
+		if err := store.WriteSessionMeta(validMetaPath, &store.SessionMeta{
 			ID:            "sess-valid",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "Valid",
@@ -606,7 +598,7 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		}
 
 		invalidMetaPath := store.SessionMetaFile(filepath.Join(h.home.SessionsDir, "sess-without-provider"))
-		if err := store.WriteSessionMeta(invalidMetaPath, store.SessionMeta{
+		if err := store.WriteSessionMeta(invalidMetaPath, &store.SessionMeta{
 			ID:            "sess-without-provider",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "Missing Provider",

@@ -1334,68 +1334,71 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 		}
 	})
 
-	t.Run("Should apply an explicit route command after provider-aware resolution", func(t *testing.T) { // UT-014, UT-033
-		t.Parallel()
+	t.Run(
+		"Should apply an explicit route command after provider-aware resolution",
+		func(t *testing.T) { // UT-014, UT-033
+			t.Parallel()
 
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		cfg := DefaultWithHome(homePaths)
-		agent := AgentDef{
-			Name: "coder", Provider: "claude", Command: "agent-command", Model: "agent-model", Prompt: "prompt",
-		}
-		codex, err := cfg.ResolveProvider("codex")
-		if err != nil {
-			t.Fatalf("ResolveProvider(codex) error = %v", err)
-		}
-		for _, testCase := range []struct {
-			name         string
-			overrides    RuntimeOverrides
-			wantProvider string
-			wantCommand  string
-		}{
-			{
-				name:         "explicit command on the agent provider",
-				overrides:    RuntimeOverrides{Command: "X claude --acp"},
-				wantProvider: "claude",
-				wantCommand:  "X claude --acp",
-			},
-			{
-				name:         "empty command keeps the agent command on the same provider",
-				overrides:    RuntimeOverrides{Command: ""},
-				wantProvider: "claude",
-				wantCommand:  "agent-command",
-			},
-			{
-				name:         "explicit command on another provider",
-				overrides:    RuntimeOverrides{Provider: "codex", Command: "CODEX_HOME=/x codex acp"},
-				wantProvider: "codex",
-				wantCommand:  "CODEX_HOME=/x codex acp",
-			},
-			{
-				name:         "no command on another provider uses that provider command",
-				overrides:    RuntimeOverrides{Provider: "codex"},
-				wantProvider: "codex",
-				wantCommand:  codex.Command,
-			},
-		} {
-			t.Run("Should resolve "+testCase.name, func(t *testing.T) {
-				t.Parallel()
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			cfg := DefaultWithHome(homePaths)
+			agent := AgentDef{
+				Name: "coder", Provider: "claude", Command: "agent-command", Model: "agent-model", Prompt: "prompt",
+			}
+			codex, err := cfg.ResolveProvider("codex")
+			if err != nil {
+				t.Fatalf("ResolveProvider(codex) error = %v", err)
+			}
+			for _, testCase := range []struct {
+				name         string
+				overrides    RuntimeOverrides
+				wantProvider string
+				wantCommand  string
+			}{
+				{
+					name:         "explicit command on the agent provider",
+					overrides:    RuntimeOverrides{Command: "X claude --acp"},
+					wantProvider: "claude",
+					wantCommand:  "X claude --acp",
+				},
+				{
+					name:         "empty command keeps the agent command on the same provider",
+					overrides:    RuntimeOverrides{Command: ""},
+					wantProvider: "claude",
+					wantCommand:  "agent-command",
+				},
+				{
+					name:         "explicit command on another provider",
+					overrides:    RuntimeOverrides{Provider: "codex", Command: "CODEX_HOME=/x codex acp"},
+					wantProvider: "codex",
+					wantCommand:  "CODEX_HOME=/x codex acp",
+				},
+				{
+					name:         "no command on another provider uses that provider command",
+					overrides:    RuntimeOverrides{Provider: "codex"},
+					wantProvider: "codex",
+					wantCommand:  codex.Command,
+				},
+			} {
+				t.Run("Should resolve "+testCase.name, func(t *testing.T) {
+					t.Parallel()
 
-				resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, testCase.overrides)
-				if err != nil {
-					t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
-				}
-				if resolved.Provider != testCase.wantProvider || resolved.Command != testCase.wantCommand {
-					t.Fatalf(
-						"resolved (provider, command) = (%q, %q), want (%q, %q)",
-						resolved.Provider, resolved.Command, testCase.wantProvider, testCase.wantCommand,
-					)
-				}
-			})
-		}
-	})
+					resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, testCase.overrides)
+					if err != nil {
+						t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+					}
+					if resolved.Provider != testCase.wantProvider || resolved.Command != testCase.wantCommand {
+						t.Fatalf(
+							"resolved (provider, command) = (%q, %q), want (%q, %q)",
+							resolved.Provider, resolved.Command, testCase.wantProvider, testCase.wantCommand,
+						)
+					}
+				})
+			}
+		},
+	)
 
 	t.Run("Should resolve the selected model default when the model changes within one provider", func(t *testing.T) {
 		t.Parallel()

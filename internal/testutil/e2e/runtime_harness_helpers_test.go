@@ -38,7 +38,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		}
 
 		metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, "sess-1"))
-		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
+		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
 			ID:            "sess-1",
 			AgentName:     "coder",
 			WorkspaceID:   "ws-1",

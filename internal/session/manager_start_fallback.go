@@ -18,7 +18,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 	runtime *sessionStartRuntime,
 ) (acp.StartOpts, error) {
 	spec := accepted.spec
-	routes := sessionOwnedStartRoutes(spec, *runtime)
+	routes := sessionOwnedStartRoutes(spec, runtime)
 	if len(routes) == 0 {
 		return m.launchAcceptedSessionAttempt(accepted, runtime)
 	}
@@ -29,7 +29,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 	restorePrimary := func() {
 		*spec = primarySpec
 		*runtime = primaryRuntime
-		session.applyStartAttemptRoute(spec, *runtime)
+		session.applyStartAttemptRoute(spec, runtime)
 	}
 	primary := FallbackRoute{
 		Provider:        runtime.agent.Provider,
@@ -47,7 +47,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 		ledger:  m.eventLedger,
 		logger:  spec.startLogger(m),
 		effectiveCommand: func(route FallbackRoute) string {
-			return m.resolveFallbackRouteCommand(ctx, primarySpec, agentDef, route)
+			return m.resolveFallbackRouteCommand(ctx, &primarySpec, agentDef, route)
 		},
 	}
 	var startOpts acp.StartOpts
@@ -64,7 +64,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 					return struct{}{}, err
 				}
 				*runtime = attemptRuntime
-				session.applyStartAttemptRoute(spec, *runtime)
+				session.applyStartAttemptRoute(spec, runtime)
 			}
 			spec.fallbackAttempt = attempt
 			opts, err := m.launchAcceptedSessionAttempt(accepted, runtime)
@@ -119,8 +119,9 @@ func (m *Manager) launchAcceptedSessionAttempt(
 // sessionOwnedStartRoutes returns the agent chain only for session-owned creates. Role
 // launches (ChainOwnerCaller), resumes, and creates whose pinned creation identity fixes
 // the provider never run the chain.
-func sessionOwnedStartRoutes(spec *sessionStartSpec, runtime sessionStartRuntime) []FallbackRoute {
-	if spec == nil || spec.chainOwner != ChainOwnerSession || spec.startAction != sessionStartActionCreate ||
+func sessionOwnedStartRoutes(spec *sessionStartSpec, runtime *sessionStartRuntime) []FallbackRoute {
+	if spec == nil || runtime == nil || spec.chainOwner != ChainOwnerSession ||
+		spec.startAction != sessionStartActionCreate ||
 		spec.creationIdentityPinned {
 		return nil
 	}

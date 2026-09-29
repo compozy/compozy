@@ -77,6 +77,6 @@ func (m *Manager) replayActiveStopEvent(ctx context.Context, id string, row *sto
 		return errors.New("session: terminal replay changed event identity")
 	}
 	m.publishSessionEventByID(ctx, id, persisted)
-	m.notifyAgentEventFromInfo(ctx, sessionInfoFromMeta(meta), event)
+	m.notifyAgentEventFromInfo(ctx, sessionInfoFromMeta(&meta), event)
 	return nil
 }

@@ -55,7 +55,8 @@ func (m *Manager) updateRuntimeSelection(
 	}
 	if active, ok := m.Get(target); ok {
 		if selection != nil {
-			if err := m.validateRuntimeModelAtAdmission(ctx, active, *selection, active.Meta()); err != nil {
+			meta := active.Meta()
+			if err := m.validateRuntimeModelAtAdmission(ctx, active, *selection, &meta); err != nil {
 				return nil, err
 			}
 		}
@@ -107,7 +108,7 @@ func (m *Manager) updateStoppedRuntimeSelection(
 		return nil, err
 	}
 	if selection != nil {
-		if err := m.validateRuntimeModelAtAdmission(ctx, nil, *selection, meta); err != nil {
+		if err := m.validateRuntimeModelAtAdmission(ctx, nil, *selection, &meta); err != nil {
 			return nil, err
 		}
 	}
@@ -122,13 +123,13 @@ func (m *Manager) updateStoppedRuntimeSelection(
 	))
 	meta.UpdatedAt = m.now()
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 		return nil, fmt.Errorf("session: persist runtime selection for %q: %w", target, err)
 	}
-	if err := m.persistSessionCatalogFromMeta(ctx, meta); err != nil {
+	if err := m.persistSessionCatalogFromMeta(ctx, &meta); err != nil {
 		return nil, err
 	}
-	return m.sessionInfoFromMeta(ctx, meta), nil
+	return m.sessionInfoFromMeta(ctx, &meta), nil
 }
 
 func runtimeSelectionConflict(expected, current int64) error {

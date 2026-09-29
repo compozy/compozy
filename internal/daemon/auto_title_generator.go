@@ -94,29 +94,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 	runCtx, cancelRun := autoTitleRunContext(ctx, g.deadline)
 	defer cancelRun()
 	prompt := renderAutoTitlePrompt(request)
-	child, err := invokeRoleWithFallback(runCtx, role, correlation, func(
-		attemptCtx context.Context,
-		route roleAttemptRoute,
-	) (*session.Session, bool, error) {
-		spawned, spawnErr := g.sessions.Spawn(attemptCtx, session.SpawnOpts{
-			ParentSessionID:     strings.TrimSpace(request.SessionID),
-			AgentName:           route.AgentName,
-			Provider:            route.Provider,
-			Model:               route.Model,
-			ReasoningEffort:     route.ReasoningEffort,
-			Speed:               route.Speed,
-			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
-			Command:             route.Command,
-			ChainOwner:          session.ChainOwnerCaller,
-			Name:                autoTitleSessionName,
-			PromptOverlay:       autoTitlePromptOverlay(),
-			SpawnRole:           session.SpawnRoleAutoTitle,
-			TTL:                 g.childTTL(),
-			AutoStopOnParent:    true,
-			DiscardStartFailure: true,
-		})
-		return spawned, session.StartAccepted(spawnErr) || spawned != nil, spawnErr
-	})
+	child, err := g.spawnAutoTitleSession(runCtx, &role, correlation, request)
 	if child != nil {
 		defer g.stopAutoTitleSession(ctx, child.ID, &title, &err)
 	}
@@ -144,6 +122,38 @@ func (g *forkedAutoTitleGenerator) Generate(
 		return "", errors.New("daemon: automatic title output is empty")
 	}
 	return title, nil
+}
+
+// spawnAutoTitleSession launches the auto-title child through the role's fallback chain.
+func (g *forkedAutoTitleGenerator) spawnAutoTitleSession(
+	ctx context.Context,
+	role *ResolvedRole,
+	correlation roleInvocationCorrelation,
+	request autoTitleRequest,
+) (*session.Session, error) {
+	return invokeRoleWithFallback(ctx, role, correlation, func(
+		attemptCtx context.Context,
+		route roleAttemptRoute,
+	) (*session.Session, bool, error) {
+		spawned, spawnErr := g.sessions.Spawn(attemptCtx, session.SpawnOpts{
+			ParentSessionID:     strings.TrimSpace(request.SessionID),
+			AgentName:           route.AgentName,
+			Provider:            route.Provider,
+			Model:               route.Model,
+			ReasoningEffort:     route.ReasoningEffort,
+			Speed:               route.Speed,
+			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Command:             route.Command,
+			ChainOwner:          session.ChainOwnerCaller,
+			Name:                autoTitleSessionName,
+			PromptOverlay:       autoTitlePromptOverlay(),
+			SpawnRole:           session.SpawnRoleAutoTitle,
+			TTL:                 g.childTTL(),
+			AutoStopOnParent:    true,
+			DiscardStartFailure: true,
+		})
+		return spawned, session.StartAccepted(spawnErr) || spawned != nil, spawnErr
+	})
 }
 
 func autoTitleRunContext(ctx context.Context, deadline time.Duration) (context.Context, context.CancelFunc) {

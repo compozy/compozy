@@ -87,11 +87,14 @@ func roleInvocationCorrelationFromContext(ctx context.Context, workspaceID strin
 // when it returned an error.
 func invokeRoleWithFallback[T any](
 	ctx context.Context,
-	role ResolvedRole,
+	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	invoke func(context.Context, roleAttemptRoute) (T, bool, error),
 ) (T, error) {
 	var zero T
+	if role == nil {
+		return zero, errors.New("daemon: resolved role is required")
+	}
 	if invoke == nil {
 		return zero, errors.New("daemon: role invocation callback is required")
 	}
@@ -145,12 +148,12 @@ func roleAttemptError(role compozyconfig.RoleName, attempt int, err error) error
 
 func recordRoleFallbackEvent(
 	ctx context.Context,
-	role ResolvedRole,
+	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	attempt int,
 	route roleAttemptRoute,
 ) error {
-	if role.eventWriter == nil {
+	if role == nil || role.eventWriter == nil {
 		return nil
 	}
 	content, err := json.Marshal(roleFallbackEventPayload{

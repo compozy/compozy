@@ -81,11 +81,11 @@ func (m *Manager) creatorProviderRoute(
 	if meta.Provider != provider || meta.WorkspaceID != spec.workspace.ID || meta.ProfileID != spec.profileID {
 		return compozyconfig.ResolvedAgent{}, nil
 	}
-	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	workspace, err := m.resolveResumeWorkspace(ctx, &meta)
 	if err != nil {
 		return compozyconfig.ResolvedAgent{}, err
 	}
-	parentSpec, err := sessionStartSpecFromMeta(meta, &workspace, workspace.RootDir)
+	parentSpec, err := sessionStartSpecFromMeta(&meta, &workspace, workspace.RootDir)
 	if err != nil {
 		return compozyconfig.ResolvedAgent{}, err
 	}

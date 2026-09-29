@@ -112,7 +112,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 					SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity,
 				}
 			}
-			gotMeta, gotChanged := classifyPreviousStop(tc.meta)
+			gotMeta, gotChanged := classifyPreviousStop(&tc.meta)
 			if gotChanged != tc.wantChanged {
 				t.Fatalf("classifyPreviousStop() changed = %v, want %v", gotChanged, tc.wantChanged)
 			}
@@ -139,12 +139,12 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				Failure: &store.SessionFailure{Kind: store.FailureProviderAuth, Summary: "provider login required"},
 			}
 			now := time.Now()
-			first, changed := ClassifyInactiveMetaForRecovery(now, meta)
+			first, changed := ClassifyInactiveMetaForRecovery(now, &meta)
 			if !changed || first.State != string(StateStopping) || !interruptedStartupMeta(&first) ||
 				first.Failure.Kind != store.FailureProviderAuth || first.Failure.Summary != meta.Failure.Summary {
 				t.Fatalf("startup inventory lost provider failure or startup attribution: %#v", first)
 			}
-			second, changed := ClassifyInactiveMetaForRecovery(now, first)
+			second, changed := ClassifyInactiveMetaForRecovery(now, &first)
 			if changed || !interruptedStartupMeta(&second) || !second.StopVerificationFailed ||
 				second.Failure.Kind != store.FailureProviderAuth || second.Failure.Summary != meta.Failure.Summary {
 				t.Fatalf("repeated inventory changed startup evidence: %#v", second)
@@ -158,7 +158,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				func(t *testing.T) {
 					t.Parallel()
 					meta := store.SessionMeta{State: string(state), Liveness: liveness}
-					recovered, changed := ClassifyInactiveMetaForRecovery(time.Now(), meta)
+					recovered, changed := ClassifyInactiveMetaForRecovery(time.Now(), &meta)
 					if !changed || recovered.State != string(StateStopping) || !recovered.StopVerificationFailed {
 						t.Fatalf("missing identity fabricated terminal state: %#v", recovered)
 					}
@@ -170,7 +170,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Run("Should retain unverified stop attention when process identity is unavailable", func(t *testing.T) {
 		t.Parallel()
 		meta := store.SessionMeta{State: string(StateStopping), StopVerificationFailed: true}
-		recovered, _ := ClassifyInactiveMetaForRecovery(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC), meta)
+		recovered, _ := ClassifyInactiveMetaForRecovery(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC), &meta)
 		if recovered.State != string(StateStopping) || !recovered.StopVerificationFailed {
 			t.Fatalf("unverified stop lost its exit-proof requirement: %#v", recovered)
 		}
@@ -196,7 +196,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				meta := store.SessionMeta{State: string(StateActive), Liveness: &store.SessionLivenessMeta{
 					SubprocessPID: os.Getpid(), SubprocessStartedAt: &tc.started,
 				}}
-				recovered, changed := ClassifyInactiveMetaForRecovery(started.Add(time.Hour), meta)
+				recovered, changed := ClassifyInactiveMetaForRecovery(started.Add(time.Hour), &meta)
 				if !changed || recovered.State != string(tc.want) ||
 					recovered.StopVerificationFailed != (tc.want == StateStopping) {
 					t.Fatalf("recovery state = %q, changed=%t", recovered.State, changed)
@@ -231,7 +231,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				},
 			}
 
-			repaired, changed := ClassifyInactiveMetaForRecovery(now, meta)
+			repaired, changed := ClassifyInactiveMetaForRecovery(now, &meta)
 			if !changed {
 				t.Fatal("ClassifyInactiveMetaForRecovery() changed = false, want true")
 			}
@@ -277,7 +277,7 @@ func TestValidateInfrastructure(t *testing.T) {
 			meta.AgentName = "profile-only"
 			writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-			if errs := h.manager.validateInfrastructure(testutil.Context(t), meta); len(errs) != 0 {
+			if errs := h.manager.validateInfrastructure(testutil.Context(t), &meta); len(errs) != 0 {
 				t.Fatalf("validateInfrastructure() errors = %v, want the persisted profile agent", errs)
 			}
 		})
@@ -290,7 +290,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "sess-valid")
 		writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		if len(errs) != 0 {
 			t.Fatalf("validateInfrastructure() errors = %#v, want none", errs)
 		}
@@ -317,7 +317,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "sess-missing-workspace")
 		writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, missingWorkspace)
 	})
 
@@ -329,7 +329,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta.AgentName = "missing-agent"
 		writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, "missing-agent")
 	})
 
@@ -339,7 +339,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		h := newHarness(t)
 		meta := validResumeMeta(h, "sess-missing-store")
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, meta.ID)))
 	})
 
@@ -350,7 +350,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "sess-empty-store")
 		writeResumeEventStore(t, h.homePaths, meta.ID, nil)
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, "file is empty")
 	})
 
@@ -361,7 +361,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta := validResumeMeta(h, "")
 		writeResumeEventStore(t, h.homePaths, "ignored", []byte("not-empty"))
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		assertErrorContains(t, errs, "session id")
 	})
 
@@ -387,7 +387,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		meta.AgentName = "missing-agent"
 		writeResumeEventStore(t, h.homePaths, meta.ID, nil)
 
-		errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+		errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 		if got, want := len(errs), 3; got != want {
 			t.Fatalf("len(validateInfrastructure() errors) = %d, want %d (%#v)", got, want, errs)
 		}
@@ -425,7 +425,7 @@ func TestRepairRejectsNilContext(t *testing.T) {
 				h := newHarness(t)
 				meta := validResumeMeta(h, "sess-nil-repair-context")
 				var nilCtx context.Context
-				_, err := h.manager.repairInactiveMeta(nilCtx, filepath.Join(t.TempDir(), "meta.json"), meta)
+				_, err := h.manager.repairInactiveMeta(nilCtx, filepath.Join(t.TempDir(), "meta.json"), &meta)
 				return err
 			},
 			want: errResumeRepairContextRequired,

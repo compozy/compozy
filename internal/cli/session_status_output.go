@@ -61,7 +61,7 @@ func renderSessionToon(info *SessionRecord) (string, error) {
 		sessionNameKey,
 		sessionAgentNameKey,
 		sessionProviderKey,
-		"speed",
+		agentSpeedField,
 		"speed_outcome",
 		workspaceSkillSource,
 		sessionStateKey,

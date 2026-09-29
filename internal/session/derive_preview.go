@@ -38,14 +38,14 @@ func (m *Manager) DerivePreview(
 		return DerivePreview{}, err
 	}
 	release()
-	if err := m.validateDeriveSource(ctx, spec, snapshot); err != nil {
+	if err := m.validateDeriveSource(ctx, spec, &snapshot); err != nil {
 		return DerivePreview{}, err
 	}
-	workspace, err := m.resolveResumeWorkspace(ctx, snapshot.meta)
+	workspace, err := m.resolveResumeWorkspace(ctx, &snapshot.meta)
 	if err != nil {
 		return DerivePreview{}, err
 	}
-	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget(&workspace))
+	imported, err := m.buildImportedContext(&snapshot, spec, m.deriveBudget(&workspace))
 	if err != nil {
 		return DerivePreview{}, err
 	}

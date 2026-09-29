@@ -145,7 +145,7 @@ func (m *Manager) deriveForkSeed(
 func (m *Manager) previewNativeForkPossible(ctx context.Context, snapshot *deriveSnapshot) bool {
 	meta := snapshot.meta
 	agentName := strings.TrimSpace(meta.AgentName)
-	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, meta, agentName)
+	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, &meta, agentName)
 	if err != nil {
 		return false
 	}

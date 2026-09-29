@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -19,8 +20,11 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	ctx context.Context,
 	session *Session,
 	selection RuntimeSelection,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) error {
+	if meta == nil {
+		return errors.New("session: runtime model metadata is required")
+	}
 	providerID := strings.TrimSpace(selection.Provider)
 	if session != nil {
 		snapshot := session.runtimeBindingSnapshot()

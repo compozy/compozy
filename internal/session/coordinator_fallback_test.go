@@ -190,7 +190,7 @@ func TestBundledBuiltinSessionFallback(t *testing.T) {
 			meta.SessionType = string(SessionTypeCoordinator)
 			writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
 
-			errs := h.manager.validateInfrastructure(testutil.Context(t), meta)
+			errs := h.manager.validateInfrastructure(testutil.Context(t), &meta)
 			if len(errs) != 0 {
 				t.Fatalf("validateInfrastructure() errors = %#v, want none", errs)
 			}

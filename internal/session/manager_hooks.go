@@ -115,9 +115,12 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 	return next, nil
 }
 
-func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.SessionMeta) (store.SessionMeta, error) {
+func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta *store.SessionMeta) (store.SessionMeta, error) {
+	if meta == nil {
+		return store.SessionMeta{}, errors.New("session: pre-resume metadata is required")
+	}
 	if m == nil {
-		return meta, nil
+		return *meta, nil
 	}
 
 	request := hookspkg.SessionPreResumePayload{
@@ -151,7 +154,7 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 		return store.SessionMeta{}, fmt.Errorf("session: validate session.pre_resume patch: %w", err)
 	}
 
-	next := meta
+	next := *meta
 	next.Name = strings.TrimSpace(payload.SessionName)
 	next.AgentName = strings.TrimSpace(payload.AgentName)
 	next.SessionType = string(normalizeSessionType(Type(strings.TrimSpace(payload.SessionType))))

@@ -330,7 +330,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 
 		metaPath := filepath.Join(t.TempDir(), "meta.json")
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 		rawMeta, err := os.ReadFile(metaPath)
@@ -422,7 +422,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 
 		metaPath := filepath.Join(t.TempDir(), "meta.json")
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 		readBack, err := store.ReadSessionMeta(metaPath)

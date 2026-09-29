@@ -212,7 +212,7 @@ func TestInvokeRoleWithFallbackRouteAccounts(t *testing.T) {
 
 	const seatTwo = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
 	const seatThree = "CODEX_HOME=/Users/ada/.codex-work codex acp"
-	accountRole := func(writer roleEventSummaryWriter) ResolvedRole {
+	accountRole := func(writer roleEventSummaryWriter) *ResolvedRole {
 		role := fallbackTestRole(writer)
 		role.Fallbacks[0].Command = seatTwo
 		role.Fallbacks[1].Command = "  " + seatThree + "  "
@@ -410,8 +410,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 	})
 }
 
-func fallbackTestRole(writer roleEventSummaryWriter) ResolvedRole {
-	return ResolvedRole{
+func fallbackTestRole(writer roleEventSummaryWriter) *ResolvedRole {
+	return &ResolvedRole{
 		Role:            compozyconfig.RoleDream,
 		AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
 		Provider:        "primary",

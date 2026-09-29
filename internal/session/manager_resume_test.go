@@ -91,7 +91,7 @@ func TestResumeRejectsTerminalProcessFailureBeforeStartingACP(t *testing.T) {
 			Kind:    store.FailureProcess,
 			Summary: "Codex exited before the response completed",
 		}
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta(%q) error = %v", metaPath, err)
 		}
 
@@ -120,7 +120,7 @@ func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
 	meta.StopReason = nil
 	meta.StopDetail = ""
 	meta.ACPSessionID = stringPointer(originalACP)
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestResumePreservesCrashStopClassificationFromRepairedMetadata(t *testing.T
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -268,7 +268,7 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -891,7 +891,7 @@ func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
 	previousIdentity := started.Add(-time.Hour)
 	meta := readMeta(t, session.MetaPath())
 	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity}
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatal(err)
 	}
 	h.manager = newManagerWithHarness(t, h)
@@ -1054,13 +1054,20 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 		t.Helper()
 		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
 		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v", err)
 		}
 		meta := readMeta(t, created.MetaPath())
 		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 || derefString(meta.ACPSessionID) != "acp-2" {
-			t.Fatalf("accepted route = %#v acp=%v, want seat one (attempt 1) with acp-2", meta.AcceptedRoute, meta.ACPSessionID)
+			t.Fatalf(
+				"accepted route = %#v acp=%v, want seat one (attempt 1) with acp-2",
+				meta.AcceptedRoute,
+				meta.ACPSessionID,
+			)
 		}
 		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
@@ -1083,7 +1090,8 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 			t.Fatalf("resume start = %q/%q, want seat one loading acp-2", call.Command, call.ResumeSessionID)
 		}
 		meta := readMeta(t, resumed.MetaPath())
-		if meta.AcceptedRoute == nil || meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
+		if meta.AcceptedRoute == nil ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
 			t.Fatalf("accepted route after resume = %#v, want seat one", meta.AcceptedRoute)
 		}
 	})
@@ -1115,13 +1123,22 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
 			call := lastStartCall(h)
 			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
-				t.Fatalf("resume start = %q/%q, want the primary route without a native id", call.Command, call.ResumeSessionID)
+				t.Fatalf(
+					"resume start = %q/%q, want the primary route without a native id",
+					call.Command,
+					call.ResumeSessionID,
+				)
 			}
 			record, ok := logs.FindByMessage("session.fallback.route_missing")
 			if !ok || record.Level != slog.LevelInfo {
 				t.Fatalf("route_missing log = %#v (found %t), want one info record", record, ok)
 			}
-			assertCapturedLogAttr(t, record, "accepted_route.command_fingerprint", providerCommandFingerprint(fallbackSeatOne))
+			assertCapturedLogAttr(
+				t,
+				record,
+				"accepted_route.command_fingerprint",
+				providerCommandFingerprint(fallbackSeatOne),
+			)
 			marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
 			if got := marker.Evidence["fallback_reason"]; got != acceptedRouteMissingReason {
 				t.Fatalf("context rebuilt reason = %v, want %s", got, acceptedRouteMissingReason)
@@ -1142,7 +1159,7 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 		}
 		meta := readMeta(t, session.MetaPath())
 		meta.AcceptedRoute = nil
-		if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 		raw, err := os.ReadFile(session.MetaPath())

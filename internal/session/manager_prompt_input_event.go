@@ -146,7 +146,7 @@ func (m *Manager) recordInactivePromptInputEvent(
 		return err
 	}
 	m.publishSessionEventByID(ctx, sessionID, persisted)
-	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, meta), event)
+	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, &meta), event)
 	return nil
 }
 

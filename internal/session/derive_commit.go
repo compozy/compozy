@@ -52,7 +52,7 @@ func (m *Manager) registerDerivedSession(
 		return err
 	}
 	meta := session.Meta()
-	identity := creationIdentityFromMeta(meta)
+	identity := creationIdentityFromMeta(&meta)
 	if identity == nil || meta.CreationProfile == nil || m.creationStore == nil {
 		return fmt.Errorf("session: derived session %q requires a creation identity", meta.ID)
 	}
@@ -78,7 +78,12 @@ func (m *Manager) recordSessionDerivedEvent(ctx context.Context, spec *sessionSt
 	if m.eventLedger == nil || spec == nil || spec.derivation == nil || spec.deriveReceipt == nil {
 		return
 	}
-	if err := m.writeSessionDerivedEvent(ctx, session.Info(), *spec.derivation, spec.deriveReceipt.Outcome); err != nil {
+	if err := m.writeSessionDerivedEvent(
+		ctx,
+		session.Info(),
+		*spec.derivation,
+		spec.deriveReceipt.Outcome,
+	); err != nil {
 		m.sessionLogger(session).Warn("session.derived.record_failed", "error", err)
 	}
 }

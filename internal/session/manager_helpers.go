@@ -32,7 +32,8 @@ func (m *Manager) writeMeta(session *Session) error {
 	if session == nil {
 		return errors.New("session: session is required")
 	}
-	if err := store.WriteSessionMeta(session.MetaPath(), session.meta()); err != nil {
+	meta := session.meta()
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		return fmt.Errorf("session: write meta for %q: %w", session.ID, err)
 	}
 	return nil

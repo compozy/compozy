@@ -56,7 +56,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, target); err != nil {
 		return nil, err
 	}
-	if err := m.rejectDeadSessionAttachment(ctx, target, meta); err != nil {
+	if err := m.rejectDeadSessionAttachment(ctx, target, &meta); err != nil {
 		return nil, err
 	}
 	return m.resumeSession(ctx, target)
@@ -74,11 +74,11 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 	if err != nil {
 		return nil, err
 	}
-	if err := requirePersistedProvider(meta); err != nil {
+	if err := requirePersistedProvider(&meta); err != nil {
 		return nil, err
 	}
-	if validationErrs := m.validateInfrastructure(ctx, meta); len(validationErrs) > 0 {
-		m.logResumeValidationFailures(meta, validationErrs)
+	if validationErrs := m.validateInfrastructure(ctx, &meta); len(validationErrs) > 0 {
+		m.logResumeValidationFailures(&meta, validationErrs)
 		return nil, fmt.Errorf(
 			"session: validate resume infrastructure for %q: %w",
 			target,
@@ -89,18 +89,18 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 		return nil, err
 	}
 
-	spec, err := m.prepareResumeStart(ctx, meta)
+	spec, err := m.prepareResumeStart(ctx, &meta)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.discardMaterializedSessionLedgerForResume(ctx, meta); err != nil {
+	if err := m.discardMaterializedSessionLedgerForResume(ctx, &meta); err != nil {
 		return nil, err
 	}
 	var resumed *Session
-	if isUnboundLogicalResume(meta) {
+	if isUnboundLogicalResume(&meta) {
 		resumed, err = m.resumeAcceptedLogicalSession(ctx, &spec)
 	} else {
-		resumed, err = m.startResumedSession(ctx, target, meta, &spec)
+		resumed, err = m.startResumedSession(ctx, target, &meta, &spec)
 	}
 	if err != nil {
 		return nil, errors.Join(err, m.rematerializeStoppedSessionLedger(ctx, target))
@@ -138,8 +138,8 @@ func resumeTarget(id string) (string, error) {
 }
 
 // rejectDeadSessionAttachment keeps terminal process failures out of runtime attachment paths.
-func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string, meta store.SessionMeta) error {
-	if isUnboundLogicalResume(meta) {
+func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string, meta *store.SessionMeta) error {
+	if meta == nil || isUnboundLogicalResume(meta) {
 		return nil
 	}
 	if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
@@ -156,8 +156,8 @@ func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string
 }
 
 // isUnboundLogicalResume identifies accepted sessions that must bind a provider at their next prompt.
-func isUnboundLogicalResume(meta store.SessionMeta) bool {
-	return meta.RuntimeStatus == RuntimeStatusUnbound &&
+func isUnboundLogicalResume(meta *store.SessionMeta) bool {
+	return meta != nil && meta.RuntimeStatus == RuntimeStatusUnbound &&
 		meta.RuntimeTransition == RuntimeTransitionNone &&
 		strings.TrimSpace(derefString(meta.ACPSessionID)) == ""
 }
@@ -183,7 +183,7 @@ func (m *Manager) resumeAcceptedLogicalSession(
 func (m *Manager) startResumedSession(
 	ctx context.Context,
 	target string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	spec *sessionStartSpec,
 ) (*Session, error) {
 	if strings.TrimSpace(spec.acpSessionID) == "" {
@@ -200,7 +200,7 @@ func (m *Manager) startResumedSession(
 func (m *Manager) recoverFailedResumeStart(
 	ctx context.Context,
 	target string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	startErr error,
 ) (*Session, error) {
 	clearACP := acp.IsLoadSessionResourceMissing(startErr) || errors.Is(startErr, acp.ErrAgentDoesNotSupportSession)
@@ -209,19 +209,19 @@ func (m *Manager) recoverFailedResumeStart(
 	if err != nil {
 		return nil, errors.Join(startErr, err)
 	}
-	if err := m.persistSessionCatalogFromMeta(ctx, restoredMeta); err != nil {
+	if err := m.persistSessionCatalogFromMeta(ctx, &restoredMeta); err != nil {
 		return nil, errors.Join(startErr, err)
 	}
 	if !clearACP {
 		return nil, startErr
 	}
-	return m.resumeWithContextReplay(ctx, meta, restoredMeta, startErr)
+	return m.resumeWithContextReplay(ctx, meta, &restoredMeta, startErr)
 }
 
 func (m *Manager) resumeWithContextReplay(
 	ctx context.Context,
-	meta store.SessionMeta,
-	restoredMeta store.SessionMeta,
+	meta *store.SessionMeta,
+	restoredMeta *store.SessionMeta,
 	startErr error,
 ) (*Session, error) {
 	m.resumeLogger(meta).Info(

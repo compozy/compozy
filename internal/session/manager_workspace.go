@@ -15,10 +15,13 @@ const sessionDefaultProfileName = "default"
 
 func resolveStoredSessionWorkspace(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	resolver workspacepkg.RuntimeResolver,
 	profileNames ProfileNameResolver,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if meta == nil {
+		return workspacepkg.ResolvedWorkspace{}, errors.New("session: session metadata is required")
+	}
 	if resolver == nil {
 		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace resolver is required")
 	}
@@ -109,7 +112,7 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 
 func (m *Manager) resolveResumeWorkspace(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) (workspacepkg.ResolvedWorkspace, error) {
 	resolver, err := m.requireWorkspaceResolver()
 	if err != nil {

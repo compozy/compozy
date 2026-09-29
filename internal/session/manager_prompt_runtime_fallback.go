@@ -37,7 +37,7 @@ func (m *Manager) bindPromptRuntimeWithFallback(
 		ledger:  m.eventLedger,
 		logger:  m.sessionLogger(session),
 		effectiveCommand: func(route FallbackRoute) string {
-			return m.resolveFallbackRouteCommand(ctx, baseSpec, agentDef, route)
+			return m.resolveFallbackRouteCommand(ctx, &baseSpec, agentDef, route)
 		},
 	}
 	proc, _, err := bindWithFallback(ctx, m, seq, primary, routes,
@@ -67,10 +67,14 @@ func (m *Manager) bindPromptRuntimeWithFallback(
 // same provider-aware and spawn-inheritance rules as the launch itself.
 func (m *Manager) resolveFallbackRouteCommand(
 	ctx context.Context,
-	spec sessionStartSpec,
+	base *sessionStartSpec,
 	agentDef compozyconfig.AgentDef,
 	route FallbackRoute,
 ) string {
+	if base == nil {
+		return ""
+	}
+	spec := *base
 	spec.provider = strings.TrimSpace(route.Provider)
 	spec.model = strings.TrimSpace(route.Model)
 	spec.reasoningEffort = strings.TrimSpace(route.ReasoningEffort)

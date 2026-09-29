@@ -23,19 +23,19 @@ func (m *Manager) resumeCommittedConversationRewind(
 		if err != nil {
 			return ConversationRewindResult{}, err
 		}
-		sanitized := rewoundConversationMeta(meta, m.now())
+		sanitized := rewoundConversationMeta(&meta, m.now())
 		metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, sessionID))
-		if err := store.WriteSessionMeta(metaPath, sanitized); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &sanitized); err != nil {
 			return ConversationRewindResult{}, fmt.Errorf(
 				"session: persist rewound metadata for %q: %w",
 				sessionID,
 				err,
 			)
 		}
-		if err := m.persistSessionCatalogFromMeta(ctx, sanitized); err != nil {
+		if err := m.persistSessionCatalogFromMeta(ctx, &sanitized); err != nil {
 			return ConversationRewindResult{}, err
 		}
-		resumed, err = m.restartRewoundConversation(ctx, sanitized)
+		resumed, err = m.restartRewoundConversation(ctx, &sanitized)
 		if err != nil {
 			return ConversationRewindResult{}, fmt.Errorf(
 				"session: restart rewound session %q: %w",
@@ -67,7 +67,10 @@ func (m *Manager) resumeCommittedConversationRewind(
 // rewoundConversationMeta resets the runtime binding like a clear but keeps a derived
 // child's derive record and imported context: a rewind cuts only the child's own
 // history, and the carried context still leads every rebuild.
-func rewoundConversationMeta(meta store.SessionMeta, now time.Time) store.SessionMeta {
+func rewoundConversationMeta(meta *store.SessionMeta, now time.Time) store.SessionMeta {
+	if meta == nil {
+		return store.SessionMeta{}
+	}
 	rewound := clearedConversationMeta(meta, now)
 	rewound.Derivation = store.CloneSessionDerivation(meta.Derivation)
 	rewound.ImportedContext = store.CloneSessionImportedContext(meta.ImportedContext)
@@ -76,7 +79,7 @@ func rewoundConversationMeta(meta store.SessionMeta, now time.Time) store.Sessio
 
 func (m *Manager) restartRewoundConversation(
 	ctx context.Context,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) (*Session, error) {
 	spec, err := m.prepareResumeStart(ctx, meta)
 	if err != nil {

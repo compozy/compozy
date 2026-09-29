@@ -732,7 +732,7 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		meta.Provider = ""
 		meta.State = string(StateActive)
 		metaPath := store.SessionMetaFile(target.SessionDir())
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta(coordinated substitution) error = %v", err)
 		}
 		metaBefore, err := os.ReadFile(metaPath)
@@ -1114,7 +1114,8 @@ func TestBackupSessionDB(t *testing.T) {
 		}
 		familyBefore := readManagerSessionDBFamilyDigest(t, dbPath)
 		manifest := backupOwnedSessionDBForTest(t, owner, dbPath)
-		if err := store.WriteSessionMeta(metaPath, clearedConversationMeta(meta, h.manager.now())); err != nil {
+		cleared := clearedConversationMeta(&meta, h.manager.now())
+		if err := store.WriteSessionMeta(metaPath, &cleared); err != nil {
 			t.Fatalf("WriteSessionMeta(cleared metadata) error = %v", err)
 		}
 

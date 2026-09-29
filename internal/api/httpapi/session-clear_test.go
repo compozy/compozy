@@ -179,7 +179,7 @@ func continueTestManager(
 			return info, nil
 		},
 		ContinueFn: continueFn,
-		DerivePreviewFn: func(_ context.Context, workspaceID, sourceID, messageID string) (session.DerivePreview, error) {
+		DerivePreviewFn: func(_ context.Context, _, _, messageID string) (session.DerivePreview, error) {
 			preview := session.DerivePreview{
 				MessageCount: 42, SourceMessageCount: 42, ReplayBytes: 62771,
 				Epoch: 3, Generation: 12, MaxSequence: 418,

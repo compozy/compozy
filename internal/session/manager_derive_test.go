@@ -87,9 +87,10 @@ func setDeriveAgentB(t *testing.T, h *harness, chain []compozyconfig.RoleFallbac
 			agents = append(agents, agent)
 		}
 	}
-	workspace.Agents = append(agents, compozyconfig.AgentDef{
+	agents = append(agents, compozyconfig.AgentDef{
 		Name: "b", Provider: "codex", Prompt: "You are agent b.", FallbackChain: chain,
 	})
+	workspace.Agents = agents
 	h.resolver.upsert(&workspace)
 }
 
@@ -728,7 +729,7 @@ func TestDerivePreview(t *testing.T) {
 		meta := readMeta(t, metaPath)
 		meta.State = string(StateActive)
 		meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: 999999}
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 		before, _ := os.ReadFile(metaPath)
@@ -1244,7 +1245,7 @@ func TestDeriveReceiptScope(t *testing.T) {
 		if err := os.MkdirAll(secondaryRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll() error = %v", err)
 		}
-		resolved.Workspace.ID, resolved.Workspace.RootDir, resolved.Workspace.Name =
+		resolved.ID, resolved.RootDir, resolved.Name =
 			secondaryID, secondaryRoot, "workspace-secondary"
 		h.resolver.upsert(&resolved)
 		if err := h.db.InsertWorkspace(testutil.Context(t), resolved.Workspace); err != nil {

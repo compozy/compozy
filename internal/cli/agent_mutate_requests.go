@@ -42,7 +42,7 @@ func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
 	cmd.Flags().StringVar(&flags.reasoningEffort, agentReasoningEffortKey, "", "Optional default reasoning effort")
-	cmd.Flags().StringVar(&flags.speed, "speed", "", "Optional default runtime speed (normal or fast)")
+	cmd.Flags().StringVar(&flags.speed, agentSpeedField, "", "Optional default runtime speed (normal or fast)")
 	bindACPOptionFlags(
 		cmd,
 		&flags.acpOptions,
@@ -261,7 +261,7 @@ func applyAgentDefinitionOverrides(
 		}
 		payload.ReasoningEffort = contract.ReasoningEffort(strings.TrimSpace(flags.reasoningEffort))
 	}
-	if cmd.Flags().Changed("speed") {
+	if cmd.Flags().Changed(agentSpeedField) {
 		speed, err := parseAgentSpeedFlag(flags.speed)
 		if err != nil {
 			return err
@@ -316,7 +316,7 @@ func duplicateAgentOverridesFromFlags(
 	changed := false
 	for _, name := range []string{
 		cliProviderKey, agentCommandKey, agentModelKey, agentReasoningEffortKey,
-		"speed", runtimeACPOptionFlag, runtimeACPToggleFlag,
+		agentSpeedField, runtimeACPOptionFlag, runtimeACPToggleFlag,
 		clientToolsPromptKey, "prompt-file", toolToolKey, "toolset", "deny-tool", configPermissionsKey, agentCategoryKey,
 		agentDisableSkillFlag,
 	} {

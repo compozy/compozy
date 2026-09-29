@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,18 +22,19 @@ type preparedDerive struct {
 	receipt    store.SessionDerivationReceipt
 }
 
-func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot deriveSnapshot) (preparedDerive, error) {
+func (m *Manager) prepareDerive(
+	ctx context.Context,
+	spec deriveSpec,
+	snapshot *deriveSnapshot,
+) (preparedDerive, error) {
 	if err := m.validateDeriveSource(ctx, spec, snapshot); err != nil {
 		return preparedDerive{}, err
 	}
 	if snapshot.cutErr != nil {
 		return preparedDerive{}, snapshot.cutErr
 	}
-	meta := snapshot.meta
-	agentName := spec.agentName
-	if agentName == "" {
-		agentName = strings.TrimSpace(meta.AgentName)
-	}
+	meta := &snapshot.meta
+	agentName := firstTrimmedNonEmpty(spec.agentName, meta.AgentName)
 	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, meta, agentName)
 	if err != nil {
 		return preparedDerive{}, err
@@ -43,7 +45,7 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 	}
 	var fork forkChildRoute
 	if spec.kind == store.LineageKindFork {
-		if fork, err = m.resolveForkChildRoute(&workspace, agentDef, &meta); err != nil {
+		if fork, err = m.resolveForkChildRoute(&workspace, agentDef, meta); err != nil {
 			return preparedDerive{}, err
 		}
 		pendingRoute, routeSelection = fork.pending, fork.route
@@ -56,15 +58,12 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 	if err != nil {
 		return preparedDerive{}, err
 	}
-	profileID := spec.profileID
-	if profileID == "" {
-		profileID = normalizeCreateProfileID(meta.ProfileID)
-	}
+	profileID := deriveChildProfileID(spec.profileID, meta)
 	now := m.now().UTC()
 	firstPrompt, outcomePrompt := deriveFirstPrompt(spec)
 	seed := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay}
 	if spec.kind == store.LineageKindFork {
-		seed = m.deriveForkSeed(ctx, spec, &snapshot, agentName, fork.resolved)
+		seed = m.deriveForkSeed(ctx, spec, snapshot, agentName, fork.resolved)
 	}
 	derivation := &store.SessionDerivation{
 		Kind: spec.kind, SourceSessionID: meta.ID, IdempotencyKey: spec.key,
@@ -95,7 +94,7 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 	}
 	runtime := spec.runtime
 	if spec.kind == store.LineageKindFork {
-		runtime = forkRuntimeFromMeta(&meta)
+		runtime = forkRuntimeFromMeta(meta)
 	}
 	applyDeriveRuntime(&opts, runtime, routeSelection)
 	return preparedDerive{createOpts: opts, receipt: receipt}, nil
@@ -172,10 +171,13 @@ func derivePendingRoute(
 // imported context. A source that is itself derived carries its imported context
 // flattened in front of its own messages (one level, never nested).
 func (m *Manager) buildImportedContext(
-	snapshot deriveSnapshot,
+	snapshot *deriveSnapshot,
 	spec deriveSpec,
 	budget replayBudget,
 ) (*store.SessionImportedContext, error) {
+	if snapshot == nil {
+		return nil, errors.New("session: derive snapshot is required")
+	}
 	messages := append([]transcript.Message(nil), snapshot.messages...)
 	inherited, err := decodeImportedMessages(snapshot.meta.ImportedContext)
 	if err != nil {
@@ -253,6 +255,14 @@ func (m *Manager) deriveBudget(workspace *workspacepkg.ResolvedWorkspace) replay
 	}
 }
 
+// deriveChildProfileID keeps the requested profile, else the source session's profile.
+func deriveChildProfileID(requested string, meta *store.SessionMeta) string {
+	if requested != "" || meta == nil {
+		return requested
+	}
+	return normalizeCreateProfileID(meta.ProfileID)
+}
+
 func deriveChildName(requested string, sourceName string) string {
 	if name := strings.TrimSpace(requested); name != "" {
 		return name
@@ -260,7 +270,10 @@ func deriveChildName(requested string, sourceName string) string {
 	return strings.TrimSpace(sourceName)
 }
 
-func deriveSourceCWD(meta store.SessionMeta) string {
+func deriveSourceCWD(meta *store.SessionMeta) string {
+	if meta == nil {
+		return ""
+	}
 	if meta.CreationProfile != nil && strings.TrimSpace(meta.CreationProfile.CWD) != "" {
 		return strings.TrimSpace(meta.CreationProfile.CWD)
 	}

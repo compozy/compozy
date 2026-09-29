@@ -205,7 +205,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		sessions := &autoTitleSpawnSessionsStub{}
 		generator := newForkedAutoTitleGenerator(
 			sessions,
-			resolvedRoleResolver(ResolvedRole{Enabled: false}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: false}),
 			time.Second,
 			slog.Default(),
 		)
@@ -228,7 +228,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		sessions := &autoTitleSpawnSessionsStub{}
 		generator := newForkedAutoTitleGenerator(
 			sessions,
-			resolvedRoleResolver(ResolvedRole{Enabled: true, Inherit: true, Model: "title-model"}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true, Model: "title-model"}),
 			time.Second,
 			slog.Default(),
 		)
@@ -266,7 +266,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		sessions := newCancelAwareAutoTitleSpawnSessionsStub()
 		generator := newForkedAutoTitleGenerator(
 			sessions,
-			resolvedRoleResolver(ResolvedRole{Enabled: true, Inherit: true}),
+			resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}),
 			5*time.Second,
 			slog.Default(),
 		)

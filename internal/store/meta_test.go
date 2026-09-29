@@ -30,7 +30,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
-	if err := WriteSessionMeta(path, meta); err != nil {
+	if err := WriteSessionMeta(path, &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 				filepath.Join("name", time.Date(2026, 4, 3, 18, 0, i, 0, time.UTC).Format(time.RFC3339Nano)),
 			)
 			meta.UpdatedAt = base.UpdatedAt.Add(time.Duration(i) * time.Second)
-			if err := WriteSessionMeta(path, meta); err != nil {
+			if err := WriteSessionMeta(path, &meta); err != nil {
 				t.Errorf("WriteSessionMeta() error = %v", err)
 			}
 		}(i)
@@ -191,7 +191,7 @@ func TestSessionMetaCreationWitness(t *testing.T) {
 			if !bytes.Equal(payload, after) {
 				t.Fatal("read rewrote creation metadata")
 			}
-			if err := WriteSessionMeta(path, meta); err != nil {
+			if err := WriteSessionMeta(path, &meta); err != nil {
 				t.Fatal(err)
 			}
 			reopened, err := ReadSessionMeta(path)
@@ -252,9 +252,13 @@ func TestUpgradeSessionLineageKind(t *testing.T) {
 			{
 				name:        "Should mark a spawned session as spawn",
 				sessionType: "spawned",
-				lineage:     &SessionLineage{ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1},
-				want:        LineageKindSpawn,
-				changed:     true,
+				lineage: &SessionLineage{
+					ParentSessionID: "sess-parent",
+					RootSessionID:   "sess-parent",
+					SpawnDepth:      1,
+				},
+				want:    LineageKindSpawn,
+				changed: true,
 			},
 			{
 				name:        "Should mark a spawn role as spawn",
@@ -266,9 +270,13 @@ func TestUpgradeSessionLineageKind(t *testing.T) {
 			{
 				name:        "Should mark a parented user session as provenance",
 				sessionType: "user",
-				lineage:     &SessionLineage{ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1},
-				want:        LineageKindProvenance,
-				changed:     true,
+				lineage: &SessionLineage{
+					ParentSessionID: "sess-parent",
+					RootSessionID:   "sess-parent",
+					SpawnDepth:      1,
+				},
+				want:    LineageKindProvenance,
+				changed: true,
 			},
 			{
 				name:        "Should keep a root session unkinded",

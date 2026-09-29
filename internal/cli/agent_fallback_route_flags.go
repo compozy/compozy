@@ -139,7 +139,7 @@ func setAgentFallbackRouteField(
 			return fmt.Errorf("%s.reasoning_effort: %w", routePath, err)
 		}
 		route.ReasoningEffort = contract.ReasoningEffort(value)
-	case "speed":
+	case agentSpeedField:
 		speed, err := parseAgentSpeedFlag(value)
 		if err != nil {
 			return fmt.Errorf("%s.speed: %w", routePath, err)

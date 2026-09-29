@@ -6,6 +6,10 @@ const specNewWorkAdmissionUnavailableDescription = "New-work admission is unavai
 	"the daemon is draining"
 
 func sessionAdmissionOperations() []OperationSpec {
+	return append(sessionConversationAdmissionOperations(), sessionDeriveOperations()...)
+}
+
+func sessionConversationAdmissionOperations() []OperationSpec {
 	return []OperationSpec{
 		{
 			Method:      httpMethodPost,
@@ -47,6 +51,11 @@ func sessionAdmissionOperations() []OperationSpec {
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			},
 		},
+	}
+}
+
+func sessionDeriveOperations() []OperationSpec {
+	return []OperationSpec{
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
@@ -60,7 +69,7 @@ func sessionAdmissionOperations() []OperationSpec {
 			},
 			RequestBody: contract.ContinueSessionRequest{},
 			Responses: []ResponseSpec{
-				{Status: 201, Description: "Created", Body: contract.SessionDeriveResponse{}},
+				{Status: 201, Description: specCreatedDescription, Body: contract.SessionDeriveResponse{}},
 				{Status: 200, Description: "Recorded outcome replayed", Body: contract.SessionDeriveResponse{}},
 				{Status: 400, Description: "Invalid continue request", Body: contract.ErrorPayload{}},
 				{Status: 404, Description: "Session or agent not found", Body: contract.ErrorPayload{}},
@@ -82,7 +91,7 @@ func sessionAdmissionOperations() []OperationSpec {
 			},
 			RequestBody: contract.ForkSessionRequest{},
 			Responses: []ResponseSpec{
-				{Status: 201, Description: "Created", Body: contract.SessionDeriveResponse{}},
+				{Status: 201, Description: specCreatedDescription, Body: contract.SessionDeriveResponse{}},
 				{Status: 200, Description: "Recorded outcome replayed", Body: contract.SessionDeriveResponse{}},
 				{Status: 400, Description: "Invalid fork request", Body: contract.ErrorPayload{}},
 				{Status: 404, Description: "Session or message not found", Body: contract.ErrorPayload{}},

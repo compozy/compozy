@@ -175,7 +175,11 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 		}
 		if result.Op != memcontract.OpNoop || len(invoker.calls) != 2 ||
 			invoker.calls[0].Command != "" || invoker.calls[1].Command != seatTwo {
-			t.Fatalf("BreakTie() = %#v calls = %#v, want the second call on the seat-two command", result, invoker.calls)
+			t.Fatalf(
+				"BreakTie() = %#v calls = %#v, want the second call on the seat-two command",
+				result,
+				invoker.calls,
+			)
 		}
 		event := recorder.single(t)
 		var payload roleFallbackEventPayload
@@ -210,7 +214,11 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 			t.Fatalf("BreakTie() call = %#v, want the accepted primary route", result.Call)
 		}
 		if len(invoker.calls) != 1 || recorder.count() != 0 {
-			t.Fatalf("calls/events = %d/%d, want one accepted attempt and no fallback", len(invoker.calls), recorder.count())
+			t.Fatalf(
+				"calls/events = %d/%d, want one accepted attempt and no fallback",
+				len(invoker.calls),
+				recorder.count(),
+			)
 		}
 	})
 

@@ -252,47 +252,7 @@ func agentBundle(item AgentRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			base := renderHumanSection("Agent", []keyValue{
-				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
-				{Label: cliCommandValue, Value: stringOrDash(item.Command)},
-				{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
-				{Label: agentReasoningEffortValue, Value: stringOrDash(string(item.ReasoningEffort))},
-				{Label: agentSpeedValue, Value: stringOrDash(string(item.Speed))},
-				{Label: agentACPOptionsValue, Value: stringOrDash(agentACPOptionsLabel(item.ACPOptions))},
-				{Label: agentCategoryValue, Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
-				{Label: taskOriginValue, Value: stringOrDash(string(item.Origin))},
-				{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
-				{Label: "Disabled Skills", Value: stringOrDash(agentSkillsLabel(item.Skills))},
-				{Label: "Layer", Value: stringOrDash(item.Layer)},
-				{Label: "Shadows", Value: stringOrDash(agentShadowLayers(item.Shadows))},
-				{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
-				{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
-				{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
-			})
-
-			servers := make([][]string, 0, len(item.MCPServers))
-			for _, server := range item.MCPServers {
-				servers = append(servers, []string{
-					stringOrDash(server.Name),
-					stringOrDash(server.Command),
-					stringOrDash(strings.Join(server.Args, " ")),
-				})
-			}
-			mcp := renderHumanTable("MCP Servers", []string{automationNameValue, cliCommandValue, "Args"}, servers)
-			fallbackChain := ""
-			if len(item.FallbackChain) > 0 {
-				fallbackChain = renderHumanTable(
-					"Fallback Chain",
-					[]string{agentKernelProviderValue, agentKernelModelValue, agentReasoningEffortValue, cliCommandValue},
-					agentFallbackChainRows(item.FallbackChain),
-				)
-			}
-			prompt := renderHumanSection(
-				"Prompt",
-				[]keyValue{{Label: agentBodyValue, Value: stringOrDash(item.Prompt)}},
-			)
-			return renderHumanBlocks(base, mcp, fallbackChain, prompt), nil
+			return renderAgentHuman(item), nil
 		},
 		toon: func() (string, error) {
 			// Detail output emits tool names; list output keeps the table dense with tool_count.
@@ -335,6 +295,56 @@ func agentBundle(item AgentRecord) outputBundle {
 			}), nil
 		},
 	}
+}
+
+// renderAgentHuman renders the human detail view of one agent.
+func renderAgentHuman(item AgentRecord) string {
+	base := renderHumanSection("Agent", []keyValue{
+		{Label: automationNameValue, Value: stringOrDash(item.Name)},
+		{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
+		{Label: cliCommandValue, Value: stringOrDash(item.Command)},
+		{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
+		{Label: agentReasoningEffortValue, Value: stringOrDash(string(item.ReasoningEffort))},
+		{Label: agentSpeedValue, Value: stringOrDash(string(item.Speed))},
+		{Label: agentACPOptionsValue, Value: stringOrDash(agentACPOptionsLabel(item.ACPOptions))},
+		{Label: agentCategoryValue, Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
+		{Label: taskOriginValue, Value: stringOrDash(string(item.Origin))},
+		{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+		{Label: "Disabled Skills", Value: stringOrDash(agentSkillsLabel(item.Skills))},
+		{Label: "Layer", Value: stringOrDash(item.Layer)},
+		{Label: "Shadows", Value: stringOrDash(agentShadowLayers(item.Shadows))},
+		{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
+		{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
+		{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
+	})
+
+	servers := make([][]string, 0, len(item.MCPServers))
+	for _, server := range item.MCPServers {
+		servers = append(servers, []string{
+			stringOrDash(server.Name),
+			stringOrDash(server.Command),
+			stringOrDash(strings.Join(server.Args, " ")),
+		})
+	}
+	mcp := renderHumanTable("MCP Servers", []string{automationNameValue, cliCommandValue, "Args"}, servers)
+	fallbackChain := ""
+	if len(item.FallbackChain) > 0 {
+		fallbackChain = renderHumanTable(
+			"Fallback Chain",
+			[]string{
+				agentKernelProviderValue,
+				agentKernelModelValue,
+				agentReasoningEffortValue,
+				cliCommandValue,
+			},
+			agentFallbackChainRows(item.FallbackChain),
+		)
+	}
+	prompt := renderHumanSection(
+		"Prompt",
+		[]keyValue{{Label: agentBodyValue, Value: stringOrDash(item.Prompt)}},
+	)
+	return renderHumanBlocks(base, mcp, fallbackChain, prompt)
 }
 
 func agentShadowLayers(shadows []contract.AgentDefinitionShadowPayload) string {
