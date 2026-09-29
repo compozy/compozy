@@ -4,6 +4,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import type {
   ContinueSessionRequest,
+  ForkSessionRequest,
   SessionDerivePreview,
   SessionDeriveResult,
 } from "../adapters/session-derive-api";
@@ -13,22 +14,30 @@ export type SessionDerivePreviewMock = SessionDerivePreview | "error" | "pending
 
 export interface SessionDeriveHandlerOptions {
   preview?: SessionDerivePreviewMock;
-  /** The continue outcome; `"pending"` never answers (the pending state). */
+  /**
+   * The continue or fork outcome; `"pending"` never answers (the pending
+   * state). Replayed outcomes answer `200` instead of `201`.
+   */
   result?: SessionDeriveResult | "pending" | { status: number; error: string; code?: string };
-  /** Replayed outcomes answer `200` instead of `201`. */
   onContinue?: (request: ContinueSessionRequest) => void;
+  onFork?: (request: ForkSessionRequest) => void;
+  /** Sees each preview request's `message_id` (absent for the whole session). */
+  onPreview?: (messageId: string | null) => void;
 }
 
-/** MSW handlers for the derive preview and the continue route (stories and tests). */
+/** MSW handlers for the derive preview and the continue and fork routes (stories and tests). */
 export function sessionDeriveHandlers({
   preview = derivePreviewFixture,
   result = deriveResultFixture(),
   onContinue,
+  onFork,
+  onPreview,
 }: SessionDeriveHandlerOptions = {}): HttpHandler[] {
   return [
     compozyApiMock.get(
       "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
-      async () => {
+      async ({ request }) => {
+        onPreview?.(new URL(request.url).searchParams.get("message_id"));
         if (preview === "pending") {
           await delay("infinite");
         }
@@ -42,6 +51,23 @@ export function sessionDeriveHandlers({
       "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
       async ({ request }) => {
         onContinue?.((await request.json()) as ContinueSessionRequest);
+        if (result === "pending") {
+          await delay("infinite");
+          return HttpResponse.json({ error: "never" }, { status: 500 });
+        }
+        if ("error" in result) {
+          return HttpResponse.json(
+            { error: result.error, ...(result.code ? { code: result.code } : {}) },
+            { status: result.status }
+          );
+        }
+        return HttpResponse.json(result, { status: result.derived.replayed ? 200 : 201 });
+      }
+    ),
+    compozyApiMock.post(
+      "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
+      async ({ request }) => {
+        onFork?.((await request.json()) as ForkSessionRequest);
         if (result === "pending") {
           await delay("infinite");
           return HttpResponse.json({ error: "never" }, { status: 500 });

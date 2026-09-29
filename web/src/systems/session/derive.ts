@@ -1,10 +1,11 @@
 /**
  * The session system's derive surface: continuing a session with another
- * agent (and, later, forking it), plus how a derived session shows where it
- * came from. Grouped so the public barrel reads as one contract.
+ * agent and forking it with the same one, plus how a derived session shows
+ * where it came from. Grouped so the public barrel reads as one contract.
  */
 export { SessionContinueHost } from "./components/session-continue-host";
 export { SessionContinueDialog } from "./components/session-continue-dialog";
+export { SessionForkDialog } from "./components/session-fork-dialog";
 export {
   SessionContinueDivider,
   SessionContinueEmptyChild,
@@ -14,6 +15,11 @@ export {
   SessionContinueContext,
   type SessionContinueRequest,
 } from "./contexts/session-continue-context-value";
+export {
+  SessionForkContext,
+  type SessionForkPoint,
+  type SessionForkRequest,
+} from "./contexts/session-fork-context-value";
 export {
   SessionOriginContext,
   type SessionOriginContextValue,
@@ -32,7 +38,9 @@ export type { SessionOriginView } from "./lib/session-origin";
 export {
   continueSession,
   fetchSessionDerivePreview,
+  forkSession,
   type ContinueSessionRequest,
+  type ForkSessionRequest,
   type SessionDerivePreview,
   type SessionDeriveResult,
 } from "./adapters/session-derive-api";

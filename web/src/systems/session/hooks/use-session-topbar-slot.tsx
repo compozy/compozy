@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Eraser, Pencil, Square, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Eraser, GitFork, Pencil, Square, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import {
@@ -60,6 +60,8 @@ interface UseSessionTopbarSlotInput {
   onClear: () => void;
   /** Opens the Continue dialog for this session; absent where no dialog host exists. */
   onContinue?: () => void;
+  /** Opens the Fork dialog for the whole session; absent where no dialog host exists. */
+  onFork?: () => void;
   /** Continued/forked origin shown as the status-line pill. */
   origin?: SessionOriginView | null;
   onOpenOriginSource?: (sessionId: string) => void;
@@ -109,6 +111,7 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
     isDeleting,
     onDelete,
     onContinue,
+    onFork,
     session,
   } = input;
   const { lifecycleControllable, controlsBusy, isActive, canResume } = actions;
@@ -162,6 +165,16 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
           >
             <ArrowRightLeft className="size-3" />
             Continue with another agent…
+          </DropdownMenuItem>
+        ) : null}
+        {onFork && session.archived_at === null ? (
+          <DropdownMenuItem
+            data-testid="fork-menu-item"
+            disabled={controlsBusy}
+            onClick={() => deferToMenuClose(onFork)}
+          >
+            <GitFork className="size-3" />
+            Fork session…
           </DropdownMenuItem>
         ) : null}
         {isActive && canResume ? (

@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   continueSession,
   type ContinueSessionRequest,
+  forkSession,
+  type ForkSessionRequest,
   type SessionDeriveResult,
 } from "../adapters/session-derive-api";
 import { SessionApiError } from "../adapters/session-api-errors";
@@ -67,22 +69,26 @@ export function useSessionDerivePreview(
   };
 }
 
-export interface SessionContinueVariables {
+export interface SessionDeriveVariables<Request> {
   workspaceId: string;
   sourceId: string;
-  request: ContinueSessionRequest;
+  request: Request;
 }
 
+export type SessionContinueVariables = SessionDeriveVariables<ContinueSessionRequest>;
+export type SessionForkVariables = SessionDeriveVariables<ForkSessionRequest>;
+
 /**
- * Continues a source session. The source's by-id reads and the catalog are
+ * One derive verb over its route. The source's by-id reads and the catalog are
  * reread (the child nests under it); the child's detail is seeded from the
  * authoritative response so its window opens without a second round trip.
  */
-export function useSessionContinue() {
+function useSessionDeriveMutation<Request>(
+  derive: (workspaceId: string, sourceId: string, request: Request) => Promise<SessionDeriveResult>
+) {
   const queryClient = useQueryClient();
-  return useMutation<SessionDeriveResult, Error, SessionContinueVariables>({
-    mutationFn: ({ workspaceId, sourceId, request }) =>
-      continueSession(workspaceId, sourceId, request),
+  return useMutation<SessionDeriveResult, Error, SessionDeriveVariables<Request>>({
+    mutationFn: ({ workspaceId, sourceId, request }) => derive(workspaceId, sourceId, request),
     onSuccess: (result, { workspaceId, sourceId }) => {
       const child = result.session;
       if (child) {
@@ -97,6 +103,16 @@ export function useSessionContinue() {
       ]);
     },
   });
+}
+
+/** Continues a source session with another agent. */
+export function useSessionContinue() {
+  return useSessionDeriveMutation<ContinueSessionRequest>(continueSession);
+}
+
+/** Forks a source session: same agent, whole or through one message's turn. */
+export function useSessionFork() {
+  return useSessionDeriveMutation<ForkSessionRequest>(forkSession);
 }
 
 function newIdempotencyKey(): string {

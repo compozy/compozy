@@ -89,3 +89,17 @@ export function sessionDeriveRouteOptions(
     return { route: index + 1, label: `Route ${index + 1} · ${identity}${suffix}` };
   });
 }
+
+const FORK_POINT_QUOTE_LENGTH = 60;
+
+/**
+ * The fork-point quote: the clicked message's first 60 characters on one line,
+ * with an ellipsis when it continues. Code points, not UTF-16 units, so an
+ * emoji is never split.
+ */
+export function sessionForkPointQuote(messageText: string): string {
+  const flat = messageText.replace(/\s+/g, " ").trim();
+  const chars = Array.from(flat);
+  if (chars.length <= FORK_POINT_QUOTE_LENGTH) return flat;
+  return `${chars.slice(0, FORK_POINT_QUOTE_LENGTH).join("").trimEnd()}…`;
+}

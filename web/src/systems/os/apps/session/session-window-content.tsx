@@ -194,6 +194,7 @@ export function SessionWindowContent({
     onOpenWorktreeContext: worktreeDialogs?.requestContextWorktree,
     onResolveMissingWorktree: worktreeDialogs?.requestResolveMissingWorktree,
     onContinue: derive.onContinue,
+    onFork: derive.onFork,
     origin: derive.origin,
     onOpenOriginSource: derive.onOpenOriginSource,
   });

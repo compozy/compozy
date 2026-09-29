@@ -6,6 +6,8 @@ import { throwSessionRequestError } from "./session-api-errors";
 /** The daemon's measurement of what a continue or fork of one session would carry. */
 export type SessionDerivePreview = OperationResponse<"previewSessionDerive", 200>;
 export type ContinueSessionRequest = OperationRequestBody<"continueSession">;
+/** Same agent, runtime and account; a `message_id` cuts through that message's turn. */
+export type ForkSessionRequest = OperationRequestBody<"forkSession">;
 /** `201` for a new child, `200` for a replayed idempotency key — one shape. */
 export type SessionDeriveResult = OperationResponse<"continueSession", 201>;
 export type SessionDerivedOutcome = SessionDeriveResult["derived"];
@@ -57,6 +59,29 @@ export async function continueSession(
   if (apiRequestFailed(response, error)) {
     // The source was found when the dialog opened; a 404 now names the daemon's
     // reason (agent or source gone) and must reach the operator verbatim.
+    throwSessionRequestError(response, error, fallback);
+  }
+  return requireResponseData(data, response, fallback);
+}
+
+export async function forkSession(
+  workspaceId: string,
+  sessionId: string,
+  body: ForkSessionRequest,
+  signal?: AbortSignal
+): Promise<SessionDeriveResult> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
+    {
+      body,
+      params: { path: { workspace_id: workspaceId, session_id: sessionId } },
+      signal,
+    }
+  );
+  const fallback = `Failed to fork session "${sessionId}"`;
+  if (apiRequestFailed(response, error)) {
+    // A 404 here is the daemon's `message_not_found` (or the source gone): its
+    // text names the reason and reaches the operator verbatim.
     throwSessionRequestError(response, error, fallback);
   }
   return requireResponseData(data, response, fallback);

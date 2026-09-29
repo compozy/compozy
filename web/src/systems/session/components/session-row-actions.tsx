@@ -1,4 +1,4 @@
-import { Archive, ArrowRightLeft, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Archive, ArrowRightLeft, GitFork, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
 import { use } from "react";
 
 import {
@@ -12,6 +12,7 @@ import {
 } from "@compozy/ui";
 
 import { SessionContinueContext } from "../contexts/session-continue-context-value";
+import { SessionForkContext } from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isUserControllableSession } from "../lib/session-running";
@@ -33,6 +34,7 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
   const requestContinue = use(SessionContinueContext);
+  const requestFork = use(SessionForkContext);
   const userSession = isUserControllableSession(session);
 
   return (
@@ -63,6 +65,16 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
           >
             <ArrowRightLeft aria-hidden="true" className="size-3" />
             Continue with another agent…
+          </DropdownMenuItem>
+        ) : null}
+        {userSession && !isArchived && requestFork ? (
+          <DropdownMenuItem
+            data-testid={`session-row-fork-${session.id}`}
+            disabled={disabled}
+            onClick={() => requestFork(session)}
+          >
+            <GitFork aria-hidden="true" className="size-3" />
+            Fork session…
           </DropdownMenuItem>
         ) : null}
         {!isArchived && isStopEligible(session) ? (

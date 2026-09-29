@@ -8,7 +8,7 @@ import {
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 
 /**
- * Continue/origin wiring for one session window. New window lands through the
+ * Continue/Fork/origin wiring for one session window. New window lands through the
  * attention jump (`userOpen`, which focuses a window the child already owns);
  * the window content adds This window (the sidebar's in-place retarget). The
  * origin link opens the source the same way a notification would.
@@ -42,5 +42,6 @@ export function useSessionWindowDerive({
     originContext,
     onOpenOriginSource,
     onContinue: () => continueHost.request(),
+    onFork: () => continueHost.requestFork(),
   };
 }

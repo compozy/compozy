@@ -82,7 +82,13 @@ export interface SessionSeedView {
 export function sessionSeedView(session: SessionPayload): SessionSeedView | null {
   const derivation = session.derivation;
   if (!derivation || sessionOriginKind(session) === null) return null;
-  if (derivation.seed !== "native_fork") return { label: "replay", detail: null };
+  if (derivation.seed !== "native_fork") {
+    // The clone was attempted at fork time and refused: the carried context runs.
+    const attemptError = derivation.native_fork_error?.trim() ?? "";
+    return attemptError
+      ? { label: "native clone · failed — carried context used", detail: attemptError }
+      : { label: "replay", detail: null };
+  }
   switch (derivation.native_state) {
     case "loaded":
       return { label: "native clone · loaded", detail: null };

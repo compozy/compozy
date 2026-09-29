@@ -124,3 +124,56 @@ export function deriveResultFixture(
     },
   };
 }
+
+/** The message "Fork from here" was clicked on (dialogs board §02). */
+export const forkPointFixture = {
+  messageId: "msg_01J9R3ZQ8PVX",
+  messageText:
+    "Refactor the flaky manager tests so they wait on the lifecycle channel instead of sleeping",
+};
+
+/** Preview through `forkPointFixture`: the cut is turn-inclusive and settled. */
+export const forkCutPreviewFixture: SessionDerivePreview = {
+  ...derivePreviewFixture,
+  message_count: 18,
+  replay_bytes: 24_678,
+  cut: { message_id: forkPointFixture.messageId, turn_id: "turn_01J9R2N9C3", turn_settled: true },
+};
+
+/** The cut's turn is still running: the daemon would refuse it. */
+export const forkUnsettledPreviewFixture: SessionDerivePreview = {
+  ...forkCutPreviewFixture,
+  cut: { ...forkCutPreviewFixture.cut!, turn_settled: false },
+};
+
+/** Whole session on a live, idle, bound source whose agent can clone natively. */
+export const forkNativePreviewFixture: SessionDerivePreview = {
+  ...derivePreviewFixture,
+  native_fork_possible: true,
+};
+
+/** The child a fork creates: same agent, lineage `fork`, replay seed. */
+export function forkedSessionFixture(
+  source: SessionPayload = deriveSourceSessionFixture,
+  originMessageId?: string
+): SessionPayload {
+  const continued = continuedSessionFixture(source, source.agent_name);
+  return {
+    ...continued,
+    id: "sess_forked_child",
+    name: `${source.name ?? source.id} (fork)`,
+    lineage: {
+      ...continued.lineage!,
+      kind: "fork",
+      ...(originMessageId ? { origin_message_id: originMessageId } : {}),
+    },
+    derivation: { ...continued.derivation!, kind: "fork" },
+  };
+}
+
+export function forkResultFixture(
+  child: SessionPayload = forkedSessionFixture(),
+  overrides: Partial<SessionDeriveResult["derived"]> = {}
+): SessionDeriveResult {
+  return deriveResultFixture(child, { kind: "fork", ...overrides });
+}

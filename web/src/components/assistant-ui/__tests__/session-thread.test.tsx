@@ -49,6 +49,10 @@ import {
   SessionOriginContext,
   type SessionOriginContextValue,
 } from "@/systems/session/contexts/session-origin-context-value";
+import {
+  SessionForkContext,
+  type SessionForkRequest,
+} from "@/systems/session/contexts/session-fork-context-value";
 import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
@@ -425,6 +429,8 @@ interface ThreadStateOptions {
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
   origin?: SessionOriginContextValue | null;
+  /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
+  forkRequest?: SessionForkRequest | null;
 }
 
 function threadStateElement(
@@ -448,6 +454,7 @@ function threadStateElement(
     liveDataEnabled = true,
     contextControl,
     origin = null,
+    forkRequest = null,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -492,23 +499,25 @@ function threadStateElement(
           transport={transport}
         >
           <SessionOriginContext value={origin}>
-            <SessionThread
-              sessionId={primarySessionFixture.id}
-              agentName={primarySessionFixture.agent_name}
-              canPrompt
-              onCancelPrompt={() => {}}
-              isSessionRunning={isSessionRunning}
-              statusSession={statusSession}
-              stopCompletionNote={stopCompletionNote}
-              stopPhase={stopPhase}
-              quietWarning={quietWarning}
-              acpSessionId={acpSessionId}
-              sessionState={sessionState}
-              failure={failure}
-              readOnly={readOnly}
-              liveDataEnabled={liveDataEnabled}
-              contextControl={contextControl}
-            />
+            <SessionForkContext value={forkRequest}>
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={() => {}}
+                isSessionRunning={isSessionRunning}
+                statusSession={statusSession}
+                stopCompletionNote={stopCompletionNote}
+                stopPhase={stopPhase}
+                quietWarning={quietWarning}
+                acpSessionId={acpSessionId}
+                sessionState={sessionState}
+                failure={failure}
+                readOnly={readOnly}
+                liveDataEnabled={liveDataEnabled}
+                contextControl={contextControl}
+              />
+            </SessionForkContext>
           </SessionOriginContext>
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
@@ -516,8 +525,10 @@ function threadStateElement(
   );
 }
 
-function renderThreadState(options: ThreadStateOptions) {
-  const queryClient = createQueryClient();
+function renderThreadState(
+  options: ThreadStateOptions,
+  queryClient: QueryClient = createQueryClient()
+) {
   const result = render(threadStateElement(queryClient, options));
   return {
     ...result,
@@ -1763,6 +1774,92 @@ describe("SessionThread transcript states", () => {
     const rewind = await screen.findByRole("button", { name: "Rewind to here" });
     await waitFor(() => expect(rewind).toBeEnabled());
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
+  });
+
+  // UT-068 (S3, US-007.EC-2/EC-5): "Fork from here" is rewind's twin — present
+  // only on a durable user message under a Fork host, mounted before "Rewind to
+  // here", and it hands that message (id + text) to the host.
+  it("Should offer Fork from here beside Rewind only for a durable user message", async () => {
+    const forkRequest = vi.fn<SessionForkRequest>();
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest,
+    });
+
+    const fork = await screen.findByRole("button", { name: "Fork from here" });
+    await waitFor(() => expect(fork).toBeEnabled());
+    expect(screen.getAllByTestId("user-message-fork")).toHaveLength(1);
+    const rewind = screen.getByTestId("user-message-rewind");
+    expect(fork.compareDocumentPosition(rewind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(fork);
+    expect(forkRequest).toHaveBeenCalledExactlyOnceWith(undefined, {
+      messageId: "transcript_user_001",
+      messageText: "Summarize the launch blockers before the 18:30 UTC cutover.",
+    });
+  });
+
+  it("Should not offer Fork from here for an optimistic tail, without a host, or read-only", async () => {
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    const view = renderThreadState({ status: "success", messages, forkRequest: vi.fn() });
+
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+    view.unmount();
+
+    const noHost = renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+    });
+    expect(await screen.findByTestId("user-message-rewind")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+    noHost.unmount();
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn(),
+      readOnly: true,
+    });
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+  });
+
+  // A pending rewind anywhere in the workspace moves the transcript under every
+  // row: both actions disable together (the shared gate; VC-05 busy).
+  it("Should disable Fork from here together with Rewind while a rewind is pending", async () => {
+    const forkRequest = vi.fn<SessionForkRequest>();
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    const queryClient = createQueryClient();
+    void queryClient
+      .getMutationCache()
+      .build(queryClient, {
+        mutationKey: sessionKeys.rewindConversation(fixtureWorkspaceId()),
+        mutationFn: () => new Promise<never>(() => undefined),
+      })
+      .execute(undefined);
+
+    renderThreadState(
+      {
+        status: "success",
+        messages,
+        durableMessageIds: ["transcript_user_001"],
+        forkRequest,
+      },
+      queryClient
+    );
+
+    const fork = await screen.findByTestId("user-message-fork");
+    expect(fork).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    fireEvent.click(fork);
+    expect(forkRequest).not.toHaveBeenCalled();
   });
 
   it("Should hide transcript actions and goal prefill controls in read-only mode", async () => {

@@ -7,7 +7,11 @@ import { deriveSessionContext } from "../../lib/session-context";
 import { useSessionInspectorState } from "../../hooks/use-session-inspector-state";
 import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
 import type { SessionContextPayload } from "../../types";
-import { continuedSessionFixture, deriveSourceSessionFixture } from "../../mocks/derive-fixtures";
+import {
+  continuedSessionFixture,
+  deriveSourceSessionFixture,
+  forkedSessionFixture,
+} from "../../mocks/derive-fixtures";
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -574,6 +578,27 @@ describe("SessionInspector — origin", () => {
       "fork · through msg_01J9R3ZQ8PVX"
     );
     expect(screen.getByTestId("ledger-seed")).toHaveTextContent("replay");
+  });
+
+  it("Should state a clone refused at fork time as failed, with the carried context", () => {
+    const child = forkedSessionFixture();
+    render(
+      <SessionInspector
+        session={{
+          ...child,
+          derivation: {
+            ...child.derivation!,
+            seed: "replay",
+            native_fork_error: "session/fork: method not found",
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("ledger-origin")).toHaveTextContent("fork");
+    const seed = screen.getByTestId("ledger-seed");
+    expect(seed).toHaveTextContent("native clone · failed — carried context used");
+    expect(within(seed).getByTitle("session/fork: method not found")).toBeInTheDocument();
   });
 
   it("Should render a bind-time route_not_found with the daemon message", () => {

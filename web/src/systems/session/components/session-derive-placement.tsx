@@ -41,7 +41,10 @@ export function SessionDerivePlacementField({
               id={`${id}-${option.value}`}
               value={option.value}
             />
-            <Label className="text-form font-normal text-fg" htmlFor={`${id}-${option.value}`}>
+            <Label
+              className="text-form-input font-normal text-fg"
+              htmlFor={`${id}-${option.value}`}
+            >
               {option.label}
             </Label>
           </div>

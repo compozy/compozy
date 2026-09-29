@@ -55,8 +55,9 @@ export function useSessionWindowController(input: {
   liveDataEnabled: boolean;
   onOpenWorktreeContext?: (workspaceId: string, worktree: WorktreePayload) => void;
   onResolveMissingWorktree?: (workspaceId: string, worktree: WorktreePayload) => void;
-  /** Continue/origin chrome published into the window topbar. */
+  /** Continue/Fork/origin chrome published into the window topbar. */
   onContinue?: () => void;
+  onFork?: () => void;
   origin?: SessionOriginView | null;
   onOpenOriginSource?: (sessionId: string) => void;
 }) {
@@ -70,6 +71,7 @@ export function useSessionWindowController(input: {
     onOpenWorktreeContext,
     onResolveMissingWorktree,
     onContinue,
+    onFork,
     origin,
     onOpenOriginSource,
   } = input;
@@ -165,6 +167,7 @@ export function useSessionWindowController(input: {
     onUnarchive: controls.handleUnarchive,
     onClear: clearDialog.openDialog,
     onContinue,
+    onFork,
     origin,
     onOpenOriginSource,
   });
