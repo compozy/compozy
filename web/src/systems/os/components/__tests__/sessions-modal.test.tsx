@@ -9,7 +9,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  SessionContinueContext,
+  SessionDeriveContext,
   SessionForkContext,
   type SessionLifecycleActionHandlers,
   type SessionListViewModel,
@@ -491,7 +491,7 @@ describe("OsSessionsModal", () => {
     ];
     render(
       <OsShellContext.Provider value={shell}>
-        <SessionContinueContext value={requestContinue}>
+        <SessionDeriveContext value={requestContinue}>
           <SessionForkContext value={requestFork}>
             <OsSessionsModal
               open
@@ -503,7 +503,7 @@ describe("OsSessionsModal", () => {
               sessionActions={SESSION_ACTIONS}
             />
           </SessionForkContext>
-        </SessionContinueContext>
+        </SessionDeriveContext>
       </OsShellContext.Provider>
     );
 

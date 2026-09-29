@@ -79,6 +79,7 @@ export const TurnInProgress: Story = {
   parameters: deriveParameters({
     preview: {
       ...deriveTruncatedPreviewFixture,
+      source_message_count: 30,
       truncated: false,
       omitted_count: 0,
       source_turn_in_progress: true,

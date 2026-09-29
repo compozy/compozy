@@ -16,11 +16,14 @@ import (
 
 // deriveSnapshot is one immutable read view of a derive source.
 type deriveSnapshot struct {
-	meta                 store.SessionMeta
-	epoch                int64
-	generation           int64
-	maxSequence          int64
-	messages             []transcript.Message
+	meta        store.SessionMeta
+	epoch       int64
+	generation  int64
+	maxSequence int64
+	messages    []transcript.Message
+	// wholeMessageCount counts the source's own messages through its last settled turn
+	// (or the cut, when later), independent of the fork cut: the preview's total.
+	wholeMessageCount    int
 	cut                  DeriveCut
 	sourceTurnInProgress bool
 	sourceActive         bool
@@ -144,12 +147,38 @@ func (m *Manager) readDeriveSnapshotEvents(
 		}
 		snapshot.cut, snapshot.cutErr = cut, cutErr
 	}
-	own, err := transcript.Assemble(carriedEvents(events, coveredThrough, snapshot.cut.ThroughSequence))
+	snapshot.messages, err = assembleDeriveMessages(baseline, events, coveredThrough, snapshot.cut.ThroughSequence)
 	if err != nil {
 		return fmt.Errorf("session: assemble derive source transcript of %q: %w", snapshot.meta.ID, err)
 	}
-	snapshot.messages = transcript.Prune(append(baseline, own...), transcript.PruneOptions{Dedup: true})
+	snapshot.wholeMessageCount = len(snapshot.messages)
+	if messageID != "" {
+		_, settledThrough, _ := lastSettledTurn(events)
+		if settledThrough > snapshot.cut.ThroughSequence {
+			whole, wholeErr := assembleDeriveMessages(baseline, events, coveredThrough, settledThrough)
+			if wholeErr != nil {
+				return fmt.Errorf("session: assemble derive source transcript of %q: %w", snapshot.meta.ID, wholeErr)
+			}
+			snapshot.wholeMessageCount = len(whole)
+		}
+	}
 	return nil
+}
+
+// assembleDeriveMessages assembles the rewind baseline plus the carried events in
+// (afterSequence, throughSequence], deduplicated the way a derive carries them.
+func assembleDeriveMessages(
+	baseline []transcript.Message,
+	events []store.SessionEvent,
+	afterSequence int64,
+	throughSequence int64,
+) ([]transcript.Message, error) {
+	own, err := transcript.Assemble(carriedEvents(events, afterSequence, throughSequence))
+	if err != nil {
+		return nil, err
+	}
+	merged := append(append([]transcript.Message(nil), baseline...), own...)
+	return transcript.Prune(merged, transcript.PruneOptions{Dedup: true}), nil
 }
 
 // deriveRewindBaseline returns the rewind baseline messages and the sequence they cover.

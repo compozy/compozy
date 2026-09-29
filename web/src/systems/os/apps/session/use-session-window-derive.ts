@@ -1,7 +1,7 @@
 import {
   type SessionOriginContextValue,
   type SessionPayload,
-  useSessionContinueHost,
+  useSessionDeriveHost,
   useSessionOrigin,
 } from "@/systems/session";
 
@@ -21,7 +21,7 @@ export function useSessionWindowDerive({
   workspaceId: string;
 }) {
   const jump = useAttentionJump();
-  const continueHost = useSessionContinueHost({ workspaceId, currentSession: session });
+  const deriveHost = useSessionDeriveHost({ workspaceId, currentSession: session });
   const origin = useSessionOrigin(session, workspaceId);
 
   const openInNewWindow = (child: SessionPayload) =>
@@ -36,12 +36,12 @@ export function useSessionWindowDerive({
     : null;
 
   return {
-    continueHost,
+    deriveHost,
     openInNewWindow,
     origin,
     originContext,
     onOpenOriginSource,
-    onContinue: () => continueHost.request(),
-    onFork: () => continueHost.requestFork(),
+    onContinue: () => deriveHost.request(),
+    onFork: () => deriveHost.requestFork(),
   };
 }

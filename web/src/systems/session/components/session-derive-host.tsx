@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 
-import { SessionContinueContext } from "../contexts/session-continue-context-value";
+import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
-import type { SessionContinueHostState } from "../hooks/use-session-continue-host";
+import type { SessionDeriveHostState } from "../hooks/use-session-derive-host";
 import type { SessionDerivePlacementHandlers } from "../hooks/use-session-derive";
 import { SessionContinueDialog } from "./session-continue-dialog";
 import { SessionForkDialog } from "./session-fork-dialog";
 
-export interface SessionContinueHostProps extends SessionDerivePlacementHandlers {
-  host: SessionContinueHostState;
+export interface SessionDeriveHostProps extends SessionDerivePlacementHandlers {
+  host: SessionDeriveHostState;
   children?: ReactNode;
 }
 
@@ -18,17 +18,17 @@ export interface SessionContinueHostProps extends SessionDerivePlacementHandlers
  * functions through context. Placement stays with the host: only it knows
  * which window "this" one is.
  */
-export function SessionContinueHost({
+export function SessionDeriveHost({
   host,
   openInNewWindow,
   openInThisWindow,
   children,
-}: SessionContinueHostProps) {
+}: SessionDeriveHostProps) {
   const { target } = host;
   const placement = { openInNewWindow, openInThisWindow };
   const workspaceId = target?.source.workspace_id?.trim() || host.workspaceId;
   return (
-    <SessionContinueContext value={host.request}>
+    <SessionDeriveContext value={host.request}>
       <SessionForkContext value={host.requestFork}>
         {children}
         {target?.kind === "continue" ? (
@@ -53,6 +53,6 @@ export function SessionContinueHost({
           />
         ) : null}
       </SessionForkContext>
-    </SessionContinueContext>
+    </SessionDeriveContext>
   );
 }

@@ -20,7 +20,7 @@ import {
   SessionForkContext,
   type SessionForkPoint,
 } from "../../contexts/session-fork-context-value";
-import { useSessionContinueHost } from "../../hooks/use-session-continue-host";
+import { useSessionDeriveHost } from "../../hooks/use-session-derive-host";
 import {
   deriveSourceSessionFixture,
   forkCutPreviewFixture,
@@ -35,7 +35,7 @@ import {
   type SessionDeriveHandlerOptions,
 } from "../../mocks/derive-handlers";
 import type { SessionPayload } from "../../types";
-import { SessionContinueHost } from "../session-continue-host";
+import { SessionDeriveHost } from "../session-derive-host";
 import { SessionForkDialog } from "../session-fork-dialog";
 
 const source: SessionPayload = {
@@ -169,8 +169,9 @@ describe("SessionForkDialog", () => {
       "Through Refactor the flaky manager tests so they wait on the lifecyc…"
     );
     expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
-      "Carries over 18 messages · 24.1 KiB"
+      "Carries over 18 of 42 messages · 24.1 KiB"
     );
+    expect(screen.queryByTestId("session-derive-preview-omitted")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("session-fork-submit"));
     await waitFor(() => expect(onFork).toHaveBeenCalledOnce());
@@ -301,15 +302,15 @@ function ForkEntry() {
 }
 
 function HostHarness() {
-  const host = useSessionContinueHost({ workspaceId, currentSession: source });
+  const host = useSessionDeriveHost({ workspaceId, currentSession: source });
   return (
-    <SessionContinueHost host={host} openInNewWindow={vi.fn()}>
+    <SessionDeriveHost host={host} openInNewWindow={vi.fn()}>
       <ForkEntry />
-    </SessionContinueHost>
+    </SessionDeriveHost>
   );
 }
 
-describe("SessionContinueHost fork", () => {
+describe("SessionDeriveHost fork", () => {
   beforeEach(() => {
     handlers = sessionDeriveHandlers();
     vi.stubGlobal(

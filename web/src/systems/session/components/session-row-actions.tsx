@@ -11,7 +11,7 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import { SessionContinueContext } from "../contexts/session-continue-context-value";
+import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
@@ -33,7 +33,7 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
   const isArchived = session.archived_at !== null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
-  const requestContinue = use(SessionContinueContext);
+  const requestContinue = use(SessionDeriveContext);
   const requestFork = use(SessionForkContext);
   const userSession = isUserControllableSession(session);
 

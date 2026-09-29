@@ -274742,6 +274742,9 @@
                     "replay_bytes": {
                       "type": "integer"
                     },
+                    "source_message_count": {
+                      "type": "integer"
+                    },
                     "source_turn_in_progress": {
                       "type": "boolean"
                     },
@@ -274776,6 +274779,7 @@
                     "native_fork_possible",
                     "omitted_count",
                     "replay_bytes",
+                    "source_message_count",
                     "source_turn_in_progress",
                     "transcript",
                     "truncated"

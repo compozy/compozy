@@ -73,7 +73,10 @@ type SessionDeriveCutPayload struct {
 
 // SessionDerivePreviewResponse reports what a continue or fork would carry right now.
 type SessionDerivePreviewResponse struct {
-	MessageCount         int                      `json:"message_count"`
+	MessageCount int `json:"message_count"`
+	// SourceMessageCount is the whole source transcript's message count, so a fork cut
+	// or a truncated carry reads "k of n".
+	SourceMessageCount   int                      `json:"source_message_count"`
 	ReplayBytes          int                      `json:"replay_bytes"`
 	Truncated            bool                     `json:"truncated"`
 	OmittedCount         int                      `json:"omitted_count"`

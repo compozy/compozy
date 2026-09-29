@@ -23,7 +23,7 @@ import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
-import { OsSessionsContinueHost } from "./os-sessions-continue-host";
+import { OsSessionsDeriveHost } from "./os-sessions-derive-host";
 import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
@@ -344,18 +344,16 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         dispatch={paletteDispatch}
       />
-      <OsSessionsContinueHost
+      <OsSessionsDeriveHost
         workspaceId={model.runtimeWorkspaceId}
         onLanded={() => overlays.setOverlayOpen("sessions", false)}
       >
-        {({ continueOpen }) => (
+        {({ deriveOpen }) => (
           <OsSessionsModal
             open={overlays.activeOverlay === "sessions"}
             onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
             dismissalBlocked={
-              sessionLifecycle.deleteDialog.open ||
-              sessionLifecycle.renameDialog.open ||
-              continueOpen
+              sessionLifecycle.deleteDialog.open || sessionLifecycle.renameDialog.open || deriveOpen
             }
             sessions={attention.sessions}
             disconnected={attention.sessionsDisconnected}
@@ -365,7 +363,7 @@ function DesktopShellScopedBody({
             sessionActions={sessionLifecycle.actions}
           />
         )}
-      </OsSessionsContinueHost>
+      </OsSessionsDeriveHost>
       {sessionLifecycle.deleteDialog.session ? (
         <SessionDeleteDialog
           open={sessionLifecycle.deleteDialog.open}

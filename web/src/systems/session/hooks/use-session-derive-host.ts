@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { SessionContinueRequest } from "../contexts/session-continue-context-value";
+import type { SessionContinueRequest } from "../contexts/session-derive-context-value";
 import type { SessionForkPoint, SessionForkRequest } from "../contexts/session-fork-context-value";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
@@ -15,7 +15,7 @@ interface DeriveTarget {
   nonce: number;
 }
 
-export interface UseSessionContinueHostInput {
+export interface UseSessionDeriveHostInput {
   /** Workspace used when a source payload does not name its own. */
   workspaceId: string;
   /** The session a source-less request (the transcript, the topbar) derives from. */
@@ -28,10 +28,7 @@ export interface UseSessionContinueHostInput {
  * publishes chrome outside its own tree (the window topbar) holds the request
  * functions before rendering the host.
  */
-export function useSessionContinueHost({
-  workspaceId,
-  currentSession,
-}: UseSessionContinueHostInput) {
+export function useSessionDeriveHost({ workspaceId, currentSession }: UseSessionDeriveHostInput) {
   const [target, setTarget] = useState<DeriveTarget | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -57,4 +54,4 @@ export function useSessionContinueHost({
   return { workspaceId, target, open, setOpen, request, requestFork };
 }
 
-export type SessionContinueHostState = ReturnType<typeof useSessionContinueHost>;
+export type SessionDeriveHostState = ReturnType<typeof useSessionDeriveHost>;

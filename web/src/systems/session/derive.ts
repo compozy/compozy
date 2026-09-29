@@ -3,7 +3,7 @@
  * agent and forking it with the same one, plus how a derived session shows
  * where it came from. Grouped so the public barrel reads as one contract.
  */
-export { SessionContinueHost } from "./components/session-continue-host";
+export { SessionDeriveHost } from "./components/session-derive-host";
 export { SessionContinueDialog } from "./components/session-continue-dialog";
 export { SessionForkDialog } from "./components/session-fork-dialog";
 export {
@@ -12,9 +12,9 @@ export {
 } from "./components/session-continue-divider";
 export { SessionOriginPill } from "./components/session-origin-pill";
 export {
-  SessionContinueContext,
+  SessionDeriveContext,
   type SessionContinueRequest,
-} from "./contexts/session-continue-context-value";
+} from "./contexts/session-derive-context-value";
 export {
   SessionForkContext,
   type SessionForkPoint,
@@ -24,10 +24,7 @@ export {
   SessionOriginContext,
   type SessionOriginContextValue,
 } from "./contexts/session-origin-context-value";
-export {
-  useSessionContinueHost,
-  type SessionContinueHostState,
-} from "./hooks/use-session-continue-host";
+export { useSessionDeriveHost, type SessionDeriveHostState } from "./hooks/use-session-derive-host";
 export {
   landDerivedSession,
   type SessionDerivePlacement,

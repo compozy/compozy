@@ -31,7 +31,7 @@ import {
   useAgentInstructionsTab,
 } from "@/systems/agent";
 import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
-import { OsSessionsContinueHost } from "../../components/os-sessions-continue-host";
+import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 interface AgentInstructionsSectionProps {
@@ -234,7 +234,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
             </TabsContent>
 
             <TabsContent value="sessions" className="flex flex-col gap-6">
-              <OsSessionsContinueHost workspaceId={runtimeWorkspaceId}>
+              <OsSessionsDeriveHost workspaceId={runtimeWorkspaceId}>
                 {() => (
                   <AgentSessionsTab
                     agentName={name}
@@ -274,7 +274,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                     onClearFilter={() => page.setFilter("all")}
                   />
                 )}
-              </OsSessionsContinueHost>
+              </OsSessionsDeriveHost>
               {page.sessionDeleteDialog.session ? (
                 <SessionDeleteDialog
                   open={page.sessionDeleteDialog.open}

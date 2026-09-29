@@ -21,7 +21,7 @@ import {
   SessionPromptRuntimeSelector,
   type SessionQuietWarning,
   SessionQuietWarningNotice,
-  SessionContinueHost,
+  SessionDeriveHost,
   SessionOriginContext,
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
@@ -248,8 +248,8 @@ export function SessionWindowContent({
   };
 
   return (
-    <SessionContinueHost
-      host={derive.continueHost}
+    <SessionDeriveHost
+      host={derive.deriveHost}
       openInNewWindow={derive.openInNewWindow}
       openInThisWindow={sidebar.onSelectSession}
     >
@@ -422,6 +422,6 @@ export function SessionWindowContent({
           ) : null}
         </div>
       </SessionOriginContext>
-    </SessionContinueHost>
+    </SessionDeriveHost>
   );
 }

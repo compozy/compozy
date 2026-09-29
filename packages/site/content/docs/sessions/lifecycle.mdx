@@ -453,7 +453,8 @@ object (`kind`, `source_session_id`, `seed`, `first_prompt`); `compozy session s
 
 `GET /api/workspaces/:workspace_id/sessions/:session_id/derive/preview` reports what a continue would
 carry right now (`message_count`, `replay_bytes`, `truncated`, `omitted_count`,
-`source_turn_in_progress`) and the transcript fences it was measured at. The preview never writes
+`source_turn_in_progress`), the whole source transcript's `source_message_count`, and the transcript
+fences it was measured at. The preview never writes
 anything and never repairs a stopped source.
 
 ### The carried context
@@ -544,7 +545,7 @@ is still running returns `session_turn_in_progress`; wait or fork from an earlie
 that is not a durable user message in the session returns `message_not_found`. Messages remain valid
 fork points after compaction or after a rewind followed by new turns; only rewind itself refuses those.
 `GET …/derive/preview?message_id=…` reports the cut as `cut.turn_id` and `cut.turn_settled` before you
-fork.
+fork; `message_count` is what the cut carries and `source_message_count` is the whole source.
 
 When the source runs on an overridden account (an accepted `fallback_chain` route), the fork is created
 on that same declared route when the agent still declares it compatibly; otherwise it binds the agent's

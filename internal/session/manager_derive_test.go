@@ -607,7 +607,8 @@ func TestDerivePreview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DerivePreview() error = %v", err)
 		}
-		if preview.Cut != nil || preview.MaxSequence == 0 || preview.MessageCount != 4 {
+		if preview.Cut != nil || preview.MaxSequence == 0 || preview.MessageCount != 4 ||
+			preview.SourceMessageCount != 4 {
 			t.Fatalf("preview = %+v, want whole-session numbers", preview)
 		}
 		sourceMetaAfter, _ := os.ReadFile(source.MetaPath())
@@ -1459,6 +1460,10 @@ func TestForkSession(t *testing.T) {
 		source := h.newDeriveSource(t)
 		h.promptSource(t, source.ID, "Third step", "Fourth step", "Fifth step")
 		third := h.rewindOpts(t, source.ID, "Third step", "unused").MessageID
+		cutPreview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, third)
+		if err != nil || cutPreview.MessageCount != 6 || cutPreview.SourceMessageCount != 10 {
+			t.Fatalf("DerivePreview(third) = %+v, %v, want 6 of 10 source messages", cutPreview, err)
+		}
 		opts := h.forkOpts(source, "idem_fork_third")
 		opts.MessageID = third
 		result, err := h.manager.ForkSession(testutil.Context(t), opts)

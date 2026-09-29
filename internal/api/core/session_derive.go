@@ -250,6 +250,7 @@ func SessionDerivedPayloadFromResult(result session.DeriveResult) contract.Sessi
 func SessionDerivePreviewPayload(preview session.DerivePreview) contract.SessionDerivePreviewResponse {
 	payload := contract.SessionDerivePreviewResponse{
 		MessageCount:         preview.MessageCount,
+		SourceMessageCount:   preview.SourceMessageCount,
 		ReplayBytes:          preview.ReplayBytes,
 		Truncated:            preview.Truncated,
 		OmittedCount:         preview.OmittedCount,

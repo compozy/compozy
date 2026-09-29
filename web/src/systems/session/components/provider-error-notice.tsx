@@ -3,7 +3,7 @@ import { type ReactNode, use } from "react";
 
 import { Button, Marker, MarkerMeta } from "@compozy/ui";
 
-import { SessionContinueContext } from "../contexts/session-continue-context-value";
+import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { formatMessageTimestamp } from "../lib/format-timestamp";
 import type { ProviderErrorView } from "../lib/provider-error";
 import { ClusterCount } from "./marker-cluster-count";
@@ -66,7 +66,7 @@ function providerErrorOccurrence(view: ProviderErrorView): string | null {
  */
 export function ProviderErrorNotice({ view, count }: { view: ProviderErrorView; count: number }) {
   const occurrence = providerErrorOccurrence(view);
-  const requestContinue = use(SessionContinueContext);
+  const requestContinue = use(SessionDeriveContext);
   return (
     <Marker
       role="alert"

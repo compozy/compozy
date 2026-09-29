@@ -1,32 +1,32 @@
 import type { ReactNode } from "react";
 
-import { SessionContinueHost, useSessionContinueHost } from "@/systems/session";
+import { SessionDeriveHost, useSessionDeriveHost } from "@/systems/session";
 
 import { useAttentionJump } from "../hooks/use-attention-jump";
 
-export interface OsSessionsContinueHostProps {
+export interface OsSessionsDeriveHostProps {
   /** Workspace used when a source row does not name its own. */
   workspaceId: string | null;
   /** The child landed in its window; the list surface may step aside. */
   onLanded?: () => void;
   /** Receives whether the dialog is open, so an enclosing modal can hold dismissal. */
-  children: (state: { continueOpen: boolean }) => ReactNode;
+  children: (state: { deriveOpen: boolean }) => ReactNode;
 }
 
 /**
- * Continue for session lists that live outside any session window (the
+ * Continue and Fork for session lists that live outside any session window (the
  * sessions modal, agent detail). There is no "this" session window here, so
  * the child always opens in its own window through the attention jump.
  */
-export function OsSessionsContinueHost({
+export function OsSessionsDeriveHost({
   workspaceId,
   onLanded,
   children,
-}: OsSessionsContinueHostProps) {
+}: OsSessionsDeriveHostProps) {
   const jump = useAttentionJump();
-  const host = useSessionContinueHost({ workspaceId: workspaceId ?? "" });
+  const host = useSessionDeriveHost({ workspaceId: workspaceId ?? "" });
   return (
-    <SessionContinueHost
+    <SessionDeriveHost
       host={host}
       openInNewWindow={child => {
         onLanded?.();
@@ -37,7 +37,7 @@ export function OsSessionsContinueHost({
         });
       }}
     >
-      {children({ continueOpen: host.open })}
-    </SessionContinueHost>
+      {children({ deriveOpen: host.open })}
+    </SessionDeriveHost>
   );
 }

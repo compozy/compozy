@@ -76,7 +76,7 @@ vi.mock("../use-session-window-controller", () => ({
 
 vi.mock("../use-session-window-derive", () => ({
   useSessionWindowDerive: () => ({
-    continueHost: {},
+    deriveHost: {},
     openInNewWindow: vi.fn(),
     origin: null,
     originContext: null,
@@ -113,7 +113,7 @@ vi.mock("@/systems/session", async () => ({
     </div>
   ),
   SessionSidebar: () => null,
-  SessionContinueHost: ({ children }: { children: ReactNode }) => children,
+  SessionDeriveHost: ({ children }: { children: ReactNode }) => children,
   SessionOriginContext: createContext(null),
   useCreateSession: () => mocks.forkMutation,
 }));

@@ -181,9 +181,11 @@ func continueTestManager(
 		ContinueFn: continueFn,
 		DerivePreviewFn: func(_ context.Context, workspaceID, sourceID, messageID string) (session.DerivePreview, error) {
 			preview := session.DerivePreview{
-				MessageCount: 42, ReplayBytes: 62771, Epoch: 3, Generation: 12, MaxSequence: 418,
+				MessageCount: 42, SourceMessageCount: 42, ReplayBytes: 62771,
+				Epoch: 3, Generation: 12, MaxSequence: 418,
 			}
 			if messageID != "" {
+				preview.SourceMessageCount = 60
 				preview.Cut = &session.DeriveCut{MessageID: messageID, TurnID: "turn-7", TurnSettled: true}
 			}
 			return preview, nil
@@ -410,8 +412,9 @@ func TestPreviewSessionDeriveHandler(t *testing.T) {
 		var withCut contract.SessionDerivePreviewResponse
 		decodeJSONResponse(t, recorder, &withCut)
 		if recorder.Code != http.StatusOK || withCut.Cut == nil || withCut.Cut.TurnID != "turn-7" ||
-			!withCut.Cut.TurnSettled || withCut.NativeForkPossible || withCut.Transcript.MaxSequence != 418 {
-			t.Fatalf("status = %d preview = %#v, want cut turn-7", recorder.Code, withCut)
+			!withCut.Cut.TurnSettled || withCut.NativeForkPossible || withCut.Transcript.MaxSequence != 418 ||
+			withCut.SourceMessageCount != 60 {
+			t.Fatalf("status = %d preview = %#v, want cut turn-7 of 60 source messages", recorder.Code, withCut)
 		}
 		recorder = performRequest(t, engine, http.MethodGet,
 			"/api/workspaces/ws-workspace/sessions/sess-123/derive/preview", nil)

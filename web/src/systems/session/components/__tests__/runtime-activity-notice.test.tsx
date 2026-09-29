@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { SessionContinueContext } from "../../contexts/session-continue-context-value";
+import { SessionDeriveContext } from "../../contexts/session-derive-context-value";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import { RuntimeActivityNotice } from "../runtime-activity-notice";
@@ -286,9 +286,9 @@ describe("RuntimeActivityNotice", () => {
   ])("offers Continue for a $code turn failure whose next step is handoff", ({ code, subject }) => {
     const requestContinue = vi.fn();
     render(
-      <SessionContinueContext value={requestContinue}>
+      <SessionDeriveContext value={requestContinue}>
         <RuntimeActivityNotice event={providerErrorEvent({ code, next_action: "handoff" })} />
-      </SessionContinueContext>
+      </SessionDeriveContext>
     );
 
     const notice = screen.getByTestId("session-error-notice");

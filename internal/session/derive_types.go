@@ -110,7 +110,10 @@ type DeriveResult struct {
 
 // DerivePreview reports what a continue or fork of the source would carry right now.
 type DerivePreview struct {
-	MessageCount         int
+	MessageCount int
+	// SourceMessageCount is the whole source transcript's message count (inherited
+	// context plus every settled turn), before any fork cut or budget bounding.
+	SourceMessageCount   int
 	ReplayBytes          int
 	OmittedCount         int
 	Truncated            bool

@@ -45,9 +45,13 @@ func (m *Manager) DerivePreview(
 	if err != nil {
 		return DerivePreview{}, err
 	}
+	// imported counts inherited plus cut messages (carried + omitted); the whole source
+	// adds whatever lies after the cut.
+	cutTotal := imported.MessageCount + imported.OmittedCount
 	preview := DerivePreview{
 		MessageCount: imported.MessageCount, ReplayBytes: imported.Bytes,
-		OmittedCount: imported.OmittedCount, Truncated: imported.Truncated,
+		SourceMessageCount: cutTotal + max(snapshot.wholeMessageCount-len(snapshot.messages), 0),
+		OmittedCount:       imported.OmittedCount, Truncated: imported.Truncated,
 		SourceTurnInProgress: imported.SourceTurnInProgress,
 		Epoch:                snapshot.epoch, Generation: snapshot.generation, MaxSequence: snapshot.maxSequence,
 	}

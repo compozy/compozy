@@ -109691,6 +109691,7 @@ export interface operations {
             native_fork_possible: boolean;
             omitted_count: number;
             replay_bytes: number;
+            source_message_count: number;
             source_turn_in_progress: boolean;
             transcript: {
               /** Format: int64 */

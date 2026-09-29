@@ -10,7 +10,10 @@ export type SessionDerivePreviewView =
   | { state: "error" }
   | {
       state: "ready" | "truncated";
-      /** Bold lead: `Carries over 42 messages` / `Carries over 30 of 42 messages`. */
+      /**
+       * Bold lead: `Carries over 42 messages`, or `Carries over 30 of 42 messages`
+       * when less than the whole source travels (a fork cut or a truncated carry).
+       */
       headline: string;
       size: string;
       /** Truncated only: `12 earlier messages omitted to fit the context budget.` */
@@ -31,21 +34,20 @@ export function sessionDerivePreviewView(
   if (status === "pending" || !preview) return { state: "measuring" };
   const carried = Math.max(0, preview.message_count);
   const omitted = preview.truncated ? Math.max(0, preview.omitted_count) : 0;
+  // The whole source: a fork cut or a truncated carry reads "k of n".
+  const total = Math.max(preview.source_message_count, carried + omitted);
   const size = formatContextBytes(Math.max(0, preview.replay_bytes));
   const turnInProgress = preview.source_turn_in_progress;
+  const headline =
+    carried < total
+      ? `Carries over ${carried.toLocaleString()} of ${messages(total)}`
+      : `Carries over ${messages(carried)}`;
   if (omitted === 0) {
-    return {
-      state: "ready",
-      headline: `Carries over ${messages(carried)}`,
-      size,
-      omitted: null,
-      turnInProgress,
-    };
+    return { state: "ready", headline, size, omitted: null, turnInProgress };
   }
-  const total = carried + omitted;
   return {
     state: "truncated",
-    headline: `Carries over ${carried.toLocaleString()} of ${messages(total)}`,
+    headline,
     size,
     omitted: `${omitted.toLocaleString()} earlier ${omitted === 1 ? "message" : "messages"} omitted to fit the context budget.`,
     turnInProgress,

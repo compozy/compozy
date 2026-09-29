@@ -15,6 +15,7 @@ export const deriveSourceSessionFixture: SessionPayload = {
 /** `Carries over 42 messages · 61.3 KiB`. */
 export const derivePreviewFixture: SessionDerivePreview = {
   message_count: 42,
+  source_message_count: 42,
   replay_bytes: 62_771,
   truncated: false,
   omitted_count: 0,
@@ -132,7 +133,10 @@ export const forkPointFixture = {
     "Refactor the flaky manager tests so they wait on the lifecycle channel instead of sleeping",
 };
 
-/** Preview through `forkPointFixture`: the cut is turn-inclusive and settled. */
+/**
+ * Preview through `forkPointFixture`: the cut is turn-inclusive and settled —
+ * `Carries over 18 of 42 messages · 24.1 KiB`.
+ */
 export const forkCutPreviewFixture: SessionDerivePreview = {
   ...derivePreviewFixture,
   message_count: 18,
