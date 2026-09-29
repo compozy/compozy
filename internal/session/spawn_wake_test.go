@@ -153,6 +153,25 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deliver one completed wake for a done badge", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := &recordingSpawnWakeNotifier{}
+		manager := spawnWakeTestManager(notifier, nil)
+		info := spawnWakeTestInfo(true)
+
+		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeDone)
+
+		parents, events := notifier.calls()
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("wake calls = %d, want %d", got, want)
+		}
+		if parents[0] != "parent-1" || events[0].ChildSessionID != "child-1" ||
+			events[0].Reason != SpawnWakeReasonCompleted || events[0].Badge != BadgeDone {
+			t.Fatalf("wake delivery = parents %#v events %#v, want completed wake", parents, events)
+		}
+	})
+
 	tests := []struct {
 		name        string
 		notify      bool
@@ -225,5 +244,80 @@ func spawnWakeTestInfo(notify bool) *Info {
 			InteractionID: "interaction-1",
 			Title:         "Include vendored packages?",
 		}},
+	}
+}
+
+// Invariant: a canceled child turn must not emit a completed spawn wake, while
+// the same terminal edge still wakes the creator for a normal completion.
+// Owner: spawn wake dispatch; canonical spawn_wake_test.go suite.
+func TestFinishPromptPumpSpawnWakeCancelSuppression(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		canceled  bool
+		wantWakes int
+	}{
+		{name: "Should suppress the completed wake for a canceled turn", canceled: true, wantWakes: 0},
+		{name: "Should deliver the completed wake for a normal turn", canceled: false, wantWakes: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			notifier := &recordingSpawnWakeNotifier{}
+			manager, err := NewManager(
+				WithHomePaths(testHomePaths(t)),
+				WithSpawnWakeNotifier(notifier),
+			)
+			if err != nil {
+				t.Fatalf("NewManager() error = %v", err)
+			}
+			cleanupTestManager(t, manager)
+			manager.attentionStore = newPresenceAttentionStore()
+
+			session := &Session{
+				ID:          "child-1",
+				AgentName:   "researcher",
+				WorkspaceID: "ws-1",
+				State:       StateActive,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "parent-1",
+					RootSessionID:   "parent-1",
+					SpawnDepth:      1,
+					NotifyCreator:   true,
+				},
+				currentTurnID: "turn-1",
+			}
+			if test.canceled {
+				session.currentPromptCancelTurn = "turn-1"
+			}
+			manager.mu.Lock()
+			manager.sessions[session.ID] = session
+			manager.mu.Unlock()
+
+			turnState := &promptTurnDispatchState{
+				session: session, turnID: "turn-1", runID: "run-1", generation: 1,
+			}
+			manager.finishPromptPump(
+				testutil.Context(t),
+				session,
+				turnState,
+				nil,
+				nil,
+				nil,
+				&promptPumpFatal{},
+			)
+
+			_, events := notifier.calls()
+			if got := len(events); got != test.wantWakes {
+				t.Fatalf("completed wake deliveries = %d, want %d (%#v)", got, test.wantWakes, events)
+			}
+			if test.wantWakes == 1 {
+				if events[0].Reason != SpawnWakeReasonCompleted || events[0].Badge != BadgeDone {
+					t.Fatalf("wake = %#v, want completed/done", events[0])
+				}
+			}
+		})
 	}
 }
