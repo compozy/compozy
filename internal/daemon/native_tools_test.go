@@ -7531,22 +7531,23 @@ func TestDaemonNativeTools(t *testing.T) {
 							SourceSessionID: opts.SourceSessionID,
 						}, &acp.FailureError{Kind: store.FailureProviderAuth, Summary: "not authenticated"}
 					case "idem-native-model":
+						modelErr := diagnostics.NewStructuredError(
+							diagnostics.NewItem(diagnostics.ItemSpec{
+								ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+								Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+								Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+								DataFreshness: contract.FreshnessLive,
+							}),
+							&acp.NegotiationError{
+								Code:      contract.CodeModelUnavailable,
+								Stage:     "model",
+								Requested: "gone",
+							},
+						)
 						return session.DeriveResult{
-								ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
-								SourceSessionID: opts.SourceSessionID,
-							}, diagnostics.NewStructuredError(
-								diagnostics.NewItem(diagnostics.ItemSpec{
-									ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
-									Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
-									Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
-									DataFreshness: contract.FreshnessLive,
-								}),
-								&acp.NegotiationError{
-									Code:      contract.CodeModelUnavailable,
-									Stage:     "model",
-									Requested: "gone",
-								},
-							)
+							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+							SourceSessionID: opts.SourceSessionID,
+						}, modelErr
 					case "idem-native-activation":
 						// Registration committed, then the child's activation failed.
 						return session.DeriveResult{
