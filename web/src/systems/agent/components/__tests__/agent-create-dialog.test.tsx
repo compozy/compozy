@@ -98,16 +98,15 @@ describe("AgentCreateDialog", () => {
     expect(screen.queryByTestId("agent-create-back")).toBeNull();
   });
 
-  it("Should keep naming and catalog placement in Simple and reveal the rest only in Advanced", async () => {
+  it("Should keep Simple to name, instructions, and model and reveal the rest only in Advanced", async () => {
     const user = userEvent.setup();
     renderStatefulDialog();
 
     expect(screen.getByTestId("agent-create-name")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-prompt")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-runtime")).toBeInTheDocument();
-    // Category path names where the agent files in the catalog — a decision made
-    // while naming it, so it sits beside the runtime rather than under Advanced.
-    expect(screen.getByTestId("agent-create-category-path")).toBeInTheDocument();
+    // The group only sorts the catalog, so Simple leaves it for Advanced.
+    expect(screen.queryByTestId("agent-create-category-path")).toBeNull();
     expect(screen.queryByTestId("agent-create-permissions")).toBeNull();
     expect(screen.queryByTestId("agent-create-tools-input")).toBeNull();
     expect(screen.queryByTestId("agent-create-toolsets-input")).toBeNull();
@@ -117,6 +116,7 @@ describe("AgentCreateDialog", () => {
 
     await user.click(screen.getByTestId("agent-create-mode-advanced"));
 
+    expect(screen.getByTestId("agent-create-category-path")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-permissions")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-tools-input")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-command")).toBeInTheDocument();
@@ -188,7 +188,7 @@ describe("AgentCreateDialog", () => {
     expect(screen.getByTestId("agent-create-tools-input")).toBeInTheDocument();
   });
 
-  it("Should surface an invalid category path without leaving Simple", async () => {
+  it("Should reveal Advanced to surface an invalid group", async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
     renderStatefulDialog({
@@ -200,9 +200,12 @@ describe("AgentCreateDialog", () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByTestId("agent-create-category-path-error")).toHaveTextContent(
-      "Category path cannot contain blank segments."
+      "Group can't contain empty parts between slashes."
     );
-    expect(screen.getByTestId("agent-create-mode-simple")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("agent-create-mode-advanced")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
   });
 
   it("Should keep authored advanced values when leaving Advanced", async () => {
@@ -272,7 +275,7 @@ describe("AgentCreateDialog", () => {
     await user.click(screen.getByTestId("agent-create-runtime-use-project-defaults"));
 
     expect(screen.getByTestId("agent-create-runtime-inherited")).toHaveTextContent(
-      "Project runtime defaults will be used."
+      "The project's default model will be used."
     );
     expect(screen.queryByTestId("agent-create-runtime-use-project-defaults")).toBeNull();
   });
@@ -295,13 +298,16 @@ describe("AgentCreateDialog", () => {
     await user.click(screen.getByTestId("agent-create-mode-advanced"));
 
     expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
-      "The definition omits permissions"
+      "The agent's provider decides when to ask you."
     );
 
     await user.click(screen.getByTestId("agent-create-permissions-approve-reads"));
+    expect(screen.getByTestId("agent-create-permissions-approve-reads")).toHaveTextContent(
+      "Ask only before changes"
+    );
 
     expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
-      "Sessions inherit approve-reads."
+      "New sessions read freely and ask before changing anything."
     );
   });
 

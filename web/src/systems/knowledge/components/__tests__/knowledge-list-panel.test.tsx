@@ -87,39 +87,38 @@ describe("KnowledgeListPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("Should retune memory-type pills via KNOWLEDGE_TYPE_TONE (no accent leak)", () => {
-    renderPanel();
-    const userBadges = screen.getAllByTestId("type-badge-user");
-    expect(userBadges.length).toBeGreaterThanOrEqual(2);
-    for (const badge of userBadges) {
-      expect(badge).toHaveAttribute("data-tone", "neutral");
-      expect(badge).toHaveAttribute("data-knowledge-type", "notes");
-    }
-    const projectBadge = screen.getByTestId("type-badge-project");
-    expect(projectBadge).toHaveAttribute("data-tone", "info");
-    expect(projectBadge).toHaveAttribute("data-knowledge-type", "decisions");
+  it("Should render a flat list without a group header when only one scope is present", () => {
+    renderPanel({ memories: [PROFILE] });
+    expect(screen.queryByTestId("knowledge-group-profile")).not.toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-profile:user-role.md")).toBeInTheDocument();
   });
 
-  it("Should keep scope + agent-tier pills untouched and surface staleness", () => {
+  it("Should render the memory type as a plain word instead of the wire enum", () => {
     renderPanel();
-    expect(screen.getByTestId("scope-badge-profile")).toHaveAttribute("data-tone", "neutral");
-    expect(screen.getByTestId("scope-badge-workspace")).toHaveAttribute("data-tone", "info");
-    expect(screen.getByTestId("scope-badge-agent")).toHaveAttribute("data-tone", "warning");
-    expect(screen.getByTestId("agent-tier-badge-workspace")).toBeInTheDocument();
-    expect(screen.getByTestId("agent-name-badge")).toHaveTextContent("cto");
-    const recallBadges = screen.getAllByTestId("recall-count-badge");
-    expect(recallBadges).toHaveLength(2);
-    expect(recallBadges.some(badge => badge.textContent?.includes("↻ 5"))).toBe(true);
-    expect(screen.getByTestId("staleness-badge")).toBeInTheDocument();
+    const userLabels = screen.getAllByTestId("type-badge-user");
+    expect(userLabels.length).toBeGreaterThanOrEqual(2);
+    for (const label of userLabels) {
+      expect(label).toHaveTextContent("About you");
+    }
+    expect(screen.getByTestId("type-badge-project")).toHaveTextContent("Project decision");
+  });
+
+  it("Should limit each row to one warning signal and drop redundant scope pills", () => {
+    renderPanel();
+    expect(screen.queryByTestId(/^scope-badge-/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(/^agent-tier-badge-/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("agent-name-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("recall-count-badge")).not.toBeInTheDocument();
+    const stale = screen.getByTestId("staleness-badge");
+    expect(stale).toHaveTextContent("Outdated");
+    expect(stale).toHaveAttribute("data-tone", "warning");
   });
 
   it("Should show the empty fallback when there are no memories", () => {
     renderPanel({ memories: [] });
     const empty = screen.getByTestId("knowledge-list-empty");
     expect(empty).toBeInTheDocument();
-    expect(
-      within(empty).getByText("No knowledge items found", { selector: "h3" })
-    ).toBeInTheDocument();
+    expect(within(empty).getByText("No knowledge yet", { selector: "h3" })).toBeInTheDocument();
   });
 
   it("Should show the loading state while loading and the list is empty", () => {
@@ -133,18 +132,18 @@ describe("KnowledgeListPanel", () => {
     expect(screen.getByText("Network failure")).toBeInTheDocument();
   });
 
-  it("Should expose recall mode messaging through searchInfo and search-mode placeholder", () => {
-    renderPanel({ searchMode: true, searchInfo: "Recall 2 of top-K", memories: [] });
-    expect(screen.getByTestId("knowledge-search-info")).toHaveTextContent("Recall 2 of top-K");
-    expect(screen.getByTestId("knowledge-list-empty")).toHaveTextContent(/recall query/i);
+  it("Should expose search messaging through searchInfo and the no-matches empty state", () => {
+    renderPanel({ searchMode: true, searchInfo: "0 matches", memories: [] });
+    expect(screen.getByTestId("knowledge-search-info")).toHaveTextContent("0 matches");
+    expect(screen.getByTestId("knowledge-list-empty")).toHaveTextContent("No matches");
   });
 
   it("Should emit onSearchChange with the typed query", () => {
     const onSearchChange = vi.fn();
     renderPanel({ onSearchChange });
-    const input = screen.getByLabelText("Recall knowledge");
+    const input = screen.getByLabelText("Search knowledge");
     expect(input).toHaveAttribute("data-testid", "knowledge-search-input");
-    expect(input).toHaveAttribute("placeholder", "Recall knowledge...");
+    expect(input).toHaveAttribute("placeholder", "Search knowledge");
     fireEvent.change(input, { target: { value: "alpha" } });
     expect(onSearchChange).toHaveBeenCalledWith("alpha");
   });

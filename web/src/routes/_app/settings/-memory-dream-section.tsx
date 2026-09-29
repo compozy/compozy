@@ -9,32 +9,32 @@ import {
 import { Button, Input, Spinner } from "@compozy/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
-interface DreamSectionProps extends ValidatedSectionProps {
+interface TidyUpRowProps {
   dreamAvailable: boolean;
   dreamPending: boolean;
   onTriggerDream: () => void;
   actionMessage: string | null;
 }
 
-export function DreamSection(props: DreamSectionProps) {
-  return renderDreamSection(props);
-}
-
-function renderDreamSection({
-  draft,
-  setDraft,
-  validationErrors,
-  setValidationError,
+/** Primary-layer action: run the memory tidy-up (dream consolidation) now. */
+export function TidyUpRow({
   dreamAvailable,
   dreamPending,
   onTriggerDream,
   actionMessage,
-}: DreamSectionProps) {
+}: TidyUpRowProps) {
   return (
-    <SettingsGroup
-      title="Memory dreaming"
-      help="background recall-signal scoring + curated promotion"
-      action={
+    <SettingsFieldRow
+      data-testid={`${TEST_PREFIX}-dream-action`}
+      label="Tidy up memory"
+      description={
+        actionMessage ? (
+          <span data-testid={`${TEST_PREFIX}-action-message`}>{actionMessage}</span>
+        ) : (
+          "Reviews recent memories while you're idle and keeps the useful ones"
+        )
+      }
+      control={
         <Button
           type="button"
           variant="outline"
@@ -44,14 +44,35 @@ function renderDreamSection({
           onClick={onTriggerDream}
         >
           {dreamPending ? <Spinner className="size-3" /> : <Play className="size-3" />}
-          Trigger dream
+          Tidy up now
         </Button>
       }
-    >
+    />
+  );
+}
+
+/** Advanced tuning for the automatic tidy-up (dream) schedule and scoring. */
+export function DreamSection(props: ValidatedSectionProps) {
+  return (
+    <SettingsGroup title="Automatic tidy-up" help="When memory tidies itself up and what it keeps">
+      <DreamScheduleFields {...props} />
+      <DreamScoringFields {...props} />
+    </SettingsGroup>
+  );
+}
+
+function DreamScheduleFields({
+  draft,
+  setDraft,
+  validationErrors,
+  setValidationError,
+}: ValidatedSectionProps) {
+  return (
+    <>
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-min-hours`}
         label="Min idle hours"
-        help="Wait at least this many hours since the last dream run"
+        help="Wait at least this many hours since the last tidy-up"
         error={validationErrors.dreamMinHours ?? undefined}
         control={
           <SettingsDecimalInput
@@ -76,7 +97,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-min-sessions`}
         label="Min sessions"
-        help="Sessions required since the last dream run"
+        help="Sessions required since the last tidy-up"
         error={validationErrors.dreamMinSessions ?? undefined}
         control={
           <SettingsNumberInput
@@ -100,7 +121,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-debounce`}
         label="Debounce"
-        help="Anti-thrash debounce after a no-op tick"
+        help="Pause after a check that found nothing to do. For example 10m"
         control={
           <Input
             className="w-32 font-mono"
@@ -119,7 +140,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-check-interval`}
         label="Check interval"
-        help="How often the dreaming runtime evaluates idle gates"
+        help="How often memory tidies itself up while you're away. For example 30m"
         control={
           <Input
             className="w-32 font-mono"
@@ -141,7 +162,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-prompt-version`}
         label="Prompt version"
-        help="Pinned dreaming-prompt revision; bumping invalidates idempotency keys"
+        help="Version of the tidy-up instructions. Changing it lets earlier memories be reviewed again"
         control={
           <Input
             className="w-32 font-mono"
@@ -160,6 +181,18 @@ function renderDreamSection({
           />
         }
       />
+    </>
+  );
+}
+
+function DreamScoringFields({
+  draft,
+  setDraft,
+  validationErrors,
+  setValidationError,
+}: ValidatedSectionProps) {
+  return (
+    <>
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-gate-min-unpromoted`}
         label="Gate · min unpromoted"
@@ -391,11 +424,6 @@ function renderDreamSection({
           />
         }
       />
-      {actionMessage ? (
-        <p className="text-xs text-subtle" data-testid={`${TEST_PREFIX}-action-message`}>
-          {actionMessage}
-        </p>
-      ) : null}
-    </SettingsGroup>
+    </>
   );
 }

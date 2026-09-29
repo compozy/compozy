@@ -221,7 +221,10 @@ export const UnconfirmedRetryReplayed: Story = {
     await userEvent.click(await canvas.findByTestId("composer-queue-button"));
     await userEvent.click(await canvas.findByTestId("composer-queued-retry"));
     await waitFor(async () => {
-      await expect(canvas.getByTestId("composer-feedback-suffix")).toHaveTextContent("replayed");
+      await expect(canvas.getByTestId("composer-feedback-note")).toHaveAttribute(
+        "data-detail",
+        "replayed"
+      );
     });
   },
 };

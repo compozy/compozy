@@ -100,6 +100,54 @@
   }
 }
 
+/* In-window view transitions (runViewTransition). Only the focused window body
+   carries a transition name; the desktop root never cross-fades. */
+:root {
+  view-transition-name: none;
+}
+
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(*) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-out);
+}
+
+html:active-view-transition-type(drill-in) ::view-transition-new(os-window-body) {
+  animation-name: vt-slide-in-from-end;
+}
+
+html:active-view-transition-type(drill-in) ::view-transition-old(os-window-body),
+html:active-view-transition-type(drill-out) ::view-transition-old(os-window-body) {
+  animation-name: vt-fade-out;
+}
+
+html:active-view-transition-type(drill-out) ::view-transition-new(os-window-body) {
+  animation-name: vt-slide-in-from-start;
+}
+
+@keyframes vt-slide-in-from-end {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+@keyframes vt-slide-in-from-start {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 /* `0.001ms` preserves animation-end callbacks while removing visible motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -108,5 +156,11 @@
     animation-duration: 0.001ms !important;
     animation-delay: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

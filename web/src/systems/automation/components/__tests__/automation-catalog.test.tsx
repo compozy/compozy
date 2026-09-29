@@ -101,10 +101,29 @@ describe("AutomationJobRow", () => {
     );
 
     const row = screen.getByTestId("automation-item-job_daily_review");
-    expect(row).toHaveTextContent("Cron 0 9 * * *");
+    expect(row).toHaveTextContent("Every day at 09:00 UTC");
 
     await user.click(screen.getByTestId("automation-run-now-job_daily_review"));
     expect(onRun).toHaveBeenCalledWith("job_daily_review");
+  });
+
+  it("Should badge only the exceptions: disabled state and managed source", () => {
+    const { rerender } = render(
+      <AutomationJobRow isRunPending={false} job={jobFixture} onRun={vi.fn()} runDisabled={false} />
+    );
+    expect(screen.queryByTestId("automation-disabled-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("automation-source-badge")).not.toBeInTheDocument();
+
+    rerender(
+      <AutomationJobRow
+        isRunPending={false}
+        job={{ ...jobFixture, enabled: false, source: "config" }}
+        onRun={vi.fn()}
+        runDisabled={false}
+      />
+    );
+    expect(screen.getByTestId("automation-disabled-badge")).toHaveTextContent("Disabled");
+    expect(screen.getByTestId("automation-source-badge")).toHaveTextContent("From config");
   });
 
   it("Should disable manual runs while the automation runtime is unavailable", () => {

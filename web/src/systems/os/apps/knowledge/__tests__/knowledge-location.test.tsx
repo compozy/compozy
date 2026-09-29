@@ -34,7 +34,7 @@ vi.mock("../use-knowledge-page", () => ({
   useKnowledgePage: vi.fn(() => ({
     activeScope: "global",
     canCreateMemory: false,
-    guardMessage: "Choose a workspace.",
+    guard: { title: "Open a project first", description: "Open a project." },
     selectedMemory: null,
     setActiveScope: vi.fn(),
     setCreateOpen: vi.fn(),

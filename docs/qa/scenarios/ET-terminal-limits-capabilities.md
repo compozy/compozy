@@ -21,3 +21,5 @@ Workspace and viewer caps identify the blocking limit and recovery action. Termi
 Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+QA impact 2026-09-28 (normie pass): Settings › Terminal limits (terminals per project/installation, viewers per terminal) moved into an "Advanced — limits" fold; open it before editing. Flag only.

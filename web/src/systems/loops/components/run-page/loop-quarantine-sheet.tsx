@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { History, Info, Lightbulb, ShieldAlert } from "lucide-react";
 
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Button,
   Eyebrow,
   formatAbsoluteTime,
@@ -19,14 +22,13 @@ import {
 import { LOOP_NODE_VERB_PRESENTATION, type LoopNodeVerb } from "../../lib/loop-node-controls";
 import { LOOP_NODE_VERB_ICONS } from "../../lib/loop-node-verb-icons";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import type { LoopQuarantineEntry } from "../../lib/loop-quarantine-entry";
 import { LoopSection } from "../loop-section";
 import { LoopQuarantineChain } from "./loop-quarantine-chain";
-import { LoopRunQuietNote } from "./loop-run-quiet-note";
 
 interface LoopQuarantineSheetProps {
   /** The quarantined node, or null when the sheet is closed. */
   node: LoopNodeLifecycle | null;
-  runId: string;
   open: boolean;
   isRequeuePending?: boolean;
   /** The run reached a terminal status, so the daemon rejects requeue and cancel. */
@@ -60,7 +62,6 @@ function countGist(attempts: number, episodes: number): string {
  */
 export function LoopQuarantineSheet({
   node,
-  runId,
   open,
   isRequeuePending,
   runEnded = false,
@@ -69,7 +70,6 @@ export function LoopQuarantineSheet({
   children,
 }: LoopQuarantineSheetProps) {
   const entry = node?.quarantineEntry ?? null;
-  const CancelIcon = LOOP_NODE_VERB_ICONS.cancel;
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent
@@ -78,149 +78,185 @@ export function LoopQuarantineSheet({
       >
         {node && entry ? (
           <>
-            <SheetHeader className="gap-2 border-b border-line px-5 py-4">
-              <div className="flex items-start gap-3">
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-danger-tint text-danger ring-1 ring-danger/24 ring-inset"
-                >
-                  <ShieldAlert className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <Eyebrow className="text-danger">Quarantine entry</Eyebrow>
-                  <SheetTitle className="mt-0.5 truncate">{node.nodeId}</SheetTitle>
-                  <SheetDescription className="mt-1">
-                    {`Set aside after ${entry.attemptCount} ${
-                      entry.attemptCount === 1 ? "attempt" : "attempts"
-                    } across ${entry.episodes.length} ${
-                      entry.episodes.length === 1 ? "episode" : "episodes"
-                    }`}
-                    <span className="ml-2 font-mono text-mono-id text-faint">
-                      gen {node.generation} · {runId}
-                    </span>
-                  </SheetDescription>
-                </div>
-              </div>
-            </SheetHeader>
+            <QuarantineSheetHeader entry={entry} node={node} />
             <ScrollArea className="min-h-0 flex-1">
               <div className="flex flex-col gap-5 px-5 py-4">
                 {entry.hint ? (
-                  <LoopRunQuietNote
-                    data-testid="loop-quarantine-hint"
-                    icon={Lightbulb}
-                    title="What to try"
-                  >
-                    {entry.hint}
-                  </LoopRunQuietNote>
+                  <Alert data-testid="loop-quarantine-hint" variant="neutral">
+                    <Lightbulb aria-hidden="true" />
+                    <AlertTitle>What to try</AlertTitle>
+                    <AlertDescription>{entry.hint}</AlertDescription>
+                  </Alert>
                 ) : null}
-                <LoopSection
-                  className="mb-0"
-                  data-testid="loop-quarantine-facts"
-                  icon={<Info />}
-                  title="At a glance"
-                >
-                  <div className="grid grid-cols-2 gap-2">
-                    <MetadataTile
-                      label="Attempts"
-                      value={entry.attemptCount}
-                      detail={`across ${entry.episodes.length} ${
-                        entry.episodes.length === 1 ? "episode" : "episodes"
-                      }`}
-                    />
-                    <MetadataTile
-                      label="Episode"
-                      value={entry.episodes.length}
-                      detail={
-                        entry.requeues.length > 0
-                          ? `after ${entry.requeues.length} ${
-                              entry.requeues.length === 1 ? "requeue" : "requeues"
-                            }`
-                          : "first quarantine"
-                      }
-                    />
-                    {entry.target ? (
-                      <MetadataTile label="External target" value={entry.target} />
-                    ) : null}
-                    {entry.quarantinedAt ? (
-                      <MetadataTile
-                        label="Quarantined"
-                        value={formatRelativeTime(entry.quarantinedAt)}
-                        detail={formatAbsoluteTime(entry.quarantinedAt)}
-                      />
-                    ) : null}
-                  </div>
-                  {entry.inputRef ? (
-                    <div className="mt-2 rounded bg-canvas-soft px-3 py-2.5">
-                      <Eyebrow className="text-muted">Input</Eyebrow>
-                      <p className="mt-1 truncate font-mono text-mono-id text-fg">
-                        {entry.inputRef}
-                      </p>
-                    </div>
-                  ) : null}
-                </LoopSection>
-                <LoopSection
-                  className="mb-0"
-                  data-testid="loop-quarantine-chain"
-                  gist={countGist(entry.attemptCount, entry.episodes.length) || undefined}
-                  icon={<History />}
-                  title="What failed, in order"
-                >
-                  <LoopQuarantineChain entry={entry} />
-                  {entry.truncated ? (
-                    <p className="mt-1.5 text-form-hint text-subtle">
-                      Older episodes were dropped to keep this entry inside its size limit.
-                    </p>
-                  ) : null}
-                </LoopSection>
+                <QuarantineFacts entry={entry} />
+                <QuarantineChainSection entry={entry} />
               </div>
             </ScrollArea>
-            <SheetFooter className="flex-row items-center justify-between gap-3 border-t border-line px-5 py-3">
-              <span className="text-small-body text-muted" data-testid="loop-quarantine-foot">
-                {runEnded
-                  ? "This run has ended. The entry is kept as a record."
-                  : "The run keeps working — quarantine never stops it by itself."}
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                {node.quarantined && !runEnded ? (
-                  <>
-                    <Button
-                      data-testid="loop-quarantine-cancel"
-                      onClick={() => onVerb("cancel", node)}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      <CancelIcon className="size-3.5" />
-                      {LOOP_NODE_VERB_PRESENTATION.cancel.label}
-                    </Button>
-                    <Button
-                      data-testid="loop-quarantine-requeue"
-                      disabled={isRequeuePending}
-                      onClick={() => onVerb("requeue", node)}
-                      size="sm"
-                      type="button"
-                      variant="primary"
-                    >
-                      Requeue…
-                    </Button>
-                  </>
-                ) : null}
-              </span>
-            </SheetFooter>
+            <QuarantineSheetFooter
+              isRequeuePending={isRequeuePending}
+              node={node}
+              onVerb={onVerb}
+              runEnded={runEnded}
+            />
             {children}
           </>
         ) : (
-          <div className="px-5 py-6">
-            <SheetTitle>No quarantine entry</SheetTitle>
-            <SheetDescription className="mt-1">
-              {node
-                ? `${node.label} is not quarantined, so there is no repair record to show. ` +
-                  "If a step is parked behind a quarantined one, open the entry from that step instead."
-                : "This node has no repair record. Pick a quarantined step from the Needs attention panel."}
-            </SheetDescription>
-          </div>
+          <QuarantineSheetEmpty node={node} />
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function QuarantineSheetHeader({
+  node,
+  entry,
+}: {
+  node: LoopNodeLifecycle;
+  entry: LoopQuarantineEntry;
+}) {
+  return (
+    <SheetHeader className="gap-2 border-b border-line px-5 py-4">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-danger-tint text-danger ring-1 ring-danger/24 ring-inset"
+        >
+          <ShieldAlert className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <Eyebrow className="text-danger">Set aside</Eyebrow>
+          <SheetTitle className="mt-0.5 truncate" title={node.nodeId}>
+            {node.label}
+          </SheetTitle>
+          <SheetDescription className="mt-1">
+            {`Set aside after ${entry.attemptCount} ${
+              entry.attemptCount === 1 ? "try" : "tries"
+            } in round ${node.generation}`}
+          </SheetDescription>
+        </div>
+      </div>
+    </SheetHeader>
+  );
+}
+
+function QuarantineFacts({ entry }: { entry: LoopQuarantineEntry }) {
+  return (
+    <LoopSection data-testid="loop-quarantine-facts" icon={<Info />} title="At a glance">
+      <div className="grid grid-cols-2 gap-2">
+        <MetadataTile
+          label="Tries"
+          value={entry.attemptCount}
+          detail={`across ${entry.episodes.length} ${
+            entry.episodes.length === 1 ? "time" : "times"
+          }`}
+        />
+        <MetadataTile
+          label="Times set aside"
+          value={entry.episodes.length}
+          detail={requeueDetail(entry.requeues.length)}
+        />
+        {entry.target ? <MetadataTile label="Target" value={entry.target} /> : null}
+        {entry.quarantinedAt ? (
+          <MetadataTile
+            label="Set aside"
+            value={formatRelativeTime(entry.quarantinedAt)}
+            detail={formatAbsoluteTime(entry.quarantinedAt)}
+          />
+        ) : null}
+      </div>
+      {entry.inputRef ? (
+        <div className="mt-2 rounded bg-canvas-soft px-3 py-2.5">
+          <Eyebrow className="text-muted">Input</Eyebrow>
+          <p className="mt-1 truncate font-mono text-mono-id text-fg">{entry.inputRef}</p>
+        </div>
+      ) : null}
+    </LoopSection>
+  );
+}
+
+function requeueDetail(requeues: number): string {
+  if (requeues === 0) return "first time";
+  return `after ${requeues} ${requeues === 1 ? "retry" : "retries"}`;
+}
+
+function QuarantineChainSection({ entry }: { entry: LoopQuarantineEntry }) {
+  return (
+    <LoopSection
+      data-testid="loop-quarantine-chain"
+      gist={countGist(entry.attemptCount, entry.episodes.length) || undefined}
+      icon={<History />}
+      title="What failed, in order"
+    >
+      <LoopQuarantineChain entry={entry} />
+      {entry.truncated ? (
+        <p className="mt-2 text-form-hint text-subtle">
+          Older failures were dropped to keep this record short.
+        </p>
+      ) : null}
+    </LoopSection>
+  );
+}
+
+function QuarantineSheetFooter({
+  node,
+  runEnded,
+  isRequeuePending,
+  onVerb,
+}: {
+  node: LoopNodeLifecycle;
+  runEnded: boolean;
+  isRequeuePending?: boolean;
+  onVerb: (verb: LoopNodeVerb, node: LoopNodeLifecycle) => void;
+}) {
+  const CancelIcon = LOOP_NODE_VERB_ICONS.cancel;
+  return (
+    <SheetFooter className="flex-row items-center justify-between gap-3 border-t border-line px-5 py-3">
+      <span className="text-small-body text-muted" data-testid="loop-quarantine-foot">
+        {runEnded
+          ? "This run has ended. The entry is kept as a record."
+          : "The run keeps working. Setting a step aside never stops it."}
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {node.quarantined && !runEnded ? (
+          <>
+            <Button
+              data-testid="loop-quarantine-cancel"
+              onClick={() => onVerb("cancel", node)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <CancelIcon className="size-3.5" />
+              {LOOP_NODE_VERB_PRESENTATION.cancel.label}
+            </Button>
+            <Button
+              data-testid="loop-quarantine-requeue"
+              disabled={isRequeuePending}
+              onClick={() => onVerb("requeue", node)}
+              size="sm"
+              type="button"
+              variant="primary"
+            >
+              Retry…
+            </Button>
+          </>
+        ) : null}
+      </span>
+    </SheetFooter>
+  );
+}
+
+function QuarantineSheetEmpty({ node }: { node: LoopNodeLifecycle | null }) {
+  return (
+    <div className="px-5 py-6">
+      <SheetTitle>Nothing set aside</SheetTitle>
+      <SheetDescription className="mt-1">
+        {node
+          ? `${node.label} was not set aside, so there is nothing to show. ` +
+            "If a step is waiting on one that was set aside, open that step instead."
+          : "This step has nothing to show. Pick a step that was set aside from the Needs you panel."}
+      </SheetDescription>
+    </div>
   );
 }

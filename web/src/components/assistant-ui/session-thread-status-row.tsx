@@ -1,6 +1,5 @@
 import {
   deriveThinkingState,
-  SessionQuietStatusRow,
   SessionThinkingRow,
   type SessionQuietWarning,
   type SessionWorkingStatusInput,
@@ -41,8 +40,8 @@ export interface SessionThreadStatusRowProps {
 }
 
 /**
- * The one status line between the transcript and the composer (S3): the
- * quiet warning row while the daemon reports one, otherwise the thinking /
+ * The one status line between the transcript and the composer (S3): silent
+ * during a quiet episode (the window Alert owns it), otherwise the thinking /
  * working / stopped / failed row derived from the session resource and the
  * transcript's own record of the last turn.
  */
@@ -60,9 +59,10 @@ export function SessionThreadStatusRow({
   const dispatch = useSessionPromptDispatch();
   const guardElapsed = useThinkingGuardElapsed(running ? dispatch.pendingSinceMs : null);
 
-  if (quietWarning && !stopping) {
-    return <SessionQuietStatusRow liveDataEnabled={liveDataEnabled} warning={quietWarning} />;
-  }
+  // The window's quiet-warning Alert owns a quiet episode (clock + Stop now);
+  // a second quiet line here, or a working timer the quiet contradicts, would
+  // say the same fact twice.
+  if (quietWarning && !stopping) return null;
 
   const hasContent = activeReplyHasContent(messages);
   // Inside the guard the clock reads the send instant itself (nothing elapsed);

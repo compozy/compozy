@@ -21,6 +21,10 @@ export {
   type OwnerAvatarSize,
 } from "../components/custom/owner-avatar";
 export {
+  TranscriptDisclosure,
+  type TranscriptDisclosureProps,
+} from "../components/custom/transcript-disclosure";
+export {
   ChatMessageBubble,
   type ChatMessageAlign,
   type ChatMessageBubbleProps,

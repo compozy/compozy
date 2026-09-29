@@ -333,14 +333,11 @@ export {
   sessionStopAttention,
   type SessionStopAttention,
 } from "./lib/session-stop-attention";
+export { SessionPanelToggle } from "./components/session-panel-toggle";
 export {
   SessionQuietWarningNotice,
   type SessionQuietWarningNoticeProps,
 } from "./components/session-quiet-warning-notice";
-export {
-  SessionQuietStatusRow,
-  type SessionQuietStatusRowProps,
-} from "./components/session-quiet-status-row";
 export {
   SessionThinkingRow,
   type SessionThinkingRowProps,
@@ -372,7 +369,7 @@ export {
   type SessionToolVisualState,
   type SessionToolVisualStatus,
 } from "./lib/session-tool-visual-state";
-export { getToolIcon, resolveRegisteredToolName } from "./lib/tool-labels";
+export { getToolIcon, humanizeToolId, resolveRegisteredToolName } from "./lib/tool-labels";
 export {
   formatPayloadSize,
   PAYLOAD_PREVIEW_MAX_LINES,

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { WifiOff } from "lucide-react";
+import { AlertCircle, WifiOff } from "lucide-react";
 
-import { Button, Eyebrow, Skeleton, Spinner } from "@compozy/ui";
+import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -44,8 +44,8 @@ function SkeletonUserRow() {
     <div className="flex w-full min-w-0 justify-end pb-4 pt-1" aria-hidden="true">
       <div
         className={cn(
-          "flex w-[min(60%,28rem)] flex-col gap-2 rounded-xl border px-4 py-3",
-          "border-line bg-canvas-soft"
+          "flex w-[min(60%,28rem)] flex-col gap-2 rounded-lg px-3 py-transcript-message-y",
+          "bg-chat-fill-user"
         )}
       >
         <Skeleton className="h-3.5 w-full" />
@@ -77,38 +77,31 @@ function ThreadMessageSkeleton() {
 
 /**
  * Empty transcript pane — shown ONLY when the fetch succeeded and nothing has been said
- * yet (zero messages, or only status events that render no row).
+ * yet (zero messages, or only status events that render no row). One plain line; the
+ * composer below is the call to action.
  */
 function ThreadEmpty({ agentName }: { agentName: string }) {
   return (
     <div className={STATE_PANE_FRAME}>
-      <div className="max-w-md text-center">
-        <Eyebrow className="text-subtle">{agentName}</Eyebrow>
-        <p className="mt-2 text-small-body text-muted">
-          Start the conversation. Everything you and the agent do here is saved.
-        </p>
-      </div>
+      <p className="max-w-md text-center text-small-body text-muted">
+        Send {agentName} a message to get started.
+      </p>
     </div>
   );
 }
 
 function ThreadStarting({ agentName }: { agentName: string }) {
   return (
-    <div className={STATE_PANE_FRAME}>
-      <div
-        className="flex max-w-md flex-col items-center text-center"
-        role="status"
-        aria-live="polite"
-        data-testid="thread-session-starting"
-      >
-        <Spinner className="size-5 text-info" aria-hidden="true" />
-        <Eyebrow className="mt-3 text-info">Starting session</Eyebrow>
-        <p className="mt-2 text-small-body text-muted">
-          The session is saved. CompozyOS is preparing {agentName} and will enable the composer when
-          the runtime is active.
-        </p>
-      </div>
-    </div>
+    <Empty
+      aria-live="polite"
+      className={STATE_PANE_FRAME}
+      data-testid="thread-session-starting"
+      description="Your session is saved. You can type once it's ready."
+      icon={<Spinner aria-hidden="true" className="size-3.75 text-info" />}
+      role="status"
+      size="compact"
+      title={`Getting ${agentName} ready…`}
+    />
   );
 }
 
@@ -119,19 +112,12 @@ function ThreadStartupFailure({
   agentName: string;
   failure: SessionFailurePayload;
 }) {
-  const detail = failure.summary?.trim() || "The session runtime did not become active.";
+  const detail = failure.summary?.trim() || "The agent didn't start.";
   return (
-    <div className={STATE_PANE_FRAME}>
-      <div
-        className="flex max-w-md flex-col items-center text-center"
-        role="alert"
-        data-testid="thread-session-startup-failure"
-      >
-        <Eyebrow className="text-danger">Session failed to start</Eyebrow>
-        <p className="mt-2 text-small-body text-muted">{detail}</p>
-        {RUNTIME_RECOVERY_FAILURE_KINDS.has(failure.kind) ? (
+    <Empty
+      action={
+        RUNTIME_RECOVERY_FAILURE_KINDS.has(failure.kind) ? (
           <Button
-            className="mt-4"
             nativeButton={false}
             render={
               <Link
@@ -143,42 +129,49 @@ function ThreadStartupFailure({
             size="sm"
             variant="outline"
           >
-            Review agent runtime
+            Check agent settings
           </Button>
-        ) : null}
-      </div>
-    </div>
+        ) : null
+      }
+      className={STATE_PANE_FRAME}
+      data-testid="thread-session-startup-failure"
+      description={detail}
+      icon={AlertCircle}
+      role="alert"
+      size="compact"
+      title={`${agentName} couldn't start`}
+    />
   );
 }
 
 /**
- * Retryable error pane — shown when the transcript fetch failed. Surfaces the provider
- * detail when present and keeps the recovery action wired to the transcript refetch.
+ * Retryable error pane — shown when the transcript fetch failed. The raw
+ * detail stays behind "Details"; the recovery action refetches the transcript.
  */
 function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
   const detail = formatMessageError(error);
   return (
-    <div className={STATE_PANE_FRAME}>
-      <div className="max-w-md text-center" role="alert" data-testid="thread-transcript-error">
-        <Eyebrow className="text-danger">Couldn&apos;t load this conversation</Eyebrow>
-        <p className="mt-2 text-small-body text-muted">
-          {detail ? (
-            <span data-testid="thread-transcript-error-detail">{detail}</span>
-          ) : (
-            "The transcript could not be loaded."
-          )}
-        </p>
+    <Empty
+      action={
         <Button
           type="button"
+          size="sm"
           variant="outline"
-          className="mt-4"
           onClick={onRetry}
           data-testid="thread-transcript-error-retry"
         >
-          Retry transcript
+          Try again
         </Button>
-      </div>
-    </div>
+      }
+      cause={detail ? <span data-testid="thread-transcript-error-detail">{detail}</span> : null}
+      className={STATE_PANE_FRAME}
+      data-testid="thread-transcript-error"
+      description="Your history is saved. Try again in a moment."
+      icon={AlertCircle}
+      role="alert"
+      size="compact"
+      title="Couldn't load this conversation"
+    />
   );
 }
 
@@ -189,37 +182,26 @@ function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => v
  */
 function ThreadSyncFailed({ attempts, onRetry }: { attempts: number; onRetry: () => void }) {
   return (
-    <div className={STATE_PANE_FRAME}>
-      <div
-        className="flex max-w-md flex-col items-center gap-2.5 text-center"
-        role="alert"
-        data-testid="thread-transcript-sync-failed"
-      >
-        <span
-          aria-hidden="true"
-          className="grid size-8.5 place-items-center rounded-md bg-canvas-soft text-subtle"
-        >
-          <WifiOff className="size-4" />
-        </span>
-        <p className="text-small-body font-medium text-fg-strong">
-          This conversation didn&apos;t sync
-        </p>
-        <p className="max-w-[44ch] text-eyebrow text-muted text-pretty">
-          Couldn&apos;t reach CompozyOS after {attempts} tries. Nothing here is lost — the history
-          is saved.
-        </p>
+    <Empty
+      action={
         <Button
           type="button"
           size="sm"
-          className="mt-1"
           onClick={onRetry}
           variant="outline"
           data-testid="thread-transcript-sync-failed-retry"
         >
           Try again
         </Button>
-      </div>
-    </div>
+      }
+      className={STATE_PANE_FRAME}
+      data-testid="thread-transcript-sync-failed"
+      description={`Couldn't connect after ${attempts} tries. Your history is saved.`}
+      icon={WifiOff}
+      role="alert"
+      size="compact"
+      title="This conversation didn't sync"
+    />
   );
 }
 

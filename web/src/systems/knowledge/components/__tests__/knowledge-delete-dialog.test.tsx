@@ -10,7 +10,7 @@ describe("KnowledgeDeleteDialog", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
-          filename="user.md"
+          name="User notes"
           isPending={false}
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}
@@ -22,11 +22,11 @@ describe("KnowledgeDeleteDialog", () => {
     expect(screen.queryByTestId("knowledge-delete-dialog")).not.toBeInTheDocument();
   });
 
-  it("Should render the filename and scope in the description when open", () => {
+  it("Should render the memory name and scope in the description when open", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
-          filename="project-context.md"
+          name="Project context"
           isPending={false}
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}
@@ -36,8 +36,8 @@ describe("KnowledgeDeleteDialog", () => {
       </UIProvider>
     );
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
-    expect(screen.getAllByText(/project-context\.md/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/workspace scope/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Project context/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Project knowledge/)).toBeInTheDocument();
   });
 
   it("Should call onConfirm when confirm is clicked", async () => {
@@ -46,7 +46,7 @@ describe("KnowledgeDeleteDialog", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
-          filename="user.md"
+          name="User notes"
           isPending={false}
           onConfirm={onConfirm}
           onOpenChange={vi.fn()}
@@ -55,18 +55,18 @@ describe("KnowledgeDeleteDialog", () => {
         />
       </UIProvider>
     );
-    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user.md");
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "User notes");
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
     expect(onConfirm).toHaveBeenCalled();
   });
 
-  it("Should block confirm until the filename is typed", async () => {
+  it("Should block confirm until the memory name is typed", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
-          filename="user.md"
+          name="User notes"
           isPending={false}
           onConfirm={onConfirm}
           onOpenChange={vi.fn()}
@@ -79,7 +79,7 @@ describe("KnowledgeDeleteDialog", () => {
     await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user");
     expect(screen.getByTestId("confirm-delete-memory-btn")).toBeDisabled();
     await user.clear(screen.getByTestId("knowledge-delete-confirm-typing"));
-    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user.md");
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "User notes");
     expect(screen.getByTestId("confirm-delete-memory-btn")).toBeEnabled();
   });
 
@@ -89,7 +89,7 @@ describe("KnowledgeDeleteDialog", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
-          filename="user.md"
+          name="User notes"
           isPending={false}
           onConfirm={vi.fn()}
           onOpenChange={onOpenChange}
@@ -109,7 +109,7 @@ describe("KnowledgeDeleteDialog", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
-          filename="user.md"
+          name="User notes"
           isPending
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}

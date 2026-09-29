@@ -12,7 +12,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeEditDi
     filename: "user.md",
     name: "operator-style",
     type: "user",
-    scope: "profile",
     initialContent: "# Initial content",
     initialDescription: "initial description",
     isPending: false,
@@ -57,11 +56,11 @@ describe("KnowledgeEditDialog", () => {
     renderDialog();
     const identity = screen.getByTestId("knowledge-edit-identity");
     expect(within(identity).getByText("operator-style")).toBeInTheDocument();
-    expect(within(identity).getByText("user")).toBeInTheDocument();
+    expect(within(identity).getByText("About you")).toBeInTheDocument();
     // A disabled input is forbidden as a data display, so neither field may exist
     // as a form control on the edit surface at all.
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Kind")).not.toBeInTheDocument();
   });
 
   it("Should disable the confirm button until content changes", () => {

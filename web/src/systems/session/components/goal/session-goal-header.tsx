@@ -1,4 +1,7 @@
-import { SessionDangerBanner } from "../session-danger-banner";
+import { TriangleAlert } from "lucide-react";
+
+import { Alert, AlertDescription, AlertTitle } from "@compozy/ui";
+
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 import { SessionGoalStrip } from "./session-goal-strip";
 
@@ -23,13 +26,17 @@ export function SessionGoalHeader({
 }: SessionGoalHeaderProps) {
   if (error) {
     return (
-      <SessionDangerBanner
-        data-testid="session-goal-header-error"
+      <Alert
+        aria-live="assertive"
         className="mx-1 mt-2 mb-1"
-        title="Goal status unavailable"
+        data-testid="session-goal-header-error"
+        role="alert"
+        variant="danger"
       >
-        <p className="text-transcript-body text-muted">{error.message}</p>
-      </SessionDangerBanner>
+        <TriangleAlert aria-hidden="true" className="size-3.5" />
+        <AlertTitle>Couldn't load the goal</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
     );
   }
   if (!snapshot) return null;

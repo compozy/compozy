@@ -19,6 +19,7 @@ import {
   shortcutBindingProblem,
   shortcutKeyGlyphs,
   shortcutMatches,
+  shortcutAriaKeys,
   shortcutLabel,
   SHORTCUT_RANGE_FAMILIES,
   type ShortcutActionDefinition,
@@ -117,6 +118,16 @@ describe("chord grammar [UT-062]", () => {
   it("Should render portable primary chords and compact range glyphs", () => {
     expect(shortcutLabel("meta+shift+KeyP", "control")).toBe("⌃⇧P");
     expect(shortcutLabel("control+Digit1..9")).toBe("⌃1–9");
+  });
+
+  it("Should project chords into aria-keyshortcuts syntax with the portable primary", () => {
+    expect(shortcutAriaKeys("meta+KeyK")).toBe("Meta+K");
+    expect(shortcutAriaKeys("meta+KeyK", "control")).toBe("Control+K");
+    expect(shortcutAriaKeys("meta+control+shift+BracketLeft", "control")).toBe(
+      "Meta+Control+Shift+["
+    );
+    expect(shortcutAriaKeys("alt+Digit3")).toBe("Alt+3");
+    expect(shortcutAriaKeys("KeyK")).toBe("");
   });
 
   it("Should expand range alternates and replace the whole touched family", () => {

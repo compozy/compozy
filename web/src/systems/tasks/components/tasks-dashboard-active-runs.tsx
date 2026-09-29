@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   formatAttemptLabel,
   formatDurationMs,
+  taskRunStatusLabel,
   taskRunStatusTone,
   taskStatusSignal,
 } from "../lib/task-formatters";
@@ -77,16 +78,16 @@ export function TasksDashboardActiveRuns({
                       </span>
                     ) : null}
                   </div>
-                  <span className="hidden shrink-0 font-mono text-mono-id tabular-nums text-muted md:inline">
-                    age {formatDurationMs(run.age_ms)}
+                  <span className="hidden shrink-0 text-form-label tabular-nums text-muted @xl:inline">
+                    for {formatDurationMs(run.age_ms)}
                   </span>
                   {attemptLabel ? (
-                    <span className="hidden shrink-0 font-mono text-mono-id tabular-nums text-muted lg:inline">
+                    <span className="hidden shrink-0 text-form-label tabular-nums text-muted @3xl:inline">
                       {attemptLabel}
                     </span>
                   ) : null}
                   <Pill size="sm" tone={taskRunStatusTone(run.run_status)}>
-                    {run.run_status}
+                    {taskRunStatusLabel(run.run_status)}
                   </Pill>
                   {run.stuck ? (
                     <Pill
@@ -94,7 +95,7 @@ export function TasksDashboardActiveRuns({
                       size="sm"
                       tone="danger"
                     >
-                      stuck
+                      Stuck
                     </Pill>
                   ) : null}
                   <ChevronRight

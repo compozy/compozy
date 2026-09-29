@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Spinner, Time } from "@compozy/ui";
+import { Button, cn, OwnerAvatar, Pill, PropertyRow, Time } from "@compozy/ui";
 
 import {
   computeElapsed,
@@ -26,9 +26,6 @@ export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div">
   profile?: TaskExecutionProfile | null;
   onEditSetup: () => void;
   onInspect: () => void;
-  onApprove: () => void;
-  onReject: () => void;
-  approvalPending?: { approve?: boolean; reject?: boolean };
   updatePending?: boolean;
   onPriorityChange: (priority: TaskPriority) => void;
   onAutoEnqueueChange: (enabled: boolean) => void;
@@ -36,8 +33,8 @@ export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div">
 
 /**
  * 320px properties rail: tier a/b fields only, grouped, with the sole
- * operator entry point (Inspect) in the footer. No lease, heartbeat, claim
- * hash, or seq here — those stay behind Inspect.
+ * operator entry point (Inspect) in the footer. Ids, lease, heartbeat, claim
+ * hash, and seq stay behind Inspect; approval lives in the window head.
  *
  * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.4
  */
@@ -47,9 +44,6 @@ export function TaskPropertiesRail({
   profile,
   onEditSetup,
   onInspect,
-  onApprove,
-  onReject,
-  approvalPending = {},
   updatePending = false,
   onPriorityChange,
   onAutoEnqueueChange,
@@ -57,7 +51,6 @@ export function TaskPropertiesRail({
   ...props
 }: TaskPropertiesRailProps) {
   const record = detail.task;
-  const activeRun = detail.summary?.active_run ?? null;
   const owner = record.owner ?? null;
   const ownerName = owner ? taskOwnerLabel(owner) : "Unassigned";
   const { worker, model } = taskExecutionProfileSummary(profile);
@@ -71,13 +64,6 @@ export function TaskPropertiesRail({
     >
       {/* Leads the rail: "what is this record, which run owns it" comes first. */}
       {record.loop ? <TaskLoopProvenance loop={record.loop} /> : null}
-
-      <TaskApprovalSection
-        record={record}
-        pending={approvalPending}
-        onApprove={onApprove}
-        onReject={onReject}
-      />
 
       <TaskRunHistorySections stuckRun={stuckRun} lastFailedRun={lastFailedRun} />
 
@@ -107,9 +93,6 @@ export function TaskPropertiesRail({
             <span className="text-muted">Unassigned</span>
           )}
         </PropertyRow>
-        {record.workspace_id ? (
-          <PropertyRow label="Workspace">{record.workspace_id}</PropertyRow>
-        ) : null}
         {record.parent_task_id ? (
           <PropertyRow
             editor={
@@ -158,7 +141,7 @@ export function TaskPropertiesRail({
               pending={updatePending}
             />
           }
-          label="Auto-enqueue"
+          label="Start automatically"
         />
       </RailSection>
 
@@ -175,17 +158,9 @@ export function TaskPropertiesRail({
           </PropertyRow>
         ) : null}
         <PropertyRow label="Created by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
-        <PropertyRow label="Task id" mono>
-          <MonoId value={record.id} />
-        </PropertyRow>
-        {activeRun ? (
-          <PropertyRow label="Run id" mono>
-            <MonoId value={activeRun.id} />
-          </PropertyRow>
-        ) : null}
       </RailSection>
 
-      <footer className="flex items-center justify-between gap-2 border-t border-line-soft px-3 py-2.5">
+      <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
           className="min-h-6"
           data-testid="tasks-rail-inspect"
@@ -197,66 +172,8 @@ export function TaskPropertiesRail({
           <Search aria-hidden="true" className="size-3" />
           Inspect
         </Button>
-        <span className="truncate font-mono text-micro text-faint">
-          compozy task inspect {record.id}
-        </span>
       </footer>
     </div>
-  );
-}
-
-function TaskApprovalSection({
-  record,
-  pending,
-  onApprove,
-  onReject,
-}: {
-  record: TaskDetailView["task"];
-  pending: NonNullable<TaskPropertiesRailProps["approvalPending"]>;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
-  const approvalBusy = Boolean(pending.approve || pending.reject);
-  return (
-    <>
-      {record.approval_state === "pending" ? (
-        <RailSection label="Approval">
-          <PropertyRow label="State">
-            <Pill.Dot tone="info" />
-            Pending
-          </PropertyRow>
-          <PropertyRow label="Requested by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <Button
-              aria-busy={pending.reject || undefined}
-              className="min-h-6"
-              data-testid="tasks-rail-reject"
-              disabled={approvalBusy}
-              onClick={onReject}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              {pending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {pending.reject ? "Rejecting…" : "Reject"}
-            </Button>
-            <Button
-              aria-busy={pending.approve || undefined}
-              className="min-h-6"
-              data-testid="tasks-rail-approve"
-              disabled={approvalBusy}
-              onClick={onApprove}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {pending.approve ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {pending.approve ? "Approving…" : "Approve"}
-            </Button>
-          </div>
-        </RailSection>
-      ) : null}
-    </>
   );
 }
 
@@ -273,7 +190,7 @@ function TaskRunHistorySections({
             {taskRunStatusLabel(stuckRun.status)}
           </PropertyRow>
           {stuckRun.claimed_by?.ref ? (
-            <PropertyRow label="Claimed by">
+            <PropertyRow label="Worked on by">
               <OwnerAvatar
                 name={stuckRun.claimed_by.ref}
                 ownerId={stuckRun.claimed_by.ref}
@@ -283,9 +200,6 @@ function TaskRunHistorySections({
               <span className="truncate">{stuckRun.claimed_by.ref}</span>
             </PropertyRow>
           ) : null}
-          <PropertyRow label="Run id" mono>
-            <MonoId value={stuckRun.id} />
-          </PropertyRow>
         </RailSection>
       ) : null}
 
@@ -302,9 +216,6 @@ function TaskRunHistorySections({
           ) : null}
           <PropertyRow label="Duration" mono>
             {computeElapsed(lastFailedRun) ?? "—"}
-          </PropertyRow>
-          <PropertyRow label="Run id" mono>
-            <MonoId value={lastFailedRun.id} />
           </PropertyRow>
         </RailSection>
       ) : null}

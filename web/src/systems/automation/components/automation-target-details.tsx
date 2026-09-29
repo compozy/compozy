@@ -36,7 +36,7 @@ export function AutomationTargetDetails({
           </dd>
         </div>
         <div>
-          <dt className="eyebrow text-muted">Workspace</dt>
+          <dt className="eyebrow text-muted">Project</dt>
           <dd className="mt-1 font-mono text-small-body text-fg">
             {target.workspaceId || "Not selected"}
           </dd>

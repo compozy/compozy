@@ -1,6 +1,4 @@
-import { AlertCircle } from "lucide-react";
-
-import { Button, Input, NativeSelect, NativeSelectOption, Spinner, Switch } from "@compozy/ui";
+import { Input, NativeSelect, NativeSelectOption, Switch } from "@compozy/ui";
 
 import { useSmoothStreamingPreference } from "@/systems/session";
 
@@ -8,6 +6,7 @@ import {
   SettingRow,
   SettingsGroup,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsSaveBar,
   useSettingsPersonaPage,
   useSettingsProviders,
@@ -47,20 +46,9 @@ export function DefaultsSettingsPage() {
     lastAppliedLabel: null,
   });
   const dependencyError = providers.error;
-  const dependencyErrorMessage =
-    dependencyError instanceof Error ? dependencyError.message : "Failed to load runtime options";
 
   if (page.isLoading || providers.isLoading) {
-    return (
-      <div
-        aria-label="Loading profile defaults"
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-defaults-loading"
-        role="status"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="defaults" state="loading" />;
   }
 
   if (
@@ -70,32 +58,22 @@ export function DefaultsSettingsPage() {
     page.draft === null
   ) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-defaults-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle aria-hidden="true" className="size-6 text-danger" />
-          <p className="text-small-body text-subtle">
-            {page.error?.message ?? dependencyErrorMessage}
-          </p>
-          <Button
-            onClick={() => {
-              page.handleRetry();
-              void providers.refetch();
-            }}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error ?? dependencyError}
+        onRetry={() => {
+          page.handleRetry();
+          void providers.refetch();
+        }}
+        slug="defaults"
+        state="error"
+      />
     );
   }
 
-  const providerNames = (providers.data?.providers ?? []).map(entry => entry.name);
+  const providerOptions = (providers.data?.providers ?? []).map(entry => ({
+    name: entry.name,
+    label: entry.settings?.display_name?.trim() || entry.name,
+  }));
   const { draft, setDraft } = page;
 
   return (
@@ -147,10 +125,10 @@ export function DefaultsSettingsPage() {
               }}
               value={draft.provider ?? ""}
             >
-              <NativeSelectOption value="">auto</NativeSelectOption>
-              {providerNames.map(name => (
-                <NativeSelectOption key={name} value={name}>
-                  {name}
+              <NativeSelectOption value="">Automatic (recommended)</NativeSelectOption>
+              {providerOptions.map(option => (
+                <NativeSelectOption key={option.name} value={option.name}>
+                  {option.label}
                 </NativeSelectOption>
               ))}
             </NativeSelect>

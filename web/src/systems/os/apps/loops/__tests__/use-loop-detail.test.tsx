@@ -144,7 +144,7 @@ describe("useLoopDetail", () => {
       workspaceId: "ws_default",
       name: "review-and-fix",
     });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Deleted workspace loop review-and-fix");
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("Deleted loop review-and-fix");
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/loops", replace: true });
   });
 

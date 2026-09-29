@@ -4,13 +4,17 @@ import type * as React from "react";
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   NativeSelect,
   NativeSelectOption,
-  Pill,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+  TopbarOverflowIcon,
   cn,
 } from "@compozy/ui";
 
@@ -21,34 +25,55 @@ import type {
   DesktopsOverviewState,
 } from "./desktops-overview";
 
-interface IconActionProps {
-  label: string;
-  disabled?: boolean;
-  destructive?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+interface DesktopActionsProps {
+  desktop: DesktopOverviewItem;
+  index: number;
+  count: number;
+  busy: boolean;
+  onRename: () => void;
+  onDelete: () => void;
+  onReorder: (order: number) => void;
 }
 
-function IconAction({ label, disabled, destructive = false, onClick, children }: IconActionProps) {
+/** One overflow menu per card instead of four always-visible icon buttons. */
+function DesktopActions({
+  desktop,
+  index,
+  count,
+  busy,
+  onRename,
+  onDelete,
+  onReorder,
+}: DesktopActionsProps) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            size="icon-sm"
-            className="size-11"
-            variant={destructive ? "destructive" : "ghost"}
-            aria-label={label}
-            disabled={disabled}
-            onClick={onClick}
-          />
-        }
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Actions for ${desktop.name}`}
+        disabled={busy}
+        render={<Button type="button" variant="ghost" size="icon-sm" />}
       >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onRename}>
+          <Pencil aria-hidden="true" />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={index === 0} onClick={() => onReorder(index - 1)}>
+          <ChevronLeft aria-hidden="true" />
+          Move left
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={index === count - 1} onClick={() => onReorder(index + 1)}>
+          <ChevronRight aria-hidden="true" />
+          Move right
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" disabled={count < 2} onClick={onDelete}>
+          <Trash2 aria-hidden="true" />
+          Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -176,32 +201,43 @@ function WindowRow({
   onMoveWindow: DesktopsOverviewProps["onMoveWindow"];
 }) {
   return (
-    <li className="flex min-w-0 items-center gap-2 border-t border-line-soft py-2 first:border-t-0">
+    <li className="group/desk-window flex min-w-0 items-center gap-2 border-t border-line-soft py-2 first:border-t-0">
       <span className="min-w-0 flex-1">
         <span className="block truncate text-form-label font-medium text-fg">{window.title}</span>
         {window.detail ? (
           <span className="block truncate text-form-hint text-subtle">{window.detail}</span>
         ) : null}
       </span>
-      <NativeSelect
-        size="sm"
-        className="[&>select]:h-11"
-        value={desktop.id}
-        disabled={busy || desktops.length < 2}
-        aria-label={`Move ${window.title} to another desktop`}
-        onChange={event => {
-          const destinationId = event.currentTarget.value;
-          if (destinationId !== desktop.id) {
-            onMoveWindow(window.id, desktop.id, destinationId);
-          }
-        }}
-      >
-        {desktops.map(option => (
-          <NativeSelectOption key={option.id} value={option.id}>
-            {option.name}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+      {desktops.length > 1 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`Move ${window.title} to another desktop`}
+            disabled={busy}
+            className={cn(
+              "opacity-0 transition-opacity duration-base group-hover/desk-window:opacity-100",
+              "group-focus-within/desk-window:opacity-100 aria-expanded:opacity-100 disabled:opacity-0"
+            )}
+            render={<Button type="button" variant="ghost" size="icon-sm" />}
+          >
+            <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Move to</DropdownMenuLabel>
+              {desktops.map(option =>
+                option.id === desktop.id ? null : (
+                  <DropdownMenuItem
+                    key={option.id}
+                    onClick={() => onMoveWindow(window.id, desktop.id, option.id)}
+                  >
+                    {option.name}
+                  </DropdownMenuItem>
+                )
+              )}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </li>
   );
 }
@@ -248,64 +284,36 @@ export function DesktopsOverviewGrid({
           <li
             key={desktop.id}
             data-current={active ? "true" : undefined}
+            aria-current={active ? "true" : undefined}
             className={cn(
               "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3",
-              active && "bg-row-selected shadow-inset-strong"
+              active && "bg-row-selected"
             )}
           >
             <div className="flex min-w-0 items-start gap-2">
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <h3 className="truncate text-item-title font-semibold text-fg-strong">
-                    {desktop.name}
-                  </h3>
-                  {active ? (
-                    <Pill size="xs" tone="neutral">
-                      Current
-                    </Pill>
-                  ) : null}
-                </div>
+                <h3 className="truncate text-item-title font-semibold text-fg-strong">
+                  {desktop.name}
+                </h3>
                 <p className="mt-0.5 text-form-hint text-subtle">
                   {windowCount} window{windowCount === 1 ? "" : "s"}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center">
-                <IconAction
-                  label={`Move ${desktop.name} left`}
-                  disabled={busy || index === 0}
-                  onClick={() => onReorderDesktop(desktop.id, index - 1)}
-                >
-                  <ChevronLeft aria-hidden="true" />
-                </IconAction>
-                <IconAction
-                  label={`Move ${desktop.name} right`}
-                  disabled={busy || index === state.desktops.length - 1}
-                  onClick={() => onReorderDesktop(desktop.id, index + 1)}
-                >
-                  <ChevronRight aria-hidden="true" />
-                </IconAction>
-                <IconAction
-                  label={`Rename ${desktop.name}`}
-                  disabled={busy}
-                  onClick={() => {
-                    setDeletingDesktopId(null);
-                    setEditingDesktopId(desktop.id);
-                  }}
-                >
-                  <Pencil aria-hidden="true" />
-                </IconAction>
-                <IconAction
-                  label={`Delete ${desktop.name}`}
-                  destructive
-                  disabled={busy || state.desktops.length < 2}
-                  onClick={() => {
-                    setEditingDesktopId(null);
-                    setDeletingDesktopId(desktop.id);
-                  }}
-                >
-                  <Trash2 aria-hidden="true" />
-                </IconAction>
-              </div>
+              <DesktopActions
+                desktop={desktop}
+                index={index}
+                count={state.desktops.length}
+                busy={busy}
+                onReorder={order => onReorderDesktop(desktop.id, order)}
+                onRename={() => {
+                  setDeletingDesktopId(null);
+                  setEditingDesktopId(desktop.id);
+                }}
+                onDelete={() => {
+                  setEditingDesktopId(null);
+                  setDeletingDesktopId(desktop.id);
+                }}
+              />
             </div>
 
             {editingDesktopId === desktop.id ? (

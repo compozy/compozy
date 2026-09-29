@@ -4,7 +4,6 @@ export const AGENT_SETTINGS_SECTIONS = [
   "instructions",
   "access",
   "mcp",
-  "danger",
 ] as const;
 
 export type AgentSettingsSection = (typeof AGENT_SETTINGS_SECTIONS)[number];
@@ -15,7 +14,8 @@ export interface AgentSettingsSearch {
 }
 
 export function validateAgentSettingsSearch(search: Record<string, unknown>): AgentSettingsSearch {
-  const value = search.section;
+  // `danger` was its own section until Delete moved to the bottom of Basics; old links land there.
+  const value = search.section === "danger" ? "basics" : search.section;
   const section =
     typeof value === "string" && (AGENT_SETTINGS_SECTIONS as readonly string[]).includes(value)
       ? (value as AgentSettingsSection)

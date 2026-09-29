@@ -71,10 +71,10 @@ describe("LoopRunsLocation", () => {
     const user = userEvent.setup();
     render(<LoopRunsLocation search={{ nodes: "waiting" }} />);
 
-    expect(screen.getByText("Unable to load node inventory")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load steps")).toBeInTheDocument();
     expect(screen.queryByText("Nothing is waiting")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Retry inventory" }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(inventoryRefetch).toHaveBeenCalledTimes(1);
   });
 
@@ -182,7 +182,7 @@ describe("LoopRunsLocation", () => {
 
     const notice = screen.getByTestId("loop-runs-degraded");
     expect(notice).toHaveAttribute("data-cause", "reconnecting");
-    expect(notice).toHaveTextContent("Reconnecting to the daemon.");
+    expect(notice).toHaveTextContent("Reconnecting to CompozyOS.");
     // The two causes stay mutually exclusive; the read-failed sentence is absent.
     expect(notice).not.toHaveTextContent("could not be read");
   });

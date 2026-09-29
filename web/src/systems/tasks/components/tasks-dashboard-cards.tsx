@@ -18,34 +18,40 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const activeRuns = active_runs.running;
   const activeDetail =
     [
-      active_runs.queued > 0 ? `${active_runs.queued} queued` : null,
-      active_runs.claimed > 0 ? `${active_runs.claimed} claimed` : null,
+      active_runs.queued > 0 ? `${active_runs.queued} waiting` : null,
+      active_runs.claimed > 0 ? `${active_runs.claimed} starting` : null,
     ]
       .filter(Boolean)
-      .join(" · ") || "idle";
+      .join(" · ") || "nothing else waiting";
 
   const successRate = computeSuccessRate(totals);
-  const avgDurationMs = cards.latency.claim_latency_ms.average_ms;
-  const avgDurationSamples = cards.latency.claim_latency_ms.samples;
-  const avgDurationDetail = avgDurationSamples > 0 ? `n=${avgDurationSamples}` : "no data";
+  // Claim latency: how long queued work waits before an agent picks it up. The
+  // dashboard read model carries no run-duration average, so the card names
+  // what it measures instead of calling it a duration.
+  const pickupMs = cards.latency.claim_latency_ms.average_ms;
+  const pickupSamples = cards.latency.claim_latency_ms.samples;
+  const pickupDetail =
+    pickupSamples > 0
+      ? `avg over ${pickupSamples} ${pickupSamples === 1 ? "run" : "runs"}`
+      : "no runs yet";
 
   const queueDepth = queue.total;
   const queueDetail = queue.backlog_warning
-    ? `oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
+    ? `oldest waiting ${formatDurationMs(queue.oldest_queue_age_ms)}`
     : queueDepth > 0
-      ? "queued"
-      : "drained";
+      ? "waiting to start"
+      : "nothing waiting";
 
   return (
     <div
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-4"
       data-testid="tasks-dashboard-cards"
     >
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-active-runs"
         subtext={activeDetail}
-        label="Active runs"
+        label="Running now"
         value={activeRuns}
       />
       <Metric
@@ -58,15 +64,15 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-average-duration"
-        subtext={avgDurationDetail}
-        label="Average duration"
-        value={formatDurationMs(avgDurationMs)}
+        subtext={pickupDetail}
+        label="Time to pick up"
+        value={pickupSamples > 0 ? formatDurationMs(pickupMs) : "--"}
       />
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-queue-depth"
         subtext={queueDetail}
-        label="Queue depth"
+        label="Waiting"
         value={queueDepth}
       />
     </div>

@@ -53,13 +53,14 @@ export function SessionStatusLine({
           <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" />
           <span
             data-testid="session-status-badge"
-            className={cn("font-mono text-eyebrow", sessionBadgeWordClass(badge))}
+            data-badge={signal.label}
+            className={cn("text-eyebrow", sessionBadgeWordClass(badge))}
           >
-            {signal.label}
+            {signal.displayLabel}
           </span>
         </>
       ) : (
-        <span className="sr-only">Session badge: {signal.label}</span>
+        <span className="sr-only">Session status: {signal.displayLabel}</span>
       )}
       {agentLabel ? (
         <>

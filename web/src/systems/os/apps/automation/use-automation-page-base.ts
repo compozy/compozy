@@ -44,12 +44,12 @@ export function automationUnavailableMessage(
 ): string | null {
   if (runtime && !runtime.available) {
     const noun = kind === "jobs" ? "Jobs" : "Triggers";
-    return `${noun} are unavailable because the automation runtime is disabled. Enable automation and restart CompozyOS before using this surface.`;
+    return `${noun} are turned off. Turn on automations in Settings, then restart CompozyOS.`;
   }
 
   if (error instanceof AutomationApiError && error.status === 503) {
     const noun = kind === "jobs" ? "jobs" : "triggers";
-    return `Automation runtime is unavailable, so ${noun} cannot be loaded.`;
+    return `CompozyOS couldn't load your ${noun} right now. Try again in a moment.`;
   }
 
   return null;

@@ -18,7 +18,7 @@ overlaps: ET-web-session-context-sidebar; ET-web-session-inspector-toggle
 
 1. Open a live session using `session_context_fixture.json`, send `reported`, and observe 35% and `89.7K / 256K` on hover and keyboard focus. The tooltip carries only those numbers: no `reported` chip and no `as of turn` line.
 2. Activate the control by Enter and by click. Both open Context and press the existing topbar toggle. Verify narrow composer wrapping preserves Send and attachments.
-3. Send `warning`: 88% uses warning tone and the tooltip says `Compaction runs at 85%`. The rail meter shows the `near compaction` chip and threshold tick without that sentence.
+3. Send `warning`: 88% uses warning tone and the tooltip says `CompozyOS summarizes older messages at 85% full`. The rail meter shows the `almost full` chip and threshold tick without that sentence.
 4. Verify unknown, first-read pending, catalog window, used-only, stale, stopped, over-capacity, and unavailable states. Catalog size has no compaction sentence; over-capacity keeps raw values and caps the arc; unavailable keeps last values.
 5. Confirm a later query supersedes the observation by ledger sequence; equal-sequence attribution still refreshes, and an explicit clear/reset removes retained context.
 

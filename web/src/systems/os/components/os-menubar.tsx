@@ -1,6 +1,17 @@
 import { Bell, ChevronsUpDown, Command, Settings } from "lucide-react";
 
-import { Icon, Logo, Menubar, MenubarTrigger } from "@compozy/ui";
+import {
+  Icon,
+  Kbd,
+  Logo,
+  Menubar,
+  MenubarTrigger,
+  PillCount,
+  StatusDot,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -24,7 +35,13 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * actually receive work — a missing one reverts the chip to the workspace so
    * the bar never advertises a scope that cannot run anything.
    */
-  workspace: { name: string; monogram: string; worktree?: string | null };
+  workspace: {
+    name: string;
+    monogram: string;
+    worktree?: string | null;
+    /** Scope problem (e.g. the worktree fell back); a warning dot marks the chip. */
+    warning?: string | null;
+  };
   /** Functional notice rendered outside `role="menu"` (e.g. scope fell back). */
   scopeNotice?: React.ReactNode;
   /** Composed `<MenubarMenu>` children rendered after the workspace chip. */
@@ -41,6 +58,8 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   onSettingsClick?: () => void;
   /** Live daemon binding for the command-palette chip. */
   commandShortcutLabel?: string;
+  /** The same binding in `aria-keyshortcuts` syntax; absent until the keymap is known. */
+  commandKeyShortcuts?: string;
   /** Renders the CompozyOS mark inside its system-menu owner (shell wiring). */
   logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Renders the workspace chip inside its menu owner (shell wiring). */
@@ -128,11 +147,21 @@ function MenuControl({ menu, className, children, ...props }: MenuControlProps) 
   );
 }
 
-function NotificationBadge({ count }: { count: number }) {
+/** Styled, keyboard-reachable hint for an icon-only control (never native `title`). */
+function ControlTooltip({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactElement;
+}) {
   return (
-    <span className="absolute top-0.5 right-0 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-1 font-mono text-micro font-bold text-accent-ink">
-      {count > 9 ? "9+" : count}
-    </span>
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="bottom" className="flex items-center gap-2">
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -146,6 +175,7 @@ export function OsMenuBar({
   onCommandClick,
   onSettingsClick,
   commandShortcutLabel,
+  commandKeyShortcuts,
   logoMenu,
   workspaceMenu,
   scopeControl,
@@ -190,6 +220,14 @@ export function OsMenuBar({
           </span>
         </>
       ) : null}
+      {workspace.warning ? (
+        <StatusDot
+          tone="warning"
+          size="sm"
+          label={workspace.warning}
+          data-slot="os-menubar-warning"
+        />
+      ) : null}
       <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
     </MenuControl>
   );
@@ -224,7 +262,7 @@ export function OsMenuBar({
             )}
             {scopeControl}
             {wrapMenus ? (
-              <Menubar aria-label="Workspace" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar aria-label="Project" className={cn("gap-1", WINDOW_NO_DRAG)}>
                 {workspaceControl}
               </Menubar>
             ) : (
@@ -242,7 +280,7 @@ export function OsMenuBar({
           ) : null}
         </div>
 
-        <div className={cn("flex items-center gap-2", WINDOW_NO_DRAG)}>
+        <div className={cn("flex items-center gap-1", WINDOW_NO_DRAG)}>
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
               not a menu item, and nesting it there breaks the menu's semantics. */}
           {scopeNotice}
@@ -256,32 +294,42 @@ export function OsMenuBar({
             wrap={wrapBellTrigger}
           >
             <Icon as={Bell} size="lg" />
-            {notifications ? <NotificationBadge count={notifications} /> : null}
+            {notifications ? (
+              <PillCount count={notifications} className="absolute top-0.5 right-0" />
+            ) : null}
           </Control>
-          <Control
-            data-slot="os-menubar-command"
-            aria-label="Command palette"
-            title={
-              commandShortcutLabel ? `Command palette · ${commandShortcutLabel}` : "Command palette"
+          <ControlTooltip
+            label={
+              <>
+                Command palette
+                {commandShortcutLabel ? <Kbd>{commandShortcutLabel}</Kbd> : null}
+              </>
             }
-            className="grid size-7 place-items-center rounded-md text-muted"
-            onClick={onCommandClick}
           >
-            <Icon as={Command} size="lg" />
-          </Control>
+            <Control
+              data-slot="os-menubar-command"
+              aria-label="Command palette"
+              aria-keyshortcuts={commandKeyShortcuts || undefined}
+              className="grid size-7 place-items-center rounded-md text-muted"
+              onClick={onCommandClick}
+            >
+              <Icon as={Command} size="lg" />
+            </Control>
+          </ControlTooltip>
           {/* The conventional profile-selector position: last thing before
               Settings, and outside every `role="menubar"` subtree so its popover
               keeps its own semantics. */}
           {profileSwitcher}
-          <Control
-            data-slot="os-menubar-settings"
-            aria-label="Settings"
-            title="Settings"
-            className="grid size-7 place-items-center rounded-md text-muted"
-            onClick={onSettingsClick}
-          >
-            <Icon as={Settings} size="lg" />
-          </Control>
+          <ControlTooltip label="Settings">
+            <Control
+              data-slot="os-menubar-settings"
+              aria-label="Settings"
+              className="grid size-7 place-items-center rounded-md text-muted"
+              onClick={onSettingsClick}
+            >
+              <Icon as={Settings} size="lg" />
+            </Control>
+          </ControlTooltip>
         </div>
       </div>
     </header>

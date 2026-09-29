@@ -61,7 +61,7 @@ export function OptionCardTitle({ className, children, ...props }: React.Compone
   return (
     <p
       data-slot="option-card-title"
-      className={cn("text-sm font-medium text-fg", className)}
+      className={cn("text-small-body font-medium text-fg", className)}
       {...props}
     >
       {children}
@@ -78,7 +78,7 @@ export function OptionCardDescription({
   return (
     <p
       data-slot="option-card-description"
-      className={cn("mt-1 text-sm leading-6 text-muted", className)}
+      className={cn("mt-1 text-small-body text-muted", className)}
       {...props}
     >
       {children}

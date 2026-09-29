@@ -273,22 +273,29 @@ function renderTimelineRows(rows: readonly SessionRow[]): ReactNode {
 }
 
 const GOAL_PROMPT_LABELS: Record<GoalPromptMeta["kind"], string> = {
-  "goal-work": "Goal work",
-  "goal-continuation": "Goal continuation",
-  "goal-compaction": "Goal compaction",
+  "goal-work": "Working on goal",
+  "goal-continuation": "Working on goal",
+  "goal-compaction": "Tidying up goal notes",
 };
 
-// `.marker--goal` — the goal prompt as one quiet marker line, mono meta for
-// the node/generation facts, the run link in `--info`.
+// `.marker--goal` — the goal prompt as one quiet marker line: a plain step
+// fact, the run link in `--info`. Node and generation stay on data attributes.
 function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
-  const turn = goal.turn === null ? "" : ` · turn ${goal.turn}`;
   return (
-    <Marker data-testid="goal-prompt-meta" tone="info" icon={<Target strokeWidth={1.8} />}>
+    <Marker
+      data-testid="goal-prompt-meta"
+      data-goal-kind={goal.kind}
+      data-goal-node={goal.node_id}
+      data-goal-generation={goal.generation}
+      tone="info"
+      icon={<Target strokeWidth={1.8} />}
+    >
       <b>{GOAL_PROMPT_LABELS[goal.kind]}</b>{" "}
-      <MarkerMeta>
-        {goal.node_id} · generation {goal.generation}
-        {turn}
-      </MarkerMeta>{" "}
+      {goal.turn === null ? null : (
+        <>
+          <MarkerMeta>step {goal.turn}</MarkerMeta>{" "}
+        </>
+      )}
       <Link
         className="text-info transition-colors hover:underline hover:underline-offset-2"
         params={{ runId: goal.run_id }}

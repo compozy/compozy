@@ -21,6 +21,7 @@ import {
   useKnownTerminalTitle,
 } from "@/systems/terminal/parts";
 
+import { toolAskPhrase } from "../lib/tool-labels";
 import { usePermissionDock } from "../hooks/use-permission-dock";
 import { useSession } from "../hooks/use-sessions";
 import type { PermissionDecision } from "../adapters/session-api";
@@ -68,7 +69,7 @@ export function PermissionDock({
     onResolved,
     blockedDecisions,
   });
-  const session = useSession(terminalDetail ? sessionId : "");
+  const session = useSession(sessionId);
   const agentName = session.data?.agent_name?.trim() || "The agent";
   const catalogTitle = useKnownTerminalTitle(
     workspaceId,
@@ -83,7 +84,12 @@ export function PermissionDock({
   const irreversible = terminalDetail?.kind === "exec" && terminalDetail.risk === "irreversible";
 
   return (
-    <Dock data-testid="permission-dock" role="region" aria-label="Permission required">
+    <Dock
+      data-testid="permission-dock"
+      data-permission-action={permission.action || undefined}
+      role="region"
+      aria-label="Permission required"
+    >
       <PermissionDockHead
         agentName={agentName}
         catalogTitle={catalogTitle}
@@ -125,17 +131,25 @@ function PermissionDockHead({
 }) {
   return (
     <Dock.Head>
-      <Dock.Eyebrow data-testid="permission-dock-eyebrow">Permission</Dock.Eyebrow>
-      <Dock.Title data-testid="permission-dock-title">
+      <Dock.Eyebrow data-testid="permission-dock-eyebrow">Needs your OK</Dock.Eyebrow>
+      <Dock.Title data-testid="permission-dock-title" title={permission.toolId ?? undefined}>
         {terminalDetail
           ? terminalAskTitle(terminalDetail, agentName, catalogTitle)
-          : permission.toolName}
+          : genericAskTitle(permission.toolName, agentName)}
       </Dock.Title>
       {countLabel ? (
         <Dock.Count data-testid="permission-dock-count">{countLabel}</Dock.Count>
       ) : null}
     </Dock.Head>
   );
+}
+
+/** "Allow Claude to edit file?" for known or raw tool ids; a readable runtime title leads as is. */
+function genericAskTitle(toolName: string, agentName: string): string {
+  const phrase = toolAskPhrase(toolName);
+  if (phrase === null) return toolName;
+  const subject = agentName === "The agent" ? "the agent" : agentName;
+  return `Allow ${subject} to ${phrase}?`;
 }
 
 function PermissionDockBody({
@@ -153,11 +167,10 @@ function PermissionDockBody({
       ) : subject ? (
         <Dock.Pre data-testid="permission-dock-subject">{subject}</Dock.Pre>
       ) : null}
-      {!terminalDetail && (permission.action || permission.resource) ? (
+      {/* The protocol action rides on the dock's data-permission-action; only the resource is shown. */}
+      {!terminalDetail && permission.resource ? (
         <Dock.Meta data-testid="permission-dock-meta">
-          {permission.action}
-          {permission.action && permission.resource ? " · " : ""}
-          {permission.resource ? <code>{permission.resource}</code> : null}
+          <code>{permission.resource}</code>
         </Dock.Meta>
       ) : null}
     </Dock.Body>
@@ -200,7 +213,6 @@ function PermissionDockActions({
         isSubmitting={isSubmitting}
         offersRejectAlways={offersRejectAlways}
         offersRejectOnce={offersRejectOnce}
-        terminalDetail={terminalDetail}
       />
     </Dock.Actions>
   );
@@ -261,11 +273,9 @@ function PermissionRejectActions({
   isSubmitting,
   offersRejectAlways,
   offersRejectOnce,
-  terminalDetail,
 }: PermissionActionProps & {
   offersRejectAlways: boolean;
   offersRejectOnce: boolean;
-  terminalDetail: ReturnType<typeof terminalPermissionDetail>;
 }) {
   if (!offersRejectOnce) {
     return offersRejectAlways ? (
@@ -276,7 +286,7 @@ function PermissionRejectActions({
         onClick={() => decide("reject-always")}
         data-testid="permission-reject-always"
       >
-        {terminalDetail ? "Never allow" : "Reject always"}
+        Never allow
         <Dock.Key>4</Dock.Key>
       </Button>
     ) : null;
@@ -291,7 +301,7 @@ function PermissionRejectActions({
         onClick={() => decide("reject-once")}
         data-testid="permission-reject-once"
       >
-        {terminalDetail ? terminalRejectOnceLabel() : "Reject"}
+        {terminalRejectOnceLabel()}
         <Dock.Key>3</Dock.Key>
       </Button>
       {offersRejectAlways ? (
@@ -320,7 +330,7 @@ function PermissionRejectActions({
               onClick={() => decide("reject-always")}
               variant="destructive"
             >
-              {terminalDetail ? "Never allow" : "Reject always"}
+              Never allow
               <DropdownMenuShortcut>4</DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuContent>

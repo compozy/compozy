@@ -52,7 +52,7 @@ export function describeSessionContextChip(
   if (context.state === "unavailable")
     return { label: "unavailable", tone: "neutral", form: "hollow" };
   if (context.stale) return { label: "stale", tone: "warning", form: "tint" };
-  if (context.warning) return { label: "near compaction", tone: "warning", form: "tint" };
+  if (context.warning) return { label: "almost full", tone: "warning", form: "tint" };
   if (context.state === "estimated_size")
     return { label: "estimated size", tone: "neutral", form: "tint" };
   return undefined;
@@ -91,7 +91,9 @@ function amountLabel(used: number, size: number | null | undefined): string {
 
 function compactionPolicy(context: SessionContextView): string | undefined {
   const threshold = agentThreshold(context);
-  return threshold == null ? undefined : `Compaction runs at ${formatContextPercent(threshold)}`;
+  return threshold == null
+    ? undefined
+    : `CompozyOS summarizes older messages at ${formatContextPercent(threshold)} full`;
 }
 
 /** The threshold only means something against an agent-reported window. */
@@ -129,7 +131,7 @@ function tooltipRows(
   if (!unavailable && context.stale) rows.push({ kind: "stale" });
   if (unavailable) rows.push({ kind: "sentence", text: "Usage unavailable" });
   if (context.size_source === "catalog") {
-    rows.push({ kind: "sentence", text: "Window from model catalog." });
+    rows.push({ kind: "sentence", text: "Size from the model's specs." });
   }
   const policy = compactionPolicy(context);
   if (context.warning && policy) rows.push({ kind: "policy", text: policy });

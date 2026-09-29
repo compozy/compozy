@@ -1,7 +1,7 @@
 import { AlertCircle, ArrowRightLeft } from "lucide-react";
 import { type ReactNode, use } from "react";
 
-import { Button, Marker, MarkerMeta } from "@compozy/ui";
+import { Button, HelpTip, Marker, MarkerMeta } from "@compozy/ui";
 
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { formatMessageTimestamp } from "../lib/format-timestamp";
@@ -21,11 +21,14 @@ const PROVIDER_STATUS_CLI_HINT = "compozy provider auth status <provider> --remo
 const PROVIDER_ERROR_NEXT_STEP: Record<ProviderErrorView["nextAction"], ReactNode> = {
   login: (
     <>
-      Sign in with the provider CLI, run{" "}
-      <code className="font-mono" data-testid="provider-error-command">
-        {PROVIDER_STATUS_CLI_HINT}
-      </code>{" "}
-      to confirm through the daemon, then send your message again.
+      Sign in to the provider again, then send your message again.{" "}
+      <HelpTip label="How to check sign-in" className="align-middle">
+        To check from a terminal, run{" "}
+        <code className="font-mono" data-testid="provider-error-command">
+          {PROVIDER_STATUS_CLI_HINT}
+        </code>
+        .
+      </HelpTip>
     </>
   ),
   bind_secret:

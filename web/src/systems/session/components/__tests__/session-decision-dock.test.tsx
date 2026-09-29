@@ -258,7 +258,7 @@ describe("SessionDecisionDock", () => {
 
     expect(screen.queryByTestId("terminal-typing-grant-detail")).not.toBeInTheDocument();
     expect(screen.getByTestId("permission-dock-title")).toHaveTextContent(
-      "compozy__terminal_write"
+      "Allow the agent to type in terminal?"
     );
     expect(screen.getByTestId("permission-allow-always")).toHaveTextContent("Always allow");
   });
@@ -267,8 +267,11 @@ describe("SessionDecisionDock", () => {
     renderDock({ messages: [permissionMessage("req-1")] });
 
     expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
-    expect(screen.getByTestId("permission-dock-eyebrow")).toHaveTextContent("Permission");
-    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Bash");
+    expect(screen.getByTestId("permission-dock-eyebrow")).toHaveTextContent("Needs your OK");
+    // A known tool reads as a plain question, never its raw id.
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent(
+      "Allow the agent to run command?"
+    );
     expect(screen.getByTestId("permission-dock-subject")).toHaveTextContent("rm -rf /tmp/test");
     expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
     expect(screen.getByTestId("permission-allow-always")).toBeInTheDocument();
@@ -286,7 +289,7 @@ describe("SessionDecisionDock", () => {
     renderDock({ messages: [partialTranscript], liveMessages: [livePermission] });
 
     expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
-    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Bash");
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("run command?");
   });
 
   it("Should not dock a permission the transcript already resolved", () => {
@@ -475,7 +478,7 @@ describe("SessionDecisionDock", () => {
     await user.click(screen.getByTestId("permission-allow-once"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Write");
+      expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("write file?");
     });
     expect(screen.queryByTestId("permission-dock-count")).not.toBeInTheDocument();
   });

@@ -2,12 +2,13 @@ import type { ComponentProps } from "react";
 import { GitFork } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { cn, Pill } from "@compozy/ui";
-
-import { LOOP_FORK_SIGNAL } from "../../lib/loop-request-vocabulary";
 import type { LoopForkLink } from "../../types";
+import { LoopSection } from "../loop-section";
 
-export interface LoopRunLineageSectionProps extends Omit<ComponentProps<"div">, "children"> {
+export interface LoopRunLineageSectionProps extends Omit<
+  ComponentProps<typeof LoopSection>,
+  "children" | "icon" | "title"
+> {
   forkedFrom: LoopForkLink | null;
   forks: readonly { run_id: string; generation: number }[];
 }
@@ -19,46 +20,37 @@ interface LineageRowProps {
   testId: string;
 }
 
-const ForkGlyph = LOOP_FORK_SIGNAL.icon;
-
 function LineageRow({ generation, lead, runId, testId }: LineageRowProps) {
   return (
     <li
       className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line-soft py-2 first:border-t-0 first:pt-0"
       data-testid={testId}
     >
-      <Pill size="sm" tone={LOOP_FORK_SIGNAL.tone}>
-        <ForkGlyph aria-hidden="true" />
-        {LOOP_FORK_SIGNAL.word}
-      </Pill>
+      <GitFork aria-hidden="true" className="size-3 shrink-0 text-subtle" />
       <span className="text-small-body text-fg">{lead}</span>
       {/* The fork point is only useful if it goes somewhere: US-009.EC-3 asks
           the story to link the related run, not merely to name it. */}
       <Link
-        className="font-mono text-mono-id tabular-nums text-info hover:text-fg-strong"
+        className="font-mono text-mono-id tabular-nums text-fg underline-offset-3 hover:underline"
         params={{ runId }}
         to="/loop-runs/$runId"
       >
         {runId}
       </Link>
-      <span className="text-small-body text-muted">{`· generation ${generation}`}</span>
+      <span className="text-small-body text-muted">{`· round ${generation}`}</span>
     </li>
   );
 }
 
-export function LoopRunLineageSection({
-  forkedFrom,
-  forks,
-  className,
-  ...props
-}: LoopRunLineageSectionProps) {
+export function LoopRunLineageSection({ forkedFrom, forks, ...props }: LoopRunLineageSectionProps) {
   if (!forkedFrom && forks.length === 0) return null;
   return (
-    <div className={cn(className)} data-testid="loop-run-lineage" {...props}>
-      <div className="mb-2 flex items-center gap-1.5 text-subtle">
-        <GitFork aria-hidden="true" className="size-3" />
-        <h3 className="eyebrow text-subtle">Lineage</h3>
-      </div>
+    <LoopSection
+      data-testid="loop-run-lineage"
+      icon={<GitFork aria-hidden="true" />}
+      title="Lineage"
+      {...props}
+    >
       <ul className="flex flex-col">
         {forkedFrom ? (
           <LineageRow
@@ -78,6 +70,6 @@ export function LoopRunLineageSection({
           />
         ))}
       </ul>
-    </div>
+    </LoopSection>
   );
 }

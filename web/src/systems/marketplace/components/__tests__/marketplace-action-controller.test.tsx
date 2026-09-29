@@ -355,7 +355,7 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Run 0" }));
     await screen.findByRole("heading", { name: "Install scoped-kit" });
     expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
-      "Current workspace · marketing"
+      "This project · marketing"
     );
     expect(io.preview).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -370,7 +370,7 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Run 0" }));
     await screen.findByRole("heading", { name: "Install scoped-kit" });
     expect(screen.getByTestId("extension-install-destination")).toHaveTextContent(
-      "Current workspace · consulting"
+      "This project · consulting"
     );
     expect(screen.getByLabelText("Access token")).toHaveValue("");
     await user.type(screen.getByLabelText("Access token"), "current-draft");

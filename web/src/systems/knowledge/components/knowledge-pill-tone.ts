@@ -1,31 +1,11 @@
 import type { PillTone } from "@compozy/ui";
 
-import type { KnowledgeTone } from "../lib/knowledge-formatters";
-import type { MemoryDecisionOp, MemoryDecisionSource } from "../types";
+import type { MemoryDecisionOp } from "../types";
 
 /**
- * Scope-only tone mapper (retune dropped accent on memory types;
- * type tones now flow through `KNOWLEDGE_TYPE_TONE`). Any future tone leak
- * back into types should add a new entry to `KNOWLEDGE_TYPE_TONE` rather than
- * here.
+ * Decision ops are the only knowledge signal that carries a tone; scopes,
+ * tiers, and types render neutral because they are not states.
  */
-export function pillToneFromKnowledgeTone(tone: KnowledgeTone): PillTone {
-  switch (tone) {
-    case "workspace":
-    case "reference":
-      return "info";
-    case "agent":
-      return "warning";
-    case "project":
-      return "info";
-    case "profile":
-    case "user":
-    case "feedback":
-    default:
-      return "neutral";
-  }
-}
-
 export function pillToneFromDecisionOp(op: MemoryDecisionOp): PillTone {
   switch (op) {
     case "add":
@@ -40,8 +20,4 @@ export function pillToneFromDecisionOp(op: MemoryDecisionOp): PillTone {
     default:
       return "neutral";
   }
-}
-
-export function pillToneFromDecisionSource(source: MemoryDecisionSource): PillTone {
-  return source === "llm" ? "info" : "neutral";
 }

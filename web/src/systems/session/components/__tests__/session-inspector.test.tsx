@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import { userEvent } from "@testing-library/user-event";
@@ -63,6 +63,9 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
 
     expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
+    // Cost and total lead; the in/out/cache split ships folded.
+    expect(screen.queryByTestId("session-inspector-usage-tokens-in")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("session-inspector-usage-breakdown-toggle"));
     expect(screen.getByTestId("session-inspector-usage-tokens-in")).toHaveTextContent("128,400");
     expect(screen.getByTestId("session-inspector-usage-tokens-out")).toHaveTextContent("24,900");
     expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
@@ -111,6 +114,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("Included");
+    fireEvent.click(screen.getByTestId("session-inspector-usage-breakdown-toggle"));
     expect(screen.getByTestId("session-inspector-usage-tokens-in")).toHaveTextContent("—");
     expect(screen.queryByTestId("session-inspector-usage-turns")).not.toBeInTheDocument();
   });
@@ -179,6 +183,7 @@ describe("SessionInspector — Usage tab cost provenance (W4)", () => {
     const cell = screen.getByTestId("session-inspector-usage-cost");
     expect(cell).toHaveTextContent("Included");
     expect(cell).not.toHaveTextContent("$");
+    fireEvent.click(screen.getByTestId("session-inspector-usage-breakdown-toggle"));
     expect(screen.getByTestId("session-inspector-usage-tokens-in")).toHaveTextContent("128,400");
     expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
   });
@@ -227,7 +232,7 @@ describe("Session context", () => {
     expect(meter).toHaveTextContent("35%");
     expect(meter).not.toHaveTextContent("reported");
     expect(meter).not.toHaveTextContent("as of turn");
-    expect(meter).not.toHaveTextContent("Compaction runs at");
+    expect(meter).not.toHaveTextContent("summarizes older messages");
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(document.querySelector('[data-testid^="session-inspector-tab-"]')).toBeNull();
     expect(screen.getByTestId("session-inspector").children).toHaveLength(5);
@@ -266,7 +271,7 @@ describe("Session context", () => {
         pressure_threshold: undefined,
       } as SessionContextPayload,
       label: "Context 35% used",
-      copy: "Window from model catalog.",
+      copy: "Size from the model's specs.",
     },
   ])(
     "Should render $label without inventing context or a compaction policy",
@@ -275,7 +280,7 @@ describe("Session context", () => {
       render(<SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />);
       await user.hover(screen.getByRole("button", { name: label }));
       expect(await screen.findByRole("tooltip")).toHaveTextContent(copy);
-      expect(screen.getByRole("tooltip")).not.toHaveTextContent("Compaction runs at");
+      expect(screen.getByRole("tooltip")).not.toHaveTextContent("summarizes older messages");
       if (context.used == null) expect(screen.getByRole("button")).not.toHaveTextContent("0%");
     }
   );
@@ -291,8 +296,10 @@ describe("Session context", () => {
     render(<SessionContextControl context={context} onOpen={vi.fn()} />);
     await user.hover(screen.getByRole("button"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent("110% · 281.6K / 256K");
-    expect(screen.getByRole("tooltip")).toHaveTextContent("stale");
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Compaction runs at 85%");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Updated a while ago");
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "CompozyOS summarizes older messages at 85% full"
+    );
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "stroke-dasharray",
       "1 1"
@@ -352,7 +359,7 @@ describe("Session context", () => {
     expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("No context report");
     await user.click(screen.getByRole("button", { name: /CompozyOS context/ }));
     expect(screen.getByTestId("session-context-injected")).toHaveTextContent(
-      "No window reported, so there is nothing to draw the rows against."
+      "The agent hasn't said how much it can hold, so there is nothing to compare these against."
     );
     const rows = screen.getAllByTestId("session-context-injected-row");
     expect(rows).toHaveLength(4);
@@ -382,6 +389,7 @@ describe("Session context", () => {
     );
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("unavailable");
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("89.7K");
+    await user.click(screen.getByTestId("session-inspector-usage-breakdown-toggle"));
     expect(screen.getByTestId("session-inspector-usage")).toHaveTextContent("Cache read");
     expect(screen.getByTestId("session-inspector-usage")).toHaveTextContent("Cache write");
     rerender(<SessionInspector context={deriveSessionContext(undefined, { unavailable: true })} />);
@@ -475,7 +483,7 @@ describe("Fable context surface corrections", () => {
     expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
   });
 
-  it("Should use the meter empty copy and show near compaction only with eligible pressure", () => {
+  it("Should use the meter empty copy and show almost full only with eligible pressure", () => {
     const { rerender } = render(<SessionInspector />);
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("No context report yet");
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
@@ -486,8 +494,10 @@ describe("Fable context surface corrections", () => {
         context={deriveSessionContext({ ...sessionContextFixture, ratio: 0.88, used: 225_280 })}
       />
     );
-    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("near compaction");
-    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("Compaction runs at");
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("almost full");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent(
+      "summarizes older messages"
+    );
     rerender(
       <SessionInspector
         context={deriveSessionContext({
@@ -499,7 +509,7 @@ describe("Fable context surface corrections", () => {
         })}
       />
     );
-    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("near compaction");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("almost full");
   });
 
   it("Should show reported per-turn cost and currency while preserving the empty cost cell", () => {

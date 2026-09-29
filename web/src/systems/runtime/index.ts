@@ -1,13 +1,4 @@
 export {
-  RuntimeConnectionIndicator,
-  type RuntimeConnectionIndicatorProps,
-} from "./components/connection-indicator";
-export {
-  resolveRuntimeConnectionState,
-  type RuntimeConnectionIndicatorState,
-  type RuntimeConnectionTone,
-} from "./components/connection-indicator.logic";
-export {
   REASONING_EFFORT_ORDER,
   modelSupportsFast,
   modelSupportsReasoningEffort,

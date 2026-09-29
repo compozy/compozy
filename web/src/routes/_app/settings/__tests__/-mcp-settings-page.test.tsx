@@ -103,8 +103,10 @@ describe("MCP Settings page", () => {
     );
     await openSettings();
     expect(screen.getByRole("button", { name: "Select github" })).toBeVisible();
-    expect(screen.getByText("runs as github.github")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Select github from github" }));
+    expect(screen.getByTestId("settings-page-mcp-selection-provenance")).toHaveTextContent(
+      "agents see it as github.github"
+    );
     expect(screen.queryByTestId("settings-page-mcp-selection-delete")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit github from github" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit configuration · github" });

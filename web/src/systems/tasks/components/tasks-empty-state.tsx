@@ -1,4 +1,4 @@
-import { Copy, ListChecks, RefreshCcw, UserCheck, Zap } from "lucide-react";
+import { ListChecks, RefreshCcw, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyPanel, CatalogEmptyState } from "@/components/catalog-empty-state";
@@ -14,13 +14,13 @@ interface TemplateSlot {
 }
 
 /**
- * Curated zero-inventory templates — `accent / info / warning / neutral`
- * only. Five template definitions remain available to the editor.
+ * Curated zero-inventory templates. Tones stay neutral — the icons carry the
+ * distinction. Five template definitions remain available to the editor.
  */
 const TEMPLATE_SLOTS: TemplateSlot[] = [
-  { id: "one_shot", tone: "accent", icon: <Zap className="size-3.5" /> },
-  { id: "recurring", tone: "info", icon: <RefreshCcw className="size-3.5" /> },
-  { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-3.5" /> },
+  { id: "one_shot", tone: "neutral", icon: <Zap className="size-3.5" /> },
+  { id: "recurring", tone: "neutral", icon: <RefreshCcw className="size-3.5" /> },
+  { id: "human_in_loop", tone: "neutral", icon: <UserCheck className="size-3.5" /> },
 ];
 
 export interface TasksEmptyStateProps {
@@ -31,27 +31,27 @@ export interface TasksEmptyStateProps {
    */
   profileScopeLabel?: string | null;
   onSelectTemplate: (templateId: TaskTemplateId) => void;
-  onCopyCli?: () => void;
 }
 
 function templateFacts(template: TaskTemplate): string {
   const parts: string[] = [];
   if (template.defaults.priority) {
-    parts.push(`priority ${template.defaults.priority}`);
+    const priority = template.defaults.priority;
+    parts.push(`${priority.charAt(0).toUpperCase()}${priority.slice(1)} priority`);
   }
   if (template.defaults.max_attempts != null) {
     const attempts = template.defaults.max_attempts;
     parts.push(`${attempts} attempt${attempts === 1 ? "" : "s"}`);
   }
   if (template.defaults.approval_policy === "manual") {
-    parts.push("approval manual");
+    parts.push("Needs your approval");
   }
   if (template.defaults.draft) {
-    parts.push("saves as draft");
+    parts.push("Saved as a draft");
   }
   parts.push(...(template.preview.facts ?? []));
   if (template.preview.enqueueOnSubmit) {
-    parts.push("enqueues on submit");
+    parts.push("Starts when created");
   }
   return parts.join(" · ");
 }
@@ -64,7 +64,6 @@ export function TasksEmptyState({
   workspaceName,
   profileScopeLabel,
   onSelectTemplate,
-  onCopyCli,
 }: TasksEmptyStateProps) {
   // The profile axis is the narrower question, so it wins when it is known: an
   // operator in Marketing is being told this project is empty for Marketing, and
@@ -87,7 +86,7 @@ export function TasksEmptyState({
           type="button"
           variant="neutral"
         >
-          Blank task
+          Start from scratch
         </Button>
       }
       data-testid="tasks-empty-state"
@@ -97,31 +96,8 @@ export function TasksEmptyState({
           aria-label="Task templates"
           count={TEMPLATE_SLOTS.length}
           data-testid="tasks-empty-templates"
-          footer={
-            <>
-              <span>
-                Or run{" "}
-                <code className="rounded-mono-badge bg-badge-fill px-1.5 py-px font-mono text-mono-id text-muted">
-                  compozy task create --scope workspace --title &quot;Your task&quot;
-                </code>{" "}
-                from a session.
-              </span>
-              {onCopyCli ? (
-                <Button
-                  data-testid="tasks-empty-cta-cli"
-                  onClick={onCopyCli}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Copy className="size-3" />
-                  Copy
-                </Button>
-              ) : null}
-            </>
-          }
           label="Start from a template"
-          note="Curated defaults — everything stays editable."
+          note="You can change everything later."
         >
           <ul>
             {TEMPLATE_SLOTS.map(slot => {
@@ -149,7 +125,7 @@ export function TasksEmptyState({
                           {template.preview.notice ? ` ${template.preview.notice}` : ""}
                         </p>
                       </div>
-                      <p className="font-mono text-mono-id text-subtle tabular-nums">
+                      <p className="text-form-hint text-subtle tabular-nums">
                         {templateFacts(template)}
                       </p>
                     </>
@@ -172,7 +148,7 @@ export function TasksEmptyState({
           </ul>
         </CatalogEmptyPanel>
       }
-      support="A task is a durable contract of work — it spawns runs across agents."
+      support="A task is a piece of work you hand to an agent. Pick a starting point below."
       title={headline}
     />
   );

@@ -46,9 +46,7 @@ test("operator can inspect and delete a session-scoped vault secret from the vau
     await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(ref);
     await confirmVaultSecretDelete(appPage, ref);
 
-    await expect(appPage.getByTestId("vault-page-action-result")).toContainText(
-      "Deleted vault secret"
-    );
+    await expect(appPage.getByText("Deleted api_key")).toBeVisible();
     await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).not.toBeVisible();
 
     const payload = await runtime.requestJSON<{ secrets: Array<{ ref: string }> }>(
@@ -70,7 +68,8 @@ test("operator stores and deletes a vault secret without plaintext readback", as
 }) => {
   assertLaunchRuntime(runtime, "vault lifecycle");
 
-  const secretRef = `vault:providers/browser-settings-secret-${Date.now()}`;
+  const secretTitle = `browser-settings-secret-${Date.now()}`;
+  const secretRef = `vault:providers/${secretTitle}`;
   const secretValue = "browser-settings-secret-value-11";
 
   await ensureProjectWorkspace(appPage, runtime);
@@ -81,26 +80,26 @@ test("operator stores and deletes a vault secret without plaintext readback", as
 
   await appPage.getByTestId("vault-page-create").click();
   await expect(appPage.getByTestId("settings-vault-editor")).toBeVisible();
-  await appPage.getByTestId("settings-vault-editor-ref-input").fill("providers/bad-ref");
+  await expect(appPage.getByTestId("settings-vault-editor-save")).toBeDisabled();
+  // A bare name is saved under the vault: prefix without the user typing it.
+  await appPage
+    .getByTestId("settings-vault-editor-ref-input")
+    .fill(secretRef.slice("vault:".length));
+  await expect(appPage.getByTestId("settings-vault-editor-ref-preview")).toContainText(secretRef);
+  await appPage.getByText("More options").click();
   await appPage.getByTestId("settings-vault-editor-kind-input").fill("api_key");
   await appPage.getByLabel("Secret value").fill(secretValue);
-  await expect(appPage.getByTestId("settings-vault-editor-error")).toContainText(
-    "Vault refs must start with vault:."
-  );
-  await expect(appPage.getByTestId("settings-vault-editor-save")).toBeDisabled();
-
-  await appPage.getByTestId("settings-vault-editor-ref-input").fill(secretRef);
   await expect(appPage.getByTestId("settings-vault-editor-save")).toBeEnabled();
   await appPage.getByTestId("settings-vault-editor-save").click();
 
   await expect(appPage.getByTestId("settings-vault-editor")).toBeHidden();
-  await expect(appPage.getByTestId("vault-page-action-result")).toContainText(secretRef);
+  await expect(appPage.getByText(`Saved ${secretTitle}`)).toBeVisible();
   await expect(appPage.locator("body")).not.toContainText(secretValue);
 
   await selectVaultNamespace(appPage, "providers");
   await appPage.getByTestId("vault-page-prefix").fill(secretRef);
   await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(1);
-  await expect(appPage.getByTestId("vault-secrets-row")).toContainText(secretRef);
+  await expect(appPage.getByTestId("vault-secrets-row")).toContainText(secretTitle);
   await expect(appPage.getByTestId("vault-secrets-row")).toContainText("api_key");
   await expect(appPage.getByTestId("vault-secrets-row")).not.toContainText(secretValue);
 
@@ -141,7 +140,7 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(secretRef);
   await confirmVaultSecretDelete(appPage, secretRef);
 
-  await expect(appPage.getByTestId("vault-page-action-result")).toContainText("Deleted");
+  await expect(appPage.getByText(`Deleted ${secretTitle}`)).toBeVisible();
   await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(0);
 
   const deletedResponse = await appPage.request.get(
@@ -163,7 +162,8 @@ async function deleteVaultSecretIfPresent(url: string) {
 async function confirmVaultSecretDelete(page: Page, ref: string): Promise<void> {
   const typingInput = page.getByTestId("settings-vault-delete-confirm-typing");
   if (await typingInput.isVisible().catch(() => false)) {
-    await typingInput.fill(ref);
+    // Typed confirmation asks for the friendly name (last ref segment), not the full ref.
+    await typingInput.fill(ref.split("/").at(-1) ?? ref);
   }
   await page.getByTestId("settings-vault-delete-confirm").click();
 }

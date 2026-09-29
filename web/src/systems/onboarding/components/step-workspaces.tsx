@@ -1,6 +1,6 @@
 import { Folder, X } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Eyebrow } from "@compozy/ui";
+import { Alert, AlertDescription, Button, Empty, Eyebrow } from "@compozy/ui";
 
 import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
@@ -38,7 +38,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
             onPick={path => void workspaces.addWorkspace(path)}
             parentPath={workspaces.parent}
             pickPending={workspaces.isResolving}
-            pickRowLabel={name => `Add ${name} as a workspace`}
+            pickRowLabel={name => `Add ${name} as a project`}
             roots={workspaces.roots}
             testIdPrefix="onboarding-directory-browser"
           />
@@ -55,8 +55,8 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
 
         <section className="flex min-h-0 flex-col">
           <div className="flex items-baseline justify-between gap-2.5">
-            <Eyebrow className="text-subtle">Selected workspaces</Eyebrow>
-            <span className="text-micro text-faint tabular-nums">
+            <Eyebrow className="text-subtle">Selected projects</Eyebrow>
+            <span className="text-micro text-muted tabular-nums">
               {selected.length} folder{selected.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -77,9 +77,12 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
             </Alert>
           ) : null}
           {selected.length === 0 ? (
-            <p className="mt-2.5 grid flex-1 place-items-center rounded-md border border-dashed border-line px-4 py-4 text-center text-small-body leading-5 text-faint max-md:min-h-24">
-              None yet
-            </p>
+            <Empty
+              className="mt-2.5 flex-1 max-md:min-h-24"
+              description="Folders you add appear here."
+              fill={false}
+              title="None yet"
+            />
           ) : (
             <ul className="mt-2.5 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto max-md:max-h-50">
               {selected.map(workspace => (
@@ -88,7 +91,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
                   className="flex flex-none items-center gap-2.5 rounded-md bg-canvas-soft px-2.5 py-2 ring-1 ring-inset ring-line"
                   data-testid="onboarding-selected-workspace"
                 >
-                  <span className="grid size-7 flex-none place-items-center rounded-sm bg-elevated text-warning">
+                  <span className="grid size-7 flex-none place-items-center rounded-sm bg-elevated text-muted">
                     <Folder className="size-3.5" />
                   </span>
                   <span className="min-w-0 flex-1">

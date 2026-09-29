@@ -78,9 +78,12 @@ export function AssistantMessage() {
   return (
     <MessagePrimitive.Root
       data-testid="assistant-message"
-      className={cn("group/message flex w-full min-w-0 pt-1", isRunning ? "pb-[7px]" : "pb-[18px]")}
+      className={cn(
+        "group/message flex w-full min-w-0 pt-1",
+        isRunning ? "pb-transcript-message-y" : "pb-transcript-turn-gap"
+      )}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-[7px]">
+      <div className="flex min-w-0 flex-1 flex-col gap-transcript-inline-gap">
         {hasRenderableContent ? (
           <SessionThreadErrorBoundary>
             <AssistantMessageTimeline queueTraceCount={traceCount} />

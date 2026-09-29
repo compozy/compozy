@@ -3,7 +3,6 @@ import { Repeat2 } from "lucide-react";
 
 import { CatalogCard } from "@compozy/ui";
 
-import { successRateLabel } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
 import { LoopCatalogFacts } from "./loop-catalog-facts";
@@ -45,18 +44,7 @@ export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
       </Link>
       <CatalogCard.Actions className={entry.last_run ? "justify-between gap-3" : "justify-end"}>
         {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
-        <div className="flex min-w-0 items-center gap-3">
-          <span
-            className="flex min-w-0 flex-col items-end"
-            data-testid={`loop-catalog-card-stat-${entry.name}`}
-          >
-            <span className="font-mono text-small-body tabular-nums text-fg">
-              {successRateLabel(entry.success_rate_30d)}
-            </span>
-            <span className="text-micro text-faint">{entry.aggregate_30d.runs} runs · 30d</span>
-          </span>
-          <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
-        </div>
+        <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
       </CatalogCard.Actions>
     </CatalogCard>
   );

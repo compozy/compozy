@@ -61,7 +61,7 @@ QA walk 2026-09-28 (task_08 part B2, lab daemon + headless Chromium, acpmock): s
 Review round 1 2026-09-28 (W3, web; retest owed on the next walk):
 - Runtime speed is always explicit on the wire: a fast-default agent switched to normal in the Runtime picker submits `runtime.speed: "normal"` (before, `normal` was omitted and the daemon restored fast). Walk: choose an agent whose default speed is fast, turn Fast off, Continue, and confirm the child's runtime speed is normal. Regression: `session-continue-dialog.test.tsx` "Should send normal speed when a fast-default agent is switched to normal".
 - A reopened dialog reads "Measuring…" with Continue disabled until its own preview answers; the previous open's size is never shown (`useSessionDerivePreview` accepts only an answer fetched after this mount). Regression in `session-fork-dialog.test.tsx` (the Continue dialog shares the hook).
-- A plain fresh session whose transcript holds only hook status events now shows the generic empty state "Start the conversation…" (the report's Decision for a Human, option 1); the derived child's step 5 behavior is unchanged.
+- A plain fresh session whose transcript holds only hook status events now shows the generic empty state "Send {agent} a message to get started." (the report's Decision for a Human, option 1); the derived child's step 5 behavior is unchanged.
 
 ## 2026-09-29 re-walk (review round 1) — PASS (after fix)
 

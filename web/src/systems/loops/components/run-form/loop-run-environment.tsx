@@ -44,7 +44,7 @@ export function LoopRunEnvironment({
       icon={<FolderGit2 aria-hidden="true" className="size-3.5" />}
       title="Environment"
     >
-      <div className="px-3.5 py-3" data-mode={choice} data-slot="loop-run-environment">
+      <div className="px-4 py-3" data-mode={choice} data-slot="loop-run-environment">
         <PillGroup
           aria-label="Run environment"
           data-testid="loop-run-environment-mode"

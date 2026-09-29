@@ -13,6 +13,8 @@ export type LoopRunsTrailOptions =
       openLoop?: () => void;
       loopName?: string;
       runId: string;
+      /** Human label for the run leaf; falls back to the run id while the run loads. */
+      runLabel?: string;
       onBack: () => void;
     }
   | {
@@ -23,13 +25,14 @@ export type LoopRunsTrailOptions =
       openRun: () => void;
       loopName?: string;
       runId: string;
+      runLabel?: string;
       onBack: () => void;
     };
 
 /**
  * Window-local drill-in trail for the Loops run area.
- * List: Loops › Runs. Detail: Loops › Runs › {loopName}? › {runId}.
- * Compare: Loops › Runs › {loopName}? › {runId} › Compare.
+ * List: Loops › Runs. Detail: Loops › Runs › {loopName}? › {runLabel ?? runId}.
+ * Compare: Loops › Runs › {loopName}? › {runLabel ?? runId} › Compare.
  */
 export function loopRunsTrail(
   options: LoopRunsTrailOptions
@@ -51,14 +54,16 @@ export function loopRunsTrail(
   };
   const loop = loopCrumb(options.loopName, options.openLoop);
   const parents = loop === undefined ? [loops, runs] : [loops, runs, loop];
+  const runLabel =
+    options.runLabel === undefined || options.runLabel === "" ? options.runId : options.runLabel;
 
   if (options.level === "run") {
-    return { crumb: options.runId, crumbs: parents, onBack: options.onBack };
+    return { crumb: runLabel, crumbs: parents, onBack: options.onBack };
   }
 
   return {
     crumb: "Compare",
-    crumbs: [...parents, { id: "run", label: options.runId, onSelect: options.openRun }],
+    crumbs: [...parents, { id: "run", label: runLabel, onSelect: options.openRun }],
     onBack: options.onBack,
   };
 }

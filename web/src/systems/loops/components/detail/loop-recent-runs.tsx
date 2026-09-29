@@ -1,14 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
-import { createElement } from "react";
 
-import { cn } from "@compozy/ui";
+import { formatRelativeTime, Time } from "@compozy/ui";
 
-import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import { useNowTick } from "../../hooks/use-now-tick";
-import { loopStartKindIcon } from "../../lib/loop-start-kind-icons";
+import { loopStatusLabel } from "../../lib/loop-formatters";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
-import { loopRunOriginLine } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
 
@@ -16,12 +13,10 @@ interface LoopRecentRunsProps {
   runs: readonly LoopRun[];
 }
 
-const recentRunRowClassName = cn(
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-t border-line-soft px-4 py-2.5 transition-colors first:border-t-0 hover:bg-row-hover",
-  "min-[720px]:grid-cols-[120px_96px_minmax(0,1fr)_72px_112px_64px_16px] min-[720px]:gap-3.5"
-);
-
-/** Recent runs of one Loop as a compact row list; each row opens the run detail. */
+/**
+ * Recent runs of one Loop as a compact row list: status, when it started, and how
+ * long it ran. Run ids, rounds, and scores live on the run page each row opens.
+ */
 export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
   const nowMs = useNowTick(runs.some(run => run.status === "running"));
 
@@ -43,52 +38,26 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
       {runs.map(run => (
         <Link
           key={run.id}
+          aria-label={`${loopStatusLabel(run.status)} run, started ${formatRelativeTime(run.created_at)}`}
           to="/loop-runs/$runId"
           params={{ runId: run.id }}
-          className={recentRunRowClassName}
+          className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-row-hover"
           data-testid="loop-recent-run-row"
+          title={run.id}
         >
-          <LoopStatusPill
-            className="col-start-1 row-start-1 min-[720px]:col-auto min-[720px]:row-auto"
-            status={run.status}
-          />
-          <span className="col-start-1 row-start-2 min-w-0 truncate font-mono text-mono-id text-fg min-[720px]:col-auto min-[720px]:row-auto">
-            {run.id}
-          </span>
-          <span className="col-span-2 row-start-3 flex min-w-0 items-center gap-1.5 truncate text-form-hint text-subtle min-[720px]:col-auto min-[720px]:row-auto">
-            <RecentRunOriginIcon run={run} />
-            {loopRunOriginLine(run)}
-          </span>
-          <span className="col-start-1 row-start-4 text-xs tabular-nums text-muted min-[720px]:col-auto min-[720px]:row-auto">
-            {run.generation} gens
+          <LoopStatusPill status={run.status} />
+          <span className="min-w-0 truncate text-form-hint text-subtle">
+            <Time iso={run.created_at} />
           </span>
           <span
-            className="col-start-2 row-start-4 text-right font-mono text-mono-id tabular-nums text-muted min-[720px]:col-auto min-[720px]:row-auto"
-            data-testid="loop-recent-run-best"
-          >
-            {loopRunBestLabel(run) ?? "—"}
-          </span>
-          <span
-            className="col-start-2 row-start-1 justify-self-end text-right font-mono text-mono-id tabular-nums text-faint min-[720px]:col-auto min-[720px]:row-auto"
+            className="text-right font-mono text-mono-id tabular-nums text-faint"
             data-testid="loop-recent-run-duration"
           >
             {formatClockDuration(runElapsedSeconds(run, nowMs))}
           </span>
-          <span className="col-start-2 row-start-2 justify-self-end text-faint min-[720px]:col-auto min-[720px]:row-auto">
-            <ChevronRight aria-hidden="true" className="size-3.5" />
-          </span>
+          <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
         </Link>
       ))}
     </div>
   );
-}
-
-function RecentRunOriginIcon({ run }: { run: LoopRun }) {
-  const kind = run.started_origin_kind || run.started_by_kind || "";
-  const icon = loopStartKindIcon(kind);
-  if (!icon) return null;
-  return createElement(icon, {
-    "aria-hidden": true,
-    className: "size-3.5 shrink-0 text-muted",
-  });
 }

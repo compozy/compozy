@@ -1,5 +1,6 @@
 import { UIProvider } from "@compozy/ui";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { MemoryDecision } from "../../types";
@@ -53,12 +54,22 @@ describe("KnowledgeDecisionsSection", () => {
     expect(screen.getByText("Decisions failed")).toBeInTheDocument();
   });
 
-  it("Should render the empty state when there are no decisions", () => {
+  it("Should render nothing when there are no decisions", () => {
     renderSection();
-    expect(screen.getByTestId("knowledge-decisions-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-decisions-section")).not.toBeInTheDocument();
   });
 
-  it("Should render decisions as <TimelineEvent> rows with sentence-case op/source labels", () => {
+  it("Should keep the history fold closed by default and open it on toggle", async () => {
+    const user = userEvent.setup();
+    renderSection({ decisions: [SAMPLE] });
+    const toggle = screen.getByTestId("knowledge-decisions-toggle");
+    expect(toggle).toHaveTextContent("History");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("Should render decisions as <TimelineEvent> rows with plain op/source labels", () => {
     renderSection({ decisions: [SAMPLE] });
     const list = screen.getByTestId("knowledge-decisions-list");
     expect(list).toBeInTheDocument();
@@ -67,10 +78,10 @@ describe("KnowledgeDecisionsSection", () => {
     expect(list.querySelector("table")).toBeNull();
     const row = screen.getByTestId(`knowledge-decision-${SAMPLE.id}`);
     expect(row).toHaveAttribute("data-slot", "timeline-event");
-    expect(screen.getByTestId(`knowledge-decision-op-${SAMPLE.id}`)).toHaveTextContent("update");
-    expect(screen.getByTestId(`knowledge-decision-source-${SAMPLE.id}`)).toHaveTextContent("rule");
+    expect(screen.getByTestId(`knowledge-decision-op-${SAMPLE.id}`)).toHaveTextContent("Updated");
+    expect(screen.getByTestId(`knowledge-decision-source-${SAMPLE.id}`)).toHaveTextContent("Rule");
     expect(screen.getByTestId(`knowledge-decision-confidence-${SAMPLE.id}`)).toHaveTextContent(
-      /Confidence 0\.91/
+      "91% confident"
     );
     expect(screen.getByTestId(`knowledge-decision-applied-${SAMPLE.id}`)).toBeInTheDocument();
     expect(screen.getByTestId(`knowledge-decision-target-${SAMPLE.id}`)).toHaveTextContent(

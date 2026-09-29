@@ -33,3 +33,44 @@ export function summarizeBindingKinds(rows: readonly LoopBindingRow[]): LoopBind
   for (const row of rows) seen.add(row.kind);
   return [...seen].sort((a, b) => a.localeCompare(b));
 }
+
+interface LoopBindingPageCount {
+  hasMore: boolean;
+  loaded: number;
+  total: number;
+}
+
+export interface LoopBindingCounts {
+  /** True when at least one paginated source (jobs/triggers) was supplied. */
+  paginated: boolean;
+  hasMore: boolean;
+  loaded: number;
+  total: number;
+}
+
+/**
+ * Loaded/total automation counts for the Start-bindings panel. Paginated
+ * sources (schedules + triggers) own the totals when present; otherwise the
+ * rendered rows are the whole set.
+ */
+export function countLoopBindings(
+  rowCount: number,
+  jobs?: LoopBindingPageCount,
+  triggers?: LoopBindingPageCount
+): LoopBindingCounts {
+  if (!jobs && !triggers) {
+    return { paginated: false, hasMore: false, loaded: rowCount, total: rowCount };
+  }
+  return {
+    paginated: true,
+    hasMore: Boolean(jobs?.hasMore || triggers?.hasMore),
+    loaded: (jobs?.loaded ?? 0) + (triggers?.loaded ?? 0),
+    total: (jobs?.total ?? 0) + (triggers?.total ?? 0),
+  };
+}
+
+/** Rail-section gist: "Manual only" when nothing is attached, else the count. */
+export function bindingsGist(total: number): string {
+  if (total === 0) return "Manual only";
+  return `${total} ${total === 1 ? "automation" : "automations"}`;
+}

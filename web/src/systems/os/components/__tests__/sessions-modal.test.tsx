@@ -361,7 +361,7 @@ describe("OsSessionsModal", () => {
     const first = renderModal(shell, true, narrow);
 
     const toggle = screen.getByTestId("os-sessions-modal-scope");
-    expect(toggle).toHaveAccessibleName("All workspaces");
+    expect(toggle).toHaveAccessibleName("All projects");
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await user.click(toggle);
     expect(narrow.setScope).toHaveBeenCalledWith("all-workspaces");

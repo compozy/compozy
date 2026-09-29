@@ -9,6 +9,9 @@ export { OsRouteNotFound } from "./components/os-route-not-found";
 export { OsShellContext, type OsShellHandle } from "./contexts/os-shell-context";
 export { useOsShell } from "./hooks/use-os-shell";
 export { useDesktop } from "./hooks/use-desktop";
+// Pass `{ reduced }` to `runViewTransition` from any system's in-window transition.
+export { useOsReducedMotion } from "./hooks/use-os-reduced-motion";
+export { isOsReducedMotion } from "./lib/reduced-motion";
 export { OS_APPS, getOsApp, resolveAppForPath, matchSessionInstance } from "./lib/app-registry";
 export { getOsAppDescriptor, OS_APP_DESCRIPTORS } from "./lib/app-catalog";
 export { validateMarketplaceDetailSearch } from "./apps/marketplace/marketplace-detail-search";

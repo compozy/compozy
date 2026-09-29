@@ -68,12 +68,12 @@ function GenerationSelect({
           value={value === null ? "" : String(value)}
         >
           <SelectTrigger className={PICKER_CLASS} data-testid={testId} id={id} size="sm">
-            <SelectValue>{value === null ? "—" : `Generation ${value}`}</SelectValue>
+            <SelectValue>{value === null ? "—" : `Round ${value}`}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {generations.map(generation => (
               <SelectItem key={generation} value={String(generation)}>
-                {`Generation ${generation}`}
+                {`Round ${generation}`}
               </SelectItem>
             ))}
           </SelectContent>
@@ -100,7 +100,7 @@ export function LoopRunDiffPickers({
 }: LoopRunDiffPickersProps) {
   const fieldId = useId();
   const modeItems: PillGroupItem<LoopDiffMode>[] = [
-    { value: "generation", label: "Generation", testId: "loop-diff-mode-generation" },
+    { value: "generation", label: "Round", testId: "loop-diff-mode-generation" },
     {
       value: "run",
       label: "Run",

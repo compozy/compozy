@@ -2,7 +2,7 @@ import { CornerDownRight, ListPlus, Pencil, RotateCcw, Trash2, X } from "lucide-
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { Button, MonoId, OwnerAvatar, Spinner } from "@compozy/ui";
+import { Button, OwnerAvatar, Spinner } from "@compozy/ui";
 
 import {
   isQueuedPromptMutable,
@@ -266,8 +266,7 @@ export function SessionUnconfirmedRow({
         </SessionQueuedState>
       ) : (
         <SessionQueuedState testId="composer-queued-state">
-          Not confirmed
-          <MonoId value={send.identity.messageId} className="text-faint" />
+          <span title={send.identity.messageId}>Not confirmed — retry or discard</span>
         </SessionQueuedState>
       )}
       {retrying ? null : (

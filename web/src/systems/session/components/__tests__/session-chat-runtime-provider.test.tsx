@@ -1819,7 +1819,7 @@ describe("SessionChatRuntimeProvider", () => {
       const composer = await screen.findByTestId("composer-input");
       await waitFor(() => {
         // Hook dispatches render no row: the loaded transcript reads as a fresh session.
-        expect(screen.getByText(/Start the conversation/i)).toBeInTheDocument();
+        expect(screen.getByText(/to get started/i)).toBeInTheDocument();
         // The Lexical composer opts out of interaction via `inert`, not `disabled`.
         expect(composer).not.toHaveAttribute("inert");
         expect(sources).toHaveLength(2);

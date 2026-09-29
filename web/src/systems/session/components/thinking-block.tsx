@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Brain, ChevronDown } from "lucide-react";
+import { Brain } from "lucide-react";
+
+import { TranscriptDisclosure } from "@compozy/ui";
 
 import { compactSessionSummary } from "../lib/session-summary";
 
@@ -48,6 +50,10 @@ export function ThinkingBlock({
   const ownOpen = userOpen ?? (defaultOpen || live);
   const open = ownOpen || revealOpen;
   const preview = compactSessionSummary(firstThinkingLine(thinking));
+  const toggle = () => {
+    if (open && revealOpen) onRevealRelease?.();
+    setUserOpen(!open);
+  };
 
   return (
     <div
@@ -56,50 +62,35 @@ export function ThinkingBlock({
       data-part-index={partIndex}
       className="flex min-w-0 flex-col"
     >
-      <button
-        type="button"
-        data-testid="thinking-trigger"
-        aria-expanded={open}
-        onClick={() => {
-          if (open && revealOpen) onRevealRelease?.();
-          setUserOpen(!open);
-        }}
-        className={cn(
-          live
-            ? "w-fit rounded-sm px-1 py-0.5 text-left"
-            : [
-                "group/thinking flex min-h-transcript-line w-full min-w-0 cursor-pointer items-center gap-transcript-inline-gap",
-                "rounded-sm px-1 text-left transition-colors duration-base ease-out hover:bg-hover",
-              ],
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        {live ? (
+      {live ? (
+        <button
+          type="button"
+          data-testid="thinking-trigger"
+          aria-expanded={open}
+          onClick={toggle}
+          className="w-fit rounded-sm px-1 py-0.5 text-left focus-visible:shadow-focus-ring focus-visible:outline-none"
+        >
           <span className="session-shimmer text-small-body font-medium">Thinking…</span>
-        ) : (
-          <>
-            <span className="flex size-transcript-icon-well shrink-0 items-center justify-center">
-              <Brain aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
-            </span>
-            <span className="flex min-w-0 flex-1 items-baseline gap-transcript-inline-gap text-small-body">
-              <span className="shrink-0 font-medium text-muted transition-colors group-hover/thinking:text-fg">
-                Thought
-              </span>
+        </button>
+      ) : (
+        <TranscriptDisclosure
+          className="w-full min-w-0"
+          data-testid="thinking-trigger"
+          expanded={open}
+          icon={
+            <Brain aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
+          }
+          label={
+            <>
+              Thought
               {preview ? (
-                <span className="min-w-0 max-w-sm flex-1 truncate text-subtle">{preview}</span>
+                <span className="ml-transcript-inline-gap font-normal text-subtle">{preview}</span>
               ) : null}
-            </span>
-            <ChevronDown
-              aria-hidden="true"
-              className={cn(
-                "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
-                open ? "rotate-180" : null
-              )}
-              strokeWidth={1.75}
-            />
-          </>
-        )}
-      </button>
+            </>
+          }
+          onToggle={toggle}
+        />
+      )}
       {open ? (
         <div
           aria-label="Reasoning"

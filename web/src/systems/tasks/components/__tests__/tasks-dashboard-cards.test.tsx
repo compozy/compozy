@@ -5,7 +5,7 @@ import { TasksDashboardCards } from "../tasks-dashboard-cards";
 import { buildDashboardFixture } from "../test-fixtures";
 
 describe("TasksDashboardCards", () => {
-  it("Should render four Metric primitives labeled Active runs, Success rate, Average duration, Queue depth", () => {
+  it("Should render four Metric primitives labeled Running now, Success rate, Time to pick up, Waiting", () => {
     render(<TasksDashboardCards dashboard={buildDashboardFixture()} />);
 
     const container = screen.getByTestId("tasks-dashboard-cards");
@@ -13,17 +13,16 @@ describe("TasksDashboardCards", () => {
     expect(cards).toHaveLength(4);
 
     expect(screen.getByTestId("tasks-dashboard-card-active-runs")).toHaveTextContent(
-      /Active runs/i
+      /Running now/i
     );
     expect(screen.getByTestId("tasks-dashboard-card-success-rate")).toHaveTextContent(
       /Success rate/i
     );
-    expect(screen.getByTestId("tasks-dashboard-card-average-duration")).toHaveTextContent(
-      /Average duration/i
-    );
-    expect(screen.getByTestId("tasks-dashboard-card-queue-depth")).toHaveTextContent(
-      /Queue depth/i
-    );
+    // The card reports claim latency, so it must not claim to be a run duration.
+    const pickup = screen.getByTestId("tasks-dashboard-card-average-duration");
+    expect(pickup).toHaveTextContent(/Time to pick up/i);
+    expect(pickup).not.toHaveTextContent(/duration/i);
+    expect(screen.getByTestId("tasks-dashboard-card-queue-depth")).toHaveTextContent(/Waiting/i);
   });
 
   it("Should show the active run count and queue depth from the dashboard payload", () => {

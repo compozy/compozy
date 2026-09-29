@@ -80,10 +80,6 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     }));
   };
 
-  const handleRefresh = () => {
-    void loopsQuery.refetch();
-  };
-
   const handleRun = (entry: LoopCatalogEntry) => {
     void navigate({ to: "/loops/$name/run", params: { name: entry.name } });
   };
@@ -98,7 +94,6 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     clearFilters,
     filter,
     facets: loopsQuery.facets,
-    handleRefresh,
     handleRun,
     loopsQuery,
     searchQuery,

@@ -1,6 +1,6 @@
 import type { LoopInputSchemaField } from "../../types";
+import { Pill } from "@compozy/ui";
 import { LoopTypedInputControl } from "../input/loop-typed-input-control";
-import { MonoTag } from "../mono-tag";
 
 interface LoopInputControlProps {
   name: string;
@@ -27,7 +27,9 @@ export function LoopInputControl({
             *
           </span>
         ) : null}
-        <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5">{field.type}</MonoTag>
+        <Pill size="xs" tone="neutral" mono className="ml-auto">
+          {field.type}
+        </Pill>
       </label>
       <LoopTypedInputControl
         controlId={controlId}

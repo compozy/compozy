@@ -26,9 +26,9 @@ export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunFor
         showCloseButton={!isPending}
       >
         <DialogHeader>
-          <DialogTitle>Force fail this run?</DialogTitle>
+          <DialogTitle>Mark this run as failed?</DialogTitle>
           <DialogDescription>
-            The run is marked failed immediately. The reason is recorded in the audit log.
+            The run stops and is marked as failed right away. Your reason is saved in its history.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
@@ -69,7 +69,7 @@ export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunFor
             type="button"
             variant="destructive"
           >
-            Force fail run
+            Mark as failed
           </Button>
         </DialogFooter>
       </DialogContent>

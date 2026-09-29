@@ -20,3 +20,11 @@ export function getSystemReducedMotion(): boolean {
   }
   return window.matchMedia(REDUCED_MOTION_QUERY).matches;
 }
+
+/**
+ * Non-hook twin of `useOsReducedMotion` for runtime code: the in-product
+ * `desktop.reduceMotion` flag OR the system preference.
+ */
+export function isOsReducedMotion(state: { readonly reduceMotion: boolean }): boolean {
+  return state.reduceMotion || getSystemReducedMotion();
+}

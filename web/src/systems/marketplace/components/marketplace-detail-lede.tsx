@@ -5,24 +5,25 @@ import { Pill, Time } from "@compozy/ui";
 
 import { ExtensionFormatBadge } from "@/systems/extensions";
 
+import { COMPOZY_CATALOG_SOURCE } from "../lib/marketplace-installed-view";
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceEntryLogo } from "./marketplace-entry-logo";
-import { formatMarketplaceVersion } from "./marketplace-ui";
+import { marketplaceTierLabel } from "./marketplace-ui";
 
 interface MarketplaceDetailLedeProps {
   data: MarketplaceCatalogEntryResponse;
 }
 
 /**
- * Page lede: the entry logo at its large rung, the name with version and format tags, one
- * metadata line, and the one-sentence description. Window identity and the primary action stay
+ * Page lede: the entry logo at its large rung, the name with the unverified and format tags, one
+ * metadata line (author · tier · updated), and the one-sentence description. The version lives in
+ * the About card. Window identity and the primary action stay
  * in the OS head.
  */
 function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
   const entry = data.entry;
   const blocked = entry.trust?.decision === "blocked";
   const description = entry.description?.trim();
-  const version = formatMarketplaceVersion(entry.version);
   const meta = ledeMeta(data);
 
   return (
@@ -36,11 +37,6 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
           <h1 className="text-detail-h1 leading-tight font-semibold tracking-detail-h1 text-fg-strong">
             {entry.name}
           </h1>
-          {version ? (
-            <Pill mono size="xs">
-              {version}
-            </Pill>
-          ) : null}
           {entry.trust?.registry_tier === "unverified" ? (
             <Pill form="hollow" size="xs" tone="warning">
               unverified
@@ -61,7 +57,7 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
           </div>
         ) : null}
         {description ? (
-          <p className="mt-2.5 max-w-[70ch] text-small-body leading-relaxed text-muted">
+          <p className="mt-2.5 max-w-prose text-small-body leading-relaxed text-muted">
             {description}
           </p>
         ) : null}
@@ -87,15 +83,16 @@ function ledeMeta(data: MarketplaceCatalogEntryResponse): LedeMetaItem[] {
   const entry = data.entry;
   const items: LedeMetaItem[] = [];
   if (entry.author) items.push({ key: "author", node: <span>{entry.author}</span> });
-  items.push({ key: "source", node: <span>{entry.source}</span> });
-
-  if (entry.tier) items.push({ key: "tier", node: <span>{entry.tier} tier</span> });
+  if (entry.source !== COMPOZY_CATALOG_SOURCE) {
+    items.push({ key: "source", node: <span>{entry.source}</span> });
+  }
+  items.push({ key: "tier", node: <span>{marketplaceTierLabel(entry.tier)}</span> });
   if (entry.updated_at) {
     items.push({
       key: "updated",
       node: (
         <span>
-          updated <Time iso={entry.updated_at} />
+          Updated <Time iso={entry.updated_at} />
         </span>
       ),
     });

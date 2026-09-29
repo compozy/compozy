@@ -25,6 +25,8 @@ type LoopRun = (typeof loopRunFixtures)[number];
 
 /** The roster's five columns, in the order the board locks them. */
 const COLUMNS = ["Loop", "Status", "Progress", "Started", "Duration"];
+/** Display clock: the fixtures' last progress, so a running run reads 18m. */
+const NOW = Date.parse("2026-07-05T12:18:00Z");
 
 function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id">): LoopRun {
   return { ...loopRunFixtures[0], ...overrides };
@@ -53,13 +55,14 @@ const RECENT = run({
 
 // VC-33..36. The view-model owns the ranking and the copy (see
 // `lib/__tests__/loop-runs-view.test.ts`); what these cases pin is the anatomy
-// rendered over it — one section per group, five columns, the run id demoted
-// under the loop name, and a degraded transport that never borrows the empty
+// rendered over it — one section per group, five columns, the run id kept in
+// the name's title, and a degraded transport that never borrows the empty
 // state's words.
 describe("LoopRunsView", () => {
   it("Should render one section per group in server order, with counts and no KPI band", () => {
     render(
       <LoopRunsView
+        nowMs={NOW}
         outcome="all"
         profileScope={scopedListingScopeFixture}
         runs={[RECENT, NEEDS_YOU, ACTIVE]}
@@ -72,7 +75,7 @@ describe("LoopRunsView", () => {
       "active",
       "recent",
     ]);
-    expect(within(sections[0]).getByRole("heading", { name: "Needs you" })).toBeInTheDocument();
+    expect(sections[0]).toHaveAccessibleName("Needs you");
     expect(within(sections[0]).getByTestId("loop-runs-count")).toHaveTextContent("1");
     // Four counters above the list pushed the runs that need a person below the
     // fold and answered nothing the groups do not already answer.
@@ -86,6 +89,7 @@ describe("LoopRunsView", () => {
   it("Should put the dozens in Active while Needs you stays small and first", () => {
     render(
       <LoopRunsView
+        nowMs={NOW}
         outcome="all"
         profileScope={scopedListingScopeFixture}
         runs={dozensActiveRuns}
@@ -118,7 +122,14 @@ describe("LoopRunsView", () => {
   });
 
   it("Should render Loop, Status, Progress, Started and Duration, and no spend columns", () => {
-    render(<LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[ACTIVE]} />);
+    render(
+      <LoopRunsView
+        nowMs={NOW}
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[ACTIVE]}
+      />
+    );
 
     const headers = screen.getAllByRole("columnheader").map(header => header.textContent);
     expect(headers).toEqual(COLUMNS);
@@ -140,15 +151,25 @@ describe("LoopRunsView", () => {
     });
 
     render(
-      <LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[terminal]} />
+      <LoopRunsView
+        nowMs={NOW}
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[terminal]}
+      />
     );
 
     expect(screen.getByTestId("loop-run-duration")).toHaveTextContent("5m 00s");
   });
 
-  it("Should lead a needs-you row with a warning chip and demote its run id under the name", () => {
+  it("Should lead a needs-you row with a warning chip and keep its run id off the row", () => {
     render(
-      <LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[NEEDS_YOU]} />
+      <LoopRunsView
+        nowMs={NOW}
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[NEEDS_YOU]}
+      />
     );
 
     const row = screen.getByTestId("loop-run-row");
@@ -162,7 +183,9 @@ describe("LoopRunsView", () => {
     const name = within(row).getByTestId("loop-run-name");
     expect(name).toHaveTextContent("revisao-paralela");
     expect(name.getAttribute("data-params")).toContain("looprun_needs");
-    expect(within(row).getByTestId("loop-run-id")).toHaveTextContent("looprun_needs");
+    // The run id is reachable on hover, not a third line under every row.
+    expect(name).toHaveAttribute("title", "looprun_needs");
+    expect(within(row).queryByTestId("loop-run-id")).not.toBeInTheDocument();
   });
 
   it("Should explain how to clear a filter that matches no run", () => {
@@ -170,6 +193,7 @@ describe("LoopRunsView", () => {
     // No fixture run is `watching`, so the filter empties the whole roster.
     render(
       <LoopRunsView
+        nowMs={NOW}
         onEmptyAction={onEmptyAction}
         outcome="watching"
         profileScope={scopedListingScopeFixture}
@@ -188,6 +212,7 @@ describe("LoopRunsView", () => {
     const onRetry = vi.fn();
     render(
       <LoopRunsView
+        nowMs={NOW}
         isReconnecting
         onRetry={onRetry}
         outcome="all"
@@ -197,7 +222,7 @@ describe("LoopRunsView", () => {
     );
 
     expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
-      "Reconnecting to the daemon. The list below is the last read."
+      "Reconnecting to CompozyOS. The list below is the last read."
     );
     expect(screen.getAllByTestId("loop-run-row")).toHaveLength(2);
     expect(screen.queryByTestId("loop-runs-empty")).not.toBeInTheDocument();
@@ -210,6 +235,7 @@ describe("LoopRunsView", () => {
   it("Should say how old the retained read is while the transport is degraded", () => {
     render(
       <LoopRunsView
+        nowMs={NOW}
         isReconnecting
         lastReadAt={new Date(Date.now() - 40_000).toISOString()}
         profileScope={scopedListingScopeFixture}
@@ -219,7 +245,7 @@ describe("LoopRunsView", () => {
     );
 
     expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
-      "Reconnecting to the daemon. The list below is the last read, from 40s ago."
+      "Reconnecting to CompozyOS. The list below is the last read, from 40s ago."
     );
   });
 
@@ -227,6 +253,7 @@ describe("LoopRunsView", () => {
     // No rows means nothing retained to age; the sentence would be about nothing.
     render(
       <LoopRunsView
+        nowMs={NOW}
         isReconnecting
         lastReadAt={new Date(Date.now() - 40_000).toISOString()}
         outcome="all"
@@ -236,17 +263,23 @@ describe("LoopRunsView", () => {
     );
 
     const degraded = screen.getByTestId("loop-runs-degraded");
-    expect(degraded).toHaveTextContent("Reconnecting to the daemon. No runs have been read yet.");
+    expect(degraded).toHaveTextContent("Reconnecting to CompozyOS. No runs have been read yet.");
     expect(degraded).not.toHaveTextContent("ago");
   });
 
   it("Should keep the shape of what is coming when a degraded read has no rows yet", () => {
     render(
-      <LoopRunsView isError outcome="all" profileScope={scopedListingScopeFixture} runs={[]} />
+      <LoopRunsView
+        isError
+        nowMs={NOW}
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[]}
+      />
     );
 
     expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
-      "This workspace's runs could not be read."
+      "This project's runs could not be read."
     );
     expect(screen.getByTestId("loop-runs-skeleton")).toBeInTheDocument();
     // "No runs yet" here would blame the workspace for a transport failure.
@@ -258,6 +291,7 @@ describe("LoopRunsView", () => {
   it("Should name a failed read separately from a dropped stream", () => {
     const { unmount } = render(
       <LoopRunsView
+        nowMs={NOW}
         isReconnecting
         outcome="all"
         profileScope={scopedListingScopeFixture}
@@ -266,11 +300,12 @@ describe("LoopRunsView", () => {
     );
     const reconnecting = screen.getByTestId("loop-runs-degraded");
     expect(reconnecting).toHaveAttribute("data-cause", "reconnecting");
-    expect(reconnecting).toHaveTextContent("Reconnecting to the daemon.");
+    expect(reconnecting).toHaveTextContent("Reconnecting to CompozyOS.");
     unmount();
 
     render(
       <LoopRunsView
+        nowMs={NOW}
         isError
         outcome="all"
         profileScope={scopedListingScopeFixture}
@@ -279,17 +314,26 @@ describe("LoopRunsView", () => {
     );
     const failed = screen.getByTestId("loop-runs-degraded");
     expect(failed).toHaveAttribute("data-cause", "read-failed");
-    expect(failed).toHaveTextContent("This workspace's runs could not be read.");
-    expect(failed).not.toHaveTextContent("Reconnecting to the daemon.");
+    expect(failed).toHaveTextContent("This project's runs could not be read.");
+    expect(failed).not.toHaveTextContent("Reconnecting to CompozyOS.");
   });
 
   it("Should name the profile a scoped runs list is empty for", () => {
-    render(<LoopRunsView profileScope={scopedListingScopeFixture} outcome="all" runs={[]} />);
+    render(
+      <LoopRunsView nowMs={NOW} profileScope={scopedListingScopeFixture} outcome="all" runs={[]} />
+    );
     expect(screen.getByText("No runs in default yet")).toBeInTheDocument();
   });
 
   it("Should not name a profile when every profile's runs are on screen", () => {
-    render(<LoopRunsView profileScope={aggregateListingScopeFixture} outcome="all" runs={[]} />);
+    render(
+      <LoopRunsView
+        nowMs={NOW}
+        profileScope={aggregateListingScopeFixture}
+        outcome="all"
+        runs={[]}
+      />
+    );
     // `default` is the create target, never a description of what is shown.
     expect(screen.getByText("No runs in any profile yet")).toBeInTheDocument();
     expect(screen.queryByText(/in default yet/)).not.toBeInTheDocument();
@@ -298,6 +342,7 @@ describe("LoopRunsView", () => {
   it("Should label aggregate run rows with their profile owner", () => {
     render(
       <LoopRunsView
+        nowMs={NOW}
         profileScope={aggregateListingScopeFixture}
         outcome="all"
         runs={loopRunFixtures.slice(0, 2)}

@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn, Icon, MonoId, PillDot } from "@compozy/ui";
 
-import type { WorktreeNestEntry } from "../lib/worktree-display";
+import { worktreeSignalFacts, type WorktreeNestEntry } from "../lib/worktree-display";
 import type { WorktreeDisplayState } from "../types";
 import { WorktreePath } from "./worktree-path";
 import { WorktreeDetachedPin } from "./worktree-signal-parts";
@@ -23,6 +23,9 @@ const STATE_ICON: Record<WorktreeDisplayState, LucideIcon> = {
 /** Discovered and missing wells are dashed: nothing of ours is in that directory. */
 const DASHED_WELL_STATES = new Set<WorktreeDisplayState>(["discovered", "missing"]);
 
+/** States whose name recedes: the worktree is gone or broken. */
+const MUTED_NAME_STATES = new Set<WorktreeDisplayState>(["missing", "failed", "error"]);
+
 export interface WorktreeRowProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   entry: WorktreeNestEntry;
   selected?: boolean;
@@ -32,6 +35,22 @@ export interface WorktreeRowProps extends Omit<React.ComponentProps<"div">, "onS
   merged?: boolean | null;
   /** Trailing affordance — Adopt, Resolve…, or a relative timestamp. */
   trailing?: React.ReactNode;
+}
+
+/**
+ * Functional label in its own capped lane — never hover-only, because the
+ * reason is what stops the user from trying again.
+ */
+function WorktreeInertReason({ reason }: { reason: string }) {
+  return (
+    <span
+      data-slot="worktree-inert-reason"
+      title={reason}
+      className="max-w-worktree-nest-reason truncate font-mono text-micro text-faint"
+    >
+      {reason}
+    </span>
+  );
 }
 
 /**
@@ -49,7 +68,6 @@ export function WorktreeRow({
   className,
   ...props
 }: WorktreeRowProps) {
-  const worktree = entry.worktree;
   const inert = entry.inertReason !== null;
 
   return (
@@ -59,7 +77,7 @@ export function WorktreeRow({
       data-selected={selected ? "true" : undefined}
       data-inert={inert ? "true" : undefined}
       className={cn(
-        "grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-[7px]",
+        "grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-2",
         inert ? "cursor-default" : "hover:bg-row-hover",
         selected && "bg-row-selected",
         className
@@ -70,7 +88,7 @@ export function WorktreeRow({
         aria-hidden="true"
         data-slot="worktree-row-icon"
         className={cn(
-          "grid size-[26px] shrink-0 place-items-center rounded",
+          "grid size-7 shrink-0 place-items-center rounded",
           DASHED_WELL_STATES.has(entry.displayState)
             ? "border border-dashed border-line-strong text-muted"
             : "bg-elevated text-muted"
@@ -84,12 +102,8 @@ export function WorktreeRow({
           <b
             data-slot="worktree-row-name"
             className={cn(
-              "min-w-0 truncate text-small-body font-[550] tracking-tight",
-              entry.displayState === "missing" ||
-                entry.displayState === "failed" ||
-                entry.displayState === "error"
-                ? "text-muted"
-                : "text-fg-strong"
+              "min-w-0 truncate text-small-body font-medium tracking-tight",
+              MUTED_NAME_STATES.has(entry.displayState) ? "text-muted" : "text-fg-strong"
             )}
           >
             {entry.name}
@@ -104,13 +118,7 @@ export function WorktreeRow({
               hiding it would misstate the repo (US-009.EC-1). */}
           {entry.worktree ? <ProfileOwnerTag owner={ownerFromRow(entry.worktree)} /> : null}
           <WorktreeSignals
-            dirty={worktree?.dirty ?? null}
-            ahead={worktree?.ahead ?? null}
-            behind={worktree?.behind ?? null}
-            agentActivity={worktree?.agent_activity ?? "idle"}
-            origin={worktree?.origin ?? ""}
-            setupState={worktree?.setup_state ?? "none"}
-            setupError={worktree?.setup_error}
+            {...worktreeSignalFacts(entry.worktree)}
             merged={merged}
             staleLabel={staleLabel}
           />
@@ -127,17 +135,7 @@ export function WorktreeRow({
       </span>
 
       <span className="flex shrink-0 items-center gap-1.5">
-        {entry.inertReason ? (
-          // Functional label in its own capped lane — never hover-only,
-          // because the reason is what stops the user from trying again.
-          <span
-            data-slot="worktree-inert-reason"
-            title={entry.inertReason}
-            className="max-w-worktree-nest-reason truncate font-mono text-micro text-faint"
-          >
-            {entry.inertReason}
-          </span>
-        ) : null}
+        {entry.inertReason ? <WorktreeInertReason reason={entry.inertReason} /> : null}
         {trailing}
       </span>
     </div>

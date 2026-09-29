@@ -4,11 +4,11 @@ import {
   Button,
   cn,
   Field,
+  FieldDescription,
   FieldError,
   FieldHeader,
   FieldLabel,
   HelpTip,
-  Input,
 } from "@compozy/ui";
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
@@ -35,11 +35,7 @@ export interface AgentCreateRuntimeFieldsProps extends ComponentProps<"div"> {
 }
 
 /**
- * Simple tier: the runtime selector and the catalog grouping, side by side.
- *
- * Category path lives here rather than under Advanced because it names where
- * the agent files in the catalog — a decision a person makes while naming the
- * agent, not a launch override.
+ * Simple tier: the runtime selector.
  *
  * Catalog state stays visible rather than moving into the help tip: a Simple
  * view that hides catalog truth would let someone submit against a stale or
@@ -69,18 +65,18 @@ export function AgentCreateRuntimeFields({
   const hasRuntimeOverride = hasAgentRuntimeOverride(draft);
   return (
     <div
-      className={cn("grid min-w-0 gap-4.5 md:grid-cols-2", className)}
+      className={cn("grid min-w-0 gap-4.5", className)}
       data-testid="agent-create-runtime"
       {...props}
     >
       <Field data-invalid={Boolean(errors.provider || errors.reasoningEffort)}>
         <FieldHeader className="w-full">
           <FieldLabel htmlFor="agent-create-runtime-trigger" id="agent-create-runtime-label">
-            Runtime
+            Model
           </FieldLabel>
-          <HelpTip label="About runtime">
+          <HelpTip label="About model">
             Provider, model, Reasoning, Fast, and advanced options come from the live catalog. Leave
-            them unchanged to inherit project defaults.
+            them unchanged to use the project defaults.
           </HelpTip>
           {hasRuntimeOverride ? (
             <Button
@@ -105,9 +101,9 @@ export function AgentCreateRuntimeFields({
           ) : null}
         </FieldHeader>
         {draft.provider.trim().length === 0 ? (
-          <p className="text-form-hint text-info" data-testid="agent-create-runtime-inherited">
-            Project runtime defaults will be used.
-          </p>
+          <FieldDescription data-testid="agent-create-runtime-inherited">
+            The project's default model will be used.
+          </FieldDescription>
         ) : null}
         <RuntimeSelector
           ariaLabelledby="agent-create-runtime-label"
@@ -142,28 +138,6 @@ export function AgentCreateRuntimeFields({
             {modelCatalogError}
           </p>
         ) : null}
-      </Field>
-
-      <Field data-invalid={Boolean(errors.categoryPath)}>
-        <FieldHeader>
-          <FieldLabel htmlFor="agent-create-category-path">Category path</FieldLabel>
-          <HelpTip label="About category path">
-            Slash-separated catalog grouping, stored as one segment per level. It organises the
-            agent catalog and changes nothing about how the agent runs.
-          </HelpTip>
-        </FieldHeader>
-        <Input
-          aria-invalid={Boolean(errors.categoryPath)}
-          className="font-mono"
-          data-testid="agent-create-category-path"
-          id="agent-create-category-path"
-          onChange={event => onDraftChange({ ...draft, categoryPath: event.target.value })}
-          placeholder="operations/incident"
-          value={draft.categoryPath}
-        />
-        <FieldError data-testid="agent-create-category-path-error">
-          {errors.categoryPath}
-        </FieldError>
       </Field>
     </div>
   );

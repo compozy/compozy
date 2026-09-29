@@ -1,17 +1,11 @@
-import type { ReactNode } from "react";
+import { Pill } from "@compozy/ui";
 
-import { MonoId, Pill } from "@compozy/ui";
-
+import { taskCardMetaModel } from "../lib/task-card-presentation";
 import {
-  formatAttemptLabel,
   taskApprovalStateLabel,
   taskHasApprovalPending,
-  taskIsBlocked,
-  taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
-  taskShortId,
-  taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
 import { TaskLoopRow } from "./task-loop-row";
@@ -41,106 +35,76 @@ export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
       />
     );
   }
-  const isBlocked = taskIsBlocked(task);
-  const needsAttention = task.status === "needs_attention";
-  const showApproval = taskHasApprovalPending(task);
-  const activeRun = task.active_run ?? null;
-  const ownerLabel = taskOwnerLabel(task.owner);
-  const childCount = task.child_count ?? 0;
-  const dependencyCount = task.dependency_count ?? 0;
-  const failedRunError =
-    task.status === "failed" && task.active_run?.error ? task.active_run.error : null;
+  return <TaskWorkItemCard profileOwner={profileOwner} task={task} />;
+}
 
-  const metaItems: ReactNode[] = [
+function TaskWorkItemCard({
+  task,
+  profileOwner,
+}: {
+  task: TaskListItem;
+  profileOwner?: ProfileOwner;
+}) {
+  const meta = taskCardMetaModel(task);
+  // `TasksListRow` joins meta children with separators; null slots drop out.
+  const metaItems = [
     <span data-testid={`task-card-owner-${task.id}`} key="owner">
-      {ownerLabel}
+      {meta.owner}
     </span>,
-  ];
-  if (profileOwner) {
-    metaItems.push(
+    profileOwner ? (
       <ProfileOwnerTag
         data-testid={`task-card-profile-${task.id}`}
         key="profile"
         owner={profileOwner}
       />
-    );
-  }
-  if (activeRun) {
-    metaItems.push(
+    ) : null,
+    meta.attempt === null ? null : (
       <span data-testid={`task-card-attempt-${task.id}`} key="attempt">
-        {formatAttemptLabel(activeRun.attempt, activeRun.max_attempts) ?? ""}
+        {meta.attempt}
       </span>
-    );
-  }
-  if (childCount > 0) {
-    metaItems.push(
+    ),
+    meta.children ? (
       <span data-testid={`task-card-children-${task.id}`} key="children">
-        {childCount} {childCount === 1 ? "subtask" : "subtasks"}
+        {meta.children}
       </span>
-    );
-  }
-  if (dependencyCount > 0) {
-    metaItems.push(
+    ) : null,
+    meta.dependencies ? (
       <span data-testid={`task-card-deps-${task.id}`} key="deps">
-        {dependencyCount} {dependencyCount === 1 ? "dep" : "deps"}
+        {meta.dependencies}
       </span>
-    );
-  }
-  if (task.parent_task_id) {
-    metaItems.push(
-      <span className="inline-flex items-center gap-1" key="parent">
-        <span>parent</span>
-        <MonoId size="sm" value={taskShortId({ id: task.parent_task_id })} />
+    ) : null,
+    meta.isSubtask ? (
+      <span data-testid={`task-card-subtask-${task.id}`} key="parent">
+        Subtask
       </span>
-    );
-  }
-  if (failedRunError) {
-    metaItems.push(
+    ) : null,
+    meta.failedRunError ? (
       <span
         className="min-w-0 truncate text-danger"
         data-testid={`task-card-error-${task.id}`}
         key="error"
-        title={failedRunError}
+        title={meta.failedRunError}
       >
-        {failedRunError}
+        {meta.failedRunError}
       </span>
-    );
-  }
+    ) : null,
+  ];
+  return <TasksListRow meta={metaItems} task={task} trailing={<TaskCardTrailing task={task} />} />;
+}
 
-  const trailing = (
+function TaskCardTrailing({ task }: { task: TaskListItem }) {
+  return (
     <>
       {task.priority ? (
         <Pill size="sm" tone={taskPriorityTone(task.priority)}>
           {taskPriorityLabel(task.priority)}
         </Pill>
       ) : null}
-      {showApproval ? (
+      {taskHasApprovalPending(task) ? (
         <Pill size="sm" tone="accent">
           {taskApprovalStateLabel(task.approval_state)}
         </Pill>
       ) : null}
-      {isBlocked ? (
-        <Pill
-          data-testid={`task-card-blocked-${task.id}`}
-          mono
-          size="sm"
-          tone={taskStatusTone("blocked")}
-        >
-          Blocked
-        </Pill>
-      ) : null}
-      {needsAttention ? (
-        <Pill
-          data-testid={`task-card-needs-attention-${task.id}`}
-          mono
-          size="sm"
-          tone={taskStatusTone("needs_attention")}
-        >
-          Needs attention
-        </Pill>
-      ) : null}
     </>
   );
-
-  return <TasksListRow meta={metaItems} task={task} trailing={trailing} />;
 }

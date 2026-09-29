@@ -1,4 +1,26 @@
-import { knowledgeMemoryKey, type KnowledgeMemoryItem } from "@/systems/knowledge";
+import {
+  knowledgeMemoryKey,
+  type KnowledgeMemoryItem,
+  type KnowledgeScope,
+} from "@/systems/knowledge";
+
+import type { KnowledgeRouteOptions } from "./use-knowledge-route-state";
+
+const KNOWLEDGE_SCOPES: readonly KnowledgeScope[] = ["profile", "workspace", "agent"];
+
+function stringParam(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+/** Reads the Knowledge deep-link (memory, scope, workspace) from a window's route search. */
+export function knowledgeRouteOptions(search: Record<string, unknown>): KnowledgeRouteOptions {
+  const scope = KNOWLEDGE_SCOPES.find(candidate => candidate === search.scope) ?? null;
+  return {
+    routeMemory: stringParam(search.memory),
+    routeScope: scope,
+    routeWorkspaceId: stringParam(search.workspace),
+  };
+}
 
 export function knowledgeKeyForRouteMemory(
   routeMemory: string | null,

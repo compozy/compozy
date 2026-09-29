@@ -41,11 +41,10 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
         Add
         <ChevronDown aria-hidden="true" className="size-3 text-subtle" data-icon="inline-end" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-62" data-testid="marketplace-add-menu">
+      <DropdownMenuContent align="end" className="w-64" data-testid="marketplace-add-menu">
         <DropdownMenuItem data-testid="marketplace-add-github" onClick={() => onInstall("github")}>
           <GithubLogo aria-hidden="true" className="size-4 text-muted" />
           Install extension from GitHub…
-          <span className="ml-auto font-mono text-mono-id text-faint">owner/repo</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="marketplace-add-local"
@@ -58,7 +57,6 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
         <DropdownMenuItem data-testid="marketplace-add-marketplace" onClick={onAddMarketplace}>
           <Store aria-hidden="true" className="size-4 text-muted" />
           Add plugin marketplace…
-          <span className="ml-auto font-mono text-mono-id text-faint">marketplace.json</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -106,7 +106,7 @@ function MixedBashOutput({
         <button
           type="button"
           onClick={onToggle}
-          className="flex w-fit items-center gap-1 text-[11.5px] text-subtle transition-colors hover:text-fg"
+          className="flex w-fit items-center gap-1 text-transcript-meta text-subtle transition-colors hover:text-fg"
         >
           <ChevronsUpDown aria-hidden="true" className="size-3" />
           {expanded ? "Collapse" : `Show full output (${totalLines} lines)`}

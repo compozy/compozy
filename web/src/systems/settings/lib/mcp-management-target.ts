@@ -72,9 +72,9 @@ export function deriveMCPManagementFilter(
 export function mcpManagementScopeLabel(server: SettingsMCPServerEntry): string | null {
   const filter = deriveMCPManagementFilter(server);
   if (!filter) return null;
-  if (filter.scope === "workspace") return `workspace · ${filter.workspace_id}`;
+  if (filter.scope === "workspace") return `project · ${filter.workspace_id}`;
   if (filter.scope === "profile") return `profile · ${filter.profile}`;
-  return "user";
+  return "personal";
 }
 
 /** Full definition identity for selection and React keys; names may repeat across owners and scopes. */

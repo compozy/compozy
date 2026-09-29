@@ -59,7 +59,8 @@ describe("DefaultsSettingsPage", () => {
 
     render(<DefaultsSettingsPage />);
 
-    expect(screen.getByRole("status", { name: "Loading profile defaults" })).toBeVisible();
+    expect(screen.getByTestId("settings-page-defaults-loading")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Loading Defaults" })).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-defaults-session")).not.toBeInTheDocument();
   });
 
@@ -67,9 +68,11 @@ describe("DefaultsSettingsPage", () => {
     mocks.providers.error = new Error("Provider catalog unavailable");
 
     render(<DefaultsSettingsPage />);
-    expect(screen.getByText("Provider catalog unavailable")).toBeVisible();
+    expect(screen.getByText("Couldn't load Defaults")).toBeVisible();
+    // The raw cause stays reachable behind "Details", never as the headline.
+    expect(screen.getByText("Provider catalog unavailable")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(mocks.page.handleRetry).toHaveBeenCalledOnce();
     expect(mocks.providers.refetch).toHaveBeenCalledOnce();
@@ -82,6 +85,7 @@ describe("DefaultsSettingsPage", () => {
 
     expect(screen.getByTestId("settings-page-defaults-agent")).toHaveValue("general");
     expect(screen.getByRole("option", { name: "claude" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Automatic (recommended)" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("settings-page-defaults-agent"), {
       target: { value: "reviewer" },

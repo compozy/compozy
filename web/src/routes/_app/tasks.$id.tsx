@@ -11,5 +11,7 @@ export const Route = createFileRoute("/_app/tasks/$id")({
     },
   }),
   validateSearch: validateTaskDetailSearch,
+  loader: async ({ context, params }) =>
+    (await import("./-tasks-preload")).preloadTaskDetailRoute(context.queryClient, params.id),
   component: createOsRouteSync("tasks"),
 });

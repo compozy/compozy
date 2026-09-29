@@ -131,7 +131,7 @@ export function useCmdPaletteDispatch({
         clientOps,
         invoke: async (commandId, invokeArgs) => {
           if (workspaceId === null) {
-            throw new Error("This workspace is still connecting. Try again in a moment.");
+            throw new Error("This project is still connecting. Try again in a moment.");
           }
           const client = resolveInvokeClientId(clientId);
           const token = resolveInvokeAttachmentToken(attachmentToken);
@@ -219,7 +219,7 @@ export function useCmdPaletteDispatch({
   const setPinned = async (command: ResolvedPaletteCommand, pinned: boolean) => {
     if (workspaceId === null) {
       notifyUser({
-        message: "This workspace is still connecting. Try again in a moment.",
+        message: "This project is still connecting. Try again in a moment.",
         tone: "error",
       });
       return;

@@ -1,18 +1,18 @@
-import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import { useSettingsMemoryPage } from "@/systems/settings/hooks/use-settings-memory-page";
 import {
   SettingsAdvancedFold,
   SettingsPageFrame,
+  SettingsPageState,
   SettingsSaveBar,
   SettingsRuntimeUnavailable,
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Spinner, Time } from "@compozy/ui";
+import { Time } from "@compozy/ui";
 import { ControllerSection } from "./-memory-controller-sections";
-import { DreamSection } from "./-memory-dream-section";
+import { DreamSection, TidyUpRow } from "./-memory-dream-section";
 import {
   DailyLogsSection,
   FileCapsSection,
@@ -44,29 +44,17 @@ export function MemorySettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid={`${TEST_PREFIX}-loading`}
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="memory" state="loading" />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid={`${TEST_PREFIX}-error`}>
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load memory settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <SettingsPageState
+        error={page.error}
+        onRetry={page.handleRetry}
+        slug="memory"
+        state="error"
+      />
     );
   }
 
@@ -96,14 +84,14 @@ export function MemorySettingsPage() {
                     className="inline-flex items-center gap-1"
                     data-testid={`${TEST_PREFIX}-last-consolidated`}
                   >
-                    last dream <Time iso={health.last_consolidated_at} mode="relative" />
+                    last tidied <Time iso={health.last_consolidated_at} mode="relative" />
                   </span>
                 ) : (
-                  <span data-testid={`${TEST_PREFIX}-last-consolidated`}>no dream runs yet</span>
+                  <span data-testid={`${TEST_PREFIX}-last-consolidated`}>not tidied yet</span>
                 ),
               },
             ]
-          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
+          : [{ key: "runtime", content: <span>CompozyOS isn't reachable</span> }]
       }
       restart={restart}
       saveBar={
@@ -122,25 +110,26 @@ export function MemorySettingsPage() {
           description="Memory health and file counts could not be measured."
         />
       ) : null}
-      <MemorySystemSection draft={draft} setDraft={setDraft} />
-      <RecallSection {...validatedSectionProps} />
-      <DreamSection
-        {...validatedSectionProps}
-        dreamAvailable={dreamAvailable}
-        dreamPending={page.isTriggeringDream}
-        onTriggerDream={page.handleTriggerDream}
-        actionMessage={page.actionMessage}
-      />
-      <SessionLedgerSection {...validatedSectionProps} />
-      <DailyLogsSection {...validatedSectionProps} />
-      <WorkspaceIdentitySection draft={draft} setDraft={setDraft} />
+      <MemorySystemSection draft={draft} setDraft={setDraft}>
+        <TidyUpRow
+          actionMessage={page.actionMessage}
+          dreamAvailable={dreamAvailable}
+          dreamPending={page.isTriggeringDream}
+          onTriggerDream={page.handleTriggerDream}
+        />
+      </MemorySystemSection>
 
       <SettingsAdvancedFold data-testid={`${TEST_PREFIX}-advanced`} padded>
+        <RecallSection {...validatedSectionProps} />
+        <DreamSection {...validatedSectionProps} />
+        <SessionLedgerSection {...validatedSectionProps} />
+        <DailyLogsSection {...validatedSectionProps} />
+        <FileCapsSection {...validatedSectionProps} />
+        <WorkspaceIdentitySection draft={draft} setDraft={setDraft} />
         <ProviderResilienceSection {...validatedSectionProps} />
         <ControllerSection {...validatedSectionProps} />
         <DecisionsSection {...validatedSectionProps} />
         <ExtractorSection {...validatedSectionProps} />
-        <FileCapsSection {...validatedSectionProps} />
       </SettingsAdvancedFold>
     </SettingsPageFrame>
   );

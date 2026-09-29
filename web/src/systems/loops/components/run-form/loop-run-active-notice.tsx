@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Activity, ArrowRight } from "lucide-react";
 
+import { buttonVariants, cn, formatRelativeTime } from "@compozy/ui";
+
 import { loopRunOriginLine } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopRailSection } from "../loop-rail-section";
@@ -16,11 +18,11 @@ interface LoopRunActiveNoticeProps {
  * What the declared `concurrency` policy means for starting a second run, in the
  * operator's terms. An unrecognized policy says nothing rather than guessing.
  */
-function concurrencyNote(concurrency: string | undefined, runId: string): string | null {
+function concurrencyNote(concurrency: string | undefined): string | null {
   if (concurrency === "forbid") {
-    return `This loop runs one at a time. Cancel ${runId} from its run page, or let it finish, before starting another.`;
+    return "This Loop runs one at a time. Cancel the current run from its page, or let it finish, before starting another.";
   }
-  if (concurrency === "queue") return `Starting another run queues it behind ${runId}.`;
+  if (concurrency === "queue") return "Starting another run makes it wait for the current one.";
   if (concurrency === "allow") return "Starting another run leaves this one running.";
   return null;
 }
@@ -33,25 +35,26 @@ function concurrencyNote(concurrency: string | undefined, runId: string): string
  * and lifecycle truth.
  */
 export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticeProps) {
-  const note = concurrencyNote(concurrency, run.id);
+  const note = concurrencyNote(concurrency);
   return (
     <LoopRailSection
       data-testid="loop-run-active-notice"
       defaultOpen
-      gist={`${run.id} · ${loopRunOriginLine(run)}`}
+      gist={`Started ${formatRelativeTime(run.created_at)}`}
       icon={<Activity aria-hidden="true" className="size-3.5" />}
       title="Already running"
     >
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-3.5 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
         <LoopStatusPill status={run.status} />
-        <span className="font-mono text-mono-id text-fg" data-testid="loop-run-active-id">
-          {run.id}
-        </span>
-        <span className="min-w-0 truncate text-form-hint text-subtle">
+        <span
+          className="min-w-0 truncate text-form-hint text-subtle"
+          data-testid="loop-run-active-id"
+          title={run.id}
+        >
           {loopRunOriginLine(run)}
         </span>
         <Link
-          className="ml-auto inline-flex items-center gap-1.5 text-form-hint font-medium text-muted transition-colors hover:text-fg-strong"
+          className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "ml-auto")}
           data-testid="loop-run-active-link"
           params={{ runId: run.id }}
           to="/loop-runs/$runId"
@@ -61,7 +64,7 @@ export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticePro
         </Link>
       </div>
       {note ? (
-        <p className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-faint">
+        <p className="border-t border-line-soft px-4 py-3 text-form-hint leading-relaxed text-faint">
           {note}
         </p>
       ) : null}

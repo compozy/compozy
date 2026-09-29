@@ -3,6 +3,7 @@ export { Icon, type IconProps, type IconSize } from "../components/icon";
 export { MonoId, type MonoIdProps, type MonoIdSize } from "../components/custom/mono-id";
 export { QrCode, type QrCodeProps, type QrCodeSize } from "../components/custom/qr-code";
 export { Time, type TimeMode, type TimeProps } from "../components/custom/time";
+export { Disclosure, type DisclosureProps } from "../components/custom/disclosure";
 export {
   StatusDot,
   type StatusDotProps,
@@ -35,7 +36,7 @@ export {
 } from "../components/avatar";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "../components/button-group";
 export { SplitButton } from "../components/custom/split-button";
-export type { SplitButtonProps } from "../components/custom/split-button";
+export type { SplitButtonActionProps, SplitButtonProps } from "../components/custom/split-button";
 export { buttonGroupVariants } from "../components/button-group-variants";
 export {
   Field,
@@ -131,3 +132,8 @@ export {
   type SymbolValue,
 } from "../lib/symbol-palette";
 export { identityColorsFor, type IdentityColors } from "../lib/identity-palette";
+export {
+  runViewTransition,
+  viewTransitionName,
+  type RunViewTransitionOptions,
+} from "../lib/view-transition";

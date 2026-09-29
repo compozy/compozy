@@ -41,7 +41,7 @@ export function SessionQuietWarningNotice({
       <AlertTitle data-testid="session-quiet-warning-title">Quiet for {facts.quietFor}.</AlertTitle>
       <AlertDescription data-testid="session-quiet-warning-message">
         {facts.stopsIn === null
-          ? "Automatic stop is off, so this session keeps waiting until the agent gets back to work or you stop it."
+          ? "The agent hasn't done any work in a while. Stop it if it looks stuck."
           : `This session stops in ${facts.stopsIn} unless the agent gets back to work.`}
       </AlertDescription>
       {onStop ? (

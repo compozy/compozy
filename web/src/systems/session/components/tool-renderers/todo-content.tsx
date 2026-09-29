@@ -84,7 +84,7 @@ export function TodoContent({ message }: { message: UIMessage }) {
           key={item.key}
           data-state={item.state}
           className={cn(
-            "flex min-h-[22px] items-start gap-2 text-small-body leading-normal",
+            "flex min-h-transcript-row items-start gap-2 text-small-body leading-normal",
             item.state === "done" ? "text-subtle line-through decoration-faint" : null,
             item.state === "active" ? "text-fg" : null,
             item.state === "pending" ? "text-muted" : null

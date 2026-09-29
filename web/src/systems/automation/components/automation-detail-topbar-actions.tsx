@@ -9,51 +9,29 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import type { AutomationJob } from "../types";
-
 interface AutomationDetailActionsProps {
-  item: AutomationJob;
-  onToggleEnabled: (enabled: boolean) => void;
   onTriggerNow?: () => void;
-  state: {
-    togglePending: boolean;
-    triggerDisabled: boolean;
-    triggerPending: boolean;
-  };
+  triggerDisabled: boolean;
+  triggerPending: boolean;
 }
 
 function AutomationDetailActions({
-  item,
-  onToggleEnabled,
   onTriggerNow,
-  state,
+  triggerDisabled,
+  triggerPending,
 }: AutomationDetailActionsProps) {
-  const isDynamic = item.source === "dynamic";
-  const showOverflow = isDynamic || Boolean(onTriggerNow);
   return (
     <div className="flex items-center gap-2" data-testid="automation-detail-actions">
       {onTriggerNow ? (
         <Button
           data-testid="trigger-job-btn"
-          disabled={state.triggerDisabled || state.triggerPending}
+          disabled={triggerDisabled || triggerPending}
           onClick={onTriggerNow}
           size="sm"
           type="button"
         >
           <Play className="size-3" />
-          {state.triggerPending ? "Queuing..." : "Run now"}
-        </Button>
-      ) : null}
-      {!showOverflow ? (
-        <Button
-          data-testid="toggle-automation-btn"
-          disabled={state.togglePending}
-          onClick={() => onToggleEnabled(!item.enabled)}
-          size="sm"
-          type="button"
-          variant={item.enabled ? "neutral" : "default"}
-        >
-          {state.togglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
+          {triggerPending ? "Starting…" : "Run now"}
         </Button>
       ) : null}
     </div>
@@ -61,21 +39,12 @@ function AutomationDetailActions({
 }
 
 interface AutomationDetailOverflowProps {
-  isTogglePending: boolean;
-  item: AutomationJob;
   onDelete: () => void;
   onEdit: () => void;
-  onToggleEnabled: (enabled: boolean) => void;
 }
 
-function AutomationDetailOverflow({
-  isTogglePending,
-  item,
-  onDelete,
-  onEdit,
-  onToggleEnabled,
-}: AutomationDetailOverflowProps) {
-  const isDynamic = item.source === "dynamic";
+/** Edit and Delete for user-created jobs; the enable switch lives in the page head. */
+function AutomationDetailOverflow({ onDelete, onEdit }: AutomationDetailOverflowProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -86,28 +55,17 @@ function AutomationDetailOverflow({
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
-        {isDynamic ? (
-          <DropdownMenuItem data-testid="edit-automation-btn" onClick={onEdit}>
-            <Pencil className="size-3" />
-            Edit
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem
-          data-testid="toggle-automation-btn"
-          disabled={isTogglePending}
-          onClick={() => onToggleEnabled(!item.enabled)}
-        >
-          {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
+        <DropdownMenuItem data-testid="edit-automation-btn" onClick={onEdit}>
+          <Pencil className="size-3" />
+          Edit
         </DropdownMenuItem>
-        {isDynamic ? (
-          <DropdownMenuItem
-            data-testid="delete-automation-btn"
-            onClick={onDelete}
-            variant="destructive"
-          >
-            Delete job
-          </DropdownMenuItem>
-        ) : null}
+        <DropdownMenuItem
+          data-testid="delete-automation-btn"
+          onClick={onDelete}
+          variant="destructive"
+        >
+          Delete job
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -61,7 +61,7 @@ Walk (task_11 plan):
    command persists dormant and reactivates on re-enable.
 9. `compozy extension dev` — edit a command title (projection updates live), then break the
    manifest (last-good stays, the error reaches dev diagnostics); a program edit drops open
-   sessions with the "view reloaded" note.
+   sessions with the "View updated" note.
 10. Check Settings > Extensions > Palette — contributed commands/views with effective and dormant
     bindings; the unhealthy state grays contributions with the health reason.
 

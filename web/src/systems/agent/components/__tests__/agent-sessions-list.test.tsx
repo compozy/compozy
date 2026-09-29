@@ -107,31 +107,42 @@ describe("AgentSessionsList", () => {
     expect(screen.queryByText("New session")).not.toBeInTheDocument();
   });
 
-  it("formats relative times against one render-pass timestamp", () => {
+  it("offers a retry when the session list fails to load", () => {
+    const onRetry = vi.fn();
+    render(
+      <AgentSessionsList agentName="codex-agent" sessions={[]} status="error" onRetry={onRetry} />
+    );
+
+    expect(screen.getByTestId("agent-sessions-error")).toHaveTextContent("Couldn't load sessions");
+    fireEvent.click(screen.getByTestId("agent-sessions-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders last activity through the shared relative Time primitive", () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-17T18:11:00Z"));
     const sessions = [
       makeSession({
         id: "sess_one",
-        updated_at: "2026-04-17T18:10:30Z",
+        updated_at: "2026-04-17T18:10:45Z",
         activity: {
           elapsed_ms: 60_000,
           elapsed_seconds: 60,
           idle_seconds: 0,
           iteration_current: 1,
           iteration_max: 2,
-          last_activity_at: "2026-04-17T18:10:30Z",
+          last_activity_at: "2026-04-17T18:10:45Z",
         },
       }),
       makeSession({
         id: "sess_two",
-        updated_at: "2026-04-17T18:10:30Z",
+        updated_at: "2026-04-17T18:10:45Z",
         activity: {
           elapsed_ms: 60_000,
           elapsed_seconds: 60,
           idle_seconds: 0,
           iteration_current: 1,
           iteration_max: 2,
-          last_activity_at: "2026-04-17T18:10:30Z",
+          last_activity_at: "2026-04-17T18:10:45Z",
         },
       }),
     ];
@@ -144,7 +155,9 @@ describe("AgentSessionsList", () => {
     expect(
       within(screen.getByTestId("agent-session-row-sess_two")).getByText("just now")
     ).toBeInTheDocument();
-    expect(Date.now).toHaveBeenCalledTimes(1);
+    expect(
+      within(screen.getByTestId("agent-session-row-sess_one")).getByText("just now")
+    ).toHaveAttribute("datetime", "2026-04-17T18:10:45Z");
   });
 
   it("renders zero elapsed duration as zero seconds", () => {
@@ -364,7 +377,7 @@ describe("AgentSessionsList", () => {
     expect(archivedDisclosure).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByTestId("agent-session-row-sess_archived")).toBeNull();
     await user.click(archivedDisclosure);
-    expect(screen.getByTestId("agent-session-row-sess_archived")).toHaveTextContent("ARCHIVED");
+    expect(screen.getByTestId("agent-session-row-sess_archived")).toHaveTextContent("Archived");
 
     fireEvent.click(screen.getByTestId("session-row-actions-sess_archived"));
     expect(screen.getByTestId("session-row-unarchive-sess_archived")).toBeInTheDocument();

@@ -13,10 +13,10 @@ export interface ProviderRequestInputs {
   provider: string;
 }
 
-type ProviderSettings = NonNullable<SettingsProviderRequest["settings"]>;
+export type ProviderSettings = NonNullable<SettingsProviderRequest["settings"]>;
 type ProviderModelsPayload = NonNullable<ProviderSettings["models"]>;
 
-function existingApiKeyTargetEnv(current: ProviderSettings): string {
+export function existingApiKeyTargetEnv(current: ProviderSettings): string {
   const slot = current.credential_slots?.find(entry => entry.name === "api_key");
   return slot?.target_env?.trim() ?? "";
 }

@@ -11,6 +11,11 @@ import {
   Spinner,
 } from "@compozy/ui";
 
+import { humanizeLoopNodeId } from "../../../lib/loop-node-labels";
+import {
+  loopRequestContextBlock,
+  type LoopRequestContextBlock,
+} from "../../../lib/loop-request-context";
 import type { LoopRequestView } from "../../../lib/loop-request-model";
 
 export interface LoopRequestDetailsProps {
@@ -20,11 +25,6 @@ export interface LoopRequestDetailsProps {
   isLoading?: boolean;
   onRequestFull?: () => void;
   className?: string;
-}
-
-interface LoopRequestContextEntry {
-  key: string;
-  value: string;
 }
 
 /**
@@ -40,13 +40,9 @@ export function LoopRequestDetails({
   onRequestFull,
   className,
 }: LoopRequestDetailsProps) {
-  const context = view.request.context;
-  const preview = contextEntries(context);
-  const previewText = preview.length === 0 ? contextText(context) : null;
-  const full = contextEntries(fullContext);
-  const fullText = full.length === 0 ? contextText(fullContext) : null;
-  const hasFull = full.length > 0 || fullText !== null;
-  const hasPreview = preview.length > 0 || previewText !== null;
+  const preview = loopRequestContextBlock(view.request.context);
+  const full = loopRequestContextBlock(fullContext);
+  const canFetchFull = onRequestFull !== undefined && full === null;
   return (
     <Collapsible className={cn("group/details", className)}>
       <CollapsibleTrigger
@@ -64,47 +60,33 @@ export function LoopRequestDetails({
           className="mt-2 rounded-md border border-line-soft bg-input-fill px-3 py-2.5"
           data-testid="loop-request-context"
         >
-          {hasPreview ? (
+          {preview ? (
             <>
               <Eyebrow className="text-faint">Context</Eyebrow>
-              <ContextBody entries={preview} text={previewText} />
+              <ContextBody block={preview} />
             </>
           ) : null}
-          {hasFull ? (
+          {full ? (
             <div
-              className={cn(hasPreview && "mt-2.5 border-t border-line-soft pt-2.5")}
+              className={cn(preview && "mt-2.5 border-t border-line-soft pt-2.5")}
               data-testid="loop-request-context-full"
             >
               <Eyebrow className="text-faint">Full context</Eyebrow>
-              <ContextBody entries={full} text={fullText} />
+              <ContextBody block={full} />
             </div>
           ) : null}
-          {onRequestFull && !hasFull ? (
-            <div className={cn(hasPreview && "mt-2.5")}>
-              {error ? (
-                <p className="mb-2 text-small-body text-danger" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              <Button
-                aria-busy={isLoading || undefined}
-                data-testid="loop-request-context-fetch"
-                disabled={isLoading}
-                onClick={onRequestFull}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {isLoading ? <Spinner /> : <ScrollText aria-hidden="true" />}
-                {error ? "Try again" : "Show full context"}
-              </Button>
-            </div>
+          {canFetchFull ? (
+            <FullContextFetch
+              error={error}
+              hasPreview={preview !== null}
+              isLoading={isLoading}
+              onRequestFull={onRequestFull}
+            />
           ) : null}
           <div
             className={cn(
               "font-mono text-pill-group-badge text-faint",
-              (hasPreview || hasFull || (onRequestFull && !hasFull)) &&
-                "mt-2.5 border-t border-line-soft pt-2.5"
+              (preview || full || canFetchFull) && "mt-2.5 border-t border-line-soft pt-2.5"
             )}
           >
             {identityLine(view)}
@@ -115,23 +97,51 @@ export function LoopRequestDetails({
   );
 }
 
+function FullContextFetch({
+  hasPreview,
+  error,
+  isLoading,
+  onRequestFull,
+}: {
+  hasPreview: boolean;
+  error?: string;
+  isLoading?: boolean;
+  onRequestFull: () => void;
+}) {
+  return (
+    <div className={cn(hasPreview && "mt-2.5")}>
+      {error ? (
+        <p className="mb-2 text-small-body text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <Button
+        aria-busy={isLoading || undefined}
+        data-testid="loop-request-context-fetch"
+        disabled={isLoading}
+        onClick={onRequestFull}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        {isLoading ? <Spinner /> : <ScrollText aria-hidden="true" />}
+        {error ? "Try again" : "Show full context"}
+      </Button>
+    </div>
+  );
+}
+
 function identityLine(view: LoopRequestView): string {
-  const parts = [view.request.node_id, `gen ${view.request.generation}`];
+  const parts = [humanizeLoopNodeId(view.request.node_id), `round ${view.request.generation}`];
   if (view.laneLabel !== "") parts.push(view.laneLabel);
   return parts.join(" · ");
 }
 
-function ContextBody({
-  entries,
-  text,
-}: {
-  entries: readonly LoopRequestContextEntry[];
-  text: string | null;
-}) {
-  if (entries.length > 0) {
+function ContextBody({ block }: { block: LoopRequestContextBlock }) {
+  if (block.entries.length > 0) {
     return (
       <dl className="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
-        {entries.map(entry => (
+        {block.entries.map(entry => (
           <Fragment key={entry.key}>
             <dt className="font-mono text-mono-id text-faint">{entry.key}</dt>
             <dd className="min-w-0 font-mono text-mono-id break-words text-fg">{entry.value}</dd>
@@ -140,31 +150,7 @@ function ContextBody({
       </dl>
     );
   }
-  if (text === null) return null;
-  return <p className="mt-1.5 max-w-[62ch] text-small-body leading-relaxed text-muted">{text}</p>;
-}
-
-function contextEntries(value: unknown): LoopRequestContextEntry[] {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
-  return Object.entries(value as Record<string, unknown>).map(([key, entry]) => ({
-    key,
-    value: printableValue(entry),
-  }));
-}
-
-function contextText(value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  if (typeof value === "object" && !Array.isArray(value)) return null;
-  const text = printableValue(value);
-  return text === "" ? null : text;
-}
-
-function printableValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === undefined) return "";
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
-  }
+  return (
+    <p className="mt-1.5 max-w-[62ch] text-small-body leading-relaxed text-muted">{block.text}</p>
+  );
 }

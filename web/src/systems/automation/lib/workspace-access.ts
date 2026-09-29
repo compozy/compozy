@@ -23,5 +23,5 @@ export function automationWorkspaceAccessError(
   if (workspaceLoading || !item || automationMatchesActiveWorkspace(item, activeWorkspaceId)) {
     return null;
   }
-  return new Error(`This workspace-scoped ${kind} belongs to another workspace.`);
+  return new Error(`This ${kind} belongs to another project.`);
 }

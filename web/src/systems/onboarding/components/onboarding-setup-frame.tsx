@@ -1,16 +1,6 @@
 import { Lock } from "lucide-react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  FieldHeader,
-  HelpTip,
-  Icon,
-  Logo,
-  Pill,
-  cn,
-} from "@compozy/ui";
+import { Dialog, DialogContent, DialogTitle, Icon, Logo, Pill, cn } from "@compozy/ui";
 
 import type { OnboardingWizardApi } from "../hooks/use-onboarding-wizard";
 import { useSetupBodyHeight } from "../hooks/use-setup-body-height";
@@ -107,17 +97,15 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
         >
           <div key={wizard.step} className="onboarding-setup-pane-in">
             <div ref={measureRef} className="flex flex-col px-6 pt-5.5 pb-6.5 max-md:px-4">
-              <FieldHeader>
-                <h3 className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
-                  {wizard.meta.title}
-                </h3>
-                <HelpTip
-                  data-testid={wizard.step === 2 ? "onboarding-workspace-help" : undefined}
-                  label={wizard.meta.helpLabel}
-                >
-                  {wizard.meta.help}
-                </HelpTip>
-              </FieldHeader>
+              <h3 className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
+                {wizard.meta.title}
+              </h3>
+              <p
+                className="mt-1 text-small-body text-muted"
+                data-testid={wizard.step === 2 ? "onboarding-workspace-help" : undefined}
+              >
+                {wizard.meta.help}
+              </p>
               {wizard.step === 1 ? (
                 <StepDefaultModel model={wizard.defaultModel} />
               ) : (

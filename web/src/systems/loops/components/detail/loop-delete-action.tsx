@@ -33,7 +33,7 @@ export function LoopDeleteAction({
       defaultOpen={defaultOpen}
       open={open}
       title={`Delete ${loopName}?`}
-      description="Delete this workspace-owned definition. If a bundled Loop shares the name, it becomes visible again."
+      description="Delete this Loop from the project. If a built-in Loop has the same name, it will show again."
       confirmLabel="Delete loop"
       cancelLabel="Cancel"
       tone="danger"

@@ -304,7 +304,7 @@ describe("SessionCreateDialog", () => {
     renderDialog({ isSubmitting: true, onOpenChange });
 
     expect(screen.getByTestId("session-create-pending-status")).toHaveTextContent(
-      "CompozyOS durably accepts it"
+      "Starting your session…"
     );
     expect(screen.getByTestId("session-create-submit")).toBeDisabled();
     fireEvent.click(getDialogBackdrop());

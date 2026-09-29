@@ -74,7 +74,7 @@ function MarketplaceEntryCard({
         <MarketplaceEntryLogo entry={entry} size="md" />
       </Link>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <div className="flex min-w-0 items-center gap-1.75">
+        <div className="flex min-w-0 items-center gap-2">
           <CatalogCard.Title>
             <Link
               aria-disabled={pending || undefined}
@@ -113,11 +113,7 @@ function MarketplaceEntryCard({
           >
             {highlightQuery(text, query)}
           </CatalogCard.Description>
-        ) : (
-          <CatalogCard.Description className="text-eyebrow leading-snug text-faint italic">
-            No description yet
-          </CatalogCard.Description>
-        )}
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2" data-slot="marketplace-trail">
         {trail}

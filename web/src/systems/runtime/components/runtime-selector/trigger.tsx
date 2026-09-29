@@ -4,10 +4,8 @@ import { useId, type ComponentProps } from "react";
 import { type RuntimeSpeed } from "@/lib/api-contract";
 import { cn, IntensityMeter, KindIcon, providerKindIconRegistry } from "@compozy/ui";
 
+import { runtimeTriggerView } from "./trigger-model";
 import {
-  reasoningEffortLabel,
-  reasoningEffortPosition,
-  resolveReasoningState,
   type RuntimeModelOption,
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
@@ -35,13 +33,6 @@ export interface RuntimeSelectorTriggerProps extends Omit<
   onPress?: () => void;
 }
 
-function providerKind(
-  provider: RuntimeProviderOption | undefined,
-  value: RuntimeSelectorValue
-): string {
-  return provider?.runtime_provider ?? provider?.id ?? value.provider;
-}
-
 /** Keeps the composer trigger chromeless inside the prompt frame. */
 function triggerSurfaceClass(
   variant: RuntimeSelectorVariant,
@@ -60,6 +51,56 @@ function triggerSurfaceClass(
     variant === "small" ? "h-button-lg gap-2 px-2.5" : "h-[34px] gap-2.5 px-3",
     open ? "border-accent-dim" : "border-line-strong",
     inert && "cursor-not-allowed opacity-60 hover:bg-transparent"
+  );
+}
+
+function TriggerModelName({
+  name,
+  variant,
+  inert,
+}: {
+  name: string;
+  variant: RuntimeSelectorVariant;
+  inert: boolean;
+}) {
+  const composer = variant === "composer";
+  return (
+    <span
+      className={cn(
+        "max-w-[150px] truncate text-small-body font-medium",
+        composer
+          ? "text-subtle transition-colors group-data-[open=true]:text-fg-strong"
+          : "text-fg-strong",
+        composer && !inert && "group-hover:text-fg-strong"
+      )}
+    >
+      {name}
+    </span>
+  );
+}
+
+function TriggerFastMark() {
+  return (
+    <span
+      title="Fast speed requested"
+      data-slot="runtime-selector-fast"
+      className="grid shrink-0 place-items-center text-accent-strong"
+    >
+      <Zap aria-hidden="true" className="size-[11px] fill-current" />
+    </span>
+  );
+}
+
+function TriggerWarningMark({ label }: { label: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="grid shrink-0 place-items-center text-warning"
+    >
+      <TriangleAlert aria-hidden="true" className="size-3.5" />
+    </span>
   );
 }
 
@@ -87,37 +128,16 @@ export function RuntimeSelectorTrigger({
   ref,
   ...props
 }: RuntimeSelectorTriggerProps) {
-  const compact = variant === "compact";
   const inert = disabled || readOnly;
-  const reasoning = resolveReasoningState(model);
-  const showReasoning = reasoning.mode === "levels" && !compact;
-  // The meter mirrors the slider: the model default fills the bars while the
-  // wire value is ""; only a level-less model renders the hollow zero state.
-  const currentEffort = value.reasoning_effort || reasoning.defaultEffort;
-  const meterUnset = currentEffort === "";
-  const showFast = speed === "fast" && !compact;
-  const providerManaged = provider?.runtime_strategy === "provider_managed";
-  const showWarning = needsAuth || model?.availability === "unavailable" || providerManaged;
-  const warningLabel = needsAuth
-    ? "Provider needs sign in"
-    : model?.availability === "unavailable"
-      ? "Model unavailable"
-      : "Provider managed";
-  const providerName = provider?.name || value.provider;
-  // `||` not `??`: an unset model is "" (not nullish), so the placeholder must
-  // still win — otherwise the trigger renders blank in the no-model state.
-  const modelName =
-    model?.name || value.model || (providerManaged ? "Provider managed" : modelPlaceholder);
-
-  const summaryParts = [compact ? providerName : `${providerName} / ${modelName}`];
-  if (showReasoning) {
-    summaryParts.push(
-      `reasoning ${meterUnset ? "provider default" : reasoningEffortLabel(currentEffort)}`
-    );
-  }
-  if (showFast) summaryParts.push("fast speed requested");
-  if (showWarning) summaryParts.push(warningLabel.toLowerCase());
-  const valueSummary = summaryParts.join(", ");
+  const view = runtimeTriggerView({
+    value,
+    provider,
+    model,
+    variant,
+    needsAuth,
+    modelPlaceholder,
+    speed,
+  });
 
   // With an external caption the accessible name composes caption + value
   // (label-then-value, like a native select); standalone, the summary is the
@@ -134,7 +154,7 @@ export function RuntimeSelectorTrigger({
       aria-expanded={open}
       aria-controls={open ? popupId : undefined}
       aria-labelledby={ariaLabelledby ? `${ariaLabelledby} ${valueSummaryId}` : undefined}
-      aria-label={ariaLabelledby ? undefined : `Runtime: ${valueSummary}`}
+      aria-label={ariaLabelledby ? undefined : `Runtime: ${view.valueSummary}`}
       data-open={open ? "true" : "false"}
       data-variant={variant}
       className={cn(
@@ -143,59 +163,32 @@ export function RuntimeSelectorTrigger({
         className
       )}
       onClick={() => {
-        if (!disabled && !readOnly) onPress?.();
+        if (!inert) onPress?.();
       }}
       {...props}
     >
       <span id={valueSummaryId} className="sr-only">
-        {valueSummary}
+        {view.valueSummary}
       </span>
       <KindIcon
-        kind={providerKind(provider, value)}
+        kind={view.providerKind}
         registry={providerKindIconRegistry}
         size="sm"
         tone="default"
         className="shrink-0"
       />
-      {compact ? null : (
-        <span
-          className={cn(
-            "max-w-[150px] truncate text-small-body font-medium",
-            variant === "composer"
-              ? "text-subtle transition-colors group-data-[open=true]:text-fg-strong"
-              : "text-fg-strong",
-            variant === "composer" && !inert && "group-hover:text-fg-strong"
-          )}
-        >
-          {modelName}
-        </span>
+      {view.compact ? null : (
+        <TriggerModelName name={view.modelName} variant={variant} inert={inert} />
       )}
-      {showReasoning ? (
+      {view.meter ? (
         <IntensityMeter
-          position={meterUnset ? 0 : reasoningEffortPosition(currentEffort)}
-          hollow={meterUnset}
+          position={view.meter.position}
+          hollow={view.meter.hollow}
           className="shrink-0"
         />
       ) : null}
-      {showFast ? (
-        <span
-          title="Fast speed requested"
-          data-slot="runtime-selector-fast"
-          className="grid shrink-0 place-items-center text-accent-strong"
-        >
-          <Zap aria-hidden="true" className="size-[11px] fill-current" />
-        </span>
-      ) : null}
-      {showWarning ? (
-        <span
-          role="img"
-          aria-label={warningLabel}
-          title={warningLabel}
-          className="grid shrink-0 place-items-center text-warning"
-        >
-          <TriangleAlert aria-hidden="true" className="size-3.5" />
-        </span>
-      ) : null}
+      {view.showFast ? <TriggerFastMark /> : null}
+      {view.warningLabel ? <TriggerWarningMark label={view.warningLabel} /> : null}
       <ChevronDown
         aria-hidden="true"
         data-slot="runtime-selector-chevron"

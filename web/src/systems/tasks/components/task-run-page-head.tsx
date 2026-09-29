@@ -146,7 +146,7 @@ export function TaskRunPageOverflow({
             onClick={onRecover}
           >
             <LifeBuoy aria-hidden="true" className="size-3" />
-            Recover
+            Try again
           </DropdownMenuItem>
         ) : null}
         {canRelease ? (
@@ -155,7 +155,7 @@ export function TaskRunPageOverflow({
             disabled={pending.release}
             onClick={onRelease}
           >
-            Release claim
+            Let another agent take it
           </DropdownMenuItem>
         ) : null}
         {isCancelable ? (
@@ -178,7 +178,7 @@ export function TaskRunPageOverflow({
               onClick={onForceFail}
               variant="destructive"
             >
-              Force fail…
+              Mark as failed…
             </DropdownMenuItem>
           </>
         ) : null}

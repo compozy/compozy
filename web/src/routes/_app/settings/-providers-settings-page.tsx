@@ -1,15 +1,6 @@
-import { AlertCircle, Check, Database, Plus, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Database, Plus, SearchX, Trash2, X } from "lucide-react";
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  Button,
-  ConfirmDialog,
-  Empty,
-  Spinner,
-} from "@compozy/ui";
+import { Alert, AlertAction, AlertDescription, Button, ConfirmDialog, Empty } from "@compozy/ui";
 
 import { useCreateProviderFocusRestore } from "@/hooks/routes/use-create-provider-focus-restore";
 import {
@@ -19,18 +10,15 @@ import {
 import {
   ProviderCard,
   ProviderDetailDialog,
-  ProviderRow,
   ProvidersToolbar,
   SettingsPageFrame,
+  SettingsPageState,
   useSettingsTopbar,
-  type ProvidersViewMode,
   type SettingsProviderEntry,
 } from "@/systems/settings";
 
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
-  const [view, setView] = useState<ProvidersViewMode>("cards");
-  const inspectorOpen = page.inspector.mode !== "closed";
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
   useSettingsTopbar("providers", {
     actions:
@@ -49,62 +37,18 @@ export function ProvidersSettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-providers-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SettingsPageState slug="providers" state="loading" />;
   }
 
   if (page.error || !page.envelope) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-providers-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">{page.error?.message ?? "Failed to load providers"}</p>
-        </div>
-      </div>
+      <SettingsPageState error={page.error} onRetry={page.retry} slug="providers" state="error" />
     );
   }
 
-  const inspectorEntry =
-    page.inspector.mode === "inspect" || page.inspector.mode === "edit"
-      ? page.inspector.entry
-      : null;
-  const inspectorDraft =
-    page.inspector.mode === "edit" || page.inspector.mode === "create"
-      ? page.inspector.draft
-      : null;
-  const readyCount = page.counts.installed;
-  const setupCount = page.counts.needsSetup;
-  const missingCount = page.counts.binaryMissing;
-
   return (
     <SettingsPageFrame
-      meta={[
-        {
-          key: "ready",
-          content: <span data-testid="settings-page-providers-ready">{readyCount} ready</span>,
-        },
-        {
-          key: "setup",
-          content: (
-            <span data-testid="settings-page-providers-needs-setup">{setupCount} needs setup</span>
-          ),
-        },
-        {
-          key: "missing",
-          content: (
-            <span data-testid="settings-page-providers-missing">{missingCount} not installed</span>
-          ),
-        },
-      ]}
+      meta={providerCountMeta(page.counts)}
       restart={page.restart}
       slug="providers"
       width="wide"
@@ -113,74 +57,9 @@ export function ProvidersSettingsPage() {
         <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
-      {page.providers.length === 0 ? (
-        <Empty
-          data-testid="settings-page-providers-empty"
-          description='Use "New provider" to add an overlay entry to your config.'
-          icon={Database}
-          title="No providers configured"
-        />
-      ) : (
-        <>
-          <ProvidersToolbar
-            nameQuery={page.filters.nameQuery}
-            onNameQueryChange={page.setNameQuery}
-            onStatusChange={page.setStatusFilter}
-            onViewChange={setView}
-            statusFilter={page.filters.statusFilter}
-            view={view}
-          />
-          {page.filteredProviders.length === 0 ? (
-            <p
-              className="rounded-lg border border-line bg-canvas-soft px-4 py-4 text-small-body text-muted"
-              data-testid="settings-page-providers-empty-filtered"
-            >
-              No providers match. Clear the search or the status filter.
-            </p>
-          ) : view === "cards" ? (
-            <section
-              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-              data-testid="settings-page-providers-list"
-            >
-              {page.filteredProviders.map(provider => (
-                <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
-              ))}
-            </section>
-          ) : (
-            <section
-              className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
-              data-testid="settings-page-providers-list"
-            >
-              {page.filteredProviders.map(provider => (
-                <ProviderRow key={provider.name} onOpen={page.openInspect} provider={provider} />
-              ))}
-            </section>
-          )}
-        </>
-      )}
+      <ProvidersCatalog page={page} />
 
-      <ProviderDetailDialog
-        open={inspectorOpen}
-        mode={page.inspector.mode === "closed" ? "inspect" : page.inspector.mode}
-        entry={inspectorEntry}
-        draft={inspectorDraft}
-        error={page.inspectorError}
-        warnings={page.inspectorWarnings}
-        canSave={page.inspectorIsValid}
-        isSaving={page.inspectorIsSaving}
-        isDeleting={page.deleteIsPending}
-        onOpenChange={next => {
-          if (!next) page.closeInspector();
-        }}
-        onDraftChange={page.updateDraft}
-        onSwitchToEdit={page.switchToEdit}
-        onCancelEdit={page.cancelEdit}
-        onSave={page.saveInspector}
-        onRequestDelete={() => {
-          if (inspectorEntry) page.openDelete(inspectorEntry);
-        }}
-        onRefreshCatalog={() => undefined}
-      />
+      <ProvidersInspector page={page} />
 
       <ProviderDeleteDialog
         target={page.deleteTarget.mode === "open" ? page.deleteTarget.entry : null}
@@ -190,6 +69,120 @@ export function ProvidersSettingsPage() {
         onConfirm={page.confirmDelete}
       />
     </SettingsPageFrame>
+  );
+}
+
+type ProvidersPage = ReturnType<typeof useSettingsProvidersPage>;
+
+function providerCountMeta(counts: ProvidersPage["counts"]) {
+  return [
+    {
+      key: "ready",
+      content: <span data-testid="settings-page-providers-ready">{counts.installed} ready</span>,
+    },
+    {
+      key: "setup",
+      content: (
+        <span data-testid="settings-page-providers-needs-setup">
+          {counts.needsSetup} needs setup
+        </span>
+      ),
+    },
+    {
+      key: "missing",
+      content: (
+        <span data-testid="settings-page-providers-missing">
+          {counts.binaryMissing} not installed
+        </span>
+      ),
+    },
+  ];
+}
+
+function ProvidersCatalog({ page }: { page: ProvidersPage }) {
+  if (page.providers.length === 0) {
+    return (
+      <Empty
+        data-testid="settings-page-providers-empty"
+        description="Add one to start sessions."
+        icon={Database}
+        title="No providers yet"
+      />
+    );
+  }
+  return (
+    <>
+      <ProvidersToolbar
+        nameQuery={page.filters.nameQuery}
+        onNameQueryChange={page.setNameQuery}
+        onStatusChange={page.setStatusFilter}
+        statusFilter={page.filters.statusFilter}
+      />
+      {page.filteredProviders.length === 0 ? (
+        <Empty
+          action={
+            <Button
+              onClick={() => {
+                page.setNameQuery("");
+                page.setStatusFilter(null);
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Clear filters
+            </Button>
+          }
+          data-testid="settings-page-providers-empty-filtered"
+          description="Try a different search or status."
+          framed
+          icon={SearchX}
+          title="No providers match"
+        />
+      ) : (
+        <section
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="settings-page-providers-list"
+        >
+          {page.filteredProviders.map(provider => (
+            <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
+          ))}
+        </section>
+      )}
+    </>
+  );
+}
+
+function ProvidersInspector({ page }: { page: ProvidersPage }) {
+  const { inspector } = page;
+  const inspectorEntry =
+    inspector.mode === "inspect" || inspector.mode === "edit" ? inspector.entry : null;
+  const inspectorDraft =
+    inspector.mode === "edit" || inspector.mode === "create" ? inspector.draft : null;
+
+  return (
+    <ProviderDetailDialog
+      open={inspector.mode !== "closed"}
+      mode={inspector.mode === "closed" ? "inspect" : inspector.mode}
+      entry={inspectorEntry}
+      draft={inspectorDraft}
+      error={page.inspectorError}
+      warnings={page.inspectorWarnings}
+      canSave={page.inspectorIsValid}
+      isSaving={page.inspectorIsSaving}
+      isDeleting={page.deleteIsPending}
+      onOpenChange={next => {
+        if (!next) page.closeInspector();
+      }}
+      onDraftChange={page.updateDraft}
+      onSwitchToEdit={page.switchToEdit}
+      onCancelEdit={page.cancelEdit}
+      onSave={page.saveInspector}
+      onRequestDelete={() => {
+        if (inspectorEntry) page.openDelete(inspectorEntry);
+      }}
+      onRefreshCatalog={() => undefined}
+    />
   );
 }
 
@@ -208,31 +201,33 @@ function ProviderDeleteDialog({
 }) {
   const open = Boolean(target);
   const fallback = target?.fallback ?? null;
+  const name = target ? providerDisplayName(target) : "";
 
   return (
     <ConfirmDialog
       open={open}
-      title={target ? `Delete provider "${target.name}"?` : "Delete provider"}
+      title={
+        !target ? "Delete provider" : fallback ? `Reset "${name}"?` : `Delete provider "${name}"?`
+      }
       description={
         target
-          ? "Removing the overlay keeps the provider config in other overlays or builtin definitions, if any."
+          ? fallback
+            ? "Your changes to this provider are removed."
+            : "This removes the provider from your settings."
           : null
       }
       note={
         fallback ? (
           <div className="flex flex-col gap-1" data-testid="settings-providers-delete-builtin">
-            <span className="font-medium">Builtin provider will be revealed</span>
-            <span>
-              After delete, the effective provider falls back to the builtin definition shipped with
-              CompozyOS. The provider stays available with its shipped defaults.
-            </span>
+            <span className="font-medium">It stays available</span>
+            <span>The provider goes back to the setup CompozyOS ships with.</span>
           </div>
         ) : null
       }
       error={error}
       isPending={isDeleting}
       cancelLabel="Cancel"
-      confirmLabel="Delete overlay"
+      confirmLabel={fallback ? "Reset to default" : "Delete provider"}
       confirmIcon={Trash2}
       contentProps={{ "data-testid": "settings-providers-delete" }}
       titleProps={{ "data-testid": "settings-providers-delete-title" }}
@@ -268,8 +263,8 @@ function LastActionAlert({
   const message = isSaved
     ? `Saved provider "${action.name}" · ${restartBadge}.`
     : action.hadFallback
-      ? `Deleted overlay for "${action.name}" · builtin fallback now effective · ${restartBadge}.`
-      : `Deleted overlay for "${action.name}" · ${restartBadge}.`;
+      ? `Reset "${action.name}" to its default setup · ${restartBadge}.`
+      : `Deleted provider "${action.name}" · ${restartBadge}.`;
 
   return (
     <Alert
@@ -279,9 +274,10 @@ function LastActionAlert({
       data-kind={action.kind}
     >
       <Check aria-hidden="true" className="size-3" />
-      <AlertDescription className="text-xs">{message}</AlertDescription>
+      <AlertDescription className="text-form-hint">{message}</AlertDescription>
       <AlertAction>
         <Button
+          aria-label="Dismiss"
           type="button"
           variant="ghost"
           size="sm"
@@ -293,4 +289,8 @@ function LastActionAlert({
       </AlertAction>
     </Alert>
   );
+}
+
+function providerDisplayName(entry: SettingsProviderEntry): string {
+  return entry.settings.display_name?.trim() || entry.name;
 }

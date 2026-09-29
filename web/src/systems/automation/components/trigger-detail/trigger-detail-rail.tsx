@@ -96,11 +96,7 @@ export function TriggerDetailRail({
   className,
   ...props
 }: TriggerDetailRailProps) {
-  const target = projectAutomationTarget(trigger);
-  const scopeLabel = trigger.scope === "workspace" ? "This workspace" : "Global";
-  const eventLabel = triggerEventLabel(trigger);
   const isWebhook = trigger.event === "webhook";
-  const kindLabel = target.kind === "loop" ? "Loop" : isWebhook ? "Webhook" : eventLabel;
 
   return (
     <aside
@@ -108,59 +104,9 @@ export function TriggerDetailRail({
       data-testid="trigger-detail-rail"
       {...props}
     >
-      <TriggerRailCard
-        data-testid="trigger-rail-properties"
-        defaultOpen
-        icon={Info}
-        summary={`${scopeLabel} · ${kindLabel}`}
-        title="Properties"
-      >
-        <PropertyRow label="Scope">{scopeLabel}</PropertyRow>
-        <PropertyRow label="Event">{eventLabel}</PropertyRow>
-        <PropertyRow label="Target">
-          {target.kind === "loop" ? `Loop · ${target.loopName}` : `Agent · ${target.agentName}`}
-        </PropertyRow>
-        {target.kind === "loop" ? (
-          <PropertyRow label="Loop workspace">
-            {loopWorkspaceName ?? target.workspaceId}
-          </PropertyRow>
-        ) : null}
-        {isWebhook && trigger.endpoint_slug ? (
-          <PropertyRow label="Endpoint" mono>
-            {trigger.endpoint_slug}
-          </PropertyRow>
-        ) : null}
-        {isWebhook && trigger.webhook_id ? (
-          <PropertyRow label="Webhook id">
-            <MonoId copy copyLabel="Copy webhook id" value={trigger.webhook_id} />
-          </PropertyRow>
-        ) : null}
-        {isWebhook ? (
-          <PropertyRow label="Signing secret">
-            {trigger.webhook_secret_present ? "Set" : "Not set"}
-          </PropertyRow>
-        ) : null}
-        <PropertyRow label="Source">{SOURCE_COPY[trigger.source]}</PropertyRow>
-      </TriggerRailCard>
+      <TriggerPropertiesCard loopWorkspaceName={loopWorkspaceName} trigger={trigger} />
 
-      {isWebhook ? (
-        <TriggerRailCard
-          bodyClassName="py-3"
-          data-testid="trigger-rail-public-delivery"
-          defaultOpen
-          icon={Globe}
-          summary={
-            trigger.ingress ? ingressReachabilityCopy(trigger.ingress.reachability).label : "Off"
-          }
-          title="Public delivery"
-        >
-          <GatewayIngressStatus
-            data-testid="automation-trigger-ingress"
-            ingress={trigger.ingress}
-            subject="this trigger"
-          />
-        </TriggerRailCard>
-      ) : null}
+      {isWebhook ? <TriggerPublicDeliveryCard ingress={trigger.ingress} /> : null}
 
       <TriggerRailCard
         data-testid="trigger-rail-reliability"
@@ -202,5 +148,79 @@ export function TriggerDetailRail({
         </span>
       </div>
     </aside>
+  );
+}
+
+function TriggerPropertiesCard({
+  trigger,
+  loopWorkspaceName,
+}: {
+  trigger: AutomationTrigger;
+  loopWorkspaceName: string | null;
+}) {
+  const target = projectAutomationTarget(trigger);
+  const scopeLabel = trigger.scope === "workspace" ? "This project" : "Global";
+  const eventLabel = triggerEventLabel(trigger);
+  const isWebhook = trigger.event === "webhook";
+  const kindLabel = target.kind === "loop" ? "Loop" : isWebhook ? "Webhook" : eventLabel;
+
+  return (
+    <TriggerRailCard
+      data-testid="trigger-rail-properties"
+      defaultOpen
+      icon={Info}
+      summary={`${scopeLabel} · ${kindLabel}`}
+      title="Properties"
+    >
+      <PropertyRow label="Scope">{scopeLabel}</PropertyRow>
+      <PropertyRow label="Event">{eventLabel}</PropertyRow>
+      <PropertyRow label="Target">
+        {target.kind === "loop" ? `Loop · ${target.loopName}` : `Agent · ${target.agentName}`}
+      </PropertyRow>
+      {target.kind === "loop" ? (
+        <PropertyRow label="Loop project">{loopWorkspaceName ?? target.workspaceId}</PropertyRow>
+      ) : null}
+      {isWebhook ? <TriggerWebhookPropertyRows trigger={trigger} /> : null}
+      <PropertyRow label="Source">{SOURCE_COPY[trigger.source]}</PropertyRow>
+    </TriggerRailCard>
+  );
+}
+
+function TriggerWebhookPropertyRows({ trigger }: { trigger: AutomationTrigger }) {
+  return (
+    <>
+      {trigger.endpoint_slug ? (
+        <PropertyRow label="Endpoint" mono>
+          {trigger.endpoint_slug}
+        </PropertyRow>
+      ) : null}
+      {trigger.webhook_id ? (
+        <PropertyRow label="Webhook id">
+          <MonoId copy copyLabel="Copy webhook id" value={trigger.webhook_id} />
+        </PropertyRow>
+      ) : null}
+      <PropertyRow label="Signing secret">
+        {trigger.webhook_secret_present ? "Set" : "Not set"}
+      </PropertyRow>
+    </>
+  );
+}
+
+function TriggerPublicDeliveryCard({ ingress }: { ingress: AutomationTrigger["ingress"] }) {
+  return (
+    <TriggerRailCard
+      bodyClassName="py-3"
+      data-testid="trigger-rail-public-delivery"
+      defaultOpen
+      icon={Globe}
+      summary={ingress ? ingressReachabilityCopy(ingress.reachability).label : "Off"}
+      title="Public delivery"
+    >
+      <GatewayIngressStatus
+        data-testid="automation-trigger-ingress"
+        ingress={ingress}
+        subject="this trigger"
+      />
+    </TriggerRailCard>
   );
 }

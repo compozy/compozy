@@ -114,7 +114,9 @@ export const ImplementTasksWithRunOverride: Story = {
     const capInput = canvas.getByTestId("loop-run-override-input-iteration_cap");
     await expect(capInput).toHaveAttribute("placeholder", "3");
     await fireEvent.change(capInput, { target: { value: "4" } });
-    await expect(canvas.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    await expect(canvas.getByTestId("loop-run-overrides-badge")).toHaveTextContent(
+      "changed for this run"
+    );
     await expect(capInput).toHaveAttribute("placeholder", "3");
   },
 };
@@ -146,7 +148,7 @@ export const RequiredInputError: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByTestId("loop-run-dry-button"));
     await expect(canvas.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
-      "slug is required to run this loop."
+      "Slug is required to run this Loop."
     );
     await expect(canvas.getByTestId("loop-run-submit-button")).toBeDisabled();
   },

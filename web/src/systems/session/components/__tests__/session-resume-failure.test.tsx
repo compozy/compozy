@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SessionResumeFailure } from "../session-resume-failure";
 
 describe("SessionResumeFailure", () => {
-  it("renders the session-level banner with the provider and ids as body text", () => {
+  it("renders the session-level banner with the provider in plain words and ids off screen", () => {
     render(
       <SessionResumeFailure
         agentName="claude-agent"
@@ -18,18 +18,19 @@ describe("SessionResumeFailure", () => {
     );
 
     expect(screen.getByTestId("session-resume-failure")).toBeInTheDocument();
+    const banner = screen.getByTestId("session-resume-failure");
     expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
-      "Attach failed: provider no longer available"
+      "Couldn't reconnect to this session"
     );
     // The provider reads inside the body sentence — no id pills, no chips.
     expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
-      "provider codex"
+      "This session used codex, which isn't set up in this project anymore."
     );
-    const meta = screen.getByTestId("session-resume-failure-meta");
-    expect(meta.className).toContain("font-mono");
-    expect(meta).toHaveTextContent("sess_123");
-    expect(meta).toHaveTextContent("claude-agent");
-    expect(meta.textContent).not.toMatch(/SESS_123|CLAUDE-AGENT/);
+    // Session id and agent stay one step deeper: attributes, not text.
+    expect(banner).toHaveAttribute("data-session-id", "sess_123");
+    expect(banner).toHaveAttribute("data-agent", "claude-agent");
+    expect(banner).not.toHaveTextContent("sess_123");
+    expect(banner).not.toHaveTextContent(/attach|daemon|runtime/i);
   });
 
   it("falls back to the raw message when no provider could be parsed", () => {
@@ -44,36 +45,36 @@ describe("SessionResumeFailure", () => {
       />
     );
 
-    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Attach failed");
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
+      "Couldn't reconnect to this session"
+    );
     expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
       "Attach failed unexpectedly."
     );
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
 
-  it("renders a dead runtime as read-only history with a fork action", () => {
+  it("renders a dead runtime as read-only history with a restart action", () => {
     render(
       <SessionResumeFailure
         isRetrying={false}
-        message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+        message="This session can't continue. Start a new session to keep working — the history stays here."
         missingProvider={null}
         onDismiss={vi.fn()}
         onRetry={vi.fn()}
-        retryLabel="Fork into a new session"
+        retryLabel="Restart in a new session"
         sessionId="sess_dead"
         showDismiss={false}
-        title="Runtime unavailable"
+        title="Session ended"
       />
     );
 
-    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
-      "Runtime unavailable"
-    );
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Session ended");
     expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
-      "original transcript and failure details remain available here"
+      "the history stays here"
     );
     expect(screen.getByTestId("session-resume-failure-retry")).toHaveTextContent(
-      "Fork into a new session"
+      "Restart in a new session"
     );
     expect(screen.queryByTestId("session-resume-failure-dismiss")).not.toBeInTheDocument();
   });
@@ -90,7 +91,9 @@ describe("SessionResumeFailure", () => {
       />
     );
 
-    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Attach failed");
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
+      "Couldn't reconnect to this session"
+    );
     expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
       "Attach failed unexpectedly."
     );
@@ -110,10 +113,9 @@ describe("SessionResumeFailure", () => {
       />
     );
 
-    expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent(
-      "sess_trimmed_meta"
-    );
-    expect(screen.getByTestId("session-resume-failure-meta")).not.toHaveTextContent(/\bagent\b/i);
+    const banner = screen.getByTestId("session-resume-failure");
+    expect(banner).toHaveAttribute("data-session-id", "sess_trimmed_meta");
+    expect(banner).not.toHaveAttribute("data-agent");
   });
 
   it("invokes retry and dismiss callbacks", () => {

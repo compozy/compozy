@@ -6,6 +6,7 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
+  HelpTip,
   PillGroup,
   SkeletonRows,
 } from "@compozy/ui";
@@ -20,7 +21,6 @@ import {
   MCPServerDeleteDialog,
   MCPServerEditor,
   MCPServersTable,
-  SettingsGroup,
   SettingsPageFrame,
   useSettingsTopbar,
   type SettingsMCPServerEntry,
@@ -31,8 +31,8 @@ type MCPScopeLane = "user" | "workspace";
 /**
  * Settings › MCP servers: the canonical management location for every MCP definition the daemon
  * resolves — hand-configured servers and the ones extensions provide, listed under their owner so
- * same-name definitions coexist visibly. The scope lane follows the shell's profile lens: User (or
- * the acting profile) versus one workspace; rows still act on the scope the daemon returned them
+ * same-name definitions coexist visibly. The scope lane follows the shell's profile lens: Personal
+ * (or the acting profile) versus one project; rows still act on the scope the daemon returned them
  * from, never on the lane selected here.
  */
 export function MCPSettingsPage() {
@@ -85,12 +85,8 @@ export function MCPSettingsPage() {
               {
                 key: "authorization",
                 content: (
-                  <span
-                    className="text-warning"
-                    data-testid="settings-page-mcp-needs-authorization"
-                  >
-                    {needingAuthorization} {needingAuthorization === 1 ? "needs" : "need"}{" "}
-                    authorization
+                  <span data-testid="settings-page-mcp-needs-authorization">
+                    {needingAuthorization} {needingAuthorization === 1 ? "needs" : "need"} sign-in
                   </span>
                 ),
               },
@@ -101,41 +97,40 @@ export function MCPSettingsPage() {
       slug="mcp"
       width="wide"
     >
-      <MCPScopeSelector page={page} />
-
-      <SettingsGroup
-        bare
-        description="Manual definitions are edited in place. Extension-provided servers store an override on top of their package."
-        title="Servers"
-      >
-        <div className="flex flex-col gap-3">
-          <ListingToolbar data-testid="settings-page-mcp-toolbar">
-            <ListingToolbar.Leading>
-              <ListingToolbar.Search
-                aria-label="Search MCP servers"
-                data-testid="settings-page-mcp-search"
-                kbd={null}
-                onChange={page.setQuery}
-                placeholder="Search by name, owner, or runtime name"
-                value={page.query}
-              />
-            </ListingToolbar.Leading>
-          </ListingToolbar>
-          {selected ? (
-            <MCPSelectionStrip
-              onEdit={page.edit}
-              onRemove={isExtensionOwnedMCPServer(selected) ? undefined : page.requestRemove}
-              server={selected}
+      <div className="flex flex-col gap-3">
+        <ListingToolbar data-testid="settings-page-mcp-toolbar">
+          <ListingToolbar.Leading>
+            <MCPScopeSelector page={page} />
+            <ListingToolbar.Search
+              aria-label="Search MCP servers"
+              data-testid="settings-page-mcp-search"
+              kbd={null}
+              onChange={page.setQuery}
+              placeholder="Search servers"
+              value={page.query}
             />
-          ) : null}
-          <MCPServersBody
-            onAuthorize={page.authorize}
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <HelpTip label="About MCP servers">
+              Servers you add are edited in place. For servers an extension adds, your edits are
+              saved on top of the extension.
+            </HelpTip>
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+        {selected ? (
+          <MCPSelectionStrip
             onEdit={page.edit}
-            onSelect={page.select}
-            page={page}
+            onRemove={isExtensionOwnedMCPServer(selected) ? undefined : page.requestRemove}
+            server={selected}
           />
-        </div>
-      </SettingsGroup>
+        ) : null}
+        <MCPServersBody
+          onAuthorize={page.authorize}
+          onEdit={page.edit}
+          onSelect={page.select}
+          page={page}
+        />
+      </div>
 
       <MCPSettingsDialogs page={page} />
     </SettingsPageFrame>
@@ -175,15 +170,15 @@ function MCPServersBody({
       <Empty
         action={
           <Button onClick={() => void collection.refetch()} size="sm" type="button">
-            Retry
+            Try again
           </Button>
         }
         cause={collection.error.message}
         data-testid="settings-page-mcp-error"
-        description="The MCP server list could not be loaded for this scope."
+        description="Check that CompozyOS is running, then try again."
         framed
         icon={AlertCircle}
-        title="MCP servers are unavailable"
+        title="Couldn't load MCP servers"
         titleAs="h3"
       />
     );
@@ -204,9 +199,9 @@ function MCPServersBody({
           </Button>
         }
         data-testid="settings-page-mcp-empty"
-        description="Servers you configure here, and the ones installed extensions provide, are listed for the selected scope."
+        description="Servers you add here, and the ones your extensions add, show up in this list."
         icon={Cable}
-        title="No MCP servers in this scope"
+        title="No MCP servers yet"
       />
     );
   }
@@ -219,7 +214,7 @@ function MCPServersBody({
           </Button>
         }
         data-testid="settings-page-mcp-query-empty"
-        description={`Nothing matches "${page.query}" by name, owner, or runtime name.`}
+        description={`Nothing matches "${page.query}".`}
         icon={SearchX}
         title="No MCP servers match"
       />
@@ -238,47 +233,46 @@ function MCPServersBody({
 
 function MCPScopeSelector({ page }: { page: MCPPageModel }) {
   const lane: MCPScopeLane = page.workspaceId ? "workspace" : "user";
-  const personalLabel = page.profile === "default" ? "User" : `Profile · ${page.profile}`;
+  const personalLabel = page.profile === "default" ? "Personal" : `Profile · ${page.profile}`;
   const firstWorkspace = page.workspaces[0];
   return (
-    <SettingsGroup bare title="Scope">
-      <div className="flex flex-wrap items-center gap-3" data-testid="settings-page-mcp-scope">
-        <PillGroup<MCPScopeLane>
-          aria-label="MCP servers scope"
-          items={[
-            { value: "user", label: personalLabel, testId: "settings-page-mcp-scope-user" },
-            {
-              value: "workspace",
-              label: "Workspace",
-              disabled: page.workspaces.length === 0,
-              testId: "settings-page-mcp-scope-workspace",
-            },
-          ]}
-          onChange={next =>
-            page.selectWorkspace(next === "user" ? null : (firstWorkspace?.id ?? null))
-          }
-          size="sm"
-          value={lane}
-        />
-        {lane === "workspace" ? (
-          <NativeSelect
-            aria-label="Workspace"
-            className="w-56"
-            data-testid="settings-page-mcp-workspace"
-            onChange={event => page.selectWorkspace(event.target.value || null)}
-            value={page.workspaceId ?? ""}
-          >
-            {page.workspaces.map(workspace => (
-              <NativeSelectOption key={workspace.id} value={workspace.id}>
-                {workspace.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        ) : null}
-      </div>
-    </SettingsGroup>
+    <div className="flex flex-wrap items-center gap-2.5" data-testid="settings-page-mcp-scope">
+      <PillGroup<MCPScopeLane>
+        aria-label="Show servers for"
+        items={[
+          { value: "user", label: personalLabel, testId: "settings-page-mcp-scope-user" },
+          {
+            value: "workspace",
+            label: "Project",
+            disabled: page.workspaces.length === 0,
+            testId: "settings-page-mcp-scope-workspace",
+          },
+        ]}
+        onChange={next =>
+          page.selectWorkspace(next === "user" ? null : (firstWorkspace?.id ?? null))
+        }
+        size="sm"
+        value={lane}
+      />
+      {lane === "workspace" ? (
+        <NativeSelect
+          aria-label="Project"
+          className="w-56"
+          data-testid="settings-page-mcp-workspace"
+          onChange={event => page.selectWorkspace(event.target.value || null)}
+          value={page.workspaceId ?? ""}
+        >
+          {page.workspaces.map(workspace => (
+            <NativeSelectOption key={workspace.id} value={workspace.id}>
+              {workspace.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      ) : null}
+    </div>
   );
 }
+
 function MCPSettingsDialogs({ page }: { page: MCPPageModel }) {
   return (
     <>
@@ -308,7 +302,7 @@ function MCPSettingsDialogs({ page }: { page: MCPPageModel }) {
         onClose={page.closeRemove}
         onConfirm={page.remove}
         target={page.removing}
-      />{" "}
+      />
     </>
   );
 }

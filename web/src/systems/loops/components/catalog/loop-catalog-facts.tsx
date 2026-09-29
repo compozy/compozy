@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 
-import { ListingRow, MonoId, Time } from "@compozy/ui";
+import { ListingRow, Time } from "@compozy/ui";
 
 import { loopFactsSegments, loopLastRunFact } from "../../lib/loop-catalog-presentation";
 import type { LoopCatalogEntry } from "../../types";
@@ -12,8 +12,8 @@ interface LoopCatalogFactsProps {
 }
 
 /**
- * One facts list for both catalog views. Sans/faint for declared facts; mono
- * only on last-run machine identity (`MonoId` + `Time`).
+ * One facts list for both catalog views, in sans. The last run reads as plain
+ * recency; its id lives on the run page.
  */
 export function LoopCatalogFacts({ entry, separator }: LoopCatalogFactsProps) {
   const texts = loopFactsSegments(entry);
@@ -26,10 +26,8 @@ export function LoopCatalogFacts({ entry, separator }: LoopCatalogFactsProps) {
     nodes.push({
       key: lastRun.id,
       node: (
-        <span className="inline-flex items-center gap-1 font-mono text-mono-id">
-          <MonoId value={lastRun.id} />
-          <span aria-hidden="true">·</span>
-          <Time iso={lastRun.iso} />
+        <span className="inline-flex items-center gap-1" title={lastRun.id}>
+          Last run <Time iso={lastRun.iso} />
         </span>
       ),
     });

@@ -57,7 +57,7 @@ export function WorktreeCreateDialog({
       >
         <EntityDialogHeader
           icon={FolderGit2}
-          eyebrow={`Workspace · ${workspaceName}`}
+          eyebrow={`Project · ${workspaceName}`}
           title="New worktree"
           description={`A separate checkout of ${workspaceName} on its own branch and directory.`}
           // Closing never aborts the create: the daemon materializes in the

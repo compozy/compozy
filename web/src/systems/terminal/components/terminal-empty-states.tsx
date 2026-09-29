@@ -36,6 +36,7 @@ export function TerminalEmptyState({ onOpenTerminal }: TerminalEmptyStateProps) 
           ) : undefined
         }
         data-testid="terminal-empty"
+        description="A terminal runs commands on this computer. Agents can open one too."
         icon={TerminalSquare}
         title="No terminals yet"
       />

@@ -416,6 +416,15 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | settings section `Observability` | "Diagnostics" | Section label only. |
 | settings section `Attention` | "Notifications" | Section label only. |
 | settings section `Gateway` | "Remote access" | Section label only. |
+| settings group `workspace` | "Basics" | Group label only. |
+| settings group `runtime` | "Agents" | Group label only. |
+| settings group `system` | "Advanced" | Group label only. |
+| Loop `generation` | "round" | One iteration of a Loop run. Wire, CLI, and payloads keep `generation`. |
+| Loop step `quarantined` | "set aside" | A step removed from scheduling after repeated failures; the UI verb is "Retry" (wire: requeue). |
+| fork (built-in Loop) | "Copy and edit" | UI verb for forking a built-in Loop into the project. |
+| memory `dream` | "tidy up" | Memory consolidation. `dream` stays in API, CLI, and config keys. |
+| extension dev overlay | "local development copy" | Menu verb "Unlink local copy". |
+| session status tokens (`waiting-for-input`, `hung`, `unhealthy`, …) | "Needs your answer", "Stuck", "Having trouble", … | Display words only; the token stays on `data-badge`/aria. Color only states that need the user. |
 
 `Roles`, `Hooks`, and `Extensions` keep their names — glossary terms that already read plainly.
 

@@ -57,11 +57,10 @@ describe("TasksListRow", () => {
     expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");
   });
 
-  it("falls back to the 7-character short id when the identifier is absent", () => {
-    render(<TasksListRow task={buildTask({ identifier: undefined })} />);
-    const id = screen.getByText("task_ab").closest('[data-slot="tasks-list-row-id"]');
-    expect(id).not.toBeNull();
-    expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");
+  it("omits the raw short id when no custom identifier is set", () => {
+    const { container } = render(<TasksListRow task={buildTask({ identifier: undefined })} />);
+    expect(container.querySelector('[data-slot="tasks-list-row-id"]')).toBeNull();
+    expect(screen.queryByText("task_ab")).toBeNull();
   });
 
   it("links the main region to /tasks/$id", () => {

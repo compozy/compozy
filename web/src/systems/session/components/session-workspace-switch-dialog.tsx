@@ -29,13 +29,13 @@ export function SessionWorkspaceSwitchDialog({
         if (!nextOpen) onCancel();
       }}
       tone="accent"
-      title={isGlobal ? "Turn on Global scope?" : "Switch workspace?"}
+      title={isGlobal ? "Turn on Global scope?" : "Switch project?"}
       description={
         isGlobal
-          ? "This session runs in Global scope (~). Confirming turns Global scope on — your workspace selection is remembered."
-          : `This session belongs to ${workspaceName}. Switching changes the active workspace and the windows open in it.`
+          ? "This session runs in Global scope (~). Confirming turns Global scope on — your project selection is remembered."
+          : `This session belongs to ${workspaceName}. Switching changes the active project and the windows open in it.`
       }
-      confirmLabel={isGlobal ? "Turn on Global scope" : "Switch workspace"}
+      confirmLabel={isGlobal ? "Turn on Global scope" : "Switch project"}
       cancelLabel="Stay here"
       onConfirm={onConfirm}
       contentProps={{ "data-testid": "session-workspace-switch-dialog" }}

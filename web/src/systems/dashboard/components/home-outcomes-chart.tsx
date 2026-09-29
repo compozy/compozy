@@ -28,7 +28,8 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
       bodyClassName="flex flex-1 flex-col"
       className="flex min-h-full flex-col"
       data-slot="home-outcomes"
-      label="Outcomes · last 14 days"
+      label="How work ended"
+      right={<span className="text-micro text-muted">Last 14 days</span>}
     >
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="flex-1">
         {hasData ? (

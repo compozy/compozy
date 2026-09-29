@@ -123,7 +123,7 @@ export function useRemoveExtension() {
     mutationFn: ({ name, workspaceId, profileName }: RemoveExtensionVariables) =>
       removeExtension(name, { workspaceId, profileName }),
     onSuccess: (_data, { dev, name }) =>
-      toast.success(dev ? `${name} dev overlay unlinked` : `${name} removed`),
+      toast.success(dev ? `${name} local copy unlinked` : `${name} removed`),
     onError: (error: Error) => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });

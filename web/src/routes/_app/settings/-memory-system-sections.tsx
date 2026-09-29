@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
 import { Input, Switch } from "@compozy/ui";
 import {
@@ -6,13 +8,18 @@ import {
   TEST_PREFIX,
 } from "./-memory-settings-types";
 
-export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
+/** The page's decision layer: remember on/off, where memory lives, plus any extra rows. */
+export function MemorySystemSection({
+  draft,
+  setDraft,
+  children,
+}: DraftSectionProps & { children?: ReactNode }) {
   return (
-    <SettingsGroup title="Memory system">
+    <SettingsGroup title="Memory">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-enabled`}
-        label="Memory persistence"
-        help="Persist curated recall across sessions"
+        label="Remember across sessions"
+        help="Agents keep useful notes and bring them into later sessions"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-enabled-switch`}
@@ -28,8 +35,8 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
       />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-global-dir`}
-        label="Global memory directory"
-        help="Root for global-scope memory files"
+        label="Memory folder"
+        help="Where your memory files are kept"
         control={
           <Input
             className="w-72 font-mono"
@@ -48,6 +55,7 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
+      {children}
     </SettingsGroup>
   );
 }
@@ -61,12 +69,12 @@ export function ProviderResilienceSection({
   return (
     <SettingsGroup
       title="Memory provider"
-      help="circuit-breaker policy when an external memory provider is configured"
+      help="What happens when an external memory service stops responding"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-name`}
         label="Provider name"
-        description="Empty falls back to the bundled local provider"
+        description="Leave empty to use the built-in memory"
         control={
           <Input
             className="w-56 font-mono"
@@ -88,7 +96,7 @@ export function ProviderResilienceSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-timeout`}
         label="Per-call timeout"
-        description="Deadline for each provider method before failing open to local"
+        description="How long to wait for the service before using the built-in memory. For example 2s"
         control={
           <Input
             className="w-32 font-mono"
@@ -110,7 +118,7 @@ export function ProviderResilienceSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-failure-threshold`}
         label="Failure threshold"
-        help="Consecutive failures before the breaker opens"
+        help="Failures in a row before CompozyOS stops calling the service"
         error={validationErrors.providerFailureThreshold ?? undefined}
         control={
           <SettingsNumberInput
@@ -134,7 +142,7 @@ export function ProviderResilienceSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-cooldown`}
         label="Cooldown"
-        help="How long the breaker stays open before retrying"
+        help="How long to wait before trying the service again. For example 30s"
         control={
           <Input
             className="w-32 font-mono"

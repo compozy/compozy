@@ -188,12 +188,12 @@ describe("TriggerDetailPanel", () => {
 
   it("Should surface the daemon's own reason when the trigger cannot be read", () => {
     renderPanel({
-      error: new Error("This workspace-scoped trigger belongs to another workspace."),
+      error: new Error("This trigger belongs to another project."),
       trigger: undefined,
     });
 
     expect(screen.getByTestId("automation-detail-error")).toHaveTextContent(
-      "This workspace-scoped trigger belongs to another workspace."
+      "This trigger belongs to another project."
     );
   });
 
@@ -502,8 +502,8 @@ describe("TriggerDetailPanel", () => {
     renderPanel({ runs: [], trigger: webhookTrigger });
 
     const ingress = screen.getByTestId("automation-trigger-ingress");
-    expect(ingress).toHaveTextContent("Public delivery ingress is off");
-    expect(ingress).toHaveTextContent("Open Gateway settings to publish one");
+    expect(ingress).toHaveTextContent("Public webhooks are off");
+    expect(ingress).toHaveTextContent("Open Remote access settings to publish one");
   });
 
   it("Should publish the delivery URL with its reachability once the gateway confirms it", () => {

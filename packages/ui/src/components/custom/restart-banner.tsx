@@ -10,25 +10,43 @@ import { Spinner } from "../spinner";
 
 export type RestartBannerTone = "warning" | "info" | "success" | "danger";
 
+type RestartBannerButtonProps = Omit<
+  React.ComponentProps<typeof Button>,
+  "onClick" | "children" | "disabled"
+> & { "data-testid"?: string };
+
 export interface RestartBannerProps extends Omit<React.ComponentProps<"div">, "title" | "role"> {
   /** Visual tone. Defaults to `warning` (the warm-orange "Restart required to apply" chrome). */
   tone?: RestartBannerTone;
   /** Banner message. Defaults to "Restart required to apply." */
   message?: React.ReactNode;
+  /**
+   * Optional second line under the message. When set, the message renders as a
+   * title and wraps instead of truncating.
+   */
+  description?: React.ReactNode;
   /** Optional inline detail chips rendered next to the message (operation id, active session count, …). */
   detail?: React.ReactNode;
+  /** Replaces the shield-alert glyph (ignored while `busy`). */
+  icon?: React.ReactNode;
   /** Renders the spinner instead of the shield-alert glyph. */
   busy?: boolean;
-  /** Action callback for the inline "Restart daemon" button. When omitted, no action button renders. */
+  /** Action callback for the inline restart button. When omitted, no action button renders. */
   restartNow?: () => void;
-  /** Optional override label for the action button. Defaults to "Restart daemon". */
+  /** Optional override label for the action button. Defaults to "Restart now". */
   actionLabel?: React.ReactNode;
+  /** Label shown on the action button while `isPending`. Defaults to "Starting...". */
+  pendingLabel?: React.ReactNode;
   /** Disables the action button while a restart is in flight. */
   isPending?: boolean;
+  /** Extra props for the action button (variant, test id, …). */
+  actionProps?: RestartBannerButtonProps;
   /** Dismiss handler. When set, renders the inline dismiss button. */
   onDismiss?: () => void;
   /** Optional override label for the dismiss button. Defaults to "Dismiss". */
   dismissLabel?: React.ReactNode;
+  /** Extra props for the dismiss button (test id, …). */
+  dismissProps?: RestartBannerButtonProps;
 }
 
 const ALERT_VARIANT: Record<RestartBannerTone, "warning" | "info" | "success" | "danger"> = {
@@ -48,16 +66,22 @@ const ALERT_ROLE: Record<RestartBannerTone, "alert" | "status"> = {
 function RestartBanner({
   tone = "warning",
   message,
+  description,
   detail,
+  icon,
   busy = false,
   restartNow,
-  actionLabel = "Restart daemon",
+  actionLabel = "Restart now",
+  pendingLabel = "Starting...",
   isPending = false,
+  actionProps,
   onDismiss,
   dismissLabel = "Dismiss",
+  dismissProps,
   className,
   ...props
 }: RestartBannerProps) {
+  const hasDescription = description !== undefined && description !== null;
   return (
     <Alert
       variant={ALERT_VARIANT[tone]}
@@ -72,56 +96,135 @@ function RestartBanner({
       )}
       {...props}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {busy ? (
-          <Spinner className="size-4 shrink-0" aria-hidden="true" data-slot="restart-banner-icon" />
-        ) : (
-          <ShieldAlertIcon
-            className="size-4 shrink-0"
-            aria-hidden="true"
-            data-slot="restart-banner-icon"
-          />
-        )}
-        <AlertDescription
-          data-slot="restart-banner-message"
-          className="flex min-w-0 flex-wrap items-center gap-2 text-sm"
-        >
-          <span data-slot="restart-banner-message-text" className="truncate">
-            {message ?? "Restart required to apply."}
-          </span>
-          {detail ? <span data-slot="restart-banner-detail">{detail}</span> : null}
-        </AlertDescription>
+      <div
+        className={cn("flex min-w-0 flex-1 gap-2", hasDescription ? "items-start" : "items-center")}
+      >
+        <RestartBannerIcon busy={busy} icon={icon} offset={hasDescription} />
+        <RestartBannerMessage
+          description={hasDescription ? description : null}
+          detail={detail}
+          message={message}
+        />
       </div>
       {restartNow || onDismiss ? (
         <div className="flex items-center gap-2">
-          {restartNow ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-slot="restart-banner-action"
-              disabled={isPending}
-              onClick={restartNow}
-            >
-              <RefreshCwIcon className="size-3" />
-              {isPending ? "Starting..." : actionLabel}
-            </Button>
-          ) : null}
           {onDismiss ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               data-slot="restart-banner-dismiss"
+              {...dismissProps}
               onClick={onDismiss}
             >
               <XIcon className="size-3" />
               {dismissLabel}
             </Button>
           ) : null}
+          {restartNow ? (
+            <RestartBannerAction
+              actionProps={actionProps}
+              isPending={isPending}
+              label={isPending ? pendingLabel : actionLabel}
+              onClick={restartNow}
+            />
+          ) : null}
         </div>
       ) : null}
     </Alert>
+  );
+}
+
+/** `offset` nudges the glyph onto the title's baseline when a description wraps under it. */
+function RestartBannerIcon({
+  busy,
+  icon,
+  offset,
+}: {
+  busy: boolean;
+  icon: React.ReactNode;
+  offset: boolean;
+}) {
+  if (busy) {
+    return (
+      <Spinner
+        className={cn("size-4 shrink-0", offset && "mt-0.5")}
+        aria-hidden="true"
+        data-slot="restart-banner-icon"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="restart-banner-icon"
+      className={cn("flex shrink-0 [&_svg]:size-4", offset && "mt-0.5")}
+    >
+      {icon ?? <ShieldAlertIcon />}
+    </span>
+  );
+}
+
+/** A non-null `description` turns the message into a wrapping title with a second line. */
+function RestartBannerMessage({
+  message,
+  description,
+  detail,
+}: {
+  message: React.ReactNode;
+  description: React.ReactNode;
+  detail: React.ReactNode;
+}) {
+  const hasDescription = description !== null;
+  return (
+    <AlertDescription
+      data-slot="restart-banner-message"
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-2 text-sm",
+        hasDescription && "flex-col items-start gap-0.5"
+      )}
+    >
+      <span
+        data-slot="restart-banner-message-text"
+        className={hasDescription ? "font-medium text-fg-strong" : "truncate"}
+      >
+        {message ?? "Restart required to apply."}
+      </span>
+      {hasDescription ? <span data-slot="restart-banner-description">{description}</span> : null}
+      {detail ? <span data-slot="restart-banner-detail">{detail}</span> : null}
+    </AlertDescription>
+  );
+}
+
+function RestartBannerAction({
+  label,
+  isPending,
+  actionProps,
+  onClick,
+}: {
+  label: React.ReactNode;
+  isPending: boolean;
+  actionProps: RestartBannerButtonProps | undefined;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      data-slot="restart-banner-action"
+      aria-busy={isPending || undefined}
+      {...actionProps}
+      disabled={isPending}
+      onClick={onClick}
+    >
+      {isPending ? (
+        <Spinner className="size-3" aria-hidden="true" />
+      ) : (
+        <RefreshCwIcon className="size-3" />
+      )}
+      {label}
+    </Button>
   );
 }
 
