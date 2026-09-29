@@ -67,7 +67,7 @@ export function useSessionForkDialog({
 }: UseSessionForkDialogInput) {
   const [placement, setPlacement] = useState<SessionDerivePlacement>("new-window");
   const [refusal, setRefusal] = useState<ForkRefusal | null>(null);
-  const idempotency = useSessionDeriveIdempotencyKey();
+  const idempotencyKey = useSessionDeriveIdempotencyKey();
   const messageId = point?.messageId.trim() ?? "";
   const preview = useSessionDerivePreview(workspaceId, source.id, {
     enabled: open,
@@ -98,7 +98,7 @@ export function useSessionForkDialog({
           expected_max_sequence: measuredPreview.transcript.max_sequence,
         };
     const request: ForkSessionRequest = {
-      idempotency_key: idempotency.key,
+      idempotency_key: idempotencyKey,
       ...(messageId ? { message_id: messageId } : {}),
       ...fences,
     };
@@ -115,7 +115,6 @@ export function useSessionForkDialog({
           landDerivedSession(result, placement, handlers);
         },
         onError: error => {
-          idempotency.settleFailure(error);
           setRefusal(forkRefusal(error));
         },
       }

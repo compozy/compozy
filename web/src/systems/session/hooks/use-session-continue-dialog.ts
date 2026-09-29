@@ -87,7 +87,7 @@ export function useSessionContinueDialog({
   const [message, setMessage] = useState("");
   const [placement, setPlacement] = useState<SessionDerivePlacement>("new-window");
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const idempotency = useSessionDeriveIdempotencyKey();
+  const idempotencyKey = useSessionDeriveIdempotencyKey();
   const preview = useSessionDerivePreview(workspaceId, source.id, { enabled: open });
   const mutation = useSessionContinue();
 
@@ -119,7 +119,7 @@ export function useSessionContinueDialog({
       selectedRoute === SESSION_CONTINUE_DEFAULT_ROUTE && runtime ? runtimeRequest(runtime) : null;
     const request: ContinueSessionRequest = {
       agent_name: agentName,
-      idempotency_key: idempotency.key,
+      idempotency_key: idempotencyKey,
       ...(trimmedMessage ? { message: trimmedMessage } : {}),
       ...(selectedRoute !== SESSION_CONTINUE_DEFAULT_ROUTE ? { route: selectedRoute } : {}),
       ...(runtimeBody ? { runtime: runtimeBody } : {}),
@@ -137,7 +137,6 @@ export function useSessionContinueDialog({
           landDerivedSession(result, placement, handlers);
         },
         onError: error => {
-          idempotency.settleFailure(error);
           setSubmitError(error.message);
         },
       }

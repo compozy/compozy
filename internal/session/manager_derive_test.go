@@ -340,8 +340,10 @@ func TestContinueSession(t *testing.T) {
 			t.Fatalf("MarkDerivationChildDeleted() error = %v", err)
 		}
 		deleted, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_retry"))
-		if err != nil || !deleted.Replayed || !deleted.ChildDeleted || deleted.Child != nil {
-			t.Fatalf("retry after deletion = %+v, %v, want replayed child_deleted", deleted, err)
+		if err != nil || !deleted.Replayed || !deleted.ChildDeleted || deleted.Child != nil ||
+			deleted.OriginAgentName == "" || deleted.OriginAgentName != first.OriginAgentName {
+			t.Fatalf("retry after deletion = %+v, %v, want replayed child_deleted with the recorded origin agent %q",
+				deleted, err, first.OriginAgentName)
 		}
 	})
 
@@ -627,6 +629,34 @@ func TestDerivePreview(t *testing.T) {
 		if result.ReplayMessageCount != preview.MessageCount || result.ReplayBytes != preview.ReplayBytes {
 			t.Fatalf("result %d/%d, preview %d/%d, want equal", result.ReplayMessageCount, result.ReplayBytes,
 				preview.MessageCount, preview.ReplayBytes)
+		}
+	})
+
+	t.Run("Should bound the preview and the continue by the source workspace overlay", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{MaxReplayBytes: 400, MaxMessageBytes: 64}
+		h.resolver.upsert(&workspace)
+
+		preview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, "")
+		if err != nil {
+			t.Fatalf("DerivePreview() error = %v", err)
+		}
+		if !preview.Truncated || preview.OmittedCount == 0 || preview.MessageCount == 0 {
+			t.Fatalf("preview = %+v, want truncated by the workspace's 400-byte budget", preview)
+		}
+		result, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_overlay"))
+		if err != nil {
+			t.Fatalf("ContinueSession() error = %v", err)
+		}
+		if result.ReplayMessageCount != preview.MessageCount || result.ReplayBytes != preview.ReplayBytes ||
+			!result.Truncated {
+			t.Fatalf("result %+v, preview %+v, want the same bounded numbers", result, preview)
 		}
 	})
 
@@ -1778,34 +1808,54 @@ func TestForkNativeSeed(t *testing.T) {
 
 	t.Run("Should settle failed and replay the carried context when the clone cannot load", func(t *testing.T) {
 		t.Parallel()
-		h, source := newNativeForkHarness(t)
-		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_missing"))
-		if err != nil || result.Seed != DeriveSeedNativeFork {
-			t.Fatalf("ForkSession() = %+v, %v, want a native fork", result, err)
-		}
-		h.driver.mu.Lock()
-		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
-			if opts.ResumeSessionID != "" {
-				return nil, fmt.Errorf("%w: load session %q: %w", acp.ErrLoadSessionFailed, opts.ResumeSessionID,
-					&acpsdk.RequestError{Code: -32002, Message: "Resource not found"})
+		for _, tc := range []struct {
+			name      string
+			loadErr   *acpsdk.RequestError
+			wantError string
+		}{
+			{
+				name:      "missing clone",
+				loadErr:   &acpsdk.RequestError{Code: -32002, Message: "Resource not found"},
+				wantError: "session/load: resource not found",
+			},
+			{
+				// codex-acp keeps the clone's writer in the forking process until it exits.
+				name: "clone held by the forking process",
+				loadErr: &acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: map[string]any{
+					"details": "thread 01a0eabe already has an active writer",
+				}},
+				wantError: "session/load: internal error",
+			},
+		} {
+			h, source := newNativeForkHarness(t)
+			result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_missing"))
+			if err != nil || result.Seed != DeriveSeedNativeFork {
+				t.Fatalf("%s: ForkSession() = %+v, %v, want a native fork", tc.name, result, err)
 			}
-			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
-		}
-		h.driver.mu.Unlock()
-		before := len(h.promptMessages())
-		sendDeriveChildPrompt(t, h, result.Child.ID, "child ask", "msg_missing_child", "idem_missing_child")
-		native := h.childNative(t, result.Child.ID)
-		if native.State != store.SessionNativeStateFailed || native.Error != "session/load: resource not found" {
-			t.Fatalf("child native = %+v, want failed with the load error", native)
-		}
-		info, err := h.manager.Status(testutil.Context(t), result.Child.ID)
-		if err != nil || info.Derivation == nil || info.Derivation.Native.State != store.SessionNativeStateFailed {
-			t.Fatalf("Status(child) = %+v, %v, want the failed native state on the read model", info, err)
-		}
-		prompt := h.promptMessages()[before]
-		if !strings.Contains(prompt, resumeReplayOpenTag) || !strings.Contains(prompt, "Start the migration") ||
-			!strings.HasSuffix(prompt, "child ask") {
-			t.Fatalf("child first prompt = %q, want the carried context before the ask", prompt)
+			h.driver.mu.Lock()
+			h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+				if opts.ResumeSessionID != "" {
+					return nil, fmt.Errorf("%w: load session %q: %w", acp.ErrLoadSessionFailed,
+						opts.ResumeSessionID, tc.loadErr)
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+			}
+			h.driver.mu.Unlock()
+			before := len(h.promptMessages())
+			sendDeriveChildPrompt(t, h, result.Child.ID, "child ask", "msg_missing_child", "idem_missing_child")
+			native := h.childNative(t, result.Child.ID)
+			if native.State != store.SessionNativeStateFailed || native.Error != tc.wantError {
+				t.Fatalf("%s: child native = %+v, want failed with %q", tc.name, native, tc.wantError)
+			}
+			info, err := h.manager.Status(testutil.Context(t), result.Child.ID)
+			if err != nil || info.Derivation == nil || info.Derivation.Native.State != store.SessionNativeStateFailed {
+				t.Fatalf("%s: Status(child) = %+v, %v, want the failed native state", tc.name, info, err)
+			}
+			prompt := h.promptMessages()[before]
+			if !strings.Contains(prompt, resumeReplayOpenTag) || !strings.Contains(prompt, "Start the migration") ||
+				!strings.HasSuffix(prompt, "child ask") {
+				t.Fatalf("%s: child first prompt = %q, want the carried context before the ask", tc.name, prompt)
+			}
 		}
 	})
 

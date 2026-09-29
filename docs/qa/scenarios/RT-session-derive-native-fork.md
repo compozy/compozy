@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: compozy session fork (POST …/fork, compozy__session_fork) on an idle, bound source whose agent advertises ACP session/fork and session/load (OpenCode) returns seed native_fork with native_state pending and the clone's acp_session_id; the child's first prompt loads the clone and the session read reports native_state loaded while the child answers with the source context; a Claude source returns seed replay; a fork through a message carries that message's turn and nothing after it; a running cut turn is session_turn_in_progress; a clone that cannot load settles failed with native_fork_error and the carried context is sent; the source max_sequence, fences, and log never change and contain no clone-id events.
 entry_points: compozy session fork <id> [--message-id <msg>] [--idempotency-key <key>] [-o json]; POST /api/workspaces/{workspace_id}/sessions/{session_id}/fork; GET /api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview[?message_id=…]; compozy session status <child>; compozy session events <source> -o json; compozy__session_fork
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260928-native-fork-clone-load-refused
+fix_status: fixed
+retest_status: pass
+fix_commits: uncommitted (task_08 part B1)
+evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b1/oc-fork.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/oc-fork-p1.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cl-fork.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork3.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork3-p1.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/cx-fork-msg.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/long-fork-running-cut.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/codex-acp-fork-close-probe.txt
+last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b1.md
 overlaps: RT-session-derive-retry; ET-cli-session-continue
 ---
 
@@ -47,3 +47,20 @@ Planning 2026-09-28 (session-continue-fork task_07): task_08 runs steps 1–4 an
 task_02 deferral) and step 5 on the real `claude` binary, plus a Codex source as the second replay
 agent. acpmock `session_fork_fixture.json` (`fork-native-agent`, `fork-load-missing-agent`) is the
 fallback for step 8 when the real adapter cannot be made to lose its stored session. Plan: `docs/qa/reports/2026-09-28-session-continue-fork-plan.md`.
+
+## 2026-09-28 walk (task_08 part B1) — FIXED
+
+Rafa, Money Tour, isolated lab `compozy-session-continue-fork-b1-20260929-010817-219689-lab`, real `opencode` 1.18.33, `claude` (claude-agent-acp), `codex` (codex-acp 2.0.0).
+All three real adapters advertise `supports_fork_session`, `supports_load_session`, and `supports_resume_session: true`, so step 5's
+"a Claude source returns seed replay" no longer holds for today's adapters: Claude and Codex idle sources fork natively too. The
+replay path was walked on a message cut (step 6), a running source (step 7), and a stopped source (preview `native_fork_possible: false`).
+1–4 OpenCode: preview `native_fork_possible: true`; fork → `native_fork`/`pending`/clone `ses_…`; the child answered `HERON-7`;
+status `seed native_fork · loaded`; OpenCode's own store shows the clone holding the source turn and the child prompt without
+`Context rebuilt`; source `max_sequence 7`, meta sha, runtime unchanged; no source event mentions the clone id.
+Claude native fork: loaded, child answered `PELICAN-42`, the clone's next prompt carries no replay.
+Codex native fork: FAILED — the child could not load the clone while the source process lived (`thread … already has an active
+writer`) and stayed pending → BUG-20260928-native-fork-clone-load-refused, fixed (clone load refusal settles `failed` and replays).
+Re-walk: child answered `PELICAN-42`, status `seed native_fork · failed: session/load: internal error (replayed the carried context)` (also step 8 on a real adapter).
+6. Fork through message 2 of 4 (Codex): `origin_message_id` + `through_turn_id` set, `seed replay`, 4 of 8 messages; the child quoted
+the second question, not the later ones. 7. acpmock `long-agent` mid-turn: fork through the running message → `session_turn_in_progress`
+(CLI exit 65, HTTP 409); whole fork → `seed replay`, `source_turn_in_progress: true`; the source kept running until cancel.

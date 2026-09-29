@@ -46,7 +46,7 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
       >
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="min-w-56">
         {userSession ? (
           <DropdownMenuItem
             data-testid={`session-row-rename-${session.id}`}

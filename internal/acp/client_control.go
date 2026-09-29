@@ -208,7 +208,10 @@ func (d *Driver) closeInspectedSession(ctx context.Context, proc *AgentProcess) 
 		acpsdk.AgentMethodSessionClose,
 		acpsdk.CloseSessionRequest{SessionId: acpsdk.SessionId(proc.SessionID)},
 	)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	// An agent that answers session/close slower than the bounded budget (claude-agent-acp)
+	// is not a failed inspection: the options were already read and the process stop below
+	// is the cleanup that owns the rest.
+	if err != nil && !errors.Is(err, context.Canceled) && closeCtx.Err() == nil {
 		return []error{fmt.Errorf("acp: close inspected session: %w", err)}
 	}
 	return nil

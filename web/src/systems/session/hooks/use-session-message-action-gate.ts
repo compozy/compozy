@@ -13,8 +13,9 @@ interface CurrentMessageState {
  * The gates "Rewind to here" and "Fork from here" share. `durable`: a user
  * message the daemon-owned transcript holds (never an optimistic tail or an
  * assistant message). `busy`: a moving transcript has no fence to act on —
- * the thread runs, a rewind is pending anywhere in this workspace, or rewind
- * is blocked by an open decision.
+ * the thread runs (locally, or per the daemon for a turn started elsewhere), a
+ * rewind is pending anywhere in this workspace, or rewind is blocked by an open
+ * decision.
  */
 export function useSessionMessageActionGate() {
   const context = useSessionRuntimeRenderContext();
@@ -30,7 +31,11 @@ export function useSessionMessageActionGate() {
     currentMessage.role === "user" &&
     messageId.length > 0 &&
     context.durableMessageIds.has(messageId);
-  const busy = isThreadRunning || rewindsPending > 0 || (context?.rewindBlocked ?? true);
+  const busy =
+    isThreadRunning ||
+    context?.sessionRunning === true ||
+    rewindsPending > 0 ||
+    (context?.rewindBlocked ?? true);
 
   return { context, messageId, durable, busy };
 }

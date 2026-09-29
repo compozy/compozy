@@ -27,16 +27,24 @@ func decorateHandoffAction(sessionType Type, sessionID string, event *acp.AgentE
 	decorated.NextAction = acp.ProviderFailureActionHandoff
 	decorated.Guidance = fmt.Sprintf(handoffGuidanceFormat, strings.TrimSpace(sessionID))
 	event.ProviderError = decorated
+	// The error text carries the same recovery metadata as the failure summary; it is what
+	// the prompt stream shows the operator, so both must prescribe the handoff.
+	event.Error = withHandoffMetadata(event.Error, decorated)
 	if event.Failure == nil {
 		return
 	}
-	diagnostic, ok := acp.ProviderFailureDiagnosticFromSummary(event.Failure.Summary)
+	failure := *event.Failure
+	failure.Summary = withHandoffMetadata(failure.Summary, decorated)
+	event.Failure = &failure
+}
+
+// withHandoffMetadata rewrites the recovery metadata a failure text carries (if any).
+func withHandoffMetadata(text string, decorated *acp.ProviderErrorDiagnostic) string {
+	diagnostic, ok := acp.ProviderFailureDiagnosticFromSummary(text)
 	if !ok {
-		return
+		return text
 	}
 	diagnostic.Action = decorated.NextAction
 	diagnostic.Guidance = decorated.Guidance
-	failure := *event.Failure
-	failure.Summary = acp.ReplaceProviderFailureDiagnostic(failure.Summary, diagnostic)
-	event.Failure = &failure
+	return acp.ReplaceProviderFailureDiagnostic(text, diagnostic)
 }

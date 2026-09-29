@@ -8,7 +8,6 @@ import {
   type ForkSessionRequest,
   type SessionDeriveResult,
 } from "../adapters/session-derive-api";
-import { SessionApiError } from "../adapters/session-api-errors";
 import { sessionKeys } from "../lib/query-keys";
 import { sessionDerivePreviewOptions } from "../lib/session-derive-query";
 import { sessionDerivePreviewView } from "../lib/session-derive-view";
@@ -120,19 +119,13 @@ function newIdempotencyKey(): string {
 }
 
 /**
- * One idempotency key per dialog open, so a retry after a lost response
- * replays instead of creating a second child. A daemon refusal (4xx) created
- * nothing, so the next attempt — possibly a different request — takes a new
- * key instead of tripping `idempotency_conflict`.
+ * One idempotency key per dialog open, kept across failures: a retry after a
+ * lost response replays, and a retry after a failure that followed the commit
+ * (the first message's admission refused after the child exists) completes that
+ * same child instead of creating a second one. A daemon refusal before the
+ * commit records no receipt, so reusing the key for a changed request is safe.
  */
-export function useSessionDeriveIdempotencyKey() {
-  const [key, setKey] = useState(newIdempotencyKey);
-  return {
-    key,
-    settleFailure: (error: unknown) => {
-      if (error instanceof SessionApiError && error.status >= 400 && error.status < 500) {
-        setKey(newIdempotencyKey());
-      }
-    },
-  };
+export function useSessionDeriveIdempotencyKey(): string {
+  const [key] = useState(newIdempotencyKey);
+  return key;
 }

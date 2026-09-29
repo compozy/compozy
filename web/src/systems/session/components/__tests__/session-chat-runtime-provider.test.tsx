@@ -2489,6 +2489,8 @@ describe("SessionChatRuntimeProvider", () => {
 
   it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
     vi.useFakeTimers();
+    // No turn in flight: the daemon's running detail would itself hold rewind.
+    sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
     settledInteractions = [restartExpiredRow("turn_001:perm_expired")];
     transcriptMessages = pendingPermissionTranscript("turn_001:perm_expired");
 

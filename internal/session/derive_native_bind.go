@@ -44,8 +44,8 @@ func (m *Manager) prepareNativeBootstrapBind(
 
 // launchPromptRuntimeCandidate starts the binding's process. For a pending native clone
 // the launch runs session/load of the clone id and settles the bootstrap: loaded on
-// success; failed on a classified load failure (resource missing / load unsupported),
-// after which the launch restarts on the carried context. Other errors surface.
+// success; failed when the clone cannot load (see nativeCloneLoadFailed), after which the
+// launch restarts on the carried context. Other errors surface.
 func (m *Manager) launchPromptRuntimeCandidate(
 	ctx context.Context,
 	session *Session,
@@ -65,7 +65,7 @@ func (m *Manager) launchPromptRuntimeCandidate(
 		session.settleNativeBootstrap(store.SessionNativeStateLoaded, "", m.now())
 		return candidate, nil
 	}
-	if !acp.IsLoadSessionResourceMissing(err) && !errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
+	if !nativeCloneLoadFailed(ctx, err) {
 		return nil, err
 	}
 	session.settleNativeBootstrap(store.SessionNativeStateFailed, nativeLoadErrorText(err), m.now())
@@ -82,6 +82,18 @@ func (m *Manager) launchPromptRuntimeCandidate(
 		return nil, errors.Join(err, fallbackErr)
 	}
 	return candidate, nil
+}
+
+// nativeCloneLoadFailed reports a clone the child's own process could not load (ADR-003):
+// the agent does not support session/load, or session/load failed for any reason — a
+// missing clone, or a clone the forking process still holds open (codex-acp answers
+// "thread … already has an active writer" until the source process exits). A canceled
+// caller and failures before session/load (launch, initialize) are not clone failures.
+func nativeCloneLoadFailed(ctx context.Context, err error) bool {
+	if errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
+		return true
+	}
+	return errors.Is(err, acp.ErrLoadSessionFailed) && ctx.Err() == nil
 }
 
 // nativeLoadErrorText renders a failed clone load as `session/load: <agent message>`,

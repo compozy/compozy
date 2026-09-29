@@ -148,7 +148,11 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
       >
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-56"
+        data-testid="session-topbar-overflow-menu"
+      >
         <DropdownMenuItem
           data-testid="rename-button"
           disabled={controlsBusy}

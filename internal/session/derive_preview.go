@@ -41,7 +41,11 @@ func (m *Manager) DerivePreview(
 	if err := m.validateDeriveSource(ctx, spec, snapshot); err != nil {
 		return DerivePreview{}, err
 	}
-	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget())
+	workspace, err := m.resolveResumeWorkspace(ctx, snapshot.meta)
+	if err != nil {
+		return DerivePreview{}, err
+	}
+	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget(&workspace))
 	if err != nil {
 		return DerivePreview{}, err
 	}

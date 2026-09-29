@@ -202,6 +202,27 @@ describe("SessionContinueDialog", () => {
     expect(openInThisWindow).not.toHaveBeenCalled();
   });
 
+  it("Should retry with the same idempotency key after a failure", async () => {
+    // A 422 can follow the commit (the first message's admission failed after the child
+    // exists); a new key on retry would create a second child.
+    const user = userEvent.setup();
+    const sent: ContinueSessionRequest[] = [];
+    renderDialog({
+      onContinue: request => sent.push(request),
+      result: { status: 422, error: "admit first message failed", code: "model_unavailable" },
+    });
+
+    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
+    await user.click(screen.getByTestId("session-continue-submit"));
+    expect(await screen.findByTestId("session-continue-submit-error")).toHaveTextContent(
+      "admit first message failed"
+    );
+    await user.click(screen.getByTestId("session-continue-submit"));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]?.idempotency_key).toBe(sent[0]?.idempotency_key);
+  });
+
   it("Should show the daemon's refusal verbatim", async () => {
     const user = userEvent.setup();
     const { openInNewWindow } = renderDialog({

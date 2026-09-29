@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-14
 expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Fork session…" right after "Continue with another agent…" (absent for archived, spawned, coordinator, and system rows). A durable user message shows "Fork from here" right before "Rewind to here" (absent for an optimistic tail, assistant messages, and read-only threads; disabled together with Rewind while the thread runs, a rewind is pending, or rewind is blocked). The dialog ("Fork session", eyebrow "Operate · Session", "Start a second session with the same agent and this conversation. This session stays unchanged.") shows the agent read-only as "{agent} · {provider}", the fork point "Whole session" (menus) or "Through “{first 60 characters}”" with a "Change" link that closes the dialog (message), the daemon-measured context line, "Uses the agent's own session clone." only when the preview reports `native_fork_possible`, and Open in (New window default). A cut whose turn has not settled reads "That turn hasn't settled yet." and keeps Fork session disabled; a transcript that changed after opening reads "Transcript changed — reopen to fork from the current state." with Fork session disabled and Cancel reading Close; other refusals show the daemon message verbatim. Fork session shows "Starting the new session…", creates exactly one child with the same agent, and opens it per Open in. The child's status line shows "Forked from {source title}"; the inspector shows Origin "fork · through {message id}" (message cut) or "fork" (whole) and Seed "replay" / "native clone · loaded" / "native clone · failed — carried context used". The source keeps every turn and its `max_sequence`.
 entry_points: web session window overflow (fork-menu-item); session row overflow (session-row-fork-{id}) in the sessions modal, window sidebar, and agent detail; user message action (user-message-fork); SessionForkDialog (session-fork-dialog, session-fork-agent, session-fork-point, session-fork-point-change, session-derive-preview, session-derive-preview-native, session-derive-placement, session-fork-submit, session-fork-submit-error); SessionOriginPill (session-origin-pill); inspector Origin section (ledger-origin, ledger-seed); GET …/derive/preview[?message_id=]; POST …/fork
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260928-message-actions-enabled-during-remote-turn
+fix_status: fixed
+retest_status: pass
+fix_commits: uncommitted (task_08 part B2)
+evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/fork-child-empty.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/before-fork-enabled-while-running.png; .compozy/tasks/session-continue-fork/evidence/visual/task_06/
+last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md
 overlaps: ET-web-session-continue; RT-session-derive-native-fork; RT-conversation-rewind; ET-cli-session-continue; ET-web-sessions-catalog-modal
 ---
 
@@ -48,3 +48,5 @@ Automated evidence 2026-09-28 (session-continue-fork task_08, part A; not a walk
 `web/e2e/__tests__/session-derive.spec.ts` passes against the daemon-served e2e fixture (focused
 Playwright run). Storybook: every `session-fork-dialog.stories.tsx` story renders from a static build
 with no page error. The walk (steps 1–8) remains with task_08.
+
+QA walk 2026-09-28 (task_08 part B2): steps 1–8 walked on `fork-web-agent`/`fork-native-agent`. Step 1: Fork from here sits before Rewind. While an API-started turn runs, both stayed enabled (BUG-20260928-message-actions-enabled-during-remote-turn); after the fix both are disabled. Step 2: "Through “Second step”", "Carries over 4 of 6 messages · 636 B"; Change closes with nothing created. Step 3: child `sess-49e0cef5531c6e1a` in a new window, pill "Forked from Ledger migration steps", source `max_sequence` 16 unchanged. Step 4: "Whole session"; the native line shows only on an idle bound native source (a stopped one reports `native_fork_possible: false`). Step 5: unsettled cut via a fulfilled preview → "That turn hasn't settled yet.", Fork session disabled. Step 6: CLI prompt with the dialog open → "Transcript changed — reopen…", Fork disabled, Cancel reads Close, no child. Step 7: catalog row Fork opens over the catalog, and the child opens in its own window. Step 8: stopped fork child inspector Origin "fork · through <msg id>", Seed "replay". Bundles VC-04, 05, 11..15, 17, 23 PASS. Verdict: pass (after fix). Report: `docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md`.

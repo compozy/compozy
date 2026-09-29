@@ -13,7 +13,9 @@ import {
   recordSessionDebugEvent,
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import { AssistantMessage } from "./session-assistant-message";
+import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
 import {
@@ -108,6 +110,16 @@ function ThreadMessageRows({
   );
 }
 
+// Status events (hook dispatches, usage, progress ticks) are transcript messages that
+// render nothing, so a transcript holding only those has said nothing yet.
+function hasNarrativeMessage(
+  messages: ReturnType<typeof useSessionTranscriptThreadState>["messages"]
+): boolean {
+  return messages.some(
+    message => message.role === "user" || deriveSessionRows(toTimelineParts(message)).length > 0
+  );
+}
+
 export function ThreadMessages({
   agentName,
   sessionId,
@@ -167,7 +179,7 @@ export function ThreadMessages({
   }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
 
   const derivedChildReady =
-    messageCount === 0 &&
+    (messageCount === 0 || !hasNarrativeMessage(transcriptMessages)) &&
     transcriptStatus === "success" &&
     syncFailure === null &&
     sessionState !== "starting" &&

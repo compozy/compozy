@@ -115,6 +115,42 @@ func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	}
 }
 
+func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should forward a route account's leading assignments as environment, not as the executable",
+		func(t *testing.T) {
+			t.Parallel()
+
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+			spec, err := launcher.PrepareLaunch(testutil.Context(t), LaunchSpec{
+				Command: "QA_ACCOUNT=seat-two QA_HOME='/tmp/seat two' sh -c true",
+				Cwd:     t.TempDir(),
+				Env:     []string{"PATH=" + os.Getenv("PATH"), "QA_ACCOUNT=operator"},
+			})
+			if err != nil {
+				t.Fatalf("PrepareLaunch(env-prefixed command) error = %v", err)
+			}
+			if filepath.Base(spec.ResolvedExecutable) != "sh" || !slices.Equal(spec.Args, []string{"-c", "true"}) {
+				t.Fatalf(
+					"PrepareLaunch() executable/args = %q %v, want sh [-c true]",
+					spec.ResolvedExecutable,
+					spec.Args,
+				)
+			}
+			if strings.Contains(spec.Command, "QA_ACCOUNT") {
+				t.Fatalf("PrepareLaunch() command = %q, want the assignments out of argv", spec.Command)
+			}
+			for key, want := range map[string]string{"QA_ACCOUNT": "seat-two", "QA_HOME": "/tmp/seat two"} {
+				if got, ok := envValue(spec.Env, key); !ok || got != want {
+					t.Fatalf("PrepareLaunch() env %s = %q (%t), want %q", key, got, ok, want)
+				}
+			}
+		},
+	)
+}
+
 func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 	t.Parallel()
 

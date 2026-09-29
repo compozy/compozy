@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
@@ -159,10 +160,17 @@ func (l *localLauncher) PrepareLaunch(
 		return next, nil
 	}
 
-	command, args, err := parseCommandString(next.Command)
+	// Leading NAME=value tokens (a route's account, e.g. CLAUDE_CONFIG_DIR=… claude --acp)
+	// are private environment for this process, never the executable.
+	parsed, err := compozyconfig.ParseLaunchCommand(next.Command)
 	if err != nil {
-		return next, err
+		return next, fmt.Errorf("acp: %w", err)
 	}
+	for _, assignment := range parsed.Environment {
+		key, value, _ := strings.Cut(assignment, "=")
+		next.Env = setEnvValue(next.Env, key, value)
+	}
+	command, args := parsed.Executable, parsed.Args
 	next.Args = append([]string(nil), args...)
 	resolved, err := subprocess.ResolveExecutable(command, next.Env, next.Cwd)
 	if err != nil {

@@ -320,7 +320,8 @@ function createFetchMock(options?: {
       pathname ===
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`
     ) {
-      return jsonResponse({ session: primarySessionFixture });
+      // The harness session is idle unless a test serves a running detail itself.
+      return jsonResponse({ session: { ...primarySessionFixture, badge: "idle" } });
     }
 
     if (
@@ -809,6 +810,31 @@ describe("SessionThread transcript states", () => {
     expect(divider).toHaveTextContent("Continued from claude");
     expect(screen.queryByTestId("session-origin-divider-link")).not.toBeInTheDocument();
     expect(screen.queryByText(/Start the conversation/i)).not.toBeInTheDocument();
+  });
+
+  it("Should keep the empty state of a derived child whose transcript holds only status events", async () => {
+    const child = continuedSessionFixture();
+    const transcript = [
+      {
+        id: "hook-start",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ] as SessionMessage[];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      origin: { origin: sessionOriginView(child, null)! },
+    });
+
+    const empty = await screen.findByTestId("session-thread-empty");
+    expect(empty).toHaveTextContent("Nothing said here yet");
+    expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
   });
 
   // Invariant: a dead live stream never poses as an empty session (US-018.AC-2).
@@ -1860,6 +1886,32 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
     fireEvent.click(fork);
     expect(forkRequest).not.toHaveBeenCalled();
+  });
+
+  // A turn started outside this page (CLI, another window, before a reload) leaves the
+  // local thread idle; the daemon's running detail still disables both actions.
+  it("Should disable Fork from here together with Rewind while the daemon reports a running turn", async () => {
+    const baseFetch = createFetchMock();
+    const detailPath = `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+        getPathname(input) === detailPath
+          ? jsonResponse({ session: runningStatusSession() })
+          : baseFetch(input, init)
+      )
+    );
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn<SessionForkRequest>(),
+    });
+
+    await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
   });
 
   it("Should hide transcript actions and goal prefill controls in read-only mode", async () => {

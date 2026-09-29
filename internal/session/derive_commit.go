@@ -192,7 +192,8 @@ func deriveResultFromReceipt(receipt store.SessionDerivationReceipt) DeriveResul
 	outcome := receipt.Outcome
 	return DeriveResult{
 		Kind: receipt.Kind, SourceSessionID: receipt.SourceSessionID, ChildSessionID: receipt.ChildSessionID,
-		OriginMessageID: outcome.OriginMessageID, Seed: DeriveSeed(outcome.Seed),
+		OriginMessageID: outcome.OriginMessageID, OriginAgentName: outcome.OriginAgentName,
+		Seed:        DeriveSeed(outcome.Seed),
 		NativeState: outcome.NativeState, ACPSessionID: outcome.ACPSessionID,
 		NativeForkError: outcome.NativeForkError, ReplayMessageCount: outcome.ReplayMessageCount,
 		ReplayBytes: outcome.ReplayBytes, Truncated: outcome.Truncated, OmittedCount: outcome.OmittedCount,

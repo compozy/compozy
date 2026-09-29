@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // preparedDerive is everything the commit needs, built before the child exists.
@@ -47,7 +48,7 @@ func (m *Manager) prepareDerive(ctx context.Context, spec deriveSpec, snapshot d
 		}
 		pendingRoute, routeSelection = fork.pending, fork.route
 	}
-	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget())
+	imported, err := m.buildImportedContext(snapshot, spec, m.deriveBudget(&workspace))
 	if err != nil {
 		return preparedDerive{}, err
 	}
@@ -219,8 +220,9 @@ func deriveOutcome(
 ) store.SessionDerivationOutcome {
 	outcome := store.SessionDerivationOutcome{
 		Seed: seed.seed, NativeForkError: seed.nativeError, OriginMessageID: imported.OriginMessageID,
-		ThroughTurnID: imported.ThroughTurnID, ReplayMessageCount: imported.MessageCount,
-		ReplayBytes: imported.Bytes, Truncated: imported.Truncated, OmittedCount: imported.OmittedCount,
+		OriginAgentName: imported.OriginAgentName, ThroughTurnID: imported.ThroughTurnID,
+		ReplayMessageCount: imported.MessageCount,
+		ReplayBytes:        imported.Bytes, Truncated: imported.Truncated, OmittedCount: imported.OmittedCount,
 		SourceTurnInProgress: imported.SourceTurnInProgress, SourceEpoch: imported.SourceEpoch,
 		SourceGeneration: imported.SourceGeneration, SourceMaxSequence: imported.SourceMaxSequence,
 		FirstPrompt: firstPrompt.State, FirstAdmissionKey: firstPrompt.AdmissionKey,
@@ -232,8 +234,14 @@ func deriveOutcome(
 	return outcome
 }
 
-func (m *Manager) deriveBudget() replayBudget {
+// deriveBudget bounds the carried context with the source workspace's
+// `[session.derive]` (global config plus that workspace's overlay); a workspace
+// without a resolved derive section falls back to the manager's global config.
+func (m *Manager) deriveBudget(workspace *workspacepkg.ResolvedWorkspace) replayBudget {
 	cfg := m.deriveConfig
+	if workspace != nil && workspace.Config.Session.Derive.MaxReplayBytes > 0 {
+		cfg = workspace.Config.Session.Derive
+	}
 	if cfg.MaxReplayBytes <= 0 {
 		cfg.MaxReplayBytes = compozyconfig.DefaultSessionDeriveMaxReplayBytes
 	}

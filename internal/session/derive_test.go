@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -230,6 +231,42 @@ func TestLastSettledTurn(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not flag lifecycle-only turns of a stopped or unprompted session as in progress", func(t *testing.T) {
+		t.Parallel()
+		stopMarker, err := json.Marshal(map[string]any{"marker": map[string]any{"kind": "session_stopped"}})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		unprompted := []store.SessionEvent{
+			event(1, "h1", "hook.dispatch.start"),
+			event(2, "h2", "hook.dispatch.complete"),
+		}
+		if turnID, _, laterOpen := lastSettledTurn(unprompted); turnID != "" || laterOpen {
+			t.Fatalf("lastSettledTurn(unprompted) = %q/%t, want no turn and nothing open", turnID, laterOpen)
+		}
+		stopped := slices.Concat(unprompted, []store.SessionEvent{
+			event(3, "t1", acp.EventTypeUserMessage),
+			event(4, "t1", acp.EventTypeAgentMessage),
+			event(5, "t1", acp.EventTypeDone),
+			event(6, "s1", "session.stop_escalated"),
+			event(7, "s1", "session_stopped"),
+			{
+				Sequence: 8,
+				TurnID:   "s1",
+				Type:     "transcript_marker.created",
+				Content:  string(stopMarker),
+			},
+		})
+		turnID, through, laterOpen := lastSettledTurn(stopped)
+		if turnID != "t1" || through != 5 || laterOpen {
+			t.Fatalf("lastSettledTurn(stopped) = %q/%d/%t, want t1/5/false", turnID, through, laterOpen)
+		}
+		interrupted := slices.Concat(stopped, []store.SessionEvent{event(9, "t2", acp.EventTypeUserMessage)})
+		if _, _, laterOpen := lastSettledTurn(interrupted); !laterOpen {
+			t.Fatal("lastSettledTurn(prompt turn without a terminal event) laterOpen = false, want true")
+		}
+	})
+
 	t.Run("Should report no settled turn for an empty ledger", func(t *testing.T) {
 		t.Parallel()
 		turnID, through, laterOpen := lastSettledTurn(nil)
@@ -243,8 +280,12 @@ func TestDecorateHandoffAction(t *testing.T) {
 	t.Parallel()
 
 	promptFailure := func(code string, action acp.ProviderFailureAction) acp.AgentEvent {
+		text := `{"code":-32603,"message":"429 rate limit exceeded"}; provider_failure_kind=rate_limited; ` +
+			"next_action=" + string(action) + "; guidance=retry later"
 		return acp.AgentEvent{
-			Type: acp.EventTypeError,
+			Type:    acp.EventTypeError,
+			Error:   text,
+			Failure: &store.SessionFailure{Kind: store.FailurePrompt, Summary: text},
 			ProviderError: &acp.ProviderErrorDiagnostic{
 				Code: code, Provider: "claude", NextAction: action, Guidance: "retry later",
 			},
@@ -270,6 +311,14 @@ func TestDecorateHandoffAction(t *testing.T) {
 			if original.NextAction != acp.ProviderFailureActionRetry {
 				t.Fatal("decorateHandoffAction mutated the classifier's diagnostic")
 			}
+			// The error text is what the prompt stream shows; it must agree with the summary.
+			for field, text := range map[string]string{"error": event.Error, "failure summary": event.Failure.Summary} {
+				if !strings.Contains(text, "next_action=handoff") ||
+					!strings.Contains(text, "compozy session continue sess_1 --agent <name>") ||
+					!strings.HasPrefix(text, `{"code":-32603,"message":"429 rate limit exceeded"}`) {
+					t.Fatalf("%s = %q, want the handoff metadata after the unchanged provider text", field, text)
+				}
+			}
 		})
 	}
 
@@ -278,8 +327,10 @@ func TestDecorateHandoffAction(t *testing.T) {
 		for _, code := range []string{acp.ProviderErrorRateLimited, acp.ProviderErrorAuthRequired} {
 			event := promptFailure(code, acp.ProviderFailureActionLogin)
 			decorateHandoffAction(SessionTypeSpawned, "spawn-with-user-text", &event)
-			if event.ProviderError.NextAction != acp.ProviderFailureActionLogin {
-				t.Fatalf("%s on spawned session = %s, want login unchanged", code, event.ProviderError.NextAction)
+			if event.ProviderError.NextAction != acp.ProviderFailureActionLogin ||
+				!strings.Contains(event.Error, "next_action=login") {
+				t.Fatalf("%s on spawned session = %s / %q, want login unchanged", code,
+					event.ProviderError.NextAction, event.Error)
 			}
 		}
 	})

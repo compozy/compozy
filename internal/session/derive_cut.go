@@ -15,6 +15,10 @@ type deriveTurn struct {
 	firstSequence int64
 	lastSequence  int64
 	settled       bool
+	// prompt reports a prompt turn (user or synthetic): one that carries a prompt-stream
+	// event. Lifecycle-only turn ids (hook dispatch, stop escalation, session stopped) are
+	// not prompt turns and never count as a turn in progress.
+	prompt bool
 }
 
 // deriveTurns groups events by turn id in first-appearance order. A turn is settled when
@@ -40,8 +44,24 @@ func deriveTurns(events []store.SessionEvent) []deriveTurn {
 		if deriveTerminalEvent(event) {
 			turn.settled = true
 		}
+		if derivePromptEvent(event.Type) {
+			turn.prompt = true
+		}
 	}
 	return turns
+}
+
+// derivePromptEvent reports the event types a prompt turn records (the prompt itself,
+// its delivery, agent output, and its terminal event).
+func derivePromptEvent(eventType string) bool {
+	switch eventType {
+	case acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry, acp.EventTypePromptDelivery,
+		acp.EventTypeAgentMessage, acp.EventTypeThought, acp.EventTypeToolCall, acp.EventTypeToolResult,
+		acp.EventTypePlan, acp.EventTypePermission, acp.EventTypeClarify, acp.EventTypeDone, acp.EventTypeError:
+		return true
+	default:
+		return false
+	}
 }
 
 func deriveTerminalEvent(event store.SessionEvent) bool {
@@ -75,7 +95,7 @@ func deriveTerminalEvent(event store.SessionEvent) bool {
 }
 
 // lastSettledTurn returns the last settled turn (user or synthetic), its through
-// sequence, and whether a later turn is still open.
+// sequence, and whether a later prompt turn is still open.
 func lastSettledTurn(events []store.SessionEvent) (string, int64, bool) {
 	turns := deriveTurns(events)
 	last := -1
@@ -86,7 +106,7 @@ func lastSettledTurn(events []store.SessionEvent) (string, int64, bool) {
 	}
 	laterOpen := false
 	for position := last + 1; position < len(turns); position++ {
-		if !turns[position].settled {
+		if turns[position].prompt && !turns[position].settled {
 			laterOpen = true
 		}
 	}

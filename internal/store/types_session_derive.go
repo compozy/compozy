@@ -28,6 +28,7 @@ type SessionDerivationOutcome struct {
 	ACPSessionID         string `json:"acp_session_id,omitempty"`
 	NativeForkError      string `json:"native_fork_error,omitempty"`
 	OriginMessageID      string `json:"origin_message_id,omitempty"`
+	OriginAgentName      string `json:"origin_agent_name,omitempty"`
 	ThroughTurnID        string `json:"through_turn_id"`
 	ReplayMessageCount   int    `json:"replay_message_count"`
 	ReplayBytes          int    `json:"replay_bytes"`

@@ -43,6 +43,7 @@ func validateAgentResourceSpec(
 		CategoryPath:    normalizeAgentCategoryPath(spec.CategoryPath),
 		MCPServers:      cloneMCPServers(spec.MCPServers),
 		Hooks:           cloneHookDecls(spec.Hooks),
+		FallbackChain:   normalizeRoleFallbacks(spec.FallbackChain),
 		Prompt:          strings.TrimSpace(spec.Prompt),
 	}
 	normalized.SetSpeed(spec.SpeedValue())

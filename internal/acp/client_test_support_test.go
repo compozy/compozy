@@ -505,6 +505,9 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 		sessionCaps.Fork = &acpsdk.SessionForkCapabilities{}
 		sessionCaps.Resume = &acpsdk.SessionResumeCapabilities{}
 	}
+	if a.scenario == "config_options_slow_close" {
+		sessionCaps.Close = &acpsdk.SessionCloseCapabilities{}
+	}
 	return acpsdk.InitializeResponse{
 		Meta:            meta,
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
@@ -530,9 +533,16 @@ func (a *helperACPAgent) Cancel(context.Context, acpsdk.CancelNotification) erro
 }
 
 func (a *helperACPAgent) CloseSession(
-	context.Context,
-	acpsdk.CloseSessionRequest,
+	ctx context.Context,
+	_ acpsdk.CloseSessionRequest,
 ) (acpsdk.CloseSessionResponse, error) {
+	if a.scenario == "config_options_slow_close" {
+		// Answers slower than the driver's bounded close budget, like claude-agent-acp.
+		select {
+		case <-ctx.Done():
+		case <-time.After(3 * time.Second):
+		}
+	}
 	return acpsdk.CloseSessionResponse{}, nil
 }
 
@@ -607,6 +617,7 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		}, nil
 	}
 	if a.scenario == "config_options" ||
+		a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||

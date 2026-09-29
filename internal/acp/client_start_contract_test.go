@@ -579,6 +579,25 @@ func TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession(t *testing.T) 
 			t.Fatal("session/close was sent without an advertised close capability")
 		}
 	})
+
+	t.Run("Should keep the inspected options when session/close outlasts its budget", func(t *testing.T) {
+		t.Parallel()
+
+		captureFile := filepath.Join(t.TempDir(), "session-inspection-slow-close.jsonl")
+		options, err := InspectSessionConfigOptions(testutil.Context(t), SessionInspectionRequest{
+			AgentName: "helper",
+			Command:   helperCommand(t),
+			Cwd:       t.TempDir(),
+			Env:       helperEnvWithCapture("config_options_slow_close", "", captureFile),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionConfigOptions(slow close) error = %v", err)
+		}
+		assertConfigOption(t, options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionClose) {
+			t.Fatal("session/close was not sent for an agent that advertises it")
+		}
+	})
 }
 
 // Invariant: discovery retains each model's acknowledged options without prompting.

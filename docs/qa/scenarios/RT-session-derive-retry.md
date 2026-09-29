@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: Repeating compozy session continue (or POST …/continue, or compozy__session_continue) with the same idempotency key and the same request returns the recorded outcome with replayed true (HTTP 200, CLI "Replayed  yes") even after the source gained new turns; after the child is deleted it returns the outcome with child_deleted true and creates nothing; the same key with a different request returns idempotency_conflict; stale fences return session_fence_conflict; a first message admitted but never dispatched before a restart is dispatched exactly once by the retry.
 entry_points: compozy session continue <id> --agent <name> --idempotency-key <key> [--message …] [-o json]; POST /api/workspaces/{workspace_id}/sessions/{session_id}/continue; compozy session delete <child>; compozy session list -o json; compozy logs --session <child> --type session.derived -o json
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260928-derive-replay-deleted-child-origin-lost
+fix_status: fixed
+retest_status: pass
+fix_commits: uncommitted (task_08 part B1)
+evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-1.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-2.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-3-4.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-5b.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-6g-events-after-restart.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/retry-6h-events-after-retry.txt
+last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b1.md
 overlaps: ET-cli-session-continue
 ---
 
@@ -32,3 +32,17 @@ Planning 2026-09-28 (session-continue-fork task_03): new behavior.
 
 Automated evidence at authoring time: session manager derive receipt/idempotency cases and the HTTP
 replay transport cases (`TestContinueSessionHandler`). task_07/08 own the walk.
+
+## 2026-09-28 walk (task_08 part B1) — FIXED
+
+Théo, Interrupt Tour, isolated lab `compozy-session-continue-fork-b1-20260929-010817-219689-lab`, acpmock `retry-source` → `retry-target` (lab fixture), plus real Claude for one restart attempt.
+1. `continue --idempotency-key idem-qa-1 --message "go now"` → child, `replayed false`, the child answered. 2. After a new source turn the
+same command returned the same child, `Replayed yes`, the recorded `2 messages · 0.3 KiB`; one child listed, one `session.derived`.
+3. Same key, `--agent beta` → `idempotency_conflict` (CLI 65, HTTP 409). 4. Stale fences, new key → `session_fence_conflict`, nothing created.
+5. `session remove <child>` then the same command → `Child deleted yes`, no session created — but the origin agent printed `--`
+(BUG-20260928-derive-replay-deleted-child-origin-lost, fixed: the receipt records `origin_agent_name`; re-walk prints `(retry-source)`).
+6. `--message` returns only after the child's first bind dispatched the message (a 6 s slow-start agent made the call return after
+6 s), so the "admitted but never dispatched" crash window is not reachable from the CLI; it stays covered by `TestDeriveCommitBoundaries`.
+Walked instead: `kill -9` of the daemon right after the return (turn in flight), restart, same command → `replayed true`, and the
+child has exactly one `user_message` and one `session/prompt` in the driver diagnostics (the interrupted turn is recorded as
+`agent_crashed`, not re-run).
