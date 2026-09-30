@@ -86,6 +86,210 @@ function resolveState({
   return editing ? "editing" : "present";
 }
 
+function describedByIds(
+  description: React.ReactNode,
+  error: React.ReactNode,
+  descriptionId: string,
+  errorId: string
+): string | undefined {
+  // Plain id list — `cn` is a class merger and would mangle these.
+  const ids = [description ? descriptionId : null, error ? errorId : null].filter(Boolean);
+  return ids.length > 0 ? ids.join(" ") : undefined;
+}
+
+function scopedTestId(prefix: string | undefined, suffix: string): string | undefined {
+  return prefix && `${prefix}-${suffix}`;
+}
+
+interface SecretFieldHeadProps {
+  id: string;
+  label: React.ReactNode;
+  labelClassName?: string;
+  badges?: React.ReactNode;
+  description?: React.ReactNode;
+  descriptionId: string;
+  fieldName: string;
+  mode: SecretFieldMode;
+  onModeChange?: (mode: SecretFieldMode) => void;
+  binding?: SecretFieldBinding;
+  sourceModeLabel: React.ReactNode;
+  showModePicker: boolean;
+  testIdPrefix?: string;
+}
+
+/** Label row, description, and the value / stored-reference mode picker. */
+function SecretFieldHead({
+  id,
+  label,
+  labelClassName,
+  badges,
+  description,
+  descriptionId,
+  fieldName,
+  mode,
+  onModeChange,
+  binding,
+  sourceModeLabel,
+  showModePicker,
+  testIdPrefix,
+}: SecretFieldHeadProps) {
+  const locked = binding?.create?.open === true && binding.create.pending === true;
+  const modeItems: PillGroupItem<SecretFieldMode>[] = [
+    {
+      value: "value",
+      label: "Enter value",
+      testId: scopedTestId(testIdPrefix, "mode-value"),
+      disabled: locked,
+    },
+    {
+      value: "source",
+      label: sourceModeLabel,
+      testId: scopedTestId(testIdPrefix, "mode-source"),
+      disabled: locked,
+    },
+  ];
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <FieldLabel className={labelClassName} htmlFor={id}>
+          {label}
+        </FieldLabel>
+        {badges}
+      </div>
+      {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
+      {showModePicker && onModeChange ? (
+        <PillGroup
+          aria-label={`${fieldName} binding method`}
+          className={cn("grid w-full grid-cols-2", DIALOG_TOUCH_TARGET_SEGMENTS_CLASS)}
+          items={modeItems}
+          onChange={onModeChange}
+          size="sm"
+          value={mode}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+interface SecretFieldPresenceProps {
+  presenceLabel?: React.ReactNode;
+  rotated: boolean;
+  saving: boolean;
+  replaceLabel: string;
+  onReplace: () => void;
+  testIdPrefix?: string;
+}
+
+/** Stored-and-hidden summary with the explicit rotation entry point. */
+function SecretFieldPresence({
+  presenceLabel,
+  rotated,
+  saving,
+  replaceLabel,
+  onReplace,
+  testIdPrefix,
+}: SecretFieldPresenceProps) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2 rounded-md bg-sunken px-3 py-2"
+      data-slot="secret-field-presence"
+      data-testid={scopedTestId(testIdPrefix, "presence")}
+    >
+      <span aria-hidden="true" className="font-mono text-mono-id tracking-normal text-muted">
+        ••••••••
+      </span>
+      <span className="sr-only">Value stored and hidden</span>
+      {presenceLabel ? (
+        <span className="min-w-0 truncate text-form-hint text-muted">{presenceLabel}</span>
+      ) : null}
+      {rotated ? (
+        <Pill size="xs" tone="success">
+          rotated
+        </Pill>
+      ) : null}
+      <Button
+        className={cn("ml-auto", DIALOG_TOUCH_TARGET_CLASS)}
+        data-testid={scopedTestId(testIdPrefix, "replace")}
+        disabled={saving}
+        onClick={onReplace}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        {replaceLabel}
+      </Button>
+    </div>
+  );
+}
+
+interface SecretFieldValueInputProps {
+  id: string;
+  value: string;
+  onValueChange: (next: string) => void;
+  onBlur?: () => void;
+  placeholder?: string;
+  describedBy?: string;
+  invalid: boolean;
+  required: boolean;
+  saving: boolean;
+  /** Rotating an existing value: show the cancel affordance that keeps it. */
+  rotating: boolean;
+  onCancelRotation: () => void;
+  testIdPrefix?: string;
+}
+
+/** The single write-only input, plus the cancel row while rotating. */
+function SecretFieldValueInput({
+  id,
+  value,
+  onValueChange,
+  onBlur,
+  placeholder,
+  describedBy,
+  invalid,
+  required,
+  saving,
+  rotating,
+  onCancelRotation,
+  testIdPrefix,
+}: SecretFieldValueInputProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Input
+        aria-describedby={describedBy}
+        aria-invalid={invalid ? true : undefined}
+        autoComplete="new-password"
+        disabled={saving}
+        id={id}
+        onBlur={onBlur}
+        onChange={event => onValueChange(event.target.value)}
+        placeholder={placeholder ?? "Stored write-only"}
+        required={required}
+        type="password"
+        value={value}
+      />
+      {rotating ? (
+        <div className="flex items-center gap-2">
+          <p className="mr-auto text-form-hint text-subtle">
+            Cancel keeps the stored value in place.
+          </p>
+          <Button
+            className={DIALOG_TOUCH_TARGET_CLASS}
+            data-testid={scopedTestId(testIdPrefix, "cancel")}
+            disabled={saving}
+            onClick={onCancelRotation}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Write-only secret control.
  *
@@ -127,32 +331,44 @@ function SecretField({
   const fieldName = typeof label === "string" ? label : id;
   const descriptionId = `${id}-description`;
   const errorId = `${id}-error`;
-  // Plain id list — `cn` is a class merger and would mangle these.
-  const describedBy =
-    [description ? descriptionId : null, error ? errorId : null].filter(Boolean).join(" ") ||
-    undefined;
   const showPresenceSummary = present && !editing;
   const sourceBinding = binding && mode === "source" ? binding : null;
-  const bindingModeLocked = binding?.create?.open === true && binding.create.pending === true;
-  const modeItems: PillGroupItem<SecretFieldMode>[] = [
-    {
-      value: "value",
-      label: "Enter value",
-      testId: testIdPrefix && `${testIdPrefix}-mode-value`,
-      disabled: bindingModeLocked,
-    },
-    {
-      value: "source",
-      label: sourceModeLabel,
-      testId: testIdPrefix && `${testIdPrefix}-mode-source`,
-      disabled: bindingModeLocked,
-    },
-  ];
 
-  const cancelRotation = () => {
-    onValueChange("");
-    onEditingChange?.(false);
-  };
+  const body = showPresenceSummary ? (
+    <SecretFieldPresence
+      onReplace={() => onEditingChange?.(true)}
+      presenceLabel={presenceLabel}
+      replaceLabel={replaceLabel}
+      rotated={rotated}
+      saving={saving}
+      testIdPrefix={testIdPrefix}
+    />
+  ) : sourceBinding ? (
+    <SecretFieldSources
+      binding={sourceBinding}
+      createTestId={createTestId ?? scopedTestId(testIdPrefix, "create")}
+      fieldLabel={fieldName}
+      testId={sourcesTestId ?? scopedTestId(testIdPrefix, "sources")}
+    />
+  ) : (
+    <SecretFieldValueInput
+      describedBy={describedByIds(description, error, descriptionId, errorId)}
+      id={id}
+      invalid={Boolean(error)}
+      onBlur={onBlur}
+      onCancelRotation={() => {
+        onValueChange("");
+        onEditingChange?.(false);
+      }}
+      onValueChange={onValueChange}
+      placeholder={placeholder}
+      required={required && !present}
+      rotating={present && editing}
+      saving={saving}
+      testIdPrefix={testIdPrefix}
+      value={value}
+    />
+  );
 
   return (
     <Field
@@ -162,99 +378,22 @@ function SecretField({
       data-state={state}
       data-testid={testIdPrefix}
     >
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <FieldLabel className={labelClassName} htmlFor={id}>
-            {label}
-          </FieldLabel>
-          {badges}
-        </div>
-        {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
-        {binding && onModeChange && !showPresenceSummary ? (
-          <PillGroup
-            aria-label={`${fieldName} binding method`}
-            className={cn("grid w-full grid-cols-2", DIALOG_TOUCH_TARGET_SEGMENTS_CLASS)}
-            items={modeItems}
-            onChange={onModeChange}
-            size="sm"
-            value={mode}
-          />
-        ) : null}
-      </div>
-
-      {showPresenceSummary ? (
-        <div
-          className="flex flex-wrap items-center gap-2 rounded-md bg-sunken px-3 py-2"
-          data-slot="secret-field-presence"
-          data-testid={testIdPrefix && `${testIdPrefix}-presence`}
-        >
-          <span aria-hidden="true" className="font-mono text-mono-id tracking-normal text-muted">
-            ••••••••
-          </span>
-          <span className="sr-only">Value stored and hidden</span>
-          {presenceLabel ? (
-            <span className="min-w-0 truncate text-form-hint text-muted">{presenceLabel}</span>
-          ) : null}
-          {rotated ? (
-            <Pill size="xs" tone="success">
-              rotated
-            </Pill>
-          ) : null}
-          <Button
-            className={cn("ml-auto", DIALOG_TOUCH_TARGET_CLASS)}
-            data-testid={testIdPrefix && `${testIdPrefix}-replace`}
-            disabled={saving}
-            onClick={() => onEditingChange?.(true)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {replaceLabel}
-          </Button>
-        </div>
-      ) : sourceBinding ? (
-        <SecretFieldSources
-          binding={sourceBinding}
-          createTestId={createTestId ?? (testIdPrefix && `${testIdPrefix}-create`)}
-          fieldLabel={fieldName}
-          testId={sourcesTestId ?? (testIdPrefix && `${testIdPrefix}-sources`)}
-        />
-      ) : (
-        <div className="flex flex-col gap-2">
-          <Input
-            aria-describedby={describedBy}
-            aria-invalid={error ? true : undefined}
-            autoComplete="new-password"
-            disabled={saving}
-            id={id}
-            onBlur={onBlur}
-            onChange={event => onValueChange(event.target.value)}
-            placeholder={placeholder ?? "Stored write-only"}
-            required={required && !present}
-            type="password"
-            value={value}
-          />
-          {present && editing ? (
-            <div className="flex items-center gap-2">
-              <p className="mr-auto text-form-hint text-subtle">
-                Cancel keeps the stored value in place.
-              </p>
-              <Button
-                className={DIALOG_TOUCH_TARGET_CLASS}
-                data-testid={testIdPrefix && `${testIdPrefix}-cancel`}
-                disabled={saving}
-                onClick={cancelRotation}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      )}
-
+      <SecretFieldHead
+        badges={badges}
+        binding={binding}
+        description={description}
+        descriptionId={descriptionId}
+        fieldName={fieldName}
+        id={id}
+        label={label}
+        labelClassName={labelClassName}
+        mode={mode}
+        onModeChange={onModeChange}
+        showModePicker={Boolean(binding) && !showPresenceSummary}
+        sourceModeLabel={sourceModeLabel}
+        testIdPrefix={testIdPrefix}
+      />
+      {body}
       {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </Field>
   );
