@@ -49,14 +49,10 @@ const PREFER_BARE_UTILITY_WHITELIST = new Set([
   "width-modal-xl",
   "size-catalog-logo",
   "size-provider-logo-well",
-  "size-pill-group-badge",
   "height-pill-group-segment-md",
   "height-pill-group-segment-sm",
-  "space-pill-group-track-gap",
-  "space-pill-group-track-padding",
   "space-pill-group-segment-sm-x",
   "space-pill-group-segment-md-x",
-  "space-pill-group-badge-x",
   // Eyebrow utility uses arbitrary length syntax internally (allowed)
   "length:--text-eyebrow",
 ]);

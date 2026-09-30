@@ -35,3 +35,9 @@ Scale: 12 · 13 · 13.5 · 14.5 (body) · 15 (titles, medium) · 17 (headings, m
    means done, and an orange dot means needs you. The amber is only for real warnings.
 5. **Muted is quiet.** Secondary copy uses `muted`, and hovers only step the surface (`surface-2`) or add
    `shadow-card`. They never dim the text.
+6. **Readable greys (production override).** `muted`, `subtle` and `faint` carry text, so production lifts
+   them to WCAG AA (≥4.5:1) instead of the reference's values. Light: `muted`/`subtle`/`faint` #a1a1a1 → #6e6e6e
+   (2.6:1 → 4.8:1 on sunken), and `fg-2`/`fg-3` re-derive from it with the same recipes (#4c4c4c / #333333).
+   Dark: `subtle` #737373 → #8e8e8e and `faint` → #8a8a8a (≥4.5:1 on canvas, canvas-tint, rail and sunken).
+   `muted` in dark (#a3a3a3) already passes. This is a deliberate accessibility override. The prototype
+   keeps the reference values.

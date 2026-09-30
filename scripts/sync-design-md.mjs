@@ -77,7 +77,7 @@ function replaceGeneratedSections(text) {
     ["tracking-ladder", tokenTable(prefixRows(runtimeTheme, "tracking-"))],
     ["radii", tokenTable(prefixRows(runtimeTheme, "radius", true))],
     ["component-sizes", tokenTable(namedRows(runtimeDecls, componentSizeTokenPattern))],
-    ["shadows", tokenTable(prefixRows(runtimeTheme, "shadow-"))],
+    ["shadows", tokenTable(prefixRows(resolveThemeAdapters(runtimeTheme), "shadow-"))],
     [
       "shell-backdrop",
       tokenTable(
@@ -132,6 +132,17 @@ function terminalRampRows() {
 
 function namedRows(decls, re) {
   return decls.filter(({ name }) => re.test(name)).map(({ name, value }) => ["--" + name, value]);
+}
+
+// `--shadow-*: var(--theme-shadow-*)` adapters exist only so Tailwind reads the
+// variable at runtime; the spec tables show the (default, dark) literal behind them.
+function resolveThemeAdapters(decls) {
+  return decls.map(({ name, value }) => {
+    const adapter = value.match(/^var\(--(theme-[a-zA-Z0-9-]+)\)$/);
+    return adapter && runtime.has(adapter[1])
+      ? { name, value: runtime.get(adapter[1]) }
+      : { name, value };
+  });
 }
 
 function prefixRows(decls, prefix, includeBase = false) {
@@ -226,7 +237,7 @@ function emitFrontmatter() {
     yamlMap("duration", namespaceMap(runtimeTheme, "duration"), 6),
     yamlMap("ease", namespaceMap(runtimeTheme, "ease"), 6),
     yamlMap("scale", namespaceMap(runtimeTheme, "scale"), 6),
-    yamlMap("shadow", namespaceMap(runtimeTheme, "shadow"), 4),
+    yamlMap("shadow", namespaceMap(resolveThemeAdapters(runtimeTheme), "shadow"), 4),
     yamlMap(
       "sizes",
       mapNamed(runtimeDecls, componentSizeTokenPattern, name => name),

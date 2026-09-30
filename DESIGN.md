@@ -32,8 +32,8 @@ tokens:
       fg-2: "#c4c4c4"
       fg-3: "#dcdcdc"
       muted: "#a3a3a3"
-      subtle: "#737373"
-      faint: "#6b6b6b"
+      subtle: "#8e8e8e"
+      faint: "#8a8a8a"
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
@@ -144,23 +144,26 @@ tokens:
       terminal-ansi-14: "var(--terminal-ansi-14)"
       terminal-ansi-15: "var(--terminal-ansi-15)"
     fonts:
-      sans: '"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif'
-      mono: '"JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace'
+      sans: '"Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
+      mono: '"Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace'
       display: "var(--font-sans)"
-      keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif'
-      weight-normal: "400"
-      weight-medium: "510"
+      keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif'
+      weight-normal: "425"
+      weight-medium: "500"
       weight-semibold: "600"
-      weight-bold: "700"
+      weight-bold: "600"
       weight-display: "620"
     typography:
-      item-title: { size: "1rem", line: "1.375rem" }
+      meta: { size: "0.8125rem", line: "1.125rem" }
+      body: { size: "0.90625rem", line: "1.375rem", tracking: "-0.01em" }
+      heading: { size: "1.0625rem", line: "1.5rem" }
+      item-title: { size: "0.9375rem", line: "1.375rem" }
       small-body: { size: "0.84375rem", line: "1.25rem" }
       badge: { size: "0.6875rem", line: "0.75rem" }
       eyebrow: { size: "0.75rem", line: "1rem", tracking: "-0.005em" }
       eyebrow-caps: { size: "0.6875rem", line: "1rem", tracking: "0.06em" }
-      kbd: { size: "0.65625rem", line: "0.75rem", tracking: "0.03em" }
-      kbd--font-weight: { size: "510" }
+      kbd: { size: "0.75rem", line: "1rem", tracking: "0.03em" }
+      kbd--font-weight: { size: "425" }
       display-2xl: { size: "1.75rem", line: "1" }
       site-lead: { size: "1.1875rem", line: "1.5" }
       micro: { size: "0.6875rem", line: "0.75rem" }
@@ -168,30 +171,30 @@ tokens:
       accent-glyph: { size: "0.85em" }
       ui-title-lg: { size: "1.35rem" }
       detail-h1: { size: "1.4rem", line: "1.25", tracking: "-0.028em" }
-      compact-h1: { size: "1.1rem", line: "1.25", tracking: "-0.022em" }
-      empty-h1: { size: "1.125rem", tracking: "-0.022em" }
-      modal-title: { size: "0.84375rem", tracking: "-0.012em" }
+      compact-h1: { size: "1.0625rem", line: "1.25", tracking: "-0.022em" }
+      empty-h1: { size: "1.0625rem", tracking: "-0.022em" }
+      modal-title: { size: "0.9375rem", tracking: "-0.012em" }
       section-head: { size: "0.7rem", tracking: "-0.008em" }
-      form-input: { size: "0.78125rem" }
-      form-label: { size: "0.78125rem" }
-      form-hint: { size: "0.78125rem" }
+      form-input: { size: "0.84375rem" }
+      form-label: { size: "0.8125rem" }
+      form-hint: { size: "0.75rem" }
       form-required: { size: "0.625rem" }
       metric-value: { size: "1.375rem" }
       kpi-value: { size: "1.5rem", line: "1.05" }
       kpi-compact: { size: "1.0625rem" }
       agent-metric: { size: "1rem" }
       rail-avatar: { size: "0.71875rem" }
-      ws-name: { size: "0.8125rem" }
+      ws-name: { size: "0.9375rem" }
       mono-id: { size: "0.6875rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
       card-title: { size: "0.9375rem", line: "1.4" }
       prose-h1: { size: "1.375rem", line: "1.25", tracking: "-0.022em" }
       prose-h2: { size: "1.125rem", line: "1.3", tracking: "-0.018em" }
       prose-h3: { size: "1rem", line: "1.4", tracking: "-0.01em" }
-      code-block: { size: "0.78125rem", line: "1.5" }
-      transcript-message: { size: "0.84375rem" }
-      transcript-body: { size: "0.75rem" }
-      transcript-meta: { size: "0.71875rem" }
+      code-block: { size: "0.8125rem", line: "1.5" }
+      transcript-message: { size: "0.90625rem" }
+      transcript-body: { size: "0.8125rem" }
+      transcript-meta: { size: "0.75rem" }
       transcript-caption: { size: "0.6875rem" }
       workspace-avatar: { size: "9px" }
     rounded:
@@ -199,18 +202,18 @@ tokens:
       xxs: "3px"
       xs: "6px"
       sm: "7px"
-      md: "10px"
-      lg: "14px"
+      md: "8px"
+      lg: "12px"
       xl: "18px"
       pill: "9999px"
       chip: "7px"
       mono-badge: "4px"
-      icon-well: "12px"
+      icon-well: "7px"
       window: "12px"
       dock: "22px"
       dock-item: "13px"
       menubar-control: "7px"
-      deck-tab: "8px"
+      deck-tab: "9px"
     motion:
       distance:
         desk-slide: "4%"
@@ -253,7 +256,7 @@ tokens:
     sizes:
       height-button-xs: "24px"
       height-button-sm: "26px"
-      height-button-default: "30px"
+      height-button-default: "32px"
       height-button-lg: "34px"
       height-button-cta: "36px"
       height-button-cta-lg: "44px"
@@ -377,8 +380,8 @@ tokens:
       width-deck-tab-max: "208px"
       size-deck-glyph: "13px"
       min-width-deck-badge: "14px"
-      size-deck-add: "24px"
-      size-deck-close: "16px"
+      size-deck-add: "28px"
+      size-deck-close: "20px"
       size-workspace-avatar: "18px"
       size-dock-new-icon: "18px"
       size-dock-zone-offset: "10px"
@@ -409,14 +412,10 @@ tokens:
       width-modal-xl: "1180px"
       size-catalog-logo: "1.5rem"
       size-provider-logo-well: "2.5rem"
-      size-pill-group-badge: "14px"
-      height-pill-group-segment-md: "24px"
+      height-pill-group-segment-md: "30px"
       height-pill-group-segment-sm: "20px"
-      space-pill-group-track-gap: "1px"
-      space-pill-group-track-padding: "2px"
       space-pill-group-segment-sm-x: "8px"
-      space-pill-group-segment-md-x: "10px"
-      space-pill-group-badge-x: "4px"
+      space-pill-group-segment-md-x: "12px"
       space-home-pulse-gap: "3px"
       size-home-pulse-label: "34px"
       size-home-pulse-cell-min: "18px"
@@ -646,8 +645,8 @@ token or component at the source; do not locally override one callsite.
 | `--color-fg`        | `#f5f5f5` |
 | `--color-fg-strong` | `#ffffff` |
 | `--color-muted`     | `#a3a3a3` |
-| `--color-subtle`    | `#737373` |
-| `--color-faint`     | `#6b6b6b` |
+| `--color-subtle`    | `#8e8e8e` |
+| `--color-faint`     | `#8a8a8a` |
 
 <!-- END:tokens:text-ladder -->
 
@@ -788,25 +787,26 @@ never a legal color for UI copy.
 
 ## 3. Typography and eyebrow contract
 
-Geist Variable (wght) is the runtime typeface. JetBrains Mono is reserved
-for ids, code, channel metadata, and fixed-width operational values. The site
+Inter Variable (wght) is the runtime typeface. Geist Mono Variable is reserved
+for ids, code, paths, the terminal, and fixed-width operational values. The
+site keeps its own families (Geist + JetBrains Mono via `next/font`) and
 binds `--font-display` to Playfair Display for landing (`.site-home`) and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only — never
 below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
 alias, not a type-ramp utility.
 
-The body baseline is set once in `tokens-runtime.css`: Geist at a comfortable
-reading size, a relaxed line height, and a small negative tracking correction.
-Geist exposes a `wght` axis only, so there is no optical-size compensation and
-no character-variant or stylistic-set feature block. UI medium weight is
-`--font-weight-medium: 510` (maps to
-`font-medium`) — a soft half-step between Regular and classic Medium, matching
-the OpenDesign prototypes. Components should compose from text and tracking
-tokens rather than re-declaring pixel sizes.
+The body baseline is set once in `tokens-runtime.css`: Inter 425 at
+`--text-body` (14.5px), line height 1.5, `--tracking-body` (−0.01em), and
+Inter's `cv11` (single-storey a). The weight ladder is 425 / 500 / 600
+(`font-normal` / `font-medium` / `font-semibold`; `font-bold` caps at 600).
+The brand ramp is 12 (`text-xs`, eyebrow) · 13 (`--text-meta`) · 13.5
+(`--text-small-body`) · 14.5 (`--text-body`) · 15 (`--text-card-title`,
+`--text-item-title`) · 17 (`--text-heading`). Components should compose from
+text and tracking tokens rather than re-declaring pixel sizes.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
 primitive with two fixed renditions, both utilities in `tokens-runtime.css`.
-The default is Geist sentence case 12/510/-0.005em (`.eyebrow`). Uppercase is
+The default is Inter sentence case 12/500/-0.005em (`.eyebrow`). Uppercase is
 opt-in through `<Eyebrow variant="caps">`, which renders the `.eyebrow-caps`
 kicker — 11/600/+0.06em: one size step down, positive tracking, because
 uppercase reads optically ~20% larger and must never take negative tracking.
@@ -823,17 +823,17 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 <!-- BEGIN:tokens:fonts -->
 
-| Token                    | Value                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------- |
-| `--font-sans`            | `"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif`                               |
-| `--font-mono`            | `"JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace` |
-| `--font-display`         | `var(--font-sans)`                                                                                |
-| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif`                   |
-| `--font-weight-normal`   | `400`                                                                                             |
-| `--font-weight-medium`   | `510`                                                                                             |
-| `--font-weight-semibold` | `600`                                                                                             |
-| `--font-weight-bold`     | `700`                                                                                             |
-| `--font-weight-display`  | `620`                                                                                             |
+| Token                    | Value                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `--font-sans`            | `"Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif`                                     |
+| `--font-mono`            | `"Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace` |
+| `--font-display`         | `var(--font-sans)`                                                                                                  |
+| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif`                                     |
+| `--font-weight-normal`   | `425`                                                                                                               |
+| `--font-weight-medium`   | `500`                                                                                                               |
+| `--font-weight-semibold` | `600`                                                                                                               |
+| `--font-weight-bold`     | `600`                                                                                                               |
+| `--font-weight-display`  | `620`                                                                                                               |
 
 <!-- END:tokens:fonts -->
 
@@ -843,13 +843,16 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 | Token                       | Size         | Line       | Tracking   |
 | --------------------------- | ------------ | ---------- | ---------- |
-| `--text-item-title`         | `1rem`       | `1.375rem` |            |
+| `--text-meta`               | `0.8125rem`  | `1.125rem` |            |
+| `--text-body`               | `0.90625rem` | `1.375rem` | `-0.01em`  |
+| `--text-heading`            | `1.0625rem`  | `1.5rem`   |            |
+| `--text-item-title`         | `0.9375rem`  | `1.375rem` |            |
 | `--text-small-body`         | `0.84375rem` | `1.25rem`  |            |
 | `--text-badge`              | `0.6875rem`  | `0.75rem`  |            |
 | `--text-eyebrow`            | `0.75rem`    | `1rem`     | `-0.005em` |
 | `--text-eyebrow-caps`       | `0.6875rem`  | `1rem`     | `0.06em`   |
-| `--text-kbd`                | `0.65625rem` | `0.75rem`  | `0.03em`   |
-| `--text-kbd--font-weight`   | `510`        |            |            |
+| `--text-kbd`                | `0.75rem`    | `1rem`     | `0.03em`   |
+| `--text-kbd--font-weight`   | `425`        |            |            |
 | `--text-display-2xl`        | `1.75rem`    | `1`        |            |
 | `--text-site-lead`          | `1.1875rem`  | `1.5`      |            |
 | `--text-micro`              | `0.6875rem`  | `0.75rem`  |            |
@@ -857,30 +860,30 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-accent-glyph`       | `0.85em`     |            |            |
 | `--text-ui-title-lg`        | `1.35rem`    |            |            |
 | `--text-detail-h1`          | `1.4rem`     | `1.25`     | `-0.028em` |
-| `--text-compact-h1`         | `1.1rem`     | `1.25`     | `-0.022em` |
-| `--text-empty-h1`           | `1.125rem`   |            | `-0.022em` |
-| `--text-modal-title`        | `0.84375rem` |            | `-0.012em` |
+| `--text-compact-h1`         | `1.0625rem`  | `1.25`     | `-0.022em` |
+| `--text-empty-h1`           | `1.0625rem`  |            | `-0.022em` |
+| `--text-modal-title`        | `0.9375rem`  |            | `-0.012em` |
 | `--text-section-head`       | `0.7rem`     |            | `-0.008em` |
-| `--text-form-input`         | `0.78125rem` |            |            |
-| `--text-form-label`         | `0.78125rem` |            |            |
-| `--text-form-hint`          | `0.78125rem` |            |            |
+| `--text-form-input`         | `0.84375rem` |            |            |
+| `--text-form-label`         | `0.8125rem`  |            |            |
+| `--text-form-hint`          | `0.75rem`    |            |            |
 | `--text-form-required`      | `0.625rem`   |            |            |
 | `--text-metric-value`       | `1.375rem`   |            |            |
 | `--text-kpi-value`          | `1.5rem`     | `1.05`     |            |
 | `--text-kpi-compact`        | `1.0625rem`  |            |            |
 | `--text-agent-metric`       | `1rem`       |            |            |
 | `--text-rail-avatar`        | `0.71875rem` |            |            |
-| `--text-ws-name`            | `0.8125rem`  |            |            |
+| `--text-ws-name`            | `0.9375rem`  |            |            |
 | `--text-mono-id`            | `0.6875rem`  |            | `0`        |
 | `--text-pill-group-badge`   | `0.5625rem`  |            |            |
 | `--text-card-title`         | `0.9375rem`  | `1.4`      |            |
 | `--text-prose-h1`           | `1.375rem`   | `1.25`     | `-0.022em` |
 | `--text-prose-h2`           | `1.125rem`   | `1.3`      | `-0.018em` |
 | `--text-prose-h3`           | `1rem`       | `1.4`      | `-0.01em`  |
-| `--text-code-block`         | `0.78125rem` | `1.5`      |            |
-| `--text-transcript-message` | `0.84375rem` |            |            |
-| `--text-transcript-body`    | `0.75rem`    |            |            |
-| `--text-transcript-meta`    | `0.71875rem` |            |            |
+| `--text-code-block`         | `0.8125rem`  | `1.5`      |            |
+| `--text-transcript-message` | `0.90625rem` |            |            |
+| `--text-transcript-body`    | `0.8125rem`  |            |            |
+| `--text-transcript-meta`    | `0.75rem`    |            |            |
 | `--text-transcript-caption` | `0.6875rem`  |            |            |
 | `--text-workspace-avatar`   | `9px`        |            |            |
 
@@ -898,7 +901,7 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--tracking-tight`        | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
 | `--tracking-eyebrow-caps` | `0.06em`   | `--tracking-mono-id`      | `0`        |
 | `--tracking-redacted`     | `0.35em`   | `--tracking-kbd`          | `0.03em`   |
-| `--tracking-body`         | `-0.006em` | `--tracking-row-title`    | `-0.01em`  |
+| `--tracking-body`         | `-0.01em`  | `--tracking-row-title`    | `-0.01em`  |
 | `--tracking-prose-h1`     | `-0.022em` | `--tracking-prose-h2`     | `-0.018em` |
 | `--tracking-prose-h3`     | `-0.01em`  |                           |            |
 
@@ -936,12 +939,12 @@ widths come from `--site-*` tokens.
 | -------------------------- | ------ | --------------------- | -------- |
 | `--radius`                 | `8px`  | `--radius-xxs`        | `3px`    |
 | `--radius-xs`              | `6px`  | `--radius-sm`         | `7px`    |
-| `--radius-md`              | `10px` | `--radius-lg`         | `14px`   |
+| `--radius-md`              | `8px`  | `--radius-lg`         | `12px`   |
 | `--radius-xl`              | `18px` | `--radius-pill`       | `9999px` |
 | `--radius-chip`            | `7px`  | `--radius-mono-badge` | `4px`    |
-| `--radius-icon-well`       | `12px` | `--radius-window`     | `12px`   |
+| `--radius-icon-well`       | `7px`  | `--radius-window`     | `12px`   |
 | `--radius-dock`            | `22px` | `--radius-dock-item`  | `13px`   |
-| `--radius-menubar-control` | `7px`  | `--radius-deck-tab`   | `8px`    |
+| `--radius-menubar-control` | `7px`  | `--radius-deck-tab`   | `9px`    |
 
 <!-- END:tokens:radii -->
 
@@ -951,7 +954,7 @@ widths come from `--site-*` tokens.
 
 | Token                                      | Value                                                                                                                             | Token                               | Value                            | Token                                   | Value                                                       |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------- | --------------------------------------- | ----------------------------------------------------------- |
-| `--height-button-xs`                       | `24px`                                                                                                                            | `--height-button-sm`                | `26px`                           | `--height-button-default`               | `30px`                                                      |
+| `--height-button-xs`                       | `24px`                                                                                                                            | `--height-button-sm`                | `26px`                           | `--height-button-default`               | `32px`                                                      |
 | `--height-button-lg`                       | `34px`                                                                                                                            | `--height-button-cta`               | `36px`                           | `--height-button-cta-lg`                | `44px`                                                      |
 | `--size-button-icon-xs`                    | `24px`                                                                                                                            | `--size-button-icon-sm`             | `26px`                           | `--size-button-icon-default`            | `30px`                                                      |
 | `--size-button-icon-lg`                    | `34px`                                                                                                                            | `--height-transcript-row`           | `22px`                           | `--height-transcript-line`              | `24px`                                                      |
@@ -993,7 +996,7 @@ widths come from `--site-*` tokens.
 | `--size-dock-indicator-min`                | `5px`                                                                                                                             | `--size-traffic-light`              | `12px`                           | `--size-menubar-logo`                   | `17px`                                                      |
 | `--height-deck`                            | `40px`                                                                                                                            | `--height-deck-tab`                 | `32px`                           | `--min-width-deck-tab`                  | `136px`                                                     |
 | `--width-deck-tab-max`                     | `208px`                                                                                                                           | `--size-deck-glyph`                 | `13px`                           | `--min-width-deck-badge`                | `14px`                                                      |
-| `--size-deck-add`                          | `24px`                                                                                                                            | `--size-deck-close`                 | `16px`                           | `--size-workspace-avatar`               | `18px`                                                      |
+| `--size-deck-add`                          | `28px`                                                                                                                            | `--size-deck-close`                 | `20px`                           | `--size-workspace-avatar`               | `18px`                                                      |
 | `--size-dock-new-icon`                     | `18px`                                                                                                                            | `--size-dock-zone-offset`           | `10px`                           | `--size-dock-clearance`                 | `10px`                                                      |
 | `--size-dock-band`                         | `calc( var(--size-dock-item) + (2 * var(--spacing-dock-pad)) + 2px + var(--size-dock-zone-offset) + var(--size-dock-clearance) )` | `--spacing-dock-gap`                | `4px`                            | `--spacing-dock-pad`                    | `7px`                                                       |
 | `--spacing-menubar-workspace-gap`          | `7px`                                                                                                                             | `--spacing-traffic-light-gap`       | `7px`                            | `--spacing-traffic-light-compact-gap`   | `12px`                                                      |
@@ -1003,12 +1006,11 @@ widths come from `--site-*` tokens.
 | `--height-setup-row`                       | `30px`                                                                                                                            | `--size-setup-step-marker`          | `18px`                           | `--width-setup-panel`                   | `660px`                                                     |
 | `--width-setup-panel-wide`                 | `960px`                                                                                                                           | `--overlay-blur`                    | `3px`                            | `--width-modal-sm`                      | `560px`                                                     |
 | `--width-modal-md`                         | `720px`                                                                                                                           | `--width-modal-lg`                  | `880px`                          | `--width-modal-xl`                      | `1180px`                                                    |
-| `--size-catalog-logo`                      | `1.5rem`                                                                                                                          | `--size-provider-logo-well`         | `2.5rem`                         | `--size-pill-group-badge`               | `14px`                                                      |
-| `--height-pill-group-segment-md`           | `24px`                                                                                                                            | `--height-pill-group-segment-sm`    | `20px`                           | `--space-pill-group-track-gap`          | `1px`                                                       |
-| `--space-pill-group-track-padding`         | `2px`                                                                                                                             | `--space-pill-group-segment-sm-x`   | `8px`                            | `--space-pill-group-segment-md-x`       | `10px`                                                      |
-| `--space-pill-group-badge-x`               | `4px`                                                                                                                             | `--space-home-pulse-gap`            | `3px`                            | `--size-home-pulse-label`               | `34px`                                                      |
-| `--size-home-pulse-cell-min`               | `18px`                                                                                                                            | `--size-home-pulse-cell`            | `15px`                           | `--size-home-pulse-min-w`               | `640px`                                                     |
-| `--space-switch-thumb-inset`               | `2px`                                                                                                                             | `--space-chart-tooltip-y`           | `6px`                            | `--space-chart-tooltip-x`               | `8px`                                                       |
+| `--size-catalog-logo`                      | `1.5rem`                                                                                                                          | `--size-provider-logo-well`         | `2.5rem`                         | `--height-pill-group-segment-md`        | `30px`                                                      |
+| `--height-pill-group-segment-sm`           | `20px`                                                                                                                            | `--space-pill-group-segment-sm-x`   | `8px`                            | `--space-pill-group-segment-md-x`       | `12px`                                                      |
+| `--space-home-pulse-gap`                   | `3px`                                                                                                                             | `--size-home-pulse-label`           | `34px`                           | `--size-home-pulse-cell-min`            | `18px`                                                      |
+| `--size-home-pulse-cell`                   | `15px`                                                                                                                            | `--size-home-pulse-min-w`           | `640px`                          | `--space-switch-thumb-inset`            | `2px`                                                       |
+| `--space-chart-tooltip-y`                  | `6px`                                                                                                                             | `--space-chart-tooltip-x`           | `8px`                            |                                         |                                                             |
 
 <!-- END:tokens:component-sizes -->
 

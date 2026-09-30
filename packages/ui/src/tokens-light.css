@@ -31,14 +31,15 @@
   --color-line-strong: #d4d7dd;
   --color-line-focus: #b8bcc4;
 
-  /* Text. */
+  /* Text — muted clears AA 4.5:1 on canvas, sunken, rail and surface-2 (the
+     reference's #a1a1a1 reads 2.6:1); fg-2 / fg-3 re-derive from it. */
   --color-fg: #1a1a1a;
   --color-fg-strong: #0b0d12;
-  --color-fg-2: #6b6b6b;
-  --color-fg-3: #434343;
-  --color-muted: #a1a1a1;
-  --color-subtle: #a1a1a1;
-  --color-faint: #a1a1a1;
+  --color-fg-2: #4c4c4c;
+  --color-fg-3: #333333;
+  --color-muted: #6e6e6e;
+  --color-subtle: #6e6e6e;
+  --color-faint: #6e6e6e;
 
   /* Primary (inverted). */
   --color-primary: #0b0d12;
@@ -114,17 +115,18 @@
   --color-avatar-human-2-bg: rgba(170, 130, 140, 0.16);
   --color-avatar-human-2-fg: #74525c;
 
-  /* Shadows. */
-  --shadow-card: 0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005;
-  --shadow-elevated:
+  /* Shadows — `--theme-shadow-*` literals behind the @theme adapters. */
+  --theme-shadow-card: 0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005;
+  --theme-shadow-elevated:
     0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
-  --shadow-pop:
+  --theme-shadow-pop:
     0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05,
     0 1.5px 3px #0000000a;
-  --shadow-overlay: 0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06);
-  --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
-  --shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);
+  --theme-shadow-overlay:
+    0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06);
+  --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --theme-shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
+  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);
 
   /* Shell glass + gradients (retired with the dock; themed until removed). */
   --shell-glass: rgba(250, 250, 250, 0.78);
