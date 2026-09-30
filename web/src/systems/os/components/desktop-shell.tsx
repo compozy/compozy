@@ -283,7 +283,7 @@ function DesktopShellScopedBody({
           <DesktopPagerSurface
             activeDesktopId={pager.activeDesktopId}
             desktops={pager.desktops}
-            compact={pager.compact}
+            needsYouDesktopIds={pager.needsYouDesktopIds}
             canSwitchDesktop={pager.canSwitchDesktop}
             onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
             onOpenOverview={onOpenDesktopOverview}

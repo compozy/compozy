@@ -2,10 +2,13 @@
 // Invariant: while scope resolution is pending the globe control is
 // aria-disabled, matching the runtime-workspace query lock at the root.
 // The command-palette control carries the live palette chord as
-// aria-keyshortcuts once the keymap is known, and nothing before.
+// aria-keyshortcuts once the keymap is known, and nothing before. The tray's
+// All desktops control toggles the desktops overlay; Settings is not a tray
+// control (it lives in the system menu).
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -14,6 +17,7 @@ import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
 import { paletteRegistryFixture, resolvedPaletteCommand } from "../../mocks/cmd-palette-fixtures";
 import type { ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
+import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { DesktopMenubar } from "../desktop-menubar";
 
 vi.mock("../../hooks/use-desktop", () => ({
@@ -55,9 +59,13 @@ const ATTENTION: OsAttentionModel = {
 function renderMenubar({
   commands = [],
   scopePending = false,
+  activeOverlay = null,
+  onOverlayOpenChange = vi.fn(),
 }: {
   commands?: readonly ResolvedPaletteCommand[];
   scopePending?: boolean;
+  activeOverlay?: DesktopOverlay | null;
+  onOverlayOpenChange?: (overlay: DesktopOverlay, open: boolean) => void;
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { enabled: false, retry: false } },
@@ -74,8 +82,8 @@ function renderMenubar({
             onSelectWorkspace={vi.fn()}
             onAddWorkspace={vi.fn()}
             onRunCommand={vi.fn()}
-            activeOverlay={null}
-            onOverlayOpenChange={vi.fn()}
+            activeOverlay={activeOverlay}
+            onOverlayOpenChange={onOverlayOpenChange}
             attention={ATTENTION}
             updateAvailable={false}
           />
@@ -118,5 +126,34 @@ describe("DesktopMenubar command palette control", () => {
     expect(container.querySelector('[data-slot="os-menubar-command"]')).not.toHaveAttribute(
       "aria-keyshortcuts"
     );
+  });
+});
+
+describe("DesktopMenubar tray", () => {
+  it("Should toggle the desktops overview from the All desktops control", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    const view = renderMenubar({ onOverlayOpenChange });
+
+    const allDesktops = screen.getByRole("button", { name: "All desktops" });
+    expect(allDesktops).toHaveAttribute("aria-expanded", "false");
+    await user.click(allDesktops);
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith("desktops", true);
+
+    view.unmount();
+    renderMenubar({ activeOverlay: "desktops", onOverlayOpenChange });
+    const expanded = screen.getByRole("button", { name: "All desktops" });
+    expect(expanded).toHaveAttribute("aria-expanded", "true");
+    await user.click(expanded);
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith("desktops", false);
+  });
+
+  it("Should leave Settings out of the tray and every tray control outside the menubars", () => {
+    renderMenubar();
+
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+    for (const name of ["All desktops", "Attention", "Command palette"]) {
+      expect(screen.getByRole("button", { name }).closest('[role="menubar"]')).toBeNull();
+    }
   });
 });

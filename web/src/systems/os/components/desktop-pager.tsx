@@ -7,6 +7,8 @@ import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } 
 export interface DesktopPagerItem {
   id: string;
   name: string;
+  /** A window on this desktop needs you; shown only while it is off-screen. */
+  needsYou?: boolean;
 }
 
 export interface DesktopPagerOverflowRequest {
@@ -18,8 +20,6 @@ export interface DesktopPagerOverflowRequest {
 export interface DesktopPagerProps extends Omit<React.ComponentProps<"nav">, "children"> {
   desktops: readonly DesktopPagerItem[];
   activeDesktopId: string;
-  /** Compact presentation changes containment only; navigation cardinality stays identical. */
-  compact?: boolean;
   /** Desktop switches stay unavailable until the daemon has a live registered client. */
   canSwitchDesktop?: boolean;
   onSelectDesktop: (desktopId: string) => void;
@@ -108,14 +108,19 @@ function overflowLabel(control: OverflowControl): string {
   return `Show ${count} ${control.direction} desktop${count === 1 ? "" : "s"}`;
 }
 
+function desktopLabel(control: DesktopControl, total: number, active: boolean): string {
+  const base = `Desktop ${control.position + 1} of ${total}: ${control.desktop.name}`;
+  return control.desktop.needsYou && !active ? `${base} — needs you` : base;
+}
+
 /**
- * Bottom-chrome desktop navigation. The 44px controls remain transparent at rest;
- * only the 6px dots and 14px active pill are visible.
+ * Topbar desktop navigation (shell-rail v2 `.dots`): 6px dots, the active
+ * desktop as an 18px pill, an orange dot for an off-screen desktop that needs
+ * you. Dots only select; the ±2 overflow controls open the overview.
  */
 export function DesktopPager({
   desktops,
   activeDesktopId,
-  compact = false,
   canSwitchDesktop = true,
   onSelectDesktop,
   onOpenOverview,
@@ -158,10 +163,8 @@ export function DesktopPager({
     <nav
       aria-label={ariaLabel}
       data-slot="desktop-pager"
-      data-presentation={compact ? "compact" : "floating"}
       className={cn(
-        "no-scrollbar min-w-0 overflow-x-auto overscroll-x-contain p-0.5",
-        compact ? "w-[50vw] max-w-[50vw]" : "w-full max-w-full",
+        "no-scrollbar mr-1 min-w-0 shrink overflow-x-auto overscroll-x-contain",
         className
       )}
       {...props}
@@ -169,11 +172,12 @@ export function DesktopPager({
       <TooltipProvider>
         <ol className="flex w-max items-center" aria-label="Desktop positions">
           {controls.map(control => {
+            const active = control.kind === "desktop" && control.desktop.id === activeDesktopId;
             const label =
               control.kind === "desktop"
-                ? `Desktop ${control.position + 1} of ${desktops.length}: ${control.desktop.name}`
+                ? desktopLabel(control, desktops.length, active)
                 : overflowLabel(control);
-            const active = control.kind === "desktop" && control.desktop.id === activeDesktopId;
+            const needsYou = control.kind === "desktop" && control.desktop.needsYou && !active;
 
             return (
               <li key={control.key}>
@@ -196,6 +200,7 @@ export function DesktopPager({
                         }
                         aria-label={label}
                         data-active={active ? "true" : undefined}
+                        data-needs-you={needsYou ? "true" : undefined}
                         data-direction={control.kind === "overflow" ? control.direction : undefined}
                         data-slot={
                           control.kind === "desktop"
@@ -204,8 +209,7 @@ export function DesktopPager({
                         }
                         tabIndex={control.key === tabStopKey ? 0 : -1}
                         className={cn(
-                          "relative size-11 rounded-pill p-0 hover:bg-transparent",
-                          "focus-visible:bg-transparent focus-visible:shadow-focus-ring",
+                          "h-7.5 w-6 min-w-0 rounded-sm p-0 hover:bg-surface-2 active:translate-y-0",
                           "aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         )}
                         onClick={() => {
@@ -227,27 +231,23 @@ export function DesktopPager({
                     }
                   >
                     {control.kind === "desktop" ? (
-                      <span aria-hidden="true" className="relative block size-3.5">
-                        <span
-                          className={cn(
-                            "absolute top-1/2 left-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-neutral-ink",
-                            "transition-opacity duration-shell-fast ease-out group-hover/button:bg-muted",
-                            active ? "opacity-0" : "opacity-100"
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "absolute top-1/2 left-1/2 h-1.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-fg-strong",
-                            "transition-opacity duration-shell-fast ease-out",
-                            active ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "block h-1.5 rounded-pill transition-[width,background-color] duration-shell-base ease-spring motion-reduce:transition-none",
+                          active && "w-4.5 bg-fg",
+                          !active && "w-1.5",
+                          !active &&
+                            (needsYou ? "bg-attn" : "bg-line-strong group-hover/button:bg-muted")
+                        )}
+                      />
                     ) : (
-                      <Ellipsis aria-hidden="true" className="size-3.5 text-neutral-ink" />
+                      <Ellipsis aria-hidden="true" className="size-3.5 text-muted" />
                     )}
                   </TooltipTrigger>
-                  <TooltipContent side="top">{label}</TooltipContent>
+                  <TooltipContent side="bottom">
+                    {control.kind === "desktop" ? control.desktop.name : label}
+                  </TooltipContent>
                 </Tooltip>
               </li>
             );

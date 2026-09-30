@@ -73,6 +73,8 @@ export interface DesktopShellProps {
   compact?: boolean;
   /** Topbar desktop pager slot. */
   pager?: React.ReactNode;
+  /** Replaces the default topbar (wired `DesktopMenubar` fixtures). */
+  topbar?: React.ReactNode;
 }
 
 /**
@@ -94,16 +96,18 @@ export function DesktopShell({
   deskHint = false,
   compact = false,
   pager,
+  topbar,
 }: DesktopShellProps) {
   return (
     <div className="relative grid h-screen w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail">
-      {menubar ? (
+      {topbar ? <div className="col-span-full">{topbar}</div> : null}
+      {menubar && !topbar ? (
         <OsMenuBar
           className={cn("col-span-full", menubarClassName)}
           workspace={workspace}
           notifications={notifications}
           onCommandClick={fn()}
-          onSettingsClick={fn()}
+          onDesktopsClick={fn()}
           commandShortcutLabel={shortcutLabel("meta+KeyK")}
           pager={pager}
         />

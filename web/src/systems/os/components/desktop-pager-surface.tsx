@@ -4,7 +4,8 @@ import { DesktopPager, type DesktopPagerOverflowRequest } from "./desktop-pager"
 export interface DesktopPagerSurfaceProps {
   activeDesktopId: string | null;
   desktops: readonly LayoutDesktop[];
-  compact: boolean;
+  /** Desktops holding a window that needs you (marked while off-screen). */
+  needsYouDesktopIds: ReadonlySet<string>;
   canSwitchDesktop: boolean;
   onSelectDesktop: (desktopId: string) => void;
   onOpenOverview: (request: DesktopPagerOverflowRequest) => void;
@@ -14,7 +15,7 @@ export interface DesktopPagerSurfaceProps {
 export function DesktopPagerSurface({
   activeDesktopId,
   desktops,
-  compact,
+  needsYouDesktopIds,
   canSwitchDesktop,
   onSelectDesktop,
   onOpenOverview,
@@ -23,9 +24,12 @@ export function DesktopPagerSurface({
 
   return (
     <DesktopPager
-      desktops={desktops.map(desktop => ({ id: desktop.id, name: desktop.name }))}
+      desktops={desktops.map(desktop => ({
+        id: desktop.id,
+        name: desktop.name,
+        needsYou: needsYouDesktopIds.has(desktop.id),
+      }))}
       activeDesktopId={activeDesktopId}
-      compact={compact}
       canSwitchDesktop={canSwitchDesktop}
       onSelectDesktop={onSelectDesktop}
       onOpenOverview={onOpenOverview}
