@@ -38,6 +38,7 @@ const (
 	dragModifierShift                              = "shift"
 	configValueNone                                = "none"
 	bindingReserved                                = "reserved"
+	bindingZoom                                    = "zoom"
 )
 
 // GapsConfig defines the inner and outer layout gaps in CSS pixels.
@@ -126,7 +127,7 @@ func DefaultConfig() Config {
 			ExitSlack:    16,
 			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
 		},
-		Bindings:  BindingsConfig{TopCenter: "zoom", BottomCenter: "zoom"},
+		Bindings:  BindingsConfig{TopCenter: bindingZoom, BottomCenter: bindingZoom},
 		Shortcuts: map[string]ShortcutBinding{},
 	}
 }
@@ -230,7 +231,7 @@ func validateGeometryConfig(config Config) error {
 func validateBindingsConfig(config Config) error {
 	for _, binding := range []string{config.Bindings.TopCenter, config.Bindings.BottomCenter} {
 		switch binding {
-		case configValueNone, bindingReserved, "zoom":
+		case configValueNone, bindingReserved, bindingZoom:
 		default:
 			return fmt.Errorf("binding %q: %w", binding, ErrInvalidCommand)
 		}
