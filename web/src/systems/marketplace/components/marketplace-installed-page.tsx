@@ -160,7 +160,7 @@ function MarketplaceInstalledBody({
     return query ? (
       <Empty
         action={
-          <Button onClick={onClearSearch} size="sm" type="button" variant="outline">
+          <Button onClick={onClearSearch} size="sm" type="button" variant="secondary">
             Clear search
           </Button>
         }

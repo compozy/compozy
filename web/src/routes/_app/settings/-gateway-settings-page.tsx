@@ -16,7 +16,7 @@ import { SettingsPageFrame, SettingsPageState, useSettingsTopbar } from "@/syste
 export function GatewaySettingsPage() {
   const view = useGatewaySettingsPage();
   const listenerTier = useGatewayAccessTier();
-  useSettingsTopbar("gateway");
+  useSettingsTopbar();
 
   if (view.page.isLoading) {
     return <SettingsPageState slug="gateway" state="loading" />;

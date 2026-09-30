@@ -83,7 +83,7 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
             onClick={onAction}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             {state.cta.label}
           </Button>

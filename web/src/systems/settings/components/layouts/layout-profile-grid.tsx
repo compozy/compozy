@@ -45,7 +45,7 @@ export function LayoutProfileGrid({ editor, document }: LayoutProfileGridProps) 
           className="h-auto min-h-50 flex-col gap-2 border-dashed"
           data-testid="layout-profile-new"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={() => {
             editor.startNew();
             setEditing(true);

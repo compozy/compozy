@@ -56,11 +56,11 @@ export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
           titleAs="h1"
           action={
             <>
-              <Button onClick={handleRetry} size="sm" type="button" variant="outline">
+              <Button onClick={handleRetry} size="sm" type="button" variant="secondary">
                 <RefreshCw className="size-3" />
                 Retry
               </Button>
-              <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
+              <Link className={buttonVariants({ variant: "secondary", size: "sm" })} to="/">
                 <Compass className="size-3" />
                 Go home
               </Link>
@@ -83,7 +83,7 @@ export function RootRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
           title="Page not found"
           titleAs="h1"
           action={
-            <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
+            <Link className={buttonVariants({ variant: "secondary", size: "sm" })} to="/">
               <Compass className="size-3" />
               Go home
             </Link>

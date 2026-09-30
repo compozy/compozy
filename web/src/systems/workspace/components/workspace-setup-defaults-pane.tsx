@@ -141,7 +141,7 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
               onClick={commitDir}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <Plus className="size-3.5" />
               Add

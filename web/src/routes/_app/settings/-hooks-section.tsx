@@ -70,7 +70,7 @@ export function HooksSection({
           description="Hooks are added in your settings file."
           action={
             <a
-              className={buttonVariants({ size: "sm", variant: "outline" })}
+              className={buttonVariants({ size: "sm", variant: "secondary" })}
               href={HOOKS_DOCS_URL}
               rel="noreferrer"
               target="_blank"

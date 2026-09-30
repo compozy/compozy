@@ -77,7 +77,7 @@ export function SelectorSearch({
           type="button"
           aria-label="Return to model search"
           onClick={onCancelExactEntry}
-          className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent"
+          className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-surface-2 hover:text-fg-strong focus-visible:bg-surface-2 focus-visible:shadow-focus-ring"
         >
           <X aria-hidden="true" className="size-3.5" />
         </button>
@@ -89,7 +89,7 @@ export function SelectorSearch({
           data-testid="runtime-selector-refresh"
           disabled={refreshing}
           onClick={() => onRefreshCatalog()}
-          className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
+          className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-surface-2 hover:text-fg-strong focus-visible:bg-surface-2 focus-visible:shadow-focus-ring disabled:cursor-not-allowed"
         >
           <RefreshCw aria-hidden="true" className={cn("size-3.5", refreshing && "animate-spin")} />
         </button>

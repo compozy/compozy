@@ -91,7 +91,7 @@ function SettingsApplyRecordsPanel({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={onRefresh}
             disabled={isFetching}

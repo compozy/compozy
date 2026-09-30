@@ -58,19 +58,18 @@ export function RuntimeSpeedSwitch({
         aria-hidden="true"
         className={cn(
           "relative h-[22px] w-10 shrink-0 rounded-full transition-colors duration-200",
-          fast
-            ? "bg-accent-tint-strong ring-1 ring-accent-dim ring-inset"
-            : "bg-canvas-soft ring-1 ring-line-soft ring-inset"
+          // Same track as the Switch primitive: inverted primary on, line-strong off.
+          fast ? "bg-primary" : "bg-line-strong"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 left-0.5 grid h-[18px] w-[18px] place-items-center rounded-full ring-1 shadow-highlight transition-[translate,width,background-color,color] duration-300 ease-spring motion-reduce:transition-none",
+            "absolute top-0.5 left-0.5 grid h-[18px] w-[18px] place-items-center rounded-full shadow-card transition-[translate,width,background-color,color] duration-300 ease-spring motion-reduce:transition-none",
             // iOS-style press stretch: the thumb elongates toward where it will travel.
             "group-active/speed:w-[22px]",
             fast
-              ? "translate-x-[18px] bg-fg-strong text-accent ring-line-strong group-active/speed:translate-x-[14px]"
-              : "translate-x-0 bg-elevated text-faint ring-line-strong"
+              ? "translate-x-[18px] bg-primary-foreground text-primary group-active/speed:translate-x-[14px]"
+              : "translate-x-0 bg-fg text-line-strong"
           )}
         >
           <Zap

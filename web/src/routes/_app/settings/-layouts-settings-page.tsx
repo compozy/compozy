@@ -91,7 +91,7 @@ function LayoutSections({
               data-testid="layout-import"
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => fileInput.current?.click()}
             >
               <Upload aria-hidden="true" className="size-3.5" />
@@ -101,7 +101,7 @@ function LayoutSections({
               data-testid="layout-export"
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={exportDocument}
             >
               <Download aria-hidden="true" className="size-3.5" />
@@ -227,7 +227,7 @@ function LayoutsSettingsView({
 
 /** Global window-manager defaults plus the active workspace's authoritative layout. */
 export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: string }) {
-  useSettingsTopbar("layouts");
+  useSettingsTopbar();
   const data = useLayoutsSettingsData();
 
   if (data.isPending) return <SettingsPageState slug="layouts" state="loading" />;

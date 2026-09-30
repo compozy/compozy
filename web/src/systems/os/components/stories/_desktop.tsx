@@ -136,6 +136,7 @@ export function DesktopShell({
           <OsEmptyDesktop
             desktopName="Desktop 1"
             paletteShortcutLabel={shortcutLabel("meta+KeyK")}
+            hasProject
             onNewSession={fn()}
           />
         ) : null}

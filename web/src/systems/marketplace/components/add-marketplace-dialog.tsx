@@ -198,7 +198,7 @@ function AddMarketplaceFailureNotice({
             onClick={() => onUseSuggestedName(suggested)}
             size="xs"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             Use {suggested}
           </Button>

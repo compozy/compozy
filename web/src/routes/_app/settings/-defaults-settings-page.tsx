@@ -36,7 +36,7 @@ function SmoothStreamingSetting() {
 export function DefaultsSettingsPage() {
   const page = useSettingsPersonaPage();
   const providers = useSettingsProviders();
-  useSettingsTopbar("defaults");
+  useSettingsTopbar();
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
     isInvalid: false,

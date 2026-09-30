@@ -90,7 +90,7 @@ export function ProfileSettingsList({
                 {archived ? (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => onUnarchive(profile.name)}
                     data-testid={`profile-unarchive-${profile.name}`}
                   >
@@ -101,7 +101,7 @@ export function ProfileSettingsList({
                     {permanent ? null : (
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => onRename(profile.name)}
                         data-testid={`profile-rename-${profile.name}`}
                       >
@@ -111,7 +111,7 @@ export function ProfileSettingsList({
                     {permanent ? null : (
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => onArchive(profile.name)}
                         data-testid={`profile-archive-${profile.name}`}
                       >

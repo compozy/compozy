@@ -83,7 +83,7 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
       <div className="space-y-2 px-4 py-3">
         <p className="text-small-body font-medium text-danger">Logs could not be loaded</p>
         <p className="text-xs text-muted">{logs.error.message}</p>
-        <Button onClick={logs.refetch} size="sm" type="button" variant="outline">
+        <Button onClick={logs.refetch} size="sm" type="button" variant="secondary">
           Retry logs
         </Button>
       </div>

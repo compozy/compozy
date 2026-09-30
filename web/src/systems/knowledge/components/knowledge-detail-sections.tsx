@@ -57,7 +57,7 @@ function KnowledgeDetailHeader({
             onClick={onEditClick}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             <Pencil className="size-3" />
             Edit

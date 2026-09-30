@@ -140,7 +140,7 @@ export function WorktreeCommitDialog({
                   onClick={() => onStagePrompt(AGENT_MESSAGE_PROMPT)}
                   size="sm"
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                 >
                   Have the agent write it
                 </Button>
@@ -151,7 +151,7 @@ export function WorktreeCommitDialog({
                 onClick={onStartSession}
                 size="sm"
                 type="button"
-                variant="outline"
+                variant="secondary"
               >
                 Start a session in this worktree
               </Button>

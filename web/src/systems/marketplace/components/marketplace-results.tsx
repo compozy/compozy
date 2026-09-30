@@ -72,7 +72,7 @@ function MarketplaceResults({
           action={
             <Button
               data-testid="marketplace-retry"
-              variant="outline"
+              variant="secondary"
               onClick={() => void page.refresh()}
               size="sm"
               type="button"
@@ -99,7 +99,7 @@ function MarketplaceResults({
         {query ? (
           <Empty
             action={
-              <Button onClick={onClearSearch} size="sm" type="button" variant="outline">
+              <Button onClick={onClearSearch} size="sm" type="button" variant="secondary">
                 Clear search
               </Button>
             }
@@ -294,7 +294,7 @@ function MarketplaceContinuation({ page }: { page: MarketplacePageModel }) {
             ? "The catalog changed while loading; showing the last complete catalog."
             : "The catalog could not be refreshed."}
         </span>
-        <Button onClick={() => void page.refresh()} size="sm" type="button" variant="outline">
+        <Button onClick={() => void page.refresh()} size="sm" type="button" variant="secondary">
           Retry
         </Button>
       </div>

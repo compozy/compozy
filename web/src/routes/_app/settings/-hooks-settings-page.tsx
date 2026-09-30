@@ -5,7 +5,7 @@ import { HooksSection } from "./-hooks-section";
 
 export function HooksSettingsPage() {
   const page = useSettingsHooksPage();
-  useSettingsTopbar("hooks");
+  useSettingsTopbar();
   if (page.isLoading) return <SettingsPageState slug="hooks" state="loading" />;
   if (page.error || !page.envelope)
     return (

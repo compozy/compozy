@@ -99,14 +99,14 @@ export function ShortcutPresetCard({
           <Clipboard aria-hidden="true" className="size-3.5" /> Copy as TOML
         </Button>
         {revertToken ? (
-          <Button size="sm" type="button" variant="outline" onClick={revert}>
+          <Button size="sm" type="button" variant="secondary" onClick={revert}>
             <RotateCcw aria-hidden="true" className="size-3.5" /> Revert
           </Button>
         ) : (
           <Button
             size="sm"
             type="button"
-            variant={previewOpen ? "outline" : "default"}
+            variant={previewOpen ? "secondary" : "default"}
             onClick={() => setPreviewOpen(open => !open)}
           >
             {previewOpen ? "Cancel" : "Preview"}

@@ -33,7 +33,7 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
             data-testid="marketplace-add"
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           />
         }
       >

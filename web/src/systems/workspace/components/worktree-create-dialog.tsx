@@ -169,7 +169,7 @@ export function WorktreeCreateDialog({
             {heldByWorktree && onSelectHoldingWorktree ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="mt-4"
                 data-testid="worktree-create-select-holder"

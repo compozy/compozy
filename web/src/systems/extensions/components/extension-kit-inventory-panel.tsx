@@ -48,7 +48,7 @@ function ExtensionKitInventoryPanel({
             Kit inventory could not be loaded
           </p>
           <p className="text-xs text-muted">{error.message}</p>
-          <Button onClick={onRetry} size="sm" type="button" variant="outline">
+          <Button onClick={onRetry} size="sm" type="button" variant="secondary">
             Retry
           </Button>
         </div>

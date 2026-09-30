@@ -11,6 +11,8 @@ import { OsDockTabBar } from "./os-dock-tab-bar";
 
 export interface DesktopDockProps {
   onNewSession: () => void;
+  /** Global scope with no sessions: the Sessions launcher opens the workspace switcher. */
+  onPickProject?: () => void;
   badges: OsAttentionBadges;
   /** Catalog truth: a live terminal, independent of an open window. */
   terminalLive?: boolean;
@@ -36,6 +38,7 @@ const WAKE =
  */
 export function DesktopDock({
   onNewSession,
+  onPickProject,
   badges,
   terminalLive,
   contextMenusEnabled,
@@ -45,6 +48,7 @@ export function DesktopDock({
 }: DesktopDockProps) {
   const { entries, presentation, commandsAvailable, handleSelect } = useDesktopDock(badges, {
     onNewSession,
+    onPickProject,
     terminalLive,
   });
   const dormancy = cn(WAKE, dormant && DORMANT);

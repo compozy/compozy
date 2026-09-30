@@ -72,13 +72,12 @@ export function WindowManagerShortcutRow({
             <button
               aria-label={`${row.title} shortcut`}
               className={cn(
-                "inline-flex min-h-7 shrink-0 items-center rounded-sm border px-2",
-                "border-line bg-btn-default-fill transition-colors duration-base ease-out",
-                "hover:border-line-strong hover:bg-btn-default-hover",
+                "inline-flex min-h-7 shrink-0 items-center rounded-pill px-2.5",
+                "bg-surface-2 transition-colors duration-base ease-out hover:bg-selected",
                 "focus-visible:outline-none focus-visible:shadow-focus-ring",
                 "disabled:cursor-not-allowed disabled:opacity-60",
-                row.overridden && "border-accent-dim bg-accent-tint",
-                recording && "border-accent bg-accent-tint-strong"
+                // Listening for keys: the focus ring says the recorder has the keyboard.
+                recording && "bg-selected shadow-focus-ring"
               )}
               data-testid={`shortcut-recorder-${row.commandId}`}
               disabled={busy}
@@ -86,7 +85,7 @@ export function WindowManagerShortcutRow({
               onClick={() => onRecord(row.commandId)}
             >
               {recording ? (
-                <span className="text-form-label text-accent-strong">Press keys…</span>
+                <span className="text-form-label text-fg">Press keys…</span>
               ) : row.unbound ? (
                 <RowFlag kind="unbound">unbound</RowFlag>
               ) : (

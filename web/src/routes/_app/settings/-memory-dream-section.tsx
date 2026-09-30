@@ -37,7 +37,7 @@ export function TidyUpRow({
       control={
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid={`${TEST_PREFIX}-dream-trigger`}
           disabled={!dreamAvailable || dreamPending}

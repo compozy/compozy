@@ -20,7 +20,7 @@ import {
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
-  useSettingsTopbar("providers", {
+  useSettingsTopbar({
     actions:
       !page.isLoading && !page.error && page.envelope ? (
         <Button
@@ -128,7 +128,7 @@ function ProvidersCatalog({ page }: { page: ProvidersPage }) {
               }}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               Clear filters
             </Button>

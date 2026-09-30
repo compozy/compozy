@@ -314,7 +314,7 @@ function GeneralApplyRecordsSheet({
 
 export function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
-  useSettingsTopbar("general");
+  useSettingsTopbar();
   const [applyRecordsOpen, setApplyRecordsOpen] = useState(false);
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,

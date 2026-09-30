@@ -119,7 +119,7 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant="secondary"
               onClick={props.onReloadAndRetry}
               data-testid="agent-settings-reload-retry"
             >

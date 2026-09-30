@@ -71,7 +71,7 @@ export function RoleFallbackEditor({
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="secondary"
           disabled={disabled}
           onClick={handleAddRoute}
           data-testid={`${testId}-add`}

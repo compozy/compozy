@@ -64,7 +64,7 @@ export function WorktreeDetailHeader({
           className="flex shrink-0 items-center gap-1.5"
           data-slot="worktree-detail-header-actions"
         >
-          <Button onClick={onRemove} size="sm" type="button" variant="outline">
+          <Button onClick={onRemove} size="sm" type="button" variant="secondary">
             Remove…
           </Button>
         </div>

@@ -90,12 +90,12 @@ export function ReasoningSlider({
       >
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 top-1/2 h-4 -translate-y-1/2 rounded-full bg-canvas-soft ring-1 ring-line-soft ring-inset"
+          className="absolute inset-x-0 top-1/2 h-4 -translate-y-1/2 rounded-full bg-surface-2"
         >
           <div
             className={cn(
               "absolute inset-y-0.5 left-0.5 rounded-full transition-[width] duration-300 ease-spring motion-reduce:transition-none",
-              slider.unset && !slider.dragging ? "bg-btn-default-fill" : "bg-accent",
+              slider.unset && !slider.dragging ? "bg-line-strong" : "bg-primary",
               slider.dragging && "transition-none"
             )}
             style={{
@@ -111,7 +111,7 @@ export function ReasoningSlider({
           ))}
           <div
             className={cn(
-              "absolute top-1/2 size-5 -translate-y-1/2 rounded-full bg-fg-strong ring-2 ring-canvas transition-[left] duration-300 ease-spring motion-reduce:transition-none",
+              "absolute top-1/2 size-5 -translate-y-1/2 rounded-full border border-line-strong bg-canvas shadow-card transition-[left] duration-300 ease-spring motion-reduce:transition-none",
               slider.dragging && "scale-105 transition-none"
             )}
             style={{
@@ -124,7 +124,7 @@ export function ReasoningSlider({
           aria-hidden="true"
           data-testid="runtime-selector-reasoning-tip"
           className={cn(
-            "pointer-events-none absolute bottom-[calc(100%+3px)] -translate-x-1/2 rounded-xs bg-elevated px-1.5 py-px font-mono text-micro whitespace-nowrap text-fg ring-1 ring-line-strong",
+            "pointer-events-none absolute bottom-[calc(100%+3px)] -translate-x-1/2 rounded-sm bg-canvas px-1.5 py-px font-mono text-micro whitespace-nowrap text-fg shadow-pop",
             "opacity-0 group-hover/track:opacity-100 group-focus-visible/track:opacity-100",
             // Fade fast, glide with the thumb's spring; while dragging the tip
             // tracks the pointer directly so `left` must not transition.

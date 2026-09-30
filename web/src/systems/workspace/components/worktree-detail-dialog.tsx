@@ -79,7 +79,7 @@ export function WorktreeDetailDialog({ open, onOpenChange, model }: WorktreeDeta
               </AlertDescription>
             </Alert>
             {model.retry ? (
-              <Button onClick={model.retry} size="sm" variant="outline">
+              <Button onClick={model.retry} size="sm" variant="secondary">
                 Retry
               </Button>
             ) : null}

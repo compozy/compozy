@@ -68,7 +68,7 @@ export function ProviderCredentialFields({
         onClick={() => onChange(addProviderCredentialSlot)}
         size="sm"
         type="button"
-        variant="outline"
+        variant="secondary"
       >
         <Plus aria-hidden="true" className="size-3" />
         Add credential slot

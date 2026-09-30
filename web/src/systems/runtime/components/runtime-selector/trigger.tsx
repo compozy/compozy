@@ -84,7 +84,7 @@ function TriggerFastMark() {
     <span
       title="Fast speed requested"
       data-slot="runtime-selector-fast"
-      className="grid shrink-0 place-items-center text-accent-strong"
+      className="grid shrink-0 place-items-center text-fg-2"
     >
       <Zap aria-hidden="true" className="size-[11px] fill-current" />
     </span>

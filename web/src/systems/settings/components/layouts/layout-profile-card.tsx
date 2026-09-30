@@ -72,7 +72,7 @@ export function LayoutProfileCard({
           data-testid={`layout-profile-load-${record.id}`}
           size="xs"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={onLoad}
         >
           Load

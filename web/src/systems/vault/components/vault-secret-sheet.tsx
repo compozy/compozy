@@ -210,7 +210,7 @@ function SheetReplaceSection({
           onClick={onReplace}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           {isPending ? "Saving…" : "Save"}
         </Button>

@@ -356,7 +356,7 @@ function paginationControl(
   if (!payload.chrome?.pagination?.has_more || !handler || !runHandler) return null;
   return (
     <div className="flex justify-center border-b border-line px-3 py-2">
-      <Button size="sm" variant="outline" onClick={() => runHandler(handler, [], false)}>
+      <Button size="sm" variant="secondary" onClick={() => runHandler(handler, [], false)}>
         Load more
       </Button>
     </div>

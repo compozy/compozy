@@ -619,7 +619,7 @@ describe("RuntimeSelector reasoning slider", () => {
 
     await openSelector(user);
 
-    // The default reads as selected (accent fill, current label in the thumb
+    // The default reads as selected (filled range, current label in the thumb
     // tip) without ever emitting a change — "" still means provider default on
     // the wire.
     const track = sliderTrack();
@@ -2035,7 +2035,7 @@ describe("RuntimeSelector single-line row", () => {
     expect(row("plain").querySelector("[data-reasoning-indicator]")).toBeNull();
   });
 
-  it("Should mark the selected row with the accent tint and a structural check", async () => {
+  it("Should mark the selected row with the selection fill and a structural check", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "picked", reasoning_effort: "" },
@@ -2047,9 +2047,9 @@ describe("RuntimeSelector single-line row", () => {
       '[data-model="picked"][data-selected="true"]'
     );
     expect(selected).not.toBeNull();
-    // Variation A contract (runtime-selector-variations.html): the selected row
-    // carries the accent tint as live selection state, plus the non-color check.
-    expect(selected?.className).toContain("bg-accent-tint");
+    // The selected row carries the neutral selection fill (orange is reserved for
+    // needs-you), plus the non-color check.
+    expect(selected?.className).toContain("bg-selected");
     expect(selected?.querySelector("[data-selected-check]")).not.toBeNull();
   });
 });

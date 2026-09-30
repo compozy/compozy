@@ -41,7 +41,7 @@ function MarketplaceDetailManageFallbackBody({
       ) : null}
       {!isLoading ? (
         <div className="pb-1">
-          <Button onClick={onRetry} size="sm" type="button" variant="outline">
+          <Button onClick={onRetry} size="sm" type="button" variant="secondary">
             Retry management
           </Button>
         </div>

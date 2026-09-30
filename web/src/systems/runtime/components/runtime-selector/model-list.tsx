@@ -166,7 +166,7 @@ export function ModelList({
           type="button"
           data-testid="runtime-selector-custom"
           disabled={listModel.exactEntry && !listModel.customCommit}
-          className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:border-accent-dim hover:text-fg-strong focus-visible:border-accent-dim focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
+          className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:bg-surface-2 hover:text-fg-strong focus-visible:text-fg-strong focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
           onClick={() => {
             if (listModel.customCommit) onCustomCommit(listModel.customCommit);
             else onStartExactEntry();

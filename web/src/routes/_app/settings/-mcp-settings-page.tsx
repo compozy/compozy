@@ -37,7 +37,7 @@ type MCPScopeLane = "user" | "workspace";
  */
 export function MCPSettingsPage() {
   const page = useSettingsMCPPage();
-  useSettingsTopbar("mcp", {
+  useSettingsTopbar({
     actions: (
       <Button
         data-testid="settings-page-mcp-create"
@@ -209,7 +209,7 @@ function MCPServersBody({
     return (
       <Empty
         action={
-          <Button onClick={() => page.setQuery("")} size="sm" type="button" variant="outline">
+          <Button onClick={() => page.setQuery("")} size="sm" type="button" variant="secondary">
             Clear search
           </Button>
         }

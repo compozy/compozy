@@ -77,7 +77,7 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
           disabled={!editor.dirty || reviewing || applying}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={() => void editor.review.refetch()}
         >
           Review changes

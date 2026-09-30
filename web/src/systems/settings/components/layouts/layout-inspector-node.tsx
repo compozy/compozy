@@ -164,7 +164,7 @@ function LayoutSplitBalance({
         className="self-start"
         size="xs"
         type="button"
-        variant="outline"
+        variant="secondary"
         onClick={onDistribute}
       >
         Distribute evenly

@@ -14,7 +14,7 @@ import type { RailFilter } from "./use-runtime-selector";
 import type { RuntimeProviderOption } from "./types";
 
 const CHIP_CLASS =
-  "grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg focus-visible:bg-row-hover focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none data-[active=true]:bg-row-selected data-[active=true]:text-fg-strong data-[active=true]:ring-1 data-[active=true]:ring-line-strong data-[active=true]:ring-inset";
+  "grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2 focus-visible:text-fg-strong focus-visible:shadow-focus-ring disabled:pointer-events-none data-[active=true]:bg-selected data-[active=true]:text-fg-strong data-[active=true]:ring-1 data-[active=true]:ring-line-strong data-[active=true]:ring-inset";
 
 function getChipOrder(providers: RuntimeProviderOption[]): RailFilter[] {
   return ["all", "fav", ...providers.map(provider => provider.id)];

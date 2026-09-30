@@ -14,7 +14,7 @@ import {
 export function PaletteSettingsPage() {
   const page = useSettingsPalettePage();
   const [resetOpen, setResetOpen] = useState(false);
-  useSettingsTopbar("palette");
+  useSettingsTopbar();
 
   if (page.isLoading) {
     return <SettingsPageState slug="palette" state="loading" />;
@@ -71,7 +71,7 @@ export function PaletteSettingsPage() {
               disabled={!page.canResetPersonalization || page.isResetting}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => setResetOpen(true)}
             >
               Reset

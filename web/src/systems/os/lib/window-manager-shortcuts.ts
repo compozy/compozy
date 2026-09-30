@@ -93,6 +93,40 @@ const KEY_CODE_PATTERN =
   /^(?:Key[A-Z]|Digit[0-9]|Arrow(?:Left|Right|Up|Down)|Bracket(?:Left|Right)|Comma|Period|Slash|Semicolon|Quote|Backquote|Minus|Equal|Backslash|Enter|Space|Tab|Escape|Backspace|Delete|Home|End|PageUp|PageDown|F(?:[1-9]|1[0-2]))$/;
 const SURFACE_LOCAL_CHORDS = new Map([["meta+KeyB", { label: "Bold", surface: "composer" }]]);
 
+/** Punctuation codes print as the character they type, in labels and in `aria-keyshortcuts`. */
+const PUNCTUATION_KEYS: Readonly<Record<string, string>> = {
+  BracketLeft: "[",
+  BracketRight: "]",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Semicolon: ";",
+  Quote: "'",
+  Backquote: "`",
+  Minus: "-",
+  Equal: "=",
+  Backslash: "\\",
+};
+
+/** Every non-letter, non-digit code has a glyph, so no raw `KeyboardEvent.code` name reaches a label. */
+const CODE_GLYPHS: Readonly<Record<string, string>> = {
+  ...PUNCTUATION_KEYS,
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  Space: "␣",
+  Enter: "⏎",
+  Escape: "⎋",
+  Backspace: "⌫",
+  Delete: "⌦",
+  Tab: "⇥",
+  Home: "↖",
+  End: "↘",
+  PageUp: "⇞",
+  PageDown: "⇟",
+};
+
 export function parseShortcutChord(value: string): ParsedShortcutChord | null {
   const tokens = value.split("+").map(token => token.trim());
   if (tokens.length < 2 || tokens.some(token => token === "")) return null;
@@ -127,20 +161,6 @@ export function shortcutKeyGlyphs(
     alt: "⌥",
     shift: "⇧",
   };
-  const codeLabels: Readonly<Record<string, string>> = {
-    ArrowLeft: "←",
-    ArrowRight: "→",
-    ArrowUp: "↑",
-    ArrowDown: "↓",
-    BracketLeft: "[",
-    BracketRight: "]",
-    Space: "␣",
-    Enter: "⏎",
-    Escape: "⎋",
-    Backspace: "⌫",
-    Delete: "⌦",
-    Tab: "⇥",
-  };
   const portablePrimary = parsed.modifiers.has("meta") && !parsed.modifiers.has("control");
   const labels: string[] = [];
   for (const modifier of MODIFIER_ORDER) {
@@ -153,7 +173,7 @@ export function shortcutKeyGlyphs(
   }
   const code = range
     ? `${range.start}–${range.end}`
-    : (codeLabels[parsed.code] ?? parsed.code.replace(/^Key/, "").replace(/^Digit/, ""));
+    : (CODE_GLYPHS[parsed.code] ?? parsed.code.replace(/^Key/, "").replace(/^Digit/, ""));
   return [...labels, code];
 }
 
@@ -169,19 +189,6 @@ const ARIA_MODIFIER_NAMES: Record<ShortcutModifier, string> = {
   control: "Control",
   alt: "Alt",
   shift: "Shift",
-};
-const ARIA_CODE_KEYS: Readonly<Record<string, string>> = {
-  BracketLeft: "[",
-  BracketRight: "]",
-  Comma: ",",
-  Period: ".",
-  Slash: "/",
-  Semicolon: ";",
-  Quote: "'",
-  Backquote: "`",
-  Minus: "-",
-  Equal: "=",
-  Backslash: "\\",
 };
 
 /**
@@ -204,7 +211,8 @@ export function shortcutAriaKeys(
         : ARIA_MODIFIER_NAMES[modifier]
     );
   }
-  const key = ARIA_CODE_KEYS[parsed.code] ?? parsed.code.replace(/^Key/, "").replace(/^Digit/, "");
+  const key =
+    PUNCTUATION_KEYS[parsed.code] ?? parsed.code.replace(/^Key/, "").replace(/^Digit/, "");
   return [...modifiers, key].join("+");
 }
 

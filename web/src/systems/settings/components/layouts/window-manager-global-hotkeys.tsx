@@ -76,7 +76,7 @@ export function WindowManagerGlobalHotkeys({
                 nativeButton={false}
                 render={<a aria-label="Open System Settings" href={settingsUrl} />}
                 size="sm"
-                variant="outline"
+                variant="secondary"
               >
                 Open System Settings
                 <ExternalLink aria-hidden="true" className="size-3.5" />
@@ -119,7 +119,7 @@ export function WindowManagerGlobalHotkeys({
                     disabled={!shell || recorder.saving}
                     size="sm"
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => recorder.start(registration.commandId)}
                   >
                     {recorder.recording === registration.commandId ? (

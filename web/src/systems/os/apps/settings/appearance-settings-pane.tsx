@@ -121,7 +121,7 @@ function WallpaperPicker({
  * toggle (US-015.EC-1).
  */
 export function AppearanceSettingsPane() {
-  useSettingsTopbar("appearance");
+  useSettingsTopbar();
   const appearance = useAppearanceSettingsPane();
 
   return (

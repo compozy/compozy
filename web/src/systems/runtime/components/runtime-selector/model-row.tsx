@@ -74,9 +74,9 @@ export function ModelRow({
       data-favorite={favorite ? "true" : "false"}
       className={cn(
         "group flex h-7 w-full items-center gap-2 rounded-md pr-0.5 pl-2 text-left transition-colors",
-        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-row-hover",
-        highlighted && !disabled && "bg-row-hover ring-1 ring-line-strong ring-inset",
-        selected && "bg-accent-tint"
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-surface-2",
+        highlighted && !disabled && "bg-surface-2 ring-1 ring-line-strong ring-inset",
+        selected && "bg-selected"
       )}
       onMouseEnter={disabled ? undefined : onHover}
       onClick={event => {
@@ -133,7 +133,7 @@ export function ModelRow({
         {selected ? (
           <Check
             aria-hidden="true"
-            className="size-3.5 shrink-0 text-accent-strong"
+            className="size-3.5 shrink-0 text-fg"
             data-selected-check="true"
           />
         ) : null}

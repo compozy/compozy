@@ -80,7 +80,7 @@ export function WorktreeMergedEvidence({
         ) : null}
       </span>
       {cleanup.safe && !cleanup.blocker && onCleanUp ? (
-        <Button onClick={onCleanUp} size="sm" type="button" variant="outline">
+        <Button onClick={onCleanUp} size="sm" type="button" variant="secondary">
           Clean up
         </Button>
       ) : null}

@@ -25,7 +25,7 @@ type AutomationRuntime = SettingsAutomationSection["runtime"];
 
 export function AutomationSettingsPage() {
   const page = useSettingsAutomationPage();
-  useSettingsTopbar("automation");
+  useSettingsTopbar();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError = (key: string) => (message: string | null) => {
     setValidationErrors(current =>

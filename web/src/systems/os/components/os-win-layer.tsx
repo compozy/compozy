@@ -56,6 +56,7 @@ function DesktopLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
+  hasProject,
   onNewSession,
 }: {
   model: DesktopLayerModel;
@@ -66,6 +67,7 @@ function DesktopLayer({
   onTransitionComplete: () => void;
   seamProjection: LayoutProjection | undefined;
   paletteShortcutLabel: string | null;
+  hasProject: boolean;
   onNewSession: () => void;
 } & SeamGestureHandlers) {
   const incoming = transition?.toDesktopId === model.desktop.id;
@@ -116,6 +118,7 @@ function DesktopLayer({
         <OsEmptyDesktop
           desktopName={model.desktop.name}
           paletteShortcutLabel={paletteShortcutLabel}
+          hasProject={hasProject}
           onNewSession={onNewSession}
         />
       ) : null}
@@ -151,6 +154,7 @@ export function OsWinLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
+  hasProject,
   onNewSession,
 }: {
   model: OsWinLayerModel;
@@ -158,6 +162,8 @@ export function OsWinLayer({
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
   paletteShortcutLabel: string | null;
+  /** A project is active (Global has none): gates the empty desktop's New session. */
+  hasProject: boolean;
   /** The empty desktop's primary action. */
   onNewSession: () => void;
 } & SeamGestureHandlers) {
@@ -185,6 +191,7 @@ export function OsWinLayer({
           onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
           paletteShortcutLabel={paletteShortcutLabel}
+          hasProject={hasProject}
           onNewSession={onNewSession}
         />
       ))}

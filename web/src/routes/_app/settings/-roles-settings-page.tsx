@@ -14,7 +14,7 @@ const TEST_PREFIX = "settings-page-roles";
 
 export function RolesSettingsPage() {
   const page = useSettingsRolesPage();
-  useSettingsTopbar("roles");
+  useSettingsTopbar();
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
     isInvalid: page.isInvalid,

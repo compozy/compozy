@@ -79,7 +79,7 @@ function MutedWorkspaces({
 
 export function AttentionSettingsPage() {
   const page = useSettingsAttentionPage();
-  useSettingsTopbar("attention");
+  useSettingsTopbar();
   const { workspaces } = useActiveWorkspace();
 
   if (page.isLoading) {
