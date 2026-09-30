@@ -92,7 +92,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
   const icon = marketplaceIconURL(entry.icon);
   const brandKey = marketplaceBrandKeyFor(entry);
   const wellClass = cn(
-    "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg-strong",
+    "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg",
     WELL_CLASS[size],
     className
   );
@@ -127,7 +127,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
         data-slot="marketplace-entry-logo"
       >
         <KindIcon
-          className={cn("text-fg-strong", BRAND_CLASS[size])}
+          className={cn("text-fg", BRAND_CLASS[size])}
           data-slot="marketplace-entry-brand"
           kind={brandKey}
           registry={marketplaceBrandRegistry}

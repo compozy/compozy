@@ -68,10 +68,8 @@ function TriggerModelName({
     <span
       className={cn(
         "max-w-[150px] truncate text-small-body font-medium",
-        composer
-          ? "text-subtle transition-colors group-data-[open=true]:text-fg-strong"
-          : "text-fg-strong",
-        composer && !inert && "group-hover:text-fg-strong"
+        composer ? "text-subtle transition-colors group-data-[open=true]:text-fg" : "text-fg",
+        composer && !inert && "group-hover:text-fg"
       )}
     >
       {name}

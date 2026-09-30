@@ -71,7 +71,7 @@ export function SessionVaultPanel({
               </ItemMedia>
               <ItemContent>
                 <ItemTitle
-                  className="text-small-body text-fg-strong"
+                  className="text-small-body text-fg"
                   data-testid="session-inspector-vault-title"
                 >
                   Vault secret

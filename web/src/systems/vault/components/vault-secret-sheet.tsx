@@ -101,7 +101,7 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
       </span>
       <div className="min-w-0 flex-1">
         <h2
-          className="break-all text-item-title font-medium tracking-tight text-fg-strong"
+          className="break-all text-item-title font-medium tracking-tight text-fg"
           data-testid="vault-secret-sheet-title"
           id="vault-secret-sheet-title"
         >
@@ -158,7 +158,7 @@ function SheetValueSection({ present }: { present: boolean }) {
   return (
     <section className="mb-4.5" data-testid="vault-secret-sheet-value">
       <Eyebrow className="mb-2.5 text-subtle">Value</Eyebrow>
-      <div className="flex items-center gap-2.5 rounded-md border border-line-soft bg-input-fill px-3.5 py-2.5">
+      <div className="flex items-center gap-2.5 rounded-lg bg-sunken px-3.5 py-2.5">
         <span aria-hidden="true" className="flex-1 font-mono text-form-input text-faint">
           • • • • • • • •
         </span>

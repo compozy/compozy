@@ -153,7 +153,7 @@ export function AgentOverviewTab({
                     data-testid={`agent-overview-live-${session.id}`}
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-body font-medium text-fg-strong">
+                      <span className="block truncate text-body font-medium text-fg">
                         {getSessionDisplayTitle(session)}
                       </span>
                       {elapsed ? (

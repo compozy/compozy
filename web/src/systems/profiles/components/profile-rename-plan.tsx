@@ -25,7 +25,7 @@ function Tier({ title, tag, children }: { title: string; tag: string; children: 
 }
 
 const ROW_CLASS = "flex min-h-7 items-center gap-2 text-small-body text-muted";
-const CODE_CLASS = "rounded-xxs bg-badge-fill px-1 py-px font-mono text-micro text-muted";
+const CODE_CLASS = "rounded-xs bg-code-bg px-1 py-px font-mono text-micro text-muted";
 
 /**
  * What a rename will do, grouped by who decides.

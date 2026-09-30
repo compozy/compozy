@@ -140,7 +140,7 @@ function RatioStop({
       className={cn(
         "group/stop absolute bottom-0.5 z-5 flex -translate-x-1/2 cursor-ew-resize flex-col items-center gap-0.5 px-1",
         "text-muted focus-visible:outline-none focus-visible:shadow-focus-ring",
-        selected && "text-fg-strong",
+        selected && "text-fg",
         drag.dragging && "text-accent-strong"
       )}
       data-testid={`window-manager-ratio-stop-${index}`}

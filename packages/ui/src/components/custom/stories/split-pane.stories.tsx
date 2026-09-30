@@ -66,7 +66,7 @@ function ListColumn({
               type="button"
               data-active={selected === row.id}
               onClick={() => onSelect(row.id)}
-              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-hover data-[active=true]:bg-canvas-tint"
+              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-hover data-[active=true]:bg-selected"
             >
               <span className="text-[13px] font-medium text-foreground">{row.name}</span>
               <span className="font-mono text-badge uppercase tracking-badge text-subtle">

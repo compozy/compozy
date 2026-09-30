@@ -202,10 +202,10 @@ function CentreZone({
         aria-label={label}
         className={cn(
           "eyebrow absolute z-7 left-1/2 flex h-5 -translate-x-1/2 items-center rounded-xs border px-2",
-          "border-line-strong bg-elevated text-muted transition-colors duration-base ease-out",
-          "hover:bg-btn-default-hover hover:text-fg-strong",
+          "border-line-strong bg-surface-2 text-muted transition-colors duration-base ease-out",
+          "hover:bg-selected hover:text-fg",
           "focus-visible:outline-none focus-visible:shadow-focus-ring",
-          value === "zoom" && "border-accent-dim bg-accent-tint text-accent-strong",
+          value === "zoom" && "border-line-strong bg-selected text-fg",
           value === "reserved" && "border-info/30 bg-info-tint text-info"
         )}
         data-testid={`window-manager-centre-zone-${side}`}
@@ -220,9 +220,9 @@ function CentreZone({
             aria-checked={option.value === value}
             className={cn(
               "flex w-full flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 text-left",
-              "text-small-body text-fg transition-colors duration-base ease-out hover:bg-row-hover",
+              "text-small-body text-fg transition-colors duration-base ease-out hover:bg-surface-2",
               "focus-visible:outline-none focus-visible:shadow-focus-ring",
-              option.value === value && "text-accent-strong"
+              option.value === value && "text-fg"
             )}
             key={option.value}
             role="menuitemradio"

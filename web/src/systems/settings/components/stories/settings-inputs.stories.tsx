@@ -13,7 +13,7 @@ function SettingsInputHarness() {
   const [decimalError, setDecimalError] = useState<string | null>(null);
 
   return (
-    <div className="grid w-full max-w-lg gap-5 rounded-lg border border-line bg-canvas-soft p-5">
+    <div className="grid w-full max-w-lg gap-5 rounded-lg border border-line bg-canvas p-5">
       <label className="grid gap-2">
         <span className="text-sm font-medium text-fg">Max retries</span>
         <SettingsNumberInput

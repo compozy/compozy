@@ -50,7 +50,7 @@ export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: Onboardin
               "transition-colors duration-base focus-visible:shadow-focus-inset focus-visible:outline-none",
               "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:transition-colors after:duration-shell-slow",
               reached ? "after:bg-fg" : "after:bg-line",
-              state === "current" && "text-fg-strong",
+              state === "current" && "text-fg",
               state === "done" && "text-muted",
               state === "upcoming" && "text-subtle",
               "hover:text-fg disabled:pointer-events-none disabled:opacity-70"

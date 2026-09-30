@@ -53,7 +53,7 @@ export function ButtonsAndPillsSection() {
       data-testid="section-buttons"
       label={<SectionLink section={sectionById("buttons")}>Buttons & Pills</SectionLink>}
       right={
-        <Pill mono tone="accent">
+        <Pill mono tone="neutral">
           action
         </Pill>
       }
@@ -89,7 +89,7 @@ export function ButtonsAndPillsSection() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone="neutral">Neutral</Pill>
-          <Pill tone="accent">Action</Pill>
+          <Pill tone="accent">Needs you</Pill>
           <Pill tone="success">Stable</Pill>
           <Pill tone="warning">Pending</Pill>
           <Pill tone="danger">Error</Pill>
@@ -226,7 +226,7 @@ export function StatusAndMetricSection() {
       }
     >
       <div className="grid gap-3 pt-4 md:grid-cols-3">
-        <Metric label="Active sessions" value="12" detail="+3" tone="accent" />
+        <Metric label="Active sessions" value="12" detail="+3" />
         <Metric
           label="Throughput"
           value="248"
@@ -259,7 +259,7 @@ export function StatusAndMetricSection() {
         <Pill mono tone="neutral">
           idle
         </Pill>
-        <Pill mono tone="accent">
+        <Pill mono tone="success">
           RUNNING
         </Pill>
         <Pill mono tone="success">
@@ -285,7 +285,7 @@ export function StatusAndMetricSection() {
       </div>
       <div className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-4">
-          <Spinner className="size-4 text-accent" />
+          <Spinner className="size-4 text-success" />
           <Skeleton className="h-4 w-40" />
           <Separator orientation="vertical" className="h-6" />
           <Eyebrow className="text-subtle">spinners · skeletons · separators</Eyebrow>

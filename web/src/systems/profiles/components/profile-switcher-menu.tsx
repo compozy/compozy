@@ -103,7 +103,7 @@ export function ProfileSwitcherMenu({
                     <Check
                       aria-hidden="true"
                       className={cn(
-                        "size-3 shrink-0 text-accent transition-opacity",
+                        "size-3 shrink-0 text-fg transition-opacity",
                         "group-hover/profile-row:opacity-0 group-data-[selected=true]/profile-row:opacity-0"
                       )}
                     />
@@ -126,7 +126,7 @@ export function ProfileSwitcherMenu({
                   </Button>
                 </span>
               ) : row.current && !aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-accent" />
+                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg" />
               ) : null}
             </CommandItem>
           ))}
@@ -143,7 +143,7 @@ export function ProfileSwitcherMenu({
               <ProfileGlyph decorative size="sm" aggregate name="All profiles" />
               <span>All profiles</span>
               {aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-accent" />
+                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg" />
               ) : null}
             </CommandItem>
           ) : null}

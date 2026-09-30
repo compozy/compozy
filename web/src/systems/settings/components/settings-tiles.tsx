@@ -36,7 +36,6 @@ export function SettingsTile({
 }: SettingsTileProps) {
   return (
     <MetadataTile
-      className="border border-line-soft bg-input-fill"
       data-testid={testId}
       detail={detail}
       label={label}

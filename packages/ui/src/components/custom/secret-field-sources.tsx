@@ -194,7 +194,7 @@ function SecretFieldSources({
                     </Pill>
                   }
                   className={cn(
-                    "gap-0 border border-line bg-input-fill px-2.5 py-2 data-[selected]:border-line-strong data-[selected]:bg-row-selected",
+                    "gap-0 border border-line bg-canvas px-2.5 py-2 data-[selected]:border-line-strong data-[selected]:bg-selected",
                     DIALOG_TOUCH_TARGET_CLASS
                   )}
                   disabled={!source.present}

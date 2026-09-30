@@ -48,7 +48,7 @@ export function SettingsHeroGauge({
       data-testid={testId ?? "settings-hero-gauge"}
     >
       <div className="flex min-w-0 items-baseline gap-2.5">
-        <span className="min-w-0 truncate text-metric-value font-semibold tabular-nums text-fg-strong">
+        <span className="min-w-0 truncate text-metric-value font-semibold tabular-nums text-fg">
           {usage}
         </span>
         <span className="font-mono text-small-body tabular-nums text-subtle">

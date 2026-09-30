@@ -87,7 +87,7 @@ function WallpaperPicker({
               "group flex w-full flex-col overflow-hidden rounded-lg border text-left",
               "transition-colors duration-base",
               "focus-visible:shadow-focus-ring focus-visible:outline-none",
-              selected ? "border-accent" : "border-line-strong hover:border-line-focus"
+              selected ? "border-fg" : "border-line-strong hover:border-line-focus"
             )}
             onClick={() => onChange(option.id)}
           >
@@ -99,12 +99,12 @@ function WallpaperPicker({
             <span
               className={cn(
                 "flex items-center justify-between px-3 py-2 text-small-body",
-                selected ? "font-semibold text-fg-strong" : "text-muted"
+                selected ? "font-semibold text-fg" : "text-muted"
               )}
             >
               {option.label}
               {selected ? (
-                <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-fg" />
               ) : null}
             </span>
           </button>

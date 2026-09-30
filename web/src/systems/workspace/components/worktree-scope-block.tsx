@@ -49,7 +49,7 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
             <ul className="max-h-40 overflow-y-auto p-1" data-slot="worktree-scope-list">
               {untracked.map(path => (
                 <li
-                  className="flex min-h-[25px] items-center gap-2.5 rounded-sm px-1.5 hover:bg-row-hover"
+                  className="flex min-h-[25px] items-center gap-2.5 rounded-sm px-1.5 hover:bg-surface-2"
                   key={path}
                 >
                   <MonoId copy={false} preserveCase size="sm" value={path} />

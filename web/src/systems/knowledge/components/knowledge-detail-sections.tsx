@@ -39,7 +39,7 @@ function KnowledgeDetailHeader({
       data-testid="knowledge-detail-header"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-item-title font-medium text-fg-strong">{memory.name}</h2>
+        <h2 className="text-item-title font-medium text-fg">{memory.name}</h2>
         {memory.description ? (
           <p
             className="text-small-body leading-relaxed text-muted"

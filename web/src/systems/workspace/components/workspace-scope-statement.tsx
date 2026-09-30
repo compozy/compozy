@@ -64,7 +64,7 @@ export function WorkspaceScopeStatement({
   const text = (
     <>
       {prefix}
-      <span className="font-medium text-fg-strong">{destination}</span>
+      <span className="font-medium text-fg">{destination}</span>
       {chip && suffix === "." ? null : suffix}
     </>
   );

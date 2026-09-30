@@ -125,7 +125,7 @@ function MCPServerRow({
               aria-label={`Select ${accessibleName}`}
               onClick={() => onSelect(server)}
               data-testid={`${rowTestId}-name`}
-              className="min-w-0 truncate rounded-xs text-left font-mono text-small-body font-medium text-fg-strong hover:underline focus-visible:shadow-focus-ring focus-visible:outline-none"
+              className="min-w-0 truncate rounded-xs text-left font-mono text-small-body font-medium text-fg hover:underline focus-visible:shadow-focus-ring focus-visible:outline-none"
             >
               {server.name}
             </button>

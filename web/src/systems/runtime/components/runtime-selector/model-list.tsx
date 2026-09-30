@@ -36,7 +36,7 @@ function GroupHead({
     >
       <Eyebrow className="text-faint">{name}</Eyebrow>
       {harnessBadge ? (
-        <span className="rounded-xxs bg-badge-fill px-[5px] py-px text-faint">
+        <span className="rounded-xs bg-surface-2 px-[5px] py-px text-subtle">
           <Eyebrow>{harnessBadge.toUpperCase()}</Eyebrow>
         </span>
       ) : null}
@@ -166,7 +166,7 @@ export function ModelList({
           type="button"
           data-testid="runtime-selector-custom"
           disabled={listModel.exactEntry && !listModel.customCommit}
-          className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:bg-surface-2 hover:text-fg-strong focus-visible:text-fg-strong focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
+          className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:text-fg focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
           onClick={() => {
             if (listModel.customCommit) onCustomCommit(listModel.customCommit);
             else onStartExactEntry();

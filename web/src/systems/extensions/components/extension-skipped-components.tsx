@@ -52,7 +52,7 @@ function ExtensionSkippedComponents({
               <Pill mono size="xs" tone="warning">
                 {diagnostic.severity}
               </Pill>
-              <span className="font-mono text-xs text-fg-strong">
+              <span className="font-mono text-xs text-fg">
                 {extensionDiagnosticScope(diagnostic)}
               </span>
             </div>

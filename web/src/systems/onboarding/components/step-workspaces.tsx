@@ -93,7 +93,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
                 >
                   <KindIcon icon={Folder} tone="well" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-small-body font-medium text-fg-strong">
+                    <span className="block truncate text-small-body font-medium text-fg">
                       {workspace.name}
                     </span>
                     <span className="block truncate font-mono text-micro text-subtle">

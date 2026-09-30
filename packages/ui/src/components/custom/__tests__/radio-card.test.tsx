@@ -52,7 +52,7 @@ describe("RadioCard", () => {
     expect(lgWell).toHaveAttribute("data-icon-well-size", "lg");
     expect(lgWell?.className).toContain("size-7");
     expect(lgWell?.className).toContain("rounded-sm");
-    expect(lgWell?.className).toContain("bg-badge-fill");
+    expect(lgWell?.className).toContain("bg-surface-2");
     expect(lgWell?.querySelector("svg")).toHaveClass("size-3.5");
   });
 

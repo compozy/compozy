@@ -41,7 +41,7 @@ export const Default: Story = {
       }
       description="Runs every weekday after the stand-up."
       detail={
-        <div className="rounded-md border border-line-soft bg-input-fill px-3 py-2.5 text-form-label text-fg">
+        <div className="rounded-lg bg-sunken px-3 py-2.5 text-form-label text-fg">
           Summarize decisions, blockers, and owners from the latest session.
         </div>
       }

@@ -219,7 +219,7 @@ export function RuntimeAdvancedOptions({
         type="button"
         aria-controls={panelId}
         aria-expanded={expanded}
-        className="flex h-8 w-full items-center gap-2 px-3 text-left text-badge text-subtle outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2 focus-visible:text-fg-strong focus-visible:shadow-focus-inset"
+        className="flex h-8 w-full items-center gap-2 px-3 text-left text-badge text-subtle outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2 focus-visible:text-fg focus-visible:shadow-focus-inset"
         data-testid="runtime-selector-advanced-toggle"
         onClick={() => onExpandedChange(!expanded)}
       >

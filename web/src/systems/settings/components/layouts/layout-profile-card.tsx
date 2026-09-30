@@ -46,7 +46,7 @@ export function LayoutProfileCard({
           <LayoutProfileThumbnail record={record} />
         </span>
         <span className="block px-3 pt-2.5 pb-3">
-          <span className="block truncate text-small-body font-semibold text-fg-strong">
+          <span className="block truncate text-small-body font-semibold text-fg">
             {record.spec.displayName}
           </span>
           <span className="mt-0.5 block truncate font-mono text-mono-id text-faint">

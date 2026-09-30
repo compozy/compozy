@@ -174,7 +174,7 @@ function WindowManagerConfigCard({
     >
       <header className="border-b border-line-soft px-3.5 py-3">
         <div className="flex items-center gap-1.5">
-          <h3 className="text-small-body font-semibold text-fg-strong">{title}</h3>
+          <h3 className="text-small-body font-semibold text-fg">{title}</h3>
           <HelpTip label={`About ${title.toLowerCase()}`}>{help}</HelpTip>
         </div>
       </header>

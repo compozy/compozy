@@ -15,9 +15,7 @@ export function SettingsRuntimeUnavailable({
     >
       <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
       <div className="min-w-0">
-        <span className="block text-ws-name font-medium text-fg-strong">
-          Runtime data unavailable
-        </span>
+        <span className="block text-ws-name font-medium text-fg">Runtime data unavailable</span>
         {description}
       </div>
     </div>

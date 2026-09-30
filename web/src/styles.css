@@ -149,23 +149,6 @@
   animation-delay: 400ms;
 }
 
-/* Running-state accent dot (todo active row, goal strip active) — a quiet
-   box-shadow pulse (design ref: session.css §08/§09). Reduced motion is zeroed
-   by the global collapse in tokens-runtime.css; the dot itself stays visible. */
-@keyframes session-state-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 var(--color-accent-tint);
-  }
-  50% {
-    box-shadow: 0 0 0 4px transparent;
-  }
-}
-
-.session-state-pulse {
-  animation: session-state-pulse 2.4s var(--ease-out) infinite;
-}
-
 /* First-run setup step change: the incoming pane fades and rises so the panel
    reads as one surface changing shape, not two panels swapping. */
 @keyframes onboarding-setup-pane-in {
@@ -297,10 +280,10 @@
    hit in the accent tint. Highlight pseudo-elements take colour only. */
 ::highlight(session-find-match) {
   background-color: var(--color-bar-fill);
-  color: var(--color-fg-strong);
+  color: var(--color-fg);
 }
 
 ::highlight(session-find-active) {
   background-color: var(--color-accent-tint-strong);
-  color: var(--color-fg-strong);
+  color: var(--color-fg);
 }

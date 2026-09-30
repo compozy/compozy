@@ -120,7 +120,7 @@ const meta: Meta<typeof QueueStoryHost> = {
       >
         <SessionChatRuntimeProvider sessionId={queueStorySession.id} workspaceId={storyWorkspaceId}>
           <div
-            className="flex h-[560px] w-[860px] max-w-full flex-col overflow-hidden rounded-window border border-line-focus bg-canvas shadow-window"
+            className="flex h-[560px] w-[860px] max-w-full flex-col overflow-hidden rounded-lg border border-line bg-canvas shadow-elevated"
             data-testid="queue-story-window"
           >
             <Story />

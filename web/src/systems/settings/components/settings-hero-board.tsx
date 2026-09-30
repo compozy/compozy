@@ -46,7 +46,7 @@ export function SettingsHeroBoard({
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <Pill.Dot pulse={pulse} tone={tone} />
-        <span className="min-w-0 truncate text-ws-name font-semibold text-fg-strong">{state}</span>
+        <span className="min-w-0 truncate text-ws-name font-semibold text-fg">{state}</span>
         {sub ? <span className="text-form-label tabular-nums text-subtle">{sub}</span> : null}
         {pill ? (
           <span className="ml-auto shrink-0">
@@ -63,7 +63,7 @@ export function SettingsHeroBoard({
         >
           {stats.map(stat => (
             <div className="flex min-w-0 flex-col gap-0.5" key={stat.key}>
-              <span className="truncate text-metric-value font-semibold tabular-nums text-fg-strong">
+              <span className="truncate text-metric-value font-semibold tabular-nums text-fg">
                 {stat.value}
               </span>
               <span className="truncate text-form-label text-muted">{stat.label}</span>

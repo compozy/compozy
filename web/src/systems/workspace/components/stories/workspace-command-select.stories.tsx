@@ -12,7 +12,7 @@ const DEFAULT_WORKSPACE_ID = workspaceFixtures[0]?.id ?? null;
 function Frame({ children, open = false }: { children: React.ReactNode; open?: boolean }) {
   return (
     <CenteredSurface className={open ? "items-start" : undefined}>
-      <div className="w-[280px] border border-line bg-canvas-soft">{children}</div>
+      <div className="w-[280px] border border-line bg-canvas">{children}</div>
     </CenteredSurface>
   );
 }
@@ -146,7 +146,7 @@ export const Compact: Story = {
   },
   render: () => (
     <CenteredSurface className="items-start justify-center p-6">
-      <div className="w-[220px] border border-line bg-canvas-soft p-3">
+      <div className="w-[220px] border border-line bg-canvas p-3">
         <WorkspaceCommandSelect
           workspaces={workspaceFixtures}
           value={workspaceFixtures[0]?.id ?? null}

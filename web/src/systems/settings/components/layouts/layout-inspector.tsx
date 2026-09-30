@@ -156,7 +156,7 @@ function InspectorShell({
       data-testid="layout-inspector"
     >
       <header className="border-b border-line-soft px-3.5 py-3">
-        <h3 className="truncate text-small-body font-semibold text-fg-strong">{title}</h3>
+        <h3 className="truncate text-small-body font-semibold text-fg">{title}</h3>
         <p className="mt-0.5 font-mono text-mono-id break-all text-faint">{subtitle}</p>
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-3.5 py-3">

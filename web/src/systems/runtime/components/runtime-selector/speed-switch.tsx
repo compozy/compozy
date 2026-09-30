@@ -49,7 +49,7 @@ export function RuntimeSpeedSwitch({
       <span
         className={cn(
           "text-badge font-medium transition-colors",
-          fast ? "text-fg-strong" : "text-subtle group-hover/speed:text-fg"
+          fast ? "text-fg" : "text-subtle group-hover/speed:text-fg"
         )}
       >
         Fast

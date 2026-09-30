@@ -132,7 +132,7 @@ function ProfileScopeComposition({ aggregate }: { aggregate: boolean }) {
         />
       </header>
       <main className="flex min-h-0 flex-1 items-start justify-center px-6 pt-12">
-        <div className="h-150 w-120 overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        <div className="h-150 w-120 overflow-hidden rounded-lg border border-line bg-canvas">
           <SessionList
             sessions={sessions}
             disconnected={false}

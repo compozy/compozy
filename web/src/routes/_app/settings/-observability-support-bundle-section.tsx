@@ -182,7 +182,7 @@ function LogTailRow({ logTail }: { logTail: LogTailMeta }) {
       control={
         logTail.available && streamURL ? (
           <a
-            className="inline-flex items-center gap-1.5 text-small-body text-fg transition-colors duration-base hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+            className="inline-flex items-center gap-1.5 text-small-body text-fg transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
             data-testid="settings-page-observability-log-tail-link"
             href={streamURL}
             rel="noreferrer"

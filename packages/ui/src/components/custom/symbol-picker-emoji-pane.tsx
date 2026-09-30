@@ -54,7 +54,7 @@ export function SymbolPickerEmojiPane({
           data-slot="symbol-picker-skin-tone"
           className={cn(
             "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md",
-            "text-small-body outline-none hover:bg-row-hover focus-visible:shadow-focus-ring"
+            "text-small-body outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
           )}
         />
       </div>
@@ -92,7 +92,7 @@ export function SymbolPickerEmojiPane({
                 style={emoji.emoji === selected ? { backgroundColor: plate } : undefined}
                 className={cn(
                   "grid size-symbol-picker-cell cursor-pointer place-items-center rounded-xs",
-                  "text-small-body transition-colors data-[active]:bg-row-selected hover:bg-row-hover"
+                  "text-small-body transition-colors data-[active]:bg-selected hover:bg-surface-2"
                 )}
               >
                 {emoji.emoji}

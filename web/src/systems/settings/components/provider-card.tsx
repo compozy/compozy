@@ -33,7 +33,7 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
                 {view.displayName}
               </CatalogCard.Title>
               {provider.default ? (
-                <Pill data-testid={`${testId}-default`} tone="accent">
+                <Pill data-testid={`${testId}-default`} tone="neutral">
                   Default
                 </Pill>
               ) : null}

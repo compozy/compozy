@@ -44,9 +44,7 @@ export function SettingsGroup({
             {title || help ? (
               <div className="flex min-w-0 items-center gap-1.5">
                 {title ? (
-                  <h2 className="text-ws-name font-semibold tracking-tight text-fg-strong">
-                    {title}
-                  </h2>
+                  <h2 className="text-ws-name font-semibold tracking-tight text-fg">{title}</h2>
                 ) : null}
                 {help ? <HelpTip label={groupHelpLabel(title)}>{help}</HelpTip> : null}
               </div>

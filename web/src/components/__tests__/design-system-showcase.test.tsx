@@ -67,7 +67,7 @@ describe("DesignSystemShowcase", () => {
       expect(within(buttons).getByRole("button", { name: "Secondary" })).toBeInTheDocument();
       expect(within(buttons).getByRole("button", { name: "Destructive" })).toBeInTheDocument();
       expect(within(buttons).getByRole("button", { name: "Outline" })).toBeInTheDocument();
-      expect(within(buttons).getByText("Action")).toBeInTheDocument();
+      expect(within(buttons).getByText("Needs you")).toBeInTheDocument();
       expect(within(buttons).getByText("Stable")).toBeInTheDocument();
     });
 

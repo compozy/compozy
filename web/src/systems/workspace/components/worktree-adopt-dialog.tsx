@@ -84,7 +84,7 @@ export function WorktreeAdoptDialog({
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      tone="accent"
+      tone="neutral"
       title={discovered ? `Adopt ${discovered.name}?` : "Adopt worktree?"}
       description="Its metadata resolves to this repository. CompozyOS manages it in place — bootstrap is not re-run, the directory is not moved."
       note="Sessions and runs can target it once adopted."
@@ -95,7 +95,7 @@ export function WorktreeAdoptDialog({
             data-testid="worktree-adopt-target"
             className="flex min-w-0 flex-col gap-1 rounded-lg bg-canvas shadow-card p-3"
           >
-            <span className="min-w-0 truncate text-small-body font-semibold text-fg-strong">
+            <span className="min-w-0 truncate text-small-body font-semibold text-fg">
               {discovered.name}
             </span>
             <MonoId className="w-full" value={discovered.branch} preserveCase size="sm" />

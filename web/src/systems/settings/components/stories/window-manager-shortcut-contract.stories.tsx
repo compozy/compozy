@@ -98,7 +98,7 @@ function TableFixture({
   aliases?: AliasEditorModel;
 }) {
   return (
-    <div className="max-h-190 w-240 overflow-y-auto rounded-lg border border-line bg-canvas-soft">
+    <div className="max-h-190 w-240 overflow-y-auto rounded-lg border border-line bg-canvas">
       <WindowManagerShortcutTable aliases={aliases} recorder={recorder} section={section} />
     </div>
   );
@@ -107,7 +107,7 @@ function TableFixture({
 function PresetFixture({ initial }: { initial: ShortcutMap }) {
   const [overrides, setOverrides] = useState(initial);
   return (
-    <div className="w-240 overflow-hidden rounded-lg border border-line bg-canvas-soft">
+    <div className="w-240 overflow-hidden rounded-lg border border-line bg-canvas">
       <ShortcutPresetCard
         defaults={cmdPaletteStoryShortcuts}
         overrides={overrides}

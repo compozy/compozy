@@ -31,7 +31,7 @@ function SkipToContentLink() {
     <a
       data-testid="skip-to-content"
       href="#app-content"
-      className="sr-only fixed top-2 left-2 z-50 rounded-md bg-accent px-3 py-2 font-mono text-form-label font-medium text-accent-ink shadow-highlight focus:not-sr-only focus-visible:outline-none focus-visible:shadow-focus-ring"
+      className="sr-only fixed top-2 left-2 z-50 rounded-pill bg-primary px-3 py-2 text-form-label font-medium text-primary-foreground focus:not-sr-only focus-visible:outline-none focus-visible:shadow-focus-ring"
     >
       Skip to content
     </a>

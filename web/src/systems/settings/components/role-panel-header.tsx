@@ -30,7 +30,7 @@ export function RolePanelHeader({
         aria-controls={bodyId}
         className={cn(
           "group/role flex min-w-0 flex-1 items-start gap-2.5 py-3 pl-4 text-left",
-          "transition-colors duration-base hover:bg-row-hover",
+          "transition-colors duration-base hover:bg-surface-2",
           "focus-visible:outline-none focus-visible:shadow-focus-inset"
         )}
         data-testid={`${testId}-toggle`}
@@ -41,7 +41,7 @@ export function RolePanelHeader({
           className="mt-0.5 size-3.5 shrink-0 text-faint transition-transform duration-base group-data-panel-open/role:rotate-90"
         />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-ws-name font-medium text-fg-strong">{vm.label}</span>
+          <span className="text-ws-name font-medium text-fg">{vm.label}</span>
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-form-label text-muted">
             <span>{vm.description}</span>
             <span aria-hidden="true" className="text-faint">

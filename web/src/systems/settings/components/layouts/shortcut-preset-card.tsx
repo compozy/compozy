@@ -82,7 +82,7 @@ export function ShortcutPresetCard({
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-small-body font-semibold text-fg-strong">Terminal preset</h3>
+            <h3 className="text-small-body font-semibold text-fg">Terminal preset</h3>
             {applied ? (
               <Pill size="xs" tone="success">
                 <Check aria-hidden="true" className="size-3" /> Applied

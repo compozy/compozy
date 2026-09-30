@@ -61,7 +61,7 @@ export function CatalogEmptyDisclosureRow({
         <div
           className={cn(
             "grid grid-cols-1 items-center gap-3.5 px-4",
-            "hover:bg-row-hover",
+            "hover:bg-surface-2",
             "lg:grid-cols-[minmax(0,1fr)_auto]"
           )}
         >

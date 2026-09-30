@@ -183,7 +183,7 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
     <div className="flex flex-col gap-3 border-t border-line-soft px-4 py-3.5 first:border-t-0 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between min-[720px]:gap-6">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="text-ws-name font-medium text-fg-strong">{row.label}</p>
+          <p className="text-ws-name font-medium text-fg">{row.label}</p>
           <HelpTip label={`About ${row.label.toLowerCase()}`}>{row.description}</HelpTip>
         </div>
       </div>
@@ -219,9 +219,7 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
               }
             >
               <Diagram />
-              <span className={cn("leading-tight", selected && "text-fg-strong")}>
-                {option.label}
-              </span>
+              <span className={cn("leading-tight", selected && "text-fg")}>{option.label}</span>
             </button>
           );
         })}

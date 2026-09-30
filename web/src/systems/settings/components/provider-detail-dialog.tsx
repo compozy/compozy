@@ -399,7 +399,7 @@ function ProviderHeaderStatus({
           {state.display}
         </Pill>
       ) : null}
-      {isDefault ? <Pill tone="accent">Default</Pill> : null}
+      {isDefault ? <Pill tone="neutral">Default</Pill> : null}
     </span>
   );
 }

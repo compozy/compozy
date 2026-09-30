@@ -1,5 +1,4 @@
 import {
-  Eyebrow,
   Field,
   FieldHeader,
   FieldLabel,
@@ -7,6 +6,7 @@ import {
   HelpTip,
   ImmutableIdentity,
   Input,
+  RequiredMark,
 } from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
@@ -31,7 +31,7 @@ export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPane
           <div className="flex min-h-0 flex-col gap-1.5">
             <span className="flex items-center text-form-label text-fg">
               Root directory
-              <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
+              <RequiredMark />
             </span>
             <DirectoryBrowser
               browseError={setup.browse.browseError}

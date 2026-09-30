@@ -106,7 +106,7 @@ function QuestionnaireChoice({
       data-slot="questionnaire-choice"
       className={cn(
         "group/questionnaire-choice relative flex min-h-9 cursor-pointer items-start gap-2.5 rounded-md border border-line bg-transparent px-3 py-2 text-start text-form-input transition-colors outline-none select-none",
-        "hover:bg-row-hover has-[>input:focus-visible]:shadow-focus-ring data-invalid:border-danger data-checked:border-line-strong data-checked:bg-row-selected",
+        "hover:bg-surface-2 has-[>input:focus-visible]:shadow-focus-ring data-invalid:border-danger data-checked:border-line-strong data-checked:bg-selected",
         "data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className
       )}
@@ -138,7 +138,7 @@ function QuestionnaireChoice({
       </QuestionnairePrimitive.ChoiceLabel>
       <QuestionnairePrimitive.ChoiceShortcut
         data-slot="questionnaire-choice-shortcut"
-        className="pointer-events-none ms-auto hidden size-5 shrink-0 translate-y-[--spacing(0.45)] items-center justify-center rounded-md border border-line bg-badge-fill font-medium font-mono text-kbd leading-none text-muted group-has-data-[slot=questionnaire-choice-description]/questionnaire-choice:translate-y-0.5 group-data-[shortcut]/questionnaire-choice:inline-flex"
+        className="pointer-events-none ms-auto hidden size-5 shrink-0 translate-y-[--spacing(0.45)] items-center justify-center rounded-md border border-line bg-surface-2 font-medium font-mono text-kbd leading-none text-muted group-has-data-[slot=questionnaire-choice-description]/questionnaire-choice:translate-y-0.5 group-data-[shortcut]/questionnaire-choice:inline-flex"
       />
     </QuestionnairePrimitive.Choice>
   );

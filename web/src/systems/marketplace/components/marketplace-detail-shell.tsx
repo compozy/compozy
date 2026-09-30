@@ -113,13 +113,13 @@ function MarketplaceDetailRailCard({
       <CollapsibleTrigger
         className={cn(
           "group/detail-rail flex w-full items-center gap-2 px-3.5 py-2.5 text-left",
-          "transition-colors duration-base hover:bg-row-hover",
+          "transition-colors duration-base hover:bg-surface-2",
           "focus-visible:shadow-focus-inset focus-visible:outline-none"
         )}
         type="button"
       >
         <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-        <span className="shrink-0 text-form-label font-semibold text-fg-strong">{title}</span>
+        <span className="shrink-0 text-form-label font-semibold text-fg">{title}</span>
         <span className="min-w-0 flex-1 truncate text-right text-transcript-caption text-faint">
           {summary}
         </span>
@@ -154,7 +154,7 @@ function MarketplaceRepositoryRow({ repository }: { repository: string | undefin
   return (
     <PropertyRow label="Repository" valueTitle={url}>
       <a
-        className="min-w-0 truncate font-mono text-eyebrow text-muted transition-colors duration-base hover:text-fg-strong"
+        className="min-w-0 truncate font-mono text-eyebrow text-muted transition-colors duration-base hover:text-fg"
         href={url}
         rel="noreferrer"
         target="_blank"

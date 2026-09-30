@@ -69,7 +69,7 @@ function Disclosure({
           "transition-colors duration-base hover:text-fg",
           "focus-visible:shadow-focus-ring focus-visible:outline-none",
           size === "sm" ? "gap-1 text-form-label" : "gap-2 text-small-body",
-          framed ? "w-full px-4 py-3 hover:bg-row-hover" : "w-fit rounded-sm py-1",
+          framed ? "w-full px-4 py-3 hover:bg-surface-2" : "w-fit rounded-sm py-1",
           triggerClassName
         )}
         {...restTrigger}

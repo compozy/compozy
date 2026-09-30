@@ -124,7 +124,7 @@ export function OverlaysSection() {
         </SectionLink>
       }
       right={
-        <Pill mono tone="accent">
+        <Pill mono tone="neutral">
           motion
         </Pill>
       }

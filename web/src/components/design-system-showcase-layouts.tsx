@@ -47,7 +47,7 @@ compozy session list --active`;
       data-testid="section-code-chat"
       label={<SectionLink section={sectionById("code-chat")}>Code & Chat</SectionLink>}
       right={
-        <Pill mono tone="accent">
+        <Pill mono tone="neutral">
           session shells
         </Pill>
       }
@@ -100,14 +100,14 @@ export function LayoutSection() {
                 <button
                   type="button"
                   aria-label="Workspace compozy-core"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-accent bg-elevated font-mono text-eyebrow text-accent"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-selected font-mono text-eyebrow text-fg shadow-card"
                 >
                   A
                 </button>
                 <button
                   type="button"
                   aria-label="Workspace research"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-line bg-canvas-soft font-mono text-eyebrow text-muted"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-line bg-canvas font-mono text-eyebrow text-muted"
                 >
                   R
                 </button>
@@ -192,7 +192,7 @@ export function LayoutSection() {
                     <TableRow>
                       <TableCell>Version</TableCell>
                       <TableCell>
-                        <Pill mono tone="accent">
+                        <Pill mono tone="neutral">
                           v0.4.2
                         </Pill>
                       </TableCell>
@@ -220,7 +220,7 @@ export function ListingRowSection() {
       label={<SectionLink section={sectionById("listing-row")}>ListingRow</SectionLink>}
       right={<Pill mono>inventory</Pill>}
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
         <ListingRow>
           <ListingRow.Link href="#listing-alpha" aria-label="Open alpha-delivery">
             <ListingRow.Icon>
@@ -271,7 +271,7 @@ export function ListingRowSection() {
                   peer
                 </Pill>
               </ListingRow.Name>
-              <ListingRow.Description>Selected row uses --row-selected.</ListingRow.Description>
+              <ListingRow.Description>Selected row uses --selected.</ListingRow.Description>
               <ListingRow.Meta>
                 <span>2h ago</span>
               </ListingRow.Meta>
@@ -319,9 +319,9 @@ function SidebarRow({
     <button
       type="button"
       data-active={active ? "true" : undefined}
-      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted transition-colors hover:bg-hover hover:text-fg data-[active=true]:bg-elevated data-[active=true]:text-fg"
+      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted transition-colors hover:bg-hover hover:text-fg data-[active=true]:bg-selected data-[active=true]:text-fg"
     >
-      <Icon className="size-3 text-subtle group-data-[active=true]:text-accent" />
+      <Icon className="size-3 text-subtle group-data-[active=true]:text-fg" />
       <span>{label}</span>
     </button>
   );

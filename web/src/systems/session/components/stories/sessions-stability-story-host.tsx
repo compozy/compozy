@@ -86,7 +86,7 @@ export function StabilityThreadHost({
       <TransportScope transport={transport}>
         <div
           className={cn(
-            "flex max-w-full flex-col overflow-hidden rounded-window border border-line-focus bg-canvas shadow-window"
+            "flex max-w-full flex-col overflow-hidden rounded-lg border border-line bg-canvas shadow-elevated"
           )}
           data-testid="stability-story-window"
           style={{ height, width }}

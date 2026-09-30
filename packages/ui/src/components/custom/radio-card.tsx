@@ -26,7 +26,7 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
 /**
  * Single radio choice rendered as a card.:
  * - resting state: `--canvas-soft` surface, no border (flat-depth).
- * - selected state: `--surface-glaze` background + `box-shadow: 0 0 0 1px var(--color-line-strong) inset`.
+ * - selected state: `--selected` background + `box-shadow: 0 0 0 1px var(--color-line-strong) inset`.
  *   No accent border, no `--accent-tint` fill — accent stays reserved for true CTAs.
  */
 function RadioCard({
@@ -82,7 +82,7 @@ function RadioCard({
               "inline-flex shrink-0 items-center justify-center",
               iconWellSize === "lg"
                 ? cn(
-                    "size-7 rounded-sm bg-badge-fill",
+                    "size-7 rounded-sm bg-surface-2",
                     selected
                       ? "text-fg-strong shadow-inset-strong"
                       : "text-muted shadow-hairline-inset"

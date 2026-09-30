@@ -127,7 +127,7 @@ export function WorktreeCreateDialog({
               >
                 <StateGlyph state="running" />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-small-body text-fg-strong">
+                  <span className="truncate text-small-body text-fg">
                     {model.pendingWorktree.name}
                   </span>
                   <span className="font-mono text-micro text-faint">

@@ -50,7 +50,7 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       data-testid={`token-${swatch.token}`}
       data-token={swatch.token}
       data-kind={swatch.kind}
-      className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3"
+      className="flex flex-col gap-3 rounded-lg bg-canvas p-3 shadow-card"
     >
       <TokenPreview swatch={swatch} value={value} />
       <div className="flex flex-col gap-0.5">
@@ -78,7 +78,7 @@ function TokenPreview({ swatch, value }: { swatch: TokenSwatch; value: string })
     return (
       <div
         aria-hidden="true"
-        className="flex h-14 w-full items-center justify-center bg-elevated"
+        className="flex h-14 w-full items-center justify-center bg-surface-2"
         style={{ borderRadius: `var(${swatch.token})` }}
       >
         <span className="font-mono text-eyebrow text-muted">{value}</span>
@@ -88,7 +88,7 @@ function TokenPreview({ swatch, value }: { swatch: TokenSwatch; value: string })
   return (
     <div
       aria-hidden="true"
-      className="flex h-14 w-full items-center justify-center rounded-md bg-elevated"
+      className="flex h-14 w-full items-center justify-center rounded-md bg-surface-2"
     >
       <Eyebrow className="text-muted">{value}</Eyebrow>
     </div>

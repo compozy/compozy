@@ -33,7 +33,7 @@ function MarketplaceCatalogSection({
       <CollapsibleTrigger
         className={cn(
           "group/marketplace-section -mx-1 flex min-h-9 w-full items-center gap-2 rounded-md px-1 text-left",
-          "transition-colors duration-fast hover:bg-row-hover",
+          "transition-colors duration-fast hover:bg-surface-2",
           "focus-visible:shadow-focus-inset focus-visible:outline-none"
         )}
         type="button"
@@ -42,7 +42,7 @@ function MarketplaceCatalogSection({
           aria-hidden="true"
           className="size-3 shrink-0 -rotate-90 text-faint transition-transform duration-base group-data-panel-open/marketplace-section:rotate-0"
         />
-        <span className="text-small-body font-semibold tracking-tight text-fg-strong">{name}</span>
+        <span className="text-small-body font-semibold tracking-tight text-fg">{name}</span>
         <Pill mono size="xs">
           {count}
         </Pill>

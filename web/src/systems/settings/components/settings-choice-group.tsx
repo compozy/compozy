@@ -67,7 +67,7 @@ export function SettingsChoiceGroup<V extends string>({
             badge={
               <Check
                 aria-hidden="true"
-                className={checked ? "size-3.5 text-fg-strong" : "size-3.5 opacity-0"}
+                className={checked ? "size-3.5 text-fg" : "size-3.5 opacity-0"}
               />
             }
             // The card's own selected treatment (selected fill + inset ring)
