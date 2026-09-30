@@ -81,14 +81,14 @@ export const Selected: Story = {
   args: {},
   render: () => (
     <div className="flex flex-col gap-3">
-      <Card size="sm" className="bg-surface-glaze shadow-inset-strong">
+      <Card size="sm" className="bg-selected shadow-inset-strong">
         <CardHeader>
           <CardTitle>Agent · claude-sonnet</CardTitle>
-          <CardDescription>Selected — neutral glaze fill + inset rim.</CardDescription>
+          <CardDescription>Selected — neutral `selected` fill + inset rim.</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            The selected surface reads via glaze + inset, never a decorative accent bar.
+            The selected surface reads via fill + inset, never a decorative accent bar.
           </p>
         </CardContent>
       </Card>

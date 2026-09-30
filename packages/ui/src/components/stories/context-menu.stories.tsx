@@ -21,7 +21,7 @@ const meta: Meta<typeof ContextMenu> = {
     docs: {
       description: {
         component:
-          "Right-click destination chooser. Launch surfaces and deck tabs attach it to offer explicit open/close/pin choices; items follow the shared menu grammar (small-body rows, elevated focus, danger tint for destructive).",
+          "Right-click destination chooser. Launch surfaces and deck tabs attach it to offer explicit open/close/pin choices; items follow the shared menu grammar (32px rows at radius 8 on a `shadow-pop` card, `surface-2` focus, danger tint for destructive).",
       },
     },
   },

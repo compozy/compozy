@@ -49,7 +49,11 @@ export interface SplitButtonProps extends Omit<React.ComponentProps<"div">, "onS
   children?: React.ReactNode;
 }
 
-const SEAM_CLASS = "border-l border-l-primary-foreground/20";
+// Both segments paint their fill under the transparent border box
+// (`bg-clip-border`), so the pair keeps one height and the seam reads as a
+// hairline in the primary's own ink instead of the canvas showing through. The
+// width is `!` because ButtonGroup zeroes every later segment's left border.
+const SEAM_CLASS = "border-l! border-l-primary-foreground/20";
 
 /**
  * A primary action paired with a menu of its alternatives.
@@ -126,7 +130,7 @@ export function SplitButton({
         {...restActionProps}
         aria-describedby={describedBy}
         aria-disabled={blocked || undefined}
-        className="gap-1.5 whitespace-nowrap aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [&_svg]:size-3"
+        className="gap-1.5 whitespace-nowrap bg-clip-border aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [&_svg]:size-3"
         data-size={size}
         data-slot="split-button-action"
         data-variant={variant}
@@ -187,7 +191,7 @@ function SplitButtonMenu({
         render={
           <Button
             className={cn(
-              "w-8 px-0 [&_svg]:size-3",
+              "w-8 bg-clip-border px-0 [&_svg]:size-3",
               (variant === "default" || variant === "primary") && SEAM_CLASS
             )}
             disabled={disabled}

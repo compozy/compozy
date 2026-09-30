@@ -66,8 +66,8 @@ function RadioCard({
       onClick={selectRadioCard}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring",
-        selected ? "bg-surface-glaze shadow-inset-strong" : "hover:bg-elevated",
+        "group flex w-full min-w-0 flex-col gap-1.5 rounded-lg bg-canvas px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring",
+        selected ? "bg-selected shadow-inset-strong" : "shadow-card hover:bg-surface-2",
         className
       )}
       {...props}

@@ -102,7 +102,7 @@ export function WorkspaceCommandSelect({
         selected={Boolean(state.selected)}
         className={cn(
           size === "compact"
-            ? "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-subtle shadow-none hover:bg-row-hover hover:text-fg-strong focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
+            ? "h-(--height-pill-group-segment-md) min-w-0 gap-1.5 rounded-pill border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-muted shadow-none hover:bg-surface-2 hover:text-fg focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
             : "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
           className
         )}

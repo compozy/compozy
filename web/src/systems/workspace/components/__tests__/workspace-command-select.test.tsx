@@ -88,7 +88,7 @@ describe("WorkspaceCommandSelect", () => {
     expect(screen.queryByText("Home workspace")).not.toBeInTheDocument();
   });
 
-  it("Should align compact trigger height with pill-group md track tokens", () => {
+  it("Should align compact trigger height with the pill-group md segment token", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
@@ -103,9 +103,7 @@ describe("WorkspaceCommandSelect", () => {
 
     const trigger = screen.getByTestId("workspace-compact-switcher");
     expect(trigger).toHaveAttribute("data-size", "compact");
-    expect(trigger.className).toContain(
-      "calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))"
-    );
+    expect(trigger.className).toContain("h-(--height-pill-group-segment-md)");
     expect(trigger.className).not.toContain("h-9");
     expect(screen.getByTestId("workspace-switcher-name")).toHaveClass("text-form-label");
   });

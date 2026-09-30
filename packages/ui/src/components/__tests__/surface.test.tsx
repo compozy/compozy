@@ -20,7 +20,22 @@ describe("Surface", () => {
   it("Should merge consumer className onto the surface tuple", () => {
     const { container } = render(<Surface className="flex flex-col gap-2">body</Surface>);
     const root = container.querySelector<HTMLElement>('[data-slot="surface"]');
-    expect(root?.className).toContain("bg-canvas-soft");
+    expect(root?.className).toContain("bg-canvas");
     expect(root?.className).toContain("flex");
+  });
+
+  it("Should lift the default card variant with the card shadow", () => {
+    const { container } = render(<Surface>body</Surface>);
+    const root = container.querySelector<HTMLElement>('[data-slot="surface"]');
+    expect(root).toHaveAttribute("data-variant", "card");
+    expect(root).toHaveClass("bg-canvas", "shadow-card");
+  });
+
+  it("Should recess the sunken variant without a border or shadow", () => {
+    const { container } = render(<Surface variant="sunken">tool rows</Surface>);
+    const root = container.querySelector<HTMLElement>('[data-slot="surface"]');
+    expect(root).toHaveAttribute("data-variant", "sunken");
+    expect(root).toHaveClass("bg-sunken", "rounded-lg");
+    expect(root?.className).not.toMatch(/\bshadow-|\bborder\b/);
   });
 });

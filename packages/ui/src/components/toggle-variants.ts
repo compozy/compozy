@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
 
 const toggleVariants = cva(
-  "group/toggle inline-flex items-center justify-center gap-1 rounded-pill text-form-label font-medium tracking-eyebrow whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] duration-fast ease-out outline-none hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-danger aria-pressed:bg-surface-2 aria-pressed:text-fg aria-pressed:shadow-card data-[state=on]:bg-surface-2 data-[state=on]:text-fg data-[state=on]:shadow-card [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/toggle inline-flex items-center justify-center gap-1 rounded-pill text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] duration-fast ease-out outline-none hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-danger aria-pressed:bg-surface-2 aria-pressed:text-fg aria-pressed:shadow-card data-[state=on]:bg-surface-2 data-[state=on]:text-fg data-[state=on]:shadow-card [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
