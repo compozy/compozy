@@ -232,7 +232,7 @@ function StepperSeparator({ className }: ComponentProps<"div">) {
       className={cn(
         "rounded-sm bg-line transition-colors duration-base",
         "group-data-[orientation=horizontal]/stepper-nav:m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
-        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-px group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-accent-dim",
+        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-px group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-primary",
         className
       )}
     />

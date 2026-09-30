@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fontSizeClasses } from "../font-size-classes.generated";
+import { fontSizeClasses, radiusScale } from "../font-size-classes.generated";
 import { cn } from "../utils";
 
 describe("cn", () => {
@@ -26,6 +26,20 @@ describe("cn", () => {
 
   it("Should still resolve two color utilities to the last one", () => {
     expect(cn("text-fg text-muted")).toBe("text-muted");
+  });
+
+  it("Should let a caller's radius replace a variant's project radius", () => {
+    // `rounded-pill` was unknown to tailwind-merge, so a pill Button restyled to
+    // `rounded-xs` kept both classes and the radius came down to CSS order.
+    expect(cn("rounded-pill rounded-xs")).toBe("rounded-xs");
+    expect(cn("rounded-md rounded-icon-well")).toBe("rounded-icon-well");
+  });
+
+  it("Should resolve every generated radius against the pill radius", () => {
+    const kept = radiusScale.filter(
+      radius => cn(`rounded-${radius} rounded-pill`) !== "rounded-pill"
+    );
+    expect(kept).toEqual([]);
   });
 
   it("Should keep a font-family utility beside a font-weight utility", () => {

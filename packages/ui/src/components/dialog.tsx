@@ -4,8 +4,9 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { XIcon } from "lucide-react";
 import * as React from "react";
-import { tabbable } from "tabbable";
 
+import { defaultDialogInitialFocus } from "../lib/dialog-initial-focus";
+import { DIALOG_CLOSE_BUTTON_CLASS } from "../lib/dialog-shell";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { DialogContext, useDialogContext } from "./hooks/use-dialog-context";
@@ -99,35 +100,6 @@ const DIALOG_FOOTER_DEFAULT =
 const DIALOG_FOOTER_RULED =
   "flex min-w-0 flex-col-reverse gap-2 border-t border-line-soft bg-canvas px-5 py-3 sm:flex-row sm:justify-end";
 
-function isExcludedFromInitialFocus(node: HTMLElement, root: HTMLElement): boolean {
-  let current: HTMLElement | null = node;
-  while (current && root.contains(current)) {
-    const style = getComputedStyle(current);
-    if (
-      current.hidden ||
-      current.getAttribute("aria-hidden") === "true" ||
-      current.dataset.slot === "help-tip" ||
-      style.display === "none" ||
-      style.visibility === "hidden" ||
-      style.visibility === "collapse"
-    ) {
-      return true;
-    }
-    current = current.parentElement;
-  }
-  return false;
-}
-
-function firstDialogTabbable(root: HTMLElement): HTMLElement | null {
-  const candidates = tabbable(root, { displayCheck: "none" });
-  return (
-    candidates.find(
-      (candidate): candidate is HTMLElement =>
-        candidate instanceof HTMLElement && !isExcludedFromInitialFocus(candidate, root)
-    ) ?? null
-  );
-}
-
 interface DialogContentProps extends DialogPrimitive.Popup.Props {
   showCloseButton?: boolean;
   /**
@@ -153,14 +125,7 @@ function DialogContent({
   const windowScoped = overlayContainer !== null;
   const popupRef = React.useRef<HTMLDivElement | null>(null);
   const mergedPopupRef = useMergedRefs(popupRef, ref);
-  const resolvedInitialFocus =
-    initialFocus ??
-    ((openType: string) => {
-      if (openType === "touch") return popupRef.current ?? true;
-      const popup = popupRef.current;
-      if (!popup) return true;
-      return firstDialogTabbable(popup) ?? true;
-    });
+  const resolvedInitialFocus = initialFocus ?? (() => defaultDialogInitialFocus(popupRef.current));
   return open ? (
     <DialogPortal>
       <DialogOverlay />
@@ -193,7 +158,13 @@ function DialogContent({
         {showCloseButton ? (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
+            render={
+              <Button
+                variant="quiet"
+                className={cn("absolute top-2 right-2", DIALOG_CLOSE_BUTTON_CLASS)}
+                size="icon-sm"
+              />
+            }
           >
             <XIcon />
             <span className="sr-only">Close</span>

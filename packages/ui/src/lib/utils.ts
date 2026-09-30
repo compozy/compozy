@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
-import { fontSizeClasses } from "./font-size-classes.generated";
+import { fontSizeClasses, radiusScale } from "./font-size-classes.generated";
 
 // The class list is generated from the `--text-*` theme tokens in
 // packages/ui/src/tokens.css and packages/site/app/global.css, because
@@ -9,6 +9,11 @@ import { fontSizeClasses } from "./font-size-classes.generated";
 // hand-maintained list silently rots the moment a token is added.
 const customTwMerge = extendTailwindMerge({
   extend: {
+    // Project radius tokens (`rounded-pill`, `rounded-icon-well`, …) conflict with
+    // each other and with Tailwind's own radius names, like the defaults do.
+    theme: {
+      radius: [...radiusScale],
+    },
     classGroups: {
       "font-size": [...fontSizeClasses],
     },

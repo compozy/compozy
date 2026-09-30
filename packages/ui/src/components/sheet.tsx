@@ -2,9 +2,12 @@
 
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { AnimatePresence, m, type Variants } from "motion/react";
 import * as React from "react";
 
+import { defaultDialogInitialFocus } from "../lib/dialog-initial-focus";
+import { DIALOG_CLOSE_BUTTON_CLASS } from "../lib/dialog-shell";
 import { MOTION_DURATION_SLOW, MOTION_EASE_IN_OUT, MOTION_EASE_OUT } from "../lib/motion";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
@@ -132,9 +135,14 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  initialFocus,
+  ref,
   ...props
 }: SheetContentProps) {
   const { actionsRef, open } = useSheetMotion();
+  const popupRef = React.useRef<HTMLDivElement | null>(null);
+  const mergedPopupRef = useMergedRefs(popupRef, ref);
+  const resolvedInitialFocus = initialFocus ?? (() => defaultDialogInitialFocus(popupRef.current));
 
   const handleExitComplete = () => {
     actionsRef.current?.unmount();
@@ -146,6 +154,8 @@ function SheetContent({
         <SheetPortal key="sheet-portal" keepMounted>
           <SheetOverlay />
           <SheetPrimitive.Popup
+            ref={mergedPopupRef}
+            initialFocus={resolvedInitialFocus}
             data-slot="sheet-content"
             data-side={side}
             render={
@@ -169,7 +179,11 @@ function SheetContent({
               <SheetPrimitive.Close
                 data-slot="sheet-close"
                 render={
-                  <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />
+                  <Button
+                    variant="quiet"
+                    className={cn("absolute top-3 right-3", DIALOG_CLOSE_BUTTON_CLASS)}
+                    size="icon-sm"
+                  />
                 }
               >
                 <XIcon />

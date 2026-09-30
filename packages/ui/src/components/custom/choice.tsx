@@ -90,7 +90,7 @@ function ChoiceFreeTextarea({ className, ...props }: React.ComponentProps<"texta
       className={cn(
         "min-h-[52px] w-full resize-none rounded-md border border-line bg-canvas",
         "px-2 py-[7px] text-small-body leading-normal text-fg",
-        "placeholder:text-subtle focus:border-accent-dim focus:outline-none",
+        "placeholder:text-subtle focus:border-line-focus focus:outline-none",
         className
       )}
       {...props}

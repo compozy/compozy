@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { DIALOG_ICON_WELL_TONE, DIALOG_TONE_EYEBROW, type DialogTone } from "../../lib/dialog-tone";
 import { cn } from "../../lib/utils";
 import { Alert, AlertDescription } from "../alert";
 import { Button } from "../button";
@@ -19,8 +20,8 @@ import { Input } from "../input";
 import { Eyebrow } from "./eyebrow";
 import { KindIcon } from "./kind-icon";
 
-type ConfirmDialogTone = "danger" | "warning" | "accent" | "neutral";
-type ConfirmDialogIconTone = "accent" | "neutral" | "warning" | "danger";
+type ConfirmDialogTone = DialogTone;
+type ConfirmDialogIconTone = DialogTone;
 type ConfirmDialogNoteTone = "info" | "warning" | "accent" | "neutral";
 type ConfirmDialogIcon = React.ComponentType<{ className?: string }>;
 type DataAttributes = {
@@ -70,22 +71,6 @@ interface ConfirmDialogProps {
   children?: React.ReactNode;
 }
 
-const TONE_EYEBROW: Record<ConfirmDialogTone, string> = {
-  danger: "text-danger",
-  warning: "text-warning",
-  accent: "text-accent-strong",
-  neutral: "text-muted",
-};
-
-// `neutral` is the identity well as-is (mint plate); `accent`, `warning` and
-// `danger` keep their semantic tint on the same plate geometry.
-const ICON_WELL_TONE: Record<ConfirmDialogIconTone, string | undefined> = {
-  accent: "bg-accent-tint text-accent-strong",
-  neutral: undefined,
-  warning: "bg-warning-tint text-warning",
-  danger: "bg-danger-tint text-danger",
-};
-
 function resolveIconTone(
   iconTone: ConfirmDialogIconTone | undefined,
   tone: ConfirmDialogTone
@@ -131,6 +116,9 @@ function ConfirmDialog({
   children,
 }: ConfirmDialogProps) {
   const [typedValue, setTypedValue] = React.useState("");
+  // Alert-dialog safety: open on the least destructive action, so a reflexive
+  // Enter never confirms. Named explicitly under the popup-first dialog policy.
+  const cancelRef = React.useRef<HTMLButtonElement | null>(null);
   const requiresTyping = typeof confirmTyping === "string" && confirmTyping.length > 0;
   const confirmBlocked = isPending || (requiresTyping && typedValue !== confirmTyping);
   const confirmVariant: React.ComponentProps<typeof Button>["variant"] =
@@ -156,7 +144,7 @@ function ConfirmDialog({
 
   const titleBlock = (
     <>
-      {eyebrow ? <Eyebrow className={TONE_EYEBROW[tone]}>{eyebrow}</Eyebrow> : null}
+      {eyebrow ? <Eyebrow className={DIALOG_TONE_EYEBROW[tone]}>{eyebrow}</Eyebrow> : null}
       <DialogTitle {...restTitleProps} className={cn(eyebrow ? "mt-1" : undefined, titleClassName)}>
         {title}
       </DialogTitle>
@@ -177,6 +165,7 @@ function ConfirmDialog({
       <DialogContent
         showCloseButton={false}
         unframed
+        initialFocus={cancelRef}
         {...restContentProps}
         className={cn("sm:max-w-md", className, contentClassName)}
       >
@@ -185,7 +174,7 @@ function ConfirmDialog({
             <div className="flex items-start gap-3">
               <KindIcon
                 aria-hidden="true"
-                className={ICON_WELL_TONE[resolvedIconTone]}
+                className={DIALOG_ICON_WELL_TONE[resolvedIconTone]}
                 data-icon-tone={resolvedIconTone}
                 data-slot="confirm-dialog-icon"
                 icon={Icon}
@@ -273,6 +262,7 @@ function ConfirmDialog({
             data-slot="confirm-dialog-actions"
           >
             <DialogClose
+              ref={cancelRef}
               render={<Button size="sm" type="button" variant="ghost" {...cancelButtonProps} />}
             >
               {cancelLabel}
