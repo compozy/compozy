@@ -24,7 +24,7 @@ export function useSessionCatalog(
     placeholderData: (previousData, previousQuery) => {
       const previousFilters = previousQuery?.queryKey[4];
       if (!previousFilters || typeof previousFilters !== "object") return undefined;
-      const { q: _previousSearch, ...previousPopulation } = previousFilters as SessionListFilters;
+      const { q: _previousSearch, ...previousPopulation } = previousFilters;
       return JSON.stringify(previousPopulation) === populationKey
         ? keepPreviousData(previousData)
         : undefined;

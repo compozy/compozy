@@ -207,8 +207,9 @@ func TestForcedStopProcessIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !containsEventText(collectEvents(t, events), "still alive") {
-			t.Fatal("unrelated process stopped responding")
+		received := collectEvents(t, events)
+		if len(received) == 0 || received[0].Type != EventTypeAgentMessage || received[0].Text != "still alive" {
+			t.Fatalf("unrelated process response = %#v, want echoed agent message", received)
 		}
 	})
 	t.Run("Should skip an exited leader while post-exit cleanup is pending", func(t *testing.T) {

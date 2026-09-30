@@ -23,6 +23,7 @@ import {
   windowSlotRegistryVersion,
   windowSlotSnapshot,
 } from "../lib/window-slot-registry";
+import { composePaletteSessionPage } from "../lib/palette-session-filters";
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
@@ -220,13 +221,7 @@ export function useOsPaletteEntities({
     false
   );
   return {
-    sessions: (searchPending || sessions.paging ? sessionRows : rankedSessions.rows).map(
-      session => ({
-        ...session,
-        busy: searchPending || sessions.paging,
-      })
-    ),
-    sessionTotal: searchPending || sessions.paging ? sessionRows.length : rankedSessions.total,
+    ...composePaletteSessionPage(sessionRows, rankedSessions, searchPending, sessions.paging),
     tabs: rankedTabs.rows,
     tabTotal: rankedTabs.total,
     worktrees: rankedWorktrees.rows,

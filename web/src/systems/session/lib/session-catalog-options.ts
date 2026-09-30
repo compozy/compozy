@@ -12,7 +12,11 @@ export interface SessionCatalogCursor {
 export function sessionCatalogOptions(filters: SessionListFilters = {}) {
   const normalized = normalizeSessionListFilters({ ...filters, skip_total: true });
   return infiniteQueryOptions({
-    queryKey: [...sessionKeys.workspaceLists(normalized.workspace_id ?? ""), "page", normalized],
+    queryKey: [
+      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
+      "page",
+      normalized,
+    ] as const,
     queryFn: ({ pageParam, signal }) =>
       fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
     initialPageParam: { previous: [] } as SessionCatalogCursor,
