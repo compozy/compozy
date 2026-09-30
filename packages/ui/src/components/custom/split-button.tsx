@@ -130,7 +130,7 @@ export function SplitButton({
         {...restActionProps}
         aria-describedby={describedBy}
         aria-disabled={blocked || undefined}
-        className="gap-1.5 whitespace-nowrap bg-clip-border aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [&_svg]:size-3"
+        className="gap-1.5 whitespace-nowrap bg-clip-border aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:bg-surface-2 aria-disabled:text-subtle aria-disabled:shadow-none [&_svg]:size-3"
         data-size={size}
         data-slot="split-button-action"
         data-variant={variant}

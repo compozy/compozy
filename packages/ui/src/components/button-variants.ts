@@ -1,27 +1,28 @@
 import { cva } from "class-variance-authority";
 
+// Disabled is a deliberate state, not a fade: a faded inverted pill reads as a
+// washed-out grey. Filled variants settle on the quiet `surface-2` plate with
+// `subtle` ink; bare variants keep no fill and only lose their ink.
+const DISABLED_FILLED = "disabled:bg-surface-2 disabled:text-subtle disabled:shadow-none";
+const DISABLED_BARE = "disabled:text-subtle";
+const DISABLED_OUTLINE = "disabled:border-line-soft disabled:text-subtle";
+
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-pill border border-transparent bg-clip-padding font-sans text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-fast ease-out outline-none select-none focus-visible:outline-none focus-visible:shadow-focus-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-danger [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-pill border border-transparent bg-clip-padding font-sans text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-fast ease-out outline-none select-none focus-visible:outline-none focus-visible:shadow-focus-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none aria-invalid:border-danger [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground hover:bg-primary-hover aria-expanded:bg-primary-hover [a]:hover:bg-primary-hover",
-        primary:
-          "bg-primary text-primary-foreground hover:bg-primary-hover aria-expanded:bg-primary-hover [a]:hover:bg-primary-hover",
-        outline: "border-line bg-transparent text-fg hover:bg-surface-2 aria-expanded:bg-surface-2",
-        secondary:
-          "bg-surface-2 text-fg hover:bg-selected hover:shadow-card aria-expanded:bg-selected",
-        ghost: "text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 aria-expanded:text-fg",
-        quiet:
-          "text-muted hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg",
-        destructive: "bg-danger-tint text-danger hover:bg-danger-tint hover:opacity-90",
-        "destructive-solid":
-          "bg-danger text-accent-ink hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,black)]",
-        success: "bg-success-tint text-success hover:opacity-90",
-        link: "text-fg-2 underline-offset-4 hover:text-fg hover:underline",
-        neutral:
-          "bg-surface-2 text-fg hover:bg-selected hover:shadow-card aria-expanded:bg-selected",
+        default: `bg-primary text-primary-foreground hover:bg-primary-hover aria-expanded:bg-primary-hover [a]:hover:bg-primary-hover ${DISABLED_FILLED}`,
+        primary: `bg-primary text-primary-foreground hover:bg-primary-hover aria-expanded:bg-primary-hover [a]:hover:bg-primary-hover ${DISABLED_FILLED}`,
+        outline: `border-line bg-transparent text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 ${DISABLED_OUTLINE}`,
+        secondary: `bg-surface-2 text-fg hover:bg-selected hover:shadow-card aria-expanded:bg-selected ${DISABLED_FILLED}`,
+        ghost: `text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 aria-expanded:text-fg ${DISABLED_BARE}`,
+        quiet: `text-muted hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg ${DISABLED_BARE}`,
+        destructive: `bg-danger-tint text-danger hover:bg-danger-tint hover:opacity-90 ${DISABLED_FILLED}`,
+        "destructive-solid": `bg-danger text-accent-ink hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,black)] ${DISABLED_FILLED}`,
+        success: `bg-success-tint text-success hover:opacity-90 ${DISABLED_FILLED}`,
+        link: `text-fg-2 underline-offset-4 hover:text-fg hover:underline ${DISABLED_BARE}`,
+        neutral: `bg-surface-2 text-fg hover:bg-selected hover:shadow-card aria-expanded:bg-selected ${DISABLED_FILLED}`,
       },
       size: {
         default:

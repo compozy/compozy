@@ -108,3 +108,40 @@ export const WithKbdHint: Story = {
     </div>
   ),
 };
+
+/** Disabled is a deliberate state: filled variants settle on the quiet plate, bare ones lose their ink. */
+export const DisabledVariants: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-3 bg-background p-4 text-foreground">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary">Primary</Button>
+        <Button variant="neutral">Neutral</Button>
+        <Button variant="outline">Outline</Button>
+        <Button variant="ghost">Ghost</Button>
+        <Button variant="quiet">Quiet</Button>
+        <Button variant="destructive-solid">Kill</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" disabled>
+          Primary
+        </Button>
+        <Button variant="neutral" disabled>
+          Neutral
+        </Button>
+        <Button variant="outline" disabled>
+          Outline
+        </Button>
+        <Button variant="ghost" disabled>
+          Ghost
+        </Button>
+        <Button variant="quiet" disabled>
+          Quiet
+        </Button>
+        <Button variant="destructive-solid" disabled>
+          Kill
+        </Button>
+      </div>
+    </div>
+  ),
+};

@@ -54,4 +54,16 @@ describe("Button", () => {
     expect(button).toHaveClass("text-muted", "hover:bg-surface-2", "hover:text-fg");
     expect(button.className).not.toContain("bg-primary");
   });
+
+  it("Should settle a disabled primary on the quiet plate instead of fading the pill", () => {
+    render(
+      <Button variant="primary" disabled>
+        New session
+      </Button>
+    );
+    const button = screen.getByRole("button", { name: "New session" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveClass("disabled:bg-surface-2", "disabled:text-subtle");
+    expect(button.className).not.toContain("disabled:opacity-50");
+  });
 });

@@ -10,7 +10,7 @@ const meta: Meta<typeof IntensityMeter> = {
     docs: {
       description: {
         component:
-          "Seven-bar discrete intensity meter. `position` fills bars with the accent; `hollow` is the faint default state.",
+          "Seven-bar discrete intensity meter. `position` fills bars with the `fg` ink over `line-strong` rests (orange is reserved for needs-you); `hollow` is the quieter `line` default state.",
       },
     },
   },

@@ -4,9 +4,10 @@ import { cn } from "../../lib/utils";
 
 /**
  * Discrete intensity meter — seven ascending bars. `position` (1..7) fills bars
- * with `accent-strong`; `hollow` renders every bar faint for a default/unset
- * state. A generic signal-strength primitive (reasoning effort, confidence,
- * load, …); accent-strong is the only fill.
+ * with the `fg` ink over `line-strong` rests; `hollow` renders every bar at the
+ * quieter `line` for a default/unset state. A generic signal-strength primitive
+ * (reasoning effort, confidence, load, …). Orange stays reserved for needs-you,
+ * so a level is never painted with the accent.
  */
 const BAR_HEIGHTS = ["h-px", "h-0.5", "h-1", "h-1.5", "h-2", "h-2.5", "h-3"] as const;
 
@@ -37,7 +38,7 @@ function IntensityMeter({ position, hollow = false, className, ...props }: Inten
             className={cn(
               "w-0.5 rounded-full",
               heightClass,
-              hollow ? "bg-line-strong" : filled ? "bg-accent-strong" : "bg-faint"
+              hollow ? "bg-line" : filled ? "bg-fg" : "bg-line-strong"
             )}
           />
         );

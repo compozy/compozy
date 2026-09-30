@@ -323,17 +323,18 @@ function applyResolvedStyle(instance: TerminalInstance): void {
 /**
  * Watching reads as a hollow, still cursor. The emulator has no hollow *active*
  * cursor, so a read-only view also declines focus — the outline style is then
- * the only cursor it can paint.
+ * the only cursor it can paint. A writable pane that merely lost focus keeps the
+ * solid block, so an idle shell still shows where input will land.
  */
 function readOnlyOptions(readOnly: boolean): {
   cursorBlink: boolean;
-  cursorInactiveStyle: "outline";
+  cursorInactiveStyle: "outline" | "block";
   cursorStyle: "block";
   disableStdin: boolean;
 } {
   return {
     cursorBlink: !readOnly,
-    cursorInactiveStyle: "outline",
+    cursorInactiveStyle: readOnly ? "outline" : "block",
     cursorStyle: "block",
     disableStdin: readOnly,
   };

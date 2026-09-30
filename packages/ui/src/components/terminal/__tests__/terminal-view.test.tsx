@@ -350,6 +350,8 @@ describe("TerminalView", () => {
 
     expect(onData).toHaveBeenCalledWith("ls\r");
     expect(engine.lastTerminal().options.disableStdin).toBe(false);
+    // An idle writable pane keeps the solid block; only a watching view is hollow.
+    expect(engine.lastTerminal().options.cursorInactiveStyle).toBe("block");
   });
 
   it("Should fall back to the DOM renderer per pane when WebGL cannot start", async () => {
