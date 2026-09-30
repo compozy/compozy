@@ -8,7 +8,9 @@ export type LayoutNodeId = string;
 export type WindowId = string;
 export type WindowManagerClientId = string;
 export type WindowManagerClientKind = "shell" | "browser";
+/** `idle`: no stream attempted for this binding yet — there is nothing to report. */
 export type WindowManagerConnectionStatus =
+  | "idle"
   | "disconnected"
   | "connecting"
   | "connected"

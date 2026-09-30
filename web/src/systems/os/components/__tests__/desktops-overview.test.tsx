@@ -1,9 +1,10 @@
 // Suite: desktops overview
-// Invariant: overview entry focuses the nearest requested hidden desktop, each management action emits
-// one semantic callback, and async states stay recoverable.
-// Boundary IN: DesktopsOverview state rendering, local forms, accessibility, and callback payloads.
+// Invariant: overview entry focuses the nearest requested hidden desktop (else the current one), each
+// management action emits one semantic callback, the card grid is keyboard-navigable, and async states
+// stay recoverable.
+// Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, and callback payloads.
 // Boundary OUT: TanStack Query snapshots, window-manager coordination, mutations, revisions, and persistence.
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,6 +26,8 @@ const DESKTOPS: DesktopOverviewItem[] = [
     name: "Build",
     thumbnail: <span />,
     windows: [{ id: "agents", title: "Agents", detail: "Window manager" }],
+    needsYou: true,
+    switchShortcut: "⌃2",
   },
   {
     id: "research",
@@ -61,7 +64,7 @@ describe("DesktopsOverview", () => {
     {
       direction: "earlier" as const,
       hiddenDesktopIds: ["control", "build"],
-      expectedName: "Switch to Build",
+      expectedName: "Switch to Build — needs you",
     },
     {
       direction: "later" as const,
@@ -77,12 +80,22 @@ describe("DesktopsOverview", () => {
     }
   );
 
+  it("Should focus the current desktop when opened without a pager request", async () => {
+    renderOverview();
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Current desktop Control" })).toHaveFocus()
+    );
+  });
+
   it("Should emit switch, create, reorder, rename, move, and transfer-on-delete actions", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview();
 
-    await user.click(screen.getByRole("button", { name: "Create desktop" }));
-    expect(callbacks.onCreateDesktop).toHaveBeenCalledTimes(1);
+    const [headerCreate, cardCreate] = screen.getAllByRole("button", { name: "New desktop" });
+    await user.click(headerCreate);
+    await user.click(cardCreate);
+    expect(callbacks.onCreateDesktop).toHaveBeenCalledTimes(2);
 
     await user.click(screen.getByRole("button", { name: "Switch to Research" }));
     expect(callbacks.onSwitchDesktop).toHaveBeenCalledWith("research");
@@ -100,14 +113,47 @@ describe("DesktopsOverview", () => {
     await user.click(screen.getByRole("button", { name: "Save name" }));
     expect(callbacks.onRenameDesktop).toHaveBeenCalledWith("build", "Implementation");
 
-    await user.click(screen.getByRole("button", { name: "Move Agents to another desktop" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Research" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Build" }));
+    // Keyboard through the nested submenus: window, then destination.
+    (await screen.findByRole("menuitem", { name: "Move a window" })).focus();
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Agents" })).toHaveFocus());
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Control" })).toHaveFocus());
+    await user.keyboard("{ArrowDown}{Enter}");
     expect(callbacks.onMoveWindow).toHaveBeenCalledWith("agents", "build", "research");
 
     await user.click(screen.getByRole("button", { name: "Actions for Build" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete…" }));
     await user.click(screen.getByRole("button", { name: "Delete desktop" }));
     expect(callbacks.onDeleteDesktop).toHaveBeenCalledWith("build", "control");
+  });
+
+  it("Should mark an off-screen desktop that needs you and show its switch chord", () => {
+    renderOverview();
+
+    const build = screen.getByRole("button", { name: "Switch to Build — needs you" });
+    expect(within(build).getByText("⌃2")).toBeInTheDocument();
+    expect(within(build).getByLabelText("Needs you")).toBeInTheDocument();
+  });
+
+  it("Should move between cards with the arrow keys and close with Done", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+    const current = screen.getByRole("button", { name: "Current desktop Control" });
+    await waitFor(() => expect(current).toHaveFocus());
+
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("button", { name: "Switch to Build — needs you" })).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(screen.getAllByRole("button", { name: "New desktop" }).at(-1)).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("button", { name: "Switch to Research" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(callbacks.onSwitchDesktop).toHaveBeenCalledWith("research");
+
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(callbacks.onOpenChange).toHaveBeenLastCalledWith(false);
   });
 
   it("Should expose loading semantics without rendering plausible desktop data", () => {
@@ -120,11 +166,12 @@ describe("DesktopsOverview", () => {
   it("Should make every desktop mutation unavailable when no registered client is ready", () => {
     renderOverview({ canMutate: false });
 
-    expect(screen.getByRole("button", { name: "Create desktop" })).toBeDisabled();
+    for (const create of screen.getAllByRole("button", { name: "New desktop" })) {
+      expect(create).toBeDisabled();
+    }
     expect(screen.getByRole("button", { name: "Switch to Research" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Actions for Research" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Actions for Build" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Agents to another desktop" })).toBeDisabled();
   });
 
   it("Should retry an explicit load failure", async () => {
@@ -157,7 +204,7 @@ describe("DesktopsOverview", () => {
     });
 
     expect(screen.getByText("No desktops")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Create desktop" }));
+    await user.click(screen.getByRole("button", { name: "New desktop" }));
     expect(callbacks.onCreateDesktop).toHaveBeenCalledTimes(1);
   });
 });

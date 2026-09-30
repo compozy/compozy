@@ -38,7 +38,9 @@ function statusView({
       detail: diagnostic?.message ?? null,
     };
   }
-  if (connectionStatus !== "connected") {
+  // `idle`: the stream has not been attempted yet (startup, registration) —
+  // not a failure, so it only yields to a refused-command notice below.
+  if (connectionStatus !== "connected" && connectionStatus !== "idle") {
     return { tone: "neutral", icon: RefreshCw, label: "Reconnecting…", detail: null };
   }
   // A refused command's notice is already written for people; it keeps the

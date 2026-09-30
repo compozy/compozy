@@ -191,6 +191,7 @@ function DesktopShellScopedBody({
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange,
+    desktopSwitchShortcuts,
     onOpenDesktopOverview,
     onSeamPreview,
     onFrameSeamPreview,
@@ -316,6 +317,8 @@ function DesktopShellScopedBody({
         />
         <DesktopManagerSurfaces
           model={managerSurfaces}
+          needsYouDesktopIds={pager.needsYouDesktopIds}
+          switchShortcuts={desktopSwitchShortcuts}
           onCreateDesktop={() => manager.createDesktop()}
           onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
           onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}

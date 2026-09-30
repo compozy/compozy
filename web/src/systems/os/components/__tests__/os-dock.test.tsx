@@ -7,6 +7,9 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type * as React from "react";
+
 import { TooltipProvider } from "@compozy/ui";
 
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
@@ -36,6 +39,37 @@ const launchCatalog = vi.hoisted(() => ({
 }));
 
 const jumpToSession = vi.hoisted(() => vi.fn());
+
+const catalogInputs = vi.hoisted(() => ({
+  workspace: { runtimeWorkspaceId: null as string | null, pending: false },
+  catalog: {
+    sessions: [] as SessionPayload[],
+    filters: [] as Array<Record<string, unknown>>,
+  },
+}));
+
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: () => catalogInputs.workspace,
+}));
+
+vi.mock("@/systems/session", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session")>()),
+  sessionCatalogOptions: (filters: Record<string, unknown>) => {
+    catalogInputs.catalog.filters.push(filters);
+    return {
+      queryKey: ["launch-catalog", JSON.stringify(filters)],
+      queryFn: async () => ({ sessions: catalogInputs.catalog.sessions, page: { has_more: false } }),
+      initialPageParam: null,
+      getNextPageParam: () => undefined,
+    };
+  },
+}));
+
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => ({ params: {} }),
+}));
 
 const SNAPSHOT: WindowManagerSnapshot = {
   version: 4,
@@ -378,6 +412,41 @@ describe("OsDock", () => {
       "knowledge",
       "vault",
     ]);
+  });
+
+  it("Should resolve the Sessions launch catalog across every workspace in Global scope", async () => {
+    const { useSessionLaunchCatalog } = await vi.importActual<
+      typeof import("../../hooks/use-session-launch-catalog")
+    >("../../hooks/use-session-launch-catalog");
+    catalogInputs.workspace = { runtimeWorkspaceId: null, pending: false };
+    catalogInputs.catalog.filters = [];
+    catalogInputs.catalog.sessions = [
+      catalogSession("sess-global", "2026-08-02T00:00:00Z", { workspace_id: "workspace:other" }),
+    ];
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSessionLaunchCatalog(), { wrapper });
+
+    // Global has no runtime workspace: the catalog still reads (all workspaces)
+    // and resolves, so the launcher never drops the click.
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(catalogInputs.catalog.filters.at(-1)).toMatchObject({
+      workspace_id: undefined,
+      limit: 1,
+      sort: "created",
+      archive: "exclude",
+    });
+    expect(result.current.workspaceId).toBeNull();
+    await waitFor(() =>
+      expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"])
+    );
+
+    catalogInputs.workspace = { runtimeWorkspaceId: null, pending: true };
+    const pending = renderHook(() => useSessionLaunchCatalog(), { wrapper });
+    expect(pending.result.current.ready).toBe(false);
   });
 
   it("Should launch a new session from the dock when the catalog is empty", async () => {

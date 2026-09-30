@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { fn } from "storybook/test";
+
+import type { OsWindow } from "../../lib/os-types";
+import type { LayoutProjection } from "../../lib/window-manager-types";
+import { DesktopLayoutThumbnail } from "../desktop-layout-thumbnail";
 
 import {
   DesktopsOverview,
@@ -8,57 +13,118 @@ import {
 } from "../desktops-overview";
 import { DesktopShell } from "./_desktop";
 
-function DesktopThumbnail({ layout }: { layout: "control" | "build" | "research" }) {
-  if (layout === "build") {
-    return (
-      <span className="grid h-full w-full grid-cols-[1fr_1.35fr] gap-1 p-1.5">
-        <span className="rounded-xs border border-line bg-canvas-soft" />
-        <span className="rounded-xs border border-line bg-elevated" />
-      </span>
-    );
-  }
-  if (layout === "research") {
-    return (
-      <span className="grid h-full w-full grid-rows-2 gap-1 p-1.5">
-        <span className="rounded-xs border border-line bg-canvas-soft" />
-        <span className="ml-[18%] rounded-xs border border-line bg-elevated" />
-      </span>
-    );
-  }
+const WORK_AREA = { x: 0, y: 0, w: 1380, h: 848 };
+
+function storyWindow(
+  id: string,
+  app: OsWindow["app"],
+  rect: OsWindow["rect"],
+  extra: Partial<OsWindow> = {}
+): OsWindow {
+  return {
+    id,
+    app,
+    instanceKey: null,
+    route: { pathname: `/${app}`, search: {} },
+    navStack: [],
+    pinned: false,
+    desktopId: "story",
+    placement: "tiled",
+    rect,
+    layer: 1,
+    minimized: false,
+    zoomed: false,
+    groupId: null,
+    nodeId: null,
+    stackId: null,
+    stackActive: true,
+    parentAxis: null,
+    ...extra,
+  } as OsWindow;
+}
+
+function thumbnail(windows: OsWindow[]) {
   return (
-    <span className="relative h-full w-full p-1.5">
-      <span className="absolute inset-y-1.5 left-1.5 w-[58%] rounded-xs border border-line bg-canvas-soft" />
-      <span className="absolute right-1.5 bottom-1.5 h-[58%] w-[48%] rounded-xs border border-line bg-elevated shadow-raised" />
-    </span>
+    <DesktopLayoutThumbnail
+      projection={{ workArea: WORK_AREA } as LayoutProjection}
+      windows={windows}
+    />
   );
 }
 
 const DESKTOPS: DesktopOverviewItem[] = [
   {
     id: "control",
-    name: "Control",
-    thumbnail: <DesktopThumbnail layout="control" />,
+    name: "Main",
+    aspectRatio: WORK_AREA.w / WORK_AREA.h,
+    switchShortcut: "⌃1",
+    thumbnail: thumbnail([
+      storyWindow(
+        "s1",
+        "session",
+        { x: 0, y: 0, w: 760, h: 848 },
+        { stackId: "st", stackActive: true }
+      ),
+      storyWindow(
+        "s2",
+        "session",
+        { x: 0, y: 0, w: 760, h: 848 },
+        { stackId: "st", stackActive: false }
+      ),
+      storyWindow("tasks", "tasks", { x: 760, y: 0, w: 620, h: 480 }),
+      storyWindow("term", "terminal", { x: 760, y: 480, w: 620, h: 368 }),
+    ]),
     windows: [
-      { id: "dashboard", title: "Dashboard", detail: "Workspace status" },
-      { id: "sessions", title: "Sessions", detail: "6 active agents" },
+      { id: "s1", title: "Session" },
+      { id: "s2", title: "Session" },
+      { id: "tasks", title: "Tasks" },
+      { id: "term", title: "Terminal" },
     ],
   },
   {
     id: "build",
-    name: "Build",
-    thumbnail: <DesktopThumbnail layout="build" />,
+    name: "Review",
+    aspectRatio: WORK_AREA.w / WORK_AREA.h,
+    switchShortcut: "⌃2",
+    needsYou: true,
+    thumbnail: thumbnail([
+      storyWindow("agents", "agents", { x: 0, y: 0, w: 860, h: 848 }),
+      storyWindow("loops", "loops", { x: 860, y: 0, w: 520, h: 848 }),
+    ]),
     windows: [
-      { id: "agents", title: "Agents", detail: "Implement window manager" },
-      { id: "tasks", title: "Tasks", detail: "Desktop persistence" },
+      { id: "agents", title: "Agents" },
+      { id: "loops", title: "Loops" },
     ],
   },
   {
     id: "research",
     name: "Research",
-    thumbnail: <DesktopThumbnail layout="research" />,
-    windows: [{ id: "knowledge", title: "Knowledge", detail: "Reference projects" }],
+    aspectRatio: WORK_AREA.w / WORK_AREA.h,
+    switchShortcut: "⌃3",
+    thumbnail: thumbnail([
+      storyWindow("knowledge", "knowledge", { x: 0, y: 0, w: 1380, h: 424 }),
+      storyWindow("vault", "vault", { x: 0, y: 424, w: 1380, h: 424 }),
+    ]),
+    windows: [
+      { id: "knowledge", title: "Knowledge" },
+      { id: "vault", title: "Vault" },
+    ],
   },
 ];
+
+/** Mounts the overview in a desk-sized overlay host, as `DesktopManagerSurfaces` does. */
+function InDesk(props: DesktopsOverviewProps) {
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  return (
+    <DesktopShell>
+      <div
+        ref={setHost}
+        className="contain-paint pointer-events-none absolute inset-0 z-40 [&:not(:empty)]:pointer-events-auto"
+      />
+      <DesktopsOverview {...props} container={host} />
+    </DesktopShell>
+  );
+}
 
 const ACTIONS = {
   onOpenChange: fn<DesktopsOverviewProps["onOpenChange"]>(),
@@ -78,7 +144,7 @@ const meta: Meta<typeof DesktopsOverview> = {
     docs: {
       description: {
         component:
-          "On-demand desktop management over an authoritative snapshot: switch, create, rename, reorder, transfer on delete, and move individual windows.",
+          "On-demand desktop management over the desk (shell-rail v2 `.ov`): live layout thumbnails, keycaps, needs-you dots, and New desktop; each card's menu renames, reorders, moves a window, or deletes with transfer. Arrows move across cards, Enter switches, Esc closes.",
       },
     },
   },
@@ -94,21 +160,13 @@ export const Ready: Story = {
     state: { status: "ready", desktops: DESKTOPS, activeDesktopId: "control" },
     ...ACTIONS,
   },
-  render: args => (
-    <DesktopShell wallpaper="carbon">
-      <DesktopsOverview {...args} />
-    </DesktopShell>
-  ),
+  render: args => <InDesk {...args} />,
 };
 
 /** Initial snapshot acquisition keeps the final card geometry stable. */
 export const Loading: Story = {
   args: { open: true, state: { status: "loading" }, ...ACTIONS },
-  render: args => (
-    <DesktopShell wallpaper="carbon">
-      <DesktopsOverview {...args} />
-    </DesktopShell>
-  ),
+  render: args => <InDesk {...args} />,
 };
 
 /** Transport failure exposes a single recovery action without fabricated desktop data. */
@@ -119,11 +177,7 @@ export const Error: Story = {
     onRetry: fn(),
     ...ACTIONS,
   },
-  render: args => (
-    <DesktopShell wallpaper="carbon">
-      <DesktopsOverview {...args} />
-    </DesktopShell>
-  ),
+  render: args => <InDesk {...args} />,
 };
 
 /** Revision conflict asks the shell to reload before accepting more mutations. */
@@ -137,11 +191,7 @@ export const Conflict: Story = {
     onResolveConflict: fn(),
     ...ACTIONS,
   },
-  render: args => (
-    <DesktopShell wallpaper="carbon">
-      <DesktopsOverview {...args} />
-    </DesktopShell>
-  ),
+  render: args => <InDesk {...args} />,
 };
 
 /** A real empty workspace offers desktop creation as its only next action. */
@@ -151,9 +201,5 @@ export const Empty: Story = {
     state: { status: "ready", desktops: [], activeDesktopId: null },
     ...ACTIONS,
   },
-  render: args => (
-    <DesktopShell wallpaper="carbon">
-      <DesktopsOverview {...args} />
-    </DesktopShell>
-  ),
+  render: args => <InDesk {...args} />,
 };

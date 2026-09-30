@@ -30,9 +30,11 @@ import {
   WINDOW_MANAGER_STREAM_STALL_MS,
   windowManagerReconnectDelay,
   type WindowManagerClientContextInput,
-  type WindowManagerSocket,
-  type WindowManagerSocketFactory,
 } from "../use-window-manager-stream";
+import type {
+  WindowManagerSocket,
+  WindowManagerSocketFactory,
+} from "../../lib/window-manager-stream-socket";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
@@ -1002,6 +1004,43 @@ describe("useWindowManagerStream", () => {
         windowManagerKeys.snapshot("workspace:test", "marketing")
       )?.revision
     ).toBe(2);
+  });
+
+  it("Should stay idle before the first stream attempt and report a later stop as disconnected", () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onStatusChange = vi.fn();
+    const props = (clientId: string | null) => ({
+      workspaceId: "workspace:test",
+      profileId: "marketing",
+      clientId,
+      registrationEpoch: 0,
+      currentClient: clientId === null ? null : client(1),
+      enabled: true,
+      afterRevision: 0,
+      socketFactory: factory,
+      onStatusChange,
+      onSnapshot: vi.fn(),
+      onClient: vi.fn(),
+      onClientInvalidated: vi.fn(),
+      onError: vi.fn(),
+    });
+    const { rerender } = renderHook(
+      ({ clientId }: { clientId: string | null }) => useWindowManagerStream(props(clientId)),
+      { wrapper: wrapper(queryClient), initialProps: { clientId: null as string | null } }
+    );
+    // Registration pending: no stream attempted yet, so there is nothing to report.
+    expect(onStatusChange).toHaveBeenLastCalledWith("idle");
+    expect(onStatusChange).not.toHaveBeenCalledWith("disconnected");
+
+    rerender({ clientId: "client:web" });
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+    expect(onStatusChange).toHaveBeenLastCalledWith("connected");
+
+    // The client is lost and re-registers: that stop is a real disconnect.
+    rerender({ clientId: null });
+    expect(onStatusChange).toHaveBeenLastCalledWith("disconnected");
   });
 
   it("Should drop a silent socket after the stall window and reconnect", async () => {

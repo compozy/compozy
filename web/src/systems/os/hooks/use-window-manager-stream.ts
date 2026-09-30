@@ -2,14 +2,17 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
-
 import {
   buildWindowManagerStreamUrl,
   fetchWindowManagerSnapshot,
 } from "../adapters/window-manager-api";
 import { writeWindowManagerClientCommandFrame } from "../lib/window-manager-client-command-frames";
 import { parseWindowManagerStreamFrame } from "../lib/window-manager-stream-schema";
+import {
+  browserWindowManagerSocket,
+  type WindowManagerSocket,
+  type WindowManagerSocketFactory,
+} from "../lib/window-manager-stream-socket";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
 import type {
   LayoutRevision,
@@ -28,17 +31,6 @@ import { windowManagerStreamLogic } from "./window-manager-stream-store";
 import { workspaceKeys } from "@/systems/workspace";
 import type { GlobalShortcutRegistrationWire } from "../lib/desktop-shell-bridge";
 
-export interface WindowManagerSocket {
-  close: () => void;
-  send: (data: string) => void;
-  onopen: ((event: Event) => void) | null;
-  onmessage: ((event: MessageEvent<unknown>) => void) | null;
-  onclose: ((event: CloseEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
-}
-
-export type WindowManagerSocketFactory = (url: string) => WindowManagerSocket;
-
 export interface WindowManagerClientContextInput {
   scopeGlobal: boolean;
   focusedSessionState: string | null;
@@ -48,10 +40,6 @@ export interface WindowManagerClientContextInput {
     search: Readonly<Record<string, unknown>>;
   } | null;
   globalShortcuts: readonly GlobalShortcutRegistrationWire[];
-}
-
-function browserWindowManagerSocket(url: string): WindowManagerSocket {
-  return createStreamWebSocket(url);
 }
 
 export {
@@ -118,6 +106,12 @@ export function useWindowManagerStream({
     socket: WindowManagerSocket;
   } | null>(null);
   const contextRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The workspace/profile scope whose stream this hook has attempted. Before any
+  // attempt the status is `idle` (nothing to report); after one — including while
+  // the client re-registers — a stop is a real disconnect.
+  const attemptedScopeRef = useRef<string | null>(null);
+  const streamScope =
+    workspaceId !== null && profileId !== null ? `${workspaceId}\u0000${profileId}` : null;
   const bindingKey =
     workspaceId !== null && profileId !== null && clientId !== null
       ? `${workspaceId}\u0000${profileId}\u0000${clientId}\u0000${registrationEpoch}`
@@ -198,13 +192,15 @@ export function useWindowManagerStream({
       (!socketFactory && typeof WebSocket === "undefined")
     ) {
       lifecycleStore.trigger.disabled();
-      publishStatus("disconnected");
+      publishStatus(
+        streamScope !== null && attemptedScopeRef.current === streamScope ? "disconnected" : "idle"
+      );
       return undefined;
     }
 
     if (bindingKey === null) {
       lifecycleStore.trigger.disabled();
-      publishStatus("disconnected");
+      publishStatus("idle");
       return undefined;
     }
 
@@ -227,6 +223,7 @@ export function useWindowManagerStream({
       buildWindowManagerStreamUrl(workspaceId, profileId, clientId, topologyFence)
     );
     const activeBindingKey = bindingKey;
+    attemptedScopeRef.current = streamScope;
     boundSocketRef.current = { bindingKey: activeBindingKey, ready: false, socket };
 
     /**
@@ -493,6 +490,7 @@ export function useWindowManagerStream({
     registrationEpoch,
     lifecycleStore,
     socketFactory,
+    streamScope,
     workspaceId,
   ]);
 }

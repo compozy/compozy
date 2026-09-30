@@ -210,6 +210,15 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       globalScope: shortcutActionLabel(effective, "scope.global.toggle", platform),
     };
   }, shallowEqual);
+  // Keycaps for the desktops overview: `desktop.switch.1…9` by position.
+  const effectiveShortcuts = useDesktop(state => state.windowManagerConfig?.effectiveShortcuts);
+  const desktopSwitchShortcuts = Array.from({ length: 9 }, (_, index) =>
+    shortcutActionLabel(
+      effectiveShortcuts,
+      `desktop.switch.${index + 1}`,
+      typeof navigator === "undefined" ? "" : navigator.platform
+    )
+  );
   const pagerState = useDesktop(
     state => ({
       activeDesktopId: state.activeDesktopId,
@@ -372,6 +381,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
+    desktopSwitchShortcuts,
     onOpenDesktopOverview: openDesktopOverview,
     onSeamPreview: setSeamPreview,
     onFrameSeamPreview: setFrameSeamPreview,
