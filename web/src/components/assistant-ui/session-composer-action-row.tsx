@@ -22,6 +22,8 @@ import type { SessionComposerEnterHint } from "./hooks/use-session-composer-cont
 
 interface SessionComposerActionRowProps {
   actionState: SessionComposerActionState;
+  /** `false` leaves out the attach button for hosts that carry text only. */
+  attachments?: boolean;
   busyInputSteerDelivery: SessionSteerDelivery | null;
   composerAttachmentCount: number;
   hasStagedQuote?: boolean;
@@ -82,7 +84,7 @@ function SessionComposerStopControl({
         aria-live="polite"
         data-state="stopping"
         data-testid="composer-stop-button"
-        className="h-7 cursor-default text-subtle hover:bg-surface-2 hover:shadow-none"
+        className="h-(--size-button-icon-default) cursor-default text-subtle hover:bg-surface-2 hover:shadow-none"
       >
         <Spinner aria-hidden="true" className="size-3" />
         Stopping…
@@ -199,7 +201,7 @@ function SessionComposerSteerButton({
       data-steer-delivery={delivery ?? undefined}
       data-testid="composer-steer-button"
     >
-      <CornerDownRight className="size-3" />
+      <CornerDownRight aria-hidden="true" />
       Steer
     </Button>
   );
@@ -250,7 +252,7 @@ function SessionComposerBusyActions({
           disabled={!canSubmitBusyInput}
           data-testid="composer-queue-button"
         >
-          <ListPlus className="size-3" />
+          <ListPlus aria-hidden="true" />
           Queue
         </Button>
       ) : null}
@@ -271,7 +273,7 @@ function SessionComposerBusyActions({
           disabled={!canSubmitBusyInput}
           data-testid="composer-interrupt-button"
         >
-          <Scissors className="size-3" />
+          <Scissors aria-hidden="true" />
           Interrupt
         </Button>
       ) : null}
@@ -282,6 +284,7 @@ function SessionComposerBusyActions({
 
 export function SessionComposerActionRow({
   actionState,
+  attachments = true,
   busyInputSteerDelivery,
   composerAttachmentCount,
   hasStagedQuote = false,
@@ -304,15 +307,15 @@ export function SessionComposerActionRow({
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
 
   return (
-    <div className="flex min-h-7 flex-wrap items-center gap-2">
+    <div className="flex min-h-(--size-button-icon-default) flex-wrap items-center gap-2">
       {runtimeControl || environmentControl || contextControl ? (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1">
           {runtimeControl}
           {environmentControl}
           {contextControl}
         </div>
       ) : null}
-      {canPrompt ? <SessionAttachButton /> : null}
+      {canPrompt && attachments ? <SessionAttachButton /> : null}
       {canPrompt ? (
         <SessionComposerEnterHintLabel
           enterHint={actionState.enterHint}

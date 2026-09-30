@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import {
+  cn,
   CommandItem,
   CommandSelect,
   CommandSelectShell,
@@ -12,6 +13,10 @@ import { AgentIcon } from "./agent-icon";
 import { AgentCommandList } from "./agent-command-list";
 import { formatCategoryLabel } from "../lib/agent-category";
 import type { AgentPayload } from "../types";
+
+/** Chromeless pill sized to its content, matching the composer model picker's 28px geometry. */
+const COMPOSER_TRIGGER_CLASS =
+  "group h-(--size-button-icon-default) w-auto max-w-full justify-start gap-1.5 rounded-pill border-0 bg-transparent px-2 text-fg-2 shadow-none hover:bg-transparent hover:text-fg focus-visible:shadow-focus-ring [&>svg]:size-3.5";
 
 export interface AgentCommandSelectProps {
   agents: AgentPayload[];
@@ -31,6 +36,13 @@ export interface AgentCommandSelectProps {
   triggerTestId?: string;
   triggerId?: string;
   className?: string;
+  /**
+   * `field` (default) is the form control. `composer` is the chromeless pill
+   * for a prompt composer's tool row — the same read as the session composer's
+   * model picker: the full agent name first, the provider as quiet meta, and no
+   * category path (the list carries it).
+   */
+  variant?: "field" | "composer";
 }
 
 /**
@@ -94,6 +106,27 @@ function SelectedAgentValue({
   );
 }
 
+function ComposerAgentValue({
+  agent,
+  catalogError,
+  loading,
+}: {
+  agent: AgentPayload;
+  catalogError: string | null;
+  loading: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-left">
+      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted" />
+      <span className="min-w-0 max-w-56 truncate text-small-body font-medium text-fg-2 transition-colors group-hover:text-fg group-data-[popup-open]:text-fg">
+        {agent.name}
+      </span>
+      <span className="shrink-0 text-eyebrow text-subtle">{agent.provider}</span>
+      <CatalogStatus catalogError={catalogError} loading={loading} />
+    </span>
+  );
+}
+
 function EmptySelectionLabel({
   catalogError,
   loading,
@@ -113,6 +146,7 @@ interface AgentCommandSelectValueProps {
   catalogError: string | null;
   loading: boolean;
   emptyLabel: string;
+  variant: "field" | "composer";
 }
 
 function AgentCommandSelectValue({
@@ -121,9 +155,12 @@ function AgentCommandSelectValue({
   catalogError,
   loading,
   emptyLabel,
+  variant,
 }: AgentCommandSelectValueProps) {
   if (selectedAgent) {
-    return (
+    return variant === "composer" ? (
+      <ComposerAgentValue agent={selectedAgent} catalogError={catalogError} loading={loading} />
+    ) : (
       <SelectedAgentValue agent={selectedAgent} catalogError={catalogError} loading={loading} />
     );
   }
@@ -164,6 +201,7 @@ export function AgentCommandSelect({
   triggerTestId,
   triggerId,
   className,
+  variant = "field",
 }: AgentCommandSelectProps) {
   const [open, setOpen] = useState(false);
   const selectedName = value?.trim() ? value : null;
@@ -186,7 +224,7 @@ export function AgentCommandSelect({
         aria-invalid={catalogError ? true : undefined}
         data-testid={triggerTestId}
         disabled={disabled || loadingFirstPage}
-        className={className}
+        className={cn(variant === "composer" && COMPOSER_TRIGGER_CLASS, className)}
         selected={selectedAgent !== null}
       >
         <AgentCommandSelectValue
@@ -195,6 +233,7 @@ export function AgentCommandSelect({
           catalogError={catalogError}
           loading={loading}
           emptyLabel={clearLabel ?? placeholder}
+          variant={variant}
         />
       </CommandSelectTrigger>
       <CommandSelectShell

@@ -94,6 +94,12 @@ export interface SessionComposerProps {
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
   quoteSlot?: ReactNode;
+  /** Replaces the idle placeholder, for hosts without the command catalog. */
+  placeholder?: string;
+  /** `false` removes every way to attach files (button, drop, paste), for hosts that carry text only. */
+  attachments?: boolean;
+  /** `false` drops the pane fill around the composer, for hosts that sit on the desk wallpaper. */
+  backdrop?: boolean;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -112,7 +118,7 @@ function SessionComposerSurface() {
   const state = useSessionComposerStateContext();
   const meta = useSessionComposerMetaContext();
   return (
-    <div className="bg-canvas" data-testid="composer-shell">
+    <div className={meta.backdrop ? "bg-canvas" : undefined} data-testid="composer-shell">
       <ThreadContentRail
         inset={meta.contentInset ?? SESSION_THREAD_CONTENT_INSET_DEFAULT}
         className="pt-2 pb-5"
@@ -159,7 +165,7 @@ function SessionComposerEditor() {
         isCatalogLoading={meta.commandCatalogStatus === "loading"}
         onOpen={meta.onCommandCatalogOpen}
       />
-      <SessionComposerDropRoot disabled={!meta.canPrompt}>
+      <SessionComposerDropRoot disabled={!meta.canPrompt || !meta.attachments}>
         <InputGroup variant="composer">
           <ComposerPrimitive.Root
             className="flex min-w-0 flex-col gap-transcript-inline-gap"
@@ -189,7 +195,9 @@ function SessionComposerInput() {
       data-testid="composer-input"
       inert={!meta.canPrompt}
       placeholder={
-        meta.canPrompt ? "Send a message — type / for commands" : meta.inactivePlaceholder
+        meta.canPrompt
+          ? (meta.placeholder ?? "Send a message — type / for commands")
+          : meta.inactivePlaceholder
       }
       submitMode="enter"
       formatter={state.commandFormatter}
@@ -213,7 +221,7 @@ function SessionComposerInput() {
       <SessionBusyEnterPlugin active={state.busyEnterActive} onEnter={actions.handleEnterAction} />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
-      <SessionComposerPastePlugin />
+      {meta.attachments ? <SessionComposerPastePlugin /> : null}
     </LexicalComposerInput>
   );
 }
@@ -224,6 +232,7 @@ function SessionComposerControls() {
   const meta = useSessionComposerMetaContext();
   return (
     <SessionComposerActionRow
+      attachments={meta.attachments}
       hasStagedQuote={state.hasStagedQuote}
       sessionId={meta.sessionId}
       actionState={{

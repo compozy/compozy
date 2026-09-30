@@ -13,13 +13,30 @@ export interface SessionPromptFallbackOptions {
   onPickerOpened(): void;
 }
 
-export interface SessionPromptFallback {
-  pending: boolean;
-  run(query: string): Promise<void>;
+export interface SessionPromptFallbackRunOptions {
+  /** Starts with this agent instead of the workspace default; an unknown name opens the picker. */
+  agentName?: string;
+  /** Binds the session to this ready worktree instead of the workspace root. */
+  worktreeId?: string;
 }
 
 /**
- * Turns one explicit palette selection into a session. Merely rendering or typing never calls a
+ * What one run did with the query: a session now owns it, the create dialog
+ * holds it, creation failed (already reported to the operator), or the run was
+ * refused before anything started (blank query or another creation in flight).
+ */
+export type SessionPromptFallbackOutcome = "created" | "picker" | "failed" | "ignored";
+
+export interface SessionPromptFallback {
+  pending: boolean;
+  run(
+    query: string,
+    options?: SessionPromptFallbackRunOptions
+  ): Promise<SessionPromptFallbackOutcome>;
+}
+
+/**
+ * Turns one explicit prompt submission into a session. Merely rendering or typing never calls a
  * prompt transport; the first-message queue is armed only after the session has a durable id.
  *
  * In-flight and pending come from the session-create store — the same authority the dialog uses —
@@ -40,47 +57,56 @@ export function useSessionPromptFallback({
 
   return {
     pending,
-    run: async query => {
+    run: async (query, options = {}) => {
       if (query.trim() === "" || createDialog.getSnapshot().context.operation.status !== "idle") {
-        return;
+        return "ignored";
       }
       clearPendingTerminalQuote();
       const workspaceId = workspace.runtimeWorkspaceId;
       if (workspaceId === null) {
         notifyUser({ message: "The active workspace is not ready.", tone: "error" });
-        return;
+        return "failed";
       }
 
-      const defaultAgent = workspace.runtimeWorkspace?.default_agent?.trim() ?? "";
-      const defaultResolves =
-        defaultAgent !== "" &&
+      const agentName =
+        options.agentName?.trim() || workspace.runtimeWorkspace?.default_agent?.trim() || "";
+      const worktreeId = options.worktreeId?.trim() || undefined;
+      const agentResolves =
+        agentName !== "" &&
         agents.isSuccess &&
-        (agents.data?.some(agent => agent.name === defaultAgent) ?? false);
-      if (!defaultResolves) {
-        createDialog.trigger.dialogOpened({ agentName: "", workspaceId });
+        (agents.data?.some(agent => agent.name === agentName) ?? false);
+      if (!agentResolves) {
+        createDialog.trigger.dialogOpened({
+          agentName: "",
+          workspaceId,
+          ...(worktreeId ? { environment: { kind: "worktree" as const, worktreeId } } : {}),
+        });
         createDialog.trigger.fallbackPromptStaged({ prompt: query });
         onPickerOpened();
-        return;
+        return "picker";
       }
 
-      createDialog.trigger.fallbackRequested({ agentName: defaultAgent, workspaceId });
+      createDialog.trigger.fallbackRequested({ agentName, workspaceId });
       const operation = createDialog.getSnapshot().context.operation;
-      if (operation.status !== "submitting") return;
+      if (operation.status !== "submitting") return "ignored";
       const attempt = operation.attempt;
       try {
         const session = await createSession.mutateAsync({
-          agent_name: defaultAgent,
+          agent_name: agentName,
           workspace: workspaceId,
+          ...(worktreeId ? { worktree: worktreeId } : {}),
         });
         sessionStore.trigger.firstPromptQueued({ sessionId: session.id, text: query });
         onCreated({ ...session, workspace_id: session.workspace_id ?? workspaceId });
         createDialog.trigger.fallbackCompleted({ attempt });
+        return "created";
       } catch (error) {
         const reason = error instanceof Error ? error.message : "The session could not be created.";
         createDialog.trigger.submissionFailed({
           attempt,
           message: `Could not ask the agent: ${reason}`,
         });
+        return "failed";
       }
     },
   };
