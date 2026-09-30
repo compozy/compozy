@@ -40,16 +40,15 @@ function TopbarSlotProvider({ children, store }: TopbarSlotProviderProps) {
 
 interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
   /**
-   * Optional leading zone content anchored at the start edge (e.g. OS window
-   * controls). When present the head uses the unified OS anatomy (left-aligned
-   * identity + trailing status/actions).
+   * Window controls anchored at the end edge, after the published trail and a
+   * hairline divider (identity · trail · controls).
    */
-  leading?: React.ReactNode;
+  controls?: React.ReactNode;
   /** Current route / leaf identity rendered as the shell-level H1. */
   title: React.ReactNode;
   /** Ref used by the shell to transfer focus after path navigation. */
   titleRef?: React.Ref<HTMLHeadingElement>;
-  /** Quiet root glyph when the publisher has not supplied `slot.glyph`. */
+  /** Root identity glyph (rendered in the identity well) when the publisher has not supplied `slot.glyph`. */
   glyph?: React.ReactNode;
 }
 
@@ -176,17 +175,18 @@ function TopbarIdentity({
   }
 
   return (
-    <div data-slot="topbar-identity" className="flex min-w-0 items-center gap-2">
+    <div data-slot="topbar-identity" className="flex min-w-0 items-center gap-2.25">
       {mark ? (
         <span
           data-slot="topbar-glyph"
           data-presentation={slot?.glyphPresentation ?? "icon"}
           aria-hidden="true"
           className={cn(
-            "inline-flex size-topbar-glyph shrink-0 items-center justify-center",
+            "inline-flex shrink-0 items-center justify-center",
             slot?.glyphPresentation === "state"
               ? "text-accent"
-              : "rounded border border-line bg-badge-fill text-muted [&_svg]:size-3.5"
+              : // Identity well: the app glyph on a mint tint over the surface.
+                "size-6.5 rounded-sm bg-well text-success [&_svg]:size-4"
           )}
         >
           {mark}
@@ -221,7 +221,7 @@ function TopbarTitle({
         data-slot="topbar-title"
         data-testid="topbar-title-text"
         className={cn(
-          "min-w-0 max-w-xs text-ws-name font-semibold tracking-tight text-fg-strong outline-none",
+          "min-w-0 max-w-xs text-card-title font-medium text-fg outline-none",
           className
         )}
       >
@@ -245,25 +245,20 @@ function TopbarTitle({
   );
 }
 
-function Topbar({ leading, title, titleRef, glyph, className, ...props }: TopbarProps) {
+function Topbar({ controls, title, titleRef, glyph, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
-  const hasLeading = leading != null;
+  const hasControls = controls != null;
   const hasTrail = Boolean(slot?.status) || Boolean(slot?.actions) || Boolean(slot?.overflow);
 
   return (
     <header
       data-slot="topbar"
       className={cn(
-        "flex h-11 min-w-0 shrink-0 items-center gap-2.5 overflow-hidden border-b border-line bg-canvas px-3",
+        "flex h-window-head min-w-0 shrink-0 items-center gap-2.5 overflow-hidden border-b border-line bg-canvas pr-2 pl-4",
         className
       )}
       {...props}
     >
-      {hasLeading ? (
-        <div data-slot="topbar-leading" className="flex shrink-0 items-center">
-          {leading}
-        </div>
-      ) : null}
       <TopbarIdentity title={title} titleRef={titleRef} glyph={glyph} slot={slot} />
       <div data-slot="topbar-flex" className="min-h-full min-w-2 flex-1 self-stretch" />
       {hasTrail ? (
@@ -298,6 +293,18 @@ function Topbar({ leading, title, titleRef, glyph, className, ...props }: Topbar
             </div>
           ) : null}
         </div>
+      ) : null}
+      {hasControls ? (
+        <>
+          <span
+            aria-hidden="true"
+            data-slot="topbar-controls-vsep"
+            className="mx-1.5 h-4.5 w-px shrink-0 bg-line"
+          />
+          <div data-slot="topbar-controls" className="flex shrink-0 items-center">
+            {controls}
+          </div>
+        </>
       ) : null}
     </header>
   );

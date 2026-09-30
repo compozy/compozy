@@ -1,18 +1,17 @@
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "lucide-react";
 import { Fragment } from "react";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The three OS window controls, matching the OpenDesign prototype geometry:
- * 12px glyphs, 7px gap. Signal tones (accent/muted/success) appear only on
- * real buttons — never on inert presentation — and focus is a distinct ring,
- * not a restatement of hover. Interactive controls keep the 12px glyph inside
- * a ≥24px target. The owning window frame supplies each semantic action.
+ * The window controls, matching the shell-rail prototype (`.wctl`): quiet
+ * trailing icon buttons in the order minimize, zoom, close — 28px targets
+ * with a 15px glyph, subtle at rest and `fg` on a `surface-2` wash on hover.
+ * They trail the deck row, or the head when the frame has no deck. The owning
+ * window frame supplies each semantic action.
  *
- * Compact (<960px, os-v2.css mobile block): the zoom control disappears
- * (meaningless in a stack), glyphs grow to 15px, and interactive controls get
- * non-overlapping 44px touch targets. Inert chrome uses the visual 12px gap.
+ * Compact (<960px): the zoom control disappears (meaningless in a stack) and
+ * interactive controls get non-overlapping 44px touch targets.
  */
 export type OsTrafficLightAction = "close" | "minimize" | "zoom";
 
@@ -22,15 +21,11 @@ const ACTION_LABEL: Record<OsTrafficLightAction, string> = {
   zoom: "Zoom window",
 };
 
-const ACTION_ORDER: OsTrafficLightAction[] = ["close", "minimize", "zoom"];
+const ACTION_ORDER: OsTrafficLightAction[] = ["minimize", "zoom", "close"];
 
-// Tone applies to the 12px glyph on button hover/focus, per the prototype.
-const ACTION_TONE: Record<OsTrafficLightAction, string> = {
-  close:
-    "group-hover/traffic:bg-accent group-hover/traffic:border-accent group-focus-visible/traffic:bg-accent group-focus-visible/traffic:border-accent",
-  minimize:
-    "group-hover/traffic:bg-muted group-hover/traffic:border-muted group-focus-visible/traffic:bg-muted group-focus-visible/traffic:border-muted",
-  zoom: "group-hover/traffic:bg-success group-hover/traffic:border-success group-focus-visible/traffic:bg-success group-focus-visible/traffic:border-success",
+const ACTION_ICON: Record<Exclude<OsTrafficLightAction, "zoom">, LucideIcon> = {
+  close: X,
+  minimize: Minus,
 };
 
 export interface OsTrafficLightsProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
@@ -39,7 +34,7 @@ export interface OsTrafficLightsProps extends Omit<React.ComponentProps<"div">, 
    * render as non-interactive presentation (truthful chrome, no dead buttons).
    */
   onSelect?: (action: OsTrafficLightAction) => void;
-  /** Compact presentation: zoom hidden, enlarged glyphs and hit areas. */
+  /** Compact presentation: zoom hidden, 44px hit areas. */
   compact?: boolean;
   /** Wraps the interactive zoom button (the zoom-menu hover anchor). */
   wrapZoom?: (button: React.ReactNode) => React.ReactNode;
@@ -59,14 +54,19 @@ function Light({
   pressed?: boolean;
 }) {
   const label = action === "zoom" && pressed ? "Restore window" : ACTION_LABEL[action];
-  const ZoomIcon = pressed ? Minimize2 : Maximize2;
-  const glyph = cn(
-    "rounded-xs border border-line-strong bg-btn-default-fill transition-colors duration-base",
-    compact ? "size-traffic-light-compact" : "size-traffic-light"
+  const Icon = action === "zoom" ? (pressed ? Minimize2 : Maximize2) : ACTION_ICON[action];
+  const box = cn(
+    "grid shrink-0 place-items-center rounded-xs text-subtle",
+    compact ? "size-11" : "size-7"
   );
+  const glyph = <Icon aria-hidden="true" className="size-3.75" />;
 
   if (!onSelect) {
-    return <span aria-hidden="true" data-action={action} className={glyph} />;
+    return (
+      <span aria-hidden="true" data-action={action} className={box}>
+        {glyph}
+      </span>
+    );
   }
   return (
     <button
@@ -76,24 +76,16 @@ function Light({
       aria-pressed={pressed}
       data-action={action}
       className={cn(
-        "group/traffic grid place-items-center rounded-xs focus-visible:outline-none",
-        compact
-          ? "size-traffic-light-compact-target focus-visible:shadow-focus-inset"
-          : // ≥24px target around the 12px glyph; -mx-1.5 (-6px each side) so
-            // adjacent button starts are 19px apart and the glyph edge gap is 7px.
-            "-mx-1.5 size-6 focus-visible:shadow-focus-ring"
+        box,
+        "transition-colors duration-fast hover:bg-surface-2 hover:text-fg focus-visible:outline-none",
+        compact ? "focus-visible:shadow-focus-inset" : "focus-visible:shadow-focus-ring"
       )}
       // The window frame owns pointer activation. Keep the native click, but
       // do not let its preceding mouse focus replace this button before click.
       onMouseDown={event => event.preventDefault()}
       onClick={() => onSelect(action)}
     >
-      <span
-        aria-hidden="true"
-        className={cn(glyph, ACTION_TONE[action], "grid place-items-center")}
-      >
-        {action === "zoom" ? <ZoomIcon className="size-2.5" /> : null}
-      </span>
+      {glyph}
     </button>
   );
 }
@@ -111,11 +103,7 @@ export function OsTrafficLights({
     <div
       data-slot="os-traffic-lights"
       data-presentation={compact ? "compact" : undefined}
-      className={cn(
-        "flex items-center",
-        compact ? (onSelect ? "gap-0" : "gap-traffic-light-compact-gap") : "gap-traffic-light-gap",
-        className
-      )}
+      className={cn("flex shrink-0 items-center gap-px", className)}
       {...props}
     >
       {actions.map(action => {

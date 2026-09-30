@@ -201,6 +201,7 @@ function OsWindowMember({
   if (!win) return null;
   const app = getOsApp(win.app);
   const Controller = app.Controller;
+  const AppIcon = app.icon;
   const compact = presentation === "compact";
 
   // Navigation intent is classified at the click, not inferred from paths
@@ -222,6 +223,9 @@ function OsWindowMember({
     <OsWindowSurface
       onClickCapture={classifyNavigation}
       title={app.title}
+      // Root heads show the app in the identity well until the surface
+      // publishes its own glyph (or a drill-in trail replaces it).
+      glyph={<AppIcon />}
       focused={focused}
       controls={controls}
       onTrafficLight={controls === "head" ? onTrafficLight : undefined}

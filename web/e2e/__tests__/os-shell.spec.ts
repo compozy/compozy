@@ -1948,7 +1948,7 @@ test("E2E-011: the compact stack round-trips with floating rects preserved", asy
   expect(closeTarget.height).toBeGreaterThanOrEqual(44);
   expect(minimizeTarget.width).toBeGreaterThanOrEqual(44);
   expect(minimizeTarget.height).toBeGreaterThanOrEqual(44);
-  expect(closeTarget.x + closeTarget.width).toBeLessThanOrEqual(minimizeTarget.x);
+  expect(minimizeTarget.x + minimizeTarget.width).toBeLessThanOrEqual(closeTarget.x);
   const stackBox = await tasks.boundingBox();
   const viewport = appPage.viewportSize();
   if (!stackBox || !viewport) throw new Error("compact stack window must be measurable");

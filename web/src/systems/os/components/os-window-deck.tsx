@@ -113,9 +113,9 @@ export interface OsWindowDeckProps {
 }
 
 /**
- * The deck (reference §01): a 37px row on the rail holding the OS controls,
- * one tab per member, the `+` button, and the drag gutter. Rendered only at
- * ≥2 members (D1); the active tab fuses with the head surface below.
+ * The deck: one tab per member, the `+` button, the drag gutter, and the
+ * window controls at the right end. Rendered only at ≥2 members (D1); the
+ * active tab fuses with the head surface below.
  */
 export function OsWindowDeck({
   frame,
@@ -135,16 +135,10 @@ export function OsWindowDeck({
       data-slot="os-window-deck"
       data-testid={`os-window-deck-${frame.id}`}
       className={cn(
-        "flex h-deck shrink-0 cursor-grab items-end gap-0.5 bg-rail px-2.5 shadow-[inset_0_-1px_0_var(--color-line)] select-none active:cursor-grabbing",
+        "flex h-deck shrink-0 cursor-grab items-end gap-0.5 bg-rail pr-1 pl-2.5 shadow-[inset_0_-1px_0_var(--color-line)] select-none active:cursor-grabbing",
         dragHandleClassName
       )}
     >
-      <OsTrafficLights
-        className="mr-1.5 h-deck-tab"
-        onSelect={onTrafficLight}
-        wrapZoom={zoomMenu}
-        zoomed={frame.zoomed}
-      />
       <div
         ref={registerTabs}
         role="tablist"
@@ -204,7 +198,13 @@ export function OsWindowDeck({
       >
         <Plus aria-hidden="true" className="size-3" strokeWidth={1.5} />
       </button>
-      <span aria-hidden="true" className="min-w-4 flex-1" />
+      <span aria-hidden="true" className="min-w-3 flex-1" />
+      <OsTrafficLights
+        className="self-center"
+        onSelect={onTrafficLight}
+        wrapZoom={zoomMenu}
+        zoomed={frame.zoomed}
+      />
     </div>
   );
 }

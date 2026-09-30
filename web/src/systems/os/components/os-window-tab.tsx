@@ -99,7 +99,7 @@ export function OsWindowTab({
               role="tab"
               aria-selected={active}
               data-slot="os-window-tab-activate"
-              className="flex min-w-0 flex-1 cursor-pointer items-center gap-traffic-light-gap rounded-[inherit] px-2.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[inherit] px-2.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
               onPointerDown={event => {
                 if (event.button === 0) onTabPointerDown?.(event);
               }}
