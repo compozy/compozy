@@ -1,15 +1,22 @@
 import { useRef } from "react";
 
-import { Switch, cn } from "@compozy/ui";
+import { PillGroup, Switch, cn, type PillGroupItem } from "@compozy/ui";
 
 import { useAppearanceSettingsPane } from "../../hooks/use-appearance-settings-pane";
 import type { OsWallpaper } from "../../lib/os-types";
+import type { ThemePreference } from "@/systems/theme";
 import {
   SettingRow,
   SettingsGroup,
   SettingsPageFrame,
   useSettingsTopbar,
 } from "@/systems/settings";
+
+const THEMES: ReadonlyArray<PillGroupItem<ThemePreference>> = [
+  { value: "light", label: "Light", testId: "os-appearance-theme-light" },
+  { value: "dark", label: "Dark", testId: "os-appearance-theme-dark" },
+  { value: "system", label: "System", testId: "os-appearance-theme-system" },
+];
 
 const WALLPAPERS: Array<{ id: OsWallpaper; label: string }> = [
   { id: "ember", label: "Ember" },
@@ -106,9 +113,10 @@ function WallpaperPicker({
 }
 
 /**
- * The Appearance pane (US-015): shell-session wallpaper, Dock magnification,
- * and the in-product reduced-motion preference. The system reduced-motion
- * preference always wins over the toggle (US-015.EC-1).
+ * The Appearance pane (US-015): this browser's theme (light, dark, or follow
+ * the system), shell-session wallpaper, and the in-product reduced-motion
+ * preference. The system reduced-motion preference always wins over the
+ * toggle (US-015.EC-1).
  */
 export function AppearanceSettingsPane() {
   useSettingsTopbar("appearance");
@@ -117,20 +125,19 @@ export function AppearanceSettingsPane() {
   return (
     <SettingsPageFrame slug="appearance">
       <div className="flex flex-col gap-6" data-testid="os-appearance-pane">
-        <SettingsGroup bare title="Wallpaper">
-          <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
-        </SettingsGroup>
-        <SettingsGroup title="Dock and motion">
+        <SettingsGroup title="Theme and motion">
           <SettingRow
             control={
-              <Switch
-                checked={appearance.dockMagnify}
-                data-testid="os-appearance-magnify"
-                onCheckedChange={checked => appearance.setDockMagnify(checked === true)}
+              <PillGroup<ThemePreference>
+                data-testid="os-appearance-theme"
+                items={THEMES}
+                value={appearance.theme}
+                onChange={appearance.setTheme}
               />
             }
-            data-testid="os-appearance-magnify-row"
-            label="Dock magnification"
+            data-testid="os-appearance-theme-row"
+            help="System follows your computer's light or dark setting."
+            label="Theme"
           />
           <SettingRow
             control={
@@ -153,6 +160,9 @@ export function AppearanceSettingsPane() {
             }
             label="Reduce motion"
           />
+        </SettingsGroup>
+        <SettingsGroup bare title="Wallpaper">
+          <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
         </SettingsGroup>
       </div>
     </SettingsPageFrame>

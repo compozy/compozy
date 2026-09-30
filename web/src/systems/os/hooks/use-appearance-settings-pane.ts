@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { shallowEqual } from "@xstate/store";
 
+import { useThemePreference } from "@/systems/theme";
+
 import { getSystemReducedMotion, subscribeSystemReducedMotion } from "../lib/reduced-motion";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -10,9 +12,7 @@ export function useAppearanceSettingsPane() {
   const { manager } = useOsShell();
   const desktop = useDesktop(
     state => ({
-      dockMagnify: state.dockMagnify,
       reduceMotion: state.reduceMotion,
-      setDockMagnify: manager.setDockMagnify,
       setReduceMotion: manager.setReduceMotion,
       setWallpaper: manager.setWallpaper,
       wallpaper: state.wallpaper,
@@ -25,5 +25,7 @@ export function useAppearanceSettingsPane() {
     () => false
   );
 
-  return { ...desktop, systemReducedMotion };
+  const { preference: theme, setPreference: setTheme } = useThemePreference();
+
+  return { ...desktop, setTheme, systemReducedMotion, theme };
 }

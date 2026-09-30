@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 
 import { Toaster, TooltipProvider, UIProvider } from "@compozy/ui";
 
+import { installThemeRuntime } from "@/systems/theme";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { routeTree } from "./routeTree.gen";
 
@@ -41,6 +42,9 @@ declare module "@tanstack/react-router" {
     topbar?: TopbarRouteContext;
   }
 }
+
+// Keeps <html> painted with the resolved theme (the boot script set it pre-paint).
+installThemeRuntime();
 
 const rootElement = document.getElementById("app");
 if (rootElement && !rootElement.innerHTML) {

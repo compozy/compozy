@@ -39,3 +39,4 @@ export {
   type ConnectionVariant,
 } from "../components/custom/connection-indicator";
 export { LiveBadge, type LiveBadgeProps } from "../components/custom/live-badge";
+export { ThemeToggle, type ThemeToggleProps } from "../components/custom/theme-toggle";
