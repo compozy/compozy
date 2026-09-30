@@ -4,7 +4,7 @@ area: APP
 title: Operate the desktop window from native controls in the topbar
 persona: Dora
 journey: J-desktop-attach-daily
-expected: The packaged product window shows operating-system window controls within the 52px Compozy topbar without covering product controls; macOS traffic lights sit inside the 84px leading reserve before the Compozy mark, vertically centred in the bar; Linux follows the desktop environment's native side and button set, painted on the topbar color with symbols that follow the light or dark theme; the whole topbar drags the window while every control in it stays clickable; in-product windows keep their own quiet trailing minimize, zoom and close icon buttons, distinct from the native controls; the browser renders the topbar without the reserve or desktop controls.
+expected: The packaged product window shows operating-system window controls within the 52px CompozyOS topbar without covering product controls; macOS traffic lights sit inside the 84px leading reserve before the CompozyOS mark, vertically centred in the bar; Linux follows the desktop environment's native side and button set, painted on the topbar color with symbols that follow the light or dark theme; the whole topbar drags the window while every control in it stays clickable; in-product windows keep their own quiet trailing minimize, zoom and close icon buttons, distinct from the native controls; the browser renders the topbar without the reserve or desktop controls.
 entry_points: packaged macOS product window; packaged Linux product window; web desktop in a browser
 qa_status: untested
 bug_ids:

@@ -64,7 +64,7 @@
   --color-primary-hover: #ffffff;
   --color-primary-foreground: #0a0a0a;
 
-  /* Accent — Compozy orange: highlight and needs-you (`attn`). The only
+  /* Accent — the brand orange: highlight and needs-you (`attn`). The only
      non-neutral hue; amber (`warning`) is reserved for real warnings. */
   --color-accent: #e8572a;
   --color-accent-hover: #d14e25;

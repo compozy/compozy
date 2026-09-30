@@ -11,7 +11,7 @@
    The :root block below mirrors packages/ui/src/tokens.css (dark, the
    default) and the [data-theme="light"] block mirrors tokens-light.css —
    shell-v2 values: neutral chroma-free ramp, opaque hairlines, inverted
-   primary, Compozy orange as highlight/needs-you, Inter 425/500/600 +
+   primary, the accent orange as highlight/needs-you, Inter 425/500/600 +
    Geist Mono, 14.5px body, radius ladder 3/6/7/8/8/12/18/pill.
    Prototype dialect keeps BARE names (--canvas, not --color-canvas);
    the production mapping lives in PARITY.md. Link this file (or copy
@@ -60,7 +60,7 @@
   /* primary — the single inverted action (never the brand hue) */
   --primary:#f5f5f5; --primary-hover:#ffffff; --primary-ink:#0a0a0a;
 
-  /* accent — Compozy orange: highlight + needs-you (attn); amber is warnings only */
+  /* accent — the accent orange: highlight + needs-you (attn); amber is warnings only */
   --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
   --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16);
   --accent-dim:rgba(232,87,42,.24); --accent-glow:rgba(232,87,42,.05);

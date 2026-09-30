@@ -22,4 +22,4 @@ cancel and Kill beats; that requirement is historical after the 2026-08-31 hard 
 QA impact 2026-08-31: the distinct killed beat was removed. Re-walk the unified canceled beat and
 verify Kill is absent from the run page.
 
-qa-impact: 2026-09-30 shell rail v2 (surf-tasks). Needs-you cards now lead with the canonical state glyph instead of amber icons: an approval shows the attention glyph (Compozy orange) and a set-aside (quarantined) step shows the failed glyph; amber is kept for real warnings only. The expected text's "warning glyph" reads as "state glyph" under this contract. Verification walk: `.compozy/tasks/shell-rail/reports/surf-tasks-T3.md`.
+qa-impact: 2026-09-30 shell rail v2 (surf-tasks). Needs-you cards now lead with the canonical state glyph instead of amber icons: an approval shows the attention glyph (accent orange) and a set-aside (quarantined) step shows the failed glyph; amber is kept for real warnings only. The expected text's "warning glyph" reads as "state glyph" under this contract. Verification walk: `.compozy/tasks/shell-rail/reports/surf-tasks-T3.md`.

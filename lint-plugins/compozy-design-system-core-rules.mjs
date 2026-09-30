@@ -264,7 +264,7 @@ export const noDesignGlazeRgba = {
     type: "problem",
     docs: {
       description:
-        "Forbid theme-blind translucent white/black ink (inline rgba/alpha-hex or white/NN, black/NN) in frontend JSX className. Use named Compozy glaze tokens, which flip per theme.",
+        "Forbid theme-blind translucent white/black ink (inline rgba/alpha-hex or white/NN, black/NN) in frontend JSX className. Use named glaze tokens, which flip per theme.",
       recommended: false,
     },
     messages: {

@@ -97,4 +97,4 @@ Applied to: the chrome (rail and topbar on `chrome`), panes on `surface`, the ta
 `sunken`, pill buttons and filters, Inter 425/500 type scale, identity wells in root window heads and the
 approval card, state glyphs (spinner / dashed ring / check / amber dot), the approval card anatomy
 (well + title, sunken command, hint + Deny + inverted "Allow once ↵"), and `shadow-card` on the composer,
-cards and the active rail item. The needs-you signal stays Compozy orange (#e8572a dark, #d14e25 light); the amber is kept only for real warnings (terminal).
+cards and the active rail item. The needs-you signal stays the accent orange (#e8572a dark, #d14e25 light); the amber is kept only for real warnings (terminal).

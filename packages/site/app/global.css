@@ -57,7 +57,7 @@
   --text-code-block: 0.78125rem;
   --text-code-block--line-height: 1.5;
   /* The product's primary action is inverted (near-white on dark); the site
-     keeps its Compozy-orange CTA. */
+     keeps its accent-orange CTA. */
   --color-primary: var(--color-accent);
   --color-primary-hover: var(--color-accent-hover);
   --color-primary-foreground: var(--color-accent-ink);

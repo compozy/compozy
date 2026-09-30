@@ -55,7 +55,7 @@ at runtime.
   - `border`/`border-strong`
   - `fg`/`muted`/`subtle` plus derived `fg-2`/`fg-3`
   - `primary`/`on-primary` (inverted)
-  - `accent` (Compozy orange: `#e8572a` dark, `#d14e25` light) for highlights and needs-you
+  - `accent` (the accent orange: `#e8572a` dark, `#d14e25` light) for highlights and needs-you
   - success mint, `well`, `shadow-card`/`shadow-elevated`/`shadow-pop`
   - Values come verbatim from `brand-spec.md` and `shell-rail-v2.html` lines 14–72.
 - **Replace dark-only alpha families** with theme-scoped values:

@@ -6,7 +6,7 @@
    `:root` qualifier outranks tokens.css's own unlayered `:root` block, which
    the CSS @import order places after this file.
    Values: brand-spec.md light column (aicss.dev "Approval Card" light set);
-   Compozy orange steps one shade deeper for light contrast. */
+   The accent orange steps one shade deeper for light contrast. */
 
 [data-theme="light"]:root {
   color-scheme: light;
@@ -46,7 +46,7 @@
   --color-primary-hover: #2a2f3a;
   --color-primary-foreground: #ffffff;
 
-  /* Accent — Compozy orange, one step deeper. */
+  /* Accent — the brand orange, one step deeper. */
   /* Deep enough that white count ink clears 4.5:1 on the fill. */
   --color-accent: #c94b24;
   --color-accent-hover: #b9441f;

@@ -603,7 +603,7 @@ generated token regions by hand. Change the CSS source, then run
 CompozyOS is an agent operating system for everyone who works with AI agents — not
 an expert-only console. The product should feel quiet, calm, and intentional:
 neutral chroma-free greys, restrained text, quiet depth, pill actions with a
-single inverted primary, and Compozy orange only where something needs you. It
+single inverted primary, and the accent orange only where something needs you. It
 is not a marketing-gradient system, not a generic SaaS blue-gray dashboard,
 and no longer the dense operator cockpit of its early direction.
 
@@ -624,7 +624,7 @@ The core atmosphere is:
 - Two surface levels. Content sits on a card surface; secondary lists sit in a
   sunken inset panel with no border.
 - One primary, one highlight. The single primary action is inverted
-  (`--color-primary`). `--color-accent` (Compozy orange, also `--color-attn`)
+  (`--color-primary`). `--color-accent` (the accent orange, also `--color-attn`)
   marks highlights and needs-you, and should usually appear once in a
   viewport. Amber (`--color-warning`) is only for real warnings.
 - Quiet depth. Hierarchy comes from the surface ramp, opaque hairlines, and the
@@ -715,7 +715,7 @@ token or component at the source; do not locally override one callsite.
 ### Primary action
 
 The single primary action is inverted: near-white on dark, near-black on
-light. It is never the brand hue; Compozy orange marks highlights and
+light. It is never the brand hue; the accent orange marks highlights and
 needs-you (`--color-attn`), not the default action.
 
 <!-- BEGIN:tokens:primary -->
