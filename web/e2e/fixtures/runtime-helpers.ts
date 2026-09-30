@@ -22,6 +22,7 @@ export interface RuntimeConfigInput {
   modelsDevEnabled?: boolean;
   memoryEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
+  newWindowPolicy?: "floating" | "beside_focus";
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
@@ -99,6 +100,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           'timeout = "5s"',
           "",
         ]),
+    ...(input.newWindowPolicy === undefined
+      ? []
+      : ["[window_manager]", `new_window_policy = ${tomlString(input.newWindowPolicy)}`, ""]),
     ...(input.toolsExternalDefault === undefined
       ? []
       : ["[tools.policy]", `external_default = ${tomlString(input.toolsExternalDefault)}`, ""]),

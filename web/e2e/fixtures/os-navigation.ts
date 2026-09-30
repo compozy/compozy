@@ -4,7 +4,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * Shared OS window-shell navigation helpers.
  *
  * The current shell has no persistent sidebar: a user opens each app through the
- * Dock (or the menubar for Settings) and every interaction is scoped to the owning
+ * Dock rail (or the rail foot for Settings) and every interaction is scoped to the owning
  * OS window. Runtime window IDs are opaque; app and instance selectors come from
  * the authority-backed attributes rendered on each window surface. These helpers
  * mirror the proven patterns from `os-shell.spec.ts` so every spec shares one
@@ -17,16 +17,16 @@ export function appWindow(page: Page, app: string): Locator {
 }
 
 /**
- * Open an OS app window from the Dock or menubar and return its window locator.
+ * Open an OS app window from the Dock and return its window locator.
  *
  * `title` is the control's accessible name (the app title, e.g. `"Tasks"`); `app`
- * is the lowercase app identity (e.g. `"tasks"`). The same role+name click path
- * serves Dock launchers and the menubar Settings cog.
+ * is the lowercase app identity (e.g. `"tasks"`). Settings opens from the rail
+ * foot — or the compact tab bar's trailing foot, the same control.
  */
 export async function openAppWindow(page: Page, title: string, app: string): Promise<Locator> {
   const launcher =
     app === "settings"
-      ? page.locator('[data-slot="os-menubar-settings"]')
+      ? page.locator('[data-slot="os-rail-settings"]:visible')
       : page
           .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
           .getByRole("button", { name: title });

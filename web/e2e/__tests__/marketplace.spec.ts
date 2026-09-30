@@ -947,7 +947,10 @@ test.describe("Extension marketplace runtime", () => {
     await expect(approvedUI.permissionPrompt).toBeVisible();
     await expect(approvedWin.getByRole("region", { name: "Permission required" })).toBeVisible();
     await expect(approvedWin.getByRole("button", { name: /always allow/i })).toBeVisible();
-    await expect(approvedWin.getByRole("button", { name: /^don't allow 3$/i })).toBeVisible();
+    // The keycap is decorative; the shortcut rides in aria-keyshortcuts.
+    const dontAllow = approvedWin.getByRole("button", { name: /^don't allow$/i });
+    await expect(dontAllow).toBeVisible();
+    await expect(dontAllow).toHaveAttribute("aria-keyshortcuts", "3");
     await assertPermissionKeyboardPath(approvedWin);
 
     const approveResponsePromise = appPage.waitForResponse(
@@ -1400,11 +1403,13 @@ test.describe("Extension marketplace runtime", () => {
 
   async function assertPermissionKeyboardPath(win: Locator): Promise<void> {
     const page = win.page();
+    // Focus follows the visual order: decline actions, then the allow pair with
+    // the primary "Allow once" last.
     const focusOrder = [
-      "permission-allow-once",
-      "permission-allow-always",
       "permission-reject-once",
       "permission-reject-menu-trigger",
+      "permission-allow-always",
+      "permission-allow-once",
     ];
     await win.getByTestId(focusOrder[0]).focus();
     for (const testID of focusOrder) {
@@ -1413,6 +1418,9 @@ test.describe("Extension marketplace runtime", () => {
         await page.keyboard.press("Tab");
       }
     }
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(win.getByTestId("permission-reject-menu-trigger")).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("permission-reject-menu")).toBeVisible();
     await expect(page.getByTestId("permission-reject-always")).toBeFocused();

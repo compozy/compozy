@@ -70,6 +70,8 @@ export interface BrowserRuntimeOptions {
   host?: string;
   modelsDevEnabled?: boolean;
   memoryEnabled?: boolean;
+  /** Pins `window_manager.new_window_policy` for specs whose invariants need one placement. */
+  newWindowPolicy?: "floating" | "beside_focus";
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
   seedDefaultWorkspace?: boolean;
@@ -197,6 +199,7 @@ async function createBrowserRuntimeAttempt(
         modelsDevEnabled: options.modelsDevEnabled,
         memoryEnabled: options.memoryEnabled,
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
+        newWindowPolicy: options.newWindowPolicy,
         port: httpPort,
         socketPath: paths.daemonSocket,
         toolsExternalDefault: options.toolsExternalDefault,

@@ -257,7 +257,9 @@ function OsWorkspacesStage({
       <div
         data-slot="os-workspaces-stage"
         className={cn(
-          "flex w-workspaces-stage flex-col items-center",
+          // Above the reserved dismiss band below: a tall worktree menu hangs
+          // into that band and must stay clickable.
+          "relative z-1 flex w-workspaces-stage flex-col items-center",
           !reducedMotion && "os-wsov-in"
         )}
         onKeyDown={switcher.onStageKeyDown}

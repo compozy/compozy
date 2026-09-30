@@ -272,7 +272,7 @@ test.describe("Profiles", () => {
     );
     await ui.createConfirm.click();
     expect((await created).ok()).toBe(true);
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
 
     const workspaceControl = appPage.locator('[data-slot="os-menubar-workspace"]');
     await workspaceControl.click();
@@ -297,7 +297,7 @@ test.describe("Profiles", () => {
     );
     await ui.switcherOption("marketing").click();
     expect((await selectionResponse).ok()).toBe(true);
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
 
     // The remembered choice is daemon state, so the terminal sees it too.
     const remembered =
@@ -306,7 +306,7 @@ test.describe("Profiles", () => {
 
     // Returning to the project restores it rather than resetting to default.
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
   });
 
   test("E2E-014: settings lists, creates, and edits identity behind disclosure", async ({
@@ -366,7 +366,9 @@ test.describe("Profiles", () => {
     // Creation activates the new profile immediately. Desktops are profile
     // partitions, so reopen Settings in research instead of asserting against
     // the now-inactive consulting window.
-    await expect(profilesOperatorSelectors(appPage).switcher).toContainText("research");
+    await expect(profilesOperatorSelectors(appPage).switcher).toHaveAccessibleName(
+      "Profile: research"
+    );
     const researchSettings = await openProfilesSettings(appPage);
     const researchUI = profilesOperatorSelectors(appPage, researchSettings);
     await expect(researchUI.row("research")).toBeVisible();
@@ -489,7 +491,7 @@ test.describe("Profiles", () => {
     );
     await ui.paletteRow("marketing").click();
     expect((await selectionResponse).ok()).toBe(true);
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     await expect(palette).toBeHidden();
 
     // A lifecycle action collects only its target, then opens the canonical
@@ -519,7 +521,7 @@ test.describe("Profiles", () => {
     const ui = profilesOperatorSelectors(appPage);
     await ui.switcher.click();
     await ui.switcherAll.click();
-    await expect(ui.switcher).toContainText("All profiles");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
 
     // S3: every aggregate row names its owner, and an archived owner says so.
     const sessions = await openSessionsCatalog(appPage);
@@ -537,12 +539,12 @@ test.describe("Profiles", () => {
 
     // S11: the two axes compose — the globe stays independent of the profile.
     await appPage.getByTestId("os-global-scope-toggle").click();
-    await expect(ui.switcher).toContainText("All profiles");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
 
     // Leaving the aggregate lands on a real profile, never on the aggregate.
     await ui.switcher.click();
     await ui.switcherOption("marketing").click();
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     await expect(rows.ownerTags).toHaveCount(0);
   });
 
@@ -572,7 +574,7 @@ test.describe("Profiles", () => {
     // Informed, not blocked: the item resolves through the labeled aggregate read.
     await expect(ui.ownerBanner).toContainText("belongs to consulting");
     await ui.ownerBannerSwitch.click();
-    await expect(ui.switcher).toContainText("consulting");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: consulting");
   });
 
   test("E2E-019: an empty listing names the profile it is empty for", async ({
@@ -705,7 +707,7 @@ test.describe("Profiles", () => {
     await expect(profilesOperatorSelectors(appPage, palette).ownerTags.first()).toBeVisible();
   });
 
-  test("E2E-029: the right cluster order holds and a keyboard-only switch re-scopes listings", async ({
+  test("E2E-029: the tray and rail-foot order holds and a keyboard-only switch re-scopes listings", async ({
     appPage,
     runtime,
   }) => {
@@ -714,22 +716,39 @@ test.describe("Profiles", () => {
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
-    // S1: notifications → palette → profile switcher → Settings, in that order.
+    // S1: the topbar tray keeps notifications before the palette; the rail foot
+    // stacks the profile switcher above the theme toggle above Settings (D6).
+    const railFoot = appPage.locator('[data-slot="os-rail-foot"]');
+    for (const control of [
+      appPage.locator('[data-slot="os-menubar-bell"]'),
+      appPage.locator('[data-slot="os-menubar-command"]'),
+      railFoot.getByTestId("os-menubar-profile"),
+      railFoot.getByRole("button", { name: /^Switch to (?:light|dark) mode$/ }),
+      railFoot.locator('[data-slot="os-rail-settings"]'),
+    ]) {
+      await expect(control).toBeVisible();
+    }
     const order = await appPage.evaluate(() => {
-      const slots = ["os-menubar-notifications", "os-menubar-command", "os-menubar-profile"];
-      const positions = slots.map(slot => {
-        const selector =
-          slot === "os-menubar-profile"
-            ? `[data-testid="${slot}"]`
-            : `[data-slot="${slot === "os-menubar-notifications" ? "os-menubar-bell" : slot}"]`;
-        return document.querySelector(selector)?.getBoundingClientRect().left ?? -1;
-      });
-      const settings =
-        document.querySelector('[data-slot="os-menubar-settings"]')?.getBoundingClientRect().left ??
-        -1;
-      return [...positions, settings];
+      const rect = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+      const foot = '[data-slot="os-rail-foot"]';
+      return {
+        tray: ['[data-slot="os-menubar-bell"]', '[data-slot="os-menubar-command"]'].map(
+          selector => rect(selector)?.left ?? -1
+        ),
+        foot: [
+          `${foot} [data-testid="os-menubar-profile"]`,
+          `${foot} [aria-label^="Switch to"]`,
+          `${foot} [data-slot="os-rail-settings"]`,
+        ].map(selector => rect(selector)?.top ?? -1),
+      };
     });
-    expect(order).toEqual([...order].sort((left, right) => left - right));
+    for (const positions of [order.tray, order.foot]) {
+      expect(
+        positions.every(position => position >= 0),
+        JSON.stringify(order)
+      ).toBe(true);
+      expect(positions).toEqual([...positions].sort((left, right) => left - right));
+    }
 
     const ui = profilesOperatorSelectors(appPage);
     const palette = await openCommandPalette(appPage);
@@ -739,7 +758,7 @@ test.describe("Profiles", () => {
     await palette.getByRole("combobox").fill("marketing");
     await expect(ui.paletteRow("marketing")).toBeVisible();
     await appPage.keyboard.press("Enter");
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
   });
   test("E2E-020: two clients hold their own active profile and share only the remembered choice", async ({
     appPage,
@@ -759,7 +778,7 @@ test.describe("Profiles", () => {
       await completeOnboardingIfPrompted(peerPage);
       const ui = profilesOperatorSelectors(appPage);
       const peer = profilesOperatorSelectors(peerPage);
-      await expect(peer.switcher).toContainText("default");
+      await expect(peer.switcher).toHaveAccessibleName("Profile: default");
 
       // The switch is this client's gesture. It persists the remembered choice…
       const remembered = appPage.waitForResponse(
@@ -770,17 +789,17 @@ test.describe("Profiles", () => {
       await ui.switcher.click();
       await ui.switcherOption("marketing").click();
       expect((await remembered).ok()).toBe(true);
-      await expect(ui.switcher).toContainText("marketing");
+      await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
 
       // …and leaves the open peer exactly where it was: the remembered choice is a
       // default for the next entry into the lens, never a remote control over an
       // open client (US-010.EC-4, ADR-014).
       await peerPage.waitForTimeout(500);
-      await expect(peer.switcher).toContainText("default");
+      await expect(peer.switcher).toHaveAccessibleName("Profile: default");
 
       // Entering the lens again is when the shared choice applies.
       await peerPage.reload({ waitUntil: "domcontentloaded" });
-      await expect(peer.switcher).toContainText("marketing");
+      await expect(peer.switcher).toHaveAccessibleName("Profile: marketing");
     } finally {
       await second.close();
     }
@@ -813,7 +832,7 @@ test.describe("Profiles", () => {
     // Switching restores the target profile's desks in the shell, exactly as left.
     await ui.switcher.click();
     await ui.switcherOption("marketing").click();
-    await expect(ui.switcher).toContainText("marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     const campaign = (await desktopsOf(runtime, workspaceId, "marketing")).desktops[1];
     await expect(appPage.locator(`[data-desktop-id="${campaign.id}"]`)).toBeAttached();
     const defaultDeck = (await desktopsOf(runtime, workspaceId, "default")).desktops[1];
@@ -822,7 +841,7 @@ test.describe("Profiles", () => {
     // And back the other way, with no leakage in either direction.
     await ui.switcher.click();
     await ui.switcherOption("default").click();
-    await expect(ui.switcher).toContainText("default");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
     await expect(appPage.locator(`[data-desktop-id="${defaultDeck.id}"]`)).toBeAttached();
     await expect(appPage.locator(`[data-desktop-id="${campaign.id}"]`)).toHaveCount(0);
 
@@ -848,8 +867,11 @@ test.describe("Profiles", () => {
     await expect(ui.switcherCreate).toHaveAttribute("data-selected", "true");
     await appPage.keyboard.press("Enter");
     await expect(ui.createDialog).toBeVisible();
-    // Focus is inside the dialog the moment it opens, and stays there.
-    await expect(ui.createDialog.locator(":focus")).toHaveCount(1);
+    // Focus is inside the dialog the moment it opens (the popup itself counts:
+    // dialogs focus their popup first), and stays there.
+    await expect
+      .poll(() => ui.createDialog.evaluate(dialog => dialog.contains(document.activeElement)))
+      .toBe(true);
 
     // Every control the picker offers is named, so a screen reader can tell them apart.
     const iconsTab = ui.createDialog.getByRole("button", { name: "Icons" });
@@ -915,6 +937,6 @@ test.describe("Profiles", () => {
     await tabUntilFocused(appPage, ui.createConfirm, 12);
     await appPage.keyboard.press("Enter");
     expect((await created).ok()).toBe(true);
-    await expect(ui.switcher).toContainText("research");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: research");
   });
 });

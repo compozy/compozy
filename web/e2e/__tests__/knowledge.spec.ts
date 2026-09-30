@@ -172,7 +172,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(knowledgeUI.createDialog).toBeHidden();
   await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible({ timeout: 20_000 });
   await knowledgeUI.item(`workspace:${filename}`).click();
-  await expect(kWin.getByTestId("knowledge-detail-title")).toContainText(memoryName);
+  await expect(kWin.getByTestId("knowledge-detail-header")).toContainText(memoryName);
   await expect(knowledgeUI.contentPreview).toContainText(originalContent);
 
   await knowledgeUI.searchInput.fill("auth migration sessions");

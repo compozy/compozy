@@ -276,7 +276,7 @@ test.describe("Profile-aware extension management", () => {
     const profiles = profilesOperatorSelectors(appPage);
     await profiles.switcher.click();
     await profiles.switcherOption("growth").click();
-    await expect(profiles.switcher).toContainText("growth");
+    await expect(profiles.switcher).toHaveAccessibleName("Profile: growth");
     await appPage.goto(
       runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
       {
