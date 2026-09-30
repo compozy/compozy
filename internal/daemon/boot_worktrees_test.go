@@ -443,7 +443,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 	t.Parallel()
 	// Invariant: restored inventory survives SQLite contention without duplicate receipts; shutdown joins retry.
 	// Owner: daemon managed-delivery boot lifecycle; existing boot-worktree suite.
-	for _, mode := range []string{"restore", "sqlite-busy", "shutdown", "boot-failure"} {
+	for _, mode := range []string{"restore", "sqlite-busy", "initial-sqlite-busy", "shutdown", "boot-failure"} {
 		t.Run("Should own deferred inventory recovery through "+mode, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
@@ -480,10 +480,33 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			if err := os.WriteFile(directory, []byte("not a directory"), 0o600); err != nil {
 				t.Fatal(err)
 			}
+			restoreInventory := func() {
+				if err := os.Remove(directory); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(directory, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				data, err := json.Marshal(struct {
+					Version     int               `json:"version"`
+					OperationID string            `json:"operation_id"`
+					Item        worktree.Worktree `json:"worktree"`
+					Phase       string            `json:"phase"`
+				}{Version: 1, OperationID: operation.ID, Item: item, Phase: "completed"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(directory, "restored.json"), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "initial-sqlite-busy" {
+				restoreInventory()
+			}
 			var events worktree.EventSink = db
 			var busy *managedDeliveryBusyEvents
 			var unlock func()
-			if mode == "sqlite-busy" {
+			if mode == "sqlite-busy" || mode == "initial-sqlite-busy" {
 				busy, unlock = newManagedDeliveryBusyEvents(t, db)
 				events = busy
 			}
@@ -492,7 +515,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			state := &bootState{worktrees: service, logger: slog.Default()}
 			cleanup := &bootCleanup{}
 			if err := new(Daemon).bootManagedDeliveries(ctx, state, cleanup); err != nil {
-				t.Fatalf("inventory failure must not abort boot: %v", err)
+				t.Fatalf("transient recovery failure must not abort boot: %v", err)
 			}
 			worker := state.runtimeWorkers.managedDeliveries
 			if worker == nil {
@@ -507,7 +530,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			})
 			if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 ||
 				running[0].ID != operation.ID {
-				t.Fatalf("unreadable inventory altered original receipt: %#v error=%v", running, err)
+				t.Fatalf("transient recovery altered original receipt: %#v error=%v", running, err)
 			}
 			switch mode {
 			case "shutdown":
@@ -522,23 +545,8 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 				bootErr := errors.New("later boot step failed")
 				cleanup.run(ctx, &bootErr)
 			}
-			if err := os.Remove(directory); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.MkdirAll(directory, 0o700); err != nil {
-				t.Fatal(err)
-			}
-			data, err := json.Marshal(struct {
-				Version     int               `json:"version"`
-				OperationID string            `json:"operation_id"`
-				Item        worktree.Worktree `json:"worktree"`
-				Phase       string            `json:"phase"`
-			}{Version: 1, OperationID: operation.ID, Item: item, Phase: "completed"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(directory, "restored.json"), data, 0o600); err != nil {
-				t.Fatal(err)
+			if mode != "initial-sqlite-busy" {
+				restoreInventory()
 			}
 			if busy != nil {
 				select {
@@ -560,7 +568,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 				}
 				unlock()
 			}
-			if mode != "restore" && mode != "sqlite-busy" {
+			if mode != "restore" && mode != "sqlite-busy" && mode != "initial-sqlite-busy" {
 				select {
 				case <-worker.Stop():
 				default:

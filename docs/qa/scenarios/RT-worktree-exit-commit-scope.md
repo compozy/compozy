@@ -48,7 +48,8 @@ bytes without execution effects. Once the inventory becomes readable, recover th
 This differs from an absent directory, which establishes missing journals for orphan handling.
 Restore access after daemon boot and verify automatic recovery without restarting or submitting
 another action. If receipt repair encounters temporary SQLite BUSY/LOCKED after access returns,
-keep the same receipt and retry until one terminal event is persisted. While inventory or SQLite
+keep the same receipt and retry until one terminal event is persisted. A readable journal with
+SQLite contention during initial boot must likewise defer recovery instead of aborting startup. While inventory or SQLite
 is temporarily unavailable, retries back off; recovery stops polling after
 success and cancels/joins on shutdown or a later boot failure. A concurrent live delivery retains
 its receipt and completes once, without recovery releasing its fence or duplicating publication.

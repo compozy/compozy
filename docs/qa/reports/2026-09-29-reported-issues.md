@@ -126,7 +126,10 @@ extends the same retry policy to wrapped SQLite BUSY/LOCKED using the existing s
 The canonical daemon suite locks the actual receipt database through an independent SQLite
 connection and observes the production receipt writer exhausting its bounded attempts,
 then verifies recovery of the original receipt with one terminal event after releasing the lock.
-These added regressions require current-head CI evidence. The existing managed-delivery
+The same transient classification applies to initial boot recovery with readable inventory;
+the existing daemon suite also locks that actual receipt database before boot, verifies startup
+continues and then recovers the original receipt automatically. These added regressions require
+current-head CI evidence. The existing managed-delivery
 real-Git suite also protects a concurrent live receipt from delayed recovery. The subsequent ACP
 timestamp review is a source-backed false positive: the single production constructor records
 the timestamp before publication and session wrappers preserve it.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -192,7 +193,7 @@ func (d *Daemon) bootManagedDeliveries(ctx context.Context, state *bootState, cl
 		return nil
 	}
 	if err := state.worktrees.RecoverManagedDeliveries(ctx); err != nil {
-		if !errors.Is(err, worktree.ErrDeliveryInventoryUnavailable) {
+		if !errors.Is(err, worktree.ErrDeliveryInventoryUnavailable) && !store.IsSQLiteBusy(err) {
 			return fmt.Errorf("daemon: recover managed deliveries: %w", err)
 		}
 		workerCtx, cancel := context.WithCancel(ctx)
