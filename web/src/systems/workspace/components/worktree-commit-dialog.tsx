@@ -55,6 +55,101 @@ const PENDING_LABEL: Record<string, string> = {
   commit_push: "Committing & pushing…",
 };
 
+type AgentStagedState = "staged" | "available" | "unbound" | undefined;
+
+function agentStagedState(
+  onStagePrompt: WorktreeCommitDialogProps["onStagePrompt"],
+  onStartSession: WorktreeCommitDialogProps["onStartSession"],
+  promptStaged: boolean
+): AgentStagedState {
+  if (onStagePrompt) return promptStaged ? "staged" : "available";
+  return onStartSession ? "unbound" : undefined;
+}
+
+function commitDialogState(hookError: string | undefined, empty: boolean) {
+  if (hookError) return "hook-failed";
+  return empty ? "empty" : "scope";
+}
+
+function primaryLabel(primary: WorktreeExitLadderRow, isSubmitting: boolean): string {
+  if (!isSubmitting) return primary.label;
+  return PENDING_LABEL[primary.action] ?? primary.label;
+}
+
+/** Offers the agent path: stage a prompt in the bound session, or start one. */
+function CommitAgentAction({
+  onStagePrompt,
+  onStartSession,
+  promptStaged,
+}: Pick<WorktreeCommitDialogProps, "onStagePrompt" | "onStartSession"> & {
+  promptStaged: boolean;
+}) {
+  if (onStagePrompt && promptStaged) {
+    return (
+      <p className="text-badge text-subtle" data-slot="worktree-commit-agent-staged">
+        Prompt staged in the session composer.
+      </p>
+    );
+  }
+  if (onStagePrompt) {
+    return (
+      <Button
+        data-slot="worktree-commit-agent-stage"
+        onClick={() => onStagePrompt(AGENT_MESSAGE_PROMPT)}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        Have the agent write it
+      </Button>
+    );
+  }
+  if (!onStartSession) return null;
+  return (
+    <Button
+      data-slot="worktree-commit-agent-start"
+      onClick={onStartSession}
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      Start a session in this worktree
+    </Button>
+  );
+}
+
+function CommitHookFeedback({
+  hookError,
+  hookOutput,
+}: Pick<WorktreeCommitDialogProps, "hookError" | "hookOutput">) {
+  return (
+    <>
+      {hookError ? <FieldError>{hookError}</FieldError> : null}
+      {hookOutput ? (
+        <pre
+          className="mt-1.5 max-h-24 overflow-y-auto rounded-md bg-rail px-2.5 py-2 font-mono text-micro leading-[1.6] whitespace-pre-wrap text-subtle"
+          data-slot="worktree-commit-hook-output"
+        >
+          {hookOutput}
+        </pre>
+      ) : null}
+    </>
+  );
+}
+
+function CommitBranch({ branch }: { branch?: string }) {
+  if (!branch) return null;
+  return (
+    <span
+      className="mr-auto flex items-center gap-1.5 [&_svg]:size-3 [&_svg]:text-muted"
+      data-slot="worktree-commit-branch"
+    >
+      <GitBranchIcon aria-hidden="true" />
+      <MonoId copy={false} preserveCase size="sm" value={branch} />
+    </span>
+  );
+}
+
 /**
  * Confirms a commit and shows exactly what it will stage.
  *
@@ -90,18 +185,10 @@ export function WorktreeCommitDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
         className={`grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("sm")}`}
-        data-agent-staged={
-          onStagePrompt
-            ? promptStaged
-              ? "staged"
-              : "available"
-            : onStartSession
-              ? "unbound"
-              : undefined
-        }
+        data-agent-staged={agentStagedState(onStagePrompt, onStartSession, promptStaged)}
         data-message={message === "" ? "empty" : undefined}
         data-slot="worktree-commit-dialog"
-        data-state={hookError ? "hook-failed" : empty ? "empty" : "scope"}
+        data-state={commitDialogState(hookError, empty)}
         data-submitting={isSubmitting ? "" : undefined}
         showCloseButton={false}
         unframed
@@ -129,57 +216,19 @@ export function WorktreeCommitDialog({
               rows={4}
               value={message}
             />
-            {onStagePrompt ? (
-              promptStaged ? (
-                <p className="text-badge text-subtle" data-slot="worktree-commit-agent-staged">
-                  Prompt staged in the session composer.
-                </p>
-              ) : (
-                <Button
-                  data-slot="worktree-commit-agent-stage"
-                  onClick={() => onStagePrompt(AGENT_MESSAGE_PROMPT)}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  Have the agent write it
-                </Button>
-              )
-            ) : onStartSession ? (
-              <Button
-                data-slot="worktree-commit-agent-start"
-                onClick={onStartSession}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                Start a session in this worktree
-              </Button>
-            ) : null}
-            {hookError ? <FieldError>{hookError}</FieldError> : null}
-            {hookOutput ? (
-              <pre
-                className="mt-1.5 max-h-24 overflow-y-auto rounded-md bg-rail px-2.5 py-2 font-mono text-micro leading-[1.6] whitespace-pre-wrap text-subtle"
-                data-slot="worktree-commit-hook-output"
-              >
-                {hookOutput}
-              </pre>
-            ) : null}
+            <CommitAgentAction
+              onStagePrompt={onStagePrompt}
+              onStartSession={onStartSession}
+              promptStaged={promptStaged}
+            />
+            <CommitHookFeedback hookError={hookError} hookOutput={hookOutput} />
           </Field>
         </EntityDialogBody>
         <DialogFooter
           className="min-h-editor-footer items-center gap-3 max-[760px]:flex-col max-[760px]:items-stretch"
           variant="ruled"
         >
-          {branch ? (
-            <span
-              className="mr-auto flex items-center gap-1.5 [&_svg]:size-3 [&_svg]:text-muted"
-              data-slot="worktree-commit-branch"
-            >
-              <GitBranchIcon aria-hidden="true" />
-              <MonoId copy={false} preserveCase size="sm" value={branch} />
-            </span>
-          ) : null}
+          <CommitBranch branch={branch} />
           <Button
             disabled={isSubmitting}
             onClick={() => onOpenChange(false)}
@@ -192,7 +241,7 @@ export function WorktreeCommitDialog({
             blocked={empty || !primary.enabled}
             blockedReason={empty ? blockedReason : primary.blockedReason}
             disabled={isSubmitting}
-            label={isSubmitting ? (PENDING_LABEL[primary.action] ?? primary.label) : primary.label}
+            label={primaryLabel(primary, isSubmitting)}
             menuLabel="Commit actions"
             onAction={() => onCommit(primary, message)}
           >

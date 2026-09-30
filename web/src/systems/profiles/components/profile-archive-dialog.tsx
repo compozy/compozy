@@ -54,6 +54,64 @@ function BlockerList({ blockers }: { blockers: readonly string[] }) {
   );
 }
 
+function pluralSuffix(count: number, one: string, many: string): string {
+  return count === 1 ? one : many;
+}
+
+function runningReason(running: readonly string[], profile: string): string | null {
+  if (running.length === 0) return null;
+  const names = running.map(name => `"${name}"`).join(" and ");
+  return `${running.length} session${pluralSuffix(running.length, " is", "s are")} still running in ${profile}. Stop ${names} to archive this profile.`;
+}
+
+function leasedRunsReason(leasedRuns: number, profile: string): string | null {
+  if (leasedRuns <= 0) return null;
+  return `${leasedRuns} leased run${pluralSuffix(leasedRuns, " is", "s are")} still active. Wait for the lease${pluralSuffix(leasedRuns, "", "s")} to end before archiving ${profile}.`;
+}
+
+function queuedRunsNote(plan: ArchiveProfilePlan | undefined): string | undefined {
+  const queued = plan?.queued_runs_to_freeze ?? 0;
+  if (queued <= 0) return undefined;
+  return `${queued} queued run${pluralSuffix(queued, "", "s")} freeze with the profile and become claimable again after unarchive.`;
+}
+
+/** Derives what the archive confirmation says from the daemon's archive plan. */
+function archiveDialogView(plan: ArchiveProfilePlan | undefined, profile: string) {
+  const running = plan?.running_sessions ?? [];
+  const blockers = plan?.approval_blockers ?? [];
+  const leasedRuns = plan?.leased_runs ?? 0;
+  const blocked = running.length > 0 || blockers.length > 0 || leasedRuns > 0;
+  const blockingReasons = [
+    runningReason(running, profile),
+    blockers.length > 0 ? `Resolve these approval blockers before archiving ${profile}.` : null,
+    leasedRunsReason(leasedRuns, profile),
+  ].filter((reason): reason is string => reason !== null);
+  return {
+    blocked,
+    blockers,
+    automations: plan?.automations_to_pause ?? [],
+    description: blocked
+      ? blockingReasons.join(" ")
+      : "Its work leaves scoped views and its automations pause. Nothing is deleted.",
+    note: queuedRunsNote(plan),
+  };
+}
+
+/** The list under the description, or `null` so the dialog renders no body slot. */
+function archiveDialogBody({
+  blocked,
+  blockers,
+  automations,
+}: {
+  blocked: boolean;
+  blockers: readonly string[];
+  automations: readonly string[];
+}): React.ReactNode {
+  if (blockers.length > 0) return <BlockerList blockers={blockers} />;
+  if (!blocked && automations.length > 0) return <PausedList automations={automations} />;
+  return null;
+}
+
 /**
  * Archive a profile.
  *
@@ -71,32 +129,8 @@ export function ProfileArchiveDialog({
   error = null,
   onArchive,
 }: ProfileArchiveDialogProps) {
-  const running = plan?.running_sessions ?? [];
-  const blockers = plan?.approval_blockers ?? [];
-  const leasedRuns = plan?.leased_runs ?? 0;
-  const blocked = running.length > 0 || blockers.length > 0 || leasedRuns > 0;
-  const automations = plan?.automations_to_pause ?? [];
-
-  const blockingReasons = [
-    running.length > 0
-      ? `${running.length} session${running.length === 1 ? " is" : "s are"} still running in ${profile}. Stop ${running
-          .map(name => `"${name}"`)
-          .join(" and ")} to archive this profile.`
-      : null,
-    blockers.length > 0 ? `Resolve these approval blockers before archiving ${profile}.` : null,
-    leasedRuns > 0
-      ? `${leasedRuns} leased run${leasedRuns === 1 ? " is" : "s are"} still active. Wait for the lease${leasedRuns === 1 ? "" : "s"} to end before archiving ${profile}.`
-      : null,
-  ].filter((reason): reason is string => reason !== null);
-  const description = blocked
-    ? blockingReasons.join(" ")
-    : "Its work leaves scoped views and its automations pause. Nothing is deleted.";
-  const body =
-    blockers.length > 0 ? (
-      <BlockerList blockers={blockers} />
-    ) : !blocked && automations.length > 0 ? (
-      <PausedList automations={automations} />
-    ) : null;
+  const { blocked, blockers, automations, description, note } = archiveDialogView(plan, profile);
+  const body = archiveDialogBody({ blocked, blockers, automations });
 
   return (
     <ConfirmDialog
@@ -114,13 +148,7 @@ export function ProfileArchiveDialog({
       cancelLabel={blocked ? "Close" : "Cancel"}
       isPending={isPending || planLoading}
       {...(error !== null ? { error } : {})}
-      {...(plan !== undefined && plan.queued_runs_to_freeze > 0
-        ? {
-            note: `${plan.queued_runs_to_freeze} queued run${
-              plan.queued_runs_to_freeze === 1 ? "" : "s"
-            } freeze with the profile and become claimable again after unarchive.`,
-          }
-        : {})}
+      {...(note !== undefined ? { note } : {})}
       onConfirm={() => {
         if (plan !== undefined && !blocked) onArchive(plan.revision);
       }}

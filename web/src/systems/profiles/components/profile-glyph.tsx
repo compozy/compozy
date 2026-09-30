@@ -48,6 +48,60 @@ const GLYPH_CLASS: Record<ProfileGlyphSize, string> = {
   lg: "size-4",
 };
 
+type GlyphIdentity = ReturnType<typeof identityColorsFor>;
+
+/** Presence flag rendered as `"true"`, omitted when unset. */
+function trueAttr(value: boolean): "true" | undefined {
+  return value ? "true" : undefined;
+}
+
+/** Accessible naming, dropped entirely when visible text already names the profile. */
+function glyphA11yProps(decorative: boolean, label: string) {
+  if (decorative) return { role: undefined, "aria-label": undefined, "aria-hidden": true as const };
+  return { role: "img", "aria-label": label, "aria-hidden": undefined };
+}
+
+/** The aggregate mark keeps the caller's style; an identity paints its measured colors. */
+function glyphStyle(
+  aggregate: boolean,
+  current: boolean,
+  identity: GlyphIdentity,
+  style: ComponentProps<"span">["style"]
+): ComponentProps<"span">["style"] {
+  if (aggregate) return style;
+  return {
+    backgroundColor: identity.bg,
+    color: identity.fg,
+    ...(current ? { "--tw-ring-color": identity.fg } : {}),
+    ...style,
+  };
+}
+
+function ProfileGlyphMark({
+  aggregate,
+  icon,
+  emoji,
+  size,
+}: {
+  aggregate: boolean;
+  icon: string | null;
+  emoji: string | null;
+  size: ProfileGlyphSize;
+}) {
+  if (aggregate) {
+    return <Layers aria-hidden="true" className={GLYPH_CLASS[size]} strokeWidth={1.75} />;
+  }
+  const symbol = symbolOf({ icon, emoji });
+  if (symbol.kind === "emoji") return <span aria-hidden="true">{symbol.value}</span>;
+  return (
+    <SpriteIcon
+      spriteUrl={PROFILE_SPRITE_URL}
+      name={symbol.value}
+      className={cn(GLYPH_CLASS[size], "text-current")}
+    />
+  );
+}
+
 /** Renders user-chosen identity color with measured foreground contrast. */
 export function ProfileGlyph({
   className,
@@ -64,7 +118,6 @@ export function ProfileGlyph({
   style,
   ...props
 }: ProfileGlyphProps) {
-  const symbol = symbolOf({ icon: icon ?? null, emoji: emoji ?? null });
   const { resolvedTheme } = useThemePreference();
   const identity = identityColorsFor(color, surface ?? identitySurfaceFor(resolvedTheme));
   const label = aggregate ? "All profiles" : name;
@@ -72,11 +125,9 @@ export function ProfileGlyph({
   return (
     <span
       data-slot="profile-glyph"
-      data-current={current ? "true" : undefined}
-      data-aggregate={aggregate ? "true" : undefined}
-      role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : label}
-      aria-hidden={decorative ? true : undefined}
+      data-current={trueAttr(current)}
+      data-aggregate={trueAttr(aggregate)}
+      {...glyphA11yProps(decorative, label)}
       className={cn(
         "relative inline-grid shrink-0 place-items-center leading-none",
         SIZE_CLASS[size],
@@ -84,29 +135,15 @@ export function ProfileGlyph({
         current && !aggregate && "ring-[length:var(--ring-width-profile-current)]",
         className
       )}
-      style={
-        aggregate
-          ? style
-          : {
-              backgroundColor: identity.bg,
-              color: identity.fg,
-              ...(current ? { "--tw-ring-color": identity.fg } : {}),
-              ...style,
-            }
-      }
+      style={glyphStyle(aggregate, current, identity, style)}
       {...props}
     >
-      {aggregate ? (
-        <Layers aria-hidden="true" className={GLYPH_CLASS[size]} strokeWidth={1.75} />
-      ) : symbol.kind === "emoji" ? (
-        <span aria-hidden="true">{symbol.value}</span>
-      ) : (
-        <SpriteIcon
-          spriteUrl={PROFILE_SPRITE_URL}
-          name={symbol.value}
-          className={cn(GLYPH_CLASS[size], "text-current")}
-        />
-      )}
+      <ProfileGlyphMark
+        aggregate={aggregate}
+        emoji={emoji ?? null}
+        icon={icon ?? null}
+        size={size}
+      />
       {needsSetup ? (
         <span
           aria-hidden="true"

@@ -55,7 +55,9 @@ export function SessionListRow({
         data-status={session.badge}
         data-testid={`${testIdPrefix}-session-${session.id}`}
         aria-current={current ? "true" : undefined}
-        aria-selected={selection ? selected : undefined}
+        // While a selection is open, activating the row toggles its membership,
+        // so the row reads as a toggle button; otherwise it only navigates.
+        aria-pressed={selection?.mode ? selected : undefined}
         data-selected={selected || undefined}
         onClick={event => {
           if (selection && event.shiftKey) selection.toggleRange(session.id);

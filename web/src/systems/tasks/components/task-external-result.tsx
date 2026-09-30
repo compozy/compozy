@@ -24,14 +24,6 @@ export function TaskExternalResult({
   resultBytes: number;
   resultRef: string;
 }) {
-  const copyStatus =
-    controller.copyState === "copied"
-      ? "Result copied."
-      : controller.copyState === "error"
-        ? "Couldn't copy result. Try again."
-        : controller.copyState === "copying"
-          ? "Copying result."
-          : "";
   return (
     <Collapsible onOpenChange={controller.onOpenChange} open={controller.open}>
       <div className="rounded-lg bg-canvas shadow-card">
@@ -53,79 +45,117 @@ export function TaskExternalResult({
           />
         </div>
         <CollapsibleContent className="border-t border-line-soft px-3 py-3">
-          {controller.isLoading ? (
-            <div aria-label="Loading result" className="flex flex-col gap-2" role="status">
-              <Skeleton className="h-7 w-48" />
-              <Skeleton className="h-40 rounded-lg" />
-            </div>
-          ) : controller.errorMessage ? (
-            <div className="flex flex-wrap items-center justify-between gap-3" role="alert">
-              <p className="text-small-body text-danger">{controller.errorMessage}</p>
-              <Button onClick={controller.onRetry} size="sm" type="button" variant="secondary">
-                Retry
-              </Button>
-            </div>
-          ) : controller.page ? (
-            <div className="flex min-w-0 flex-col gap-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Eyebrow className="text-muted tabular-nums">
-                  {formatPageRange(controller.page)}
-                </Eyebrow>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    disabled={controller.copyState === "copying"}
-                    onClick={() => void controller.onCopy()}
-                    size="sm"
-                    type="button"
-                    variant="secondary"
-                  >
-                    {controller.copyState === "copying"
-                      ? "Copying result"
-                      : controller.copyState === "copied"
-                        ? "Copied result"
-                        : "Copy result"}
-                  </Button>
-                  <Button
-                    aria-label="Previous result page"
-                    disabled={!controller.canGoPrevious}
-                    onClick={controller.onPreviousPage}
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ChevronLeft aria-hidden="true" />
-                  </Button>
-                  <Button
-                    aria-label="Next result page"
-                    disabled={!controller.canGoNext}
-                    onClick={controller.onNextPage}
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ChevronRight aria-hidden="true" />
-                  </Button>
-                </div>
-              </div>
-              <div className="max-h-80 overflow-auto rounded-lg">
-                <CodeBlock
-                  caption="Result page"
-                  code={controller.pageText}
-                  copyable={false}
-                  data-result-ref={resultRef}
-                  density="compact"
-                  wrapLines
-                />
-              </div>
-              <p aria-live="polite" className="sr-only" role="status">
-                {copyStatus}
-              </p>
-            </div>
-          ) : null}
+          <TaskExternalResultBody controller={controller} resultRef={resultRef} />
         </CollapsibleContent>
       </div>
     </Collapsible>
   );
+}
+
+function TaskExternalResultBody({
+  controller,
+  resultRef,
+}: {
+  controller: TaskResultPageController;
+  resultRef: string;
+}) {
+  if (controller.isLoading) {
+    return (
+      <div aria-label="Loading result" className="flex flex-col gap-2" role="status">
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-40 rounded-lg" />
+      </div>
+    );
+  }
+  if (controller.errorMessage) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3" role="alert">
+        <p className="text-small-body text-danger">{controller.errorMessage}</p>
+        <Button onClick={controller.onRetry} size="sm" type="button" variant="secondary">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  if (!controller.page) return null;
+  return (
+    <TaskExternalResultPage controller={controller} page={controller.page} resultRef={resultRef} />
+  );
+}
+
+function TaskExternalResultPage({
+  controller,
+  page,
+  resultRef,
+}: {
+  controller: TaskResultPageController;
+  page: TaskRunResultPage;
+  resultRef: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Eyebrow className="text-muted tabular-nums">{formatPageRange(page)}</Eyebrow>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            disabled={controller.copyState === "copying"}
+            onClick={() => void controller.onCopy()}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {copyButtonLabel(controller.copyState)}
+          </Button>
+          <Button
+            aria-label="Previous result page"
+            disabled={!controller.canGoPrevious}
+            onClick={controller.onPreviousPage}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <Button
+            aria-label="Next result page"
+            disabled={!controller.canGoNext}
+            onClick={controller.onNextPage}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+      <div className="max-h-80 overflow-auto rounded-lg">
+        <CodeBlock
+          caption="Result page"
+          code={controller.pageText}
+          copyable={false}
+          data-result-ref={resultRef}
+          density="compact"
+          wrapLines
+        />
+      </div>
+      <p aria-live="polite" className="sr-only" role="status">
+        {copyStatusText(controller.copyState)}
+      </p>
+    </div>
+  );
+}
+
+function copyButtonLabel(copyState: TaskResultPageController["copyState"]): string {
+  if (copyState === "copying") return "Copying result";
+  if (copyState === "copied") return "Copied result";
+  return "Copy result";
+}
+
+function copyStatusText(copyState: TaskResultPageController["copyState"]): string {
+  if (copyState === "copied") return "Result copied.";
+  if (copyState === "error") return "Couldn't copy result. Try again.";
+  if (copyState === "copying") return "Copying result.";
+  return "";
 }
 
 function formatPageRange(page: TaskRunResultPage): string {

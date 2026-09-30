@@ -1,20 +1,6 @@
-import { useState } from "react";
 import { Plus, X } from "lucide-react";
 
-import {
-  Button,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
-  CommandSelect,
-  CommandSelectGroup,
-  CommandSelectShell,
-  CommandSelectTrigger,
-  Eyebrow,
-  Input,
-  Switch,
-  cn,
-} from "@compozy/ui";
+import { Button, Input, Switch, cn } from "@compozy/ui";
 
 import { AgentCommandSelect } from "@/systems/agent";
 import { WorktreeRefSelect } from "@/systems/workspace";
@@ -22,9 +8,10 @@ import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 
 import type { LoopInputSchemaField } from "../../types";
 import type { LoopEntityKind } from "../../lib/loop-input-kinds";
-import { useLoopInputCatalogs } from "../../hooks/use-loop-input-catalogs";
 import type { LoopEntityCatalog } from "../../lib/loop-input-catalogs";
+import { useLoopInputCatalogs } from "../../hooks/use-loop-input-catalogs";
 import { LoopSessionValueSelect } from "./loop-session-value-select";
+import { LoopCatalogValueSelect } from "./loop-catalog-value-select";
 import { LoopRuntimeValueControl } from "./loop-runtime-value-control";
 
 interface EntityValueControlProps {
@@ -36,105 +23,6 @@ interface EntityValueControlProps {
   invalid?: boolean;
   describedBy?: string;
   onChange: (value: string) => void;
-}
-
-interface CatalogSelectProps extends Omit<EntityValueControlProps, "kind"> {
-  catalog: LoopEntityCatalog;
-  label: string;
-  allowManual?: boolean;
-}
-
-export function LoopCatalogValueSelect({
-  catalog,
-  label,
-  value,
-  controlId,
-  testId,
-  disabled,
-  invalid,
-  describedBy,
-  allowManual = true,
-  onChange,
-}: CatalogSelectProps) {
-  const [open, setOpen] = useState(false);
-  const selected = catalog.options.find(option => option.value === value);
-  const missing = value !== "" && selected === undefined;
-
-  if (catalog.error && allowManual) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <Input
-          aria-describedby={describedBy}
-          aria-invalid={invalid || missing || undefined}
-          className="font-mono"
-          data-testid={testId}
-          disabled={disabled}
-          id={controlId}
-          onChange={event => onChange(event.target.value)}
-          placeholder={`Enter exact ${label}`}
-          type="text"
-          value={value}
-        />
-        <p className="text-form-hint text-warning" role="status">
-          {catalog.error} Enter the exact value.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <CommandSelect open={open} onOpenChange={setOpen}>
-      <CommandSelectTrigger
-        aria-busy={catalog.loading || undefined}
-        aria-describedby={describedBy}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-invalid={invalid || missing || undefined}
-        className="w-full justify-between"
-        data-testid={testId}
-        disabled={disabled || (catalog.loading && catalog.options.length === 0)}
-        id={controlId}
-        selected={Boolean(selected) || missing}
-      >
-        <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <span className="min-w-0 flex-1 truncate font-mono text-small-body text-fg">
-            {(selected?.label ?? value) ||
-              (catalog.loading ? `Loading ${label}s…` : `Select ${label}`)}
-          </span>
-          {missing ? <Eyebrow className="shrink-0 text-warning">Not available</Eyebrow> : null}
-        </span>
-      </CommandSelectTrigger>
-      <CommandSelectShell className="min-w-64" inputPlaceholder={`Search ${label}s...`}>
-        <CommandList>
-          <CommandEmpty>
-            {catalog.loading ? `Loading ${label}s…` : `No ${label}s match your search.`}
-          </CommandEmpty>
-          <CommandSelectGroup>
-            {catalog.options.map(option => (
-              <CommandItem
-                data-checked={option.value === value ? "true" : "false"}
-                key={option.value}
-                onSelect={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                value={`${option.label} ${option.detail ?? ""}`}
-              >
-                <span className="min-w-0 flex-1 truncate text-small-body text-fg">
-                  {option.label}
-                </span>
-                {option.detail ? (
-                  <span className="truncate font-mono text-mono-id text-subtle">
-                    {option.detail}
-                  </span>
-                ) : null}
-              </CommandItem>
-            ))}
-          </CommandSelectGroup>
-        </CommandList>
-      </CommandSelectShell>
-    </CommandSelect>
-  );
 }
 
 export function LoopEntityValueControl({
@@ -315,8 +203,45 @@ export interface LoopTypedInputControlProps {
   onChange: (value: unknown) => void;
 }
 
-export function LoopTypedInputControl({
-  field,
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function enumCatalog(options: readonly string[]): LoopEntityCatalog {
+  return {
+    options: options.map(option => ({ value: option, label: option })),
+    loading: false,
+    error: null,
+  };
+}
+
+/** Entity kind a field picks from a catalog, or null for plain value fields. */
+function fieldEntityKind(field: LoopInputSchemaField): LoopEntityKind | null {
+  if (field.type === "agent") return "agent";
+  if (field.type === "ref" && field.ref?.kind) return field.ref.kind;
+  return null;
+}
+
+function scalarPlaceholder(defaultValue: unknown): string | undefined {
+  if (defaultValue === undefined || defaultValue === null || typeof defaultValue === "object") {
+    return undefined;
+  }
+  return String(defaultValue) || undefined;
+}
+
+function scalarInputValue(value: unknown, isNumber: boolean): string {
+  if (isNumber) return typeof value === "number" ? String(value) : "";
+  return stringValue(value);
+}
+
+type LoopScalarInputProps = Omit<LoopTypedInputControlProps, "field"> & {
+  isNumber: boolean;
+  placeholder?: string;
+};
+
+function LoopScalarInput({
+  isNumber,
+  placeholder,
   value,
   controlId,
   testId,
@@ -324,84 +249,7 @@ export function LoopTypedInputControl({
   invalid,
   describedBy,
   onChange,
-}: LoopTypedInputControlProps) {
-  if (field.type === "string" && field.enum && field.enum.length > 0) {
-    return (
-      <LoopCatalogValueSelect
-        allowManual={false}
-        catalog={{
-          options: field.enum.map(option => ({ value: option, label: option })),
-          loading: false,
-          error: null,
-        }}
-        controlId={controlId}
-        describedBy={describedBy}
-        disabled={disabled}
-        invalid={invalid}
-        label="value"
-        onChange={next => onChange(next)}
-        testId={testId}
-        value={typeof value === "string" ? value : ""}
-      />
-    );
-  }
-  if (field.type === "agent") {
-    return (
-      <LoopEntityValueControl
-        controlId={controlId}
-        describedBy={describedBy}
-        disabled={disabled}
-        invalid={invalid}
-        kind="agent"
-        onChange={next => onChange(next)}
-        testId={testId}
-        value={typeof value === "string" ? value : ""}
-      />
-    );
-  }
-  if (field.type === "ref" && field.ref?.kind) {
-    return (
-      <LoopEntityValueControl
-        controlId={controlId}
-        describedBy={describedBy}
-        disabled={disabled}
-        invalid={invalid}
-        kind={field.ref.kind}
-        onChange={next => onChange(next)}
-        testId={testId}
-        value={typeof value === "string" ? value : ""}
-      />
-    );
-  }
-  if (field.type === "runtime") {
-    return (
-      <LoopRuntimeValueControl
-        controlId={controlId}
-        describedBy={describedBy}
-        disabled={disabled}
-        invalid={invalid}
-        onChange={onChange}
-        testId={testId}
-        value={value}
-      />
-    );
-  }
-  if (field.type === "boolean") {
-    return (
-      <Switch
-        checked={typeof value === "boolean" ? value : Boolean(field.default)}
-        data-testid={testId}
-        disabled={disabled}
-        id={controlId}
-        onCheckedChange={checked => onChange(checked)}
-      />
-    );
-  }
-  const isNumber = field.type === "number";
-  const placeholder =
-    field.default === undefined || field.default === null || typeof field.default === "object"
-      ? undefined
-      : String(field.default) || undefined;
+}: LoopScalarInputProps) {
   return (
     <Input
       aria-describedby={describedBy}
@@ -424,15 +272,66 @@ export function LoopTypedInputControl({
       }}
       placeholder={placeholder}
       type={isNumber ? "number" : "text"}
-      value={
-        isNumber
-          ? typeof value === "number"
-            ? String(value)
-            : ""
-          : typeof value === "string"
-            ? value
-            : ""
-      }
+      value={scalarInputValue(value, isNumber)}
+    />
+  );
+}
+
+export function LoopTypedInputControl({
+  field,
+  value,
+  controlId,
+  testId,
+  disabled,
+  invalid,
+  describedBy,
+  onChange,
+}: LoopTypedInputControlProps) {
+  const shared = { controlId, testId, disabled, invalid, describedBy };
+  if (field.type === "string" && field.enum && field.enum.length > 0) {
+    return (
+      <LoopCatalogValueSelect
+        {...shared}
+        allowManual={false}
+        catalog={enumCatalog(field.enum)}
+        label="value"
+        onChange={next => onChange(next)}
+        value={stringValue(value)}
+      />
+    );
+  }
+  const entityKind = fieldEntityKind(field);
+  if (entityKind !== null) {
+    return (
+      <LoopEntityValueControl
+        {...shared}
+        kind={entityKind}
+        onChange={next => onChange(next)}
+        value={stringValue(value)}
+      />
+    );
+  }
+  if (field.type === "runtime") {
+    return <LoopRuntimeValueControl {...shared} onChange={onChange} value={value} />;
+  }
+  if (field.type === "boolean") {
+    return (
+      <Switch
+        checked={typeof value === "boolean" ? value : Boolean(field.default)}
+        data-testid={testId}
+        disabled={disabled}
+        id={controlId}
+        onCheckedChange={checked => onChange(checked)}
+      />
+    );
+  }
+  return (
+    <LoopScalarInput
+      {...shared}
+      isNumber={field.type === "number"}
+      onChange={onChange}
+      placeholder={scalarPlaceholder(field.default)}
+      value={value}
     />
   );
 }

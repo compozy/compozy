@@ -63,6 +63,88 @@ async function writeClipboard(value: string): Promise<boolean> {
   }
 }
 
+function codeBlockPreClassName({
+  clamped,
+  compact,
+  copyable,
+  labeled,
+  wrapLines,
+}: {
+  clamped: boolean;
+  compact: boolean;
+  copyable: boolean;
+  labeled: boolean;
+  wrapLines: boolean;
+}): string {
+  const clampClass = compact
+    ? "max-h-[calc(var(--code-block-lines)*1.5em+1.5rem)] overflow-y-auto"
+    : "max-h-[calc(var(--code-block-lines)*1.5em+2rem)] overflow-y-auto";
+  return cn(
+    "overflow-x-auto font-mono text-fg",
+    "[scrollbar-width:thin] [scrollbar-color:var(--color-line-strong)_transparent]",
+    "[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5",
+    "[&::-webkit-scrollbar-track]:bg-transparent",
+    "[&::-webkit-scrollbar-thumb]:rounded-pill [&::-webkit-scrollbar-thumb]:bg-line-strong",
+    "text-code-block",
+    compact ? "px-3 py-2" : "px-5 py-4",
+    wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre",
+    labeled ? (compact ? "pt-7" : "pt-9") : null,
+    copyable ? (compact ? "pr-10" : "pr-12") : null,
+    clamped ? clampClass : null
+  );
+}
+
+function CodeBlockLine({
+  highlighted,
+  line,
+  lineNumber,
+  showLineNumbers,
+  tokens,
+  withPrompt,
+}: {
+  highlighted: boolean;
+  line: string;
+  lineNumber: number;
+  showLineNumbers: boolean;
+  tokens?: HighlightedCodeToken[];
+  withPrompt: boolean;
+}) {
+  return (
+    <span
+      data-slot="code-block-line"
+      data-line-number={lineNumber}
+      data-highlighted={highlighted ? "true" : undefined}
+      className={cn(
+        "block min-h-[1.5em]",
+        showLineNumbers ? "grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3" : null,
+        highlighted ? "-mx-2 rounded-xs bg-selected px-2" : null
+      )}
+    >
+      {showLineNumbers ? (
+        <span
+          data-slot="code-block-line-number"
+          aria-hidden="true"
+          className="select-none text-right text-faint tabular-nums"
+        >
+          {lineNumber}
+        </span>
+      ) : null}
+      <span data-slot="code-block-line-content" className="min-w-0">
+        {withPrompt ? (
+          <span
+            data-slot="code-block-prompt"
+            aria-hidden="true"
+            className="text-success select-none"
+          >
+            {"$ "}
+          </span>
+        ) : null}
+        {renderCodeLine(line, tokens)}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body on
  * the shared block-code tier (`--text-code-block`, same as JsonViewer),
@@ -141,66 +223,26 @@ function CodeBlock({
         style={
           clampedLines ? ({ "--code-block-lines": clampedLines } as React.CSSProperties) : undefined
         }
-        className={cn(
-          "overflow-x-auto font-mono text-fg",
-          "[scrollbar-width:thin] [scrollbar-color:var(--color-line-strong)_transparent]",
-          "[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5",
-          "[&::-webkit-scrollbar-track]:bg-transparent",
-          "[&::-webkit-scrollbar-thumb]:rounded-pill [&::-webkit-scrollbar-thumb]:bg-line-strong",
-          "text-code-block",
-          density === "compact" ? "px-3 py-2" : "px-5 py-4",
-          wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre",
-          label ? (density === "compact" ? "pt-7" : "pt-9") : null,
-          copyable ? (density === "compact" ? "pr-10" : "pr-12") : null,
-          clampedLines
-            ? density === "compact"
-              ? "max-h-[calc(var(--code-block-lines)*1.5em+1.5rem)] overflow-y-auto"
-              : "max-h-[calc(var(--code-block-lines)*1.5em+2rem)] overflow-y-auto"
-            : null
-        )}
+        className={codeBlockPreClassName({
+          clamped: Boolean(clampedLines),
+          compact: density === "compact",
+          copyable,
+          labeled: Boolean(label),
+          wrapLines,
+        })}
       >
         <code data-slot="code-block-code">
-          {displayLines.map(({ id, line, lineNumber }, index) => {
-            const tokens = highlightedCode?.[index]?.tokens;
-            const withPrompt = showPrompt && shouldRenderPrompt(line);
-            const isHighlightedLine = highlightedLineNumbers.has(lineNumber);
-
-            return (
-              <span
-                key={id}
-                data-slot="code-block-line"
-                data-line-number={lineNumber}
-                data-highlighted={isHighlightedLine ? "true" : undefined}
-                className={cn(
-                  "block min-h-[1.5em]",
-                  showLineNumbers ? "grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3" : null,
-                  isHighlightedLine ? "-mx-2 rounded-xs bg-selected px-2" : null
-                )}
-              >
-                {showLineNumbers ? (
-                  <span
-                    data-slot="code-block-line-number"
-                    aria-hidden="true"
-                    className="select-none text-right text-faint tabular-nums"
-                  >
-                    {lineNumber}
-                  </span>
-                ) : null}
-                <span data-slot="code-block-line-content" className="min-w-0">
-                  {withPrompt ? (
-                    <span
-                      data-slot="code-block-prompt"
-                      aria-hidden="true"
-                      className="text-success select-none"
-                    >
-                      {"$ "}
-                    </span>
-                  ) : null}
-                  {renderCodeLine(line, tokens)}
-                </span>
-              </span>
-            );
-          })}
+          {displayLines.map(({ id, line, lineNumber }, index) => (
+            <CodeBlockLine
+              key={id}
+              highlighted={highlightedLineNumbers.has(lineNumber)}
+              line={line}
+              lineNumber={lineNumber}
+              showLineNumbers={showLineNumbers}
+              tokens={highlightedCode?.[index]?.tokens}
+              withPrompt={showPrompt && shouldRenderPrompt(line)}
+            />
+          ))}
         </code>
       </pre>
     </div>

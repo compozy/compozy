@@ -70,7 +70,7 @@ export function useLoopRunDiffPage(
   );
   const runOptions = siblingRunOptions(siblingsQuery.data?.runs, runId);
 
-  const baseGeneration = search.generation ?? generations[0] ?? run?.generation ?? null;
+  const baseGeneration = resolveBaseGeneration(search, generations, run);
   const query = loopRunDiffQuery(search);
   const diffQuery = useLoopRunDiff(
     workspaceId,
@@ -88,16 +88,10 @@ export function useLoopRunDiffPage(
     });
   };
 
-  const diff = query === null ? undefined : diffQuery.data;
   return {
-    againstGeneration: search.against_generation ?? null,
-    againstRunId: search.against_run ?? "",
+    ...comparisonSelection(search),
+    ...comparisonView(query !== null, diffQuery, siblingsQuery.error),
     baseGeneration,
-    diffError:
-      query === null
-        ? undefined
-        : (diffRefusal(diffQuery.error) ?? diffRefusal(siblingsQuery.error)),
-    diffView: diff ? projectLoopDiff(diff) : null,
     generations,
     goToLoop: () => {
       void navigate({ params: { name: loopName }, to: "/loops/$name" });
@@ -111,12 +105,9 @@ export function useLoopRunDiffPage(
     goToRuns: () => {
       void navigate({ to: "/loop-runs" });
     },
-    hasComparison: query !== null,
-    isDiffLoading: query !== null && diffQuery.isLoading,
     // A suspended window disables the read; waiting is not a missing run.
     isRunLoading: workspaceId !== "" && runId !== "" && runQuery.isPending,
     loopName,
-    mode: search.against_run === undefined ? "generation" : "run",
     onAgainstGenerationChange: generation => {
       applySearch({
         against_generation: generation,
@@ -152,6 +143,42 @@ export function useLoopRunDiffPage(
     run,
     runError: runQuery.error,
     runOptions,
+  };
+}
+
+function resolveBaseGeneration(
+  search: LoopRunDiffRouteSearch,
+  generations: readonly number[],
+  run: LoopRunRecord | undefined
+): number | null {
+  return search.generation ?? generations[0] ?? run?.generation ?? null;
+}
+
+/** The comparison the route search currently names. */
+function comparisonSelection(
+  search: LoopRunDiffRouteSearch
+): Pick<LoopRunDiffPageModel, "againstGeneration" | "againstRunId" | "mode"> {
+  return {
+    againstGeneration: search.against_generation ?? null,
+    againstRunId: search.against_run ?? "",
+    mode: search.against_run === undefined ? "generation" : "run",
+  };
+}
+
+/** The diff read's projection; without a comparison nothing is loading or refused. */
+function comparisonView(
+  hasComparison: boolean,
+  diffQuery: ReturnType<typeof useLoopRunDiff>,
+  siblingsError: Error | null
+): Pick<LoopRunDiffPageModel, "diffError" | "diffView" | "hasComparison" | "isDiffLoading"> {
+  if (!hasComparison) {
+    return { diffError: undefined, diffView: null, hasComparison, isDiffLoading: false };
+  }
+  return {
+    diffError: diffRefusal(diffQuery.error) ?? diffRefusal(siblingsError),
+    diffView: diffQuery.data ? projectLoopDiff(diffQuery.data) : null,
+    hasComparison,
+    isDiffLoading: diffQuery.isLoading,
   };
 }
 

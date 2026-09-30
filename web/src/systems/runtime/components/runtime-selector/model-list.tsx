@@ -53,6 +53,100 @@ function GroupHead({
   );
 }
 
+type RenderModelRow = (row: RuntimeGroupModel, showGlyph: boolean) => React.ReactNode;
+
+function ModelListGroups({
+  listModel,
+  renderRow,
+}: {
+  listModel: RuntimeListModel;
+  renderRow: RenderModelRow;
+}) {
+  return (
+    <>
+      {listModel.pinned.length > 0 ? (
+        <div>
+          <GroupHead name={listModel.pinnedHeading} />
+          {/* Pinned rows span providers, so they keep the provider mark. */}
+          {listModel.pinned.map(row => renderRow(row, true))}
+        </div>
+      ) : null}
+      {listModel.groups.map(group => (
+        <div key={group.key}>
+          <GroupHead
+            name={group.name}
+            harnessBadge={group.harnessBadge}
+            availability={group.availability}
+          />
+          {group.models.map(row => renderRow(row, false))}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function ModelListContents({
+  loading,
+  listModel,
+  renderRow,
+}: {
+  loading: boolean;
+  listModel: RuntimeListModel;
+  renderRow: RenderModelRow;
+}) {
+  if (loading) {
+    return (
+      <SkeletonRows
+        aria-label="Loading models"
+        className="px-2 py-2"
+        count={5}
+        data-testid="runtime-selector-loading"
+        rowClassName="border-b border-line-soft px-2 py-2.5"
+      />
+    );
+  }
+  if (listModel.flatRows.length === 0) {
+    return (
+      <div
+        className="px-4 py-8 text-center text-small-body text-subtle"
+        data-testid="runtime-selector-empty"
+      >
+        No models match your search.
+        <br />
+        Try a provider name, a shorter query, or an exact model ID.
+      </div>
+    );
+  }
+  return <ModelListGroups listModel={listModel} renderRow={renderRow} />;
+}
+
+/**
+ * The custom-ID affordance: commits a typed exact ID when one is ready,
+ * otherwise opens exact entry.
+ */
+function CustomModelButton({
+  listModel,
+  onCustomCommit,
+  onStartExactEntry,
+}: Pick<ModelListProps, "listModel" | "onCustomCommit" | "onStartExactEntry">) {
+  if (!listModel.customLabel) return null;
+  return (
+    <button
+      type="button"
+      data-testid="runtime-selector-custom"
+      disabled={listModel.exactEntry && !listModel.customCommit}
+      className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:text-fg focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
+      onClick={() => {
+        if (listModel.customCommit) onCustomCommit(listModel.customCommit);
+        else onStartExactEntry();
+      }}
+    >
+      <Plus aria-hidden="true" className="size-3 shrink-0" />
+      <span className="min-w-0 truncate">{listModel.customLabel}</span>
+    </button>
+  );
+}
+
 export interface ModelListProps {
   listId: string;
   /** Stable DOM id for the option at a keyboard row index (active-descendant). */
@@ -102,8 +196,7 @@ export function ModelList({
     />
   );
 
-  const hasOptions = listModel.flatRows.length > 0;
-  const showsOptions = !loading && hasOptions;
+  const showsOptions = !loading && listModel.flatRows.length > 0;
 
   return (
     // Outer scroller owns the overflow so sticky group heads stick to its top,
@@ -121,61 +214,14 @@ export function ModelList({
           aria-live={showsOptions ? undefined : "polite"}
           data-testid="runtime-selector-list"
         >
-          {loading ? (
-            <SkeletonRows
-              aria-label="Loading models"
-              className="px-2 py-2"
-              count={5}
-              data-testid="runtime-selector-loading"
-              rowClassName="border-b border-line-soft px-2 py-2.5"
-            />
-          ) : !hasOptions ? (
-            <div
-              className="px-4 py-8 text-center text-small-body text-subtle"
-              data-testid="runtime-selector-empty"
-            >
-              No models match your search.
-              <br />
-              Try a provider name, a shorter query, or an exact model ID.
-            </div>
-          ) : (
-            <>
-              {listModel.pinned.length > 0 ? (
-                <div>
-                  <GroupHead name={listModel.pinnedHeading} />
-                  {/* Pinned rows span providers, so they keep the provider mark. */}
-                  {listModel.pinned.map(row => renderRow(row, true))}
-                </div>
-              ) : null}
-              {listModel.groups.map(group => (
-                <div key={group.key}>
-                  <GroupHead
-                    name={group.name}
-                    harnessBadge={group.harnessBadge}
-                    availability={group.availability}
-                  />
-                  {group.models.map(row => renderRow(row, false))}
-                </div>
-              ))}
-            </>
-          )}
+          <ModelListContents listModel={listModel} loading={loading} renderRow={renderRow} />
         </div>
       )}
-      {listModel.customLabel ? (
-        <button
-          type="button"
-          data-testid="runtime-selector-custom"
-          disabled={listModel.exactEntry && !listModel.customCommit}
-          className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:text-fg focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
-          onClick={() => {
-            if (listModel.customCommit) onCustomCommit(listModel.customCommit);
-            else onStartExactEntry();
-          }}
-        >
-          <Plus aria-hidden="true" className="size-3 shrink-0" />
-          <span className="min-w-0 truncate">{listModel.customLabel}</span>
-        </button>
-      ) : null}
+      <CustomModelButton
+        listModel={listModel}
+        onCustomCommit={onCustomCommit}
+        onStartExactEntry={onStartExactEntry}
+      />
     </div>
   );
 }

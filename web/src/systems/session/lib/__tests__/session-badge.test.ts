@@ -76,7 +76,7 @@ describe("session badge dictionary", () => {
   });
 
   it("Should map each badge to its canonical state glyph and tone (UT-050)", () => {
-    // Needs-you is the Compozy-orange attention dot (never the warning amber),
+    // Needs-you is the accent-orange attention dot (never the warning amber),
     // failures and a stuck runtime are the danger ring, work in flight is the
     // mint running ring, and resting states stay neutral.
     for (const badge of WAITING_ON_YOU) {

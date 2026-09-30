@@ -91,7 +91,7 @@ describe("SessionList selection", () => {
     expect(row.contains(checkbox)).toBe(false);
     await user.click(checkbox);
     expect(onSelect).not.toHaveBeenCalled();
-    expect(row).toHaveAttribute("aria-selected", "true");
+    expect(row).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("toolbar", { name: "Selected sessions" })).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-actions-running")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-session-stopped"));
@@ -126,7 +126,7 @@ describe("SessionList selection", () => {
     );
     first.focus();
     await user.keyboard(" ");
-    expect(first).toHaveAttribute("aria-selected", "false");
+    expect(first).toHaveAttribute("aria-pressed", "false");
     fireEvent.keyDown(first, { key: "a", metaKey: true });
     expect(
       within(screen.getByRole("toolbar")).getByTestId("session-sidebar-selection-count")
@@ -174,7 +174,7 @@ describe("SessionList selection", () => {
     update([sessions[1]!, sessions[2]!]);
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
     expect(screen.getByTestId("session-sidebar-session-stopped")).toHaveAttribute(
-      "aria-selected",
+      "aria-pressed",
       "true"
     );
     update([sessions[2]!]);
@@ -204,9 +204,8 @@ describe("SessionList selection", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("toolbar", { name: "Selected sessions" })).not.toBeInTheDocument();
     update(sessions);
-    expect(screen.getByTestId("session-sidebar-session-running")).toHaveAttribute(
-      "aria-selected",
-      "false"
+    expect(screen.getByTestId("session-sidebar-session-running")).not.toHaveAttribute(
+      "aria-pressed"
     );
   });
 });

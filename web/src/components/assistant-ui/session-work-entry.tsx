@@ -125,5 +125,5 @@ export function SessionWorkEntryList({
     );
   }
   flush();
-  return nodes;
+  return <>{nodes}</>;
 }

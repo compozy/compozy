@@ -1,4 +1,5 @@
 import { MonitorX } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { Empty } from "@compozy/ui";
 
@@ -42,6 +43,46 @@ function desktopTransitionAnimationName(input: {
   return undefined;
 }
 
+/** Visibility, interactivity, and the enter/leave animation for one desktop tree. */
+function desktopLayerView(input: {
+  model: DesktopLayerModel;
+  reducedMotion: boolean;
+  viewportReady: boolean;
+  transition: DesktopTransitionIntent | null;
+}) {
+  const { model, reducedMotion, viewportReady, transition } = input;
+  const incoming = transition?.toDesktopId === model.desktop.id;
+  const outgoing = transition?.fromDesktopId === model.desktop.id;
+  const transitionActive =
+    transition !== null && transition.mode !== "instant" && (incoming || outgoing);
+  const visible = viewportReady && (model.active || transitionActive);
+  const interactive = viewportReady && model.active;
+  // Animations start only once the active flag flips: the entering desktop
+  // animates while active, the leaving desktop while inactive.
+  const animation = desktopTransitionAnimationName({
+    reducedMotion,
+    transitionActive,
+    incoming,
+    outgoing,
+    active: model.active,
+    mode: transition?.mode,
+    direction: transition?.direction,
+  });
+  const style: CSSProperties = {
+    contain: "strict",
+    contentVisibility: visible ? "visible" : "hidden",
+    opacity: model.active ? 1 : 0,
+    pointerEvents: interactive ? "auto" : "none",
+    animation:
+      animation === undefined
+        ? undefined
+        : `${animation} ${
+            reducedMotion ? "0ms linear" : "var(--duration-shell-base) var(--ease-spring)"
+          } both`,
+  };
+  return { incoming, interactive, style };
+}
+
 function DesktopLayer({
   model,
   compact,
@@ -70,22 +111,11 @@ function DesktopLayer({
   hasProject: boolean;
   onNewSession: () => void;
 } & SeamGestureHandlers) {
-  const incoming = transition?.toDesktopId === model.desktop.id;
-  const outgoing = transition?.fromDesktopId === model.desktop.id;
-  const transitionActive =
-    transition !== null && transition.mode !== "instant" && (incoming || outgoing);
-  const visible = viewportReady && (model.active || transitionActive);
-  const interactive = viewportReady && model.active;
-  // Animations start only once the active flag flips: the entering desktop
-  // animates while active, the leaving desktop while inactive.
-  const animation = desktopTransitionAnimationName({
+  const { incoming, interactive, style } = desktopLayerView({
+    model,
     reducedMotion,
-    transitionActive,
-    incoming,
-    outgoing,
-    active: model.active,
-    mode: transition?.mode,
-    direction: transition?.direction,
+    viewportReady,
+    transition,
   });
 
   return (
@@ -101,18 +131,7 @@ function DesktopLayer({
           onTransitionComplete();
         }
       }}
-      style={{
-        contain: "strict",
-        contentVisibility: visible ? "visible" : "hidden",
-        opacity: model.active ? 1 : 0,
-        pointerEvents: interactive ? "auto" : "none",
-        animation:
-          animation === undefined
-            ? undefined
-            : `${animation} ${
-                reducedMotion ? "0ms linear" : "var(--duration-shell-base) var(--ease-spring)"
-              } both`,
-      }}
+      style={style}
     >
       {interactive && !model.anyVisible ? (
         <OsEmptyDesktop

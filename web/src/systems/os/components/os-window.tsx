@@ -26,6 +26,7 @@ import { useWindowLiveDataEnabled } from "../hooks/use-window-live-data-enabled"
 import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
 import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
 import type { OsWindowFrameModel } from "../lib/group-projection";
+import type { OsRect } from "../lib/os-types";
 import { ensureWindowSlotStore } from "../lib/window-slot-registry";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import { windowVisualLayer } from "../lib/window-visual-layer";
@@ -79,38 +80,21 @@ export function OsWindow({ frame }: OsWindowProps) {
     frame.members.map(member => [member, ensureWindowSlotStore(member)])
   );
   if (!keepMounted || activeApp === null) return null;
-
-  const minimum = getOsAppMinimum(activeApp);
-  // Floating frames resize on every edge; tiled frames only on free edges —
-  // shared boundaries resize through their seam, matching the daemon contract.
-  const edges = frame.resizableEdges;
-  const enableResizing =
-    frame.kind === "floating"
-      ? true
-      : {
-          left: edges.left,
-          right: edges.right,
-          top: edges.top,
-          bottom: edges.bottom,
-          topLeft: edges.top && edges.left,
-          topRight: edges.top && edges.right,
-          bottomLeft: edges.bottom && edges.left,
-          bottomRight: edges.bottom && edges.right,
-        };
+  const layout = frameRndLayout(frame, compact, rect, getOsAppMinimum(activeApp));
 
   return (
     <Rnd
       ref={registerRnd}
       className={cn(compact && "absolute inset-0", focused && "will-change-transform")}
-      position={compact ? { x: 0, y: 0 } : { x: rect.x, y: rect.y }}
-      size={compact ? { width: "100%", height: "100%" } : { width: rect.w, height: rect.h }}
-      minWidth={compact ? undefined : minimum.width}
-      minHeight={compact ? undefined : minimum.height}
+      position={layout.position}
+      size={layout.size}
+      minWidth={layout.minWidth}
+      minHeight={layout.minHeight}
       maxWidth={resizeMax?.width}
       maxHeight={resizeMax?.height}
       // Resize ends zoom through window.resize; moving still requires restore.
       disableDragging={compact || frame.zoomed}
-      enableResizing={!compact && enableResizing}
+      enableResizing={layout.enableResizing}
       dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
       cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}
       onDragStart={handleDragStart}
@@ -165,19 +149,66 @@ export function OsWindow({ frame }: OsWindowProps) {
             onTrafficLight={handleTrafficLight}
           />
         ))}
-        {mergeTargeted ? (
-          <div
-            aria-hidden="true"
-            data-slot="os-window-merge-target"
-            className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-window-head items-center justify-center border border-accent bg-accent-tint"
-          >
-            <Pill tone="accent" solid size="sm">
-              Group as tabs
-            </Pill>
-          </div>
-        ) : null}
+        {mergeTargeted ? <OsWindowMergeTarget /> : null}
       </OsWindowChrome>
     </Rnd>
+  );
+}
+
+/**
+ * Rnd geometry for one frame. Compact fills the desk and never resizes;
+ * floating frames resize on every edge; tiled frames only on free edges —
+ * shared boundaries resize through their seam, matching the daemon contract.
+ */
+function frameRndLayout(
+  frame: OsWindowFrameModel,
+  compact: boolean,
+  rect: OsRect,
+  minimum: ReturnType<typeof getOsAppMinimum>
+) {
+  if (compact) {
+    return {
+      position: { x: 0, y: 0 },
+      size: { width: "100%", height: "100%" },
+      minWidth: undefined,
+      minHeight: undefined,
+      enableResizing: false,
+    };
+  }
+  const edges = frame.resizableEdges;
+  return {
+    position: { x: rect.x, y: rect.y },
+    size: { width: rect.w, height: rect.h },
+    minWidth: minimum.width,
+    minHeight: minimum.height,
+    enableResizing:
+      frame.kind === "floating"
+        ? true
+        : {
+            left: edges.left,
+            right: edges.right,
+            top: edges.top,
+            bottom: edges.bottom,
+            topLeft: edges.top && edges.left,
+            topRight: edges.top && edges.right,
+            bottomLeft: edges.bottom && edges.left,
+            bottomRight: edges.bottom && edges.right,
+          },
+  };
+}
+
+/** The drop hint a dragged solo window shows over a frame it would join. */
+function OsWindowMergeTarget() {
+  return (
+    <div
+      aria-hidden="true"
+      data-slot="os-window-merge-target"
+      className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-window-head items-center justify-center border border-accent bg-accent-tint"
+    >
+      <Pill tone="accent" solid size="sm">
+        Group as tabs
+      </Pill>
+    </div>
   );
 }
 

@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
   type StateGlyphState,
   type TopbarSlotStore,
+  type TopbarSlotValue,
 } from "@compozy/ui";
 import { X } from "lucide-react";
 import * as React from "react";
@@ -79,7 +80,6 @@ export function OsWindowTab({
   const sessionTitle = isSession && session ? getSessionDisplayTitle(session) : null;
   const label: React.ReactNode = sessionTitle ?? slot?.crumb ?? app.title;
   const showLabel = !win.pinned;
-  const pendingCount = isSession && session ? pendingInteractions(session).length : 0;
 
   const closeTab = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -97,14 +97,7 @@ export function OsWindowTab({
             data-active={active ? "" : undefined}
             data-pinned={win.pinned ? "" : undefined}
             data-testid={`os-window-tab-${win.id}`}
-            className={cn(
-              "group/tab relative inline-flex h-deck-tab min-w-0 items-center gap-2 rounded-t-deck-tab text-small-body font-medium transition-colors duration-base select-none",
-              win.pinned ? "shrink-0 pr-3" : "flex-1 pr-1.75",
-              active
-                ? // The plate's side and top hairlines are inset so the feet meet them flush.
-                  "z-1 bg-canvas text-fg shadow-[inset_1px_0_0_var(--color-line),inset_-1px_0_0_var(--color-line),inset_0_1px_0_var(--color-line)]"
-                : "text-muted hover:bg-surface-2 hover:text-fg"
-            )}
+            className={tabPlateClass(win.pinned, active)}
           >
             {active ? <OsWindowTabFeet /> : null}
             <button
@@ -135,7 +128,10 @@ export function OsWindowTab({
                   {label}
                 </span>
               ) : null}
-              <Pill.Count count={pendingCount} data-slot="os-window-tab-count" />
+              <Pill.Count
+                count={tabPendingCount(isSession, session)}
+                data-slot="os-window-tab-count"
+              />
             </button>
             {showLabel ? (
               <OsWindowTabClose active={active} label={label} onClick={closeTab} />
@@ -144,17 +140,45 @@ export function OsWindowTab({
         }
       />
       <TooltipContent side="bottom">
-        <span className="flex max-w-64 min-w-0 items-center gap-1">
-          {(slot?.crumbs ?? []).map(part => (
-            <React.Fragment key={part.id}>
-              <span className="truncate">{part.label}</span>
-              <span aria-hidden="true">/</span>
-            </React.Fragment>
-          ))}
-          <span className="truncate">{sessionTitle ?? label}</span>
-        </span>
+        <OsWindowTabTrail crumbs={slot?.crumbs} title={sessionTitle ?? label} />
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function tabPlateClass(pinned: boolean, active: boolean): string {
+  return cn(
+    "group/tab relative inline-flex h-deck-tab min-w-0 items-center gap-2 rounded-t-deck-tab text-small-body font-medium transition-colors duration-base select-none",
+    pinned ? "shrink-0 pr-3" : "flex-1 pr-1.75",
+    active
+      ? // The plate's side and top hairlines are inset so the feet meet them flush.
+        "z-1 bg-canvas text-fg shadow-[inset_1px_0_0_var(--color-line),inset_-1px_0_0_var(--color-line),inset_0_1px_0_var(--color-line)]"
+      : "text-muted hover:bg-surface-2 hover:text-fg"
+  );
+}
+
+function tabPendingCount(isSession: boolean, session: SessionPayload | undefined): number {
+  return isSession && session ? pendingInteractions(session).length : 0;
+}
+
+/** The tooltip's full trail: every drill-in crumb, then the tab's title. */
+function OsWindowTabTrail({
+  crumbs,
+  title,
+}: {
+  crumbs: TopbarSlotValue["crumbs"] | undefined;
+  title: React.ReactNode;
+}) {
+  return (
+    <span className="flex max-w-64 min-w-0 items-center gap-1">
+      {(crumbs ?? []).map(part => (
+        <React.Fragment key={part.id}>
+          <span className="truncate">{part.label}</span>
+          <span aria-hidden="true">/</span>
+        </React.Fragment>
+      ))}
+      <span className="truncate">{title}</span>
+    </span>
   );
 }
 

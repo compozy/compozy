@@ -36,7 +36,7 @@ interface LoopRunBriefingProps extends Omit<ComponentProps<"section">, "children
  * so and points down to the card that owns Approve and Reject — one primary per
  * decision, in one viewport.
  */
-// Needs-you leads in the Compozy accent (amber is kept for real warnings); a
+// Needs-you leads in the accent (amber is kept for real warnings); a
 // calm verdict sits in the sunken inset.
 const WEIGHT_CLASS = {
   calm: "border-transparent bg-sunken",

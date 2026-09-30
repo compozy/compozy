@@ -43,20 +43,7 @@ export function TasksKanbanBoard({
 }: TasksKanbanBoardProps) {
   const loadedTaskCount = columns.reduce((count, column) => count + column.tasks.length, 0);
   if (errorMessage && loadedTaskCount === 0) {
-    return (
-      <div
-        className="flex flex-1 flex-col items-center justify-center gap-3"
-        data-testid="tasks-kanban-error"
-        role="alert"
-      >
-        <Empty description={errorMessage} icon={AlertCircle} title="Unable to load kanban" />
-        {onRetryLoad ? (
-          <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
-            Retry loading tasks
-          </Button>
-        ) : null}
-      </div>
-    );
+    return <KanbanLoadError errorMessage={errorMessage} onRetryLoad={onRetryLoad} />;
   }
 
   // Derive the grid track count from the canonical column set so it can never
@@ -104,36 +91,83 @@ export function TasksKanbanBoard({
         ))}
       </ul>
       {errorMessage ? (
-        <div
-          className="flex shrink-0 items-center justify-between gap-3 border-t border-line-soft px-4 py-3 text-caption text-danger"
-          data-testid="tasks-kanban-pagination-error"
-          role="alert"
-        >
-          <span>{errorMessage}</span>
-          {onRetryLoad ? (
-            <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
-              Retry loading tasks
-            </Button>
-          ) : null}
-        </div>
+        <KanbanPaginationError errorMessage={errorMessage} onRetryLoad={onRetryLoad} />
       ) : null}
       {hasMore && onLoadMore && !errorMessage ? (
-        <div className="flex shrink-0 items-center justify-center border-t border-line-soft px-4 py-3">
-          <Button
-            aria-busy={isLoadingMore}
-            aria-label={isLoadingMore ? "Loading more tasks" : "Load more tasks"}
-            data-testid="tasks-kanban-load-more"
-            disabled={isLoadingMore}
-            onClick={onLoadMore}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {isLoadingMore ? "Loading more" : "Load more"}
-          </Button>
-        </div>
+        <KanbanLoadMore isLoadingMore={isLoadingMore} onLoadMore={onLoadMore} />
       ) : null}
+    </div>
+  );
+}
+
+function KanbanLoadError({
+  errorMessage,
+  onRetryLoad,
+}: {
+  errorMessage: string;
+  onRetryLoad?: () => void;
+}) {
+  return (
+    <div
+      className="flex flex-1 flex-col items-center justify-center gap-3"
+      data-testid="tasks-kanban-error"
+      role="alert"
+    >
+      <Empty description={errorMessage} icon={AlertCircle} title="Unable to load kanban" />
+      {onRetryLoad ? (
+        <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
+          Retry loading tasks
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function KanbanPaginationError({
+  errorMessage,
+  onRetryLoad,
+}: {
+  errorMessage: string;
+  onRetryLoad?: () => void;
+}) {
+  return (
+    <div
+      className="flex shrink-0 items-center justify-between gap-3 border-t border-line-soft px-4 py-3 text-caption text-danger"
+      data-testid="tasks-kanban-pagination-error"
+      role="alert"
+    >
+      <span>{errorMessage}</span>
+      {onRetryLoad ? (
+        <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
+          Retry loading tasks
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function KanbanLoadMore({
+  isLoadingMore,
+  onLoadMore,
+}: {
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center justify-center border-t border-line-soft px-4 py-3">
+      <Button
+        aria-busy={isLoadingMore}
+        aria-label={isLoadingMore ? "Loading more tasks" : "Load more tasks"}
+        data-testid="tasks-kanban-load-more"
+        disabled={isLoadingMore}
+        onClick={onLoadMore}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {isLoadingMore ? "Loading more" : "Load more"}
+      </Button>
     </div>
   );
 }

@@ -80,7 +80,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
   {
     id: "accent",
     label: "Accent",
-    caption: "Compozy orange marks highlights and needs-you (attn), never the default action.",
+    caption: "The accent orange marks highlights and needs-you (attn), never the default action.",
     swatches: colors([
       ["--color-accent", "Highlight / needs you"],
       ["--color-accent-hover", "Highlight pressed"],

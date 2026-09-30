@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@compozy/ui/lib/utils";
 import {
@@ -190,6 +190,20 @@ function StepperBody({ children, className, ...props }: ComponentProps<"div">) {
   );
 }
 
+/** The configured indicator for this step's state, or `null` to fall back to `children`. */
+function resolveStepIndicator(
+  indicators: StepIndicators | undefined,
+  state: StepState,
+  isLoading: boolean
+): ReactNode {
+  if (!indicators) return null;
+  if (isLoading && indicators.loading) return indicators.loading;
+  if (state === "completed" && indicators.completed) return indicators.completed;
+  if (state === "active" && indicators.active) return indicators.active;
+  if (state === "inactive" && indicators.inactive) return indicators.inactive;
+  return null;
+}
+
 function StepperIndicator({ children, className }: ComponentProps<"div">) {
   const { state, isLoading } = useStepItem();
   const { indicators } = useStepper();
@@ -207,16 +221,7 @@ function StepperIndicator({ children, className }: ComponentProps<"div">) {
       )}
     >
       <div className="absolute">
-        {indicators &&
-        ((isLoading && indicators.loading) ||
-          (state === "completed" && indicators.completed) ||
-          (state === "active" && indicators.active) ||
-          (state === "inactive" && indicators.inactive))
-          ? (isLoading && indicators.loading) ||
-            (state === "completed" && indicators.completed) ||
-            (state === "active" && indicators.active) ||
-            (state === "inactive" && indicators.inactive)
-          : children}
+        {resolveStepIndicator(indicators, state, isLoading) || children}
       </div>
     </div>
   );

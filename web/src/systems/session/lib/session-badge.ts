@@ -14,7 +14,7 @@
  * entry, exactly like `TASK_STATUS_TONE` in `@/lib/status-tone`.
  *
  * Signal grammar follows the shell-rail brand (`StateGlyph` canonical
- * mapping): needs-you reads as the Compozy-orange attention dot, a failure as
+ * mapping): needs-you reads as the accent-orange attention dot, a failure as
  * the danger ring, work in flight as the mint running ring, and resting states
  * as neutral marks. The word tone agrees with the glyph. Where two badges share
  * a glyph (the needs-you trio, the failure trio, idle/unknown) the entry

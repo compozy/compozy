@@ -17,6 +17,81 @@ interface ExtensionKitInventoryPanelProps {
   bare?: boolean;
 }
 
+function KitInventoryItemRow({ item }: { item: ExtensionKitItem }) {
+  return (
+    <ListingRow data-testid="extension-kit-inventory-item" interactive={false}>
+      <ListingRow.Icon>
+        <Boxes aria-hidden="true" className="size-4" />
+      </ListingRow.Icon>
+      <ListingRow.Main>
+        <ListingRow.Name mono>
+          <ListingRow.Title>{item.name}</ListingRow.Title>
+        </ListingRow.Name>
+        <ListingRow.Meta>
+          <MonoId value={item.id} />
+        </ListingRow.Meta>
+      </ListingRow.Main>
+      <ListingRow.Trail>
+        <Pill mono size="xs" tone={item.live ? "success" : "neutral"}>
+          {item.live ? "live" : "shipped"}
+        </Pill>
+      </ListingRow.Trail>
+    </ListingRow>
+  );
+}
+
+function KitInventoryGroup({ group }: { group: ExtensionKitInventoryGroup }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
+        <span className="eyebrow text-muted">{group.kind}</span>
+        <span className="font-mono text-xs text-faint tabular-nums">{group.items.length}</span>
+      </div>
+      {group.items.map(item => (
+        <KitInventoryItemRow item={item} key={`${item.kind}:${item.id}`} />
+      ))}
+    </div>
+  );
+}
+
+function KitInventoryContent({
+  items,
+  error,
+  isLoading,
+  onRetry,
+  showEmptyState,
+}: Omit<ExtensionKitInventoryPanelProps, "bare" | "showEmptyState"> & {
+  showEmptyState: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-3 text-small-body text-muted" role="status">
+        <Spinner className="size-3.5" />
+        Loading kit inventory
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-2 px-4 py-3">
+        <p className="text-small-body font-medium text-danger">Kit inventory could not be loaded</p>
+        <p className="text-xs text-muted">{error.message}</p>
+        <Button onClick={onRetry} size="sm" type="button" variant="secondary">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  if (!items || items.length === 0) {
+    return showEmptyState ? (
+      <p className="px-4 py-3 text-small-body text-muted">
+        This extension ships no static kit resources.
+      </p>
+    ) : null;
+  }
+  return groupByKind(items).map(group => <KitInventoryGroup group={group} key={group.kind} />);
+}
+
 /**
  * Shipped-vs-live truth for one extension's static kit. `live` is the daemon's own word for a
  * resource that is currently published; everything else is declared in the package and inert, so
@@ -30,68 +105,19 @@ function ExtensionKitInventoryPanel({
   bare = false,
   showEmptyState = true,
 }: ExtensionKitInventoryPanelProps) {
-  const groups = groupByKind(items ?? []);
   const total = items?.length ?? 0;
   const body = (
     <div
       className={cn("divide-y divide-line-soft", !bare && "overflow-hidden rounded-lg bg-sunken")}
       data-testid="extension-kit-inventory"
     >
-      {isLoading ? (
-        <div className="flex items-center gap-2 px-4 py-3 text-small-body text-muted" role="status">
-          <Spinner className="size-3.5" />
-          Loading kit inventory
-        </div>
-      ) : error ? (
-        <div className="space-y-2 px-4 py-3">
-          <p className="text-small-body font-medium text-danger">
-            Kit inventory could not be loaded
-          </p>
-          <p className="text-xs text-muted">{error.message}</p>
-          <Button onClick={onRetry} size="sm" type="button" variant="secondary">
-            Retry
-          </Button>
-        </div>
-      ) : total === 0 && showEmptyState ? (
-        <p className="px-4 py-3 text-small-body text-muted">
-          This extension ships no static kit resources.
-        </p>
-      ) : total === 0 ? null : (
-        groups.map(group => (
-          <div key={group.kind}>
-            <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
-              <span className="eyebrow text-muted">{group.kind}</span>
-              <span className="font-mono text-xs text-faint tabular-nums">
-                {group.items.length}
-              </span>
-            </div>
-            {group.items.map(item => (
-              <ListingRow
-                data-testid="extension-kit-inventory-item"
-                interactive={false}
-                key={`${item.kind}:${item.id}`}
-              >
-                <ListingRow.Icon>
-                  <Boxes aria-hidden="true" className="size-4" />
-                </ListingRow.Icon>
-                <ListingRow.Main>
-                  <ListingRow.Name mono>
-                    <ListingRow.Title>{item.name}</ListingRow.Title>
-                  </ListingRow.Name>
-                  <ListingRow.Meta>
-                    <MonoId value={item.id} />
-                  </ListingRow.Meta>
-                </ListingRow.Main>
-                <ListingRow.Trail>
-                  <Pill mono size="xs" tone={item.live ? "success" : "neutral"}>
-                    {item.live ? "live" : "shipped"}
-                  </Pill>
-                </ListingRow.Trail>
-              </ListingRow>
-            ))}
-          </div>
-        ))
-      )}
+      <KitInventoryContent
+        error={error}
+        items={items}
+        isLoading={isLoading}
+        onRetry={onRetry}
+        showEmptyState={showEmptyState}
+      />
     </div>
   );
   if (bare) return body;

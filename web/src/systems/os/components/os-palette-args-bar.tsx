@@ -34,44 +34,13 @@ function PaletteArgFieldRow({
       <label className="text-form-label text-subtle" htmlFor={`os-palette-arg-${field.name}`}>
         {field.name}
       </label>
-      {field.type === "dropdown" ? (
-        <PaletteArgDropdown
-          className={FIELD_CLASS}
-          field={field}
-          focused={focused}
-          registerNode={registerNode}
-          onChange={value => onChange(field.name, value)}
-          onSubmit={onSubmit}
-        />
-      ) : field.type === "checkbox" ? (
-        <Checkbox
-          ref={registerNode}
-          aria-describedby={field.error === "" ? undefined : `os-palette-arg-error-${field.name}`}
-          aria-invalid={field.error !== "" ? true : undefined}
-          autoFocus={focused}
-          checked={["true", "yes", "1", "on"].includes(field.value.trim().toLowerCase())}
-          data-testid={`os-palette-arg-${field.name}`}
-          id={`os-palette-arg-${field.name}`}
-          onCheckedChange={checked => onChange(field.name, checked ? "true" : "false")}
-        />
-      ) : (
-        <Input
-          ref={registerNode}
-          aria-describedby={field.error === "" ? undefined : `os-palette-arg-error-${field.name}`}
-          aria-invalid={field.error !== "" ? true : undefined}
-          autoFocus={focused}
-          className={FIELD_CLASS}
-          data-testid={`os-palette-arg-${field.name}`}
-          id={`os-palette-arg-${field.name}`}
-          placeholder={field.placeholder}
-          // One masking mechanism: a real password input keeps password managers
-          // and screen readers correct, and keeps the value out of any echo.
-          type={field.type === "password" ? "password" : "text"}
-          value={field.value}
-          {...(field.type === "password" ? { autoComplete: "off", spellCheck: false } : {})}
-          onChange={event => onChange(field.name, event.target.value)}
-        />
-      )}
+      <PaletteArgControl
+        field={field}
+        focused={focused}
+        registerNode={registerNode}
+        onChange={onChange}
+        onSubmit={onSubmit}
+      />
       {field.error === "" ? null : (
         <span
           className="text-small-body text-danger"
@@ -82,6 +51,70 @@ function PaletteArgFieldRow({
         </span>
       )}
     </div>
+  );
+}
+
+/** The identity and error wiring every non-dropdown control shares. */
+function argControlProps(field: PaletteArgField) {
+  const invalid = field.error !== "";
+  return {
+    "aria-describedby": invalid ? `os-palette-arg-error-${field.name}` : undefined,
+    "aria-invalid": invalid ? true : undefined,
+    "data-testid": `os-palette-arg-${field.name}`,
+    id: `os-palette-arg-${field.name}`,
+  } as const;
+}
+
+function isCheckedArgValue(value: string): boolean {
+  return ["true", "yes", "1", "on"].includes(value.trim().toLowerCase());
+}
+
+/** The field's control, by declared type: dropdown, checkbox, or text-like input. */
+function PaletteArgControl({
+  field,
+  focused,
+  registerNode,
+  onChange,
+  onSubmit,
+}: PaletteArgFieldRowProps) {
+  if (field.type === "dropdown") {
+    return (
+      <PaletteArgDropdown
+        className={FIELD_CLASS}
+        field={field}
+        focused={focused}
+        registerNode={registerNode}
+        onChange={value => onChange(field.name, value)}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+  if (field.type === "checkbox") {
+    return (
+      <Checkbox
+        ref={registerNode}
+        {...argControlProps(field)}
+        autoFocus={focused}
+        checked={isCheckedArgValue(field.value)}
+        onCheckedChange={checked => onChange(field.name, checked ? "true" : "false")}
+      />
+    );
+  }
+  const password = field.type === "password";
+  return (
+    <Input
+      ref={registerNode}
+      {...argControlProps(field)}
+      autoFocus={focused}
+      className={FIELD_CLASS}
+      placeholder={field.placeholder}
+      // One masking mechanism: a real password input keeps password managers
+      // and screen readers correct, and keeps the value out of any echo.
+      type={password ? "password" : "text"}
+      value={field.value}
+      {...(password ? { autoComplete: "off", spellCheck: false } : {})}
+      onChange={event => onChange(field.name, event.target.value)}
+    />
   );
 }
 

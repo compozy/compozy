@@ -56,6 +56,73 @@ function terminalStateGlyph(terminal: TerminalInfo): StateGlyphState {
   return "idle";
 }
 
+/** Which status chips and action groups the head has for this terminal. */
+function terminalHeaderFlags({
+  terminal,
+  recording,
+  onStop,
+  onSignal,
+  onWait,
+  onStopRecording,
+}: Pick<
+  TerminalHeaderProps,
+  "terminal" | "recording" | "onStop" | "onSignal" | "onWait" | "onStopRecording"
+>) {
+  const isPipe = terminal.mode === "pipe";
+  const showViewers = !isPipe && terminal.viewers > 1;
+  const hasStatus = Boolean(recording) || isPipe || showViewers;
+  const hasTerminalActions = isPipe
+    ? Boolean(onWait || onSignal)
+    : Boolean((recording && onStopRecording) || onStop);
+  return { isPipe, showViewers, hasStatus, hasTerminalActions };
+}
+
+/** The head's status chips: recording, read-only log, and shared viewers. */
+function TerminalHeaderStatus({
+  isPipe,
+  recording,
+  showViewers,
+  viewers,
+}: {
+  isPipe: boolean;
+  recording: TerminalRecordingState | null | undefined;
+  showViewers: boolean;
+  viewers: number;
+}) {
+  return (
+    <>
+      {recording ? (
+        <Pill data-testid="terminal-recording-chip" size="sm" tone="neutral">
+          <Pill.Dot pulse tone="danger" />
+          Recording {recording.elapsed}
+        </Pill>
+      ) : null}
+      {isPipe ? (
+        <Pill data-testid="terminal-pipe-chip" size="sm" tone="neutral">
+          read-only log
+        </Pill>
+      ) : null}
+      {showViewers ? (
+        <Pill
+          aria-label={`${viewers} ${viewers === 1 ? "viewer" : "viewers"}`}
+          data-testid="terminal-viewers"
+          mono
+          size="sm"
+          tone="neutral"
+        >
+          <Eye aria-hidden="true" className="size-3" />
+          {viewers}
+        </Pill>
+      ) : null}
+    </>
+  );
+}
+
+function TerminalIdentityIcon({ isPipe }: { isPipe: boolean }) {
+  const Icon = isPipe ? FileText : TerminalSquare;
+  return <Icon aria-hidden="true" className="size-3.5 text-muted" />;
+}
+
 /**
  * The terminal's identity row.
  *
@@ -75,15 +142,16 @@ export function TerminalHeader({
   onViewJournal,
   hostChrome = false,
 }: TerminalHeaderProps) {
-  const isPipe = terminal.mode === "pipe";
-  const capCount = terminalCapCount(terminalCount, limit);
+  const { isPipe, showViewers, hasStatus, hasTerminalActions } = terminalHeaderFlags({
+    terminal,
+    recording,
+    onStop,
+    onSignal,
+    onWait,
+    onStopRecording,
+  });
   // The raw terminal id lives in the journal detail; the head only shows the cap count.
-  const identityCount = capCount ?? undefined;
-  const showViewers = !isPipe && terminal.viewers > 1;
-  const hasStatus = Boolean(recording) || isPipe || showViewers;
-  const hasTerminalActions = isPipe
-    ? Boolean(onWait || onSignal)
-    : Boolean((recording && onStopRecording) || onStop);
+  const identityCount = terminalCapCount(terminalCount, limit) ?? undefined;
   // One hairline between groups, never a leading or doubled one: the OS head
   // already rules status off from actions, so only the in-window row needs it.
   const chipsLeadActions = hasStatus && !hostChrome;
@@ -106,31 +174,12 @@ export function TerminalHeader({
     </>
   );
   const status = hasStatus ? (
-    <>
-      {recording ? (
-        <Pill data-testid="terminal-recording-chip" size="sm" tone="neutral">
-          <Pill.Dot pulse tone="danger" />
-          Recording {recording.elapsed}
-        </Pill>
-      ) : null}
-      {isPipe ? (
-        <Pill data-testid="terminal-pipe-chip" size="sm" tone="neutral">
-          read-only log
-        </Pill>
-      ) : null}
-      {showViewers ? (
-        <Pill
-          aria-label={`${terminal.viewers} ${terminal.viewers === 1 ? "viewer" : "viewers"}`}
-          data-testid="terminal-viewers"
-          mono
-          size="sm"
-          tone="neutral"
-        >
-          <Eye aria-hidden="true" className="size-3" />
-          {terminal.viewers}
-        </Pill>
-      ) : null}
-    </>
+    <TerminalHeaderStatus
+      isPipe={isPipe}
+      recording={recording}
+      showViewers={showViewers}
+      viewers={terminal.viewers}
+    />
   ) : null;
   useTopbarSlot(
     hostChrome
@@ -151,11 +200,7 @@ export function TerminalHeader({
       data-testid="terminal-header"
     >
       <span className="flex min-w-0 items-center gap-2">
-        {isPipe ? (
-          <FileText aria-hidden="true" className="size-3.5 text-muted" />
-        ) : (
-          <TerminalSquare aria-hidden="true" className="size-3.5 text-muted" />
-        )}
+        <TerminalIdentityIcon isPipe={isPipe} />
         <span className="truncate font-medium text-fg text-ws-name tracking-tight">
           {terminalDisplayTitle(terminal)}
         </span>

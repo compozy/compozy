@@ -157,6 +157,51 @@ function RunRow({
   );
 }
 
+function runsEmptyDescription(
+  emptyDescription: string | undefined,
+  workerName: string | null | undefined
+): string {
+  if (emptyDescription !== undefined) return emptyDescription;
+  return workerName
+    ? `Start a run to have ${workerName} work on this task.`
+    : "Start a run to have a worker pick this task up.";
+}
+
+function TaskRunsEmpty({
+  description,
+  onStartRun,
+  isStartPending,
+}: {
+  description: string;
+  onStartRun?: () => void;
+  isStartPending: boolean;
+}) {
+  return (
+    <Empty
+      icon={Play}
+      title="Not started yet"
+      description={description}
+      action={
+        onStartRun ? (
+          <Button
+            aria-busy={isStartPending || undefined}
+            data-testid="tasks-runs-start"
+            disabled={isStartPending}
+            onClick={onStartRun}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            {isStartPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {isStartPending ? "Starting…" : "Start run"}
+          </Button>
+        ) : undefined
+      }
+      data-testid="tasks-runs-empty"
+    />
+  );
+}
+
 /**
  * Runs tab: attempts newest-first, whole row links to the run page,
  * reviews render as a quiet secondary line under their run — never a separate
@@ -193,32 +238,10 @@ export function TaskRunsPanel({
 
   if (runs.length === 0) {
     return (
-      <Empty
-        icon={Play}
-        title="Not started yet"
-        description={
-          emptyDescription ??
-          (workerName
-            ? `Start a run to have ${workerName} work on this task.`
-            : "Start a run to have a worker pick this task up.")
-        }
-        action={
-          onStartRun ? (
-            <Button
-              aria-busy={isStartPending || undefined}
-              data-testid="tasks-runs-start"
-              disabled={isStartPending}
-              onClick={onStartRun}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {isStartPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {isStartPending ? "Starting…" : "Start run"}
-            </Button>
-          ) : undefined
-        }
-        data-testid="tasks-runs-empty"
+      <TaskRunsEmpty
+        description={runsEmptyDescription(emptyDescription, workerName)}
+        isStartPending={isStartPending}
+        onStartRun={onStartRun}
       />
     );
   }

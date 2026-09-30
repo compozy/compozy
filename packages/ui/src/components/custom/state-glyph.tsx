@@ -99,7 +99,7 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
 
 /**
  * Work-state mark from the shell-rail status vocabulary: a mint spinner ring
- * (running), a dashed ring (queued), a filled mint check (done), a Compozy
+ * (running), a dashed ring (queued), a filled mint check (done), an accent
  * orange dot (attention / needs you), a danger ring with × (failed), a subtle
  * filled square (stopped) and a subtle dot (idle). Warning amber is never a
  * state glyph — it stays reserved for real warnings. Under reduced motion the

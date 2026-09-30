@@ -28,6 +28,108 @@ function hasSectionContent(content: React.ReactNode): boolean {
   return content !== undefined && content !== null && content !== false;
 }
 
+function SectionLabel({
+  label,
+  count,
+  icon: Icon,
+}: Pick<SectionProps, "label" | "count" | "icon">) {
+  const hasCount = count !== undefined && count !== null && count !== "";
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {Icon ? (
+        <span
+          aria-hidden="true"
+          data-slot="section-icon"
+          className="inline-flex size-5 shrink-0 items-center justify-center text-fg-2"
+        >
+          <Icon className="size-3" />
+        </span>
+      ) : null}
+      <h2 data-slot="section-label" className="truncate text-item-title font-medium text-fg-strong">
+        {label}
+      </h2>
+      {hasCount ? (
+        <span
+          data-slot="section-count"
+          className="inline-flex items-center text-eyebrow font-normal tabular-nums text-subtle"
+        >
+          {count}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function SectionRight({
+  right,
+  tabs,
+  rightClassName,
+}: Pick<SectionProps, "right" | "tabs" | "rightClassName">) {
+  const hasRight = hasSectionContent(right);
+  const hasTabs = hasSectionContent(tabs);
+  if (!hasRight && !hasTabs) return null;
+  return (
+    <div
+      data-slot="section-right"
+      className={cn(
+        "flex w-full items-center gap-2 self-start @xl/section:w-auto @xl/section:shrink-0",
+        rightClassName
+      )}
+    >
+      {hasTabs ? <div data-slot="section-tabs">{tabs}</div> : null}
+      {hasRight ? right : null}
+    </div>
+  );
+}
+
+function SectionHead({
+  label,
+  note,
+  right,
+  tabs,
+  count,
+  icon,
+  bordered,
+  headClassName,
+  rightClassName,
+}: Pick<
+  SectionProps,
+  | "label"
+  | "note"
+  | "right"
+  | "tabs"
+  | "count"
+  | "icon"
+  | "bordered"
+  | "headClassName"
+  | "rightClassName"
+>) {
+  const hasLabel = hasSectionContent(label);
+  const hasNote = hasSectionContent(note);
+  if (!hasLabel && !hasNote && !hasSectionContent(right) && !hasSectionContent(tabs)) return null;
+  return (
+    <header
+      data-slot="section-head"
+      data-bordered={bordered ? "true" : undefined}
+      className={cn(
+        "flex flex-col gap-3 pb-2 @xl/section:flex-row @xl/section:items-start @xl/section:justify-between",
+        bordered && "border-b border-line",
+        headClassName
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-2">
+        {hasLabel ? <SectionLabel count={count} icon={icon} label={label} /> : null}
+        {hasNote ? (
+          <div data-slot="section-note" className="max-w-152 text-small-body text-muted">
+            {note}
+          </div>
+        ) : null}
+      </div>
+      <SectionRight right={right} rightClassName={rightClassName} tabs={tabs} />
+    </header>
+  );
+}
+
 function Section({
   label,
   note,
@@ -40,18 +142,10 @@ function Section({
   className,
   children,
   count,
-  icon: Icon,
+  icon,
   tabs,
   ...props
 }: SectionProps) {
-  const hasLabel = hasSectionContent(label);
-  const hasNote = hasSectionContent(note);
-  const hasRight = hasSectionContent(right);
-  const hasChildren = hasSectionContent(children);
-  const hasTabs = hasSectionContent(tabs);
-  const hasCount = count !== undefined && count !== null && count !== "";
-  const hasHeader = hasLabel || hasNote || hasRight || hasTabs;
-
   return (
     <section
       data-slot="section"
@@ -62,65 +156,18 @@ function Section({
       )}
       {...props}
     >
-      {hasHeader ? (
-        <header
-          data-slot="section-head"
-          data-bordered={bordered ? "true" : undefined}
-          className={cn(
-            "flex flex-col gap-3 pb-2 @xl/section:flex-row @xl/section:items-start @xl/section:justify-between",
-            bordered && "border-b border-line",
-            headClassName
-          )}
-        >
-          <div className="flex min-w-0 flex-col gap-2">
-            {hasLabel ? (
-              <div className="flex min-w-0 items-center gap-2">
-                {Icon ? (
-                  <span
-                    aria-hidden="true"
-                    data-slot="section-icon"
-                    className="inline-flex size-5 shrink-0 items-center justify-center text-fg-2"
-                  >
-                    <Icon className="size-3" />
-                  </span>
-                ) : null}
-                <h2
-                  data-slot="section-label"
-                  className="truncate text-item-title font-medium text-fg-strong"
-                >
-                  {label}
-                </h2>
-                {hasCount ? (
-                  <span
-                    data-slot="section-count"
-                    className="inline-flex items-center text-eyebrow font-normal tabular-nums text-subtle"
-                  >
-                    {count}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            {hasNote ? (
-              <div data-slot="section-note" className="max-w-152 text-small-body text-muted">
-                {note}
-              </div>
-            ) : null}
-          </div>
-          {hasRight || hasTabs ? (
-            <div
-              data-slot="section-right"
-              className={cn(
-                "flex w-full items-center gap-2 self-start @xl/section:w-auto @xl/section:shrink-0",
-                rightClassName
-              )}
-            >
-              {hasTabs ? <div data-slot="section-tabs">{tabs}</div> : null}
-              {hasRight ? right : null}
-            </div>
-          ) : null}
-        </header>
-      ) : null}
-      {hasChildren ? (
+      <SectionHead
+        bordered={bordered}
+        count={count}
+        headClassName={headClassName}
+        icon={icon}
+        label={label}
+        note={note}
+        right={right}
+        rightClassName={rightClassName}
+        tabs={tabs}
+      />
+      {hasSectionContent(children) ? (
         <div data-slot="section-body" className={cn("flex min-w-0 flex-col", bodyClassName)}>
           {children}
         </div>

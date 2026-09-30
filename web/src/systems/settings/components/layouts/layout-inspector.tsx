@@ -9,6 +9,7 @@ import { layoutWindowFace } from "../../lib/window-manager-layout-window-face";
 import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
+  WindowManagerLayoutNode,
 } from "../../lib/window-manager-layout-types";
 import { LayoutInspectorNode } from "./layout-inspector-node";
 import { LayoutInspectorWindow } from "./layout-inspector-window";
@@ -27,108 +28,137 @@ export function LayoutInspector({
   selection,
   onDesktopChange,
 }: LayoutInspectorProps) {
-  if (selection === null) {
-    return (
-      <InspectorShell subtitle={`${desktop.id} · order ${desktop.order}`} title={desktop.name}>
-        <section className="flex flex-col gap-2">
-          <Eyebrow className="text-faint">Nothing selected</Eyebrow>
-          <p className="text-form-label leading-normal text-subtle">
-            Click a window to change what it holds or how it splits. Drag a divider to rebalance, or
-            a group edge to repartition the desktop.
-          </p>
-        </section>
-        <section className="flex flex-col gap-2">
-          <Eyebrow className="text-faint">Desktop</Eyebrow>
-          <div>
-            <PropertyRow label="Groups" mono>
-              {desktop.groups.length}
-            </PropertyRow>
-            <PropertyRow label="Tiled windows" mono>
-              {desktop.groups.reduce(
-                (total, group) => total + layoutNodeWindowIds(group.root).length,
-                0
-              )}
-            </PropertyRow>
-            <PropertyRow label="Floating" mono>
-              {desktop.floating.length}
-            </PropertyRow>
-          </div>
-        </section>
-      </InspectorShell>
-    );
-  }
-
-  if (selection.kind === "group") {
-    const group = desktop.groups.find(candidate => candidate.id === selection.id);
-    if (!group) return null;
-    const overlaps = overlappingGroupIds(desktop).has(group.id);
-    return (
-      <InspectorShell subtitle={group.id} title="Group">
-        <section className="flex flex-col gap-2">
-          <Eyebrow className="text-faint">Share of the desktop</Eyebrow>
-          <div>
-            <PropertyRow label="Left" mono>
-              {fractionLabel(group.frame.x)}
-            </PropertyRow>
-            <PropertyRow label="Top" mono>
-              {fractionLabel(group.frame.y)}
-            </PropertyRow>
-            <PropertyRow label="Width" mono>
-              {fractionLabel(group.frame.w)}
-            </PropertyRow>
-            <PropertyRow label="Height" mono>
-              {fractionLabel(group.frame.h)}
-            </PropertyRow>
-          </div>
-        </section>
-        {overlaps ? (
-          <p className="text-form-label text-danger" role="status">
-            This group overlaps another one. CompozyOS refuses a desktop whose groups cover each
-            other.
-          </p>
-        ) : null}
-      </InspectorShell>
-    );
-  }
-
+  if (selection === null) return <DesktopInspector desktop={desktop} />;
+  if (selection.kind === "group")
+    return <GroupInspector desktop={desktop} groupId={selection.id} />;
   if (selection.kind === "window") {
-    const window = document.windows[selection.id];
-    if (!window) return null;
-    const face = layoutWindowFace(window, selection.id);
-    return (
-      <InspectorShell subtitle={`${window.id} · ${window.route.pathname}`} title={face.title}>
-        <section className="flex flex-col gap-2">
-          <Eyebrow className="text-faint">Floating window</Eyebrow>
-          <div>
-            <PropertyRow label="Placement">{window.placement}</PropertyRow>
-            <PropertyRow label="Minimized">{window.minimized ? "Yes" : "No"}</PropertyRow>
-            <PropertyRow label="Size" mono>
-              {`${fractionLabel(window.floatingRect.w)} × ${fractionLabel(window.floatingRect.h)}`}
-            </PropertyRow>
-          </div>
-        </section>
-        <p className="text-form-label leading-normal text-subtle">
-          Drag it on the canvas to reposition. Floating windows sit above every group on this
-          desktop.
-        </p>
-      </InspectorShell>
-    );
+    return <FloatingWindowInspector document={document} windowId={selection.id} />;
   }
+  return (
+    <NodeInspector
+      desktop={desktop}
+      document={document}
+      nodeId={selection.id}
+      onDesktopChange={onDesktopChange}
+    />
+  );
+}
 
-  const found = findLayoutNode(desktop, selection.id);
+function DesktopInspector({ desktop }: { desktop: WindowManagerLayoutDesktop }) {
+  return (
+    <InspectorShell subtitle={`${desktop.id} · order ${desktop.order}`} title={desktop.name}>
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Nothing selected</Eyebrow>
+        <p className="text-form-label leading-normal text-subtle">
+          Click a window to change what it holds or how it splits. Drag a divider to rebalance, or a
+          group edge to repartition the desktop.
+        </p>
+      </section>
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Desktop</Eyebrow>
+        <div>
+          <PropertyRow label="Groups" mono>
+            {desktop.groups.length}
+          </PropertyRow>
+          <PropertyRow label="Tiled windows" mono>
+            {desktop.groups.reduce(
+              (total, group) => total + layoutNodeWindowIds(group.root).length,
+              0
+            )}
+          </PropertyRow>
+          <PropertyRow label="Floating" mono>
+            {desktop.floating.length}
+          </PropertyRow>
+        </div>
+      </section>
+    </InspectorShell>
+  );
+}
+
+function GroupInspector({
+  desktop,
+  groupId,
+}: {
+  desktop: WindowManagerLayoutDesktop;
+  groupId: string;
+}) {
+  const group = desktop.groups.find(candidate => candidate.id === groupId);
+  if (!group) return null;
+  const overlaps = overlappingGroupIds(desktop).has(group.id);
+  return (
+    <InspectorShell subtitle={group.id} title="Group">
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Share of the desktop</Eyebrow>
+        <div>
+          <PropertyRow label="Left" mono>
+            {fractionLabel(group.frame.x)}
+          </PropertyRow>
+          <PropertyRow label="Top" mono>
+            {fractionLabel(group.frame.y)}
+          </PropertyRow>
+          <PropertyRow label="Width" mono>
+            {fractionLabel(group.frame.w)}
+          </PropertyRow>
+          <PropertyRow label="Height" mono>
+            {fractionLabel(group.frame.h)}
+          </PropertyRow>
+        </div>
+      </section>
+      {overlaps ? (
+        <p className="text-form-label text-danger" role="status">
+          This group overlaps another one. CompozyOS refuses a desktop whose groups cover each
+          other.
+        </p>
+      ) : null}
+    </InspectorShell>
+  );
+}
+
+function FloatingWindowInspector({
+  document,
+  windowId,
+}: {
+  document: WindowManagerLayoutDocument;
+  windowId: string;
+}) {
+  const window = document.windows[windowId];
+  if (!window) return null;
+  const face = layoutWindowFace(window, windowId);
+  return (
+    <InspectorShell subtitle={`${window.id} · ${window.route.pathname}`} title={face.title}>
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Floating window</Eyebrow>
+        <div>
+          <PropertyRow label="Placement">{window.placement}</PropertyRow>
+          <PropertyRow label="Minimized">{window.minimized ? "Yes" : "No"}</PropertyRow>
+          <PropertyRow label="Size" mono>
+            {`${fractionLabel(window.floatingRect.w)} × ${fractionLabel(window.floatingRect.h)}`}
+          </PropertyRow>
+        </div>
+      </section>
+      <p className="text-form-label leading-normal text-subtle">
+        Drag it on the canvas to reposition. Floating windows sit above every group on this desktop.
+      </p>
+    </InspectorShell>
+  );
+}
+
+function layoutNodeTitle(node: WindowManagerLayoutNode): string {
+  if (node.kind === "split") return layoutOrientationOf(node.axis) === "rows" ? "Rows" : "Columns";
+  return node.kind === "stack" ? "Stack" : "Window";
+}
+
+function NodeInspector({
+  document,
+  desktop,
+  nodeId,
+  onDesktopChange,
+}: Omit<LayoutInspectorProps, "selection"> & { nodeId: string }) {
+  const found = findLayoutNode(desktop, nodeId);
   if (!found) return null;
   const { node } = found;
-  const title =
-    node.kind === "split"
-      ? layoutOrientationOf(node.axis) === "rows"
-        ? "Rows"
-        : "Columns"
-      : node.kind === "stack"
-        ? "Stack"
-        : "Window";
-
   return (
-    <InspectorShell subtitle={node.id} title={title}>
+    <InspectorShell subtitle={node.id} title={layoutNodeTitle(node)}>
       <LayoutInspectorNode desktop={desktop} node={node} onDesktopChange={onDesktopChange} />
       <LayoutInspectorWindow
         desktop={desktop}

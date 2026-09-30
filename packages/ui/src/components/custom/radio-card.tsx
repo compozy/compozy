@@ -5,6 +5,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
+type RadioCardIconWellSize = "default" | "lg";
 
 export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "value" | "title"> {
   selected: boolean;
@@ -17,10 +18,44 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
    * tinted well from the modal RadioCard contract. Opt-in — do not change
    * existing pickers silently.
    */
-  iconWellSize?: "default" | "lg";
+  iconWellSize?: RadioCardIconWellSize;
   badge?: React.ReactNode;
   /** Optional className merged onto the title slot. */
   titleClassName?: string;
+}
+
+function radioCardIconWellClass(size: RadioCardIconWellSize, selected: boolean): string {
+  if (size === "lg") {
+    return cn(
+      "size-7 rounded-sm bg-surface-2",
+      selected ? "text-fg-strong shadow-inset-strong" : "text-muted shadow-hairline-inset"
+    );
+  }
+  return cn("size-5", selected ? "text-fg-strong" : "text-muted");
+}
+
+function RadioCardIconWell({
+  icon: Icon,
+  selected,
+  size,
+}: {
+  icon: IconComponent;
+  selected: boolean;
+  size: RadioCardIconWellSize;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-icon-well-size={size}
+      data-slot="radio-card-icon-well"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center",
+        radioCardIconWellClass(size, selected)
+      )}
+    >
+      <Icon className={size === "lg" ? "size-3.5" : "size-3"} />
+    </span>
+  );
 }
 
 /**
@@ -73,26 +108,7 @@ function RadioCard({
       {...props}
     >
       <div className="flex min-w-0 items-center gap-2">
-        {Icon ? (
-          <span
-            aria-hidden="true"
-            data-icon-well-size={iconWellSize}
-            data-slot="radio-card-icon-well"
-            className={cn(
-              "inline-flex shrink-0 items-center justify-center",
-              iconWellSize === "lg"
-                ? cn(
-                    "size-7 rounded-sm bg-surface-2",
-                    selected
-                      ? "text-fg-strong shadow-inset-strong"
-                      : "text-muted shadow-hairline-inset"
-                  )
-                : cn("size-5", selected ? "text-fg-strong" : "text-muted")
-            )}
-          >
-            <Icon className={iconWellSize === "lg" ? "size-3.5" : "size-3"} />
-          </span>
-        ) : null}
+        {Icon ? <RadioCardIconWell icon={Icon} selected={selected} size={iconWellSize} /> : null}
         <span
           data-slot="radio-card-title"
           className={cn(

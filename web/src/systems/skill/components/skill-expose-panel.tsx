@@ -96,6 +96,69 @@ export function SkillExposePanel({
   );
 }
 
+type PendingAction = "expose" | "unexpose" | null;
+
+function pendingStatusWord(action: PendingAction): string {
+  return action === "unexpose" ? "removing…" : "exposing…";
+}
+
+/** The status word a row shows: the in-flight verb while pending, otherwise the daemon's sentence. */
+function exposureStatusText(
+  exposure: SkillExposureView,
+  pending: boolean,
+  pendingAction: PendingAction
+): string {
+  return pending ? pendingStatusWord(pendingAction) : exposure.sentence;
+}
+
+function exposureStatusClass(exposure: SkillExposureView, pending: boolean): string {
+  return !pending && exposure.repairable ? "text-danger" : "text-subtle";
+}
+
+/** A foreign entry is reported, never touched: no repair, no removal. */
+function ExposureActions({
+  exposure,
+  testId,
+  busy,
+  onExposeAgain,
+  onUnexpose,
+}: {
+  exposure: SkillExposureView;
+  testId: string;
+  busy: boolean;
+  onExposeAgain: () => void;
+  onUnexpose: () => void;
+}) {
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {exposure.repairable ? (
+        <Button
+          data-testid={`${testId}-expose-again`}
+          disabled={busy}
+          onClick={onExposeAgain}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Expose again
+        </Button>
+      ) : null}
+      {exposure.removable ? (
+        <Button
+          data-testid={`${testId}-unexpose`}
+          disabled={busy}
+          onClick={onUnexpose}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Unexpose
+        </Button>
+      ) : null}
+    </span>
+  );
+}
+
 function ExposureRow({
   exposure,
   label,
@@ -108,12 +171,14 @@ function ExposureRow({
   exposure: SkillExposureView;
   label: string;
   pending: boolean;
-  pendingAction: "expose" | "unexpose" | null;
+  pendingAction: PendingAction;
   busy: boolean;
   onExposeAgain: () => void;
   onUnexpose: () => void;
 }) {
   const testId = `${TEST_ID}-row-${exposure.target}`;
+  const status = exposureStatusText(exposure, pending, pendingAction);
+  const untouchable = pending || exposure.status === "foreign_conflict";
   return (
     <div
       className="flex min-w-0 items-start gap-2 border-b border-line py-2 last:border-b-0"
@@ -122,27 +187,18 @@ function ExposureRow({
     >
       <StatusDot
         className="mt-1 shrink-0"
-        label={
-          pending ? (pendingAction === "unexpose" ? "removing…" : "exposing…") : exposure.sentence
-        }
+        label={status}
         tone={pending ? "faint" : exposure.tone}
-        variant={pending || exposure.status === "foreign_conflict" ? "ring" : "solid"}
+        variant={untouchable ? "ring" : "solid"}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 flex-wrap items-baseline gap-1.5">
           <b className="text-small-body text-fg">{label}</b>
           <span
-            className={cn(
-              "text-form-hint",
-              pending ? "text-subtle" : exposure.repairable ? "text-danger" : "text-subtle"
-            )}
+            className={cn("text-form-hint", exposureStatusClass(exposure, pending))}
             data-testid={`${testId}-status`}
           >
-            {pending
-              ? pendingAction === "unexpose"
-                ? "removing…"
-                : "exposing…"
-              : exposure.sentence}
+            {status}
           </span>
         </span>
         <span
@@ -155,42 +211,22 @@ function ExposureRow({
           {exposure.path}
         </span>
       </div>
-      {/* A foreign entry is reported, never touched: no repair, no removal. */}
-      {pending || exposure.status === "foreign_conflict" ? null : (
-        <span className="flex shrink-0 items-center gap-1">
-          {exposure.repairable ? (
-            <Button
-              data-testid={`${testId}-expose-again`}
-              disabled={busy}
-              onClick={onExposeAgain}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Expose again
-            </Button>
-          ) : null}
-          {exposure.removable ? (
-            <Button
-              data-testid={`${testId}-unexpose`}
-              disabled={busy}
-              onClick={onUnexpose}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Unexpose
-            </Button>
-          ) : null}
-        </span>
+      {untouchable ? null : (
+        <ExposureActions
+          busy={busy}
+          exposure={exposure}
+          onExposeAgain={onExposeAgain}
+          onUnexpose={onUnexpose}
+          testId={testId}
+        />
       )}
     </div>
   );
 }
 
 /** A target being written has no reconciled state yet, so it claims no status word. */
-function PendingRow({ label, action }: { label: string; action: "expose" | "unexpose" | null }) {
-  const status = action === "unexpose" ? "removing…" : "exposing…";
+function PendingRow({ label, action }: { label: string; action: PendingAction }) {
+  const status = pendingStatusWord(action);
   return (
     <div
       className="flex min-w-0 items-center gap-2 border-b border-line py-2 last:border-b-0"

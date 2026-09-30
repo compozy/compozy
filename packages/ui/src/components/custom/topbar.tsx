@@ -68,6 +68,149 @@ function collapseCrumbs(crumbs: readonly TopbarCrumb[]): {
   };
 }
 
+const CRUMB_SEPARATOR_CLASS = "px-0.5 text-small-body text-faint";
+
+/** The document's own ⋯ menu, right after the title (prototype `.id .more`). */
+function TopbarIdentityOverflow({
+  overflow,
+  drillIn,
+}: {
+  overflow: React.ReactNode;
+  drillIn: boolean;
+}) {
+  if (!overflow) return null;
+  return (
+    <div
+      data-slot="topbar-overflow"
+      data-testid="topbar-overflow"
+      // Drill-in identity packs back/crumbs at gap-1; keep the 9px identity gap before ⋯.
+      className={cn("inline-flex shrink-0 items-center", drillIn && "pl-1.25")}
+    >
+      {overflow}
+    </div>
+  );
+}
+
+function TopbarIdentityCount({ count }: { count: React.ReactNode }) {
+  if (count === undefined || count === null) return null;
+  return (
+    <span data-slot="topbar-count" className="font-mono text-mono-id tabular-nums text-faint">
+      {count}
+    </span>
+  );
+}
+
+/** Collapsed middle crumbs behind a `…` menu, after the first visible crumb. */
+function TopbarHiddenCrumbs({ hidden }: { hidden: readonly TopbarCrumb[] }) {
+  return (
+    <>
+      <span aria-hidden="true" className={CRUMB_SEPARATOR_CLASS}>
+        /
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Show hidden path levels"
+          data-slot="topbar-crumb-more"
+          render={
+            <button
+              type="button"
+              className="rounded-sm px-1 py-px text-ws-name font-medium text-faint hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+            />
+          }
+        >
+          <span aria-hidden="true">…</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-auto">
+          {hidden.map(hiddenCrumb => (
+            <DropdownMenuItem key={hiddenCrumb.id} onClick={hiddenCrumb.onSelect}>
+              {hiddenCrumb.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
+function TopbarCrumbTrail({
+  parents,
+  leaf,
+  titleRef,
+}: {
+  parents: readonly TopbarCrumb[];
+  leaf: React.ReactNode;
+  titleRef?: React.Ref<HTMLHeadingElement>;
+}) {
+  const { visible, hidden } = collapseCrumbs(parents);
+  return (
+    <nav
+      data-slot="topbar-crumbs"
+      aria-label="Window path"
+      // Parent crumbs yield before the leaf title; the nav clips what cannot fit.
+      className="flex min-w-0 items-center gap-0.5 overflow-hidden"
+    >
+      {visible.map((crumb, index) => (
+        <React.Fragment key={crumb.id}>
+          {index > 0 ? (
+            <span aria-hidden="true" className={CRUMB_SEPARATOR_CLASS}>
+              /
+            </span>
+          ) : null}
+          <button
+            type="button"
+            data-slot="topbar-crumb"
+            onClick={crumb.onSelect}
+            className="max-w-[150px] shrink-[100] truncate rounded-sm px-1 py-px text-ws-name font-medium text-subtle hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+          >
+            {crumb.label}
+          </button>
+          {index === 0 && hidden.length > 0 ? <TopbarHiddenCrumbs hidden={hidden} /> : null}
+        </React.Fragment>
+      ))}
+      {visible.length > 0 ? (
+        <span aria-hidden="true" className={CRUMB_SEPARATOR_CLASS}>
+          /
+        </span>
+      ) : null}
+      <TopbarTitle titleRef={titleRef} className="pl-0.5">
+        {leaf}
+      </TopbarTitle>
+    </nav>
+  );
+}
+
+function TopbarIdentityGlyph({
+  mark,
+  presentation,
+}: {
+  mark: React.ReactNode;
+  presentation: TopbarSlotValue["glyphPresentation"];
+}) {
+  if (!mark) return null;
+  if (presentation === "state") {
+    return (
+      <span
+        data-slot="topbar-glyph"
+        data-presentation="state"
+        aria-hidden="true"
+        className="inline-flex shrink-0 items-center justify-center text-accent"
+      >
+        {mark}
+      </span>
+    );
+  }
+  return (
+    <KindIcon
+      aria-hidden="true"
+      data-slot="topbar-glyph"
+      data-presentation="icon"
+      glyph={mark}
+      size="sm"
+      tone="well"
+    />
+  );
+}
+
 /** Keeps identity controls visible while long titles disclose their complete text. */
 function TopbarIdentity({
   title,
@@ -82,108 +225,28 @@ function TopbarIdentity({
 }) {
   const leaf = slot?.crumb ?? title;
   const parents = slot?.crumbs ?? [];
-  const drillIn = Boolean(slot?.onBack) || parents.length > 0;
-  const mark = slot?.glyph ?? glyph;
-  const { visible, hidden } = collapseCrumbs(parents);
+  const onBack = slot?.onBack;
+  const drillIn = Boolean(onBack) || parents.length > 0;
 
-  // The document's own ⋯ menu belongs to its identity, right after the title
-  // (prototype `.id .more`); status chips and actions stay in the trail.
-  const overflow = slot?.overflow ? (
-    <div
-      data-slot="topbar-overflow"
-      data-testid="topbar-overflow"
-      // Drill-in identity packs back/crumbs at gap-1; keep the 9px identity gap before ⋯.
-      className={cn("inline-flex shrink-0 items-center", drillIn && "pl-1.25")}
-    >
-      {slot.overflow}
-    </div>
-  ) : null;
-
-  const count =
-    slot?.count !== undefined && slot.count !== null ? (
-      <span data-slot="topbar-count" className="font-mono text-mono-id tabular-nums text-faint">
-        {slot.count}
-      </span>
-    ) : null;
+  // The ⋯ menu belongs to the identity; status chips and actions stay in the trail.
+  const overflow = <TopbarIdentityOverflow drillIn={drillIn} overflow={slot?.overflow} />;
+  const count = <TopbarIdentityCount count={slot?.count} />;
 
   if (drillIn) {
     return (
       <div data-slot="topbar-identity" className="flex min-w-0 items-center gap-1">
-        {slot?.onBack ? (
+        {onBack ? (
           <button
             type="button"
             data-slot="topbar-back"
             aria-label="Back one level"
-            onClick={slot.onBack}
+            onClick={onBack}
             className="inline-flex size-6.5 shrink-0 items-center justify-center rounded-xs text-subtle transition-colors duration-fast hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
           >
             <ChevronLeft aria-hidden="true" className="size-4" />
           </button>
         ) : null}
-        <nav
-          data-slot="topbar-crumbs"
-          aria-label="Window path"
-          // Parent crumbs yield before the leaf title; the nav clips what cannot fit.
-          className="flex min-w-0 items-center gap-0.5 overflow-hidden"
-        >
-          {visible.map((crumb, index) => {
-            const isFirst = index === 0;
-            const showEllipsis = isFirst && hidden.length > 0;
-            return (
-              <React.Fragment key={crumb.id}>
-                {index > 0 ? (
-                  <span aria-hidden="true" className="px-0.5 text-small-body text-faint">
-                    /
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  data-slot="topbar-crumb"
-                  onClick={crumb.onSelect}
-                  className="max-w-[150px] shrink-[100] truncate rounded-sm px-1 py-px text-ws-name font-medium text-subtle hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
-                >
-                  {crumb.label}
-                </button>
-                {showEllipsis ? (
-                  <>
-                    <span aria-hidden="true" className="px-0.5 text-small-body text-faint">
-                      /
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        aria-label="Show hidden path levels"
-                        data-slot="topbar-crumb-more"
-                        render={
-                          <button
-                            type="button"
-                            className="rounded-sm px-1 py-px text-ws-name font-medium text-faint hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
-                          />
-                        }
-                      >
-                        <span aria-hidden="true">…</span>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-auto">
-                        {hidden.map(hiddenCrumb => (
-                          <DropdownMenuItem key={hiddenCrumb.id} onClick={hiddenCrumb.onSelect}>
-                            {hiddenCrumb.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </>
-                ) : null}
-              </React.Fragment>
-            );
-          })}
-          {visible.length > 0 ? (
-            <span aria-hidden="true" className="px-0.5 text-small-body text-faint">
-              /
-            </span>
-          ) : null}
-          <TopbarTitle titleRef={titleRef} className="pl-0.5">
-            {leaf}
-          </TopbarTitle>
-        </nav>
+        <TopbarCrumbTrail leaf={leaf} parents={parents} titleRef={titleRef} />
         {count}
         {overflow}
       </div>
@@ -192,25 +255,7 @@ function TopbarIdentity({
 
   return (
     <div data-slot="topbar-identity" className="flex min-w-0 items-center gap-2.25">
-      {mark && slot?.glyphPresentation === "state" ? (
-        <span
-          data-slot="topbar-glyph"
-          data-presentation="state"
-          aria-hidden="true"
-          className="inline-flex shrink-0 items-center justify-center text-accent"
-        >
-          {mark}
-        </span>
-      ) : mark ? (
-        <KindIcon
-          aria-hidden="true"
-          data-slot="topbar-glyph"
-          data-presentation="icon"
-          glyph={mark}
-          size="sm"
-          tone="well"
-        />
-      ) : null}
+      <TopbarIdentityGlyph mark={slot?.glyph ?? glyph} presentation={slot?.glyphPresentation} />
       <TopbarTitle titleRef={titleRef}>{leaf}</TopbarTitle>
       {count}
       {overflow}
