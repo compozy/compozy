@@ -368,6 +368,19 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(first.id);
   });
 
+  it("Should restore a minimized window that the client still reports as focused", () => {
+    // The topology can mark a window minimized before the client frame drops
+    // its focus; the hollow-ring launcher must still restore it, not minimize.
+    const tasks = windowFixture("window:tasks", "tasks", { minimized: true, zoomed: true });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+    setDockState(desktopState({ [tasks.id]: tasks }, tasks.id, [tasks.id]));
+
+    act(() => result.current.handleSelect("tasks"));
+
+    expect(dockShell.coordinator.userMinimize).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledWith(tasks.id);
+  });
+
   it("Should target a task instance on another desktop through the activation coordinator (UT-044)", () => {
     const remote = windowFixture("window:tasks-remote", "tasks", { desktopId: "desktop:two" });
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));

@@ -142,8 +142,10 @@ export function useDesktopDock(
       void coordinator.userOpen({ app: appId });
       return;
     }
-    // Tab-bar semantics (compact): tap = switch to, never minimize.
-    if (target.id === state.focusedId && presentation === "floating") {
+    // Tab-bar semantics (compact): tap = switch to, never minimize. A minimized
+    // target is always restored, even while the client frame still names it
+    // as focused (the topology can report the minimize first).
+    if (target.id === state.focusedId && !target.minimized && presentation === "floating") {
       void coordinator.userMinimize(target.id);
       return;
     }
