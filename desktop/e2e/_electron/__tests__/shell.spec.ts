@@ -1863,102 +1863,17 @@ test("Should bound catalog requests during sixty minutes of native desktop uptim
   launchDesktop,
 }, testInfo) => {
   test.setTimeout(90 * 60_000);
-  const desktop = await launchDesktop({
-    prepare: prepareLoginPathProvider,
-    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
-  });
-  const product = await desktop.product();
-  await completeOnboarding(product);
-  const workspaceID = await ensureProjectWorkspaceID(desktop, product);
-  const createStoppedSession = async (name: string) => {
-    const created = await jsonCommand(desktop, [
-      "session",
-      "new",
-      "--workspace",
-      workspaceID,
-      "--agent",
-      loginPathAgent,
-      "--name",
-      name,
-      "-o",
-      "json",
-    ]);
-    expect(typeof created.id).toBe("string");
-    const stopped = await jsonCommand(desktop, [
-      "session",
-      "stop",
-      String(created.id),
-      "--wait",
-      "-o",
-      "json",
-    ]);
-    expect(stopped).toMatchObject({ session_id: created.id, state: "stopped", verified: true });
-  };
-  for (let index = 0; index < 600; index++) {
-    await createStoppedSession(`catalog-history-${index}`);
-  }
-  const history = await product.request.get(
-    new URL(
-      `/api/sessions?workspace_id=${encodeURIComponent(workspaceID)}&state=stopped&limit=1`,
-      product.url()
-    ).toString()
-  );
-  expect(history.ok()).toBe(true);
-  expect((await history.json()).page.total).toBeGreaterThanOrEqual(600);
-
-  const definition = {
-    apiVersion: "compozy.loop/v1",
-    kind: "Loop",
-    meta: { name: "catalog-uptime", version: 1 },
-    contract: {
-      goal: "Keep a real Loop active during the catalog regression",
-      definition_of_done: "The wait completes",
-      stop_when: "nodes.wait.status == 'succeeded'",
-      iteration_cap: 1,
-      no_progress: { window: 1 },
-      budget: { on_exceeded: "halt" },
-    },
-    graph: {
-      nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "90m" } }],
-      edges: [],
-    },
-    start: [{ kind: "manual" }],
-  };
-  const definitionPath = join(desktop.home, "catalog-uptime.json");
-  await writeFile(definitionPath, JSON.stringify(definition));
-  await desktop.cli([
-    "loop",
-    "create",
-    "--workspace",
-    workspaceID,
-    "--file",
-    definitionPath,
-    "-o",
-    "json",
-  ]);
-  const started = await jsonCommand(desktop, [
-    "loop",
-    "run",
-    "--workspace",
-    workspaceID,
-    "--name",
-    "catalog-uptime",
-    "--no-prompt",
-    "-o",
-    "json",
-  ]);
-  const runID = (started.run as { id: string }).id;
-  expect(typeof runID).toBe("string");
-  expect(runID).not.toBe("");
-  const runURL = new URL(
-    `/api/workspaces/${encodeURIComponent(workspaceID)}/loop-runs/${encodeURIComponent(runID)}`,
-    product.url()
-  ).toString();
-  const head = await runCommand("git", ["rev-parse", "HEAD"], {
-    cwd: repositoryRoot,
-    env: process.env,
-  });
-  expect(head.exitCode).toBe(0);
+  let ownedDesktop: DesktopInstance | undefined;
+  let ownedProduct: Page | undefined;
+  let receiptWorkspaceID: string | undefined;
+  let receiptRunID: string | undefined;
+  let sourceHead: string | undefined;
+  let runtimePath: string | undefined;
+  let stage = "source-head";
+  let seeded = 0;
+  let failed = false;
+  let failure: unknown;
+  const cleanupErrors: unknown[] = [];
   const budget: Record<string, number> = {
     "/api/sessions": 26,
     "/api/sessions/facets": 13,
@@ -2006,6 +1921,120 @@ test("Should bound catalog requests during sixty minutes of native desktop uptim
     }
   };
   try {
+    const head = await runCommand("git", ["rev-parse", "HEAD"], {
+      cwd: repositoryRoot,
+      env: process.env,
+    });
+    sourceHead = head.stdout.trim();
+    expect(head.exitCode).toBe(0);
+    stage = "desktop-launch";
+    const desktop = await launchDesktop({
+      prepare: async context => {
+        runtimePath = context.bundleRuntimePath;
+        await prepareLoginPathProvider(context);
+      },
+      environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+    });
+    ownedDesktop = desktop;
+    stage = "renderer-boot";
+    const product = await desktop.product();
+    ownedProduct = product;
+    stage = "onboarding";
+    await completeOnboarding(product);
+    stage = "workspace";
+    const workspaceID = await ensureProjectWorkspaceID(desktop, product);
+    receiptWorkspaceID = workspaceID;
+    const createStoppedSession = async (name: string) => {
+      const created = await jsonCommand(desktop, [
+        "session",
+        "new",
+        "--workspace",
+        workspaceID,
+        "--agent",
+        loginPathAgent,
+        "--name",
+        name,
+        "-o",
+        "json",
+      ]);
+      expect(typeof created.id).toBe("string");
+      const stopped = await jsonCommand(desktop, [
+        "session",
+        "stop",
+        String(created.id),
+        "--wait",
+        "-o",
+        "json",
+      ]);
+      expect(stopped).toMatchObject({ session_id: created.id, state: "stopped", verified: true });
+    };
+    stage = "seed-history";
+    for (let index = 0; index < 600; index++) {
+      await createStoppedSession(`catalog-history-${index}`);
+      seeded++;
+    }
+    stage = "verify-history";
+    const history = await product.request.get(
+      new URL(
+        `/api/sessions?workspace_id=${encodeURIComponent(workspaceID)}&state=stopped&limit=1`,
+        product.url()
+      ).toString()
+    );
+    expect(history.ok()).toBe(true);
+    expect((await history.json()).page.total).toBeGreaterThanOrEqual(600);
+
+    stage = "create-loop";
+    const definition = {
+      apiVersion: "compozy.loop/v1",
+      kind: "Loop",
+      meta: { name: "catalog-uptime", version: 1 },
+      contract: {
+        goal: "Keep a real Loop active during the catalog regression",
+        definition_of_done: "The wait completes",
+        stop_when: "nodes.wait.status == 'succeeded'",
+        iteration_cap: 1,
+        no_progress: { window: 1 },
+        budget: { on_exceeded: "halt" },
+      },
+      graph: {
+        nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "90m" } }],
+        edges: [],
+      },
+      start: [{ kind: "manual" }],
+    };
+    const definitionPath = join(desktop.home, "catalog-uptime.json");
+    await writeFile(definitionPath, JSON.stringify(definition));
+    await desktop.cli([
+      "loop",
+      "create",
+      "--workspace",
+      workspaceID,
+      "--file",
+      definitionPath,
+      "-o",
+      "json",
+    ]);
+    stage = "start-loop";
+    const started = await jsonCommand(desktop, [
+      "loop",
+      "run",
+      "--workspace",
+      workspaceID,
+      "--name",
+      "catalog-uptime",
+      "--no-prompt",
+      "-o",
+      "json",
+    ]);
+    const runID = (started.run as { id: string }).id;
+    expect(typeof runID).toBe("string");
+    expect(runID).not.toBe("");
+    receiptRunID = runID;
+    const runURL = new URL(
+      `/api/workspaces/${encodeURIComponent(workspaceID)}/loop-runs/${encodeURIComponent(runID)}`,
+      product.url()
+    ).toString();
+    stage = "open-catalog";
     await product.getByRole("menuitem", { name: "Session", exact: true }).click();
     await product.getByTestId("os-menubar-command-shell.sessions.toggle").click();
     await expect(product.getByTestId("os-sessions-modal")).toBeVisible();
@@ -2020,6 +2049,7 @@ test("Should bound catalog requests during sixty minutes of native desktop uptim
     product.on("request", onRequest);
     began = performance.now();
     measured = true;
+    stage = "measurement";
     while (performance.now() - began < 3_600_000) {
       const native = await window.evaluate(nativeWindow => ({
         visible: nativeWindow.isVisible(),
@@ -2050,58 +2080,94 @@ test("Should bound catalog requests during sixty minutes of native desktop uptim
     expect(requests.some(request => request.path === "/api/sessions")).toBe(true);
     expect(violations).toEqual([]);
     completed = true;
+    stage = "completed";
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
   } finally {
     measured = false;
-    product.off("request", onRequest);
-    const receiptPath = testInfo.outputPath("catalog-sixty-minute-rate.json");
-    await writeFile(
-      receiptPath,
-      JSON.stringify(
-        {
-          head: head.stdout.trim(),
-          runtime_sha256: await executableSha256File(desktop.bundleRuntimePath),
-          completed,
-          elapsed_ms: began === 0 ? 0 : performance.now() - began,
-          seed_stopped_sessions: 600,
-          workspace_id: workspaceID,
-          run_id: runID,
-          budget,
-          combined_budget: 52,
-          minute_buckets: requests.reduce<Record<string, Record<string, number>>>(
-            (buckets, request) => {
-              const minute = String(Math.floor(request.elapsed_ms / 60_000));
-              const bucket = buckets[minute] ?? (buckets[minute] = {});
-              bucket[request.path] = (bucket[request.path] ?? 0) + 1;
-              return buckets;
-            },
-            {}
-          ),
-          client_ids: [...clientIDs],
-          maxima,
-          churn,
-          lifecycle,
-          requests,
-          violations,
-        },
-        null,
-        2
-      )
-    );
-    await testInfo.attach("catalog-sixty-minute-rate", {
-      path: receiptPath,
-      contentType: "application/json",
-    });
-    await desktop.cli([
-      "loop",
-      "cancel",
-      "--workspace",
-      workspaceID,
-      "--run-id",
-      runID,
-      "-o",
-      "json",
-    ]);
+    const elapsedMS = began === 0 ? 0 : performance.now() - began;
+    ownedProduct?.off("request", onRequest);
+    let runtimeDigest: string | undefined;
+    if (runtimePath) {
+      try {
+        runtimeDigest = await executableSha256File(runtimePath);
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    if (ownedDesktop) {
+      if (receiptWorkspaceID && receiptRunID) {
+        try {
+          await ownedDesktop.cli([
+            "loop",
+            "cancel",
+            "--workspace",
+            receiptWorkspaceID,
+            "--run-id",
+            receiptRunID,
+            "-o",
+            "json",
+          ]);
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+    }
+    try {
+      const receiptPath = testInfo.outputPath("catalog-sixty-minute-rate.json");
+      await writeFile(
+        receiptPath,
+        JSON.stringify(
+          {
+            head: sourceHead,
+            runtime_sha256: runtimeDigest,
+            setup_stage: stage,
+            error: failed
+              ? failure instanceof Error
+                ? { message: failure.message, stack: failure.stack }
+                : String(failure)
+              : undefined,
+            cleanup_errors: cleanupErrors.map(String),
+            completed,
+            elapsed_ms: elapsedMS,
+            seed_stopped_sessions: seeded,
+            workspace_id: receiptWorkspaceID,
+            run_id: receiptRunID,
+            budget,
+            combined_budget: 52,
+            minute_buckets: requests.reduce<Record<string, Record<string, number>>>(
+              (buckets, request) => {
+                const minute = String(Math.floor(request.elapsed_ms / 60_000));
+                const bucket = buckets[minute] ?? (buckets[minute] = {});
+                bucket[request.path] = (bucket[request.path] ?? 0) + 1;
+                return buckets;
+              },
+              {}
+            ),
+            client_ids: [...clientIDs],
+            maxima,
+            churn,
+            lifecycle,
+            requests,
+            violations,
+          },
+          null,
+          2
+        )
+      );
+      await testInfo.attach("catalog-sixty-minute-rate", {
+        path: receiptPath,
+        contentType: "application/json",
+      });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     // launchDesktop's existing finalizer closes only this shell and its daemon,
     // including any active session left by a failed public churn command.
+  }
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, "Catalog regression artifact or cleanup failed.");
   }
 });

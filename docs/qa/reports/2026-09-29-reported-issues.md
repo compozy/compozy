@@ -110,7 +110,9 @@ regression with 600 publicly created/stopped sessions, a running real Loop and c
 lifecycle activity. Actual renderer request headers identify the client; every rolling sixty-second
 window retains the frozen 26/13/13 endpoint budgets and 52 combined limit. Native focus/visibility,
 monotonic elapsed time, current head, runtime digest and detailed rate samples are retained as a
-CI artifact on success or failure. The existing desktop lane owns this run; its result is pending.
+CI artifact on success or failure, including failed native boot, session seeding or Loop setup.
+The receipt records verified seed progress and the original failure without cleanup masking it.
+The existing desktop lane owns this run; its result is pending.
 
 The subsequent Greptile review found that a failed directory listing was incorrectly treated as
 an absent inventory. Recovery now preserves running receipts on non-absence listing errors and
