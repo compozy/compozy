@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useDocumentVisible } from "@/hooks/use-document-visible";
-
 import { dashboardKeys } from "@/systems/dashboard";
 import {
   acknowledgeAttentionNotifications,
@@ -16,12 +14,11 @@ import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model
 export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
   const { destination } = useProfileReadScope();
   const queryClient = useQueryClient();
-  const documentVisible = useDocumentVisible();
   const query = useQuery({
     ...attentionNotificationsOptions(destination),
-    refetchInterval: query =>
-      documentVisible ? (query.state.status === "error" ? 30_000 : 5_000) : false,
-    refetchIntervalInBackground: false,
+    // The notification count also owns the tab title while the document is hidden.
+    refetchInterval: query => (query.state.status === "error" ? 30_000 : 5_000),
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: false,
     retry: false,
   });
