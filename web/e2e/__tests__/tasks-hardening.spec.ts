@@ -549,10 +549,12 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
   await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
   await setGlobalScope(appPage, true);
 
+  // Below a usable width the list search folds to its toggle rather than
+  // clipping (tasks-list-toolbar); wider strips show the field directly.
   for (const viewport of [
-    { height: 820, name: "mobile", width: 375 },
-    { height: 900, name: "tablet", width: 768 },
-    { height: 900, name: "desktop", width: 1280 },
+    { height: 820, name: "mobile", searchFolded: true, width: 375 },
+    { height: 900, name: "tablet", searchFolded: false, width: 768 },
+    { height: 900, name: "desktop", searchFolded: false, width: 1280 },
   ]) {
     await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
 
@@ -565,11 +567,28 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
     await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
     await expect(appPage.getByTestId("tasks-list-filters")).toBeVisible();
     const listSearch = appPage.getByTestId("tasks-list-search-input");
+    const listSearchToggle = appPage
+      .getByTestId("listing-toolbar")
+      .filter({ has: appPage.getByTestId("tasks-list-filters") })
+      .getByRole("button", { name: "Search tasks" });
+    if (viewport.searchFolded) {
+      await expect(listSearch).toHaveCount(0);
+      await listSearchToggle.click();
+      await expect(listSearch).toBeFocused();
+    } else {
+      await expect(listSearchToggle).toHaveCount(0);
+    }
     await expect(listSearch).toBeVisible();
     await listSearch.fill(`no-task-${viewport.name}-${viewport.width}`);
     await expect(appPage.getByTestId("tasks-list-surface-empty")).toBeVisible();
     await listSearch.fill("");
     await expect(ui.taskCard(seeded.referenceTask.id)).toBeVisible();
+    if (viewport.searchFolded) {
+      // Emptied, the field folds back on Escape and returns focus to its toggle.
+      await listSearch.press("Escape");
+      await expect(listSearch).toHaveCount(0);
+      await expect(listSearchToggle).toBeFocused();
+    }
 
     await ui.modeInbox.click();
     await expect(ui.modeInbox).toHaveAttribute("aria-current", "page");
