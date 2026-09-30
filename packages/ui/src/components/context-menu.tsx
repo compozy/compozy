@@ -132,7 +132,7 @@ function ContextMenuSubContent({
   return (
     <ContextMenuContent
       data-slot="context-menu-sub-content"
-      className={cn("w-auto min-w-menu-sub-min", className)}
+      className={cn("w-auto", className)}
       side="right"
       {...props}
     />

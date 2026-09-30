@@ -107,7 +107,7 @@ function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
           {turn.criteria.map(criterion => (
             <li key={criterion.id} className="min-w-0 py-2 first:pt-0 last:pb-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <MonoId value={criterion.id} className="max-w-table-cell-sm text-fg" />
+                <MonoId value={criterion.id} className="max-w-(--width-table-cell-sm) text-fg" />
                 <Pill tone="neutral" size="xs">
                   {criterion.type}
                 </Pill>
@@ -236,7 +236,7 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
         {turn.evidence_ref ? (
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <Eyebrow>Evidence</Eyebrow>
-            <MonoId value={turn.evidence_ref} className="max-w-table-cell-sm text-info" />
+            <MonoId value={turn.evidence_ref} className="max-w-(--width-table-cell-sm) text-info" />
           </span>
         ) : (
           <span className="text-faint">No evidence reference</span>
@@ -244,7 +244,10 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
         {turn.reason_code ? (
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <Eyebrow>Cause</Eyebrow>
-            <MonoId value={turn.reason_code} className="max-w-table-cell-sm text-warning" />
+            <MonoId
+              value={turn.reason_code}
+              className="max-w-(--width-table-cell-sm) text-warning"
+            />
           </span>
         ) : null}
         <span className="ml-auto font-mono text-mono-id tabular-nums text-faint">

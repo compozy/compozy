@@ -281,7 +281,7 @@ function DesktopsOverviewAlert({
   onAction,
 }: DesktopsOverviewAlertProps) {
   return (
-    <Alert className="mx-auto max-w-modal-sm" variant={variant}>
+    <Alert className="mx-auto max-w-(--width-modal-sm)" variant={variant}>
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
       {onAction ? (

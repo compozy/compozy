@@ -45,6 +45,8 @@
   /* The hero's floating product window. The shared tokens retired the window
      radius and shadow with the flat shell; the site keeps them for its mock. */
   --radius-window: 12px;
+  /* Blog wire card (BlogWireCard): capped narrower than the prose column. */
+  --max-width-wire-card: 520px;
   --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   /* Button labels moved to the 14.5px product body; the site keeps 12.5px. */
   --text-body: 0.78125rem;

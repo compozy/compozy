@@ -879,6 +879,47 @@ describe("compozy-design-system lint plugin", () => {
       );
     });
 
+    // Invariant: the rule only suggests a bare utility that Tailwind v4 can resolve.
+    // `min-w-*` reads `--min-width-*`, so `min-w-(--width-x)` has no bare form and
+    // the suggested `min-w-x` would be a class that generates no CSS.
+    it("allows a sizing token read by a utility from another namespace", async () => {
+      await expectAllowed({
+        filename: "web/src/foo.tsx",
+        rule,
+        source: `
+          export function View() {
+            return (
+              <div className="min-w-(--width-worktree-submenu) max-w-(--width-message-bubble-max) basis-(--min-width-search-input)">
+                x
+              </div>
+            );
+          }
+        `,
+      });
+    });
+
+    it("flags a sizing token read by a utility from its own namespace", async () => {
+      for (const full of [
+        "w-(--width-worktree-submenu)",
+        "min-w-(--min-width-search-input)",
+        "max-h-(--height-worktree-submenu-max)",
+        "mt-(--spacing-count-chip)",
+      ]) {
+        await expectViolation(
+          {
+            filename: "web/src/foo.tsx",
+            rule,
+            source: `
+              export function View() {
+                return <div className="${full}">x</div>;
+              }
+            `,
+          },
+          full
+        );
+      }
+    });
+
     it("allows runtime vars injected by Radix (anchor-width, available-height)", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",

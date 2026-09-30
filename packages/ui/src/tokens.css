@@ -457,7 +457,6 @@
 
   /* Empty / menu primitives. */
   --size-empty-icon: 48px;
-  --width-menu-sub-min: 96px;
   --width-worktree-submenu: 320px;
   --height-worktree-submenu-max: 420px;
   /* Inert-row reason lane cap: the functional label truncates before it can
@@ -523,7 +522,6 @@
   --container-transcript: 760px;
   --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
-  --width-wire-card-max: 520px;
   /* Search field: its resting width, and the floor a toolbar search shrinks to in
      a narrow pane before the strip scrolls. Namespaced per utility (min-w-*, basis-*). */
   --min-width-search-input: 220px;

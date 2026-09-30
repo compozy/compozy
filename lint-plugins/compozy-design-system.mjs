@@ -62,6 +62,50 @@ const PREFER_BARE_UTILITY_WHITELIST = new Set([
 const PREFER_BARE_RE =
   /\b([a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z][a-zA-Z0-9]*){0,2})-\(--([a-zA-Z0-9-]+)\)/g;
 
+/**
+ * Theme namespaces each sizing utility reads in Tailwind v4 (tailwindcss 4.3
+ * `dist/lib.js`). A bare `min-w-<stem>` resolves `--min-width-<stem>`, never
+ * `--width-<stem>`, so `min-w-(--width-x)` has no bare form: suggesting
+ * `min-w-x` produces a class that generates no CSS.
+ */
+const SPACING = "spacing";
+const SIZING_UTILITY_NAMESPACES = new Map([
+  ["w", ["width", SPACING, "container"]],
+  ["min-w", ["min-width", SPACING, "container"]],
+  ["max-w", ["max-width", SPACING, "container"]],
+  ["h", ["height", SPACING]],
+  ["min-h", ["min-height", "height", SPACING]],
+  ["max-h", ["max-height", "height", SPACING]],
+  ["size", ["size", SPACING]],
+  ["basis", ["flex-basis", SPACING, "container"]],
+  ...["p", "px", "py", "pt", "pr", "pb", "pl", "ps", "pe"].map(p => [p, ["padding", SPACING]]),
+  ...["m", "mx", "my", "mt", "mr", "mb", "ml", "ms", "me"].map(p => [p, ["margin", SPACING]]),
+  ...["gap", "gap-x", "gap-y"].map(p => [p, ["gap", SPACING]]),
+  ...["inset", "inset-x", "inset-y", "top", "right", "bottom", "left", "start", "end"].map(p => [
+    p,
+    ["inset", SPACING],
+  ]),
+]);
+
+/** Sizing namespaces a token name can start with, longest first. */
+const SIZING_NAMESPACES = [...new Set([...SIZING_UTILITY_NAMESPACES.values()].flat())].sort(
+  (a, b) => b.length - a.length
+);
+
+/**
+ * True when the bare utility would read `--<name>`: either the prefix is not a
+ * sizing utility (colors, radius, shadows…), or the token's namespace is one
+ * the sizing utility reads. A token outside every sizing namespace keeps the
+ * old behaviour (flagged unless whitelisted).
+ */
+function hasBareForm(prefix, name) {
+  const namespaces = SIZING_UTILITY_NAMESPACES.get(prefix);
+  if (!namespaces) return true;
+  const namespace = SIZING_NAMESPACES.find(candidate => name.startsWith(candidate + "-"));
+  if (!namespace) return true;
+  return namespaces.includes(namespace);
+}
+
 function findArbitraryTokenViolations(value) {
   if (!value || typeof value !== "string") return [];
   const out = [];
@@ -69,6 +113,7 @@ function findArbitraryTokenViolations(value) {
     const [, prefix, name] = match;
     if (PREFER_BARE_UTILITY_WHITELIST.has(name)) continue;
     if (name.startsWith("radix-")) continue;
+    if (!hasBareForm(prefix, name)) continue;
     out.push({ prefix, name, full: match[0] });
   }
   return out;

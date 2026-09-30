@@ -69,7 +69,7 @@ function ChatMessageBubble({
       >
         <div
           data-slot="chat-message-inner"
-          className="flex max-w-message-bubble-max flex-col gap-1.5"
+          className="flex max-w-(--width-message-bubble-max) flex-col gap-1.5"
         >
           {meta ? (
             <Eyebrow
