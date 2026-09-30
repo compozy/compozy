@@ -86,6 +86,19 @@ function TopbarIdentity({
   const mark = slot?.glyph ?? glyph;
   const { visible, hidden } = collapseCrumbs(parents);
 
+  // The document's own ⋯ menu belongs to its identity, right after the title
+  // (prototype `.id .more`); status chips and actions stay in the trail.
+  const overflow = slot?.overflow ? (
+    <div
+      data-slot="topbar-overflow"
+      data-testid="topbar-overflow"
+      // Drill-in identity packs back/crumbs at gap-1; keep the 9px identity gap before ⋯.
+      className={cn("inline-flex shrink-0 items-center", drillIn && "pl-1.25")}
+    >
+      {slot.overflow}
+    </div>
+  ) : null;
+
   const count =
     slot?.count !== undefined && slot.count !== null ? (
       <span data-slot="topbar-count" className="font-mono text-mono-id tabular-nums text-faint">
@@ -102,9 +115,9 @@ function TopbarIdentity({
             data-slot="topbar-back"
             aria-label="Back one level"
             onClick={slot.onBack}
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-hover hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
+            className="inline-flex size-6.5 shrink-0 items-center justify-center rounded-xs text-subtle transition-colors duration-fast hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
           >
-            <ChevronLeft aria-hidden="true" className="size-3.5" />
+            <ChevronLeft aria-hidden="true" className="size-4" />
           </button>
         ) : null}
         <nav
@@ -171,6 +184,7 @@ function TopbarIdentity({
           </TopbarTitle>
         </nav>
         {count}
+        {overflow}
       </div>
     );
   }
@@ -198,6 +212,7 @@ function TopbarIdentity({
       ) : null}
       <TopbarTitle titleRef={titleRef}>{leaf}</TopbarTitle>
       {count}
+      {overflow}
     </div>
   );
 }
@@ -252,7 +267,7 @@ function TopbarTitle({
 function Topbar({ controls, title, titleRef, glyph, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
   const hasControls = controls != null;
-  const hasTrail = Boolean(slot?.status) || Boolean(slot?.actions) || Boolean(slot?.overflow);
+  const hasTrail = Boolean(slot?.status) || Boolean(slot?.actions);
 
   return (
     <header
@@ -275,7 +290,7 @@ function Topbar({ controls, title, titleRef, glyph, className, ...props }: Topba
               {slot.status}
             </div>
           ) : null}
-          {slot?.status && (slot.actions || slot.overflow) ? (
+          {slot?.status && slot.actions ? (
             <span
               aria-hidden="true"
               data-slot="topbar-vsep"
@@ -285,15 +300,6 @@ function Topbar({ controls, title, titleRef, glyph, className, ...props }: Topba
           {slot?.actions ? (
             <div data-slot="topbar-actions" className="flex min-w-0 items-center gap-1.5">
               {slot.actions}
-            </div>
-          ) : null}
-          {slot?.overflow ? (
-            <div
-              data-slot="topbar-overflow"
-              data-testid="topbar-overflow"
-              className="inline-flex shrink-0 items-center"
-            >
-              {slot.overflow}
             </div>
           ) : null}
         </div>

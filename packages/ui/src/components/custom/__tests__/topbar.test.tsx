@@ -242,6 +242,13 @@ describe("Topbar", () => {
     expect(screen.getByTestId("topbar-overflow")).toContainElement(
       screen.getByTestId("overflow-trigger")
     );
+    // The ⋯ menu belongs to the identity, right after the title; actions stay in the trail.
+    const identity = document.querySelector("[data-slot='topbar-identity']");
+    expect(identity).toContainElement(screen.getByTestId("topbar-overflow"));
+    expect(identity?.lastElementChild).toBe(screen.getByTestId("topbar-overflow"));
+    expect(document.querySelector("[data-slot='topbar-trailing']")).not.toContainElement(
+      screen.getByTestId("topbar-overflow")
+    );
   });
 
   it("Should publish a slot without rerendering its producer subtree", () => {

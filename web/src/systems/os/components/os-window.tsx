@@ -1,4 +1,10 @@
-import { OverlayContainerContext, SkeletonRows, Spinner, type TopbarSlotStore } from "@compozy/ui";
+import {
+  OverlayContainerContext,
+  Pill,
+  SkeletonRows,
+  Spinner,
+  type TopbarSlotStore,
+} from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
 import { Suspense, useState } from "react";
 import { Rnd } from "react-rnd";
@@ -163,11 +169,11 @@ export function OsWindow({ frame }: OsWindowProps) {
           <div
             aria-hidden="true"
             data-slot="os-window-merge-target"
-            className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-11 items-center justify-center border border-accent bg-accent-tint"
+            className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-window-head items-center justify-center border border-accent bg-accent-tint"
           >
-            <span className="rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-overlay">
+            <Pill tone="accent" solid size="sm">
               Group as tabs
-            </span>
+            </Pill>
           </div>
         ) : null}
       </OsWindowChrome>

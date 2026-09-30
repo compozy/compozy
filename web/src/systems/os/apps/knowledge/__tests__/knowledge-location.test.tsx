@@ -1,11 +1,12 @@
 // Suite: Knowledge window location adapter
 // Invariant: the external-store selector returns the stored route search reference;
-// parsing that search must not create a fresh getSnapshot value and loop React renders.
+// parsing that search must not create a fresh getSnapshot value and loop React renders, and the
+// head keeps the root identity while a memory is selected beside the list (master–detail).
 // Owning layer: Knowledge's OS-window route adapter.
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TopbarSlotProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider } from "@compozy/ui";
 
 vi.mock("../../../hooks/use-desktop", async () => {
   const { useSyncExternalStore } = await import("react");
@@ -30,12 +31,14 @@ vi.mock("../../../hooks/use-desktop", async () => {
   };
 });
 
+const pageMock = vi.hoisted(() => ({ selectedMemory: null as null | { name: string } }));
+
 vi.mock("../use-knowledge-page", () => ({
   useKnowledgePage: vi.fn(() => ({
     activeScope: "global",
     canCreateMemory: false,
     guard: { title: "Open a project first", description: "Open a project." },
-    selectedMemory: null,
+    selectedMemory: pageMock.selectedMemory,
     setActiveScope: vi.fn(),
     setCreateOpen: vi.fn(),
     setSelectedMemoryKey: vi.fn(),
@@ -53,5 +56,20 @@ describe("KnowledgeLocation", () => {
     );
 
     expect(screen.getByTestId("knowledge-guard")).toBeInTheDocument();
+  });
+
+  it("Should keep the root head while a memory is selected beside the list", () => {
+    pageMock.selectedMemory = { name: "operator-notes" };
+    render(
+      <TopbarSlotProvider>
+        <Topbar title="Fallback" />
+        <KnowledgeLocation windowId="window:knowledge" />
+      </TopbarSlotProvider>
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Knowledge" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back one level" })).toBeNull();
+    expect(document.querySelector('[data-slot="topbar-crumbs"]')).toBeNull();
+    pageMock.selectedMemory = null;
   });
 });

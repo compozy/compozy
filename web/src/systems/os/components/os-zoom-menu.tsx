@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useOsZoomMenu } from "../hooks/use-os-zoom-menu";
+import type { OsArrangePreset } from "../lib/os-types";
 import { usePaletteRegistry } from "../hooks/use-palette-registry";
 import {
   WINDOW_ARRANGE_PRESETS,
@@ -25,7 +26,7 @@ import {
 /**
  * macOS-style zoom-button menu (Sequoia green-button posture): hovering the
  * zoom traffic light opens Move & Resize (halves + quarters as zone glyphs,
- * plus Fill & Arrange (fill, 2-up, grid). Click stays zoom; every action here
+ * plus Fill & Arrange (fill, main and stack, columns, grid). Click stays zoom; every action here
  * also lives in the palette — the guaranteed
  * keyboard path — so the menu is discoverability, never the only route.
  * The hidden trigger span only anchors the Radix content; hover intent lives
@@ -48,6 +49,27 @@ const GLYPH_ZONES: Record<WindowPlacementId, GlyphZone> = {
   "top-right": { x: 0.5, y: 0, w: 0.5, h: 0.5 },
   "bottom-left": { x: 0, y: 0.5, w: 0.5, h: 0.5 },
   "bottom-right": { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+};
+
+/** Arrange glyphs: the anchor's zone first (drawn strongest), then its peers. */
+const ARRANGE_GLYPH_ZONES: Record<OsArrangePreset, readonly GlyphZone[]> = {
+  "main-stack": [
+    { x: 0, y: 0, w: 0.6, h: 1 },
+    { x: 0.6, y: 0, w: 0.4, h: 0.5 },
+    { x: 0.6, y: 0.5, w: 0.4, h: 0.5 },
+  ],
+  columns: [
+    { x: 0, y: 0, w: 1 / 3, h: 1 },
+    { x: 1 / 3, y: 0, w: 1 / 3, h: 1 },
+    { x: 2 / 3, y: 0, w: 1 / 3, h: 1 },
+  ],
+  grid: [
+    GLYPH_ZONES["top-left"],
+    GLYPH_ZONES["top-right"],
+    GLYPH_ZONES["bottom-left"],
+    GLYPH_ZONES["bottom-right"],
+  ],
+  "two-up": [GLYPH_ZONES.left, GLYPH_ZONES.right],
 };
 
 function ZoneGlyph({ zones, className }: { zones: readonly GlyphZone[]; className?: string }) {
@@ -180,18 +202,7 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
                   disabled={!menu.arrangeEnabled}
                   onClick={() => menu.dispatchArrange(entry.preset)}
                 >
-                  <ZoneGlyph
-                    zones={
-                      entry.preset === "two-up"
-                        ? [GLYPH_ZONES.left, GLYPH_ZONES.right]
-                        : [
-                            GLYPH_ZONES["top-left"],
-                            GLYPH_ZONES["top-right"],
-                            GLYPH_ZONES["bottom-left"],
-                            GLYPH_ZONES["bottom-right"],
-                          ]
-                    }
-                  />
+                  <ZoneGlyph zones={ARRANGE_GLYPH_ZONES[entry.preset]} />
                 </DropdownMenuItem>
               );
             })}
