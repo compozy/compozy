@@ -2000,7 +2000,7 @@ test("Should bound catalog requests during sixty minutes of native desktop uptim
         nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "90m" } }],
         edges: [],
       },
-      start: [{ kind: "manual" }],
+      start: [{ kind: "uds" }],
     };
     const definitionPath = join(desktop.home, "catalog-uptime.json");
     await writeFile(definitionPath, JSON.stringify(definition));
