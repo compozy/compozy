@@ -1,5 +1,6 @@
 /**
- * Default initial-focus policy shared by `DialogContent` and `SheetContent`.
+ * Default initial-focus policy shared by `DialogContent` and `SheetContent`,
+ * and by `PopoverContent` when a pointer opens it.
  *
  * Opening a dialog must not paint a focus ring on its first action. Unless the
  * consumer names `initialFocus`, focus lands on the popup container itself

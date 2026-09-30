@@ -524,7 +524,11 @@
   --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
   --width-wire-card-max: 520px;
-  --width-search-input-min: 220px;
+  /* Search field: its resting width, and the floor a toolbar search shrinks to in
+     a narrow pane before the strip scrolls. Namespaced per utility (min-w-*, basis-*). */
+  --min-width-search-input: 220px;
+  --min-width-search-input-floor: 140px;
+  --flex-basis-search-input: var(--min-width-search-input);
   --width-filters-menu-default: 200px;
   --width-filters-menu-stack: 220px;
   --width-settings-nav: 264px;

@@ -1,9 +1,11 @@
 "use client";
 
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 
+import { defaultDialogInitialFocus } from "../lib/dialog-initial-focus";
 import { MOTION_DURATION_BASE, MOTION_EASE_OUT } from "../lib/motion";
 import { cn } from "../lib/utils";
 import {
@@ -84,10 +86,23 @@ function PopoverContent({
   side = "bottom",
   sideOffset = 4,
   anchor,
+  initialFocus,
+  ref,
   children,
   ...props
 }: PopoverContentProps) {
   const { actionsRef, open } = usePopoverMotion();
+  const popupRef = React.useRef<HTMLDivElement | null>(null);
+  const mergedPopupRef = useMergedRefs(popupRef, ref);
+  // A pointer open lands on the popup, so its first control shows no ring. A
+  // keyboard open keeps Base UI's first-tabbable focus, so the ring shows. An
+  // autofocused control keeps focus either way.
+  const resolvedInitialFocus: PopoverPrimitive.Popup.Props["initialFocus"] =
+    initialFocus ??
+    (openType => {
+      const target = defaultDialogInitialFocus(popupRef.current);
+      return openType === "keyboard" && target === popupRef.current ? true : target;
+    });
 
   const handleExitComplete = () => {
     actionsRef.current?.unmount();
@@ -106,7 +121,9 @@ function PopoverContent({
             className="isolate z-50"
           >
             <AnimatedPopoverPopup
+              ref={mergedPopupRef}
               data-slot="popover-content"
+              initialFocus={resolvedInitialFocus}
               render={
                 <m.div
                   initial={{ opacity: 0, scale: 0.95 }}

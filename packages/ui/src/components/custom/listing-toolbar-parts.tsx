@@ -42,11 +42,16 @@ const VIEW_ITEMS = [
   },
 ];
 
+/**
+ * Search and filters on one line. Toolbars sit in a fixed-height window strip,
+ * so nothing wraps: in a narrow pane the search gives way down to its floor,
+ * then the strip scrolls sideways instead of stacking controls onto each other.
+ */
 export function ListingToolbarLeading({ className, ...props }: ListingToolbarLeadingProps) {
   return (
     <div
       data-slot="listing-toolbar-leading"
-      className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-2.5", className)}
+      className={cn("flex flex-1 flex-nowrap items-center gap-2.5", className)}
       {...props}
     />
   );
@@ -62,15 +67,29 @@ export function ListingToolbarTrailing({ className, ...props }: ListingToolbarTr
   );
 }
 
-export function ListingToolbarSearch({ kbd = "/", ...props }: ListingToolbarSearchProps) {
-  return <SearchInput kbd={kbd} data-testid="listing-search-input" {...props} />;
+export function ListingToolbarSearch({
+  kbd = "/",
+  containerClassName,
+  ...props
+}: ListingToolbarSearchProps) {
+  return (
+    <SearchInput
+      kbd={kbd}
+      data-testid="listing-search-input"
+      containerClassName={cn(
+        "basis-search-input min-w-search-input-floor shrink",
+        containerClassName
+      )}
+      {...props}
+    />
+  );
 }
 
 export function ListingToolbarFilters({ className, ...props }: ListingToolbarFiltersProps) {
   return (
     <div
       data-slot="listing-toolbar-filters"
-      className={cn("flex min-w-0 flex-wrap items-center", className)}
+      className={cn("flex shrink-0 flex-nowrap items-center", className)}
       {...props}
     />
   );

@@ -5,7 +5,7 @@
 // Boundary IN: the switcher composition and its menu.
 // Boundary OUT: selection persistence (hook suites) and row projection (profile-rows suite).
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -180,6 +180,23 @@ describe("ProfileSwitcher", () => {
     await user.click(await screen.findByTestId("profile-switcher-edit-default"));
     expect(onEditProfile).toHaveBeenCalledWith("default");
     expect(onSelectProfile).not.toHaveBeenCalled();
+  });
+
+  // Invariant: a pointer open rings no row control, and the menu still takes
+  // arrow keys. Owning layer: the switcher composition (this suite).
+  it("Should open by pointer onto the menu, not a ringed row action, and keep arrow keys", async () => {
+    const user = userEvent.setup();
+    renderSwitcher({ onEditProfile: () => {} });
+    await user.click(screen.getByTestId("os-menubar-profile"));
+    const menu = await screen.findByTestId("os-menubar-profile-menu");
+    const root = menu.querySelector<HTMLElement>("[cmdk-root]");
+    await waitFor(() => expect(root).toHaveFocus());
+    expect(screen.getByTestId("profile-switcher-edit-default")).not.toHaveFocus();
+
+    const selected = () => menu.querySelector('[cmdk-item][data-selected="true"]');
+    const first = selected();
+    await user.keyboard("{ArrowDown}");
+    expect(selected()).not.toBe(first);
   });
 
   it("Should demote archive management to Settings rather than listing it here", async () => {

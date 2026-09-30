@@ -9,6 +9,7 @@ export type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "da
 export type CatalogCardLogoSize = "default" | "lg";
 
 export interface CatalogCardLogoProps extends React.ComponentProps<"span"> {
+  /** Glyph ink. Neutral by default; `accent` is opt-in for needs-you only. */
   tone?: CatalogCardTone;
   size?: CatalogCardLogoSize;
 }
@@ -24,7 +25,7 @@ const LOGO_SIZE_CLASS: Record<CatalogCardLogoSize, string> = {
 };
 
 export function CatalogCardLogo({
-  tone = "accent",
+  tone = "neutral",
   size = "default",
   className,
   ...props

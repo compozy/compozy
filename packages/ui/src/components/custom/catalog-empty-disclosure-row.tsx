@@ -32,7 +32,9 @@ export interface CatalogEmptyDisclosureRowProps extends Omit<
 
 /**
  * Generic disclosure row for compact catalog choices. The opener owns review,
- * while action controls remain outside it.
+ * while action controls remain outside it. The row sits in window panes of any
+ * width, so its two-column layout follows the row's own width (container
+ * query), not the viewport.
  */
 export function CatalogEmptyDisclosureRow({
   actions,
@@ -51,7 +53,7 @@ export function CatalogEmptyDisclosureRow({
   return (
     <li
       aria-busy={busy || undefined}
-      className={cn("border-t border-line-soft first:border-t-0", className)}
+      className={cn("@container/catalog-row border-t border-line-soft first:border-t-0", className)}
       data-slot="catalog-empty-disclosure-row"
       data-tone={tone}
       ref={ref}
@@ -62,7 +64,7 @@ export function CatalogEmptyDisclosureRow({
           className={cn(
             "grid grid-cols-1 items-center gap-3.5 px-4",
             "hover:bg-surface-2",
-            "lg:grid-cols-[minmax(0,1fr)_auto]"
+            "@lg/catalog-row:grid-cols-[minmax(0,1fr)_auto]"
           )}
         >
           <CollapsibleTrigger
@@ -94,12 +96,14 @@ export function CatalogEmptyDisclosureRow({
                 <b className="truncate text-card-title font-medium tracking-row-title text-fg-strong">
                   {title}
                 </b>
-                {pill}
+                {pill ? (
+                  <span className="flex min-w-0 max-w-full overflow-hidden">{pill}</span>
+                ) : null}
               </span>
               <span className="mt-0.5 line-clamp-1 text-small-body text-muted">{description}</span>
             </span>
           </CollapsibleTrigger>
-          <div className="flex shrink-0 items-center gap-1.5 pb-3 pl-16 lg:pb-0 lg:pl-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 pb-3 pl-16 @lg/catalog-row:pb-0 @lg/catalog-row:pl-0">
             {actions}
           </div>
         </div>
@@ -110,10 +114,10 @@ export function CatalogEmptyDisclosureRow({
             "data-ending-style:h-0 data-starting-style:h-0"
           )}
         >
-          <div className="flex flex-col gap-2 px-4 pt-0.5 pb-4 lg:pl-20">{detail}</div>
+          <div className="flex flex-col gap-2 px-4 pt-0.5 pb-4 @lg/catalog-row:pl-20">{detail}</div>
         </CollapsibleContent>
       </Collapsible>
-      {error ? <div className="px-4 pb-3 lg:pl-20">{error}</div> : null}
+      {error ? <div className="px-4 pb-3 @lg/catalog-row:pl-20">{error}</div> : null}
     </li>
   );
 }

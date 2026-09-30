@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { Check, Palette, Plus } from "lucide-react";
 
 import {
@@ -28,6 +29,8 @@ export interface ProfileSwitcherMenuProps {
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
+  /** The menu root; a host popover focuses it on open so arrow keys move the selection. */
+  ref?: Ref<HTMLDivElement>;
 }
 
 export function ProfileSwitcherMenu({
@@ -43,11 +46,12 @@ export function ProfileSwitcherMenu({
   isLoading = false,
   error = null,
   onRetry,
+  ref,
 }: ProfileSwitcherMenuProps) {
   const showAggregate = aggregate || rows.length > 1 || archivedCount > 0;
 
   return (
-    <Command className="bg-transparent p-0 shadow-none">
+    <Command className="bg-transparent p-0 shadow-none" ref={ref}>
       <CommandList className="max-h-none">
         {isLoading ? (
           <div className="flex items-center justify-center px-2 py-4" role="status">

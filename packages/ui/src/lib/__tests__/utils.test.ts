@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fontSizeClasses, radiusScale } from "../font-size-classes.generated";
+import { fontSizeClasses, radiusScale, sizingScale } from "../font-size-classes.generated";
 import { cn } from "../utils";
 
 describe("cn", () => {
@@ -39,6 +39,19 @@ describe("cn", () => {
     const kept = radiusScale.filter(
       radius => cn(`rounded-${radius} rounded-pill`) !== "rounded-pill"
     );
+    expect(kept).toEqual([]);
+  });
+
+  it("Should let a caller's sizing replace a primitive's named sizing token", () => {
+    // `min-w-search-input` was unknown to tailwind-merge, so a caller's
+    // `min-w-0` survived beside it and CSS order kept the 220px floor.
+    expect(cn("min-w-search-input shrink-0", "min-w-0")).toBe("shrink-0 min-w-0");
+    expect(cn("h-button-default", "h-8")).toBe("h-8");
+    expect(cn("max-w-content-max", "max-w-md")).toBe("max-w-md");
+  });
+
+  it("Should resolve every generated sizing token against a size utility", () => {
+    const kept = sizingScale.filter(stem => cn(`w-${stem} w-full`) !== "w-full");
     expect(kept).toEqual([]);
   });
 

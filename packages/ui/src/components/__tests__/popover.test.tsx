@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -73,6 +74,66 @@ describe("Popover", () => {
     } finally {
       console.error = originalError;
     }
+  });
+
+  // Invariant: a pointer open never rings the popover's first control; a keyboard
+  // open still lands on it, and an autofocused or consumer-named target wins.
+  describe("initial focus", () => {
+    const popup = () => document.querySelector<HTMLElement>('[data-slot="popover-content"]');
+
+    it("Should focus the popup, not its first control, on a pointer open", async () => {
+      const user = userEvent.setup();
+      render(<PopoverExample />);
+      await user.click(screen.getByRole("button", { name: "Open popover" }));
+      await waitFor(() => expect(popup()).toHaveFocus());
+      expect(screen.getByRole("textbox", { name: "query" })).not.toHaveFocus();
+    });
+
+    it("Should focus the first control on a keyboard open", async () => {
+      const user = userEvent.setup();
+      render(<PopoverExample />);
+      await user.tab();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "query" })).toHaveFocus());
+    });
+
+    it("Should keep an autofocused control on a pointer open", async () => {
+      const user = userEvent.setup();
+      render(
+        <UIProvider reducedMotion="never">
+          <Popover>
+            <PopoverTrigger render={<Button>Open</Button>} />
+            <PopoverContent>
+              <Button>First</Button>
+              <input aria-label="search" autoFocus />
+            </PopoverContent>
+          </Popover>
+        </UIProvider>
+      );
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "search" })).toHaveFocus());
+    });
+
+    it("Should honor a consumer initialFocus", async () => {
+      const user = userEvent.setup();
+      function Harness() {
+        const target = React.useRef<HTMLButtonElement | null>(null);
+        return (
+          <UIProvider reducedMotion="never">
+            <Popover>
+              <PopoverTrigger render={<Button>Open</Button>} />
+              <PopoverContent initialFocus={target}>
+                <Button>First</Button>
+                <Button ref={target}>Second</Button>
+              </PopoverContent>
+            </Popover>
+          </UIProvider>
+        );
+      }
+      render(<Harness />);
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Second" })).toHaveFocus());
+    });
   });
 
   it("Should call onOpenChange when trigger toggles", async () => {

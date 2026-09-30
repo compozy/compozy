@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { UserRound } from "lucide-react";
 
 import {
@@ -56,6 +56,7 @@ export function ProfileSwitcher({
   onRetry,
 }: ProfileSwitcherProps) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const active = rows.find(row => row.name === activeName);
   const shownName = aggregate ? "All profiles" : activeName;
 
@@ -108,8 +109,10 @@ export function ProfileSwitcher({
         className="w-70 p-1"
         data-testid="os-menubar-profile-menu"
         aria-label="Profiles"
+        initialFocus={menuRef}
       >
         <ProfileSwitcherMenu
+          ref={menuRef}
           rows={rows}
           aggregate={aggregate}
           archivedCount={archivedCount}

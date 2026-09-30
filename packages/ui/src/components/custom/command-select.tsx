@@ -1,3 +1,4 @@
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import * as React from "react";
 import { ChevronsUpDown, XIcon } from "lucide-react";
 
@@ -78,17 +79,22 @@ function CommandSelectShell({
   inputProps,
   inputPlaceholder = "Search...",
   align = "start",
+  initialFocus,
   ...props
 }: CommandSelectShellProps) {
+  // The search field owns focus on open so typing and arrow keys reach the list.
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const mergedInputRef = useMergedRefs(inputRef, inputProps?.ref);
   return (
     <PopoverContent
       data-slot="command-select-shell"
       align={align}
+      initialFocus={initialFocus ?? inputRef}
       className={cn("w-(--anchor-width) min-w-64 p-0", className)}
       {...props}
     >
       <Command {...commandProps}>
-        <CommandInput placeholder={inputPlaceholder} {...inputProps} />
+        <CommandInput placeholder={inputPlaceholder} {...inputProps} ref={mergedInputRef} />
         {children}
       </Command>
     </PopoverContent>
