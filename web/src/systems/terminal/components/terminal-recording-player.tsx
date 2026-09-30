@@ -76,9 +76,9 @@ export function TerminalRecordingPlayer({
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-recording-player">
       {title ? (
-        <div className="flex min-h-9 min-w-0 flex-none items-center gap-2 border-line border-b bg-canvas-soft px-3">
+        <div className="flex min-h-9 min-w-0 flex-none items-center gap-2 border-line border-b bg-canvas px-4">
           <Play aria-hidden="true" className="size-3 flex-none text-subtle" />
-          <span className="truncate font-semibold text-eyebrow text-fg-strong">{title}</span>
+          <span className="truncate font-medium text-eyebrow text-fg">{title}</span>
           <MonoId size="sm" value={recordingId} />
           <div className="ml-auto flex flex-none items-center gap-2.5">
             {recordedAtLabel || retentionNote ? (

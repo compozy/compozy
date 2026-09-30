@@ -117,7 +117,7 @@ function ThreadToggle({
   return (
     <button
       type="button"
-      className="flex items-center gap-1 rounded-full px-1.5 py-0.5 font-mono text-micro text-faint tabular-nums transition-colors hover:bg-elevated hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+      className="flex items-center gap-1 rounded-full px-1.5 py-0.5 font-mono text-micro text-faint tabular-nums transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
       aria-expanded={!collapsed}
       aria-label={`Toggle ${childCount} child ${childCount === 1 ? "session" : "sessions"}`}
       data-testid={`${testIdPrefix}-thread-toggle-${sessionId}`}

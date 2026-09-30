@@ -52,12 +52,12 @@ function ToolbarToggle({ copy, icon, on, busy, onChange, slot, testId }: Toolbar
               aria-disabled={busy || undefined}
               aria-label={copy.controlName}
               className={cn(
-                "size-7 min-w-7 p-0 text-muted hover:bg-btn-default-fill hover:text-fg-strong",
-                "aria-pressed:bg-elevated aria-pressed:text-accent aria-pressed:shadow-highlight",
-                "aria-pressed:hover:text-accent data-[state=on]:bg-elevated data-[state=on]:text-accent",
-                "data-[state=on]:shadow-highlight data-[state=on]:hover:text-accent",
+                "size-7 min-w-7 p-0 text-muted hover:bg-surface-2 hover:text-fg",
+                // Pressed reads like an active pill: surface-2 + shadow-card, fg ink — never accent.
+                "aria-pressed:bg-surface-2 aria-pressed:text-fg aria-pressed:shadow-card",
+                "data-[state=on]:bg-surface-2 data-[state=on]:text-fg data-[state=on]:shadow-card",
                 "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted",
-                "aria-disabled:aria-pressed:text-accent aria-disabled:aria-pressed:hover:text-accent",
+                "aria-disabled:aria-pressed:text-fg",
                 busy && "opacity-50"
               )}
               data-testid={testId}

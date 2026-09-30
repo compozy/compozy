@@ -149,11 +149,7 @@ export function SessionFindBar({
       data-state={findBarState(find, hasQuery)}
       onKeyDown={handleKeyDown}
       onSubmit={event => event.preventDefault()}
-      className={cn(
-        "relative flex flex-col border-b border-line bg-elevated",
-        "shadow-highlight",
-        className
-      )}
+      className={cn("relative flex flex-col border-b border-line bg-canvas", className)}
     >
       <div className="flex h-10 items-center gap-2 px-3">
         <SearchInput
@@ -372,8 +368,8 @@ function SessionFindMatchRow({
       onClick={onJump}
       className={cn(
         "flex min-w-0 items-baseline gap-2 px-3 py-1.5 text-left text-transcript-body",
-        "transition-colors duration-fast ease-out hover:bg-btn-default-hover",
-        active ? "bg-elevated text-fg-strong" : "text-muted"
+        "transition-colors duration-fast ease-out hover:bg-surface-2",
+        active ? "bg-selected text-fg" : "text-muted"
       )}
     >
       <span className="w-14 shrink-0 truncate text-eyebrow text-subtle">

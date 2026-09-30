@@ -17,6 +17,7 @@ import {
 } from "@compozy/ui";
 
 import type { TerminalInfo } from "../types";
+import { terminalDisplayTitle } from "../lib/terminal-copy";
 
 export interface TerminalLimitDialogProps {
   open: boolean;
@@ -84,7 +85,7 @@ export function TerminalLimitDialog({
               >
                 <ItemContent>
                   <ItemTitle className="min-w-0 truncate font-normal text-muted">
-                    {terminal.title}
+                    {terminalDisplayTitle(terminal)}
                   </ItemTitle>
                 </ItemContent>
                 <ItemActions>
@@ -116,7 +117,7 @@ export function TerminalLimitDialog({
               type="button"
               variant="secondary"
             >
-              {selected ? `Close "${selected.title}"` : "Close a terminal"}
+              {selected ? `Close "${terminalDisplayTitle(selected)}"` : "Close a terminal"}
             </Button>
           </span>
         </DialogFooter>

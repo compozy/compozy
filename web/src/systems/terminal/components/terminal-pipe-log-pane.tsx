@@ -6,6 +6,7 @@ import type { TerminalExitNotice, TerminalInfo } from "../types";
 import { TerminalExitBar } from "./terminal-exit-bar";
 import { TerminalSelectionActions } from "./terminal-quote-block";
 import type { TerminalPaneSelectionActions } from "./terminal-pane";
+import { terminalDisplayTitle } from "../lib/terminal-copy";
 
 export interface TerminalPipeLogPaneProps {
   terminal: TerminalInfo;
@@ -51,7 +52,7 @@ export function TerminalPipeLogPane({
       data-testid={`terminal-pipe-pane-${terminal.id}`}
     >
       <div
-        aria-label={`${terminal.title} — command output, read-only`}
+        aria-label={`${terminalDisplayTitle(terminal)} — command output, read-only`}
         className="min-h-0 flex-1 overflow-auto px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono text-terminal-ansi-7"
         ref={logRef}
         role="log"

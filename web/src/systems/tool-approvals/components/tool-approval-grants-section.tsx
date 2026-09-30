@@ -66,7 +66,7 @@ export function ToolApprovalGrantsSection() {
           title="No remembered decisions yet"
         />
         <DataSurface.Content
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-canvas shadow-card"
           data-testid={`${TEST_ID}-list`}
         >
           {renderGrantRows(grants, revoke.open)}

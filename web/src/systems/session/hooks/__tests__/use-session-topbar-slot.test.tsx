@@ -110,7 +110,7 @@ describe("useSessionTopbarSlot", () => {
     }
   );
 
-  it("Should place the inspector toggle immediately before overflow and report pressed state", () => {
+  it("Should keep overflow beside the title, ahead of the inspector toggle, and report pressed state", () => {
     const onInspectorToggle = vi.fn();
     renderWithTopbar(
       <SessionPublisher onStop={vi.fn()} inspectorOpen onInspectorToggle={onInspectorToggle} />
@@ -120,8 +120,9 @@ describe("useSessionTopbarSlot", () => {
     const overflow = screen.getByTestId("session-topbar-overflow");
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toHaveAttribute("aria-label", "Close context sidebar");
+    // Shell-rail head: title + ⋯ lead, the panel toggles trail (prototype `.head`).
     expect(
-      toggle.compareDocumentPosition(overflow) & Node.DOCUMENT_POSITION_FOLLOWING
+      overflow.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
     fireEvent.click(toggle);

@@ -187,7 +187,7 @@ export function SessionListWorkspaceGroups({
               type="button"
               aria-expanded={!collapsed}
               data-testid={`${testIdPrefix}-workspace-${group.workspaceId}`}
-              className="flex min-h-7 w-full items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
+              className="flex min-h-7 w-full items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
               onClick={() => onToggleWorkspace(group.workspaceId)}
             >
               <Icon

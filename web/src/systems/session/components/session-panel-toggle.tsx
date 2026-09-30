@@ -29,7 +29,7 @@ export function SessionPanelToggle({
             aria-pressed={open}
             className={cn(
               "size-11 focus-visible:shadow-focus-inset",
-              open ? "bg-elevated text-fg" : null
+              open ? "bg-selected text-fg" : null
             )}
             data-state={open ? "open" : "closed"}
             data-testid={testId}

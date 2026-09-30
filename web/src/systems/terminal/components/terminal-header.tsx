@@ -2,6 +2,7 @@ import { Eye, FileText, TerminalSquare } from "lucide-react";
 
 import { Pill, StateGlyph, type StateGlyphState, useTopbarSlot } from "@compozy/ui";
 
+import { terminalDisplayTitle } from "../lib/terminal-copy";
 import type { TerminalInfo } from "../types";
 import { TerminalHeaderActions, TerminalWindowVerbs } from "./terminal-header-actions";
 
@@ -123,7 +124,7 @@ export function TerminalHeader({
       ? {
           glyph: <StateGlyph size="sm" state={terminalStateGlyph(terminal)} />,
           glyphPresentation: "state",
-          crumb: terminal.title,
+          crumb: terminalDisplayTitle(terminal),
           count: identityCount,
           status,
           actions,
@@ -143,7 +144,7 @@ export function TerminalHeader({
           <TerminalSquare aria-hidden="true" className="size-3.5 text-muted" />
         )}
         <span className="truncate font-medium text-fg text-ws-name tracking-tight">
-          {terminal.title}
+          {terminalDisplayTitle(terminal)}
         </span>
         {identityCount}
       </span>

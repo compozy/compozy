@@ -65,7 +65,7 @@ export function SessionAttachmentTile({
       <span
         aria-hidden="true"
         className={cn(
-          "relative size-9 shrink-0 overflow-hidden rounded-md border border-line bg-canvas-soft",
+          "relative size-9 shrink-0 overflow-hidden rounded-md bg-surface-2",
           isImage ? null : "grid place-items-center"
         )}
       >

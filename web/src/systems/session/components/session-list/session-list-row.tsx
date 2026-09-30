@@ -49,8 +49,8 @@ export function SessionListRow({
       <button
         type="button"
         className={cn(
-          "relative grid min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none",
-          (selected || current) && "bg-row-selected"
+          "relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
+          (selected || current) && "bg-selected"
         )}
         data-status={session.badge}
         data-testid={`${testIdPrefix}-session-${session.id}`}
@@ -67,7 +67,7 @@ export function SessionListRow({
         <SessionBadgeMark
           badge={session.badge}
           className={cn(
-            "mt-1.5",
+            "mt-1",
             selection &&
               "transition-opacity duration-fast motion-reduce:transition-none group-hover/session-row:opacity-0 group-focus-within/session-row:opacity-0",
             selection?.mode && "opacity-0"

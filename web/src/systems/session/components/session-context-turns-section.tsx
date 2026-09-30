@@ -81,7 +81,7 @@ function SessionContextTurnRow({ turn }: { turn: Turn }) {
 function SessionContextCompactionMarker({ marker }: { marker: Compaction }) {
   return (
     <li
-      className="flex items-start gap-1.75 bg-canvas-soft px-2.5 py-1.5 text-micro leading-4 text-subtle"
+      className="flex items-start gap-1.75 px-2.5 py-1.5 text-micro leading-4 text-subtle"
       data-testid="session-context-compaction"
     >
       <Minimize2 aria-hidden="true" className="mt-0.75 size-2.75 shrink-0" />
@@ -147,14 +147,14 @@ export function SessionContextTurnsSection({
             <p className="text-micro leading-4 text-faint">Turn usage unavailable</p>
           ) : null}
           {rows.length ? (
-            <div className="flex flex-col overflow-hidden rounded-md border border-line-soft bg-canvas">
-              <ul className="divide-y divide-line-soft">
+            <div className="flex flex-col overflow-hidden rounded-lg bg-sunken py-1">
+              <ul>
                 {rows.map(row => (
                   <Fragment key={row.key}>{row.content}</Fragment>
                 ))}
               </ul>
               {capped ? (
-                <div className="flex justify-center border-t border-line-soft p-1.5">
+                <div className="flex justify-center p-1.5">
                   <Button variant="ghost" size="xs" onClick={() => setShowAll(true)}>
                     Show earlier turns
                     <span className="font-mono text-mono-id tabular-nums text-faint">

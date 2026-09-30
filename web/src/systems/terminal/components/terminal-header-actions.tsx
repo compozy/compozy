@@ -52,11 +52,11 @@ export function TerminalHeaderActions({
               onClick={onStop}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             />
           }
         >
-          <CircleStop aria-hidden="true" className="size-3.5 text-danger" />
+          <CircleStop aria-hidden="true" className="size-3.5" />
         </TooltipTrigger>
         <TooltipContent side="bottom">Stop</TooltipContent>
       </Tooltip>

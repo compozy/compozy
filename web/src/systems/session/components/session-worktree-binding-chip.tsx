@@ -18,7 +18,7 @@ interface SessionWorktreeBindingChipProps {
 }
 
 const CHIP_CLASS =
-  "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md border border-line bg-canvas-tint px-[9px] text-badge font-medium text-muted [&_svg]:size-3 [&_svg]:text-subtle hover:border-line-strong hover:bg-row-hover hover:text-fg";
+  "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-pill bg-surface-2 px-2.5 text-badge font-medium text-muted [&_svg]:size-3 [&_svg]:text-subtle hover:bg-selected hover:text-fg";
 
 /**
  * States which worktree a session is bound to, in the session header.
@@ -50,7 +50,10 @@ export function SessionWorktreeBindingChip({
         aria-label={
           missing ? `Worktree ${name} is missing — resolve` : `Worktree ${name} — open its context`
         }
-        className={cn(CHIP_CLASS, missing && "border-dashed text-warning [&_svg]:text-warning")}
+        className={cn(
+          CHIP_CLASS,
+          missing && "border border-dashed border-line-strong text-warning [&_svg]:text-warning"
+        )}
         onClick={missing ? onResolve : onOpenContext}
         size="sm"
         type="button"

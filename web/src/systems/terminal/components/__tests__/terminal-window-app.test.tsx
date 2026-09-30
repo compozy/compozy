@@ -324,6 +324,16 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(actions.onCloseTerminal).toHaveBeenLastCalledWith(remaining[0].id);
   });
 
+  // Invariant: a terminal the shell has not titled yet is named after its shell,
+  // never left as an empty head. Owning layer: the window's identity row.
+  it("Should name an untitled terminal after its shell", async () => {
+    const untitled = { ...DEV_SERVER_TERMINAL, title: "", shell: "/bin/zsh" };
+    renderWindow({ terminals: [untitled] });
+    await waitForTerminalRenderer(untitled.id);
+
+    expect(screen.getByTestId("terminal-header")).toHaveTextContent("zsh");
+  });
+
   it("Should publish identity into the OS head instead of drawing a second row", async () => {
     renderWindow({ hostChrome: true });
     await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);

@@ -70,7 +70,7 @@ export function SessionInspectorEmpty({ className, ...props }: Omit<EmptyProps, 
     <Empty
       size="compact"
       fill={false}
-      className={cn("rounded-lg border border-dashed border-line-soft px-3 py-4.5", className)}
+      className={cn("rounded-lg bg-sunken px-3 py-4.5", className)}
       {...props}
     />
   );

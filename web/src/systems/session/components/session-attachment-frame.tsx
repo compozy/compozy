@@ -28,8 +28,8 @@ export function SessionAttachmentFrame({
       title={title ?? filename}
       className={cn(
         "att-frame group/att-frame relative block max-w-70 shrink-0 overflow-hidden",
-        "rounded-lg border border-line bg-elevated",
-        "transition-colors duration-base ease-out hover:border-line-strong",
+        "rounded-lg bg-surface-2",
+        "transition-shadow duration-base ease-out hover:shadow-card",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         className
       )}

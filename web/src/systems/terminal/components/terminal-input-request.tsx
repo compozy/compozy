@@ -3,7 +3,16 @@
 import { KeyRound, MessageCircleQuestionMark } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-import { Button, cn, Input, MonoId, StateGlyph, type StateGlyphState, Time } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  Input,
+  KindIcon,
+  MonoId,
+  StateGlyph,
+  type StateGlyphState,
+  Time,
+} from "@compozy/ui";
 
 import { terminalInputOutcomeCopy } from "../lib/terminal-copy";
 import { terminalInputExpiry } from "../lib/terminal-input-expiry";
@@ -33,11 +42,7 @@ const EXPIRY_REFRESH_MS = 30_000;
 
 function RequestGlyph({ redacted }: { redacted: boolean }) {
   const Glyph = redacted ? KeyRound : MessageCircleQuestionMark;
-  return (
-    <span className="grid size-6.5 flex-none place-items-center rounded-sm bg-warning-tint text-warning">
-      <Glyph aria-hidden="true" className="size-3.5" />
-    </span>
-  );
+  return <KindIcon icon={Glyph} tone="well" />;
 }
 
 function RequestPin({
@@ -65,10 +70,7 @@ function RequestPin({
     >
       <div className="flex w-full min-w-0 items-center gap-2">
         <RequestGlyph redacted={request.redacted} />
-        <span
-          className="min-w-0 truncate text-small-body font-semibold text-fg-strong"
-          id={titleId}
-        >
+        <span className="min-w-0 truncate text-small-body font-medium text-fg" id={titleId}>
           {terminalInputRequestTitle(request)}
         </span>
         {showOrigin && terminalTitle ? (
@@ -88,7 +90,7 @@ function RequestPin({
         </span>
       </div>
       <p className="text-small-body text-muted">{request.reason}</p>
-      <div className="rounded-xs bg-chat-fill-code px-2.25 py-1.5 font-mono text-badge leading-normal break-all whitespace-pre-wrap text-fg">
+      <div className="rounded-lg bg-sunken px-3 py-2 font-mono text-badge leading-normal break-all whitespace-pre-wrap text-fg-3">
         {request.prompt_excerpt}
       </div>
       {children}
@@ -165,21 +167,21 @@ export function TerminalInputRequestCard({
             />
           </div>
           <Button
-            data-testid={`terminal-input-request-send-${request.id}`}
-            size="sm"
-            type="submit"
-            variant="neutral"
-          >
-            Send
-          </Button>
-          <Button
             data-testid={`terminal-input-request-decline-${request.id}`}
             onClick={onReject}
-            size="sm"
             type="button"
-            variant="ghost"
+            variant="secondary"
           >
             Decline
+          </Button>
+          {/* Enter in the field submits the form, so the ↵ hint is the real key. */}
+          <Button
+            data-testid={`terminal-input-request-send-${request.id}`}
+            kbd="↵"
+            type="submit"
+            variant="primary"
+          >
+            Send
           </Button>
         </form>
       ) : null}

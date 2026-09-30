@@ -66,7 +66,7 @@ function SessionQueueHeader({
     <div
       data-testid="composer-queue-header"
       data-full={full ? "true" : undefined}
-      className="flex h-7 items-center gap-2 border-b border-line-soft pr-1.5 pl-3 text-eyebrow text-subtle"
+      className="flex h-8 items-center gap-2 pr-1.5 pl-3.5 text-eyebrow text-subtle"
     >
       <span className="font-mono text-muted tabular-nums" data-testid="composer-queue-count">
         {count}
@@ -125,7 +125,7 @@ function SessionQueueClearConfirm({
       aria-label="Clear the queue"
       data-testid="composer-queue-clear-confirm"
       onKeyDown={handleKeyDown}
-      className="flex h-8 items-center gap-2 border-b border-line-soft bg-canvas-tint pr-1.5 pl-3 text-eyebrow text-fg"
+      className="flex h-8 items-center gap-2 pr-1.5 pl-3.5 text-eyebrow text-fg"
     >
       <Trash2 aria-hidden="true" className="size-3 shrink-0 text-subtle" />
       <span className="min-w-0 flex-1 truncate">
@@ -206,11 +206,11 @@ function queueStripState({
 }
 
 /**
- * The queue as a place the operator manages (S2): a strip fused to the top of
- * the composer, one row per parked follow-up with position, owner attribution,
+ * The queue as a place the operator manages (S2): a sunken inset panel above
+ * the composer card, one row per parked follow-up with position, owner attribution,
  * a one-line preview, and the verbs the runtime will honor. Every row is a
  * durable entry the daemon accepted, except the client-local unconfirmed rows.
- * Quiet by design: no accent except Retry, no fills — bookkeeping, not an event.
+ * Quiet by design: no accent, no row dividers — bookkeeping, not an event.
  */
 export function SessionQueueStrip({
   prompts,
@@ -280,9 +280,8 @@ export function SessionQueueStrip({
       data-testid="composer-queued-prompts"
       data-clear-phase={clearPhase ?? undefined}
       className={cn(
-        "flex flex-col rounded-t-lg border border-b-0 border-line bg-elevated",
-        // Squared under a docked decision panel so the stack reads as one shape.
-        "group-has-[[data-slot=dock]]/composer:rounded-none",
+        // A secondary list: the sunken inset (no border), set apart above the composer card.
+        "flex flex-col overflow-hidden rounded-lg bg-sunken pb-1",
         className
       )}
     >
@@ -303,12 +302,11 @@ export function SessionQueueStrip({
       {/* Four rows tall at most; the header count tells the truth, the body scrolls. */}
       <div className={cn("flex flex-col overflow-y-auto", editing ? "max-h-48" : "max-h-33")}>
         <AnimatePresence initial={false}>
-          {prompts.map((prompt, index) =>
+          {prompts.map(prompt =>
             editing?.id === prompt.id ? (
               <SessionQueueRowExit key={prompt.id} reducedMotion={reducedMotion}>
                 <SessionQueueEditingRow
                   prompt={prompt}
-                  first={index === 0}
                   text={editing.text}
                   saving={editing.saving}
                   onTextChange={text => setMode({ ...editing, text })}
@@ -320,7 +318,6 @@ export function SessionQueueStrip({
               <SessionQueueRowExit key={prompt.id} reducedMotion={reducedMotion}>
                 <SessionQueueEntryRow
                   prompt={prompt}
-                  first={index === 0}
                   disabled={rowsSuspended}
                   actionsHidden={!idle}
                   onSteer={onSteer}
@@ -330,11 +327,10 @@ export function SessionQueueStrip({
               </SessionQueueRowExit>
             )
           )}
-          {unconfirmedSends.map((send, index) => (
+          {unconfirmedSends.map(send => (
             <SessionQueueRowExit key={send.id} reducedMotion={reducedMotion}>
               <SessionUnconfirmedRow
                 send={send}
-                first={prompts.length === 0 && index === 0}
                 disabled={rowsSuspended}
                 onRetry={onRetryUnconfirmed}
                 onDiscard={onDiscardUnconfirmed}
