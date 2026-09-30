@@ -6,7 +6,7 @@
 <title>CompozyOS DS · 07 Dashboards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-shell.css">
 <link rel="stylesheet" href="ds-docs.css">
@@ -29,7 +29,7 @@ svg.lucide{stroke-width:1.6}
   border-bottom:1px solid var(--line-soft);
   font-size:12px;color:var(--subtle);
 }
-.dsh-pagemeta b{color:var(--muted);font-weight:510}
+.dsh-pagemeta b{color:var(--muted);font-weight:500}
 
 /* --- section head: eyebrow · count · spacer · quiet trailing link --- */
 /* min-height keeps paired heads on one baseline whether they carry a chip, a
@@ -37,7 +37,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-head{display:flex;align-items:center;gap:8px;min-height:24px;margin-bottom:10px;min-width:0}
 .dsh-sp{flex:1;min-width:8px}
 .dsh-note{font-size:var(--text-badge);color:var(--faint)}
-.dsh-act{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:510;color:var(--muted);transition:color var(--dur-fast) var(--ease)}
+.dsh-act{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--muted);transition:color var(--dur-fast) var(--ease)}
 .dsh-act svg.lucide{width:12px;height:12px}
 .dsh-act:hover{color:var(--fg-strong)}
 
@@ -47,7 +47,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-fold>summary{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;list-style:none;min-width:0}
 .dsh-fold>summary::-webkit-details-marker{display:none}
 .dsh-fold>summary:hover{background:var(--row-hover)}
-.dsh-fold>summary svg.lucide{color:var(--muted)}.dsh-fold>summary b{font-size:13px;font-weight:510;color:var(--fg-strong);flex:none}
+.dsh-fold>summary svg.lucide{color:var(--muted)}.dsh-fold>summary b{font-size:13px;font-weight:500;color:var(--fg-strong);flex:none}
 .dsh-fold>summary .gist{font-size:12px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-fold>summary .chev{margin-left:auto;color:var(--faint);transition:transform var(--dur) var(--ease)}
 .dsh-fold[open]>summary .chev{transform:rotate(180deg)}
@@ -104,7 +104,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-aghead{border-top:0;font-size:var(--text-badge);color:var(--subtle)}
 .dsh-aghead span:not(:first-child){text-align:right}
 .dsh-agname{display:flex;align-items:center;gap:8px;min-width:0}
-.dsh-agname b{font-weight:510;color:var(--fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-agname b{font-weight:500;color:var(--fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-num{font-family:var(--font-mono);font-size:11.5px;color:var(--fg);text-align:right;font-variant-numeric:tabular-nums}
 .dsh-num[data-zero]{color:var(--faint)}.dsh-num[data-tone="danger"]{color:var(--danger)}
 .dsh-agrt{display:flex;align-items:center;gap:8px;min-width:0}
@@ -117,7 +117,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-ev__dot{width:7px;height:7px;border-radius:50%;background:var(--faint);margin-top:5px}
 .dsh-ev__dot[data-tone="success"]{background:var(--success)}.dsh-ev__dot[data-tone="warning"]{background:var(--warning)}
 .dsh-ev__dot[data-tone="danger"]{background:var(--danger)}.dsh-ev__dot[data-tone="run"]{background:var(--accent)}
-.dsh-ev__t{font-size:13px;font-weight:510;color:var(--fg);line-height:1.4}
+.dsh-ev__t{font-size:13px;font-weight:500;color:var(--fg);line-height:1.4}
 .dsh-ev__t b{font-weight:600;color:var(--fg-strong)}
 .dsh-ev__d{font-size:12px;line-height:1.5;color:var(--muted);margin-top:2px}
 .dsh-ev__time{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;margin-top:3px}
@@ -136,7 +136,7 @@ svg.lucide{stroke-width:1.6}
 .dsh-heat-h{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);line-height:12px;text-align:center}
 .dsh-cell{width:15px;height:15px;border-radius:3px;background:var(--viz-cell)}
 .dsh-insights{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--muted)}
-.dsh-insights b{color:var(--fg-strong);font-weight:510}
+.dsh-insights b{color:var(--fg-strong);font-weight:500}
 .dsh-insights .mono{font-size:10.5px;color:var(--faint)}
 .dsh-share{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--canvas-tint)}
 .dsh-share i{display:block;height:100%}
@@ -147,7 +147,7 @@ svg.lucide{stroke-width:1.6}
 /* --- system fold --- */
 .dsh-sysbar{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;text-align:left}
 .dsh-sysbar:hover{background:var(--row-hover)}
-.dsh-sysbar b{font-size:13px;font-weight:510;color:var(--fg-strong);flex:none}
+.dsh-sysbar b{font-size:13px;font-weight:500;color:var(--fg-strong);flex:none}
 .dsh-sysbar .sum{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-sysbar svg.lucide{color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
 .dsh-sysbar[aria-expanded="true"] svg.lucide{transform:rotate(180deg)}

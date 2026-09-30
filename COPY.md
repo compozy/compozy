@@ -310,6 +310,9 @@ The web UI presents as a desktop environment. These terms are runtime-true — e
 - `dock`: the rail of app launchers along the left edge (a bottom tab bar in compact presentation), with running/minimized indicators and badges bound to runtime projections. Its foot holds the profile switcher, the light/dark toggle, and Settings. User-facing copy says "dock", not "rail".
 - `menubar`: the top bar — CompozyOS mark (its menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray: desktop pager, All desktops, the approvals bell, the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. Chip identity is the project name when scoped down, or **Global** (`~`) when Global scope is on.
 - `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections. This presentation data never contains agent `memory`.
+- `theme`: the light or dark color scheme. Settings › Appearance offers **Light**, **Dark**, and **System** (help: "System follows your computer's light or dark setting."); Dark is the default. The dock-foot toggle reads "Switch to light mode" / "Switch to dark mode" (tooltip "Light mode" / "Dark mode"). Say "light" and "dark", never "night mode" or "day mode".
+- Empty desktop: "{desktop name} is empty" + "Open an app from the dock, or press ⌘K to open anything." + one primary **New session**. It is a card on the desk, never a modal and never a blocking wall.
+- Window arrangements (Window › Arrange): **Main and stack**, **Columns**, **Grid**, **Balance sizes**; **Move window to** sends the focused window to another desktop by name. Use "desktop", never "space" or "workspace", for these destinations.
 
 ### Burned-Out Marketing Phrases
 

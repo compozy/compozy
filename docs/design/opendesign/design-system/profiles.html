@@ -6,7 +6,7 @@
 <title>CompozyOS DS · 09 Profiles &amp; Identity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-shell.css">
 <link rel="stylesheet" href="ds-docs.css">
@@ -43,7 +43,7 @@
   display:inline-flex;align-items:center;gap:5px;flex:none;
   height:20px;padding:0 8px 0 3px;border-radius:var(--radius-pill);
   background:var(--badge-fill);
-  font-size:11px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--muted);
+  font-size:11px;font-weight:500;letter-spacing:var(--track-eyebrow);color:var(--muted);
 }
 .prf-owner .prf-glyph{width:14px;height:14px;border-radius:4px;font-size:8px}
 .prf-owner .prf-glyph svg{width:8px;height:8px}
@@ -51,9 +51,9 @@
 .prf-dest{
   display:inline-flex;align-items:center;gap:5px;flex:none;
   height:20px;padding:0 8px;border-radius:var(--radius-xs);
-  background:var(--badge-fill);font-size:11px;font-weight:510;color:var(--muted);
+  background:var(--badge-fill);font-size:11px;font-weight:500;color:var(--muted);
 }
-.prf-dest b{font-weight:510;color:var(--fg)}
+.prf-dest b{font-weight:500;color:var(--fg)}
 /* switcher */
 .prf-trigger{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:var(--radius-sm)}
 .prf-trigger:hover,.prf-trigger[aria-expanded="true"]{background:var(--btn-fill)}
@@ -64,7 +64,7 @@
 .prf-menu .pop-item[aria-pressed="true"]{background:var(--row-selected);box-shadow:var(--highlight)}
 .prf-menu .pop-item .pi-check{color:var(--fg-strong)}
 .prf-menu .pop-item .pi-check svg{color:var(--fg-strong)}
-.prf-state{margin-left:auto;flex:none;font-size:10.5px;font-weight:510;color:var(--warning)}
+.prf-state{margin-left:auto;flex:none;font-size:10.5px;font-weight:500;color:var(--warning)}
 .prf-menu__meta{display:flex;align-items:center;gap:5px;padding:4px 10px 5px;font-size:11px;color:var(--faint)}
 .prf-menu__foot{margin-top:5px;padding:8px 10px 4px;border-top:1px solid var(--line);font-size:11px;line-height:1.5;color:var(--subtle)}
 /* pickers */
@@ -100,8 +100,8 @@
 .prf-plan{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
 .prf-plan__tier{padding:10px 12px 11px;border-top:1px solid var(--line-soft)}
 .prf-plan__tier:first-child{border-top:0}
-.prf-plan__t{display:flex;align-items:baseline;gap:7px;font-size:13.5px;font-weight:510;color:var(--fg)}
-.prf-plan__tag{margin-left:auto;flex:none;font-size:11px;font-weight:510;color:var(--faint)}
+.prf-plan__t{display:flex;align-items:baseline;gap:7px;font-size:13.5px;font-weight:500;color:var(--fg)}
+.prf-plan__tag{margin-left:auto;flex:none;font-size:11px;font-weight:500;color:var(--faint)}
 .prf-plan__row{display:flex;align-items:center;gap:8px;min-height:28px;font-size:12.5px;color:var(--muted)}
 .prf-plan__row code{font-family:var(--font-mono);font-size:11px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 4px}
 .prf-plan__row[data-skipped]{color:var(--faint)}

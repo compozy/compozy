@@ -6,7 +6,7 @@
 <title>CompozyOS Design System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-docs.css">
 </head>
@@ -27,25 +27,29 @@
   </nav>
 
   <header class="hero" data-od-id="hero">
-    <p class="eyebrow">CompozyOS · Unified Design System · post-#440</p>
+    <p class="eyebrow">CompozyOS · Unified Design System · shell v2</p>
     <h1>An operating system for agents</h1>
     <p>This folder is the <b>single source of truth</b> for every CompozyOS design and prototype in this
     workspace. Authority chain: <code>packages/ui/src/tokens.css</code> + <code>web/src</code> (production)
-    → this folder → any older prototype. The <code>:root</code> in <code>ds-core.css</code> mirrors the
-    post-PR-#440 token truth — warm-dark ramp lifted one step, radius rebased to 6/7/8/10/14/18, the type
-    scale raised one legibility step, sentence-case eyebrows, system-font key caps. Start any new prototype
+    → this folder → any older prototype. <code>ds-core.css</code> mirrors the shell-v2 token truth in
+    <b>both themes</b> (<code>:root</code> = dark, the default; <code>[data-theme="light"]</code> = light):
+    neutral chroma-free ramp, opaque hairlines, an inverted primary, Compozy orange for highlight and
+    needs-you, Inter 425/500/600 with a 14.5px body, Geist Mono, radius 3/6/7/8/8/12/18/pill. Start any new prototype
     by linking <code>ds-core.css</code> (+ <code>ds-shell.css</code> for shell surfaces) and reading
     <code>GUIDE.md</code>. The production primitive map lives in <code>PARITY.md</code>.</p>
     <div class="chapters" data-od-id="chapters">
       <a class="chapter" href="foundations.html" data-od-id="chapter-foundations">
         <span class="num">01</span><b>Foundations</b>
-        <p>Post-#440 tokens: surface ramp &amp; hairline depth, signal palette &amp; accent budget, type stack
-        (Geist 15px base, weights 400/510/600/620/700), radius, motion, focus, icons, a11y floor.</p>
+        <p>Tokens: surface ramp &amp; hairline depth, signal palette &amp; accent budget, type stack, radius,
+        motion, focus, icons, a11y floor. <i>Prose predates shell v2 — <code>ds-core.css</code> and
+        <code>DESIGN.md</code> hold the current values (Inter 14.5px body, 425/500/600, two themes).</i></p>
       </a>
       <a class="chapter" href="os-shell.html" data-od-id="chapter-os-shell">
         <span class="num">02</span><b>OS Shell — Window Manager</b>
-        <p>Menu bar, dock + reserved band, window frame with the 44px head + 38px strip + 37px deck (tabs),
-        tiling &amp; seams, focus model, Spaces, compact mode, shell rules S1–S13.</p>
+        <p>Shell v2: 52px flat topbar with the traffic-light reserve, tray pager + All desktops, the 60px rail
+        (dock), gutterless tiling + 9px seams, 48px head + 44px toolbar + 40px browser-tab deck, quiet window
+        controls, floating finish, both themes, compact mode, rules S1–S13. Supersedes the dock-era chapter;
+        design reference <code>../shell-rail/shell-rail-v2.html</code>.</p>
       </a>
       <a class="chapter" href="components.html" data-od-id="chapter-components">
         <span class="num">03</span><b>Components</b>
@@ -93,19 +97,36 @@
   <section class="sec" data-od-id="non-negotiables">
     <h2>The twelve non-negotiables</h2>
     <div class="rule-list">
-      <div class="rule"><i>01</i><span><b>Copy tokens, never invent them.</b> New prototypes link <code>ds-core.css</code> or paste its <code>:root</code> verbatim. Warm-dark only — <code>color-scheme: dark</code> is a product contract, not a preference.</span></div>
-      <div class="rule"><i>02</i><span><b>Accent is "act"</b> — one primary action per viewport, live dots, attention badges. Never borders, washes, tab indicators, selection markers or decoration.</span></div>
-      <div class="rule"><i>03</i><span><b>Identity renders once</b> — the 44px window head owns it. No legacy topbar, breadcrumb bar or route PageHead stacks.</span></div>
-      <div class="rule"><i>04</i><span><b>Chrome = head + optional 38px strip, plus the 37px deck while a window holds ≥2 tabs</b> (≤119px loaded). Route views live on the strip, never in the head.</span></div>
+      <div class="rule"><i>01</i><span><b>Copy tokens, never invent them.</b> New prototypes link <code>ds-core.css</code> or paste its <code>:root</code> and light block verbatim. Two themes, dark by default — every surface must read in both.</span></div>
+      <div class="rule"><i>02</i><span><b>Orange is "needs you"</b> — attention badges, live highlights, the one highlight per viewport. The primary action is the inverted <code>--primary</code> pill; amber is only a real warning. Never borders, washes, tab indicators, selection markers or decoration.</span></div>
+      <div class="rule"><i>03</i><span><b>Identity renders once</b> — the 48px window head owns it. No legacy topbar, breadcrumb bar or route PageHead stacks.</span></div>
+      <div class="rule"><i>04</i><span><b>Chrome = 48px head + optional 44px toolbar, plus the 40px deck while a window holds ≥2 tabs</b> (≤132px loaded). Route views live on the toolbar, never in the head.</span></div>
       <div class="rule"><i>05</i><span><b>Depth grows a breadcrumb, never a new window.</b> Documents self-title with a state dot and never breadcrumb. Drilling never spawns a tab.</span></div>
-      <div class="rule"><i>06</i><span><b>Flat depth:</b> surface ramp + hairlines + inset rings. Glass, blur and cast shadows are shell-chrome only (menubar, dock, window frames, overlays). Window-body content never casts.</span></div>
-      <div class="rule"><i>07</i><span><b>Radius ladder is 3/6/7/8/10/14/18/pill</b>; the 12–22px waiver is shell-only. Selection is a neutral <code>--elevated</code> plate — <code>--highlight</code> rims buttons and pills only, never rows.</span></div>
-      <div class="rule"><i>08</i><span><b>Type: Geist 15px base, weights 400/510/600/620/700.</b> Eyebrows are sentence case (12px/510); uppercase survives only as <code>.eyebrow-caps</code> (11px/600/+.06em). Mono = ids, code, fixed-width values — never row titles, never key caps.</span></div>
+      <div class="rule"><i>06</i><span><b>Quiet depth:</b> surface ramp + hairlines + the shadow whitelist (<code>card</code> · <code>elevated</code> · <code>pop</code> · <code>overlay</code>). No glass anywhere; tiled panes are flat, only floating windows, menus and popovers lift.</span></div>
+      <div class="rule"><i>07</i><span><b>Radius ladder is 3/6/7/8/8/12/18/pill</b> (icon well 7); actions are pills. Selection is a neutral <code>--selected</code> plate — no rim, no accent.</span></div>
+      <div class="rule"><i>08</i><span><b>Type: Inter 14.5px body, weights 425/500/600 (620 display numerals); Geist Mono for code.</b> Eyebrows are sentence case (12px/500); uppercase survives only as <code>.eyebrow-caps</code> (11px/600/+.06em). Mono = ids, code, fixed-width values — never row titles, never key caps.</span></div>
       <div class="rule"><i>09</i><span><b>Reuse canonical components</b> — check <code>PARITY.md</code> against <code>@compozy/ui</code> before authoring. Forking a parallel geometry is a defect; domain variants take domain-prefixed names.</span></div>
       <div class="rule"><i>10</i><span><b>Signal color is information, never decoration.</b> Rows and cards stay neutral at rest; tone lives in tints (6–12%) + readable ink, paired with text or shape. Charts use monochrome <code>--viz-*</code>.</span></div>
       <div class="rule"><i>11</i><span><b>Truthful UI:</b> every control and metric maps to daemon truth; missing data gets an honest placeholder; every surface designs its empty, loading, error and degraded states.</span></div>
       <div class="rule"><i>12</i><span><b>Approachable by default:</b> plain language over mechanism keys, progressive disclosure (Advanced folds, Inspect drawers), calm defaults — never operator-cockpit density on the surface.</span></div>
     </div>
+  </section>
+
+  <section class="sec" data-od-id="shell-v2">
+    <h2>What changed in shell v2</h2>
+    <p class="lead" style="font-size:var(--text-form);color:var(--muted);max-width:76ch;line-height:1.6">
+    The shell-rail redesign (<code>../shell-rail/</code>) replaced the glass dock shell and added a light theme.
+    Prototypes authored before it are off on these axes:</p>
+    <table class="spec">
+      <tr><th>Axis</th><th>Before</th><th>After (current)</th></tr>
+      <tr><td>Themes</td><td>dark only</td><td>dark (default) + light via <code>data-theme</code>; every token theme-scoped</td></tr>
+      <tr><td>Ramp</td><td>warm-dark <code>#171615 · #1f1e1c</code>, white-alpha hairlines</td><td>neutral <code>#1a1a1a</code> panes on <code>#0a0a0a</code> chrome, <code>--sunken</code> / <code>--surface-2</code>, opaque hairlines</td></tr>
+      <tr><td>Primary · highlight</td><td>orange primary buttons</td><td>inverted <code>--primary</code> pill; orange = highlight / needs-you (<code>--attn</code>); mint = in progress / done</td></tr>
+      <tr><td>Type</td><td>Geist 15px, 400/510/600, JetBrains Mono</td><td>Inter 14.5px, 425/500/600, Geist Mono; ramp 12 · 13 · 13.5 · 14.5 · 15 · 17</td></tr>
+      <tr><td>Shell</td><td>44px glass menubar, bottom glass dock + 82px band, 12px windows in gutters</td><td>52px flat topbar, 60px left rail (the dock), gutterless tiles + 9px seams, floating = hairline + <code>shadow-elevated</code></td></tr>
+      <tr><td>Window chrome</td><td>head 44 · strip 38 · deck 37 (tabs 96–180) · traffic-light squares</td><td>head 48 · toolbar 44 · deck 40 (browser tabs 136–208) · quiet Minimize/Zoom/Close icons</td></tr>
+      <tr><td>Radius · buttons</td><td>md 10 / lg 14 · btn 30</td><td>md 8 / lg 12 / well 7 · buttons are 32px pills</td></tr>
+    </table>
   </section>
 
   <section class="sec" data-od-id="post-440">

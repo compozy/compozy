@@ -1,18 +1,18 @@
 # CompozyOS Design System — Author's Guide
 
 Single source of truth for every future design/prototype in `docs/design/opendesign/`.
-Read this before starting any surface. On conflict: **production (`packages/ui/src/tokens.css` + `web/src`) > this folder > any older prototype**. Post-PR-#440 edition — prototypes authored before it are one step off on nearly every axis (see `index.html` § What changed).
+Read this before starting any surface. On conflict: **production (`packages/ui/src/tokens.css` + `web/src`) > this folder > any older prototype**. Shell-v2 edition (two themes, rail shell) — prototypes authored before it are off on several axes (see `index.html` § What changed in shell v2).
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `ds-core.css` | Canonical tokens (`:root`, bare names, post-#440 values) + base + window-content components (buttons, fields, pills, tabs, rows, cards, tables, menus, key caps, srow, switch, radio cards, dialog system, empty, KPI). Link it or paste the `:root` verbatim. |
-| `ds-shell.css` | OS chrome: menu bar, dock (+ reserved 82px band), window frame/head/strip, **deck (window tabs)**, snap/seams, overlays, palette shell, toasts, compact mode. Radius-waiver layer (12–22px). |
+| `ds-core.css` | Canonical tokens (`:root` = dark, `[data-theme="light"]` = light; bare names, shell-v2 values) + base + window-content components (buttons, fields, pills, tabs, rows, cards, tables, menus, key caps, srow, switch, radio cards, dialog system, empty, KPI). Link it or paste the `:root` verbatim. |
+| `ds-shell.css` | OS chrome (shell v2): flat 52px topbar + tray pager, 60px rail (the dock), window frame/head/toolbar, **deck (browser tabs)**, gutterless seams, overlays, palette shell, toasts, compact mode. No glass, no radius waiver. |
 | `ds-docs.css` | Chapter-page documentation chrome only — never used by product prototypes. |
 | `index.html` | Overview, the twelve non-negotiables, the post-#440 change table. |
 | `foundations.html` | 01 — tokens, color, type, ladders, radius, motion, icons, focus/a11y, divergence ledger. |
-| `os-shell.html` | 02 — window manager: menubar, window frame, deck, dock, tiling/seams, Spaces, focus/z, compact, rules S1–S13. |
+| `os-shell.html` | 02 — window manager (shell v2): anatomy, topbar, rail, window frame, deck, tiling/seams/arrange, desktops + wallpapers, themes, focus/z, compact, rules S1–S13. Both themes (`?theme=light`). |
 | `components.html` | 03 — component catalog with live demos (every class ships in `ds-core.css`). |
 | `command-palette.html` | 04 — canonical ⌘K anatomy (20px rail, row ladder, chord tiers, view states, action panel). |
 | `modals.html` | 05 — dialog ladder, head/body/foot contract, forms, split/sheet, canonical selectors. |
@@ -27,9 +27,9 @@ Read this before starting any surface. On conflict: **production (`packages/ui/s
 
 1. One folder per design set at `opendesign/<slug>/`, sibling of `design-system/`; retired sets live under `_done/`. Self-contained HTML, semantic filenames.
 2. Link `../design-system/ds-core.css` (+ `ds-shell.css` for shell surfaces) or paste the `:root` verbatim into the first `<style>`. Never rebind ramp tokens in a leaf board — if a value looks wrong, the root fix belongs here.
-3. Fonts: Geist `wght@100..900` (620 display numerals need the full axis) + JetBrains Mono, Google Fonts links as in the chapter files.
+3. Fonts: Inter `wght@100..900` (425 regular and 620 display numerals need the axis) + Geist Mono, Google Fonts links as in the chapter files. Preview light with `data-theme="light"` on `<html>`.
 4. Compose from the component classes — check `components.html` and `PARITY.md` before authoring anything; domain variants get domain-prefixed names, never forked geometry.
-5. Surfaces render **inside an OS window**: unified 44px head (identity once, ≤2 actions), optional 38px strip (views · filters · spacer · Rows|Cards), deck at ≥2 tabs, drill-in via breadcrumb. No legacy topbar/PageHead; no views in the head (`.w2-tabs` is deprecated).
+5. Surfaces render **inside an OS window**: unified 48px head (identity once, ≤2 actions, quiet controls last), optional 44px toolbar (views · filters · spacer · Rows|Cards), 40px deck at ≥2 tabs, drill-in via breadcrumb. No legacy topbar/PageHead; no views in the head (`.w2-tabs` is deprecated).
 6. Data is runtime-plausible daemon truth; design empty/loading/error/degraded states (chapter 08).
 7. `data-od-id` on regions, headings, controls, repeated cards. Lucide only (`data-lucide` + CDN + `createIcons()`), sized by container.
 8. Iterate on existing files — never regenerate a delivered prototype from scratch.
@@ -37,13 +37,13 @@ Read this before starting any surface. On conflict: **production (`packages/ui/s
 ## Hard rules (checkable)
 
 - Every CSS color literal traces to the token set (or is a `color-mix` of it). Teal `#225555` = wallpaper depth only. Identity `--id` (profiles) is the only sanctioned inline color.
-- Accent budget: 1 primary action + live dots + attention badges per screen. Never card/panel borders, tab indicators, or selection markers.
-- Geometry ladder: switch 32×18 · input 36 · `.ctl` 32 · search 28 · buttons 30/26/24/34 · pill 20 (18/24) · pill-group segment 24 (sm 20) · tabs list 40 (1.5px `--fg-strong` underline) · window head 44 · strip 38 · deck 37/tab 30 · srow ≥54 · property row 30 · icon well 34 · empty icon 48.
-- `--highlight` rims buttons/pills only. Selection = `--elevated` plate + `--fg-strong`, no rim, no accent.
-- Eyebrows: sentence case 12/510 default; `.eyebrow-caps` 11/600/+.06em opt-in; uppercase never takes negative tracking. Key caps use `--font-keys`, one cap per binding.
+- Accent budget: orange = highlight / needs-you (badges, attention dots) — the primary action is the inverted `--primary` pill. Never card/panel borders, tab indicators, or selection markers.
+- Geometry ladder: switch 32×18 · input 36 · `.ctl` 32 · search 28 · buttons 32/26/24/34 (pills) · pill 20 (18/24) · pill-group segment 30 (sm 20) · tabs list 40 (1.5px `--fg-strong` underline) · window head 48 · toolbar 44 · deck 40/tab 32 · srow ≥54 · property row 30 · icon well 34 (head well 26) · empty icon 48.
+- Selection = `--selected` plate + `--fg`, no rim, no accent. Hover steps to `--surface-2` (or adds `shadow-card`); it never dims text.
+- Eyebrows: sentence case 12/500 default; `.eyebrow-caps` 11/600/+.06em opt-in; uppercase never takes negative tracking. Key caps use `--font-keys`, one cap per binding.
 - Reasoning = 7-bar `.im` meter (Medium = 4/7); quiet footers, accent only on fill/pressed/selected.
 - Listing routes ship Rows|Cards; strip order locked (views → search/filters → spacer → display mode).
-- Focus: keyboard `:focus-visible` = 2px white ·5 ring (inset for full-bleed rows); pointer focus = border strengthen only. Reduced-motion double guard.
+- Focus: keyboard `:focus-visible` = 2px ring at 50% white (dark) / 50% ink (light) (inset for full-bleed rows); pointer focus = border strengthen only. Reduced-motion double guard.
 - Disabled controls swap tokens (`--disabled` ink), never opacity (buttons may use .5).
 - Modals build on the `ds-core.css` `.dialog` system (bare names). The 16 delivered surfaces in `_done/modals/` keep their `--color-*` island — never mix both naming schemes in one file.
 

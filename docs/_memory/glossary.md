@@ -320,9 +320,25 @@ The minimal horizontal dot control in the menubar tray for switching the active 
 
 The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
 
+**UI noun:** "dock" (`aria-label="Dock"`, "Open an app from the dock"). See [Rail](#rail) for the shape name.
+
+### Rail
+
+The visual shape of the dock: the 60px column on the left edge (`--width-rail`, items `--size-rail-item`). Internal and design vocabulary only — tokens, design references, and component internals may say "rail"; product copy, aria labels, and docs for users say **dock**. Do not rename the dock to "rail" in UI text.
+
 ### Menubar
 
 The top bar across the full window: CompozyOS mark (whose menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
+
+**Naming:** the menubar's accessible name is "System bar"; "topbar" is only a prose description of its position. `<Topbar>` in `@compozy/ui` is the **window head**, not the menubar — never use "Topbar" to mean the menubar in code or specs.
+
+### Theme
+
+The painted color scheme of the web UI: `light` or `dark`. The stored **theme preference** is `light`, `dark`, or `system` (Settings › Appearance: **Light / Dark / System**; default **Dark**); `system` follows the operating system. The **resolved theme** is what is painted. The dock-foot toggle flips the resolved theme and stores an explicit `light`/`dark`. The preference is per browser (localStorage `compozy.theme`), never a `config.toml` key, and is applied to `<html>` (`data-theme` plus the `.dark` class) before first paint. Theme is presentation only; it never changes runtime state.
+
+### Main and stack
+
+A window arrangement (`main_stack` in `compozy layout arrange --arrangement`; **Window › Arrange › Main and stack** in the app): one window takes a 60% main column and the rest split vertically in the column beside it. In the app the focused window takes the main column; from the CLI the first listed window does. Sibling arrangements in the same menu: **Columns**, **Grid**, **Balance sizes**.
 
 ### Window manager
 
