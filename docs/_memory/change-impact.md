@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## PR 685 — Wake creator on child turn completion
+
+- **Native tools / CLI / HTTP / UDS:** no `compozy__*` ID, toolset, route, DTO, flag, or schema
+  changed. `SpawnWakeReasonCompleted` ("completed") is an internal session wake reason consumed by
+  the daemon bridge; no public surface gains a value.
+- **Extensibility / hooks / config:** no new hook, extension capability, SDK shape, permission, or
+  config key. The existing `NotifyCreator` lineage flag and notification opt-out still gate delivery.
+- **Workspace data isolation:** unchanged. Wake dispatch resolves the creator from the child's
+  recorded lineage parent and rejects self-wakes; no new table, migration, or cross-workspace read.
+- **Official CompozyOS skill:** checked `skills/compozy/` spawn/wake/creator-notification guidance
+  (`references/runtime-operations.md`, `references/native-tools.md`, `references/tasks-and-orchestration.md`);
+  no reference needs updating — no public verb, tool, or config changed.
+- **Web / Docs impact:** no `web/` route, component, or hook change; no `packages/site` doc change is
+  required.
+- **Compatibility:** additive internal behavior — `SpawnWakeReasonCompleted` is a new reason value and
+  the `BadgeDone` mapping was previously a no-op for waking; no SD-013 public-surface break, no migration.
+
 ## Package cleanup — Network, Bridges, and managed Sandbox hard cut
 
 Owning decision: `.compozy/tasks/pkgs-cleanup/adr-hardcut.md`; implementation and validation evidence:

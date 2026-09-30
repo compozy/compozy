@@ -18,6 +18,8 @@ const (
 	SpawnWakeReasonFailed SpawnWakeReason = "failed"
 	// SpawnWakeReasonNeedsAttention wakes the creator when a child needs input or approval.
 	SpawnWakeReasonNeedsAttention SpawnWakeReason = "needs_attention"
+	// SpawnWakeReasonCompleted wakes the creator when a child finishes its turn normally.
+	SpawnWakeReasonCompleted SpawnWakeReason = "completed"
 
 	spawnWakeTextMaxRunes  = 240
 	spawnWakeCacheMaxItems = 4096
@@ -98,7 +100,8 @@ func SanitizeSpawnWakeText(value string) string {
 
 func (reason SpawnWakeReason) valid() bool {
 	switch reason {
-	case SpawnWakeReasonStopped, SpawnWakeReasonFailed, SpawnWakeReasonNeedsAttention:
+	case SpawnWakeReasonStopped, SpawnWakeReasonFailed,
+		SpawnWakeReasonNeedsAttention, SpawnWakeReasonCompleted:
 		return true
 	default:
 		return false
@@ -111,6 +114,8 @@ func spawnWakeReasonForBadge(badge Badge) (SpawnWakeReason, bool) {
 		return SpawnWakeReasonStopped, true
 	case BadgeFailed:
 		return SpawnWakeReasonFailed, true
+	case BadgeDone:
+		return SpawnWakeReasonCompleted, true
 	case BadgeWaitingForAuth, BadgeWaitingForInput, BadgeNeedsAttention:
 		return SpawnWakeReasonNeedsAttention, true
 	default:

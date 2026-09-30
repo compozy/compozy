@@ -34,6 +34,19 @@ func (m *Manager) publishLifecycleAttentionTransition(
 	before *Info,
 	after *Info,
 ) {
+	m.publishLifecycleAttentionTransitionWake(ctx, before, after, true)
+}
+
+// publishLifecycleAttentionTransitionWake publishes the canonical attention edge
+// and optionally dispatches the completed spawn wake. A canceled child turn still
+// emits its catalog event, wait-badge edge, and attention hooks, but must not wake
+// its creator with a false "completed" reason.
+func (m *Manager) publishLifecycleAttentionTransitionWake(
+	ctx context.Context,
+	before *Info,
+	after *Info,
+	deliverCompletedWake bool,
+) {
 	if after == nil {
 		return
 	}
@@ -58,5 +71,8 @@ func (m *Manager) publishLifecycleAttentionTransition(
 	m.publishWaitBadgeEdge(after, to)
 	m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	m.dispatchSessionAttentionChanged(ctx, after, event)
+	if !deliverCompletedWake && to == BadgeDone {
+		return
+	}
 	m.dispatchSpawnWake(ctx, after, to)
 }
