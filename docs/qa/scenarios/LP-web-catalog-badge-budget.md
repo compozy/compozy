@@ -4,7 +4,7 @@ area: LP
 title: Loops catalog enforces the badge budget and states one facts line
 persona: Dora
 journey: J-05
-expected: Catalog rows and cards carry no source, cap, category, or best pills — the only chip is the state `LoopStatusPill`, which survives every viewport width. Category leads a single shared facts line (identical in rows and cards) that may add "Asks you before finishing" and ends with a sans "Last run <relative Time>" (the run id is a hover title only); inputs, the round cap, and `best` stay off the catalog. Cards carry no success-rate stat; rows show "N runs this month" only at `xl`. Group headers read server facet counts (falling back to the loaded length), card descriptions clamp to two lines, the lede is `LoopPageLede` with the closing hairline, a zero-loop project keeps the page heading with the single roster empty state, and the row Run button promotes to accent on hover.
+expected: Catalog rows and cards carry no source, cap, category, or best pills — the only chip is the state `LoopStatusMark` (glyph + word), which survives every viewport width. Category leads a single shared facts line (identical in rows and cards) that may add "Asks you before finishing" and ends with a sans "Last run <relative Time>" (the run id is a hover title only); inputs, the round cap, and `best` stay off the catalog. Cards carry no success-rate stat; rows show "N runs this month" only at `xl`. Group headers read server facet counts (falling back to the loaded length), card descriptions clamp to two lines, the lede is `LoopPageLede` with the closing hairline, a zero-loop project keeps the page heading with the single roster empty state, and the row Run button promotes to accent on hover.
 entry_points: web /loops
 qa_status: blocked-verify
 bug_ids:
