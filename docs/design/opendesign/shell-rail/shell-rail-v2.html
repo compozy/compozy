@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS · Shell v2 — light rail + desktops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+/* Tokens: aicss.dev "Approval Card" design system (--ab-*), extracted verbatim from its stylesheet.
+   Dark = exact values. Light = the same system's light theme. Role names map 1:1 (see brand-spec.md). */
+:root,[data-theme="light"]{
+  color-scheme:light;
+  --chrome:#fafafa;          /* ab-stage-bg  — rail + topbar */
+  --bg:#fafafa;              /* desktop behind panes */
+  --surface:#fff;            /* ab-surface   — panes, cards */
+  --sunken:#f7f8fa;          /* ab-bg-subtle — tab strip, inset panels */
+  --surface-2:#f4f5f7;       /* ab-surface-2 — hover, secondary buttons */
+  --selected:#f0f1f3;        /* ab-accent-soft */
+  --code-bg:#f4f5f7;
+  --border:#e6e8ec; --border-strong:#d4d7dd;
+  --fg:#1a1a1a; --muted:#a1a1a1; --subtle:#a1a1a1;
+  --primary:#0b0d12; --primary-hover:#2a2f3a; --on-primary:#fff;
+  --ok:#15a06a; --warn:#d98404; --danger:#dc2626;
+  --accent:#d14e25; --accent-hover:#b9441f; --accent-tint:rgba(209,78,37,.10); --on-accent:#fff;   /* Compozy orange, one step deeper for light contrast */
+  --on-attn:#fff;
+  --shadow-sm:0 1px 2px #0d121c0f;
+  --shadow-md:0 6px 24px -8px #0d121c2e;
+  --shadow-card:0 0 0 .5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005;
+  --shadow-elevated:0 0 0 .5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --chrome:#0a0a0a;          /* ab-bg */
+  --bg:#101010;              /* ab-stage-bg */
+  --surface:#1a1a1a;
+  --sunken:#101010;          /* ab-bg-subtle */
+  --surface-2:#242424;
+  --selected:#242424;        /* ab-accent-soft */
+  --code-bg:#171717;
+  --border:#303030; --border-strong:#424242;
+  --fg:#f5f5f5; --muted:#a3a3a3; --subtle:#737373;
+  --primary:#f5f5f5; --primary-hover:#fff; --on-primary:#0a0a0a;
+  --ok:#34d399; --warn:#f5b14c; --danger:#f87171;
+  --accent:#e8572a; --accent-hover:#f6874f; --accent-tint:rgba(232,87,42,.14); --on-accent:#17110f;  /* Compozy orange (tokens.css) */
+  --on-attn:#17110f;
+  --shadow-sm:0 1px 2px #00000080;
+  --shadow-md:0 6px 24px -8px #0009;
+  --shadow-card:0 0 0 .5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d;
+  --shadow-elevated:0 0 0 .5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006;
+}
+:root{
+  /* derived roles (same recipes the reference uses) */
+  --fg-2:color-mix(in srgb,var(--muted) 60%,var(--fg));
+  --fg-3:color-mix(in srgb,var(--fg) 70%,var(--muted));
+  --border-soft:color-mix(in srgb,var(--border) 55%,var(--surface));
+  --hover:var(--surface-2);
+  --tab-strip:var(--sunken);
+  --attn:var(--accent);   /* highlight / needs-you = Compozy orange, never the warning amber */
+  --idle:var(--subtle); --box:var(--border-strong); --dot-off:var(--border-strong);
+  --prompt:var(--ok); --link:var(--fg-2);
+  --well:color-mix(in srgb,var(--ok) 14%,var(--surface));
+  --shadow-xs:var(--shadow-sm);
+  --shadow-pop:var(--shadow-md),var(--shadow-elevated);
+  --focus:0 0 0 2px var(--surface),0 0 0 4px color-mix(in srgb,var(--fg) 45%,transparent);
+  /* type — Inter (regular 425) + Geist Mono */
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --keys:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --w-regular:425; --w-medium:500; --w-semibold:600;
+  --t-xs:12px; --t-sm:13px; --t-md:13.5px; --t-body:14.5px; --t-title:15px; --t-head:17px;
+  --track:-.01em;
+  /* radii — ab-radius-sm 8 · ab-radius 12 · pill; icon well 7 */
+  --r-sm:6px; --r:8px; --r-md:12px; --r-lg:12px; --r-well:7px; --r-pill:999px;
+  --ease:cubic-bezier(.22,1,.36,1); --ease-out:cubic-bezier(.17,1,.32,1);
+  --dur-fast:.15s; --dur:.2s;
+  /* shell geometry */
+  --rail-w:60px; --bar-h:52px; --deck-h:40px; --head-h:48px;
+  --seam-hit:9px; --lights-w:84px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font);font-size:var(--t-body);font-weight:var(--w-regular);line-height:1.5;letter-spacing:var(--track);color:var(--fg);background:var(--chrome);-webkit-font-smoothing:antialiased;font-feature-settings:"cv11"}
+button{font:inherit;color:inherit;letter-spacing:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:var(--focus)}
+svg.lucide{width:18px;height:18px;stroke-width:1.5;flex:none}
+
+/* ================= SHELL ================= */
+.shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);grid-template-rows:var(--bar-h) minmax(0,1fr);height:100vh}
+
+/* rail = the dock */
+.bar{grid-column:1/3}
+.rail{grid-row:2;display:flex;flex-direction:column;align-items:center;background:var(--chrome);border-right:1px solid var(--border);z-index:600}
+.lights{width:var(--lights-w);height:100%;flex:none}   /* traffic lights live here; also the drag handle */
+.logo{width:34px;height:34px;border-radius:var(--r);display:grid;place-items:center;color:var(--fg);flex:none}
+.logo:hover,.logo[aria-expanded="true"]{background:var(--hover)}
+.logo svg{width:20px;height:20px}
+.rail-nav{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.ri{position:relative;width:40px;height:40px;flex:none;border-radius:var(--r-md);display:grid;place-items:center;color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.ri svg{width:20px;height:20px}
+.ri:hover{background:var(--hover);color:var(--fg)}
+.ri.is-active{background:var(--selected);color:var(--fg);box-shadow:var(--shadow-card)}
+.ri.is-min svg{opacity:.5}
+.ri .run{position:absolute;left:-6px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--subtle);opacity:0}
+.ri.is-open .run{opacity:1;background:var(--muted)}
+.ri.is-active .run{background:var(--fg)}
+.ri.is-min .run{opacity:1;background:none;box-shadow:inset 0 0 0 1.2px var(--subtle);width:5px;height:5px;margin-top:-2.5px}
+.ri .badge{position:absolute;top:3px;right:3px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--attn);color:var(--on-attn);font:600 10px/16px var(--font);text-align:center;box-shadow:0 0 0 2px var(--chrome)}
+.rail-foot{flex:none;padding:10px 0 14px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.ri svg.lucide{width:19px;height:19px}
+
+/* topbar */
+.bar{position:relative;display:flex;align-items:center;gap:16px;padding:0 14px 0 0;background:var(--chrome);border-bottom:1px solid var(--border);z-index:500;min-width:0}
+.side{display:flex;align-items:center;gap:2px;min-width:0}
+.ib{position:relative;width:34px;height:34px;border-radius:var(--r-pill);display:grid;place-items:center;color:var(--muted);transition:background .12s,color .12s}
+.ib:hover,.ib[aria-expanded="true"]{background:var(--hover);color:var(--fg)}
+.ib .pill{position:absolute;top:3px;right:2px;min-width:15px;height:15px;padding:0 4px;border-radius:99px;background:var(--attn);color:var(--on-attn);font:600 9.5px/15px var(--font);text-align:center;box-shadow:0 0 0 2px var(--chrome)}
+.ws{display:flex;align-items:center;gap:9px;height:34px;padding:0 12px 0 6px;border-radius:var(--r-pill);min-width:0}
+.ws:hover,.ws[aria-expanded="true"]{background:var(--hover)}
+.ws-av{width:22px;height:22px;border-radius:var(--r-pill);display:grid;place-items:center;background:linear-gradient(135deg,oklch(0.68 0.2 35),oklch(0.62 0.22 15));color:#fff;font:600 9.5px/1 var(--font)}
+.ws-name{font-weight:var(--w-medium);font-size:var(--t-title)}
+.ws-wt{color:var(--muted);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws svg.lucide{width:15px;height:15px;color:var(--muted)}
+.mt{height:32px;padding:0 11px;border-radius:var(--r-pill);color:var(--fg-2);font-weight:var(--w-medium)}
+.mt:hover,.mt[aria-expanded="true"]{background:var(--hover);color:var(--fg)}
+.vsep{width:1px;height:18px;background:var(--border);margin:0 6px;flex:none}
+
+/* desktops — pager dots, centred in the free space of the bar */
+.bar-fill{flex:1;min-width:12px;align-self:stretch}
+.dots{display:flex;align-items:center;margin-right:4px}
+.dots ol{display:flex;align-items:center;list-style:none}
+.dt{width:22px;height:30px;display:grid;place-items:center;border-radius:6px;cursor:pointer}
+.dt:hover{background:var(--hover)}
+.dt i{display:block;width:6px;height:6px;border-radius:99px;background:var(--dot-off);transition:width .24s var(--ease),background .12s}
+.dt:hover i{background:var(--muted)}
+.dt.is-on i{width:18px;background:var(--fg)}
+.dt.has-attn:not(.is-on) i{background:var(--attn)}
+
+/* ================= STAGE ================= */
+.stage{position:relative;background:var(--bg);min-width:0;min-height:0;overflow:hidden}
+.layer{position:absolute;inset:0}
+.win{position:absolute;display:flex;flex-direction:column;background:var(--surface);min-width:0;min-height:0;overflow:hidden}
+.win[data-focused="false"] .id,.win[data-focused="false"] .trail{opacity:.55}
+
+/* deck — browser tabs: the active tab is a surface plate fused with the head below */
+.deck{position:relative;display:flex;align-items:flex-end;height:var(--deck-h);padding:0 4px 0 0;flex:none;background:var(--tab-strip);box-shadow:inset 0 -1px 0 var(--border);min-width:0}
+.deck-scroll{flex:0 1 auto;display:flex;align-items:flex-end;min-width:0;height:100%;padding:0 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.tab{position:relative;display:flex;align-items:center;gap:8px;height:32px;flex:0 1 208px;min-width:136px;padding:0 7px 0 12px;border-radius:9px 9px 0 0;
+  color:var(--muted);font-size:var(--t-md);font-weight:var(--w-medium);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.tab::after{content:"";position:absolute;right:0;top:9px;bottom:9px;width:1px;background:var(--border)}
+.tab:last-child::after,.tab.is-on::after,.tab:hover::after,.tab:has(+ .tab.is-on)::after,.tab:has(+ .tab:hover)::after{opacity:0}
+.tab:hover{background:var(--hover);color:var(--fg)}
+.tab.is-on{z-index:1;background:var(--surface);color:var(--fg);box-shadow:inset 1px 0 0 var(--border),inset -1px 0 0 var(--border),inset 0 1px 0 var(--border)}
+.cv{position:absolute;bottom:0;width:10px;height:10px;display:none;pointer-events:none;border:0 solid var(--border);border-bottom-width:1px}
+.tab.is-on .cv{display:block}
+.cv-l{left:-9px;border-right-width:1px;border-bottom-right-radius:10px;box-shadow:5px 5px 0 5px var(--surface)}
+.cv-r{right:-9px;border-left-width:1px;border-bottom-left-radius:10px;box-shadow:-5px 5px 0 5px var(--surface)}
+.tab .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.tab .x{width:20px;height:20px;border-radius:99px;display:grid;place-items:center;color:var(--subtle);opacity:0;flex:none}
+.tab .x svg{width:12px;height:12px}
+.tab:hover .x,.tab.is-on .x{opacity:1}
+.tab .x:hover{background:var(--selected);color:var(--fg)}
+.tab .cnt{min-width:15px;height:15px;padding:0 4px;border-radius:99px;background:var(--attn);color:var(--on-attn);font:600 9.5px/15px var(--font);text-align:center;flex:none}
+.tab .dg{width:15px;height:15px;flex:none}
+.tab-add{width:28px;height:28px;margin:0 0 2px -4px;border-radius:99px;display:grid;place-items:center;color:var(--muted);flex:none}
+.tab-add:hover{background:var(--hover);color:var(--fg)}
+.tab-add svg{width:15px;height:15px}
+.deck .wctl{align-self:center}
+.grow{flex:1;min-width:12px;align-self:stretch;cursor:grab}
+
+/* head */
+.head{display:flex;align-items:center;gap:10px;height:var(--head-h);padding:0 8px 0 16px;flex:none;border-bottom:1px solid var(--border);min-width:0}
+.id{display:flex;align-items:center;gap:9px;min-width:0;max-width:62%}
+.id svg.lucide,.id .dg{width:16px;height:16px;color:var(--fg-2);flex:none}
+.well{width:26px;height:26px;border-radius:var(--r-well);display:grid;place-items:center;background:var(--well);color:var(--ok);flex:none}
+.well svg,.well svg.lucide,.id .well .dg{width:16px;height:16px;color:var(--ok)}
+.appr-foot .hint svg.lucide{width:15px;height:15px}
+.id .well .dg{color:var(--ok)}
+.title{font-size:var(--t-title);font-weight:var(--w-medium);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;color:var(--subtle)}
+.more:hover{background:var(--hover);color:var(--fg)}
+.trail{display:flex;align-items:center;gap:10px;flex:none}
+.meta{font-size:var(--t-sm);color:var(--subtle);font-variant-numeric:tabular-nums}
+.agent{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-sm);color:var(--fg-2);font-weight:var(--w-medium)}
+.av{width:18px;height:18px;border-radius:var(--r-pill);display:grid;place-items:center;font:600 8.5px/1 var(--font);color:#fff}
+.av--cx{background:linear-gradient(135deg,#737373,#303030)}
+.av--cl{background:linear-gradient(135deg,oklch(0.7 0.15 55),oklch(0.62 0.17 35))}
+.wctl{display:flex;align-items:center;gap:1px;flex:none}
+.wc{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:var(--subtle);transition:background .12s,color .12s}
+.wc svg{width:15px;height:15px}
+.wc:hover{background:var(--hover);color:var(--fg)}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 14px;border-radius:var(--r-pill);font-weight:var(--w-medium);font-size:var(--t-body);background:var(--surface-2);color:var(--fg);transition:background var(--dur) var(--ease)}
+.btn .kb{width:14px;height:14px;opacity:.8}
+.btn:hover{background:var(--selected);color:var(--fg);box-shadow:var(--shadow-card)}
+.btn svg.lucide{width:16px;height:16px}
+.btn--primary{background:var(--primary);color:var(--on-primary);box-shadow:var(--shadow-sm)}
+.btn--primary:hover{background:var(--primary-hover);color:var(--on-primary);box-shadow:var(--shadow-sm)}
+.dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--subtle)}
+.dot--run{background:var(--ok)} .dot--needs{background:var(--attn)} .dot--idle{background:var(--idle)} .dot--done{background:var(--ok)}
+/* state glyphs from the reference: spinner ring (in progress), dashed ring (queued) */
+.spin{width:14px;height:14px;border-radius:50%;flex:none;border:1.5px solid color-mix(in srgb,var(--ok) 22%,transparent);border-top-color:var(--ok);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ring{width:14px;height:14px;border-radius:50%;flex:none;border:1.5px dashed var(--border-strong)}
+.okc{width:14px;height:14px;border-radius:50%;flex:none;background:var(--ok);display:grid;place-items:center;color:var(--on-primary)}
+.okc svg.lucide{width:10px;height:10px;stroke-width:3;color:var(--surface)}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+.body{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+
+/* seams */
+.seam{position:absolute;z-index:3;touch-action:none}
+.seam::after{content:"";position:absolute;background:var(--border);transition:background .12s}
+.seam--v{width:var(--seam-hit);margin-left:calc(var(--seam-hit)/-2);cursor:col-resize}
+.seam--v::after{left:50%;top:0;bottom:0;width:1px;translate:-.5px 0}
+.seam--h{height:var(--seam-hit);margin-top:calc(var(--seam-hit)/-2);cursor:row-resize}
+.seam--h::after{top:50%;left:0;right:0;height:1px;translate:0 -.5px}
+.seam:hover::after,.seam:focus-visible::after,.seam.is-drag::after{background:var(--muted)}
+.seam--v:hover::after,.seam--v.is-drag::after,.seam--v:focus-visible::after{width:2px;translate:-1px 0}
+.seam--h:hover::after,.seam--h.is-drag::after,.seam--h:focus-visible::after{height:2px;translate:0 -1px}
+.seam:focus-visible{box-shadow:none}
+body.is-resizing{user-select:none} body.is-resizing .win{pointer-events:none}
+
+.empty{position:absolute;inset:0;display:grid;place-items:center}
+.empty-card{display:flex;flex-direction:column;align-items:flex-start;gap:10px;width:380px;padding:16px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-card)}
+.empty-ic{width:26px;height:26px;border-radius:var(--r-well);display:grid;place-items:center;background:var(--well);color:var(--ok)}
+.empty-ic svg,.empty-ic svg.lucide{width:16px;height:16px}
+.empty-card h2{font-size:var(--t-head);font-weight:var(--w-medium);letter-spacing:-.015em;margin-top:4px}
+.empty-card p{color:var(--muted);text-wrap:pretty;margin-bottom:4px}
+kbd{font-family:var(--keys);font-size:var(--t-xs);padding:1px 6px;border-radius:var(--r-sm);background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border);color:var(--fg-2)}
+
+/* ================= APP BODIES ================= */
+.ses{display:flex;flex-direction:column;min-height:100%}
+.log{flex:1;width:100%;max-width:760px;margin:0 auto;padding:24px 24px 8px;display:flex;flex-direction:column;gap:18px}
+.u{align-self:flex-end;max-width:80%;padding:10px 14px;border-radius:var(--r-lg);background:var(--surface-2);color:var(--fg)}
+.a{display:flex;flex-direction:column;gap:12px;color:var(--fg-3)}
+.a p{max-width:66ch;text-wrap:pretty}
+code{font-family:var(--mono);font-size:13px;padding:1px 6px;border-radius:var(--r-sm);background:var(--code-bg);color:var(--fg)}
+.tools{border-radius:var(--r-lg);background:var(--sunken);padding:6px 0;overflow:hidden}
+.tool{display:flex;align-items:center;gap:10px;height:34px;padding:0 16px;font-size:var(--t-body);color:var(--muted)}
+
+.tool svg.lucide{width:15px;height:15px;color:var(--subtle)}
+.tool b{color:var(--fg);font-weight:var(--w-medium)}
+.tool .p{font-family:var(--mono);font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tool .e{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:var(--t-sm);color:var(--subtle);flex:none}
+.add{color:var(--ok)} .del{color:var(--danger)}
+.composer{position:sticky;bottom:0;padding:8px 24px 20px;background:linear-gradient(to bottom,transparent,var(--surface) 28%)}
+.cbox{max-width:760px;margin:0 auto;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-card);padding:12px 12px 10px}
+.cbox:focus-within{box-shadow:var(--shadow-elevated),0 0 0 1px var(--border-strong)}
+.cbox textarea{width:100%;resize:none;border:0;outline:0;background:none;font:inherit;color:var(--fg);height:22px}
+.cbox textarea::placeholder{color:var(--subtle)}
+.crow{display:flex;align-items:center;gap:4px;margin-top:8px}
+.cb{height:28px;padding:0 10px;border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--t-md)}
+.cb:hover{background:var(--hover);color:var(--fg)}
+.cb svg.lucide{width:15px;height:15px}
+.send{margin-left:auto;width:30px;height:30px;border-radius:var(--r-pill);display:grid;place-items:center;background:var(--primary);color:var(--on-primary)}
+.send:hover{background:var(--primary-hover);color:var(--on-primary)}
+.send svg.lucide{width:16px;height:16px;stroke-width:2}
+.appr{border-radius:var(--r-lg);box-shadow:var(--shadow-card);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
+.appr-foot{display:flex;align-items:center;gap:10px}
+.appr-foot .hint{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:var(--t-md);margin-right:auto}
+.appr-h{display:flex;align-items:center;gap:10px;font-size:var(--t-title);font-weight:var(--w-medium);color:var(--fg)}
+.appr pre{font-family:var(--mono);font-size:13px;padding:12px 14px;border-radius:var(--r-lg);background:var(--sunken);color:var(--fg-3);overflow:auto}
+.btns{display:flex;gap:8px}
+
+/* table (tasks, knowledge) — reference table grammar */
+.tbl{width:100%;border-collapse:collapse;font-size:var(--t-body);table-layout:fixed}
+.tbl th{position:sticky;top:0;z-index:1;background:var(--surface);height:40px;padding:0 12px;text-align:left;font-size:var(--t-md);font-weight:var(--w-medium);color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl td{height:48px;padding:0 12px;border-bottom:1px solid var(--border-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0}
+.tbl tr:hover td{background:var(--sunken)}
+.tbl .ck{width:40px;padding-left:16px}
+.box{display:block;width:15px;height:15px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--box);background:var(--surface)}
+.tbl .t{font-weight:var(--w-medium);color:var(--fg)}
+.tbl .lnk{color:var(--fg-2);font-family:var(--mono);font-size:13px}
+.tbl .n{color:var(--muted);font-weight:400}
+.st{display:inline-flex;align-items:center;gap:7px;color:var(--fg-2)}
+.filters{display:flex;align-items:center;gap:4px;height:44px;padding:0 12px;border-bottom:1px solid var(--border)}
+.fl{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:var(--r-pill);color:var(--muted);font-size:var(--t-md);font-weight:var(--w-medium)}
+.fl:hover{background:var(--hover);color:var(--fg)}
+.fl.is-on{background:var(--surface-2);color:var(--fg)}
+.fl svg.lucide{width:15px;height:15px}
+.fl .c{color:var(--subtle);font-weight:400}
+
+/* terminal (light) */
+.term{padding:14px 16px;font-family:var(--mono);font-size:13px;line-height:1.75;letter-spacing:0;color:var(--fg-3);background:var(--surface);min-height:100%}
+.term .pr{color:var(--prompt)} .term .d{color:var(--subtle)} .term .ok{color:var(--ok)} .term .w{color:var(--warn)} .term .ac{color:var(--attn)}
+.term .cur{display:inline-block;width:7px;height:15px;background:var(--fg);vertical-align:-3px;animation:pulse 1.1s steps(1) infinite}
+
+/* ================= POPOVER / TIP / OVERVIEW ================= */
+.pop{position:fixed;z-index:900;min-width:232px;padding:6px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-pop)}
+.pl{padding:6px 10px 4px;font-size:var(--t-xs);color:var(--subtle);font-weight:var(--w-medium);text-transform:uppercase;letter-spacing:.06em}
+.pi{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 10px;border-radius:var(--r);text-align:left;color:var(--fg);font-size:var(--t-md)}
+.pi:hover,.pi:focus-visible{background:var(--surface-2);box-shadow:none}
+.pi .ch{margin-left:auto;font-family:var(--keys);font-size:12px;color:var(--subtle)}
+.pi.is-on::after{content:"";margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--fg)}
+.ps{height:1px;background:var(--border-soft);margin:5px 2px}
+.tip{position:fixed;z-index:950;pointer-events:none;padding:5px 10px;border-radius:var(--r-pill);background:var(--primary);color:var(--on-primary);font-size:12px;font-weight:500;white-space:nowrap;opacity:0;transition:opacity .12s}
+.tip.is-on{opacity:1}
+.tip .k{opacity:.6;margin-left:6px}
+
+.ov{position:absolute;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;gap:18px;padding:28px 32px;overflow:auto;animation:ovin .24s var(--ease)}
+@keyframes ovin{from{opacity:0;transform:scale(.985)}}
+.ov-h{display:flex;align-items:center;gap:12px}
+.ov-h h2{font-size:var(--t-head);font-weight:var(--w-medium);letter-spacing:-.015em}
+.ov-h p{color:var(--muted);font-size:13px}
+.ov-h .btn{margin-left:auto}
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.oc{display:flex;flex-direction:column;gap:10px;text-align:left;border-radius:var(--r-lg);padding:8px 8px 12px;transition:background .12s}
+.oc:hover{background:var(--hover)}
+.oc-thumb{position:relative;width:100%;border-radius:var(--r-lg);background:var(--sunken);box-shadow:var(--shadow-card);overflow:hidden}
+.oc.is-on .oc-thumb{box-shadow:0 0 0 2px var(--fg)}
+.mw{position:absolute;background:var(--surface);box-shadow:0 0 0 .5px var(--border)}
+.mw::before{content:"";position:absolute;left:0;right:0;top:0;height:9px;background:var(--surface-2);border-bottom:1px solid var(--border-soft)}
+.mw span{position:absolute;left:7px;top:15px;right:7px;font-size:10.5px;font-weight:500;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oc-foot{display:flex;align-items:center;gap:8px;padding:0 4px}
+.oc-foot b{font-weight:var(--w-medium)}
+.oc-foot .n{color:var(--muted);font-size:13px}
+.oc-foot kbd{margin-left:auto}
+.oc--new .oc-thumb{display:grid;place-items:center;background:transparent;box-shadow:inset 0 0 0 1.5px var(--box);color:var(--muted)}
+.oc--new .oc-thumb::after{content:"";display:block}
+
+/* annotate */
+.callout{position:fixed;z-index:1000;width:22px;height:22px;border-radius:50%;background:var(--primary);color:var(--on-primary);font:700 11px/22px var(--font);text-align:center;box-shadow:0 0 0 3px var(--surface);pointer-events:none}
+.legend{position:fixed;z-index:1000;right:16px;bottom:16px;width:380px;max-height:72vh;overflow:auto;padding:16px 18px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-pop);font-size:13px;color:var(--fg-2)}
+.legend h2{font-size:14px;color:var(--fg);margin-bottom:4px}
+.legend p{margin-bottom:10px;color:var(--muted)}
+.legend ol{list-style:none;display:flex;flex-direction:column;gap:7px}
+.legend li{display:grid;grid-template-columns:22px 1fr;gap:8px}
+.legend li i{font:700 10px/18px var(--font);font-style:normal;width:18px;height:18px;border-radius:50%;background:var(--primary);color:var(--on-primary);text-align:center}
+.legend b{color:var(--fg)}
+
+@media (max-width:1240px){ .menus{display:none} }
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell" data-od-id="shell">
+  <aside class="rail" aria-label="Dock" data-od-id="rail-dock">
+    <nav class="rail-nav" id="rail-nav"></nav>
+    <div class="rail-foot">
+      <button class="ri" id="theme-btn" aria-label="Switch to dark mode" data-tip="Dark mode" data-od-id="theme-toggle"><i data-lucide="moon"></i></button>
+      <button class="ri" aria-label="Settings" data-tip="Settings" data-od-id="settings"><i data-lucide="settings"></i></button>
+    </div>
+  </aside>
+
+  <header class="bar" aria-label="System bar" data-od-id="topbar">
+    <span class="lights" aria-hidden="true" data-od-id="traffic-light-area"></span>
+    <div class="side">
+      <button class="logo" aria-label="CompozyOS" data-menu="compozy" aria-haspopup="menu" data-od-id="logo">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" fill="var(--surface)"/></svg>
+      </button>
+      <button class="ib" aria-label="Scope: this workspace" data-tip="Show all workspaces" data-od-id="scope-toggle"><i data-lucide="globe"></i></button>
+      <button class="ws" data-menu="workspace" aria-haspopup="menu" data-od-id="workspace-chip">
+        <span class="ws-av">CZ</span><span class="ws-name">compozy</span><span class="ws-wt">/ continue-fork</span><i data-lucide="chevron-down"></i>
+      </button>
+      <span class="vsep menus" aria-hidden="true"></span>
+      <nav class="side menus" aria-label="App menus" data-od-id="app-menus">
+        <button class="mt" data-menu="session" aria-haspopup="menu">Session</button>
+        <button class="mt" data-menu="go" aria-haspopup="menu">Go</button>
+        <button class="mt" data-menu="window" aria-haspopup="menu">Window</button>
+        <button class="mt" data-menu="help" aria-haspopup="menu">Help</button>
+      </nav>
+    </div>
+
+    <span class="bar-fill" aria-hidden="true"></span>
+
+    <div class="side" data-od-id="tray">
+      <nav class="dots" aria-label="Desktops" data-od-id="desktop-pager"><ol id="dots"></ol></nav>
+      <button class="ib" id="ov-btn" aria-label="All desktops" data-tip="All desktops" data-od-id="desktops-overview-btn"><i data-lucide="layout-grid"></i></button>
+      <button class="ib" aria-label="Attention, 3 waiting" data-tip="Attention" data-od-id="bell"><i data-lucide="bell"></i><span class="pill">3</span></button>
+      <button class="ib" aria-label="Command palette" data-tip="Command palette" data-chord="⌘K" data-od-id="palette"><i data-lucide="command"></i></button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage" data-od-id="desktop"></main>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="pop" id="pop" role="menu" hidden></div>
+
+<script>
+/* dock glyphs — production paths (os-dock-icons.tsx) */
+const S='stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+const G={
+  sessions:`<path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-3.4 2.6a.5.5 0 0 1-.8-.4v-2.2H4A1.5 1.5 0 0 1 2.5 13V6A1.5 1.5 0 0 1 4 4.5Z" ${S}/>`,
+  dashboard:`<rect x="3" y="3" width="6" height="6" rx="1.6" ${S}/><rect x="11" y="3" width="6" height="6" rx="1.6" ${S}/><rect x="3" y="11" width="6" height="6" rx="1.6" ${S}/><rect x="11" y="11" width="6" height="6" rx="1.6" ${S}/>`,
+  terminal:`<path d="m5 6.6 3.5 3.4L5 13.4" ${S}/><path d="M10.8 14.4h4.2" ${S}/>`,
+  agents:`<rect x="4" y="6" width="12" height="9" rx="2.4" ${S}/><path d="M10 6V3.2M7.5 10.4h.01M12.5 10.4h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 13h6" ${S}/>`,
+  tasks:`<path d="m3.5 6 1.6 1.6L8 4.7M3.5 13l1.6 1.6L8 11.7M10.5 6.5H17M10.5 13.5H17" ${S}/>`,
+  loops:`<path d="M13.5 4.5H8a4 4 0 0 0-4 4v.5M6.5 15.5H12a4 4 0 0 0 4-4V11M11 2l2.5 2.5L11 7M9 18l-2.5-2.5L9 13" ${S}/>`,
+  jobs:`<circle cx="10" cy="10" r="6.8" ${S}/><path d="M10 6.2V10l3 1.8" ${S}/>`,
+  triggers:`<path d="M11 2.5 4.5 11h4l-.9 6.5L14.5 9h-4z" ${S}/>`,
+  marketplace:`<path d="M4 7.5 5 4h10l1 3.5M4 7.5h12M4 7.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7.5M8 10.5h4" ${S}/>`,
+  knowledge:`<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v13H5.5A1.5 1.5 0 0 0 4 17.5zM4 4.5v13M16 13H5.5A1.5 1.5 0 0 0 4 14.5" ${S}/>`,
+  vault:`<circle cx="7.5" cy="8" r="3.8" ${S}/><path d="m10.4 10.6 5.6 5.6M13.5 13.5l1.8-1.8M15.5 15.5l1.6-1.6" ${S}/>`,
+};
+const glyph=(k,c='dg')=>`<svg class="${c}" viewBox="0 0 20 20" fill="none" aria-hidden="true">${G[k]}</svg>`;
+/* dock order = use-desktop-dock.ts; group seams dropped in this version */
+const DOCK=[
+  {app:'session',name:'Sessions',icon:'sessions',badge:1},{app:'dashboard',name:'Home',icon:'dashboard'},{app:'terminal',name:'Terminal',icon:'terminal'},
+  {app:'agents',name:'Agents',icon:'agents'},{app:'tasks',name:'Tasks',icon:'tasks',badge:2},{app:'loops',name:'Loops',icon:'loops'},
+  {app:'jobs',name:'Jobs',icon:'jobs'},{app:'triggers',name:'Triggers',icon:'triggers'},{app:'marketplace',name:'Marketplace',icon:'marketplace'},
+  {app:'knowledge',name:'Knowledge',icon:'knowledge'},{app:'vault',name:'Vault',icon:'vault'},
+];
+const APP=Object.fromEntries(DOCK.map(d=>[d.app,d]));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ic=n=>`<i data-lucide="${n}"></i>`;
+
+/* ---------- bodies ---------- */
+const composer=`<div class="composer"><div class="cbox"><textarea rows="1" placeholder="Message the agent…" aria-label="Message"></textarea>
+  <div class="crow"><button class="cb" aria-label="Attach">${ic('paperclip')}</button><button class="cb">${ic('bot')}codex · high</button><button class="send" aria-label="Send">${ic('arrow-up')}</button></div></div></div>`;
+const tools=rows=>`<div class="tools">${rows.map(([i,b,p,e])=>`<div class="tool">${ic(i)}<b>${b}</b><span class="p">${p}</span>${e?`<span class="e">${e}</span>`:''}</div>`).join('')}</div>`;
+const BODY={
+  'ses-checkout':()=>`<div class="ses"><div class="log">
+    <div class="u">The order total jumps when the shipping estimate lands. Keep the summary at a fixed height while the estimate loads.</div>
+    <div class="a"><p>The summary renders its rows only after <code>estimate</code> resolves, so the card grows by one row. I'll reserve the row with a skeleton and keep the total aligned.</p>
+    ${tools([['file-text','Read','web/src/checkout/order-summary.tsx'],['pencil','Edit','web/src/checkout/order-summary.tsx','<span class="add">+18</span><span class="del">−6</span>'],['square-terminal','Run','bun run test checkout','<span class="spin"></span>running']])}</div>
+  </div>${composer}</div>`,
+  'ses-notes':()=>`<div class="ses"><div class="log"><div class="u">Draft the v0.3 release notes from the merged PRs.</div>
+    <div class="a"><p>Done. The draft groups Continue and Fork, the calmer web UI, and the retired Network, Sandbox and Bridges surfaces, with a migration block for each removal.</p>
+    ${tools([['file-text','Wrote','docs/releases/v0.3.0.md']])}</div></div>${composer}</div>`,
+  'ses-pricing':()=>`<div class="ses"><div class="log"><div class="u">Move the pricing table to the new plans schema.</div>
+    <div class="a"><p>The schema change is ready. Running the migration writes to your local database, so I need your go-ahead.</p>
+    <div class="appr"><div class="appr-h"><span class="well">${ic('square-terminal')}</span>claude wants to run a command</div><pre>bun run db:migrate --name plans_v2</pre>
+    <div class="appr-foot"><span class="hint">${ic('database')}Writes to the local database</span><button class="btn">Deny</button><button class="btn btn--primary">Allow once${ic('corner-down-left')}</button></div></div></div></div></div>`,
+  'ses-review':()=>`<div class="ses"><div class="log"><div class="u">Address the round-2 review comments on #684.</div>
+    <div class="a"><p>Round 2 has five open issues. Two touch the fork picker, three touch the fallback route. Starting with the picker.</p>
+    ${tools([['folder-open','List','.compozy/tasks/session-continue-fork/reviews-002/'],['file-text','Read','reviews-002/issue_001.md'],['pencil','Edit','web/src/systems/session/fork-picker.tsx','<span class="spin"></span>editing']])}</div></div>${composer}</div>`,
+  'ses-acp':()=>`<div class="ses"><div class="log"><div class="u">Which ACP providers can run without OAuth?</div>
+    <div class="a"><p>Reading the provider catalog and the standing directives before answering.</p>
+    ${tools([['file-text','Read','docs/_memory/standing_directives.md'],['search','Search','internal/acp/providers']])}</div></div>${composer}</div>`,
+  'ses-new':()=>`<div class="ses"><div class="log" style="justify-content:center;align-items:center;color:var(--muted)">Ask an agent to start something.</div>${composer}</div>`,
+  'tasks':()=>`<div class="filters"><button class="fl is-on">${ic('list')}All <span class="c">6</span></button><button class="fl">Running <span class="c">1</span></button><button class="fl">Needs you <span class="c">2</span></button><span style="flex:1"></span><button class="fl">${ic('sliders-horizontal')}Display</button></div>
+    <table class="tbl"><thead><tr><th class="ck"><span class="box"></span></th><th>Task <span class="n">(6)</span></th><th style="width:168px">Spec</th><th style="width:112px">Status</th><th style="width:52px" aria-label="Agent"></th></tr></thead><tbody>
+    ${[['run','Route the session to its fallback account','fallback-account','Running','cx','codex'],
+       ['needs','Show the fallback banner in the session header','fallback-account','Needs you','cl','claude'],
+       ['needs','Pick the route when both accounts are limited','fallback-account','Needs you','cx','codex'],
+       ['idle','Fix the two usage-ingest bugs','session-context','Queued','cx','codex'],
+       ['idle','Context bar with three honest layers','session-context','Queued','cl','claude'],
+       ['done','Fork a session into another agent','session-continue-fork','Done','cx','codex']]
+      .map(([s,t,sp,l,a,an])=>`<tr><td class="ck"><span class="box"></span></td><td class="t">${t}</td><td class="lnk">${sp}</td><td><span class="st">${s==='run'?'<span class="spin"></span>':s==='idle'?'<span class="ring"></span>':s==='done'?`<span class="okc">${ic('check')}</span>`:'<span class="dot dot--needs"></span>'}${l}</span></td><td><span class="av av--${a}" title="${an}" aria-label="${an}">${a.toUpperCase()}</span></td></tr>`).join('')}
+    </tbody></table>`,
+  'knowledge':()=>`<table class="tbl"><thead><tr><th class="ck"><span class="box"></span></th><th style="width:38%">Document <span class="n">(5)</span></th><th>Path</th></tr></thead><tbody>
+    ${[['Glossary','docs/_memory/glossary.md'],['Standing directives','docs/_memory/standing_directives.md'],['Spec authoring playbook','docs/_memory/spec-authoring-playbook.md'],['Change impact','docs/_memory/change-impact.md'],['Lessons','docs/_memory/lessons/README.md']]
+      .map(([n,p])=>`<tr><td class="ck"><span class="box"></span></td><td class="t">${n}</td><td class="lnk" style="font-family:var(--mono);font-size:12.5px">${p}</td></tr>`).join('')}</tbody></table>`,
+  'term-gate':()=>`<div class="term"><div><span class="pr">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div><div>$ make gate</div>
+    <div class="d">→ affected lanes: lint · web-typecheck · go-test</div><div><span class="ok">✓</span> lint</div><div><span class="ok">✓</span> web-typecheck</div>
+    <div><span class="ac">●</span> go-test <span class="d">internal/session/…</span></div><div class="d">  ok   internal/session/fork</div><div class="d">  ok   internal/session/continue</div><div><span class="cur"></span></div></div>`,
+  'term-zsh':()=>`<div class="term"><div><span class="pr">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div><div>$ git status --short</div>
+    <div><span class="w"> M</span> web/src/checkout/order-summary.tsx</div><div><span class="pr">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div><div>$ <span class="cur"></span></div></div>`,
+  'term-pr':()=>`<div class="term"><div><span class="pr">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div><div>$ gh pr checks 684</div>
+    <div><span class="ok">✓</span> gate / go</div><div><span class="ok">✓</span> gate / web</div><div><span class="ok">✓</span> e2e / web</div><div><span class="ac">●</span> e2e / desktop <span class="d">pending</span></div><div>$ <span class="cur"></span></div></div>`,
+};
+
+/* ---------- desktops ---------- */
+let seq=100;
+const doc=(id,app,title,dot,body,x={})=>({id,kind:'doc',app,title,dot,body,...x});
+const DESKS=[
+  {id:'d1',name:'Main',
+   W:{w1:{tabs:[doc('t1','session','Polish the checkout flow','run','ses-checkout',{agent:'cx',agentName:'codex',meta:'12:41'}),doc('t3','session','Release notes v0.3','idle','ses-notes',{agent:'cx',agentName:'codex',meta:'11:07'})],active:'t1'},
+      w2:{tabs:[{id:'t4',kind:'root',app:'tasks',title:'Tasks',body:'tasks',action:'New task'}],active:'t4'},
+      w3:{tabs:[doc('t5','terminal','make gate','run','term-gate',{meta:'zsh'}),doc('t6','terminal','zsh','idle','term-zsh',{meta:'zsh'})],active:'t5'}},
+   tree:{dir:'row',ratio:.56,a:'w1',b:{dir:'col',ratio:.56,a:'w2',b:'w3'}},focused:'w1',zoomed:null,min:new Set()},
+  {id:'d2',name:'Review',
+   W:{w4:{tabs:[doc('t7','session','Address review round 2','run','ses-review',{agent:'cx',agentName:'codex',meta:'12:02'}),doc('t2','session','Move pricing to plans v2','needs','ses-pricing',{badge:1,agent:'cl',agentName:'claude',meta:'12:18'})],active:'t7'},
+      w5:{tabs:[doc('t8','terminal','gh pr checks','run','term-pr',{meta:'zsh'})],active:'t8'}},
+   tree:{dir:'row',ratio:.62,a:'w4',b:'w5'},focused:'w4',zoomed:null,min:new Set()},
+  {id:'d3',name:'Research',
+   W:{w6:{tabs:[{id:'t9',kind:'root',app:'knowledge',title:'Knowledge',body:'knowledge',action:'Add document'}],active:'t9'},
+      w7:{tabs:[doc('t10','session','ACP providers without OAuth','idle','ses-acp',{agent:'cl',agentName:'claude',meta:'10:22'})],active:'t10'}},
+   tree:{dir:'col',ratio:.45,a:'w6',b:'w7'},focused:'w7',zoomed:null,min:new Set()},
+];
+let active=0;
+const D=()=>DESKS[active];
+
+/* ---------- tree helpers ---------- */
+const leaves=n=>n==null?[]:typeof n==='string'?[n]:[...leaves(n.a),...leaves(n.b)];
+const chain=(dir,ids)=>ids.length===1?ids[0]:{dir,ratio:1/ids.length,a:ids[0],b:chain(dir,ids.slice(1))};
+function removeLeaf(n,id){ if(n===id) return null; if(typeof n==='string') return n; const a=removeLeaf(n.a,id),b=removeLeaf(n.b,id); if(a==null) return b; if(b==null) return a; return {...n,a,b}; }
+function replaceLeaf(n,id,rep){ if(n===id) return rep; if(typeof n==='string') return n; return {...n,a:replaceLeaf(n.a,id,rep),b:replaceLeaf(n.b,id,rep)}; }
+function balance(n){ if(typeof n==='string') return n; const la=leaves(n.a).length,lb=leaves(n.b).length; return {...n,ratio:la/(la+lb),a:balance(n.a),b:balance(n.b)}; }
+const PRESET={
+  main:ids=>ids.length<2?ids[0]:{dir:'row',ratio:.58,a:ids[0],b:chain('col',ids.slice(1))},
+  columns:ids=>chain('row',ids),
+  grid:ids=>{ if(ids.length<3) return chain('row',ids); return {dir:'row',ratio:.5,a:chain('col',ids.filter((_,i)=>i%2===0)),b:chain('col',ids.filter((_,i)=>i%2===1))}; },
+};
+function layout(n,r,out){ if(typeof n==='string'){ out.wins.push([n,r]); return; }
+  const v=n.dir==='row', cut=Math.round((v?r.w:r.h)*n.ratio);
+  const ra=v?{x:r.x,y:r.y,w:cut,h:r.h}:{x:r.x,y:r.y,w:r.w,h:cut}, rb=v?{x:r.x+cut,y:r.y,w:r.w-cut,h:r.h}:{x:r.x,y:r.y+cut,w:r.w,h:r.h-cut};
+  out.seams.push({node:n,r,v,pos:v?r.x+cut:r.y+cut}); layout(n.a,ra,out); layout(n.b,rb,out); }
+
+/* ---------- render ---------- */
+const stage=document.getElementById('stage');
+let seams=[], overview=false;
+function winHTML(id){
+  const d=D(), w=d.W[id], t=w.tabs.find(x=>x.id===w.active), deck=w.tabs.length>1, f=id===d.focused;
+  const ctl=`<div class="wctl"><button class="wc" data-act="min" aria-label="Minimize" data-tip="Minimize">${ic('minus')}</button><button class="wc" data-act="zoom" aria-label="${d.zoomed===id?'Restore':'Zoom'}" data-tip="${d.zoomed===id?'Restore':'Zoom'}">${ic(d.zoomed===id?'minimize-2':'maximize-2')}</button><button class="wc" data-act="close" aria-label="Close window" data-tip="Close">${ic('x')}</button></div>`;
+  const deckHTML=deck?`<div class="deck" role="tablist" aria-label="Window tabs" data-od-id="deck-${id}"><div class="deck-scroll">${w.tabs.map(x=>`
+    <button class="tab${x.id===w.active?' is-on':''}" role="tab" aria-selected="${x.id===w.active}" data-tab="${x.id}">
+      ${x.dot?`<span class="dot dot--${x.dot}${x.dot==='run'?' pulse':''}"></span>`:glyph(APP[x.app].icon)}<span class="lbl">${esc(x.title)}</span>${x.badge?`<span class="cnt">${x.badge}</span>`:''}
+      <span class="x" data-close-tab="${x.id}" aria-label="Close tab">${ic('x')}</span><span class="cv cv-l"></span><span class="cv cv-r"></span></button>`).join('')}</div>
+    <button class="tab-add" data-act="newtab" aria-label="New tab" data-tip="New tab">${ic('plus')}</button><span class="grow"></span>${ctl}</div>`:'';
+  const idHTML=t.kind==='doc'?`<span class="dot dot--${t.dot}${t.dot==='run'?' pulse':''}"></span><span class="title">${esc(t.title)}</span>`
+    :`<span class="well">${glyph(APP[t.app].icon)}</span><span class="title">${esc(t.title)}</span>`;
+  const trail=t.kind==='doc'?(t.agent?`<span class="agent"><span class="av av--${t.agent}">${t.agent.toUpperCase()}</span>${t.agentName}</span>`:'')+(t.meta?`<span class="meta">${t.meta}</span>`:'')
+    :(t.action?`<button class="btn">${ic('plus')}${t.action}</button>`:'');
+  const body=BODY[t.body]?BODY[t.body]():`<div class="empty"><div class="empty-card"><span class="empty-ic">${glyph(APP[t.app].icon)}</span><h2>${esc(t.title)}</h2><p>Stand-in — the ${esc(t.title)} app renders its production content in this pane.</p></div></div>`;
+  return `<section class="win" data-win="${id}" data-focused="${f}" aria-label="${esc(t.title)}" data-od-id="win-${id}">${deckHTML}
+    <header class="head" data-od-id="head-${id}"><div class="id">${idHTML}<button class="more" aria-label="More">${ic('ellipsis')}</button></div><span class="grow"></span><div class="trail">${trail}</div>${deck?'':`<span class="vsep"></span>${ctl}`}</header>
+    <div class="body">${body}</div></section>`;
+}
+function deskHTML(){
+  const d=D(), vis=d.zoomed||d.tree;
+  if(vis==null) return `<div class="empty"><div class="empty-card" data-od-id="empty-desktop"><span class="empty-ic">${ic('app-window')}</span><h2>${esc(d.name)} is empty</h2>
+    <p>Open an app from the dock, or press <kbd>⌘</kbd><kbd>K</kbd> to open anything.</p><button class="btn btn--primary" data-act="new-here">${ic('plus')}New session</button></div></div>`;
+  const out={wins:[],seams:[]}; layout(vis,{x:0,y:0,w:stage.clientWidth,h:stage.clientHeight},out); seams=out.seams;
+  return out.wins.map(([id,r])=>winHTML(id).replace('<section ',`<section style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px" `)).join('')
+    +out.seams.map((s,i)=>s.v?`<span class="seam seam--v" data-seam="${i}" role="separator" aria-orientation="vertical" aria-label="Resize panes" tabindex="0" style="left:${s.pos}px;top:${s.r.y}px;height:${s.r.h}px"></span>`
+      :`<span class="seam seam--h" data-seam="${i}" role="separator" aria-orientation="horizontal" aria-label="Resize panes" tabindex="0" style="top:${s.pos}px;left:${s.r.x}px;width:${s.r.w}px"></span>`).join('');
+}
+function render(){
+  stage.innerHTML=`<div class="layer" id="layer">${deskHTML()}</div>`+(overview?overviewHTML():'');
+  renderRail(); renderDesks(); lucide.createIcons(); if(annotate) placeCallouts();
+}
+const count=d=>leaves(d.tree).length+d.min.size;
+const needs=d=>Object.values(d.W).some(w=>w.tabs.some(t=>t.dot==='needs'));
+function renderDesks(){
+  document.getElementById('ov-btn').setAttribute('aria-expanded',String(overview));
+  document.getElementById('dots').innerHTML=DESKS.map((d,i)=>{ const on=i===active, attn=needs(d)&&!on;
+    const label=`Desktop ${i+1} of ${DESKS.length}: ${d.name}${attn?' — needs you':''}`;
+    return `<li><button class="dt${on?' is-on':''}${attn?' has-attn':''}" data-desk="${i}" ${on?'aria-current="page"':''} aria-label="${esc(label)}" data-tip="${esc(d.name)}" data-od-id="dot-${d.id}"><i></i></button></li>`; }).join('');
+}
+function appState(app){
+  const d=D(), open=Object.keys(d.W).filter(id=>d.W[id].tabs.some(t=>t.app===app));
+  if(!open.length) return 'closed'; if(open.every(id=>d.min.has(id))) return 'min';
+  const fw=d.W[d.focused]; if(fw&&!d.min.has(d.focused)&&fw.tabs.find(t=>t.id===fw.active)?.app===app) return 'active'; return 'open';
+}
+function renderRail(){
+  document.getElementById('rail-nav').innerHTML=DOCK.map(x=>{ const s=appState(x.app);
+    return `<button class="ri${s==='active'?' is-active is-open':s==='open'?' is-open':s==='min'?' is-min':''}" data-app="${x.app}" aria-label="${x.badge?`${x.name} — ${x.badge} need${x.badge===1?'s':''} you`:x.name}" data-tip="${x.name}" ${s==='active'?'aria-current="page"':''} data-od-id="dock-${x.app}">
+      ${glyph(x.icon,'')}<span class="run" aria-hidden="true"></span>${x.badge?`<span class="badge">${x.badge}</span>`:''}</button>`; }).join('');
+}
+
+/* ---------- overview ---------- */
+function overviewHTML(){
+  const W0=stage.clientWidth,H0=stage.clientHeight;
+  return `<section class="ov" data-od-id="desktops-overview" aria-label="All desktops"><div class="ov-h"><div><h2>Desktops</h2><p>compozy · each desktop keeps its own windows, tabs and layout</p></div>
+    <button class="btn" data-act="close-ov">Done</button></div><div class="ov-grid">
+    ${DESKS.map((d,i)=>{ const out={wins:[],seams:[]}; if(d.tree) layout(d.tree,{x:0,y:0,w:W0,h:H0},out);
+      return `<button class="oc${i===active?' is-on':''}" data-desk="${i}" data-od-id="ov-${d.id}"><span class="oc-thumb" style="aspect-ratio:${W0}/${H0}">
+        ${out.wins.map(([id,r])=>{ const w=d.W[id], t=w.tabs.find(x=>x.id===w.active);
+          return `<span class="mw" style="left:${r.x/W0*100}%;top:${r.y/H0*100}%;width:${r.w/W0*100}%;height:${r.h/H0*100}%"><span>${esc(t.title)}${w.tabs.length>1?` +${w.tabs.length-1}`:''}</span></span>`; }).join('')}
+        </span><span class="oc-foot"><b>${esc(d.name)}</b><span class="n">${count(d)} window${count(d)===1?'':'s'}</span><kbd>${i+1}</kbd></span></button>`; }).join('')}
+    <button class="oc oc--new" data-act="add-desk" data-od-id="ov-new"><span class="oc-thumb" style="aspect-ratio:${W0}/${H0}">${ic('plus')}</span><span class="oc-foot"><b>New desktop</b></span></button>
+  </div></section>`;
+}
+
+/* ---------- actions ---------- */
+function switchDesk(i){
+  if(i===active){ overview=false; render(); return; }
+  const dir=i>active?1:-1; active=i; overview=false; render();
+  document.getElementById('layer').animate([{opacity:0,transform:`translateX(${dir*4}%)`},{opacity:1,transform:'none'}],{duration:240,easing:'cubic-bezier(.22,1,.36,1)'});
+}
+function addDesk(){ DESKS.push({id:'d'+(++seq),name:`Desktop ${DESKS.length+1}`,W:{},tree:null,focused:null,zoomed:null,min:new Set()}); switchDesk(DESKS.length-1); }
+function focusWin(id){ const d=D(); if(d.focused===id) return; d.focused=id; stage.querySelectorAll('[data-win]').forEach(n=>n.dataset.focused=String(n.dataset.win===id)); renderRail(); }
+function insertBeside(id){ const d=D(), ids=leaves(d.tree), target=ids.includes(d.focused)?d.focused:ids[0];
+  const el=stage.querySelector(`[data-win="${target}"]`), wide=el?el.offsetWidth>=el.offsetHeight*1.1:true;
+  return replaceLeaf(d.tree,target,{dir:wide?'row':'col',ratio:.5,a:target,b:id}); }
+function restore(id){ const d=D(); d.min.delete(id); d.tree=d.tree==null?id:insertBeside(id); }
+function openApp(app){
+  const d=D(), hit=Object.keys(d.W).find(id=>d.W[id].tabs.some(t=>t.app===app));
+  if(hit){ if(d.min.has(hit)) restore(hit); const w=d.W[hit]; if(w.tabs.find(t=>t.id===w.active).app!==app) w.active=w.tabs.find(t=>t.app===app).id;
+    if(d.zoomed&&d.zoomed!==hit) d.zoomed=null; d.focused=hit; overview=false; render(); return; }
+  const id='w'+(++seq), tid='t'+(++seq), x=APP[app];
+  const t=app==='session'?doc(tid,'session','New session','idle','ses-new',{meta:'now'}):app==='terminal'?doc(tid,'terminal','zsh','idle','term-zsh',{meta:'zsh'})
+    :{id:tid,kind:'root',app,title:x.name,body:app==='tasks'?'tasks':app==='knowledge'?'knowledge':'none'};
+  d.W[id]={tabs:[t],active:tid}; d.tree=d.tree==null?id:insertBeside(id); d.zoomed=null; d.focused=id; overview=false; render();
+}
+function closeWin(id){ const d=D(); d.tree=removeLeaf(d.tree,id); delete d.W[id]; d.min.delete(id); if(d.zoomed===id) d.zoomed=null; if(d.focused===id) d.focused=leaves(d.tree)[0]||null; render(); }
+function minWin(id){ const d=D(); d.tree=removeLeaf(d.tree,id); d.min.add(id); if(d.zoomed===id) d.zoomed=null; if(d.focused===id) d.focused=leaves(d.tree)[0]||null; render(); }
+function closeTab(wid,tid){ const w=D().W[wid]; if(w.tabs.length===1) return closeWin(wid); const i=w.tabs.findIndex(t=>t.id===tid); w.tabs.splice(i,1); if(w.active===tid) w.active=w.tabs[Math.max(0,i-1)].id; render(); }
+function newSession(){
+  const d=D(); const target=d.W[d.focused]&&d.W[d.focused].tabs.some(t=>t.app==='session')?d.focused:Object.keys(d.W).find(id=>d.W[id].tabs.some(t=>t.app==='session'));
+  if(!target) return openApp('session');
+  const tid='t'+(++seq); d.W[target].tabs.push(doc(tid,'session','New session','idle','ses-new',{meta:'now'})); d.W[target].active=tid;
+  if(d.min.has(target)) restore(target); d.focused=target; overview=false; render();
+}
+let arrangement='main';
+function arrange(k){ const d=D(), ids=leaves(d.tree); if(!ids.length) return; arrangement=k; d.zoomed=null;
+  const ord=[d.focused,...ids.filter(i=>i!==d.focused)].filter(i=>ids.includes(i)); d.tree=k==='balance'?balance(d.tree):PRESET[k](ord); render(); }
+function moveToDesk(i){ const d=D(), id=d.focused; if(!id||i===active) return; const w=d.W[id];
+  d.tree=removeLeaf(d.tree,id); delete d.W[id]; d.focused=leaves(d.tree)[0]||null; const t=DESKS[i]; t.W[id]=w; t.tree=t.tree==null?id:{dir:'row',ratio:.5,a:t.tree,b:id}; t.focused=id; switchDesk(i); }
+
+stage.addEventListener('pointerdown',e=>{ const w=e.target.closest('[data-win]'); if(w) focusWin(w.dataset.win); });
+stage.addEventListener('click',e=>{
+  const oc=e.target.closest('.ov [data-desk]'); if(oc){ switchDesk(+oc.dataset.desk); return; }
+  const act0=e.target.closest('[data-act]')?.dataset.act;
+  if(act0==='close-ov'){ overview=false; render(); return; } if(act0==='add-desk'){ addDesk(); return; } if(act0==='new-here'){ openApp('session'); return; }
+  const w=e.target.closest('[data-win]'); if(!w) return; const id=w.dataset.win, d=D();
+  const ct=e.target.closest('[data-close-tab]'); if(ct){ closeTab(id,ct.dataset.closeTab); return; }
+  const tab=e.target.closest('[data-tab]'); if(tab){ d.W[id].active=tab.dataset.tab; d.focused=id; render(); return; }
+  if(act0==='close') closeWin(id); else if(act0==='min') minWin(id); else if(act0==='zoom'){ d.zoomed=d.zoomed===id?null:id; render(); } else if(act0==='newtab'){ d.focused=id; newSession(); }
+});
+document.getElementById('rail-nav').addEventListener('click',e=>{ const b=e.target.closest('[data-app]'); if(b) openApp(b.dataset.app); });
+// dots select a desktop; the grid button toggles the overview
+document.getElementById('dots').addEventListener('click',e=>{ const b=e.target.closest('[data-desk]'); if(b) switchDesk(+b.dataset.desk); });
+document.getElementById('ov-btn').addEventListener('click',()=>{ overview=!overview; render(); });
+/* theme */
+const themeBtn=document.getElementById('theme-btn');
+function applyTheme(t){ document.documentElement.dataset.theme=t; const dark=t==='dark';
+  themeBtn.innerHTML=`<i data-lucide="${dark?'sun':'moon'}"></i>`; themeBtn.dataset.tip=dark?'Light mode':'Dark mode';
+  themeBtn.setAttribute('aria-label',dark?'Switch to light mode':'Switch to dark mode'); try{ localStorage.setItem('cz-shell-theme',t); }catch(_){}
+  lucide.createIcons(); }
+themeBtn.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ closePop(); if(overview){ overview=false; render(); } }
+  if(e.ctrlKey&&/^[1-9]$/.test(e.key)&&+e.key<=DESKS.length){ e.preventDefault(); switchDesk(+e.key-1); }
+});
+
+/* seams */
+const MIN=240;
+function setRatio(s,r){ const size=s.v?s.r.w:s.r.h, lo=MIN/size, hi=1-MIN/size; s.node.ratio=Math.min(Math.max(r,lo),Math.max(lo,hi)); }
+stage.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('[data-seam]'); if(!el) return; e.preventDefault();
+  const s=seams[+el.dataset.seam], node=s.node, box=stage.getBoundingClientRect(); document.body.classList.add('is-resizing');
+  const mark=()=>{ const i=seams.findIndex(x=>x.node===node); stage.querySelector(`[data-seam="${i}"]`)?.classList.add('is-drag'); }; mark(); let raf=0;
+  const move=ev=>{ const c=seams.find(x=>x.node===node)||s, p=c.v?ev.clientX-box.left:ev.clientY-box.top; setRatio(c,(p-(c.v?c.r.x:c.r.y))/(c.v?c.r.w:c.r.h));
+    cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ render(); mark(); }); };
+  const up=()=>{ removeEventListener('pointermove',move); removeEventListener('pointerup',up); document.body.classList.remove('is-resizing'); render(); };
+  addEventListener('pointermove',move); addEventListener('pointerup',up);
+},true);
+stage.addEventListener('keydown',e=>{ const el=e.target.closest('[data-seam]'); if(!el) return; const s=seams[+el.dataset.seam];
+  const k=s.v?{ArrowLeft:-1,ArrowRight:1}:{ArrowUp:-1,ArrowDown:1}; if(!(e.key in k)) return; e.preventDefault();
+  setRatio(s,s.node.ratio+k[e.key]*(e.shiftKey?.1:.02)); const i=el.dataset.seam; render(); stage.querySelector(`[data-seam="${i}"]`)?.focus(); });
+
+/* menus */
+const pop=document.getElementById('pop');
+const it=(l,a,ch,on)=>`<button class="pi${on?' is-on':''}" role="menuitem" data-run="${a}">${l}${ch?`<span class="ch">${ch}</span>`:''}</button>`;
+const MENUS={
+  compozy:()=>it('About CompozyOS','noop')+it('Keyboard shortcuts','noop')+'<div class="ps"></div>'+it('Settings…','noop')+it('Quit','noop','⌘Q'),
+  workspace:()=>`<div class="pl">Workspaces</div>`+it('compozy','noop','',true)+it('branasio','noop')+'<div class="ps"></div>'+it('New worktree…','noop')+it('Add workspace…','noop'),
+  session:()=>it('New session','new')+it('Continue in another agent…','noop')+it('Fork session…','noop'),
+  go:()=>DOCK.slice(0,8).map(x=>it(x.name,'go:'+x.app)).join(''),
+  window:()=>`<div class="pl">Arrange</div>`+it('Main and stack','arr:main','',arrangement==='main')+it('Columns','arr:columns','',arrangement==='columns')+it('Grid','arr:grid','',arrangement==='grid')+it('Balance sizes','arr:balance')
+    +'<div class="ps"></div>'+`<div class="pl">Move window to</div>`+DESKS.map((d,i)=>i===active?'':it(esc(d.name),'mv:'+i)).join('')
+    +'<div class="ps"></div>'+it(D().zoomed?'Restore':'Zoom','zoom')+it('Minimize','min')+it('All desktops','ov')+'<div class="ps"></div>'+it('Close window','close'),
+  help:()=>it('Documentation','noop')+it('Report an issue','noop'),
+};
+let openBtn=null;
+function closePop(){ pop.hidden=true; openBtn&&openBtn.setAttribute('aria-expanded','false'); openBtn=null; }
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-menu]');
+  if(b){ const same=openBtn===b; closePop(); if(same) return; openBtn=b; b.setAttribute('aria-expanded','true'); pop.innerHTML=MENUS[b.dataset.menu](); pop.hidden=false;
+    const r=b.getBoundingClientRect(), rail=!!b.closest('.rail'); pop.style.left=(rail?r.right+8:r.left)+'px'; pop.style.top=(rail?r.top:r.bottom+6)+'px'; return; }
+  const run=e.target.closest('[data-run]');
+  if(run){ const a=run.dataset.run, d=D(); closePop();
+    if(a.startsWith('arr:')) arrange(a.slice(4)); else if(a.startsWith('go:')) openApp(a.slice(3)); else if(a.startsWith('mv:')) moveToDesk(+a.slice(3));
+    else if(a==='new') newSession(); else if(a==='ov'){ overview=true; render(); }
+    else if(a==='zoom'&&d.focused){ d.zoomed=d.zoomed?null:d.focused; render(); } else if(a==='min'&&d.focused) minWin(d.focused); else if(a==='close'&&d.focused) closeWin(d.focused);
+    return; }
+  if(!e.target.closest('#pop')) closePop();
+});
+
+/* tips */
+const tip=document.getElementById('tip');
+document.addEventListener('pointerover',e=>{ const t=e.target.closest('[data-tip]'); if(!t){ tip.classList.remove('is-on'); return; }
+  tip.innerHTML=esc(t.dataset.tip)+(t.dataset.chord?`<span class="k">${t.dataset.chord}</span>`:''); const r=t.getBoundingClientRect();
+  if(t.closest('.rail')){ tip.style.left=(r.right+10)+'px'; tip.style.top=(r.top+r.height/2-13)+'px'; }
+  else { tip.style.left=Math.max(8,Math.min(r.left+r.width/2-tip.offsetWidth/2,innerWidth-tip.offsetWidth-8))+'px'; tip.style.top=(r.bottom+6)+'px'; }
+  tip.classList.add('is-on'); });
+document.addEventListener('pointerout',e=>{ if(e.target.closest('[data-tip]')) tip.classList.remove('is-on'); });
+
+/* ?annotate */
+const annotate=new URLSearchParams(location.search).has('annotate');
+const CALLOUTS=[['.rail-nav',1],['.lights',2],['.dots',3],['.deck .tab.is-on',4],['.head',5],['.seam',6],['.rail-foot',7]];
+function placeCallouts(){ document.querySelectorAll('.callout').forEach(n=>n.remove());
+  CALLOUTS.forEach(([sel,n])=>{ const el=document.querySelector(sel); if(!el) return; const r=el.getBoundingClientRect(); const c=document.createElement('span'); c.className='callout'; c.textContent=n;
+    c.style.left=Math.max(4,Math.min(r.left+r.width/2-11,innerWidth-26))+'px'; c.style.top=Math.max(4,r.top-8)+'px'; document.body.appendChild(c); }); }
+if(annotate){ const lg=document.createElement('aside'); lg.className='legend'; lg.setAttribute('data-od-id','contract-legend');
+  lg.innerHTML=`<h2>Shell v2 — rail dock, gutterless tiling, desktops</h2><p>Modifies OsDock, OsMenuBar, DesktopPager, DesktopsOverview, OsWindowFrame, OsWindowDeck, OsSnapSeam, OsWinLayer. VC-01 default · VC-02 tab switch · VC-03 seam resize · VC-04 arrange · VC-05 zoom · VC-06 minimize to rail · VC-07 open app from rail · VC-08 switch desktop · VC-09 desktops overview · VC-10 new empty desktop · VC-11 move window to desktop · VC-12 dark theme.</p>
+  <ol><li><i>1</i><span><b>Rail dock.</b> The same apps in the same order, with no dividers. Selection is a plate, an open window shows a dot, a minimized one a ring.</span></li>
+  <li><i>2</i><span><b>Traffic-light area.</b> The bar spans the full width and reserves 84px for the macOS window controls. The mark sits after them.</span></li>
+  <li><i>3</i><span><b>Desktop pager.</b> Selectable dots next to the tray. The active dot is a pill, and an orange dot means an off-screen desktop needs you. The grid button beside the bell opens the overview.</span></li>
+  <li><i>4</i><span><b>Browser tabs.</b> Mount at 2 or more tabs. The active tab is a surface plate with rounded top corners and concave feet, fused with the head. Inactive tabs are split by hairlines.</span></li>
+  <li><i>5</i><span><b>Head.</b> Glyph or state dot, title, more menu, then agent and time.</span></li>
+  <li><i>6</i><span><b>Seam.</b> No gutter. A 1px hairline turns blue on hover, drag and focus; arrow keys resize it.</span></li>
+  <li><i>7</i><span><b>Rail foot.</b> The light/dark toggle and Settings.</span></li></ol>`;
+  document.body.appendChild(lg); }
+
+addEventListener('resize',()=>render());
+let saved=null; try{ saved=localStorage.getItem('cz-shell-theme'); }catch(_){}
+const qp=new URLSearchParams(location.search).get('theme');
+document.documentElement.dataset.theme=qp||saved||'dark';
+render(); applyTheme(document.documentElement.dataset.theme);
+</script>
+</body>
+</html>

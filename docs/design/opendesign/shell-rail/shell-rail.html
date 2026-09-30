@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS · Shell — rail dock + gutterless tiling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+/* tokens — verbatim mirror of design-system/ds-core.css :root (subset used here) */
+:root{
+  color-scheme:dark;
+  --rail:#0c0b0b; --canvas:#171615; --canvas-soft:#1f1e1c; --canvas-tint:#232220; --elevated:#2a2927;
+  --fg:#eeedeb; --fg-strong:#f7f6f4; --muted:#a4a29e;
+  --subtle:oklch(0.663 0.004 75); --faint:oklch(0.638 0.003 75);
+  --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03);
+  --line-strong:rgba(255,255,255,.09); --line-focus:rgba(255,255,255,.14);
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+  --danger:#e0635a;
+  --row-hover:rgba(255,255,255,.045); --row-selected:rgba(255,255,255,.06);
+  --input-fill:rgba(255,255,255,.05); --badge-fill:rgba(255,255,255,.05);
+  --btn-fill:rgba(255,255,255,.07); --btn-hover:rgba(255,255,255,.10);
+  --ghost-hover:rgba(255,255,255,.06);
+  --radius-xxs:3px; --radius-xs:6px; --radius-sm:7px; --radius:8px; --radius-md:10px; --radius-lg:14px; --radius-pill:9999px;
+  --font-sans:"Geist","Geist Variable",-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-mono:"JetBrains Mono Variable","JetBrains Mono","Courier New",monospace;
+  --font-keys:-apple-system,BlinkMacSystemFont,"Segoe UI","Geist",sans-serif;
+  --text-body:15px; --text-small-body:13.5px; --text-form:12.5px; --text-badge:11px; --text-kbd:10.5px; --text-code:12.5px;
+  --track-body:-.006em; --track-tight:-.014em; --track-mono:.02em;
+  --dur-fast:120ms; --dur:180ms; --ease:cubic-bezier(.22,1,.36,1);
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+  --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+  --focus-ring-inset:inset 0 0 0 2px rgba(255,255,255,.5);
+
+  /* shell geometry — this proposal */
+  --rail-w:56px; --bar-h:44px; --deck-h:34px; --head-h:40px; --strip-h:36px;
+  --seam-hit:9px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font-sans);font-size:var(--text-small-body);line-height:1.5;letter-spacing:var(--track-body);
+  color:var(--fg);background:var(--rail);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;letter-spacing:inherit}
+button:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+svg.lucide{width:16px;height:16px;stroke-width:1.6;flex:none}
+.mono{font-family:var(--font-mono);letter-spacing:var(--track-mono)}
+
+/* ================= SHELL GRID ================= */
+.shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);grid-template-rows:var(--bar-h) minmax(0,1fr);height:100vh}
+
+/* ---- rail (the dock, docked) ---- */
+.rail{grid-row:1 / 3;display:flex;flex-direction:column;align-items:center;background:var(--rail);border-right:1px solid var(--line-strong);position:relative;z-index:600}
+.rail-logo{height:var(--bar-h);width:100%;display:grid;place-items:center;border-bottom:1px solid var(--line-strong);flex:none}
+.rail-logo button{width:30px;height:30px;border-radius:var(--radius);display:grid;place-items:center;color:var(--fg-strong);transition:background var(--dur-fast) var(--ease)}
+.rail-logo button:hover{background:var(--btn-fill)}
+.rail-logo svg{width:18px;height:18px}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}
+.rail-sep{width:20px;height:1px;background:var(--line-strong);margin:6px 0;flex:none}
+.rail-item{position:relative;width:38px;height:38px;border-radius:var(--radius);display:grid;place-items:center;color:var(--muted);flex:none;
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.rail-item svg{width:20px;height:20px}
+.rail-item:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.rail-item.is-active{background:var(--elevated);color:var(--fg-strong)}
+.rail-item.is-min svg{opacity:.55}
+/* running = 4px dot at the rail edge; minimized = hollow ring */
+.rail-item .run{position:absolute;left:-6px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--muted);opacity:0}
+.rail-item.is-open .run{opacity:1;background:var(--fg)}
+.rail-item.is-active .run{background:var(--fg-strong)}
+.rail-item.is-min .run{opacity:1;width:5px;height:5px;margin-top:-2.5px;left:-7.5px;background:none;box-shadow:inset 0 0 0 1.2px var(--muted)}
+.rail-badge{position:absolute;top:2px;right:1px;min-width:15px;height:15px;padding:0 4px;border-radius:var(--radius-pill);
+  background:var(--accent);color:var(--accent-ink);font:700 9px/15px var(--font-mono);text-align:center;box-shadow:0 0 0 2px var(--rail)}
+.rail-foot{padding:10px 0 12px;border-top:1px solid var(--line-strong);width:100%;display:grid;place-items:center;flex:none}
+.rail-new{width:38px;height:38px;border-radius:var(--radius);display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight);
+  transition:background var(--dur-fast) var(--ease)}
+.rail-new:hover{background:var(--accent-hover);color:var(--accent-ink)}
+.rail-new svg{width:18px;height:18px;stroke-width:2}
+/* tips — to the right, no caret */
+.tip{position:fixed;z-index:900;pointer-events:none;padding:4px 9px;border-radius:var(--radius-xs);background:var(--elevated);border:1px solid var(--line-strong);
+  color:var(--fg-strong);font-size:var(--text-badge);font-weight:510;white-space:nowrap;opacity:0;translate:-4px 0;transition:opacity var(--dur-fast),translate var(--dur-fast) var(--ease)}
+.tip.is-on{opacity:1;translate:0 0}
+.tip .k{color:var(--subtle);margin-left:6px}
+
+/* ---- topbar (menubar content, flat) ---- */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 10px 0 8px;background:var(--rail);border-bottom:1px solid var(--line-strong);min-width:0;position:relative;z-index:500}
+.bar-side{display:flex;align-items:center;gap:2px;min-width:0}
+.b-icon{position:relative;width:30px;height:30px;border-radius:var(--radius);display:grid;place-items:center;color:var(--muted);transition:background var(--dur-fast),color var(--dur-fast)}
+.b-icon:hover,.b-icon[aria-expanded="true"]{background:var(--btn-fill);color:var(--fg-strong)}
+.b-icon .pill{position:absolute;top:2px;right:0;min-width:14px;height:14px;padding:0 3px;border-radius:var(--radius-pill);background:var(--accent);color:var(--accent-ink);font:700 9px/14px var(--font-mono);text-align:center}
+.ws{display:flex;align-items:center;gap:7px;height:30px;padding:0 8px;border-radius:var(--radius);min-width:0;transition:background var(--dur-fast)}
+.ws:hover,.ws[aria-expanded="true"]{background:var(--btn-fill)}
+.ws-av{width:18px;height:18px;border-radius:var(--radius-xxs);display:grid;place-items:center;border:1px solid var(--line-strong);background:var(--elevated);font:600 8.5px/1 var(--font-mono);color:var(--fg)}
+.ws-name{font-weight:600;color:var(--fg-strong)}
+.ws-sl{color:var(--faint)}
+.ws-wt{color:var(--fg);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws svg.lucide{width:13px;height:13px;color:var(--subtle)}
+.bar-vsep{width:1px;height:16px;background:var(--line-strong);margin:0 8px}
+.menu-t{height:30px;padding:0 9px;border-radius:var(--radius);color:var(--muted);transition:background var(--dur-fast),color var(--dur-fast)}
+.menu-t:hover,.menu-t[aria-expanded="true"]{background:var(--btn-fill);color:var(--fg-strong)}
+.status{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px;color:var(--subtle);font-size:var(--text-form)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--neutral,#7a7a80);flex:none}
+.dot--ok{background:var(--success)} .dot--run{background:var(--success)} .dot--needs{background:var(--accent)} .dot--idle{background:#7a7a80}
+.dot--pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.update{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:var(--radius-pill);border:1px solid var(--line-strong);color:var(--fg);font-size:var(--text-form);font-weight:510;margin-right:4px;transition:background var(--dur-fast)}
+.update:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.update svg.lucide{width:13px;height:13px}
+
+/* popovers */
+.pop{position:fixed;z-index:900;min-width:224px;padding:6px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+.pop-label{padding:6px 8px 4px;font-size:var(--text-badge);color:var(--subtle);font-weight:510}
+.pop-item{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border-radius:var(--radius-xs);text-align:left;color:var(--fg)}
+.pop-item:hover,.pop-item:focus-visible{background:var(--row-hover);color:var(--fg-strong);box-shadow:none}
+.pop-item .chord{margin-left:auto;font-family:var(--font-keys);font-size:var(--text-badge);color:var(--subtle)}
+.pop-item svg.lucide{width:15px;height:15px;color:var(--muted)}
+.pop-item.is-on::after{content:"";margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--fg-strong)}
+.pop-sep{height:1px;background:var(--line-strong);margin:5px 2px}
+
+/* ================= DESKTOP (tiling stage) ================= */
+.stage{position:relative;background:var(--canvas);min-width:0;min-height:0;overflow:hidden}
+.win{position:absolute;display:flex;flex-direction:column;background:var(--canvas);min-width:0;min-height:0;overflow:hidden}
+/* gutterless: panes share hairlines drawn by the seams, never their own border/radius/shadow */
+.win[data-focused="false"] .id,.win[data-focused="false"] .trail{opacity:.6}
+
+/* deck — mounts only at ≥2 tabs */
+.deck{display:flex;align-items:stretch;height:var(--deck-h);flex:none;background:var(--rail);box-shadow:inset 0 -1px 0 var(--line-strong);min-width:0}
+.deck-scroll{display:flex;min-width:0;overflow-x:auto;scrollbar-width:none}
+.tab{position:relative;display:flex;align-items:center;gap:7px;flex:1 1 170px;min-width:108px;max-width:210px;padding:0 8px 0 12px;
+  color:var(--subtle);font-size:var(--text-form);font-weight:510;border-right:1px solid var(--line-strong);transition:background var(--dur-fast),color var(--dur-fast)}
+.tab:hover{background:var(--canvas-soft);color:var(--fg)}
+.tab.is-on{background:var(--canvas);color:var(--fg-strong);font-weight:600;box-shadow:0 1px 0 var(--canvas)}
+.tab .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.tab .x{width:18px;height:18px;border-radius:var(--radius-xxs);display:grid;place-items:center;color:var(--subtle);opacity:0}
+.tab .x svg{width:12px;height:12px}
+.tab:hover .x,.tab.is-on .x,.tab:focus-visible .x{opacity:1}
+.tab .x:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.tab .cnt{min-width:14px;height:14px;padding:0 3px;border-radius:var(--radius-pill);background:var(--accent);color:var(--accent-ink);font:700 9px/14px var(--font-mono);text-align:center}
+.deck-add{width:34px;flex:none;display:grid;place-items:center;color:var(--subtle)}
+.deck-add:hover{background:var(--canvas-soft);color:var(--fg-strong)}
+.deck-add svg{width:14px;height:14px}
+.deck-grow{flex:1;min-width:12px;cursor:grab}
+
+/* head */
+.head{display:flex;align-items:center;gap:10px;height:var(--head-h);padding:0 6px 0 14px;flex:none;border-bottom:1px solid var(--line);cursor:grab;min-width:0}
+.id{display:flex;align-items:center;gap:8px;min-width:0;max-width:60%}
+.glyph{width:22px;height:22px;border-radius:var(--radius-xs);display:grid;place-items:center;background:var(--badge-fill);color:var(--muted);flex:none}
+.glyph svg{width:14px;height:14px}
+.title{font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.count{font-family:var(--font-mono);font-size:var(--text-badge);color:var(--subtle)}
+.grow{flex:1;min-width:12px;align-self:stretch}
+.trail{display:flex;align-items:center;gap:8px;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-badge);font-weight:510;color:var(--muted)}
+.agent{width:16px;height:16px;border-radius:var(--radius-xxs);display:grid;place-items:center;background:var(--elevated);font:600 7.5px/1 var(--font-mono);color:var(--fg)}
+.meta{font-family:var(--font-mono);font-size:var(--text-badge);color:var(--subtle)}
+.vsep{width:1px;height:14px;background:var(--line-strong)}
+.wctl{display:flex;align-items:center;gap:1px}
+.wc{width:26px;height:26px;border-radius:var(--radius-xs);display:grid;place-items:center;color:var(--subtle);transition:background var(--dur-fast),color var(--dur-fast)}
+.wc svg{width:14px;height:14px}
+.wc:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.wc--close:hover{background:var(--accent-tint-strong);color:var(--fg-strong)}
+
+/* strip */
+.strip{display:flex;align-items:center;gap:10px;height:var(--strip-h);padding:0 14px;border-bottom:1px solid var(--line);flex:none;overflow:hidden}
+.seg{display:flex;align-items:center;gap:2px;padding:2px;border-radius:var(--radius);background:var(--input-fill)}
+.seg button{height:24px;padding:0 9px;border-radius:var(--radius-xs);font-size:var(--text-form);color:var(--muted);display:inline-flex;gap:6px;align-items:center}
+.seg button:hover{color:var(--fg-strong);background:var(--ghost-hover)}
+.seg button.is-on{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.seg .n{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+
+.body{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+
+/* seams — the only divider between panes */
+.seam{position:absolute;z-index:3;touch-action:none}
+.seam::after{content:"";position:absolute;background:var(--line-strong);transition:background var(--dur-fast)}
+.seam--v{width:var(--seam-hit);margin-left:calc(var(--seam-hit) / -2);cursor:col-resize}
+.seam--v::after{left:50%;top:0;bottom:0;width:1px;translate:-.5px 0}
+.seam--h{height:var(--seam-hit);margin-top:calc(var(--seam-hit) / -2);cursor:row-resize}
+.seam--h::after{top:50%;left:0;right:0;height:1px;translate:0 -.5px}
+.seam:hover::after,.seam:focus-visible::after,.seam.is-drag::after{background:var(--accent)}
+.seam:focus-visible{box-shadow:none}
+.seam--v:hover::after,.seam--v.is-drag::after,.seam--v:focus-visible::after{width:2px;translate:-1px 0}
+.seam--h:hover::after,.seam--h.is-drag::after,.seam--h:focus-visible::after{height:2px;translate:0 -1px}
+body.is-resizing{user-select:none}
+body.is-resizing .win{pointer-events:none}
+
+.empty-desk{position:absolute;inset:0;display:grid;place-items:center;color:var(--subtle);font-size:var(--text-small-body)}
+.empty-desk kbd,.kbd{font-family:var(--font-keys);font-size:var(--text-kbd);padding:1px 5px;border-radius:var(--radius-xxs);border:1px solid var(--line-strong);background:var(--badge-fill);color:var(--fg);margin:0 2px}
+
+/* ================= APP BODIES ================= */
+/* session */
+.ses{display:flex;flex-direction:column;min-height:100%}
+.ses-log{flex:1;max-width:760px;width:100%;margin:0 auto;padding:22px 22px 8px;display:flex;flex-direction:column;gap:18px}
+.msg-user{align-self:flex-end;max-width:78%;padding:10px 13px;border-radius:var(--radius-lg);background:var(--canvas-tint);color:var(--fg-strong);font-size:var(--text-small-body)}
+.msg-agent{display:flex;flex-direction:column;gap:10px;color:var(--fg);font-size:var(--text-small-body)}
+.msg-agent p{max-width:66ch}
+.msg-agent code,.code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:var(--radius-xxs);background:var(--badge-fill);color:var(--fg-strong)}
+.tools{display:flex;flex-direction:column;border-radius:var(--radius);box-shadow:inset 0 0 0 1px var(--line-strong);overflow:hidden}
+.tool{display:flex;align-items:center;gap:9px;height:32px;padding:0 11px;font-size:var(--text-form);color:var(--muted)}
+.tool + .tool{border-top:1px solid var(--line)}
+.tool svg.lucide{width:14px;height:14px;color:var(--subtle)}
+.tool b{color:var(--fg);font-weight:510}
+.tool .path{font-family:var(--font-mono);font-size:11.5px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tool .end{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:var(--text-badge);flex:none}
+.add{color:var(--success)} .del{color:var(--danger)}
+.composer{position:sticky;bottom:0;padding:8px 22px 18px;background:linear-gradient(to bottom,transparent,var(--canvas) 26%)}
+.composer-box{max-width:760px;margin:0 auto;border-radius:var(--radius-lg);background:var(--canvas-soft);box-shadow:inset 0 0 0 1px var(--line-strong);padding:11px 12px 9px}
+.composer-box:focus-within{box-shadow:inset 0 0 0 1px var(--line-focus)}
+.composer textarea{width:100%;resize:none;border:0;outline:0;background:none;color:var(--fg-strong);font:inherit;min-height:22px;height:22px}
+.composer textarea::placeholder{color:var(--subtle)}
+.composer-row{display:flex;align-items:center;gap:6px;margin-top:6px}
+.cbtn{height:26px;padding:0 8px;border-radius:var(--radius-xs);display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--text-form)}
+.cbtn:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.cbtn svg.lucide{width:14px;height:14px}
+.send{margin-left:auto;width:28px;height:28px;border-radius:var(--radius);display:grid;place-items:center;background:var(--fg-strong);color:var(--rail)}
+.send:hover{background:#ffffff;color:var(--rail)}
+.send svg.lucide{width:15px;height:15px;stroke-width:2}
+.approve{border-radius:var(--radius-md);box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--canvas-soft);padding:14px;display:flex;flex-direction:column;gap:10px}
+.approve-h{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--fg-strong)}
+.approve pre{font-family:var(--font-mono);font-size:12px;padding:10px 12px;border-radius:var(--radius);background:var(--rail);color:var(--fg);overflow:auto}
+.btns{display:flex;gap:6px}
+.btn{height:30px;padding:0 12px;border-radius:var(--radius);background:var(--btn-fill);color:var(--fg-strong);font-weight:510;box-shadow:var(--highlight);font-size:var(--text-form)}
+.btn:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.btn--solid{background:var(--fg-strong);color:var(--rail)}
+.btn--solid:hover{background:#ffffff;color:var(--rail)}
+
+/* tasks */
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto;align-items:center;gap:12px;height:48px;padding:0 14px;border-bottom:1px solid var(--line);text-align:left}
+.row:hover{background:var(--row-hover)}
+.row-t{min-width:0}
+.row-t b{display:block;font-weight:510;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-t span{display:block;font-family:var(--font-mono);font-size:var(--text-badge);color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radius-pill);background:var(--badge-fill);font-size:var(--text-badge);font-weight:510;color:var(--muted);white-space:nowrap}
+.st--run{background:var(--success-tint);color:var(--success)}
+.st--needs{background:var(--accent-tint);color:var(--accent-strong)}
+.st--done{color:var(--subtle)}
+
+/* terminal */
+.term{padding:12px 14px;font-family:var(--font-mono);font-size:12.5px;line-height:1.7;color:var(--fg);background:var(--canvas);min-height:100%}
+.term .p{color:var(--success)} .term .d{color:var(--subtle)} .term .ok{color:var(--success)} .term .w{color:var(--warning)} .term .a{color:var(--accent-strong)}
+.term .cur{display:inline-block;width:7px;height:14px;background:var(--fg);vertical-align:-2px;animation:pulse 1.1s steps(1) infinite}
+
+/* stand-in body for apps opened from the rail */
+.stand-in{height:100%;display:grid;place-items:center;text-align:center;padding:24px}
+.stand-in div{max-width:280px;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--subtle);font-size:var(--text-form)}
+.stand-in .glyph{width:34px;height:34px;border-radius:var(--radius-md)}
+.stand-in .glyph svg{width:18px;height:18px}
+.stand-in b{color:var(--fg);font-weight:600;font-size:var(--text-small-body)}
+
+/* ================= ANNOTATE (?annotate) ================= */
+.callout{position:fixed;z-index:1000;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:700 11px/22px var(--font-mono);text-align:center;box-shadow:0 0 0 3px var(--rail);pointer-events:none}
+.legend{position:fixed;z-index:1000;right:16px;bottom:16px;width:360px;max-height:70vh;overflow:auto;padding:14px 16px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay);font-size:var(--text-form);color:var(--muted)}
+.legend h2{font-size:var(--text-small-body);color:var(--fg-strong);font-weight:600;margin-bottom:4px}
+.legend p{margin-bottom:8px}
+.legend ol{padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.legend li{display:grid;grid-template-columns:22px 1fr;gap:8px}
+.legend li i{font:700 10px/18px var(--font-mono);font-style:normal;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--accent-ink);text-align:center}
+.legend b{color:var(--fg)}
+
+@media (max-width:959px){
+  :root{--rail-w:52px}
+  .menus,.bar-vsep,.status span:last-child,.update span{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell" data-od-id="shell">
+
+  <!-- ============ RAIL — the dock, docked left ============ -->
+  <aside class="rail" data-od-id="rail-dock" aria-label="Dock">
+    <div class="rail-logo">
+      <button id="logo-btn" aria-label="CompozyOS" aria-haspopup="menu" data-menu="compozy" data-od-id="rail-logo">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" fill="var(--rail)"/></svg>
+      </button>
+    </div>
+    <nav class="rail-nav" id="rail-nav"></nav>
+    <div class="rail-foot">
+      <button class="rail-new" id="new-session" aria-label="New session" data-tip="New session" data-chord="⌘N" data-od-id="rail-new-session"><i data-lucide="plus"></i></button>
+    </div>
+  </aside>
+
+  <!-- ============ TOPBAR — same menubar content, flat ============ -->
+  <header class="bar" data-od-id="topbar" aria-label="System bar">
+    <div class="bar-side">
+      <button class="b-icon" aria-label="Scope: this workspace" data-tip="Show all workspaces" data-od-id="scope-toggle"><i data-lucide="globe"></i></button>
+      <button class="ws" aria-haspopup="menu" data-menu="workspace" data-od-id="workspace-chip">
+        <span class="ws-av">CZ</span><span class="ws-name">compozy</span><span class="ws-sl">/</span><span class="ws-wt">continue-fork</span>
+        <i data-lucide="chevrons-up-down"></i>
+      </button>
+      <span class="bar-vsep" aria-hidden="true"></span>
+      <nav class="menus bar-side" aria-label="App menus" data-od-id="app-menus">
+        <button class="menu-t" data-menu="session" aria-haspopup="menu">Session</button>
+        <button class="menu-t" data-menu="go" aria-haspopup="menu">Go</button>
+        <button class="menu-t" data-menu="window" aria-haspopup="menu" data-od-id="menu-window">Window</button>
+        <button class="menu-t" data-menu="help" aria-haspopup="menu">Help</button>
+      </nav>
+    </div>
+    <div class="bar-side" data-od-id="tray">
+      <span class="status" role="status" data-od-id="daemon-status"><span class="dot dot--ok"></span><span>Connected</span></span>
+      <button class="update" data-od-id="update-indicator"><i data-lucide="arrow-down-circle"></i><span>v0.3.1 ready</span></button>
+      <button class="b-icon" aria-label="Attention, 3 waiting" data-tip="Attention" data-od-id="bell"><i data-lucide="bell"></i><span class="pill">3</span></button>
+      <button class="b-icon" aria-label="Command palette" data-tip="Command palette" data-chord="⌘K" data-od-id="palette"><i data-lucide="command"></i></button>
+      <button class="b-icon" aria-label="Settings" data-tip="Settings" data-chord="⌘," data-od-id="settings"><i data-lucide="settings"></i></button>
+    </div>
+  </header>
+
+  <!-- ============ DESKTOP — gutterless tiling ============ -->
+  <main class="stage" id="stage" data-od-id="desktop"></main>
+</div>
+
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="pop" id="pop" role="menu" hidden></div>
+
+<script>
+/* ---------- dock glyphs: production paths from web/src/systems/os/components/os-dock-icons.tsx ---------- */
+const S='stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+const G={
+  sessions:`<path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-3.4 2.6a.5.5 0 0 1-.8-.4v-2.2H4A1.5 1.5 0 0 1 2.5 13V6A1.5 1.5 0 0 1 4 4.5Z" ${S}/>`,
+  dashboard:`<rect x="3" y="3" width="6" height="6" rx="1.6" ${S}/><rect x="11" y="3" width="6" height="6" rx="1.6" ${S}/><rect x="3" y="11" width="6" height="6" rx="1.6" ${S}/><rect x="11" y="11" width="6" height="6" rx="1.6" ${S}/>`,
+  terminal:`<path d="m5 6.6 3.5 3.4L5 13.4" ${S}/><path d="M10.8 14.4h4.2" ${S}/>`,
+  agents:`<rect x="4" y="6" width="12" height="9" rx="2.4" ${S}/><path d="M10 6V3.2M7.5 10.4h.01M12.5 10.4h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 13h6" ${S}/>`,
+  tasks:`<path d="m3.5 6 1.6 1.6L8 4.7M3.5 13l1.6 1.6L8 11.7M10.5 6.5H17M10.5 13.5H17" ${S}/>`,
+  loops:`<path d="M13.5 4.5H8a4 4 0 0 0-4 4v.5M6.5 15.5H12a4 4 0 0 0 4-4V11M11 2l2.5 2.5L11 7M9 18l-2.5-2.5L9 13" ${S}/>`,
+  jobs:`<circle cx="10" cy="10" r="6.8" ${S}/><path d="M10 6.2V10l3 1.8" ${S}/>`,
+  triggers:`<path d="M11 2.5 4.5 11h4l-.9 6.5L14.5 9h-4z" ${S}/>`,
+  marketplace:`<path d="M4 7.5 5 4h10l1 3.5M4 7.5h12M4 7.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7.5M8 10.5h4" ${S}/>`,
+  knowledge:`<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v13H5.5A1.5 1.5 0 0 0 4 17.5zM4 4.5v13M16 13H5.5A1.5 1.5 0 0 0 4 14.5" ${S}/>`,
+  vault:`<circle cx="7.5" cy="8" r="3.8" ${S}/><path d="m10.4 10.6 5.6 5.6M13.5 13.5l1.8-1.8M15.5 15.5l1.6-1.6" ${S}/>`,
+};
+const glyph=(k)=>`<svg viewBox="0 0 20 20" fill="none" aria-hidden="true">${G[k]}</svg>`;
+
+/* dock order = use-desktop-dock.ts: Sessions · Home Terminal | Agents Tasks Loops Jobs Triggers | Marketplace Knowledge | Vault */
+const DOCK=[
+  {app:'session',name:'Sessions',icon:'sessions',badge:1},
+  {app:'dashboard',name:'Home',icon:'dashboard'},
+  {app:'terminal',name:'Terminal',icon:'terminal'},
+  'sep',
+  {app:'agents',name:'Agents',icon:'agents'},
+  {app:'tasks',name:'Tasks',icon:'tasks',badge:2},
+  {app:'loops',name:'Loops',icon:'loops'},
+  {app:'jobs',name:'Jobs',icon:'jobs'},
+  {app:'triggers',name:'Triggers',icon:'triggers'},
+  'sep',
+  {app:'marketplace',name:'Marketplace',icon:'marketplace'},
+  {app:'knowledge',name:'Knowledge',icon:'knowledge'},
+  'sep',
+  {app:'vault',name:'Vault',icon:'vault'},
+];
+const APP=Object.fromEntries(DOCK.filter(d=>d!=='sep').map(d=>[d.app,d]));
+
+/* ---------- app bodies ---------- */
+const BODY={
+  'ses-checkout':()=>`<div class="ses">
+    <div class="ses-log">
+      <div class="msg-user">The order total jumps when the shipping estimate lands. Keep the summary at a fixed height while the estimate loads.</div>
+      <div class="msg-agent">
+        <p>The summary renders its rows only after <code>estimate</code> resolves, so the card grows by one row. I'll reserve the row with a skeleton and keep the total aligned.</p>
+        <div class="tools">
+          <div class="tool"><i data-lucide="file-text"></i><b>Read</b><span class="path">web/src/checkout/order-summary.tsx</span></div>
+          <div class="tool"><i data-lucide="pencil"></i><b>Edit</b><span class="path">web/src/checkout/order-summary.tsx</span><span class="end"><span class="add">+18</span><span class="del">−6</span></span></div>
+          <div class="tool"><i data-lucide="square-terminal"></i><b>Run</b><span class="path">bun run test checkout</span><span class="end"><span class="dot dot--run dot--pulse"></span>running</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="composer"><div class="composer-box">
+      <textarea rows="1" placeholder="Message codex…" aria-label="Message"></textarea>
+      <div class="composer-row">
+        <button class="cbtn" aria-label="Attach"><i data-lucide="paperclip"></i></button>
+        <button class="cbtn"><i data-lucide="bot"></i>codex · high</button>
+        <button class="send" aria-label="Send"><i data-lucide="arrow-up"></i></button>
+      </div>
+    </div></div></div>`,
+  'ses-new':()=>`<div class="ses"><div class="ses-log" style="justify-content:center;align-items:center;color:var(--subtle)">Ask an agent to start something.</div>
+    <div class="composer"><div class="composer-box"><textarea rows="1" placeholder="Message codex…" aria-label="Message"></textarea>
+      <div class="composer-row"><button class="cbtn" aria-label="Attach"><i data-lucide="paperclip"></i></button><button class="cbtn"><i data-lucide="bot"></i>codex · high</button><button class="send" aria-label="Send"><i data-lucide="arrow-up"></i></button></div></div></div></div>`,
+  'ses-pricing':()=>`<div class="ses"><div class="ses-log">
+      <div class="msg-user">Move the pricing table to the new plans schema.</div>
+      <div class="msg-agent"><p>The schema change is ready. Running the migration writes to your local database, so I need your go-ahead.</p>
+        <div class="approve"><div class="approve-h"><span class="dot dot--needs"></span>claude wants to run a command</div>
+          <pre>bun run db:migrate --name plans_v2</pre>
+          <div class="btns"><button class="btn btn--solid">Allow once</button><button class="btn">Deny</button></div>
+        </div></div>
+    </div></div>`,
+  'ses-notes':()=>`<div class="ses"><div class="ses-log">
+      <div class="msg-user">Draft the v0.3 release notes from the merged PRs.</div>
+      <div class="msg-agent"><p>Done. The draft groups Continue and Fork, the calmer web UI, and the retired Network, Sandbox and Bridges surfaces, with a migration block for each removal.</p>
+        <div class="tools"><div class="tool"><i data-lucide="file-text"></i><b>Wrote</b><span class="path">docs/releases/v0.3.0.md</span><span class="end"><span class="add">+142</span></span></div></div>
+      </div></div></div>`,
+  'tasks':()=>`<div class="rows">
+      ${[['run','Route the session to its fallback account','fallback-account · task_03','Running'],
+         ['needs','Show the fallback banner in the session header','fallback-account · task_04','Needs you'],
+         ['needs','Pick the route when both accounts are limited','fallback-account · task_05','Needs you'],
+         ['idle','Fix the two usage-ingest bugs','session-context · task_01','Queued'],
+         ['idle','Context bar with three honest layers','session-context · task_02','Queued'],
+         ['done','Fork a session into another agent','session-continue-fork · task_06','Done']]
+        .map(([s,t,m,l])=>`<button class="row"><span class="dot dot--${s==='done'?'ok':s}${s==='run'?' dot--pulse':''}"></span><span class="row-t"><b>${t}</b><span>${m}</span></span><span class="st st--${s}">${l}</span><i data-lucide="chevron-right"></i></button>`).join('')}
+    </div>`,
+  'term-gate':()=>`<div class="term"><div><span class="p">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div>
+    <div>$ make gate</div>
+    <div class="d">→ affected lanes: lint · web-typecheck · go-test</div>
+    <div><span class="ok">✓</span> lint</div><div><span class="ok">✓</span> web-typecheck</div>
+    <div><span class="a">●</span> go-test <span class="d">internal/session/…</span></div>
+    <div class="d">  ok   internal/session/fork</div><div class="d">  ok   internal/session/continue</div>
+    <div><span class="cur"></span></div></div>`,
+  'term-zsh':()=>`<div class="term"><div><span class="p">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div>
+    <div>$ git status --short</div><div><span class="w"> M</span> web/src/checkout/order-summary.tsx</div>
+    <div><span class="p">~/Dev/compozy/compozy</span> <span class="d">continue-fork</span></div><div>$ <span class="cur"></span></div></div>`,
+};
+const STAND={dashboard:'Home',agents:'Agents',loops:'Loops',jobs:'Jobs',triggers:'Triggers',marketplace:'Marketplace',knowledge:'Knowledge',vault:'Vault',tasks:'Tasks',terminal:'Terminal',session:'Session'};
+
+/* ---------- state ---------- */
+let seq=10;
+const W={
+  w1:{app:'session',tabs:[
+    {id:'t1',kind:'doc',app:'session',title:'Polish the checkout flow',dot:'run',agent:'CX',agentName:'codex',meta:'12:41',body:'ses-checkout'},
+    {id:'t2',kind:'doc',app:'session',title:'Move pricing to plans v2',dot:'needs',badge:1,agent:'CL',agentName:'claude',meta:'12:18',body:'ses-pricing'},
+    {id:'t3',kind:'doc',app:'session',title:'Release notes v0.3',dot:'idle',agent:'CX',agentName:'codex',meta:'11:07',body:'ses-notes'}],active:'t1'},
+  w2:{app:'tasks',tabs:[{id:'t4',kind:'root',app:'tasks',title:'Tasks',count:6,status:['run','1 running'],strip:true,body:'tasks'}],active:'t4'},
+  w3:{app:'terminal',tabs:[
+    {id:'t5',kind:'doc',app:'terminal',title:'make gate',dot:'run',meta:'zsh',body:'term-gate'},
+    {id:'t6',kind:'doc',app:'terminal',title:'zsh',dot:'idle',meta:'zsh',body:'term-zsh'}],active:'t5'},
+};
+let tree={dir:'row',ratio:.58,a:'w1',b:{dir:'col',ratio:.55,a:'w2',b:'w3'}};
+let focused='w1', zoomed=null; const minimized=new Set();
+
+/* ---------- tree helpers ---------- */
+const leaves=n=>n==null?[]:typeof n==='string'?[n]:[...leaves(n.a),...leaves(n.b)];
+const chain=(dir,ids)=>ids.length===1?ids[0]:{dir,ratio:1/ids.length,a:ids[0],b:chain(dir,ids.slice(1))};
+function removeLeaf(n,id){ if(n===id) return null; if(typeof n==='string') return n;
+  const a=removeLeaf(n.a,id), b=removeLeaf(n.b,id); if(a==null) return b; if(b==null) return a; return {...n,a,b}; }
+function replaceLeaf(n,id,rep){ if(n===id) return rep; if(typeof n==='string') return n; return {...n,a:replaceLeaf(n.a,id,rep),b:replaceLeaf(n.b,id,rep)}; }
+function balance(n){ if(typeof n==='string') return n; const la=leaves(n.a).length, lb=leaves(n.b).length; return {...n,ratio:la/(la+lb),a:balance(n.a),b:balance(n.b)}; }
+const PRESET={
+  main:ids=>ids.length<2?ids[0]:{dir:'row',ratio:.58,a:ids[0],b:chain('col',ids.slice(1))},
+  columns:ids=>chain('row',ids),
+  grid:ids=>{ if(ids.length<3) return chain('row',ids); const l=ids.filter((_,i)=>i%2===0), r=ids.filter((_,i)=>i%2===1);
+    return {dir:'row',ratio:.5,a:chain('col',l),b:chain('col',r)}; },
+};
+let arrangement='main';
+
+/* ---------- render ---------- */
+const stage=document.getElementById('stage');
+const ic=n=>`<i data-lucide="${n}"></i>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function winHTML(id){
+  const w=W[id], t=w.tabs.find(x=>x.id===w.active), deck=w.tabs.length>1, f=id===focused;
+  const ctl=`<div class="wctl"><button class="wc" data-act="min" aria-label="Minimize">${ic('minus')}</button><button class="wc" data-act="zoom" aria-label="${zoomed===id?'Restore':'Zoom'}">${ic(zoomed===id?'minimize-2':'maximize-2')}</button><button class="wc wc--close" data-act="close" aria-label="Close window">${ic('x')}</button></div>`;
+  const deckHTML=deck?`<div class="deck" role="tablist" aria-label="Window tabs" data-od-id="deck-${id}"><div class="deck-scroll">${w.tabs.map(x=>`
+      <button class="tab${x.id===w.active?' is-on':''}" role="tab" aria-selected="${x.id===w.active}" data-tab="${x.id}">
+        ${x.dot?`<span class="dot dot--${x.dot}${x.dot==='run'?' dot--pulse':''}"></span>`:`<span class="glyph" style="width:16px;height:16px;background:none">${glyph(APP[x.app].icon)}</span>`}
+        <span class="lbl">${esc(x.title)}</span>${x.badge?`<span class="cnt">${x.badge}</span>`:''}
+        <span class="x" data-close-tab="${x.id}" aria-label="Close tab">${ic('x')}</span></button>`).join('')}</div>
+      <button class="deck-add" data-act="newtab" aria-label="New tab">${ic('plus')}</button><span class="deck-grow"></span>${ctl}</div>`:'';
+  const idHTML=t.kind==='doc'
+    ?`<span class="dot dot--${t.dot}${t.dot==='run'?' dot--pulse':''}"></span><span class="title">${esc(t.title)}</span>`
+    :`<span class="glyph">${glyph(APP[t.app].icon)}</span><span class="title">${esc(t.title)}</span>${t.count?`<span class="count">${t.count}</span>`:''}`;
+  const trail=t.kind==='doc'
+    ?(t.agent?`<span class="chip"><span class="agent">${t.agent}</span>${t.agentName}</span><span class="vsep"></span>`:'')+`<span class="meta">${t.meta}</span>`
+    :(t.status?`<span class="chip" style="color:var(--success)"><span class="dot dot--${t.status[0]} dot--pulse"></span>${t.status[1]}</span><span class="vsep"></span><button class="btn" style="height:26px">New task</button>`:'');
+  const strip=t.strip?`<div class="strip" data-od-id="strip-${id}"><div class="seg" role="group" aria-label="Filter">
+      <button class="is-on">All <span class="n">6</span></button><button>Running <span class="n">1</span></button><button>Needs you <span class="n">2</span></button></div>
+      <span class="grow"></span><div class="seg" role="group" aria-label="Display"><button class="is-on">Rows</button><button>Board</button></div></div>`:'';
+  const body=BODY[t.body]?BODY[t.body]():`<div class="stand-in" data-stand-in><div><span class="glyph">${glyph(APP[t.app].icon)}</span><b>${esc(t.title)}</b>Stand-in body — the ${esc(t.title)} app renders its production content here.</div></div>`;
+  return `<section class="win" data-win="${id}" data-focused="${f}" aria-label="${esc(t.title)} window" data-od-id="win-${id}">
+    ${deckHTML}
+    <header class="head" data-od-id="head-${id}"><div class="id">${idHTML}</div><span class="grow"></span><div class="trail">${trail}</div>${deck?'':`<span class="vsep"></span>${ctl}`}</header>
+    ${strip}<div class="body">${body}</div></section>`;
+}
+
+let seams=[];
+function layout(n,r,out){
+  if(typeof n==='string'){ out.wins.push([n,r]); return; }
+  const v=n.dir==='row', size=v?r.w:r.h, cut=Math.round(size*n.ratio);
+  const ra=v?{x:r.x,y:r.y,w:cut,h:r.h}:{x:r.x,y:r.y,w:r.w,h:cut};
+  const rb=v?{x:r.x+cut,y:r.y,w:r.w-cut,h:r.h}:{x:r.x,y:r.y+cut,w:r.w,h:r.h-cut};
+  out.seams.push({node:n,r,v,pos:v?r.x+cut:r.y+cut});
+  layout(n.a,ra,out); layout(n.b,rb,out);
+}
+function render(){
+  const W0=stage.clientWidth, H0=stage.clientHeight;
+  const vis=zoomed?zoomed:tree;
+  if(vis==null){ stage.innerHTML=`<div class="empty-desk">Press <kbd>⌘</kbd><kbd>K</kbd> to open anything, or pick an app from the dock</div>`; renderRail(); return; }
+  const out={wins:[],seams:[]}; layout(vis,{x:0,y:0,w:W0,h:H0},out); seams=out.seams;
+  stage.innerHTML=out.wins.map(([id,r])=>winHTML(id).replace('<section ',`<section style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px" `)).join('')
+    +out.seams.map((s,i)=>s.v
+      ?`<span class="seam seam--v" data-seam="${i}" role="separator" aria-orientation="vertical" aria-label="Resize panes" tabindex="0" style="left:${s.pos}px;top:${s.r.y}px;height:${s.r.h}px"></span>`
+      :`<span class="seam seam--h" data-seam="${i}" role="separator" aria-orientation="horizontal" aria-label="Resize panes" tabindex="0" style="top:${s.pos}px;left:${s.r.x}px;width:${s.r.w}px"></span>`).join('');
+  renderRail(); lucide.createIcons(); if(annotate) placeCallouts();
+}
+
+/* ---------- rail ---------- */
+function appState(app){
+  const open=Object.keys(W).filter(id=>W[id].tabs.some(t=>t.app===app));
+  if(!open.length) return 'closed';
+  if(open.every(id=>minimized.has(id))) return 'min';
+  const fw=W[focused]; if(fw && !minimized.has(focused) && fw.tabs.find(t=>t.id===fw.active)?.app===app) return 'active';
+  return 'open';
+}
+function renderRail(){
+  document.getElementById('rail-nav').innerHTML=DOCK.map(d=>{
+    if(d==='sep') return `<span class="rail-sep" aria-hidden="true"></span>`;
+    const s=appState(d.app);
+    const name=d.badge?`${d.name} — ${d.badge} need${d.badge===1?'s':''} you`:d.name;
+    return `<button class="rail-item${s==='active'?' is-active is-open':s==='open'?' is-open':s==='min'?' is-min':''}" data-app="${d.app}" aria-label="${name}" data-tip="${d.name}" ${s==='active'?'aria-current="page"':''} data-od-id="dock-${d.app}">
+      ${glyph(d.icon)}<span class="run" aria-hidden="true"></span>${d.badge?`<span class="rail-badge">${d.badge}</span>`:''}</button>`;
+  }).join('');
+}
+
+/* ---------- actions ---------- */
+function focusWin(id){ if(focused===id) return; focused=id;
+  stage.querySelectorAll('[data-win]').forEach(n=>n.dataset.focused=String(n.dataset.win===id)); renderRail(); }
+function visibleIds(){ return leaves(tree); }
+function openApp(app){
+  // existing instance → restore / focus / select its tab
+  const hit=Object.keys(W).find(id=>W[id].tabs.some(t=>t.app===app));
+  if(hit){
+    if(minimized.has(hit)){ minimized.delete(hit); tree=tree==null?hit:insertBeside(hit); }
+    const w=W[hit]; if(w.tabs.find(t=>t.id===w.active).app!==app) w.active=w.tabs.find(t=>t.app===app).id;
+    if(zoomed && zoomed!==hit) zoomed=null;
+    focused=hit; render(); return;
+  }
+  // new window → split the focused pane along its longer side
+  const id='w'+(++seq), tid='t'+(++seq), d=APP[app];
+  W[id]={app,tabs:[{id:tid,kind:'root',app,title:d.name}],active:tid};
+  tree=tree==null?id:insertBeside(id); zoomed=null; focused=id; render();
+}
+function insertBeside(id){
+  const target=visibleIds().includes(focused)?focused:visibleIds()[0];
+  const el=stage.querySelector(`[data-win="${target}"]`);
+  const wide=el?el.offsetWidth>=el.offsetHeight*1.1:true;
+  return replaceLeaf(tree,target,{dir:wide?'row':'col',ratio:.5,a:target,b:id});
+}
+function closeWin(id){ tree=removeLeaf(tree,id); delete W[id]; minimized.delete(id); if(zoomed===id) zoomed=null; if(focused===id) focused=visibleIds()[0]||null; render(); }
+function minWin(id){ tree=removeLeaf(tree,id); minimized.add(id); if(zoomed===id) zoomed=null; if(focused===id) focused=visibleIds()[0]||null; render(); }
+function closeTab(wid,tid){ const w=W[wid]; if(w.tabs.length===1) return closeWin(wid);
+  const i=w.tabs.findIndex(t=>t.id===tid); w.tabs.splice(i,1); if(w.active===tid) w.active=w.tabs[Math.max(0,i-1)].id; render(); }
+function newSession(){
+  const target=W[focused]&&W[focused].tabs.some(t=>t.app==='session')?focused:Object.keys(W).find(id=>W[id].app==='session');
+  if(!target){ openApp('session'); return; }
+  const tid='t'+(++seq); W[target].tabs.push({id:tid,kind:'doc',app:'session',title:'New session',dot:'idle',meta:'now',body:'ses-new'});
+  W[target].active=tid; if(minimized.has(target)){ minimized.delete(target); tree=tree==null?target:insertBeside(target); }
+  focused=target; render();
+}
+function arrange(kind){ arrangement=kind; zoomed=null; const ids=visibleIds(); if(!ids.length) return;
+  const ord=[focused,...ids.filter(i=>i!==focused)].filter(i=>ids.includes(i));
+  tree=kind==='balance'?balance(tree):PRESET[kind](ord); render(); }
+
+stage.addEventListener('pointerdown',e=>{ const w=e.target.closest('[data-win]'); if(w) focusWin(w.dataset.win); });
+stage.addEventListener('click',e=>{
+  const w=e.target.closest('[data-win]'); if(!w) return; const id=w.dataset.win;
+  const ct=e.target.closest('[data-close-tab]'); if(ct){ closeTab(id,ct.dataset.closeTab); return; }
+  const tab=e.target.closest('[data-tab]'); if(tab){ W[id].active=tab.dataset.tab; focused=id; render(); return; }
+  const act=e.target.closest('[data-act]')?.dataset.act;
+  if(act==='close') closeWin(id); else if(act==='min') minWin(id);
+  else if(act==='zoom'){ zoomed=zoomed===id?null:id; render(); }
+  else if(act==='newtab'){ focused=id; newSession(); }
+});
+document.getElementById('rail-nav').addEventListener('click',e=>{ const b=e.target.closest('[data-app]'); if(b) openApp(b.dataset.app); });
+document.getElementById('new-session').addEventListener('click',newSession);
+
+/* ---------- seams: pointer + keyboard resize ---------- */
+const MIN=220;
+function setRatio(s,ratio){ const size=s.v?s.r.w:s.r.h; const lo=MIN/size, hi=1-MIN/size; s.node.ratio=Math.min(Math.max(ratio,lo),Math.max(lo,hi)); }
+stage.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('[data-seam]'); if(!el) return; e.preventDefault();
+  const s=seams[+el.dataset.seam], node=s.node, box=stage.getBoundingClientRect(); document.body.classList.add('is-resizing');
+  const mark=()=>{ const i=seams.findIndex(x=>x.node===node); stage.querySelector(`[data-seam="${i}"]`)?.classList.add('is-drag'); };
+  mark(); let raf=0;
+  const move=ev=>{ const cur=seams.find(x=>x.node===node)||s; const p=cur.v?ev.clientX-box.left:ev.clientY-box.top;
+    setRatio(cur,(p-(cur.v?cur.r.x:cur.r.y))/(cur.v?cur.r.w:cur.r.h));
+    cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ render(); mark(); }); };
+  const up=()=>{ removeEventListener('pointermove',move); removeEventListener('pointerup',up); document.body.classList.remove('is-resizing'); render(); };
+  addEventListener('pointermove',move); addEventListener('pointerup',up);
+},true);
+stage.addEventListener('keydown',e=>{
+  const el=e.target.closest('[data-seam]'); if(!el) return; const s=seams[+el.dataset.seam];
+  const k=s.v?{ArrowLeft:-1,ArrowRight:1}:{ArrowUp:-1,ArrowDown:1}; if(!(e.key in k)) return; e.preventDefault();
+  setRatio(s,s.node.ratio+k[e.key]*(e.shiftKey?.1:.02)); const idx=el.dataset.seam; render(); stage.querySelector(`[data-seam="${idx}"]`)?.focus();
+});
+
+/* ---------- menus ---------- */
+const pop=document.getElementById('pop');
+const item=(label,act,chord,on)=>`<button class="pop-item${on?' is-on':''}" role="menuitem" data-run="${act}">${label}${chord?`<span class="chord">${chord}</span>`:''}</button>`;
+const MENUS={
+  compozy:()=>item('About CompozyOS','noop')+item('Keyboard shortcuts','noop','⌘/')+'<div class="pop-sep"></div>'+item('Settings…','noop','⌘,')+item('Quit','noop','⌘Q'),
+  workspace:()=>`<div class="pop-label">Workspaces</div>`+item('<span class="ws-av">CZ</span>compozy','noop','',true)+item('<span class="ws-av">BR</span>branasio','noop')+'<div class="pop-sep"></div>'+item('New worktree…','noop')+item('Add workspace…','noop'),
+  session:()=>item('New session','new','⌘N')+item('Continue in another agent…','noop')+item('Fork session…','noop')+'<div class="pop-sep"></div>'+item('Stop','noop','⌘.'),
+  go:()=>DOCK.filter(d=>d!=='sep').slice(0,8).map(d=>item(d.name,'go:'+d.app)).join(''),
+  window:()=>`<div class="pop-label">Arrange</div>`+item('Main and stack','arr:main','',arrangement==='main')+item('Columns','arr:columns','',arrangement==='columns')+item('Grid','arr:grid','',arrangement==='grid')+item('Balance sizes','arr:balance','⌃⌥=')
+    +'<div class="pop-sep"></div>'+item(zoomed?'Restore':'Zoom','zoom','⌃⌥↩')+item('Minimize','min','⌘M')+'<div class="pop-sep"></div>'+item('Close window','close','⇧⌘W'),
+  help:()=>item('Documentation','noop')+item('Report an issue','noop'),
+};
+let openBtn=null;
+function closePop(){ pop.hidden=true; openBtn&&openBtn.setAttribute('aria-expanded','false'); openBtn=null; }
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-menu]');
+  if(b){ const same=openBtn===b; closePop(); if(same) return;
+    openBtn=b; b.setAttribute('aria-expanded','true'); pop.innerHTML=MENUS[b.dataset.menu](); pop.hidden=false;
+    const r=b.getBoundingClientRect(); const inRail=!!b.closest('.rail');
+    pop.style.left=(inRail?r.right+8:r.left)+'px'; pop.style.top=(inRail?r.top:r.bottom+6)+'px'; return; }
+  const run=e.target.closest('[data-run]');
+  if(run){ const a=run.dataset.run; closePop();
+    if(a.startsWith('arr:')) arrange(a.slice(4)); else if(a.startsWith('go:')) openApp(a.slice(3));
+    else if(a==='new') newSession(); else if(a==='zoom'&&focused){ zoomed=zoomed?null:focused; render(); }
+    else if(a==='min'&&focused) minWin(focused); else if(a==='close'&&focused) closeWin(focused); return; }
+  if(!e.target.closest('#pop')) closePop();
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePop(); });
+
+/* ---------- tips ---------- */
+const tip=document.getElementById('tip');
+document.addEventListener('pointerover',e=>{
+  const t=e.target.closest('[data-tip]'); if(!t||t.closest('#pop')){ tip.classList.remove('is-on'); return; }
+  tip.innerHTML=esc(t.dataset.tip)+(t.dataset.chord?`<span class="k">${t.dataset.chord}</span>`:'');
+  const r=t.getBoundingClientRect(), inRail=!!t.closest('.rail');
+  if(inRail){ tip.style.left=(r.right+10)+'px'; tip.style.top=(r.top+r.height/2-12)+'px'; }
+  else { tip.style.left=Math.min(r.left, innerWidth-tip.offsetWidth-8)+'px'; tip.style.top=(r.bottom+6)+'px'; }
+  tip.classList.add('is-on');
+});
+document.addEventListener('pointerout',e=>{ if(e.target.closest('[data-tip]')) tip.classList.remove('is-on'); });
+
+/* ---------- ?annotate: contract callouts ---------- */
+const annotate=new URLSearchParams(location.search).has('annotate');
+const CALLOUTS=[['.rail-nav','Dock → rail',1],['.bar .ws','Topbar',2],['.deck','Deck',3],['.win .head','Window head',4],['.seam','Seam',5],['.rail-new','New session',6]];
+function placeCallouts(){
+  document.querySelectorAll('.callout').forEach(n=>n.remove());
+  CALLOUTS.forEach(([sel,,n])=>{ const el=document.querySelector(sel); if(!el) return; const r=el.getBoundingClientRect();
+    const c=document.createElement('span'); c.className='callout'; c.textContent=n;
+    c.style.left=Math.max(4,Math.min(r.left+r.width/2-11,innerWidth-26))+'px'; c.style.top=Math.max(4,r.top+4)+'px'; document.body.appendChild(c); });
+}
+if(annotate){
+  const lg=document.createElement('aside'); lg.className='legend'; lg.setAttribute('data-od-id','contract-legend');
+  lg.innerHTML=`<h2>Shell — rail dock + gutterless tiling</h2>
+  <p>Proposal for the desktop shell. Modifies <b>OsDock</b>, <b>OsMenuBar</b>, <b>OsWindowFrame</b>, <b>OsWindowDeck</b>, <b>OsSnapSeam</b>, <b>OsWinLayer</b>. States: VC-01 default · VC-02 tab switch · VC-03 seam resize · VC-04 arrange presets · VC-05 zoom · VC-06 minimize to rail · VC-07 open app from rail.</p>
+  <ol><li><i>1</i><span><b>Rail dock.</b> Same apps, order and seams as the bottom dock. Selection = elevated plate; open = 4px edge dot; minimized = hollow ring.</span></li>
+  <li><i>2</i><span><b>Topbar.</b> Same menubar content, flat on --rail. The mark moves to the rail's top cell.</span></li>
+  <li><i>3</i><span><b>Deck.</b> Mounts at ≥2 tabs. Flat cells split by hairlines; the active tab fuses with the head. Window controls ride the deck.</span></li>
+  <li><i>4</i><span><b>Head.</b> Identity renders once — root glyph + title, or document dot + self-title.</span></li>
+  <li><i>5</i><span><b>Seam.</b> No gutter: a 1px hairline with a 9px hit area; accent on hover, drag and focus; arrow keys resize.</span></li>
+  <li><i>6</i><span><b>New session.</b> The shell's single standing primary action, pinned at the rail foot.</span></li></ol>`;
+  document.body.appendChild(lg);
+}
+
+addEventListener('resize',()=>render());
+render();
+</script>
+</body>
+</html>
