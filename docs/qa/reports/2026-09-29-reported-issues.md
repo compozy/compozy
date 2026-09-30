@@ -112,3 +112,11 @@ an absent inventory. Recovery now preserves running receipts on non-absence list
 logs the failure without execution effects. The existing exit-action suite uses a real filesystem
 listing failure, verifies preserved state and bytes, and restores a matching journal to recover
 the same receipt. The targeted real-Git integration suites now run in the existing PR CI lane.
+
+Inventory restoration after successful daemon boot is owned by a cancellable recovery worker
+with backoff capped at thirty seconds, ending after successful recovery. Existing daemon
+boot-worktree tests use real SQLite and filesystem failure/restoration without a second manual
+recovery call; shutdown and failed-boot paths cancel and join it. The existing managed-delivery
+real-Git suite also protects a concurrent live receipt from delayed recovery. The subsequent ACP
+timestamp review is a source-backed false positive: the single production constructor records
+the timestamp before publication and session wrappers preserve it.

@@ -17,9 +17,12 @@ type daemonRuntimeWorkers struct {
 	sessionAttachments    *attachmentspkg.Sweeper
 	authoredHeartbeatWake *apiHeartbeatWakePrompter
 	loopReconciler        *loopReconcilerRuntime
+	managedDeliveries     *ownedWorkerGroup
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	appendWrappedError(errs, "daemon: stop managed delivery recovery",
+		stopManagedDeliveryRecovery(ctx, w.managedDeliveries))
 	if w.supervision != nil {
 		appendWrappedError(errs, "daemon: shutdown supervision", w.supervision.Shutdown(ctx))
 	}

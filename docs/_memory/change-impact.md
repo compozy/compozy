@@ -1131,8 +1131,10 @@ verification are tracked in `docs/qa/reports/2026-09-29-reported-issues.md`.
 PR #686 review remediation keeps the same audit owner. Managed delivery rechecks selected index
 state before staging and records its own staged proof for recovery; deterministic safety refusals
 are terminal, completion releases the session fence first, and unreadable journals remain intact
-while unmatched interrupted SQL receipts fail without effects. Live applying installer identity
-survives its deadline, Linux discovery compares all versioned installations and retains an
+while unmatched interrupted SQL receipts fail without effects. The daemon preserves running
+receipts on failed directory inventory and retries under its owned
+shutdown lifecycle; successful recovery stops polling and concurrent active controls remain intact.
+Live applying installer identity survives its deadline, Linux discovery compares all versioned installations and retains an
 unversioned fallback, and MIME registration has bounded subprocess cleanup. ACP forced stop
 verifies PID/start identity; SQLite callbacks reject active same-database reentry and preserve
 request diagnostic context. Facets documents its existing parent/root/resumable filters through

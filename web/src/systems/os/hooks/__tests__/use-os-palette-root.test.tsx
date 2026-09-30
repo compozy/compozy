@@ -1722,8 +1722,10 @@ describe("palette nested views", () => {
     await user.click(screen.getByTestId("os-palette-sessions-next"));
     expect(paletteMocks.nextCatalogPage).toHaveBeenCalledTimes(1);
     await user.type(input, "Session 211");
-    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
-      expect.objectContaining({ q: "Session 211", search_fields: "title_agent", limit: 100 })
+    await waitFor(() =>
+      expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: "Session 211", search_fields: "title_agent", limit: 100 })
+      )
     );
     expect(screen.getByTestId("os-palette-session-view-s-211")).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*212/);

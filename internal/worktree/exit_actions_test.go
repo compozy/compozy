@@ -42,8 +42,13 @@ func TestExitActions(t *testing.T) {
 			if _, err := os.ReadDir(directory); err == nil || errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("fixture must fail inventory without implying absence: %v", err)
 			}
-			if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
-				t.Fatal(err)
+			if err := f.service.RecoverManagedDeliveries(
+				t.Context(),
+			); !errors.Is(
+				err,
+				ErrDeliveryInventoryUnavailable,
+			) {
+				t.Fatalf("failed inventory must request lifecycle-owned retry: %v", err)
 			}
 			running, err := f.store.ListRunningExitOperations(t.Context())
 			if err != nil || len(running) != 1 || running[0].ID != operation.ID || running[0].FinishedAt != nil {

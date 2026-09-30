@@ -46,3 +46,7 @@ historical native delivery receipts do not certify the new remediation bytes.
 If the journal directory exists but cannot be listed, preserve running receipts and journal
 bytes without execution effects. Once the inventory becomes readable, recover the same receipt.
 This differs from an absent directory, which establishes missing journals for orphan handling.
+Restore access after daemon boot and verify automatic recovery without restarting or submitting
+another action. While inventory is unavailable, retries back off; recovery stops polling after
+success and cancels/joins on shutdown or a later boot failure. A concurrent live delivery retains
+its receipt and completes once, without recovery releasing its fence or duplicating publication.

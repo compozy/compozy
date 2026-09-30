@@ -9,18 +9,44 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
+var ErrDeliveryInventoryUnavailable = errors.New("managed delivery journal inventory unavailable")
+
 // RecoverManagedDeliveries repairs receipts without replaying unknown or terminal intents.
 func (s *Service) RecoverManagedDeliveries(ctx context.Context) error {
 	journals, complete := s.readManagedDeliveryJournals(ctx)
 	if !complete {
-		return nil
+		return ErrDeliveryInventoryUnavailable
 	}
+	if err := s.failUnjournaledDeliveries(ctx, journals); err != nil {
+		return err
+	}
+	for _, journal := range journals {
+		active, err := s.repairManagedDeliveryReceipt(ctx, journal)
+		if err != nil {
+			return err
+		}
+		if active || deliveryJournalTerminal(journal) || s.deliverySessions == nil {
+			continue
+		}
+		if _, err := s.SubmitManagedDelivery(ctx, journal.Item.WorkspaceID, journal.Item.ID,
+			journal.SessionID, journal.Request); err != nil {
+			s.logger.ErrorContext(ctx, "managed delivery recovery refused",
+				"worktree_id", journal.Item.ID, "error", err)
+		}
+	}
+	return nil
+}
+
+// Admission and receipt repair share the control lock so a live operation cannot look orphaned.
+func (s *Service) failUnjournaledDeliveries(ctx context.Context, journals []*managedDeliveryJournal) error {
+	s.exitMu.Lock()
+	defer s.exitMu.Unlock()
 	running, err := s.store.ListRunningExitOperations(ctx)
 	if err != nil {
 		return err
 	}
 	for _, operation := range running {
-		if ExitAction(operation.Action) != ExitActionDeliver {
+		if ExitAction(operation.Action) != ExitActionDeliver || s.exits[operation.ID] != nil {
 			continue
 		}
 		if matchingDeliveryJournal(journals, operation) != nil {
@@ -40,20 +66,16 @@ func (s *Service) RecoverManagedDeliveries(ctx context.Context) error {
 			return err
 		}
 	}
-	for _, journal := range journals {
-		if err := s.finishManagedDeliveryReceipt(ctx, journal); err != nil {
-			return err
-		}
-		if deliveryJournalTerminal(journal) || s.deliverySessions == nil {
-			continue
-		}
-		if _, err := s.SubmitManagedDelivery(ctx, journal.Item.WorkspaceID, journal.Item.ID,
-			journal.SessionID, journal.Request); err != nil {
-			s.logger.ErrorContext(ctx, "managed delivery recovery refused",
-				"worktree_id", journal.Item.ID, "error", err)
-		}
-	}
 	return nil
+}
+
+func (s *Service) repairManagedDeliveryReceipt(ctx context.Context, journal *managedDeliveryJournal) (bool, error) {
+	s.exitMu.Lock()
+	defer s.exitMu.Unlock()
+	if s.exits[journal.OperationID] != nil {
+		return true, nil
+	}
+	return false, s.finishManagedDeliveryReceipt(ctx, journal)
 }
 
 // Failed inventory cannot establish that an operation has no journal.

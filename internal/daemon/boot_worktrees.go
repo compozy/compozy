@@ -187,12 +187,30 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 	return nil
 }
 
-func (d *Daemon) bootManagedDeliveries(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootManagedDeliveries(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state.worktrees == nil {
 		return nil
 	}
 	if err := state.worktrees.RecoverManagedDeliveries(ctx); err != nil {
-		return fmt.Errorf("daemon: recover managed deliveries: %w", err)
+		if !errors.Is(err, worktree.ErrDeliveryInventoryUnavailable) {
+			return fmt.Errorf("daemon: recover managed deliveries: %w", err)
+		}
+		workerCtx, cancel := context.WithCancel(ctx)
+		worker := newOwnedWorkerGroup(cancel)
+		complete, ok := worker.Begin()
+		if !ok {
+			cancel()
+			return fmt.Errorf("daemon: managed delivery recovery worker stopped before admission")
+		}
+		state.runtimeWorkers.managedDeliveries = worker
+		cleanup.add(func(cleanupCtx context.Context) error {
+			return stopManagedDeliveryRecovery(cleanupCtx, worker)
+		})
+		go func() {
+			defer complete()
+			defer cancel()
+			retryManagedDeliveryRecovery(workerCtx, state.worktrees.RecoverManagedDeliveries, state.logger)
+		}()
 	}
 	return nil
 }

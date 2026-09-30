@@ -69,8 +69,10 @@ func (s *Service) SubmitManagedDelivery(
 			return "", err
 		}
 	}
+	s.exitMu.Lock()
 	operation, err := s.registerManagedDeliveryOperation(ctx, path, journal, replay)
 	if err != nil {
+		s.exitMu.Unlock()
 		return "", err
 	}
 
@@ -81,7 +83,6 @@ func (s *Service) SubmitManagedDelivery(
 		cancel:      cancel,
 		done:        make(chan struct{}),
 	}
-	s.exitMu.Lock()
 	s.exits[operation.ID] = control
 	s.exitMu.Unlock()
 	s.emitExit(

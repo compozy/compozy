@@ -2,16 +2,21 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -425,6 +430,137 @@ func TestDaemonTerminalExecutionRoot(t *testing.T) {
 						t.Fatalf("error=%v, want code %s", err, wantCode)
 					}
 				}
+			}
+		})
+	}
+}
+
+// Canonical boot-worktree suite owns deferred journal recovery and cancellation with real SQLite/filesystem.
+func TestDaemonManagedDeliveryRecovery(t *testing.T) {
+	t.Parallel()
+	// Invariant: restored inventory resumes the same receipt without restart; shutdown joins pending retry.
+	// Owner: daemon managed-delivery boot lifecycle; existing boot-worktree suite.
+	for _, mode := range []string{"restore", "shutdown", "boot-failure"} {
+		t.Run("Should own deferred inventory recovery through "+mode, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.WithoutCancel(t.Context())); err != nil {
+					t.Errorf("close recovery fixture: %v", err)
+				}
+			})
+			now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+			const workspaceID = "ws-inventory-retry"
+			if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+				ID: workspaceID, Name: "Inventory retry", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			item := worktree.Worktree{ID: "wt-inventory-retry", ProfileID: store.DefaultProfileID,
+				WorkspaceID: workspaceID, Name: "inventory-retry", Path: t.TempDir(), State: worktree.StateReady,
+				Origin: worktree.OriginManual, SetupState: worktree.SetupNone, CreatedAt: now, UpdatedAt: now}
+			if err := db.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			operation := worktree.ExitOperation{ID: "op-inventory-retry", ProfileID: item.ProfileID,
+				WorkspaceID: workspaceID, WorktreeID: item.ID, Action: string(worktree.ExitActionDeliver),
+				State: "running", StartedAt: now}
+			if err := db.Worktrees.InsertExitOperation(ctx, operation); err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			directory := filepath.Join(root, ".delivery")
+			if err := os.WriteFile(directory, []byte("not a directory"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			service := worktree.NewService(db.Worktrees, nil,
+				worktree.WithConfig(config.WorktreesConfig{}, root), worktree.WithEvents(db))
+			state := &bootState{worktrees: service, logger: slog.Default()}
+			cleanup := &bootCleanup{}
+			if err := new(Daemon).bootManagedDeliveries(ctx, state, cleanup); err != nil {
+				t.Fatalf("inventory failure must not abort boot: %v", err)
+			}
+			worker := state.runtimeWorkers.managedDeliveries
+			if worker == nil {
+				t.Fatal("deferred recovery lacks boot/shutdown ownership")
+			}
+			t.Cleanup(func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+				defer cancel()
+				if err := stopManagedDeliveryRecovery(stopCtx, worker); err != nil {
+					t.Errorf("stop recovery fixture: %v", err)
+				}
+			})
+			if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 ||
+				running[0].ID != operation.ID {
+				t.Fatalf("unreadable inventory altered original receipt: %#v error=%v", running, err)
+			}
+			if mode == "shutdown" {
+				stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				var errs []error
+				state.runtimeWorkers.shutdown(stopCtx, &errs)
+				if err := errors.Join(errs...); err != nil {
+					t.Fatal(err)
+				}
+			} else if mode == "boot-failure" {
+				bootErr := errors.New("later boot step failed")
+				cleanup.run(ctx, &bootErr)
+			}
+			if err := os.Remove(directory); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(struct {
+				Version     int               `json:"version"`
+				OperationID string            `json:"operation_id"`
+				Item        worktree.Worktree `json:"worktree"`
+				Phase       string            `json:"phase"`
+			}{Version: 1, OperationID: operation.ID, Item: item, Phase: "completed"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(directory, "restored.json"), data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if mode != "restore" {
+				select {
+				case <-worker.Stop():
+				default:
+					t.Fatal("shutdown returned before retry worker joined")
+				}
+				if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 {
+					t.Fatalf("stopped worker recovered after cancellation: %#v error=%v", running, err)
+				}
+				return
+			}
+			waitForConditionWithin(t, "same receipt recovery after restored inventory", 5*time.Second, func() bool {
+				running, err := db.Worktrees.ListRunningExitOperations(ctx)
+				if err != nil {
+					t.Error(err)
+					return false
+				}
+				return len(running) == 0
+			})
+			summaries, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID,
+				WorktreeID: item.ID, Type: worktree.EventExitActionCompleted,
+			})
+			if err != nil || len(summaries) != 1 {
+				t.Fatalf("restored receipt terminal event=%#v error=%v", summaries, err)
+			}
+			var payload worktree.ExitEventPayload
+			if err := json.Unmarshal(summaries[0].Content, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.OperationID != operation.ID || payload.State != "completed" {
+				t.Fatalf("recovery changed receipt identity: %#v", payload)
 			}
 		})
 	}

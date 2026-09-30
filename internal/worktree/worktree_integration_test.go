@@ -2003,7 +2003,7 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 		}
 	})
 	for _, phase := range []string{
-		"submit", "head-race", "restaged", "restaged-recovery", "staged-recovery", "staged-restaged", "legacy-staged",
+		"submit", "active-recovery", "head-race", "restaged", "restaged-recovery", "staged-recovery", "staged-restaged", "legacy-staged",
 		"ambiguous", "prepared", "committing", "pushing", "pr", "completed", "canceled"} {
 		t.Run("Should reconcile managed delivery phase "+phase, func(t *testing.T) {
 			t.Parallel()
@@ -2053,6 +2053,17 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 					}
 				}
 			}
+			// Invariant: deferred recovery cannot terminalize a live delivery's receipt.
+			// Owner: worktree admission/recovery; canonical real Git managed delivery suite.
+			var stopEntered <-chan struct{}
+			var resumeStop func()
+			if phase == "active-recovery" {
+				entered, resume := make(chan struct{}), make(chan struct{})
+				stopEntered = entered
+				resumeStop = sync.OnceFunc(func() { close(resume) })
+				t.Cleanup(resumeStop)
+				caller.beforeStop = func() { close(entered); <-resume }
+			}
 			forge := newIntegrationHTTPForge(t)
 			WithSessionGuard(caller)(f.service)
 			WithManagedDeliverySessions(caller)(f.service)
@@ -2095,7 +2106,8 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 				}
 			}
 			var opID string
-			if phase == "submit" || phase == "head-race" || phase == "restaged" || phase == "ambiguous" {
+			if phase == "submit" || phase == "active-recovery" || phase == "head-race" ||
+				phase == "restaged" || phase == "ambiguous" {
 				if phase == "ambiguous" {
 					forge.failNext.Store(true)
 				}
@@ -2108,6 +2120,29 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 				)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if phase == "active-recovery" {
+					select {
+					case <-stopEntered:
+					case <-time.After(30 * time.Second):
+						t.Fatal("live delivery did not reach its runtime boundary")
+					}
+					recoveryDone := make(chan error, 1)
+					go func() { recoveryDone <- f.service.RecoverManagedDeliveries(t.Context()) }()
+					select {
+					case err := <-recoveryDone:
+						if err != nil {
+							t.Fatal(err)
+						}
+					case <-time.After(5 * time.Second):
+						resumeStop()
+						t.Fatal("recovery blocked on a live delivery's session fence")
+					}
+					running, err := f.store.ListRunningExitOperations(t.Context())
+					if err != nil || len(running) != 1 || running[0].ID != opID {
+						t.Fatalf("recovery changed live receipt: %#v error=%v", running, err)
+					}
+					resumeStop()
 				}
 			} else {
 				tree, err := f.service.deliveryExpectedTree(context.Background(), *item, request.IncludePaths)

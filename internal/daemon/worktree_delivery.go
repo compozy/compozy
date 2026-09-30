@@ -2,7 +2,10 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/worktree"
@@ -67,4 +70,43 @@ func (g daemonManagedDeliverySessions) StopDeliverySession(ctx context.Context, 
 		return worktree.ErrSessionActive
 	}
 	return nil
+}
+
+// Inventory retries end once recovery succeeds so terminal journals are not polled forever.
+func retryManagedDeliveryRecovery(
+	ctx context.Context,
+	recoverOperation func(context.Context) error,
+	logger *slog.Logger,
+) {
+	delay := time.Second
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		err := recoverOperation(ctx)
+		if !errors.Is(err, worktree.ErrDeliveryInventoryUnavailable) {
+			if err != nil && ctx.Err() == nil {
+				logger.ErrorContext(ctx, "managed delivery deferred recovery failed", "error", err)
+			}
+			return
+		}
+		delay = min(2*delay, 30*time.Second)
+		timer.Reset(delay)
+	}
+}
+
+func stopManagedDeliveryRecovery(ctx context.Context, worker *ownedWorkerGroup) error {
+	if worker == nil {
+		return nil
+	}
+	select {
+	case <-worker.Stop():
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("daemon: wait for managed delivery recovery: %w", ctx.Err())
+	}
 }
