@@ -108,7 +108,6 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
         loadError: this.currentLoadError(),
         wallpaper: this.wallpaper,
         reduceMotion: this.reduceMotion,
-        dockMagnify: this.dockMagnify,
       }),
       clientAttachmentToken: this.clientAttachmentToken,
     };
@@ -288,11 +287,6 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
 
   setWallpaper = (wallpaper: OsWallpaper): void => {
     this.wallpaper = wallpaper;
-    this.publish();
-  };
-
-  setDockMagnify = (on: boolean): void => {
-    this.dockMagnify = on;
     this.publish();
   };
 

@@ -185,7 +185,6 @@ export interface OsDesktopRuntimeViewInput {
   loadError: Error | null;
   wallpaper: OsWallpaper;
   reduceMotion: boolean;
-  dockMagnify: boolean;
 }
 
 /** Assembles the selector store the shell renders: projections → frames → windows. */
@@ -241,7 +240,6 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     focusedId: client?.focusedWindowId ?? null,
     wallpaper: input.wallpaper,
     reduceMotion: input.reduceMotion,
-    dockMagnify: input.dockMagnify,
     presentation:
       workArea.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "stack"
         ? "compact"

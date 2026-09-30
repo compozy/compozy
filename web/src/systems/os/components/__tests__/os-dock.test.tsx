@@ -5,7 +5,7 @@
 // Boundary OUT: coordinator command execution and browser lifecycle journeys.
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@compozy/ui";
 
@@ -15,7 +15,6 @@ import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
-import { isOsDockSeparator } from "../../lib/os-dock-model";
 import { pickLastCreatedSession } from "../../lib/last-created-session";
 import type { SessionPayload } from "@/systems/session";
 
@@ -147,7 +146,6 @@ function desktopState(
     focusedId,
     wallpaper: "ember",
     reduceMotion: false,
-    dockMagnify: true,
     presentation: "floating",
     viewportState: "ready",
     hydration: "live",
@@ -182,11 +180,6 @@ function catalogSession(
 
 describe("OsDock", () => {
   beforeEach(() => {
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
-      cb(0);
-      return 1;
-    });
-    vi.stubGlobal("cancelAnimationFrame", () => undefined);
     vi.clearAllMocks();
     launchCatalog.ready = true;
     launchCatalog.sessions = [];
@@ -197,15 +190,12 @@ describe("OsDock", () => {
     setDockState(desktopState());
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("Should expose the real closed, running, and minimized state for each launcher", () => {
+  it("Should expose the real closed, running, focused, and minimized state for each launcher", () => {
     renderDock(
       <OsDock
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard", running: true },
+          { id: "session", name: "Sessions", icon: "sessions", running: true, active: true },
           { id: "tasks", name: "Tasks", icon: "tasks", minimized: true },
           { id: "agents", name: "Agents", icon: "agents" },
         ]}
@@ -217,6 +207,11 @@ describe("OsDock", () => {
       "data-state",
       "running"
     );
+    expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: "Sessions" })).toHaveAttribute(
+      "aria-current",
+      "true"
+    );
     expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute(
       "data-state",
       "minimized"
@@ -227,9 +222,7 @@ describe("OsDock", () => {
   it("Should wait for authoritative hydration but stay enabled while the stream reconnects", async () => {
     const user = userEvent.setup();
     setDockState({ ...desktopState(), hydration: "pending", connectionStatus: "reconnecting" });
-    const view = renderDock(
-      <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
-    );
+    const view = renderDock(<DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled />);
     const tasks = screen.getByRole("button", { name: "Tasks" });
 
     expect(tasks).toBeDisabled();
@@ -239,7 +232,7 @@ describe("OsDock", () => {
     setDockState({ ...desktopState(), connectionStatus: "reconnecting" });
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
+        <DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled />
       </TooltipProvider>
     );
 
@@ -268,13 +261,13 @@ describe("OsDock", () => {
     expect(screen.getByRole("button", { name: "Tasks — 12 need you" })).toHaveTextContent("9+");
   });
 
-  it("Should show the launcher name in a tooltip on focus", async () => {
+  it("Should rove focus across launchers with one tab stop and show the name in a tooltip", async () => {
     const user = userEvent.setup();
     renderDock(
       <OsDock
-        magnify={false}
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+          { id: "tasks", name: "Tasks", icon: "tasks", running: true, active: true },
           { id: "knowledge", name: "Knowledge", icon: "knowledge" },
         ]}
         onSelect={vi.fn()}
@@ -282,73 +275,23 @@ describe("OsDock", () => {
     );
 
     await user.tab();
-    await user.tab();
+    expect(screen.getByRole("button", { name: "Tasks" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
     await waitFor(() => {
       expect(screen.getByText("Knowledge")).toBeInTheDocument();
     });
-  });
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
 
-  it("Should magnify the nearest launcher on pointer proximity", () => {
-    renderDock(
-      <OsDock
-        items={[
-          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
-          { id: "tasks", name: "Tasks", icon: "tasks" },
-        ]}
-        onSelect={vi.fn()}
-      />
-    );
-
-    const dock = screen.getByRole("navigation", { name: "Dock" });
-    const dashboard = screen.getByRole("button", { name: "Dashboard" });
-    vi.spyOn(dashboard, "getBoundingClientRect").mockReturnValue({
-      left: 100,
-      width: 46,
-      top: 0,
-      height: 46,
-      right: 146,
-      bottom: 46,
-      x: 100,
-      y: 0,
-      toJSON: () => ({}),
-    });
-
-    fireEvent.pointerMove(dock, { clientX: 123 });
-
-    expect(dashboard.style.transform).toContain("scale(");
-    expect(dashboard.style.transform).toContain("translateY(");
-  });
-
-  it("Should keep launchers static when magnification is disabled", () => {
-    renderDock(
-      <OsDock
-        magnify={false}
-        items={[
-          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
-          { id: "tasks", name: "Tasks", icon: "tasks" },
-        ]}
-        onSelect={vi.fn()}
-      />
-    );
-
-    const dock = screen.getByRole("navigation", { name: "Dock" });
-    const dashboard = screen.getByRole("button", { name: "Dashboard" });
-    vi.spyOn(dashboard, "getBoundingClientRect").mockReturnValue({
-      left: 100,
-      width: 46,
-      top: 0,
-      height: 46,
-      right: 146,
-      bottom: 46,
-      x: 100,
-      y: 0,
-      toJSON: () => ({}),
-    });
-
-    fireEvent.pointerMove(dock, { clientX: 123 });
-
-    expect(dashboard.style.transform).toBe("");
+    await user.tab();
+    expect(document.body).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
   });
 
   it("Should focus the MRU task instance, cycle on repeat, and restore a minimized turn (UT-043)", () => {
@@ -407,26 +350,20 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should keep Agents through Triggers in one dock division after Terminal", () => {
+  it("Should list every launcher in catalog order with no group separators", () => {
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
-    const ids = result.current.entries.map(entry =>
-      isOsDockSeparator(entry) ? `sep:${entry.id}` : entry.id
-    );
 
-    expect(ids).toEqual([
+    expect(result.current.entries.map(entry => entry.id)).toEqual([
       "session",
       "dashboard",
       "terminal",
-      "sep:sep-1",
       "agents",
       "tasks",
       "loops",
       "jobs",
       "triggers",
-      "sep:sep-2",
       "marketplace",
       "knowledge",
-      "sep:sep-3",
       "vault",
     ]);
   });
@@ -543,20 +480,6 @@ describe("OsDock", () => {
     }
   );
 
-  it("Should keep the plus control creating a session even when the catalog has rows", async () => {
-    const user = userEvent.setup();
-    const onNewSession = vi.fn();
-    launchCatalog.sessions = [catalogSession("sess-newer", "2026-08-02T00:00:00Z")];
-    renderDock(
-      <DesktopDock badges={{}} onNewSession={onNewSession} pager={null} contextMenusEnabled />
-    );
-
-    await user.click(screen.getByRole("button", { name: "New session" }));
-
-    expect(onNewSession).toHaveBeenCalledOnce();
-    expect(jumpToSession).not.toHaveBeenCalled();
-  });
-
   it("Should mark Terminal running from catalog truth rather than an open window", () => {
     const open = windowFixture("window:terminal", "terminal");
     const { result, rerender } = renderHook(
@@ -644,16 +567,14 @@ describe("OsDock", () => {
   it("Should close an open destination menu and keep it unavailable while an overlay is active (UT-085)", async () => {
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
-    const view = renderDock(
-      <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
-    );
+    const view = renderDock(<DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled />);
     const taskButton = screen.getByRole("button", { name: "Tasks" });
     fireEvent.contextMenu(taskButton);
     await screen.findByText("Open in new window");
 
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled={false} />
+        <DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled={false} />
       </TooltipProvider>
     );
 

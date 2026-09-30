@@ -10,7 +10,7 @@ export interface DesktopPagerSurfaceProps {
   onOpenOverview: (request: DesktopPagerOverflowRequest) => void;
 }
 
-/** Presentational adapter for the Dock-owned daemon desktop pager. */
+/** Presentational adapter for the topbar-owned daemon desktop pager. */
 export function DesktopPagerSurface({
   activeDesktopId,
   desktops,

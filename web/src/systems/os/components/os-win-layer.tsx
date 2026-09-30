@@ -163,8 +163,8 @@ export function OsWinLayer({
     <div
       ref={layerRef}
       data-slot="os-win-layer"
-      // The measured work area stops above the Dock band so snaps and floating clamps never resolve beneath it.
-      className="absolute inset-x-0 top-0 bottom-[calc(var(--size-dock-band)+env(safe-area-inset-bottom,0px))]"
+      // The desk is the whole work area: the rail and the compact tab bar own their own grid tracks.
+      className="absolute inset-0"
     >
       {desktops.map(desktop => (
         <DesktopLayer

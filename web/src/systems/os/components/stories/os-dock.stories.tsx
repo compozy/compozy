@@ -11,7 +11,7 @@ import {
   type TerminalRunState,
 } from "@/systems/terminal/parts";
 
-import { OsDock, OsDockZone, type OsDockItemData } from "../os-dock";
+import { OsDock, type OsDockItemData } from "../os-dock";
 import { OsWindowFrame } from "../os-window-frame";
 import { buildDeskItems, DesktopShell, DESK_ITEMS } from "./_desktop";
 
@@ -23,7 +23,7 @@ const meta: Meta<typeof OsDock> = {
     docs: {
       description: {
         component:
-          "The dock: a centered glass strip of app launchers floating over the desktop, with a detached New Session control. Running shows a filled indicator, minimized a hollow one with a dimmed glyph, and badges bind to runtime projections (capped at 9+).",
+          "The rail: the dock as a vertical launcher column on the chrome surface beside the desktop. A dot at the left marks a running app, the focused app sits on the selected plate, minimized shows a hollow ring with a dimmed glyph, and badges bind to runtime projections (capped at 9+). Up/Down move focus between launchers.",
       },
     },
   },
@@ -119,16 +119,19 @@ function SessionsBody() {
 }
 
 /**
- * Resting — full dock order with separators, detached New Session, running /
- * minimized / badge fixtures, and the Sessions window (search + seven rows +
- * Show all) over the ember desktop.
+ * Resting — full rail order with running / focused / minimized / badge
+ * fixtures and the Sessions window over the ember desktop.
  */
-const SESSIONS_DESK = buildDeskItems({ open: ["sessions"], minimized: ["loops"] });
+const SESSIONS_DESK = buildDeskItems({
+  open: ["dashboard"],
+  active: "sessions",
+  minimized: ["loops"],
+});
 
 export const Resting: Story = {
   args: { items: SESSIONS_DESK, onSelect: fn() },
   render: () => (
-    <DesktopShell dock={false} dockItems={SESSIONS_DESK}>
+    <DesktopShell dockItems={SESSIONS_DESK}>
       <OsWindowFrame
         title="Sessions"
         focused
@@ -137,10 +140,14 @@ export const Resting: Story = {
       >
         <SessionsBody />
       </OsWindowFrame>
-      <OsDockZone items={SESSIONS_DESK} onSelect={fn()} onNewSession={fn()} />
     </DesktopShell>
   ),
 };
+
+/** Standalone rail column at a fixed height, as the shell grid sizes it. */
+function RailFrame({ children }: { children: React.ReactNode }) {
+  return <div className="flex h-[560px] w-fit bg-desk">{children}</div>;
+}
 
 /**
  * Badge cap — counts above 9 collapse to "9+"; zero renders no badge.
@@ -150,16 +157,14 @@ export const BadgeCap: Story = {
     items: [
       { id: "sessions", name: "Sessions", icon: "sessions", running: true, badge: 12 },
       { id: "tasks", name: "Tasks", icon: "tasks", badge: 9 },
-      { id: "agents", name: "Agents", icon: "agents" },
+      { id: "agents", name: "Agents", icon: "agents", badge: 0 },
     ] satisfies OsDockItemData[],
     onSelect: fn(),
   },
   render: args => (
-    <DesktopShell dock={false}>
-      <div className="absolute inset-x-0 bottom-2.5 flex justify-center">
-        <OsDock {...args} />
-      </div>
-    </DesktopShell>
+    <RailFrame>
+      <OsDock {...args} />
+    </RailFrame>
   ),
 };
 
@@ -169,30 +174,9 @@ export const BadgeCap: Story = {
 export const PresentationOnly: Story = {
   args: { items: DESK_ITEMS },
   render: args => (
-    <DesktopShell dock={false}>
-      <OsDockZone items={args.items ?? DESK_ITEMS} />
-    </DesktopShell>
-  ),
-};
-
-/**
- * Hover magnify — OpenDesign proximity field (neighbors lift + scale). Move
- * the pointer across the dock strip to verify the falloff bulge.
- */
-export const HoverMagnify: Story = {
-  args: { items: DESK_ITEMS, onSelect: fn(), magnify: true },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Pointer proximity magnification matching OpenDesign `MAG_RADIUS=96` / `MAG_SCALE=0.34`. Compact presentation and prefers-reduced-motion disable the effect.",
-      },
-    },
-  },
-  render: () => (
-    <DesktopShell dock={false}>
-      <OsDockZone items={DESK_ITEMS} onSelect={fn()} onNewSession={fn()} magnify />
-    </DesktopShell>
+    <RailFrame>
+      <OsDock items={args.items ?? DESK_ITEMS} />
+    </RailFrame>
   ),
 };
 
@@ -255,29 +239,26 @@ export const TerminalLauncher: Story = {
     },
   },
   render: () => (
-    <DesktopShell dock={false}>
-      <div className="absolute inset-x-0 top-[62px] flex items-start justify-center gap-4">
-        {TERMINAL_BADGE_STATES.map((state, index) => (
-          <OsDock
-            key={state.label}
-            aria-label={`Dock — ${state.label}`}
-            magnify={false}
-            items={
-              [
-                { id: "sessions", name: "Sessions", icon: "sessions" },
-                {
-                  id: "terminal",
-                  name: "Terminal",
-                  icon: "terminal",
-                  running: terminalsRunning(TERMINAL_STRIP_TERMINALS[index]),
-                  badge: projectTerminalBadge(state.input).count,
-                },
-                { id: "tasks", name: "Tasks", icon: "tasks" },
-              ] satisfies OsDockItemData[]
-            }
-          />
-        ))}
-      </div>
-    </DesktopShell>
+    <div className="flex h-[240px] w-fit gap-4 bg-desk">
+      {TERMINAL_BADGE_STATES.map((state, index) => (
+        <OsDock
+          key={state.label}
+          aria-label={`Dock — ${state.label}`}
+          items={
+            [
+              { id: "sessions", name: "Sessions", icon: "sessions" },
+              {
+                id: "terminal",
+                name: "Terminal",
+                icon: "terminal",
+                running: terminalsRunning(TERMINAL_STRIP_TERMINALS[index]),
+                badge: projectTerminalBadge(state.input).count,
+              },
+              { id: "tasks", name: "Tasks", icon: "tasks" },
+            ] satisfies OsDockItemData[]
+          }
+        />
+      ))}
+    </div>
   ),
 };

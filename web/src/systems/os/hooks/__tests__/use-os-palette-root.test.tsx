@@ -476,7 +476,6 @@ function desktopFixture(
     connectionStatus: "connected",
     desktopBounds: null,
     desktops: DESKTOPS,
-    dockMagnify: false,
     focusedId,
     frames: {},
     hydration: "live",

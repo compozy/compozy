@@ -71,6 +71,8 @@ export interface DesktopMenubarProps {
    * injected rather than constructed here — the bar stays presentational.
    */
   profileSwitcher?: React.ReactNode;
+  /** Desktop pager, supplied by the shell (it owns the desktop switch wiring). */
+  pager?: React.ReactNode;
   /** No project is bound, so there is no layout stream to report on. */
   layoutUnbound?: boolean;
 }
@@ -132,6 +134,7 @@ export function DesktopMenubar({
   removalProfile,
   onRemoveWorktrees,
   profileSwitcher,
+  pager,
   layoutUnbound = false,
 }: DesktopMenubarProps) {
   const actions = useMenubarActions();
@@ -234,6 +237,7 @@ export function DesktopMenubar({
         ) : null
       }
       profileSwitcher={profileSwitcher}
+      pager={pager}
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

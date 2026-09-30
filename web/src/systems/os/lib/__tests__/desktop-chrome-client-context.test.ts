@@ -82,7 +82,6 @@ describe("selectPaletteDestinationRoute", () => {
       focusedId: focused.id,
       wallpaper: "ember",
       reduceMotion: false,
-      dockMagnify: false,
       presentation: "floating",
       viewportState: "ready",
       hydration: "live",

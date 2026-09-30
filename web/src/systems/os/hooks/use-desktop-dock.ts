@@ -3,7 +3,7 @@ import { shallowEqual } from "@xstate/store";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import { notifyUser } from "@/lib/user-feedback";
-import { dockBadgeFor, dockIconForApp, type OsDockEntry } from "../lib/os-dock-model";
+import { dockBadgeFor, dockIconForApp, type OsDockItemData } from "../lib/os-dock-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
 import type { OsAppId, OsPresentation } from "../lib/os-types";
@@ -13,10 +13,8 @@ import { useOsShell } from "./use-os-shell";
 import { useSessionLaunchCatalog } from "./use-session-launch-catalog";
 
 export interface DesktopDockModel {
-  entries: OsDockEntry[];
+  entries: OsDockItemData[];
   presentation: OsPresentation;
-  /** Floating-only magnification, gated by the appearance toggle and motion prefs. */
-  magnify: boolean;
   commandsAvailable: boolean;
   handleSelect: (id: string) => void;
 }
@@ -31,9 +29,9 @@ export interface UseDesktopDockOptions {
 }
 
 /**
- * Dock view-model: registry groups with running/minimized/badge state, the
- * open-or-minimize activation semantics (tab-bar taps never minimize —
- * os-v2.js:462), and the magnification gates the prototype applies.
+ * Dock view-model: registry order with running/active/minimized/badge state
+ * and the open-or-minimize activation semantics (tab-bar taps never minimize —
+ * os-v2.js:462).
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
@@ -43,10 +41,6 @@ export function useDesktopDock(
   const launchCatalog = useSessionLaunchCatalog();
   const jumpToSession = useAttentionJump();
   const presentation = useDesktop(state => state.presentation);
-  // Magnification composes every gate the prototype applies (os-v2.js): the
-  // appearance toggle here, the system reduced-motion preference inside
-  // `useDockMagnify`, and compact presentation via the tab-bar branch.
-  const magnify = useDesktop(state => state.dockMagnify && !state.reduceMotion);
   const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
   // Dock state aggregates every instance of an app (ADR-010 §3): the icon
   // lights while any window of that app is live, whatever its instance key.
@@ -59,36 +53,37 @@ export function useDesktopDock(
     return byApp;
   }, shallowEqual);
 
-  const groups = dockAppDescriptors();
   const sessionApp = OS_APP_DESCRIPTORS.session;
-  const entries: OsDockEntry[] = [
+  const sessionState = windowStates[sessionApp.id];
+  // The rail keeps catalog order without group seams (shell-rail v2).
+  const entries: OsDockItemData[] = [
     {
       id: sessionApp.id,
       name: "Sessions",
       icon: dockIconForApp(sessionApp),
-      running: windowStates[sessionApp.id] === "open" || windowStates[sessionApp.id] === "focused",
-      minimized: windowStates[sessionApp.id] === "minimized",
+      running: sessionState === "open" || sessionState === "focused",
+      active: sessionState === "focused",
+      minimized: sessionState === "minimized",
       badge: dockBadgeFor(sessionApp, badges),
     },
+    ...dockAppDescriptors()
+      .flat()
+      .map(app => {
+        const state = windowStates[app.id];
+        return {
+          id: app.id,
+          name: app.title,
+          icon: dockIconForApp(app),
+          running:
+            app.id === "terminal" && terminalLive !== undefined
+              ? terminalLive
+              : state === "open" || state === "focused",
+          active: state === "focused",
+          minimized: state === "minimized",
+          badge: dockBadgeFor(app, badges),
+        };
+      }),
   ];
-  groups.forEach((group, index) => {
-    // Catalog seams: Home+Terminal | Agents…Triggers | Marketplace…Knowledge | Vault.
-    if (index > 0) entries.push({ id: `sep-${index}`, sep: true });
-    for (const app of group) {
-      const state = windowStates[app.id];
-      entries.push({
-        id: app.id,
-        name: app.title,
-        icon: dockIconForApp(app),
-        running:
-          app.id === "terminal" && terminalLive !== undefined
-            ? terminalLive
-            : state === "open" || state === "focused",
-        minimized: state === "minimized",
-        badge: dockBadgeFor(app, badges),
-      });
-    }
-  });
 
   const handleSelect = (id: string) => {
     if (!commandsAvailable) return;
@@ -138,5 +133,5 @@ export function useDesktopDock(
     void coordinator.userActivateWindow(target.id);
   };
 
-  return { entries, presentation, magnify, commandsAvailable, handleSelect };
+  return { entries, presentation, commandsAvailable, handleSelect };
 }

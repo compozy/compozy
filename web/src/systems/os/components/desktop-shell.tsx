@@ -53,7 +53,7 @@ import {
 
 /**
  * The desktop shell replaces the AppShell chrome (ADR-001): onboarding gate,
- * menubar, wallpapered win-layer, dock, ⌘K palette, and the window-manager
+ * menubar, rail, wallpapered win-layer, ⌘K palette, and the window-manager
  * sync lifecycle. Route matches render through the (invisible) Outlet as
  * sync-controllers; windows render in the layer.
  */
@@ -226,7 +226,9 @@ function DesktopShellScopedBody({
       data-first-run={firstRun ? "true" : undefined}
       inert={firstRun}
       tabIndex={-1}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
+      // Topbar across the full width; rail + desk below it; the compact tab bar
+      // takes the last row. Each dock presentation claims its own track.
+      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
         profileSwitcher={
@@ -237,7 +239,7 @@ function DesktopShellScopedBody({
         // Dimmed while setup blocks: readable enough to see what you unlock,
         // never bright enough to read as available.
         className={cn(
-          "transition-opacity duration-shell-slow motion-reduce:transition-none",
+          "col-span-full transition-opacity duration-shell-slow motion-reduce:transition-none",
           firstRun && "opacity-68"
         )}
         // Global changes the data lens, not the desktop layout partition. The
@@ -277,8 +279,24 @@ function DesktopShellScopedBody({
         onRemoveWorktree={worktreeDialogs.requestRemove}
         removalProfile={worktreeDialogs.removalProfile}
         onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
+        pager={
+          <DesktopPagerSurface
+            activeDesktopId={pager.activeDesktopId}
+            desktops={pager.desktops}
+            compact={pager.compact}
+            canSwitchDesktop={pager.canSwitchDesktop}
+            onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
+            onOpenOverview={onOpenDesktopOverview}
+          />
+        }
       />
-      <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
+      <ShellDesktopDock
+        dormant={firstRun}
+        onNewSession={openNewSession}
+        badges={attention.badges}
+        contextMenusEnabled={overlays.activeOverlay === null}
+      />
+      <div data-slot="os-desk" className="relative col-start-2 row-start-2 min-h-0 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
         {model.activeWorkspaceId !== null ? (
           <WorkspaceProfilesHint
@@ -319,22 +337,6 @@ function DesktopShellScopedBody({
             manager.clearConflict();
             manager.refreshSnapshot();
           }}
-        />
-        <ShellDesktopDock
-          dormant={firstRun}
-          onNewSession={openNewSession}
-          badges={attention.badges}
-          contextMenusEnabled={overlays.activeOverlay === null}
-          pager={
-            <DesktopPagerSurface
-              activeDesktopId={pager.activeDesktopId}
-              desktops={pager.desktops}
-              compact={pager.compact}
-              canSwitchDesktop={pager.canSwitchDesktop}
-              onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
-              onOpenOverview={onOpenDesktopOverview}
-            />
-          }
         />
       </div>
       {/* Route matches mount here as sync-controllers; they render null. */}

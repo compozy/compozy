@@ -70,6 +70,8 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * losing mark + toggle + chip.
    */
   scopeControl?: React.ReactNode;
+  /** Desktop pager, the first control of the trailing tray (shell wiring). */
+  pager?: React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
   /**
@@ -180,6 +182,7 @@ export function OsMenuBar({
   workspaceMenu,
   scopeControl,
   wrapBellTrigger,
+  pager,
   profileSwitcher,
   className,
   ...props
@@ -281,6 +284,7 @@ export function OsMenuBar({
         </div>
 
         <div className={cn("flex items-center gap-1", WINDOW_NO_DRAG)}>
+          {pager}
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
               not a menu item, and nesting it there breaks the menu's semantics. */}
           {scopeNotice}

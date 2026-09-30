@@ -3,9 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
-import { OsDockZone } from "../os-dock";
-import { OsDockTabBar } from "../os-dock-tab-bar";
-import { DESK_ITEMS, DesktopShell } from "./_desktop";
+import { DesktopShell } from "./_desktop";
 
 const DESKTOPS: DesktopPagerItem[] = [
   { id: "control", name: "Control" },
@@ -39,44 +37,23 @@ function InteractivePager({
   const [activeDesktopId, setActiveDesktopId] = useState(initialDesktopId);
 
   return (
-    <DesktopShell wallpaper="carbon" deskHint dock={false}>
-      {compact ? (
-        <OsDockTabBar
-          items={DESK_ITEMS}
-          leading={
-            <DesktopPager
-              desktops={desktops}
-              activeDesktopId={activeDesktopId}
-              compact
-              onSelectDesktop={desktopId => {
-                setActiveDesktopId(desktopId);
-                onSelectDesktop(desktopId);
-              }}
-              onOpenOverview={onOpenOverview}
-            />
-          }
-          onSelect={fn()}
-          onNewSession={fn()}
+    <DesktopShell
+      wallpaper="carbon"
+      deskHint
+      compact={compact}
+      pager={
+        <DesktopPager
+          desktops={desktops}
+          activeDesktopId={activeDesktopId}
+          compact={compact}
+          onSelectDesktop={desktopId => {
+            setActiveDesktopId(desktopId);
+            onSelectDesktop(desktopId);
+          }}
+          onOpenOverview={onOpenOverview}
         />
-      ) : (
-        <OsDockZone
-          items={DESK_ITEMS}
-          leading={
-            <DesktopPager
-              desktops={desktops}
-              activeDesktopId={activeDesktopId}
-              onSelectDesktop={desktopId => {
-                setActiveDesktopId(desktopId);
-                onSelectDesktop(desktopId);
-              }}
-              onOpenOverview={onOpenOverview}
-            />
-          }
-          onSelect={fn()}
-          onNewSession={fn()}
-        />
-      )}
-    </DesktopShell>
+      }
+    />
   );
 }
 
@@ -88,7 +65,7 @@ const meta: Meta<typeof DesktopPager> = {
     docs: {
       description: {
         component:
-          "Bottom-chrome desktop navigation with invisible 44px targets, minimal position dots, keyboard navigation, and adaptive overflow into the management overview.",
+          "Topbar desktop navigation with invisible 44px targets, minimal position dots, keyboard navigation, and adaptive overflow into the management overview.",
       },
     },
   },
@@ -151,7 +128,7 @@ export const OverflowAtEnd: Story = {
   ),
 };
 
-/** Compact tab-bar mode keeps the active desktop between at most two overflow controls. */
+/** Compact presentation keeps the active desktop between at most two overflow controls. */
 export const CompactTabBar: Story = {
   args: {
     desktops: MANY_DESKTOPS,

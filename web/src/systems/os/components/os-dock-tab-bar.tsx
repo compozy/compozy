@@ -4,12 +4,7 @@ import { Icon, PillCount } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import {
-  dockItemAccessibleName,
-  isOsDockSeparator,
-  type OsDockEntry,
-  type OsDockItemData,
-} from "../lib/os-dock-model";
+import { dockItemAccessibleName, type OsDockItemData } from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
 /** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
@@ -69,22 +64,20 @@ function TabBarItem({
 }
 
 export interface OsDockTabBarProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
-  items: OsDockEntry[];
-  leading?: React.ReactNode;
+  items: OsDockItemData[];
   onSelect: (id: string) => void;
   disabled?: boolean;
   onNewSession: () => void;
 }
 
 /**
- * Compact (<960px) dock: a full-width 56px bottom tab bar (os-v2.css mobile
- * block) — horizontally scrollable strip with full launcher parity, no
- * magnification, no tooltips, no separators, safe-area aware. New Session
- * keeps its own segment behind a leading hairline.
+ * Compact (<960px) dock: a full-width bottom tab bar in its own shell-grid
+ * row below the desktop — horizontally scrollable strip with full launcher
+ * parity, no tooltips, safe-area aware. New Session keeps its own segment
+ * behind a leading hairline.
  */
 export function OsDockTabBar({
   items,
-  leading,
   onSelect,
   disabled,
   onNewSession,
@@ -95,34 +88,18 @@ export function OsDockTabBar({
     <nav
       data-slot="os-dock-tabbar"
       aria-label="Dock"
-      className={cn(
-        "absolute inset-x-0 bottom-0 z-10 flex items-stretch",
-        "border-t border-line bg-shell-glass backdrop-blur-shell",
-        className
-      )}
+      className={cn("flex items-stretch border-t border-line bg-rail", className)}
       {...props}
     >
-      {leading ? (
-        <div
-          className="flex shrink-0 items-center pt-1.5 pb-[calc(--spacing(1.5)+env(safe-area-inset-bottom,0px))]"
-          style={{
-            paddingInlineStart: "calc(var(--spacing) * 4 + env(safe-area-inset-left, 0px))",
-          }}
-        >
-          {leading}
-        </div>
-      ) : null}
       <div
         className={cn(
           "no-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto",
           "overscroll-x-contain px-1.5 pt-1.5 pb-[calc(--spacing(1.5)+env(safe-area-inset-bottom,0px))]"
         )}
       >
-        {items.map(entry =>
-          isOsDockSeparator(entry) ? null : (
-            <TabBarItem key={entry.id} item={entry} onSelect={onSelect} disabled={disabled} />
-          )
-        )}
+        {items.map(item => (
+          <TabBarItem key={item.id} item={item} onSelect={onSelect} disabled={disabled} />
+        ))}
       </div>
       <div
         data-slot="os-dock-actions"

@@ -153,7 +153,6 @@ export interface OsDesktopRuntimeStore {
   focusedId: string | null;
   wallpaper: OsWallpaper;
   reduceMotion: boolean;
-  dockMagnify: boolean;
   presentation: OsPresentation;
   viewportState: OsViewportState;
   hydration: OsHydration;
@@ -220,7 +219,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
   reopenWindow(): WindowManagerCommandOutcome;
   closeWindowScoped(windowId: string, scope: OsCloseScope): Promise<boolean>;
   setWallpaper(wallpaper: OsWallpaper): void;
-  setDockMagnify(on: boolean): void;
   setReduceMotion(on: boolean): void;
   setDesktopBounds(bounds: OsDesktopBounds): void;
   createDesktop(): void;
