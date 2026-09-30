@@ -156,6 +156,17 @@ describe("useTaskDetailPage", () => {
     expect(hooks.stream.mock.calls.at(-1)?.[1]).toMatchObject({ enabled: false });
   });
 
+  // Regression: a suspended window disables the detail read; with no data yet the
+  // page used to fall through to "Task not found" for a task that exists.
+  it("Should keep waiting, not report a missing task, while its window is suspended", () => {
+    const { result } = renderHook(() => useTaskDetailPage("task_001", { liveDataEnabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.detailLoading).toBe(true);
+    expect(getTask).not.toHaveBeenCalled();
+  });
+
   it("Should load detail, timeline, runs, profile, and reviews for a task", async () => {
     const { result } = renderHook(() => useTaskDetailPage("task_001"), {
       wrapper: createWrapper(),
@@ -206,6 +217,7 @@ describe("useTaskDetailPage", () => {
     const { result } = renderHook(() => useTaskDetailPage(""), { wrapper: createWrapper() });
 
     expect(result.current.fatalError).toBeInstanceOf(Error);
+    expect(result.current.detailLoading).toBe(false);
     expect(getTask).not.toHaveBeenCalled();
   });
 

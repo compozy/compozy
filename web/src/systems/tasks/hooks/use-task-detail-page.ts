@@ -259,7 +259,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     activeRun,
     detail,
     detailError: detailQuery.error ?? null,
-    detailLoading: detailQuery.isLoading && !detail,
+    // `isPending`, not `isLoading`: a suspended window disables the read, and a
+    // disabled read with no data yet is still waiting, not a missing task.
+    detailLoading: hasTaskId && detailQuery.isPending,
     fatalError,
     handleApproveTask,
     handleCancelTask,

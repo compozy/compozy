@@ -27,3 +27,5 @@ H1/H2 headings and a table still sits comfortably in the card with no horizontal
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
 
 qa-impact: 2026-09-30 shell rail v2. The window head is 48px. Already untested; expectation updated.
+
+qa-impact: 2026-09-30 shell rail v2 (surf-tasks). The head status is now the canonical state glyph beside the literal status word (no tinted pill), an approval waiting on the operator reads in the needs-you accent (pill and band), priority is a neutral lightness ramp (no signal hue), a failed run's error sits on its own line above the retry guidance, and a suspended window keeps waiting instead of reporting "Task not found". Verification walk (both themes): `.compozy/tasks/shell-rail/reports/surf-tasks-T3.md`.

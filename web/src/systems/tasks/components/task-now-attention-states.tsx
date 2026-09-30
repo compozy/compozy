@@ -37,7 +37,8 @@ function TaskApprovalState() {
       body="Approve or reject it above. It won't start until someone approves it."
       data-testid="tasks-detail-now-approval"
       title="Waiting for your approval"
-      tone="info"
+      // An approval waits on a person: the needs-you accent.
+      tone="accent"
     />
   );
 }

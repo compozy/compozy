@@ -77,7 +77,7 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
   const completed = runs.filter(run => run.status === "completed").length;
   const lastCompleted = terminal.find(run => run.status === "completed" || run.status === "failed");
 
-  let successRateValue = "--";
+  let successRateValue = "—";
   let successRateTone: MetricTone = "default";
   if (terminal.length > 0) {
     const pct = (completed / terminal.length) * 100;
@@ -85,7 +85,7 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
     successRateTone = pct >= 90 ? "success" : pct >= 70 ? "default" : "warning";
   }
 
-  const lastRunValue = lastCompleted ? formatRelativeTime(lastCompleted.started_at) : "--";
+  const lastRunValue = lastCompleted ? formatRelativeTime(lastCompleted.started_at) : "—";
   const lastRunSubtext = lastCompleted ? formatDateTime(lastCompleted.started_at) : undefined;
 
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;

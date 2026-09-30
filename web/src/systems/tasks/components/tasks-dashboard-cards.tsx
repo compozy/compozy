@@ -59,14 +59,14 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
         data-testid="tasks-dashboard-card-success-rate"
         subtext="last 24h"
         label="Success rate"
-        value={successRate === null ? "--" : formatPercent(successRate)}
+        value={successRate === null ? "—" : formatPercent(successRate)}
       />
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-average-duration"
         subtext={pickupDetail}
         label="Time to pick up"
-        value={pickupSamples > 0 ? formatDurationMs(pickupMs) : "--"}
+        value={pickupSamples > 0 ? formatDurationMs(pickupMs) : "—"}
       />
       <Metric
         labelCase="eyebrow"

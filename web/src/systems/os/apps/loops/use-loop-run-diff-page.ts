@@ -113,7 +113,8 @@ export function useLoopRunDiffPage(
     },
     hasComparison: query !== null,
     isDiffLoading: query !== null && diffQuery.isLoading,
-    isRunLoading: runQuery.isLoading,
+    // A suspended window disables the read; waiting is not a missing run.
+    isRunLoading: workspaceId !== "" && runId !== "" && runQuery.isPending,
     loopName,
     mode: search.against_run === undefined ? "generation" : "run",
     onAgainstGenerationChange: generation => {
