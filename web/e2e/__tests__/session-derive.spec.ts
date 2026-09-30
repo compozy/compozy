@@ -261,6 +261,13 @@ test("E2E-002: operator forks a session from a message and the source keeps ever
   await expect(windowFrame(childWin).getByTestId("session-origin-pill")).toContainText(
     "Forked from"
   );
+  // The child opens beside its source at half width: the head's meta (agent,
+  // origin pill, time) yields before the window title ever truncates.
+  const childTitle = windowFrame(childWin).locator('[data-slot="topbar-title"] button');
+  await expect(childTitle).toHaveText("New session");
+  await expect
+    .poll(() => childTitle.evaluate(element => element.scrollWidth <= element.clientWidth))
+    .toBe(true);
   await browserArtifacts.captureScreenshot("fork-child-window", appPage);
 
   // The source keeps all three turns and its fences.

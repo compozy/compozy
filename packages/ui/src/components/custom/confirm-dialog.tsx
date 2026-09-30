@@ -1,5 +1,6 @@
 "use client";
 
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import * as React from "react";
 
 import { DIALOG_ICON_WELL_TONE, DIALOG_TONE_EYEBROW, type DialogTone } from "../../lib/dialog-tone";
@@ -118,7 +119,11 @@ function ConfirmDialog({
   const [typedValue, setTypedValue] = React.useState("");
   // Alert-dialog safety: open on the least destructive action, so a reflexive
   // Enter never confirms. Named explicitly under the popup-first dialog policy.
+  // A typed confirmation opens on its input instead: typing is the next step,
+  // and the confirm action stays disabled until the text matches.
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
+  const typingRef = React.useRef<HTMLInputElement | null>(null);
+  const mergedTypingRef = useMergedRefs(typingRef, confirmInputProps?.ref);
   const requiresTyping = typeof confirmTyping === "string" && confirmTyping.length > 0;
   const confirmBlocked = isPending || (requiresTyping && typedValue !== confirmTyping);
   const confirmVariant: React.ComponentProps<typeof Button>["variant"] =
@@ -165,7 +170,7 @@ function ConfirmDialog({
       <DialogContent
         showCloseButton={false}
         unframed
-        initialFocus={cancelRef}
+        initialFocus={requiresTyping ? typingRef : cancelRef}
         {...restContentProps}
         className={cn("sm:max-w-md", className, contentClassName)}
       >
@@ -227,6 +232,7 @@ function ConfirmDialog({
                 autoComplete="off"
                 {...confirmInputProps}
                 id={confirmInputProps?.id ?? "confirm-dialog-typing"}
+                ref={mergedTypingRef}
                 onChange={event => {
                   setTypedValue(event.target.value);
                   confirmInputProps?.onChange?.(event);

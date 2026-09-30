@@ -89,7 +89,12 @@ export function ProfileCreateDialog({
         data-testid="profile-create-dialog"
         showCloseButton={false}
       >
-        <EntityDialogHeader eyebrow="Profiles" icon={UserRound} title="Create profile" />
+        <EntityDialogHeader
+          eyebrow="Profiles"
+          icon={UserRound}
+          onClose={isPending ? undefined : () => onOpenChange(false)}
+          title="Create profile"
+        />
         <EntityDialogBody>
           <ProfileIdentityFields
             catalog={catalog}

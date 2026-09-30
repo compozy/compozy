@@ -34,3 +34,5 @@ Rows view while retaining inspect selection, metadata, and redaction behavior.
 QA impact 2026-07-18: switching namespace clears a prefix owned by another namespace, including
 validated deep links, and delete remains unavailable until an in-flight replacement settles so a
 confirmed delete cannot be recreated by the earlier write.
+
+qa-impact: 2026-09-30 shell rail Q2. Type-to-confirm dialogs (vault delete, and every `ConfirmDialog` with `confirmTyping`) open with focus on the confirmation input instead of Cancel; plain confirms still open on Cancel. Walk: Delete from the detail sheet, type the name straight away.

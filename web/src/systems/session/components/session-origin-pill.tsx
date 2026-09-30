@@ -20,7 +20,7 @@ export function SessionOriginPill({ origin, onOpenSource }: SessionOriginPillPro
   const linked = origin.linkable && onOpenSource !== undefined;
   const content = (
     <>
-      <Glyph aria-hidden="true" className="text-subtle" />
+      <Glyph aria-hidden="true" className="shrink-0 text-subtle" />
       <span className="shrink-0">{origin.verb}</span>{" "}
       <span className="min-w-0 max-w-[22ch] truncate text-fg">{origin.pillSubject}</span>
     </>
@@ -30,7 +30,7 @@ export function SessionOriginPill({ origin, onOpenSource }: SessionOriginPillPro
     "data-link": linked ? "true" : "false",
     "data-testid": "session-origin-pill",
     size: "xs" as const,
-    className: cn("min-w-0 shrink", linked && "cursor-pointer hover:text-fg"),
+    className: cn("min-w-0 shrink overflow-hidden", linked && "cursor-pointer hover:text-fg"),
   };
 
   if (!linked) {

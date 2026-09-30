@@ -4,7 +4,7 @@ area: ET
 title: Read the keyboard reference and installation identity from the shell
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing Shell (including Global scope ⇧⌘G), Window, Layout, and Desktops sections from the live window-manager registry — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; Compozy → About Compozy opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
+expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing the live registry's sections in the curated order Shell (including Global scope ⇧⌘G), Window, Tiling, Tabs, Sessions, Desktops, Workspaces, Layout, then any other section the registry reports (today Apps) and each contributing extension under its own name — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; Compozy → About Compozy opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
 entry_points: web desktop menubar Help menu; web desktop menubar Compozy menu
 qa_status: pass
 bug_ids:
@@ -41,3 +41,5 @@ effective keymap, shows alternates and compact ranges once, and refreshes after 
 the Herdr parity QA tail.
 
 QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.
+
+qa-impact: 2026-09-30 expectation corrected against the product: the section list follows `SHORTCUT_SECTION_ORDER` (Shell, Window, Tiling, Tabs, Sessions, Desktops, Workspaces, Layout) plus registry-reported extras such as Apps. Expected text only; status fields untouched.

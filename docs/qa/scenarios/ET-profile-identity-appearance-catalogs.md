@@ -46,3 +46,5 @@ free color popover, switcher-row edit, cross-surface rendering, and daemon slug 
 the contract.
 
 qa-impact: 2026-09-30 shell rail v2. The switcher moved to the dock foot and identity ink is now measured against the active theme's surface. Reset to re-walk the picker and the rendered glyph in both themes.
+
+qa-impact: 2026-09-30 shell rail Q2. The emoji tab's grid now fills the dialog width (its column count follows the pane width over the shared picker cell, like the icon grid), and the Edit/Create profile dialogs carry the quiet header close (hidden while saving). Walk: open Emojis in a 560px dialog and see a full-width grid; close with the X.

@@ -25,6 +25,11 @@ export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span"
  * last change. The model is not repeated here; the composer's runtime selector
  * owns it. Document windows move the state signal to the leading mark
  * (`showState={false}`), keeping the state word for assistive tech.
+ *
+ * The line is one clipped row of two groups that wraps, so the window title
+ * keeps its width: when the head narrows, the tail (archived word and time)
+ * drops off whole first, then the lead truncates in place — the provider and
+ * the origin pill's subject before the agent name.
  */
 export function SessionStatusLine({
   className,
@@ -42,59 +47,68 @@ export function SessionStatusLine({
   return (
     <span
       data-testid="session-status-meta"
-      className={cn("flex min-w-0 items-center gap-2.5", className)}
+      className={cn(
+        "flex h-(--size-avatar-sm) min-w-0 flex-wrap content-start items-center gap-x-2.5 overflow-hidden",
+        className
+      )}
       {...props}
     >
-      {showState ? (
-        <span className="inline-flex shrink-0 items-center gap-1.5">
-          <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" />
+      <span className="flex min-w-0 items-center gap-2.5">
+        {showState ? (
+          <span className="inline-flex shrink-0 items-center gap-1.5">
+            <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" />
+            <span
+              data-testid="session-status-badge"
+              data-badge={signal.label}
+              className={cn("text-eyebrow", sessionBadgeWordClass(badge))}
+            >
+              {signal.displayLabel}
+            </span>
+          </span>
+        ) : (
+          <span className="sr-only">Session status: {signal.displayLabel}</span>
+        )}
+        {agentLabel ? (
           <span
-            data-testid="session-status-badge"
-            data-badge={signal.label}
-            className={cn("text-eyebrow", sessionBadgeWordClass(badge))}
+            data-testid="session-status-agent-chip"
+            // Holds its width while the origin pill truncates; past that it
+            // clamps to the line and the name ellipsizes.
+            className="inline-flex max-w-full min-w-0 shrink-0 items-center gap-1.5 text-eyebrow"
           >
-            {signal.displayLabel}
+            <OwnerAvatar name={agentLabel} ownerId={agentLabel} ownerKind="agent" size="sm" />
+            <span data-testid="session-status-agent" className="truncate font-medium text-fg-2">
+              {agentLabel}
+            </span>
+            {providerLabel ? (
+              <>
+                <span aria-hidden="true" className="text-subtle">
+                  ·
+                </span>
+                <span
+                  data-testid="session-status-provider"
+                  // Yields width before the origin pill, which keeps its verb.
+                  className="min-w-0 truncate font-mono text-subtle"
+                >
+                  {providerLabel}
+                </span>
+              </>
+            ) : null}
           </span>
-        </span>
-      ) : (
-        <span className="sr-only">Session status: {signal.displayLabel}</span>
-      )}
-      {agentLabel ? (
-        <span
-          data-testid="session-status-agent-chip"
-          className="inline-flex min-w-0 items-center gap-1.5 text-eyebrow"
-        >
-          <OwnerAvatar name={agentLabel} ownerId={agentLabel} ownerKind="agent" size="sm" />
-          <span data-testid="session-status-agent" className="truncate font-medium text-fg-2">
-            {agentLabel}
+        ) : null}
+        {origin ? <SessionOriginPill onOpenSource={onOpenOriginSource} origin={origin} /> : null}
+      </span>
+      <span className="flex shrink-0 items-center gap-2.5">
+        {session.archived_at !== null ? (
+          <span data-testid="session-status-archived" className="text-eyebrow text-subtle">
+            Archived
           </span>
-          {providerLabel ? (
-            <>
-              <span aria-hidden="true" className="text-subtle">
-                ·
-              </span>
-              <span
-                data-testid="session-status-provider"
-                // Yields width before the origin pill, which keeps its verb.
-                className="min-w-0 truncate font-mono text-subtle"
-              >
-                {providerLabel}
-              </span>
-            </>
-          ) : null}
-        </span>
-      ) : null}
-      {origin ? <SessionOriginPill onOpenSource={onOpenOriginSource} origin={origin} /> : null}
-      {session.archived_at !== null ? (
-        <span data-testid="session-status-archived" className="text-eyebrow text-subtle">
-          Archived
-        </span>
-      ) : null}
-      <Time
-        data-testid="session-status-time"
-        iso={session.updated_at}
-        className="shrink-0 text-eyebrow text-subtle"
-      />
+        ) : null}
+        <Time
+          data-testid="session-status-time"
+          iso={session.updated_at}
+          className="shrink-0 text-eyebrow text-subtle"
+        />
+      </span>
     </span>
   );
 }
