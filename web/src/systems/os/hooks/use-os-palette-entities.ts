@@ -1,7 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
-import { getSessionDisplayTitle, useSessions, useWorkspaceSessionGroups } from "@/systems/session";
+import { getSessionDisplayTitle, useSessionCatalog } from "@/systems/session";
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   sortWorktreeNestEntries,
@@ -166,16 +166,19 @@ export function useOsPaletteEntities({
   const worktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
     enabled: open && scope === "workspace",
   });
-  const sessions = useSessions(runtimeWorkspaceId, {
-    enabled: open && queryEnabled && runtimeWorkspaceId !== null && worktreeFilter.resolved,
-    filters: scope === "workspace" ? { worktree: worktreeFilter.worktreeId } : undefined,
-  });
-  const workspaceSessionGroups = useWorkspaceSessionGroups({
-    workspaces,
-    sort: "last_activity",
-    archived: false,
-    enabled: open && queryEnabled && scope === "global",
-  });
+  const sessions = useSessionCatalog(
+    scope === "global" ? null : runtimeWorkspaceId,
+    {
+      limit: 100,
+      q: query.trim(),
+      search_fields: "title_agent",
+      ...(scope === "workspace" ? { worktree: worktreeFilter.worktreeId } : {}),
+    },
+    open &&
+      queryEnabled &&
+      (scope === "global" || runtimeWorkspaceId !== null) &&
+      worktreeFilter.resolved
+  );
   const desktopData = useDesktop(
     state => ({ desktops: state.desktops, windows: state.windows }),
     shallowEqual
@@ -190,15 +193,10 @@ export function useOsPaletteEntities({
     if (open) pruneWindowSlotStores(new Set(liveWindowIds.split("\0")));
   }, [open, liveWindowIds]);
 
-  const scopedSessions =
-    scope === "global"
-      ? workspaceSessionGroups.flatMap(group =>
-          group.sessions.map(session => ({ session, workspaceId: group.workspaceId }))
-        )
-      : (sessions.data ?? []).map(session => ({
-          session,
-          workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
-        }));
+  const scopedSessions = sessions.sessions.map(session => ({
+    session,
+    workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
+  }));
   const sessionRows: OsPaletteSessionResult[] = [];
   const workspaceNameById = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
   for (const { session, workspaceId } of scopedSessions) {

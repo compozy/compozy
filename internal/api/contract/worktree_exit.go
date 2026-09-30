@@ -13,6 +13,9 @@ type WorktreeExitActionPlan struct {
 }
 
 type WorktreeExitCommitScope struct {
+	IncludePaths       []string `json:"include_paths,omitempty"`
+	Fingerprint        string   `json:"fingerprint,omitempty"`
+	Complete           bool     `json:"complete,omitempty"`
 	ChangedFiles       int      `json:"changed_files"`
 	Insertions         int      `json:"insertions"`
 	Deletions          int      `json:"deletions"`
@@ -63,12 +66,16 @@ type WorktreeExitPlanResponse struct {
 }
 
 type RunWorktreeExitActionRequest struct {
-	Action  WorktreeExitAction `json:"action"`
-	Message string             `json:"message,omitempty"`
-	Title   string             `json:"title,omitempty"`
-	Body    string             `json:"body,omitempty"`
-	Draft   bool               `json:"draft,omitempty"`
-	Base    string             `json:"base,omitempty"`
+	DeliveryID    string             `json:"delivery_id,omitempty"`
+	ExpectedHead  string             `json:"expected_head,omitempty"`
+	IncludePaths  []string           `json:"include_paths,omitempty"`
+	ExpectedScope string             `json:"expected_scope,omitempty"`
+	Action        WorktreeExitAction `json:"action"`
+	Message       string             `json:"message,omitempty"`
+	Title         string             `json:"title,omitempty"`
+	Body          string             `json:"body,omitempty"`
+	Draft         bool               `json:"draft,omitempty"`
+	Base          string             `json:"base,omitempty"`
 }
 
 type WorktreeExitOperationResponse struct {

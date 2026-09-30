@@ -36,7 +36,6 @@ export {
   terminalsRunning,
   type TerminalBadgeInput,
   type TerminalBadgeProjection,
-  type TerminalPendingApproval,
 } from "./lib/terminal-badge";
 export {
   parseTerminalCatalogEvent,

@@ -42,6 +42,76 @@ const (
 func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: malformed task input stops the owning Loop and releases forbid concurrency.
+	// Owning layer and canonical suite: real daemon implement-tasks execution journey.
+	for _, strategy := range []string{"halt", "default policy"} {
+		t.Run("Should terminalize a malformed task import and release concurrency with "+strategy, func(t *testing.T) {
+			t.Parallel()
+			harness, ctx := startImplementTasksE2EHarness(t, implementTasksImplementer)
+			path := filepath.Join(harness.WorkspaceRoot, ".compozy", "tasks", implementTasksE2ESlug, "task_01.md")
+			if err := os.WriteFile(
+				path,
+				[]byte(
+					"---\nstatus: pending\ntitle: Log summary: core\ntype: frontend\ncomplexity: high\n---\n\n# Log summary: core\n",
+				),
+				0o600,
+			); err != nil {
+				t.Fatalf("write malformed task: %v", err)
+			}
+			configPath := filepath.Join(t.TempDir(), "halt.yaml")
+			if err := os.WriteFile(configPath, []byte("reattempt_strategy: halt\n"), 0o600); err != nil {
+				t.Fatalf("write halt config: %v", err)
+			}
+			configArgs := []string{}
+			if strategy == "halt" {
+				configArgs = []string{"--config-file", configPath}
+			}
+			for attempt := range 2 {
+				args := []string{
+					"loop",
+					"run",
+					"--workspace",
+					harness.WorkspaceRoot,
+					"--name",
+					"implement-tasks",
+					"--input",
+					"slug=" + implementTasksE2ESlug,
+				}
+				args = append(args, configArgs...)
+				stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, args...)
+				if err != nil {
+					t.Fatalf("start malformed import %d: %v; %s", attempt, err, stderr)
+				}
+				_, runID := implementTasksRunURL(t, harness, stdout)
+				waitForLoopRunStatus(t, ctx, harness, runID, contract.LoopRunStatusFailed)
+				var detail contract.LoopRunResponse
+				if err := harness.CLI.RunJSONInDir(
+					ctx,
+					harness.WorkspaceRoot,
+					&detail,
+					"loop",
+					"status",
+					"--workspace",
+					harness.WorkspaceRoot,
+					"--run-id",
+					runID,
+					"-o",
+					"json",
+				); err != nil {
+					t.Fatalf("read failed run: %v", err)
+				}
+				if len(detail.Generations) != 1 {
+					t.Fatalf("generations = %d, want one", len(detail.Generations))
+				}
+				load := lifecycleOutput(t, detail.Generations[0], "load_tasks")
+				if load.Status != "failed" {
+					t.Fatalf("load_tasks = %#v", load)
+				}
+			}
+		})
+
+	}
+
 	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
 		t.Parallel()
 

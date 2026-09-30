@@ -27,6 +27,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootExtensions(ctx, state, cleanup) },
 		func() error { return d.bootResourceWatchers(ctx, state, cleanup) },
 		func() error { return d.bootSettings(ctx, state) },
+		func() error { return d.bootManagedDeliveries(ctx, state) },
 		func() error { return d.bootSupportBundles(state, cleanup) },
 		func() error { return d.prepareServerDependencies(ctx, state) },
 		func() error { return d.bootGateway(ctx, state, cleanup) },

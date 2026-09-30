@@ -12,7 +12,7 @@ import { paletteViewGutterClass } from "../lib/palette-view-inset";
 
 export interface OsPaletteSessionChipsProps {
   filterId: PaletteSessionFilterId;
-  counts: PaletteSessionFilterCounts;
+  counts: PaletteSessionFilterCounts | undefined;
   allWorkspaces: boolean;
   archived: boolean;
   /** True while the daemon has not acknowledged the scope write yet. */
@@ -55,7 +55,7 @@ export function OsPaletteSessionChips({
         className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5"
       >
         {PALETTE_SESSION_FILTER_LIST.map(filter => {
-          const count = counts[filter.id];
+          const count = counts?.[filter.id];
           const active = filter.id === filterId;
           return (
             <Pill
@@ -65,7 +65,7 @@ export function OsPaletteSessionChips({
               active={active}
               data-testid={`os-palette-session-filter-${filter.id}`}
               render={<button type="button" />}
-              aria-label={`${filter.label} ${count}`}
+              aria-label={count === undefined ? filter.label : `${filter.label} ${count}`}
               onClick={() => {
                 if (active) return;
                 onFilterChange(filter.id);

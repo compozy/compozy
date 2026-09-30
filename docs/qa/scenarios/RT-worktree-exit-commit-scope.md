@@ -1,7 +1,7 @@
 ---
 id: RT-worktree-exit-commit-scope
 area: RT
-title: Commit the complete visible worktree change set
+title: Commit whole-worktree or explicitly reviewed file scopes
 persona: Ada
 journey: J-worktree-management
 expected: The assisted commit preview names untracked files, excludes ignored files, reports the bounded change summary, and commits exactly the full visible worktree state with the supplied or deterministic default message.
@@ -17,3 +17,18 @@ overlaps: RT-worktree-cli-lifecycle; RT-worktree-api-surface-parity
 ---
 
 QA impact: Task 05 adds the named-untracked stage-all commit contract and streamed step results.
+
+2026-09-29 selective scope: use repeated `exit --include` and pass its fingerprint with the same
+`commit --include` set and `--expected-scope`. Verify that only those files enter the commit,
+that an unignored `.compozy/tasks/private.md` remains local, and that unrelated pre-staged file
+contents remain staged unchanged even if their working copy differs. Repeat with more than 200
+untracked files and select a name beyond the bounded default preview. Change a selected file after
+review and confirm refusal before staging; traversal and symlink includes must also refuse.
+Domain real-Git rewalk: `TestWorktreeLifecycleIntegration/Should_commit_only_reviewed_files_while_preserving_private_and_pre-staged_work`.
+CLI/API public transport rewalk remains required by the delivery report.
+
+## Managed delivery continuation
+
+With a real managed session bound to the checkout, read the scoped exit plan and submit `worktree deliver` with a stable delivery ID, the reviewed HEAD, selected paths, and returned scope fingerprint. Verify the command returns an operation ID, Compozy stops only the caller, and the resulting remote branch and draft PR contain only the selected commit. Unrelated files and pre-staged changes remain local. While delivery owns the checkout, another start or resume on it is refused; unrelated checkout sessions remain usable.
+
+Repeat the same admitted intent after an interrupted commit, push, or ambiguous forge response. Verify the daemon reconciles the exact branch/base/HEAD and reuses the intended draft PR without duplicate commits or PRs. Change the base, selected content, remote, or HEAD and verify recovery refuses publication. Configure a different push URL and verify managed delivery refuses it before pushing.

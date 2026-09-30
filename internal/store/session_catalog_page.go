@@ -18,6 +18,7 @@ const (
 
 // SessionCatalogPosition is the stable keyset anchor used by bounded catalog reads.
 type SessionCatalogPosition struct {
+	NavigatorBand *int                        `json:"navigator_band,omitempty"`
 	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
 	PrimaryAt     time.Time                   `json:"primary_at"`
 	SecondaryAt   time.Time                   `json:"secondary_at"`
@@ -27,6 +28,9 @@ type SessionCatalogPosition struct {
 
 // Validate ensures the keyset anchor is complete.
 func (p SessionCatalogPosition) Validate() error {
+	if p.NavigatorBand != nil && (*p.NavigatorBand < 0 || *p.NavigatorBand > 3) {
+		return fmt.Errorf("store: session catalog navigator band is invalid")
+	}
 	if p.AttentionRank < SessionCatalogAttentionRankNeedsYou ||
 		p.AttentionRank > SessionCatalogAttentionRankNone {
 		return fmt.Errorf("store: session catalog attention rank is invalid: %d", p.AttentionRank)
@@ -41,6 +45,7 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	SkipTotal           bool
 	ReadScope           ReadScope
 	WorkspaceID         string
 	WorktreeID          string
@@ -50,7 +55,10 @@ type SessionCatalogPageQuery struct {
 	ParentSessionID     string
 	RootSessionID       string
 	LineageKind         LineageKind
+	SearchFields        string
 	Search              string
+	AttentionOnly       bool
+	Badges              []string
 	Resumable           bool
 	Archive             SessionArchiveFilter
 	Sort                string
@@ -66,6 +74,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 	if err := q.ReadScope.Validate(); err != nil {
 		return err
 	}
+	if q.SearchFields != "" && q.SearchFields != "title_agent" {
+		return fmt.Errorf("store: unsupported session catalog search_fields %q", q.SearchFields)
+	}
 	if q.Limit <= 0 {
 		return fmt.Errorf("store: session catalog page limit must be positive")
 	}
@@ -74,6 +85,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 	}
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
+	}
+	if q.After != nil && q.Sort == "navigator" && q.After.NavigatorBand == nil {
+		return fmt.Errorf("store: navigator cursor band is required")
 	}
 	if q.After != nil {
 		if err := q.After.Validate(); err != nil {

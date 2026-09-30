@@ -7,7 +7,7 @@ journey: J-await-child-loop
 expected: A parent Loop with two ordered run-loop nodes in mode await keeps the first node in awaiting_child while its child is live, starts no second child before the first terminates, restores the same child after daemon restart without duplication, and reaches done only after both children succeed. A declared terminal child result retains loop_run_id and status for a downstream template; an undeclared result keeps its scalar output.
 entry_points: compozy loop run; compozy loop status; compozy loop runs; HTTP and UDS Loop run detail
 qa_status: pass
-bug_ids: 671
+bug_ids: 671; 675
 fix_status: fixed
 retest_status: pass
 fix_commits: 81a193db8d9822b85616230d6a3a5a85b6663623
@@ -33,3 +33,22 @@ scalar output for the second node without `produces`. Both child runs and the pa
 `done`; the live definition validator rejected constrained and extra output fields.
 
 Issue: https://github.com/compozy/compozy/issues/386
+
+Recovery extension: pause a parent after its awaited child fails, rerun that exact child from its
+failed QA node without changing the candidate inputs, then resume the parent. Verify the settled
+parent node adopts the recovered child's terminal result and exact ID before delivery; no second
+review child is created. Repeat after changing the candidate or marking an upstream producer for
+rerun and verify a fresh child is created. A different workspace, parent, node task, detached child,
+nonterminal child, or timeout failure must never supply reusable proof. This extension requires a
+new public-interface replay; the older ordering evidence does not verify recovery adoption.
+
+Immutable candidate proof extension: before the original review, capture `worktree_id`, the
+complete selected `include_paths`, and scoped exit-plan `fingerprint`, and supply its JSON serialization as
+`inputs.reviewed_worktree` to an optional JSON string input on the child. Retain that exact persisted
+proof during recovery. A recovered successful child may be adopted only while the registered
+worktree repository, branch, HEAD, selected file bytes and selected index state still match.
+Repeat with changed selected content, a new HEAD, or changed selected staged state and verify
+normal review execution; repeat without proof and verify the same safe rerun. Never replace the
+original fingerprint with a fresh digest to authorize adoption. The domain Git verifier and
+Loop/SQLite ownership suites provide focused evidence; the representative public managed-session
+replay remains owned by the current reported-issues QA report.

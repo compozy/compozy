@@ -34,7 +34,7 @@ func (g *GlobalDB) ExecuteProfileWrite(
 	if run == nil {
 		return fmt.Errorf("store: %s callback is required", action)
 	}
-	if err := store.ExecuteWrite(ctx, g.db, func(_ context.Context, tx *store.WriteTx) error {
+	if err := store.ExecuteWriteOperation(ctx, g.db, action, func(_ context.Context, tx *store.WriteTx) error {
 		return run(tx)
 	}); err != nil {
 		return fmt.Errorf("store: %s transaction: %w", action, err)

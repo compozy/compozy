@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
-
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ToolEventData carries per-outcome event details.
@@ -32,11 +34,15 @@ func (r *RuntimeRegistry) emit(
 	}
 	event := buildToolCallEvent(target, req, kind, data)
 	if err := r.events.EmitToolEvent(ctx, event); err != nil {
-		return NewToolError(
+		logBackendFailure(ctx, target.descriptor.ID, "tool_event_write", err)
+		return NewOperatorToolError(
 			ErrorCodeBackendFailed,
 			target.descriptor.ID,
 			fmt.Sprintf("tool %q observability emit failed", target.descriptor.ID),
 			fmt.Errorf("%w: %w", ErrToolBackendFailed, err),
+			"Failure phase: tool_event_write. This failure is in tool observability.",
+			"Inspect the daemon write-owner diagnostics. Retry reads after contention clears; "+
+				"check mutation state before retrying a write.",
 			ReasonBackendUnhealthy,
 		)
 	}
@@ -139,4 +145,21 @@ func appendUniqueReasons(existing []ReasonCode, incoming ...ReasonCode) []Reason
 		}
 	}
 	return existing
+}
+
+// logBackendFailure records code-owned phase names without backend error text,
+// request arguments, resource paths, or credentials.
+func logBackendFailure(ctx context.Context, id ToolID, phase string, err error) {
+	kind := "backend_failure"
+	contention, hasContention := errors.AsType[*store.WriteContentionError](err)
+	switch {
+	case store.IsSQLiteBusy(err):
+		kind = "sqlite_contention"
+	case hasContention && contention != nil:
+		kind = "sqlite_writer_admission"
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		kind = "context_expired"
+	}
+	slog.WarnContext(ctx, "native tool backend operation failed", "tool_id", id,
+		"phase", phase, "failure_kind", kind)
 }

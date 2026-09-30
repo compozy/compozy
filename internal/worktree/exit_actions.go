@@ -21,29 +21,35 @@ const (
 	exitOperationRunning            = "running"
 	exitOperationCanceled           = "canceled"
 	exitOpenBrowserLabel            = "Open in browser"
+	exitPRStatusBrowser             = "browser"
 	exitViewPRLabel                 = "View PR"
 	exitRemoveAction                = "remove"
 )
 
 type ExitActionRequest struct {
-	Action  ExitAction `json:"action"`
-	Message string     `json:"message,omitempty"`
-	Title   string     `json:"title,omitempty"`
-	Body    string     `json:"body,omitempty"`
-	Draft   bool       `json:"draft,omitempty"`
-	Base    string     `json:"base,omitempty"`
+	DeliveryID    string     `json:"delivery_id,omitempty"`
+	ExpectedHead  string     `json:"expected_head,omitempty"`
+	IncludePaths  []string   `json:"include_paths,omitempty"`
+	ExpectedScope string     `json:"expected_scope,omitempty"`
+	Action        ExitAction `json:"action"`
+	Message       string     `json:"message,omitempty"`
+	Title         string     `json:"title,omitempty"`
+	Body          string     `json:"body,omitempty"`
+	Draft         bool       `json:"draft,omitempty"`
+	Base          string     `json:"base,omitempty"`
 }
 
 type ExitStepResult struct {
-	Phase    ExitPhase `json:"phase"`
-	State    string    `json:"state"`
-	Reason   string    `json:"reason,omitempty"`
-	Output   string    `json:"output,omitempty"`
-	SHA      string    `json:"sha,omitempty"`
-	Upstream string    `json:"upstream,omitempty"`
-	PRStatus string    `json:"pr_status,omitempty"`
-	PRNumber int       `json:"pr_number,omitempty"`
-	URL      string    `json:"url,omitempty"`
+	IncludePaths []string  `json:"include_paths,omitempty"`
+	Phase        ExitPhase `json:"phase"`
+	State        string    `json:"state"`
+	Reason       string    `json:"reason,omitempty"`
+	Output       string    `json:"output,omitempty"`
+	SHA          string    `json:"sha,omitempty"`
+	Upstream     string    `json:"upstream,omitempty"`
+	PRStatus     string    `json:"pr_status,omitempty"`
+	PRNumber     int       `json:"pr_number,omitempty"`
+	URL          string    `json:"url,omitempty"`
 }
 
 type ExitCTA struct {
@@ -74,12 +80,22 @@ func (s *Service) RunExitAction(
 	id string,
 	request ExitActionRequest,
 ) (string, error) {
+	if request.ExpectedScope != "" && len(request.IncludePaths) == 0 {
+		return "", refusal(ErrExitActionInvalid, "Expected scope requires explicit include paths.")
+	}
 	if !request.Action.executable() {
 		return "", ErrExitActionInvalid
 	}
-	plan, err := s.ExitPlan(ctx, workspaceID, id)
+	plan, err := s.ExitPlanForPaths(ctx, workspaceID, id, request.IncludePaths)
 	if err != nil {
 		return "", err
+	}
+	if len(request.IncludePaths) > 0 &&
+		(request.ExpectedScope == "" || request.ExpectedScope != plan.CommitScope.Fingerprint) {
+		return "", refusal(ErrExitActionInvalid, "Reviewed commit scope changed; read the scoped exit plan again.")
+	}
+	if len(request.IncludePaths) > 0 && request.Action != ExitActionCommit && request.Action != ExitActionCommitPush {
+		return "", ErrExitActionInvalid
 	}
 	if err := validateRequestedExitAction(plan, request.Action); err != nil {
 		return "", err
@@ -111,7 +127,11 @@ func (s *Service) RunExitAction(
 	s.exitMu.Unlock()
 	phases := request.Action.phases()
 	s.emitExit(executionCtx, EventExitActionStarted, operation, ExitEventPayload{
-		OperationID: opID, Action: request.Action, Phases: phases, State: exitOperationRunning,
+		OperationID: opID,
+		Action:      request.Action,
+		Phases:      phases,
+		State:       exitOperationRunning,
+		CommitScope: &plan.CommitScope,
 	})
 	go s.executeExitOperation(executionCtx, control, operation, *item, plan, request)
 	return opID, nil
@@ -316,7 +336,7 @@ func (s *Service) runExitPR(
 		if plan.BrowserURL == "" {
 			return step, ErrForgeUnavailable
 		}
-		step.PRStatus, step.URL = "browser", plan.BrowserURL
+		step.PRStatus, step.URL = exitPRStatusBrowser, plan.BrowserURL
 		return step, nil
 	}
 	base := strings.TrimSpace(request.Base)
@@ -341,7 +361,7 @@ func (s *Service) runExitPR(
 	}
 	created, err := s.forge.CreatePR(ctx, ForgePRRequest{
 		WorkspaceID: item.WorkspaceID, WorktreeID: item.ID, RemoteURLs: plan.RemoteURLs,
-		Head: item.Branch, Base: base, Title: title, Body: body, Draft: request.Draft,
+		Head: item.Branch, Base: base, Title: title, Body: body, Draft: request.Draft, HeadSHA: request.ExpectedHead,
 	})
 	if err != nil {
 		step.State, step.Output = exitStepFailed, diagnostics.RedactAndBound(err.Error(), 2048)
@@ -442,7 +462,7 @@ func (a ExitAction) phases() []ExitPhase {
 func exitResultCTA(action ExitAction, plan *ExitPlan, steps []ExitStepResult) *ExitCTA {
 	if action == ExitActionOpenPR && len(steps) > 0 {
 		last := steps[len(steps)-1]
-		if last.PRStatus == "browser" {
+		if last.PRStatus == exitPRStatusBrowser {
 			return &ExitCTA{Action: ExitActionOpenPR, Label: exitOpenBrowserLabel, URL: last.URL}
 		}
 		return &ExitCTA{Action: ExitActionViewPR, Label: exitViewPRLabel, URL: last.URL}

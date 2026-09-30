@@ -2549,10 +2549,13 @@ func TestLinterShouldValidateRunLoopTerminalOutputShape(t *testing.T) {
 	for _, testCase := range []struct {
 		name      string
 		mode      dsl.RunLoopMode
+		inputs    map[string]any
 		produces  dsl.Schema
 		wantCodes []string
 	}{
 		{name: "Should accept a declared awaited child result", produces: dsl.Schema{"loop_run_id": "string", "status": "string"}},
+		{name: "Should accept a literal immutable worktree candidate", inputs: map[string]any{dsl.ReviewedWorktreeInput: `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"],"fingerprint":"` + strings.Repeat("a", 64) + `"}`}},
+		{name: "Should reject a mutable worktree candidate without a fingerprint", inputs: map[string]any{dsl.ReviewedWorktreeInput: `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"]}`}, wantCodes: []string{refs.CodeUnresolvablePath}},
 		{name: "Should accept explicit string types", produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string"}, "status": map[string]any{"type": "string"}}},
 		{name: "Should reject a constrained awaited status", produces: dsl.Schema{"loop_run_id": "string", "status": map[string]any{"type": "string", "enum": []any{"done"}}}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
 		{name: "Should reject a constrained awaited run ID", produces: dsl.Schema{"loop_run_id": map[string]any{"type": "string", "pattern": "^fixed$"}, "status": "string"}, wantCodes: []string{loop.CodeRunLoopOutputShapeInvalid}},
@@ -2567,7 +2570,7 @@ func TestLinterShouldValidateRunLoopTerminalOutputShape(t *testing.T) {
 			t.Parallel()
 			def := singleNodeDefinition(dsl.Node{
 				ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-				Params:   dsl.NodeParams{"loop": "nested", "mode": string(testCase.mode)},
+				Params:   dsl.NodeParams{"loop": "nested", "mode": string(testCase.mode), "inputs": testCase.inputs},
 				Produces: testCase.produces,
 			})
 			requireLintCodes(t, loop.NewLinter().Lint(def), testCase.wantCodes...)

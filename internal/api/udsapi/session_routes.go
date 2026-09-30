@@ -6,6 +6,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions := api.Group("/sessions")
 	{
 		sessions.GET("", handlers.ListSessions)
+		sessions.GET("/facets", handlers.ListSessionFacets)
 		sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 		sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
 		sessions.GET("/:session_id", handlers.GetSessionByID)

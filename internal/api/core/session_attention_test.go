@@ -89,6 +89,37 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 		}
 	})
 
+	t.Run("Should distinguish canceled presence from a server failure", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{name: "Should report client cancellation", err: context.Canceled, status: 499},
+			{name: "Should preserve genuine server failures", err: fmt.Errorf("presence store unavailable"), status: http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				manager := attentionRouteSessionManager()
+				manager.Attention.PresenceFn = func(context.Context, string, string, bool) (string, error) {
+					return "", test.err
+				}
+				fixture := newHandlerFixture(
+					t,
+					manager,
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{},
+					nil,
+					nil,
+				)
+				response := performRequest(t, fixture.Engine, http.MethodPost,
+					"/workspaces/ws-1/sessions/sess-attention/presence", []byte(`{"visible":true}`))
+				assertAPIErrorResponse(t, response, test.status, test.err.Error())
+			})
+		}
+	})
+
 	t.Run("Should list a sanitized canonical interaction projection", func(t *testing.T) {
 		t.Parallel()
 

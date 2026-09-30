@@ -12,6 +12,288 @@ import (
 )
 
 func TestExecuteWrite(t *testing.T) {
+	t.Run("Should cancel local writer admission without spending SQLite attempts", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "owner-diagnostic.db"))
+		started, release := make(chan struct{}), make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			done <- ExecuteWriteOperation(ctx, db, "session supervision", func(context.Context, *WriteTx) error {
+				close(started)
+				<-release
+				return nil
+			})
+		}()
+		<-started
+		finished := false
+		defer func() {
+			if finished {
+				return
+			}
+			close(release)
+			if err := <-done; err != nil {
+				t.Error(err)
+			}
+		}()
+		cfg := defaultExecuteWriteConfig()
+		cfg.operation = "skill event summary"
+		cfg.maxAttempts = 3
+		cfg.jitter = func(time.Duration, time.Duration) time.Duration { return time.Millisecond }
+		waitCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer cancel()
+		err := executeWrite(waitCtx, db, cfg, func(context.Context, *WriteTx) error {
+			t.Error("blocked write callback must not execute")
+			return nil
+		})
+		contention, ok := errors.AsType[*WriteContentionError](err)
+		if !ok || contention.Operation != cfg.operation || contention.Owner != "session supervision" ||
+			contention.TransactionID == 0 || contention.Attempts != 0 || !errors.Is(err, context.DeadlineExceeded) ||
+			contention.Wait <= 0 || contention.OwnerElapsed <= 0 {
+			t.Fatalf("contention = %#v, error = %v", contention, err)
+		}
+		if inUse := db.Stats().InUse; inUse != 1 {
+			t.Fatalf("pooled connections while canceled waiter leaves owner active = %d, want 1", inUse)
+		}
+		writeAdmissions.Lock()
+		remainingUsers := writeAdmissions.byDB[db].users
+		writeAdmissions.Unlock()
+		if remainingUsers != 1 {
+			t.Fatalf("remaining admission users = %d, want only owner", remainingUsers)
+		}
+		close(release)
+		ownerErr := <-done
+		finished = true
+		if ownerErr != nil {
+			t.Fatal(ownerErr)
+		}
+		writeAdmissions.Lock()
+		_, admissionRemains := writeAdmissions.byDB[db]
+		writeAdmissions.Unlock()
+		writeOwners.Lock()
+		_, ownerRemains := writeOwners.active[db]
+		writeOwners.Unlock()
+		if admissionRemains || ownerRemains {
+			t.Fatalf("registry after all writes finish = admission %t, owner %t", admissionRemains, ownerRemains)
+		}
+	})
+
+	t.Run("Should persist after a local holder outlives the SQLite retry budget", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "local-wait.db"))
+		db.SetMaxOpenConns(2)
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		started, release := make(chan struct{}), make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			done <- ExecuteWriteOperation(ctx, db, "session reconciliation", func(ctx context.Context, tx *WriteTx) error {
+				close(started)
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+		}()
+		<-started
+		// One SQLite attempt permits no retry waits. The local holder lasts
+		// beyond that budget but must not cause the durable receipt write to fail.
+		cfg := defaultExecuteWriteConfig()
+		cfg.maxAttempts = 1
+		cfg.operation = "finish worktree exit operation with event"
+		writeDone := make(chan error, 1)
+		go func() {
+			writeDone <- executeWrite(ctx, db, cfg, func(ctx context.Context, tx *WriteTx) error {
+				_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('terminal-receipt')`)
+				return err
+			})
+		}()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+	waitQueued:
+		for {
+			writeAdmissions.Lock()
+			users := writeAdmissions.byDB[db].users
+			writeAdmissions.Unlock()
+			if users == 2 {
+				break waitQueued
+			}
+			select {
+			case err := <-writeDone:
+				close(release)
+				ownerErr := <-done
+				t.Fatalf("writer finished before local admission wait: %v, owner %v", err, ownerErr)
+			case <-ctx.Done():
+				close(release)
+				writerErr, ownerErr := <-writeDone, <-done
+				t.Fatalf("waiting for queued writer: %v, writer %v, owner %v", ctx.Err(), writerErr, ownerErr)
+			case <-ticker.C:
+			}
+		}
+		connections := db.Stats().InUse
+		// Registration is observed before the holder's expiry starts, so the
+		// test exercises an actually queued writer rather than scheduling luck.
+		timer := time.NewTimer(20 * time.Millisecond)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+		}
+		timer.Stop()
+		close(release)
+		err, ownerErr := <-writeDone, <-done
+		if err != nil || ownerErr != nil || connections != 1 {
+			t.Fatalf("receipt write = %v, reconciliation = %v, queued connections = %d, want 1",
+				err, ownerErr, connections)
+		}
+		var count int
+		err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM items WHERE id = 'terminal-receipt'`).Scan(&count)
+		if err != nil || count != 1 {
+			t.Fatalf("durable terminal receipts = %d, error = %v, want 1", count, err)
+		}
+	})
+
+	t.Run("Should bound an external busy lock and recover on the same handle", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "external-lock.db")
+		locker, db := openExecuteWriteTestDB(t, path), openExecuteWriteTestDB(t, path)
+		conn, err := locker.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		active := false
+		t.Cleanup(func() {
+			if active {
+				if _, err := conn.ExecContext(ctx, sqliteRollbackStatement); err != nil {
+					t.Error(err)
+				}
+			}
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement); err != nil {
+			t.Fatal(err)
+		}
+		active = true
+		cfg := defaultExecuteWriteConfig()
+		cfg.operation = "skill event summary"
+		cfg.maxAttempts = 3
+		cfg.jitter = func(time.Duration, time.Duration) time.Duration { return time.Millisecond }
+		err = executeWrite(ctx, db, cfg, func(context.Context, *WriteTx) error { return nil })
+		contention, ok := errors.AsType[*WriteContentionError](err)
+		if !ok || !IsSQLiteBusy(err) || contention.Attempts != 3 || contention.TransactionID != 0 ||
+			contention.Owner != "" {
+			t.Fatalf("external contention = %#v, error = %v", contention, err)
+		}
+		if _, err := conn.ExecContext(ctx, sqliteCommitStatement); err != nil {
+			t.Fatal(err)
+		}
+		active = false
+		if err := ExecuteWrite(ctx, db, func(context.Context, *WriteTx) error { return nil }); err != nil {
+			t.Fatalf("recovery after lock release = %v", err)
+		}
+	})
+
+	t.Run("Should reserve pool capacity for the active writer commit fence", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, err := sql.Open(
+			sqliteDriverName,
+			sqliteDSN(filepath.Join(t.TempDir(), "writer-pool.db"), "busy_timeout(5000)"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		db.SetMaxOpenConns(2)
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, `PRAGMA busy_timeout = 5000`); err != nil {
+			t.Fatal(err)
+		}
+		ownerStarted := make(chan struct{})
+		readReady := make(chan struct{}, 1)
+		ownerDone := make(chan error, 1)
+		fencedCtx := ContextWithMutationCommitFence(ctx, func(ctx context.Context) error {
+			readCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			var count int
+			return db.QueryRowContext(readCtx, `SELECT COUNT(*) FROM items`).Scan(&count)
+		})
+		go func() {
+			ownerDone <- ExecuteWrite(fencedCtx, db, func(ctx context.Context, tx *WriteTx) error {
+				close(ownerStarted)
+				select {
+				case <-readReady:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('owner')`)
+				return err
+			})
+		}()
+		<-ownerStarted
+		contenderDone := make(chan error, 1)
+		cfg := defaultExecuteWriteConfig()
+
+		go func() {
+			contenderDone <- executeWrite(ctx, db, cfg, func(ctx context.Context, tx *WriteTx) error {
+				_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('contender')`)
+				return err
+			})
+		}()
+		// A waiting BEGIN occupying the final connection reproduces the old
+		// starvation. Local admission instead waits without a connection.
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		var ownerErr error
+		readSignaled := false
+	waitOwner:
+		for {
+			select {
+			case ownerErr = <-ownerDone:
+				break waitOwner
+			case <-ticker.C:
+				writeAdmissions.Lock()
+				users := 0
+				if admission := writeAdmissions.byDB[db]; admission != nil {
+					users = admission.users
+				}
+				writeAdmissions.Unlock()
+				if users == 2 && !readSignaled {
+					if inUse := db.Stats().InUse; inUse != 1 {
+						t.Errorf("queued writer pooled connections = %d, want only the owner connection", inUse)
+					}
+					select {
+					case readReady <- struct{}{}:
+						readSignaled = true
+					default:
+					}
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+		}
+		contenderErr := <-contenderDone
+		if ownerErr != nil || contenderErr != nil {
+			t.Fatalf("concurrent writes = owner %v, contender %v", ownerErr, contenderErr)
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM items`).Scan(&count); err != nil || count != 2 {
+			t.Fatalf("committed count = %d, error = %v, want 2", count, err)
+		}
+	})
+
 	t.Run("Should retry busy begin immediate writes until the lock is released", func(t *testing.T) {
 		t.Parallel()
 

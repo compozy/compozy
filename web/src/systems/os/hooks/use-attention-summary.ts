@@ -29,7 +29,10 @@ export function useAttentionSummary(
   const documentVisible = useDocumentVisible();
   const query = useQuery({
     ...sessionAttentionSummaryOptions(),
-    refetchInterval: documentVisible ? ATTENTION_SUMMARY_REFETCH_INTERVAL_MS : false,
+    refetchInterval: query => {
+      if (!documentVisible || streamStatus === "live") return false;
+      return query.state.status === "error" ? 30_000 : ATTENTION_SUMMARY_REFETCH_INTERVAL_MS;
+    },
   });
   const payload = query.data;
   return {

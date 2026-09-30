@@ -62,3 +62,39 @@ cache from a new snapshot fence" from the current build; liveness assertions liv
 RT-window-manager-stream-liveness.
 
 qa-impact: 2026-09-01 a reconnect fence replaces the cache even at an equal revision, so a daemon that migrated an arrangement at load re-renders without a reload; walked B7 and P5a on the final binary.
+
+qa-impact: 2026-09-29 issue #679 bounds session-catalog wake reconciliation to one window every five
+seconds, retains a final wake after an in-flight read, pauses catalog wakes while hidden or unfocused,
+and waits thirty seconds after catalog errors. Live streams own attention-summary refresh; fallback
+polling pauses when hidden and backs off on errors. Each browser load uses a distinct opaque
+`X-Compozy-Client-ID`, recorded as `client_id` in HTTP request logs.
+
+Regression walk for #679: seed at least 300 durable sessions, keep an active Loop and the desktop
+open for sixty minutes, and record `/api/sessions` requests by client and minute. With unchanged
+mounted consumers, require no more than thirteen catalog wake windows per consumer per minute
+and no increasing request trend. Blur/hide the window, then restore focus and verify one pending
+catalog reconciliation; inject a catalog failure and verify thirty-second backoff with the visible
+error retained. Count-free cursor reads (`skip_total=true`) must omit `page.total` while preserving
+cursor, ordering, scope, and the bounded row count. Default requests retain exact totals. Runtime QA
+owns the actual minute counts and final whole-app threshold receipt; unit timer acceleration is not
+sixty-minute runtime evidence.
+
+qa-impact: 2026-09-29 final #679 catalog consumers use one count-free first page per mounted list,
+metadata-only exact facets, and explicit Load more. Seed additional history beyond several pages
+and verify that automatic wake requests and rich hydrated rows do not grow. Load more must preserve
+ordering/completeness through `has_more`; a wake returns to the first page with Load more available.
+Verify All/Needs you/Working/Finished/Idle counts against the scoped population, including active
+sessions counted once and archived/profile-isolated rows excluded. Search visible title/agent,
+including unnamed `New session` rows, while chip counts remain independent of the search text.
+Record final bundle evidence separately from any soak started before this consumer migration.
+
+Final scope preservation for #679: add more than100 newer quiet sessions around an older needs-you,
+finished, and working session. The navigator first page must retain those bands and its ascending-ID
+attention-time tie order. Dock launch must choose the most recently created unarchived session even
+when an older session was updated later. Add more than100 pending terminal permissions and verify
+the exact terminal dock badge, resolving one request and switching workspace/profile; historical,
+archived, internal, and foreign-scope rows must not leak into that counter.
+
+Visible search parity: verify Greek title `ΟΣ` with query `ος` and agent `İ` with query `i̇` across
+durable and active rows. Search remains case-insensitive using the desktop Unicode lowercase
+semantics; no accent stripping or locale-specific alternate search is introduced.

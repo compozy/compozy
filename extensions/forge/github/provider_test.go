@@ -403,6 +403,115 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reconcile only the exact draft delivery candidate", func(t *testing.T) {
+		t.Parallel()
+		draft := true
+		candidate := pullPayload{Number: 44, HTMLURL: "https://github.com/acme/repo/pull/44", State: "open",
+			Head: pullRef{Ref: "feature/exit", SHA: "reviewed-sha"}, Base: pullRef{Ref: "main"}, Draft: &draft}
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Query().Get("state") != "open" {
+				t.Errorf("unexpected candidate lookup %s %s", r.Method, r.URL)
+			}
+			writeJSON(t, w, http.StatusOK, []pullPayload{candidate})
+		})
+		defer closeServer()
+		status, err := provider.Status(context.Background(), extensioncontract.ForgeStatusRequest{
+			RemoteURLs: []string{
+				"https://github.com/acme/repo",
+			},
+			Branch:  "feature/exit",
+			Base:    "main",
+			HeadSHA: "reviewed-sha",
+		})
+		if err != nil || status.Head != "feature/exit" || status.Base != "main" || status.HeadSHA != "reviewed-sha" ||
+			status.Draft == nil || !*status.Draft {
+			t.Fatalf("exact candidate status = %#v, %v", status, err)
+		}
+		request := createRequest()
+		request.HeadSHA = "reviewed-sha"
+		created, err := provider.CreatePR(context.Background(), request)
+		if err != nil || created.Status != "opened_existing" || created.Number != candidate.Number {
+			t.Fatalf("reconciled create = %#v, %v", created, err)
+		}
+	})
+
+	for _, mismatch := range []string{"base", "head", "sha", "draft", "unknown draft", "ambiguous"} {
+		t.Run("Should reject mismatched delivery "+mismatch+" before publishing", func(t *testing.T) {
+			t.Parallel()
+			draft := true
+			candidate := pullPayload{Number: 44, HTMLURL: "https://github.com/acme/repo/pull/44", State: "open",
+				Head: pullRef{Ref: "feature/exit", SHA: "reviewed-sha"}, Base: pullRef{Ref: "main"}, Draft: &draft}
+			switch mismatch {
+			case "base":
+				candidate.Base.Ref = "other"
+			case "head":
+				candidate.Head.Ref = "other"
+			case "sha":
+				candidate.Head.SHA = "changed-sha"
+			case "draft":
+				draft = false
+			case "unknown draft":
+				candidate.Draft = nil
+			}
+			var posts atomic.Int32
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost {
+					posts.Add(1)
+				}
+				pulls := []pullPayload{candidate}
+				if mismatch == "ambiguous" {
+					pulls = append(pulls, candidate)
+				}
+				writeJSON(t, w, http.StatusOK, pulls)
+			})
+			defer closeServer()
+			request := createRequest()
+			request.HeadSHA = "reviewed-sha"
+			if got, err := provider.CreatePR(context.Background(), request); err == nil || posts.Load() != 0 {
+				t.Fatalf("mismatched CreatePR = %#v, %v, posts=%d", got, err, posts.Load())
+			}
+		})
+	}
+
+	t.Run("Should find the exact candidate beyond the first lookup page", func(t *testing.T) {
+		t.Parallel()
+		draft := true
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if r.URL.Query().Get("page") == "1" {
+				pulls := make([]pullPayload, 100)
+				for i := range pulls {
+					pulls[i].Head.Ref = "other"
+				}
+				writeJSON(t, w, http.StatusOK, pulls)
+				return
+			}
+			writeJSON(t, w, http.StatusOK, []pullPayload{
+				{
+					Number:  45,
+					HTMLURL: "https://github.com/acme/repo/pull/45",
+					State:   "open",
+					Head:    pullRef{Ref: "feature/exit", SHA: "reviewed-sha"},
+					Base:    pullRef{Ref: "main"},
+					Draft:   &draft,
+				},
+			})
+		})
+		defer closeServer()
+		got, err := provider.Status(context.Background(), extensioncontract.ForgeStatusRequest{
+			RemoteURLs: []string{
+				"https://github.com/acme/repo",
+			},
+			Branch:  "feature/exit",
+			Base:    "main",
+			HeadSHA: "reviewed-sha",
+		})
+		if err != nil || got.PRNumber == nil || *got.PRNumber != 45 || calls.Load() != 2 {
+			t.Fatalf("paged exact status = %#v, %v, calls=%d", got, err, calls.Load())
+		}
+	})
+
 	t.Run("Should report merged pull request status", func(t *testing.T) {
 		t.Parallel()
 		mergedAt := time.Date(2026, time.August, 12, 10, 0, 0, 0, time.UTC)

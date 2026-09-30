@@ -60,6 +60,10 @@ describe("api client", () => {
     expect(requestUrl(fetchMock.mock.calls[0]?.[0] as RequestInfo | URL)).toBe(
       `${apiBaseUrl}/api/status`
     );
+    const clientID = (fetchMock.mock.calls[0]?.[0] as Request | undefined)?.headers.get(
+      "X-Compozy-Client-ID"
+    );
+    expect(clientID).toMatch(/^web-[a-zA-Z0-9_-]{1,76}$/);
     expect(result.response.ok).toBe(true);
     expect(result.data?.daemon.pid).toBe(42);
   });

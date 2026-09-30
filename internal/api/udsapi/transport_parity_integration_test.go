@@ -1652,6 +1652,7 @@ func assertTransportSessionProvenanceParity(
 	var explicitChild compozycontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 		AgentName:       parent.AgentName,
+		Name:            "ΟΣ İ",
 		WorkspacePath:   runtimeHarness.WorkspaceRoot,
 		ParentSessionID: parent.ID,
 	}, &explicitChild); err != nil {
@@ -1744,9 +1745,10 @@ func assertTransportSessionProvenanceParity(
 			childIDs,
 		)
 	}
-	if udsChildren.Page.Total != 2 || httpChildren.Page.Total != 2 {
+	if udsChildren.Page.Total == nil || *udsChildren.Page.Total != 2 || httpChildren.Page.Total == nil ||
+		*httpChildren.Page.Total != 2 {
 		t.Fatalf(
-			"parent filter totals uds=%d http=%d, want 2 on both transports",
+			"parent filter totals uds=%v http=%v, want 2 on both transports",
 			udsChildren.Page.Total,
 			httpChildren.Page.Total,
 		)
@@ -1772,12 +1774,74 @@ func assertTransportSessionProvenanceParity(
 			wantTree,
 		)
 	}
-	if udsTree.Page.Total != 3 || httpTree.Page.Total != 3 {
+	if udsTree.Page.Total == nil || *udsTree.Page.Total != 3 || httpTree.Page.Total == nil ||
+		*httpTree.Page.Total != 3 {
 		t.Fatalf(
-			"root filter totals uds=%d http=%d, want 3 on both transports",
+			"root filter totals uds=%v http=%v, want 3 on both transports",
 			udsTree.Page.Total,
 			httpTree.Page.Total,
 		)
+	}
+	latest := httpTree.Sessions[0]
+	for _, item := range httpTree.Sessions[1:] {
+		if item.CreatedAt.After(latest.CreatedAt) || item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID {
+			latest = item
+		}
+	}
+	// Invariant: metadata counts include each live tree member exactly once on both transports.
+	facetQuery := "/api/sessions/facets?all_workspaces=true&root=" + url.QueryEscape(parent.ID)
+	for _, read := range []struct {
+		name    string
+		request func(context.Context, string, string, any, any) error
+	}{
+		{name: "UDS", request: runtimeHarness.UDSJSON},
+		{name: "HTTP", request: runtimeHarness.HTTPJSON},
+	} {
+		for _, text := range []string{"ος", "i̇"} {
+			var visibleMatches compozycontract.SessionCatalogResponse
+			path := rootQuery + "&skip_total=true&search_fields=title_agent&q=" + url.QueryEscape(text)
+			if err := read.request(ctx, http.MethodGet, path, nil, &visibleMatches); err != nil {
+				t.Fatalf("%s Unicode search error=%v", read.name, err)
+			}
+			if len(visibleMatches.Sessions) != 1 || visibleMatches.Sessions[0].ID != explicitChild.Session.ID {
+				t.Fatalf("%s Unicode query%q matches=%#v", read.name, text, visibleMatches)
+			}
+		}
+		var createdPage compozycontract.SessionCatalogResponse
+		if err := read.request(
+			ctx,
+			http.MethodGet,
+			rootQuery+"&sort=created&skip_total=true&limit=1",
+			nil,
+			&createdPage,
+		); err != nil {
+			t.Fatalf("%s created read error=%v", read.name, err)
+		}
+		if len(createdPage.Sessions) != 1 || createdPage.Sessions[0].ID != latest.ID || createdPage.Page.Total != nil ||
+			!createdPage.Page.HasMore {
+			t.Fatalf("%s latest-created page=%#v", read.name, createdPage)
+		}
+		var navigatorPage compozycontract.SessionCatalogResponse
+		if err := read.request(
+			ctx,
+			http.MethodGet,
+			rootQuery+"&sort=navigator&skip_total=true&limit=1",
+			nil,
+			&navigatorPage,
+		); err != nil {
+			t.Fatalf("%s navigator read error=%v", read.name, err)
+		}
+		if len(navigatorPage.Sessions) != 1 || navigatorPage.Page.Total != nil || !navigatorPage.Page.HasMore ||
+			navigatorPage.Page.NextCursor == "" {
+			t.Fatalf("%s bounded navigator page=%#v", read.name, navigatorPage)
+		}
+		var facets compozycontract.SessionCatalogFacetsResponse
+		if err := read.request(ctx, http.MethodGet, facetQuery, nil, &facets); err != nil {
+			t.Fatalf("%s facets error=%v", read.name, err)
+		}
+		if facets.Facets.All != 3 || len(facets.ByWorkspace) != 1 || facets.ByWorkspace[0].Facets.All != 3 {
+			t.Fatalf("%s tree facets=%#v, want three scoped live sessions", read.name, facets)
+		}
 	}
 }
 

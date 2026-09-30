@@ -23,13 +23,12 @@ import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
-import { OsSessionsDeriveHost } from "./os-sessions-derive-host";
 import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
 import { OsWinLayer } from "./os-win-layer";
-import { OsSessionsModal } from "./sessions-modal";
+import { OsSessionsDialogHost } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -40,8 +39,6 @@ import {
 import {
   SessionCreateDialogHost,
   SessionCreateProvider,
-  SessionDeleteDialog,
-  SessionRenameDialog,
   useSessionCreateActions,
   useSessionLifecycleActions,
   useSessionListView,
@@ -184,7 +181,11 @@ function DesktopShellScopedBody({
   const setAutomationEnabled = useProfileAutomationEnablement();
   // Scope and order are the operator's, persisted by the daemon; the modal
   // renders them rather than fetching its own.
-  const sessionListView = useSessionListView();
+  const sessionListView = useSessionListView({
+    workspaceId: model.runtimeWorkspaceId,
+    worktreeId: worktreeSelection.activeWorktree?.id,
+    enabled: worktreeSelection.resolved,
+  });
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -344,47 +345,15 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         dispatch={paletteDispatch}
       />
-      <OsSessionsDeriveHost
-        workspaceId={model.runtimeWorkspaceId}
-        onLanded={() => overlays.setOverlayOpen("sessions", false)}
-      >
-        {({ deriveOpen }) => (
-          <OsSessionsModal
-            open={overlays.activeOverlay === "sessions"}
-            onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
-            dismissalBlocked={
-              sessionLifecycle.deleteDialog.open || sessionLifecycle.renameDialog.open || deriveOpen
-            }
-            sessions={attention.sessions}
-            disconnected={attention.sessionsDisconnected}
-            view={sessionListView}
-            currentWorkspaceId={model.runtimeWorkspaceId}
-            onNewSession={openNewSession}
-            sessionActions={sessionLifecycle.actions}
-          />
-        )}
-      </OsSessionsDeriveHost>
-      {sessionLifecycle.deleteDialog.session ? (
-        <SessionDeleteDialog
-          open={sessionLifecycle.deleteDialog.open}
-          onOpenChange={sessionLifecycle.deleteDialog.onOpenChange}
-          session={sessionLifecycle.deleteDialog.session}
-          sessions={sessionLifecycle.deleteDialog.sessions}
-          results={sessionLifecycle.deleteDialog.results}
-          onRetry={sessionLifecycle.deleteDialog.onRetry}
-          isDeleting={sessionLifecycle.deleteDialog.isDeleting}
-          onConfirm={sessionLifecycle.deleteDialog.onConfirm}
-        />
-      ) : null}
-      {sessionLifecycle.renameDialog.session ? (
-        <SessionRenameDialog
-          open={sessionLifecycle.renameDialog.open}
-          onOpenChange={sessionLifecycle.renameDialog.onOpenChange}
-          session={sessionLifecycle.renameDialog.session}
-          isRenaming={sessionLifecycle.renameDialog.isRenaming}
-          onConfirm={sessionLifecycle.renameDialog.onConfirm}
-        />
-      ) : null}
+      <OsSessionsDialogHost
+        open={overlays.activeOverlay === "sessions"}
+        onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
+        disconnected={attention.sessionsDisconnected || Boolean(sessionListView.catalog?.failed)}
+        view={sessionListView}
+        currentWorkspaceId={model.runtimeWorkspaceId}
+        onNewSession={openNewSession}
+        lifecycle={sessionLifecycle}
+      />
       <OsShortcutsDialog
         open={overlays.activeOverlay === "shortcuts"}
         onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}

@@ -8,9 +8,17 @@ import {
   useWorkspaceSessionGroups,
   type WorkspaceSessionGroup,
 } from "./use-workspace-session-groups";
-import type { SessionListScope, SessionListSort } from "../lib/session-list-preferences";
+import { useSessionCatalog } from "./use-session-catalog";
+import {
+  sessionListSortParam,
+  type SessionListScope,
+  type SessionListSort,
+} from "../lib/session-list-preferences";
 
 export interface SessionListViewModel {
+  catalog?: ReturnType<typeof useSessionCatalog>;
+  search?: string;
+  setSearch?: (search: string) => void;
   scope: SessionListScope;
   sort: SessionListSort;
   /** True while the list shows the archive instead of the active catalog. */
@@ -43,20 +51,44 @@ export interface SessionListViewModel {
  * transient — they are ways of looking at the list right now, not preferences
  * worth round-tripping through config.
  */
-export function useSessionListView(): SessionListViewModel {
+export function useSessionListView(
+  options: { workspaceId?: string | null; worktreeId?: string; enabled?: boolean } = {}
+): SessionListViewModel {
   const preferences = useSessionListPreferences();
-  const { workspaces } = useActiveWorkspace();
+  const { registeredWorkspaces: workspaces, runtimeWorkspaceId, scope } = useActiveWorkspace();
   const profile = useProfileReadScope();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [search, setSearch] = useState("");
   const [archived, setArchived] = useState(false);
   const workspaceGroups = useWorkspaceSessionGroups({
     workspaces,
     sort: preferences.sort,
     archived,
-    enabled: preferences.scope === "all-workspaces",
+    enabled: (options.enabled ?? true) && preferences.scope === "all-workspaces",
+    search,
   });
 
+  const workspaceId = options.workspaceId === undefined ? runtimeWorkspaceId : options.workspaceId;
+  const catalog = useSessionCatalog(
+    workspaceId,
+    {
+      include_health: true,
+      limit: 100,
+      sort: sessionListSortParam(preferences.sort),
+      q: search,
+      search_fields: "title_agent",
+      worktree: options.worktreeId,
+      ...(archived ? { archive: "only" as const } : {}),
+    },
+    (options.enabled ?? true) &&
+      preferences.scope === "workspace" &&
+      (scope === "global" || workspaceId !== null)
+  );
+
   return {
+    catalog,
+    search,
+    setSearch,
     scope: preferences.scope,
     sort: preferences.sort,
     archived,

@@ -1,11 +1,13 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { shallowEqual } from "@xstate/store";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { notifyUser } from "@/lib/user-feedback";
 import {
   toggleSessionSidebar,
   useSessionSidebarState,
   visibleSessionOrder,
+  sessionCatalogOptions,
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
@@ -168,6 +170,7 @@ function focusedSessionId(state: OsDesktopRuntimeStore) {
 export function useDesktopShellBody(model: DesktopShellModel, options: DesktopShellBodyOptions) {
   const firstRun = options.firstRun ?? false;
   const desktopRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
   const worktreesByWorkspace = useWorktreeListings(model.workspaces, {
@@ -176,7 +179,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const attention = useOsAttention(
     model.runtimeWorkspace,
     model.sessionCatalogStreamStatus,
-    options.sessionListView.archived
+    options.sessionListView.archived,
+    false
   );
   const jumpToSession = useAttentionJump();
   useDocumentTitleBadge(attention.notificationCount);
@@ -241,12 +245,23 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     },
     cycleSession: direction => {
       const state = manager.getState();
-      const visibleSessions = visibleSessionOrder(attention.sessions, {
-        scope: options.sessionListView.scope,
-        collapsedThreadIds: new Set(collapsedThreadIds),
-        collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
-        workspaceGroups: options.sessionListView.workspaceGroups,
-      });
+      const visibleSessions = visibleSessionOrder(
+        options.sessionListView.catalog?.sessions ?? attention.sessions,
+        {
+          scope: options.sessionListView.scope,
+          collapsedThreadIds: new Set(collapsedThreadIds),
+          collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
+          workspaceGroups: options.sessionListView.workspaceGroups.map(group => ({
+            ...group,
+            // Expanded groups own these exact pages. Read their current cursor at
+            // invocation rather than loading another catalog for keyboard navigation.
+            sessions: group.catalogFilters
+              ? (queryClient.getQueryData(sessionCatalogOptions(group.catalogFilters).queryKey)
+                  ?.pages[0]?.sessions ?? [])
+              : group.sessions,
+          })),
+        }
+      );
       const target = adjacentShortcutItem<SessionPayload>(
         visibleSessions,
         focusedSessionId(state),

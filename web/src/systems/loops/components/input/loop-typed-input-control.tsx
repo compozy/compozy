@@ -24,6 +24,7 @@ import type { LoopInputSchemaField } from "../../types";
 import type { LoopEntityKind } from "../../lib/loop-input-kinds";
 import { useLoopInputCatalogs } from "../../hooks/use-loop-input-catalogs";
 import type { LoopEntityCatalog } from "../../lib/loop-input-catalogs";
+import { LoopSessionValueSelect } from "./loop-session-value-select";
 import { LoopRuntimeValueControl } from "./loop-runtime-value-control";
 
 interface EntityValueControlProps {
@@ -147,6 +148,20 @@ export function LoopEntityValueControl({
   onChange,
 }: EntityValueControlProps) {
   const catalogs = useLoopInputCatalogs();
+  if (kind === "session") {
+    return (
+      <LoopSessionValueSelect
+        workspaceId={catalogs.sessionWorkspaceId ?? ""}
+        value={value}
+        controlId={controlId}
+        testId={testId}
+        disabled={disabled}
+        invalid={invalid}
+        describedBy={describedBy}
+        onChange={onChange}
+      />
+    );
+  }
   if (kind === "agent") {
     if (catalogs.agentError) {
       return (

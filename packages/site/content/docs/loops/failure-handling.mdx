@@ -31,6 +31,10 @@ Every failed attempt carries an operator-safe `class`, `code`, `cause`, optional
 | `budget_exhausted`   | The attempt cannot finish inside its remaining budget.         | no              |
 | `target_unavailable` | The shared target breaker is open.                             | no              |
 
+An unhandled tool input-validation failure (`tool_invalid_input`) ends the run as `failed`, including
+with the default generation retry policy. Correct the input before starting or rerunning the Loop.
+An authored `on_error.route` or `allow_fail` decision still applies before this terminal boundary.
+
 Only `transport` and `attempt_timeout` are retry-eligible. A node's `non_retryable` list can narrow
 that set further; it cannot make another class transient.
 

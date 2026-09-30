@@ -27,7 +27,13 @@ export const apiClient = createClient<compozyPaths>({
  * boundary learned the session was over. The body is read from a clone so the
  * calling adapter still receives an unconsumed response.
  */
+const clientID = `web-${globalThis.crypto.randomUUID()}`;
+
 apiClient.use({
+  onRequest({ request }) {
+    request.headers.set("X-Compozy-Client-ID", clientID);
+    return request;
+  },
   async onResponse({ response }) {
     await reportGatewayResponse(response);
     return undefined;

@@ -1759,6 +1759,7 @@ export interface ForgeCapabilitiesResponse {
 export interface ForgePRCreateRequest {
   remote_urls: string[];
   head: string;
+  head_sha?: string;
   base: string;
   title: string;
   body?: string;
@@ -1775,6 +1776,8 @@ export interface ForgePRCreateResponse {
 export interface ForgeStatusRequest {
   remote_urls: string[];
   branch: string;
+  base?: string;
+  head_sha?: string;
 }
 
 export interface ForgeStatusResponse {
@@ -1782,6 +1785,10 @@ export interface ForgeStatusResponse {
   pr_number?: number;
   pr_state?: string;
   pr_url?: string;
+  head?: string;
+  base?: string;
+  head_sha?: string;
+  draft?: boolean;
   merged?: boolean;
   fetched_at: ISODateTime;
   cause?: string;

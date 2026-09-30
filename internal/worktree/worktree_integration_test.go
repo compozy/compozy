@@ -3,9 +3,14 @@
 package worktree
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +26,534 @@ import (
 func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: replay recognizes only the authorized selected tree and parent,
+	// preserving outsiders and blocking hook-expanded commits before publication.
+	// Owner: worktree delivery; canonical real Git lifecycle integration suite.
+	t.Run("Should reconcile an interrupted selective managed commit without replaying it", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(
+			context.Background(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Managed Journal"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range map[string]string{"selected.txt": "reviewed\n", "outside.txt": "private staged\n"} {
+			if err := os.WriteFile(filepath.Join(item.Path, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		f.git(item.Path, "add", "outside.txt")
+		outside := f.git(item.Path, "show", ":outside.txt")
+		head := f.git(item.Path, "rev-parse", "HEAD")
+		tree, err := f.service.deliveryExpectedTree(context.Background(), *item, []string{"selected.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal := &managedDeliveryJournal{
+			Version:      1,
+			OperationID:  "managed-op",
+			SessionID:    "managed-caller",
+			Item:         *item,
+			OriginalHead: head,
+			Snapshot:     tree,
+			Tree:         tree,
+			Phase:        "committing",
+			Request: ExitActionRequest{
+				Action:       ExitActionDeliver,
+				DeliveryID:   "managed-intent",
+				Message:      "Reviewed delivery",
+				IncludePaths: []string{"selected.txt"},
+			},
+		}
+		path := filepath.Join(f.worktreesRoot, ".delivery", "test.json")
+		if err := saveDeliveryJournal(path, journal); err != nil {
+			t.Fatal(err)
+		}
+		f.git(item.Path, "add", "selected.txt")
+		f.git(
+			item.Path,
+			"commit",
+			"--only",
+			"-m",
+			"Reviewed delivery\n\nCompozy-Delivery: managed-intent",
+			"--",
+			"selected.txt",
+		)
+		committed := f.git(item.Path, "rev-parse", "HEAD")
+		if err := f.service.commitManagedDelivery(
+			context.Background(),
+			path,
+			journal,
+			ExitOperation{ID: "managed-op"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if journal.Head != committed || journal.Phase != "committed" {
+			t.Fatalf("journal=%#v", journal)
+		}
+		if err := f.service.commitManagedDelivery(
+			context.Background(),
+			path,
+			journal,
+			ExitOperation{ID: "managed-op"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.git(item.Path, "rev-parse", "HEAD"); got != committed {
+			t.Fatal("recovery duplicated commit")
+		}
+		if got := f.git(item.Path, "show", ":outside.txt"); got != outside {
+			t.Fatal("recovery changed unrelated staged content")
+		}
+		if got := f.git(item.Path, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"); got != "selected.txt" {
+			t.Fatalf("committed paths=%q", got)
+		}
+	})
+	t.Run("Should refuse managed publication when a commit hook expands selected content", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(
+			context.Background(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Managed Hook"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range map[string]string{"selected.txt": "reviewed\n", "private.txt": "private\n"} {
+			if err := os.WriteFile(filepath.Join(item.Path, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		hook := filepath.Join(f.workspace.Root, ".git", "hooks", "pre-commit")
+		if err := os.WriteFile(hook, []byte("#!/bin/sh\ngit add private.txt\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		head := f.git(item.Path, "rev-parse", "HEAD")
+		tree, err := f.service.deliveryExpectedTree(context.Background(), *item, []string{"selected.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal := &managedDeliveryJournal{
+			Version:      1,
+			Item:         *item,
+			OriginalHead: head,
+			Snapshot:     tree,
+			Phase:        "prepared",
+			Request: ExitActionRequest{
+				DeliveryID:   "hook-intent",
+				Message:      "Reviewed delivery",
+				IncludePaths: []string{"selected.txt"},
+			},
+		}
+		err = f.service.commitManagedDelivery(
+			context.Background(),
+			filepath.Join(f.worktreesRoot, ".delivery", "hook.json"),
+			journal,
+			ExitOperation{ID: "hook-op"},
+		)
+		if !errors.Is(err, ErrSafetyCheckFailed) {
+			t.Fatalf("hook-expanded commit error=%v", err)
+		}
+		if journal.Phase == "committed" {
+			t.Fatal("hook-expanded commit was admitted for push")
+		}
+	})
+
 	fixture := newRealGitFixture(t)
+
+	t.Run("Should refuse selective commit when identical-tree HEAD advances before commit", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(context.Background(), f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Selective Parent Race"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range map[string]string{"selected.txt": "reviewed", "outside.txt": "private staged"} {
+			if err := os.WriteFile(filepath.Join(item.Path, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		f.git(item.Path, "add", "outside.txt")
+		indexBefore := f.git(item.Path, "show", ":outside.txt")
+		original := f.git(item.Path, "rev-parse", "HEAD")
+		tree := f.git(item.Path, "rev-parse", "HEAD^{tree}")
+		reviewed, err := f.service.selectedCommitScope(context.Background(), item.Path, []string{"selected.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		intercepted := false
+		f.service.runner = &interceptingGitRunner{inner: f.runner,
+			intercept: func(dir string, args []string) ([]byte, []byte, error, bool) {
+				if len(args) > 1 && args[0] == gitLiteralPathspecs && args[1] == "commit" {
+					intercepted = true
+					replacement := f.git(dir, "commit-tree", tree, "-p", original, "-m", "External same-tree advance")
+					f.git(dir, "update-ref", "HEAD", replacement, original)
+				}
+				return nil, nil, nil, false
+			}}
+		step, err := f.service.runExitCommit(context.Background(), ExitOperation{}, ExitActionCommit,
+			*item, reviewed, "Reviewed selective commit")
+		if !intercepted || !errors.Is(err, ErrSafetyCheckFailed) || step.State == exitStepCompleted {
+			t.Fatalf("same-tree parent race admitted: intercepted=%v step=%#v err=%v", intercepted, step, err)
+		}
+		if got := f.git(item.Path, "show", ":outside.txt"); got != indexBefore {
+			t.Fatalf("outside staged bytes changed=%q want=%q", got, indexBefore)
+		}
+	})
+
+	t.Run("Should commit an already staged tracked deletion within the reviewed scope", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(
+			context.Background(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Staged Deletion Proof"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(filepath.Join(item.Path, "README.md")); err != nil {
+			t.Fatal(err)
+		}
+		f.git(item.Path, "add", "-A", "--", "README.md")
+		reviewed, err := f.service.selectedCommitScope(context.Background(), item.Path, []string{"README.md"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		step, err := f.service.runExitCommit(
+			context.Background(),
+			ExitOperation{},
+			ExitActionCommit,
+			*item,
+			reviewed,
+			"Reviewed deletion",
+		)
+		if err != nil || step.State != exitStepCompleted {
+			t.Fatalf("tracked deletion step=%#v error=%v", step, err)
+		}
+		if files := f.git(item.Path, "ls-tree", "--name-only", "HEAD"); strings.Contains(files, "README.md") {
+			t.Fatalf("deleted path remained in commit=%q", files)
+		}
+	})
+
+	t.Run("Should bind complete selected index identities beyond the Git output cap", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(
+			context.Background(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Large Index Proof"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		large := make([]byte, 2*maxGitOutputBytes)
+		for offset := 0; offset < len(large); offset += sha256.Size {
+			digest := sha256.Sum256([]byte(fmt.Sprintf("index-proof-%d", offset)))
+			copy(large[offset:], digest[:])
+		}
+		if err := os.WriteFile(filepath.Join(item.Path, "a-large.bin"), large, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "z-index-tail.txt"),
+			[]byte("staged original"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		f.git(item.Path, "add", "a-large.bin", "z-index-tail.txt")
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "z-index-tail.txt"),
+			[]byte("unchanged working bytes"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		paths := []string{"a-large.bin", "z-index-tail.txt"}
+		reviewed, err := f.service.selectedCommitScope(context.Background(), item.Path, paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "z-index-tail.txt"),
+			[]byte("different staged bytes"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		f.git(item.Path, "add", "z-index-tail.txt")
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "z-index-tail.txt"),
+			[]byte("unchanged working bytes"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		matches, err := f.service.VerifyReviewCandidate(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			paths,
+			reviewed.Fingerprint,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if matches {
+			t.Fatal("changed selected index identity beyond the capped binary patch was accepted")
+		}
+		_, err = f.service.runExitCommit(
+			context.Background(),
+			ExitOperation{},
+			ExitActionCommit,
+			*item,
+			reviewed,
+			"Stale selected index",
+		)
+		if !errors.Is(err, ErrExitActionInvalid) {
+			t.Fatalf("stale index commit error=%v", err)
+		}
+	})
+
+	t.Run("Should commit only reviewed files while preserving private and pre-staged work", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(
+			context.Background(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Scoped Delivery"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(item.Path, ".compozy/tasks"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for path, content := range map[string]string{"reviewed.txt": "reviewed\n", ".compozy/tasks/private.md": "private\n", "outside.txt": "staged outside\n"} {
+			if err := os.WriteFile(filepath.Join(item.Path, path), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i := range exitUntrackedFileLimit + 5 {
+			if err := os.WriteFile(
+				filepath.Join(item.Path, fmt.Sprintf("extra-%03d.txt", i)),
+				[]byte("extra"),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		f.git(item.Path, "add", "outside.txt")
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "outside.txt"),
+			[]byte("unstaged outside\n"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		indexBefore := f.git(item.Path, "show", ":outside.txt")
+		tree, err := f.service.deliveryExpectedTree(
+			context.Background(),
+			*item,
+			[]string{"reviewed.txt", "extra-204.txt"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := f.git(item.Path, "show", tree+":reviewed.txt"); got != "reviewed" {
+			t.Fatalf("isolated reviewed content=%q", got)
+		}
+		if got := f.git(
+			item.Path,
+			"ls-tree",
+			"--name-only",
+			tree,
+		); strings.Contains(got, "outside.txt") ||
+			strings.Contains(got, ".compozy") {
+			t.Fatalf("isolated tree leaked outside paths=%q", got)
+		}
+		if got := f.git(item.Path, "show", ":outside.txt"); got != indexBefore {
+			t.Fatalf("isolated tree mutated real index=%q", got)
+		}
+
+		full, err := f.service.ExitPlan(context.Background(), f.workspace.ID, item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !full.CommitScope.UntrackedTruncated {
+			t.Fatal("expected truncated whole-worktree display")
+		}
+		plan, err := f.service.ExitPlanForPaths(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			[]string{"reviewed.txt", "extra-204.txt"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !plan.CommitScope.Complete || len(plan.CommitScope.IncludePaths) != 2 {
+			t.Fatalf("scope=%#v", plan.CommitScope)
+		}
+		matches, err := f.service.VerifyReviewCandidate(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			plan.CommitScope.IncludePaths,
+			plan.CommitScope.Fingerprint,
+		)
+		if err != nil || !matches {
+			t.Fatalf("unchanged candidate=%t/%v", matches, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "reviewed.txt"),
+			[]byte("changed candidate"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		matches, err = f.service.VerifyReviewCandidate(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			plan.CommitScope.IncludePaths,
+			plan.CommitScope.Fingerprint,
+		)
+		if err != nil || matches {
+			t.Fatalf("changed content candidate=%t/%v", matches, err)
+		}
+		if err := os.WriteFile(filepath.Join(item.Path, "reviewed.txt"), []byte("reviewed\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		f.git(item.Path, "add", "reviewed.txt")
+		matches, err = f.service.VerifyReviewCandidate(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			plan.CommitScope.IncludePaths,
+			plan.CommitScope.Fingerprint,
+		)
+		if err != nil || matches {
+			t.Fatalf("changed index candidate=%t/%v", matches, err)
+		}
+		plan, err = f.service.ExitPlanForPaths(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			plan.CommitScope.IncludePaths,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opID, err := f.service.RunExitAction(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			ExitActionRequest{
+				Action:        ExitActionCommit,
+				Message:       "Reviewed delivery",
+				IncludePaths:  plan.CommitScope.IncludePaths,
+				ExpectedScope: plan.CommitScope.Fingerprint,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForExitOperation(t, f.store, opID, "completed", 30*time.Second)
+		matches, err = f.service.VerifyReviewCandidate(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			plan.CommitScope.IncludePaths,
+			plan.CommitScope.Fingerprint,
+		)
+		if err != nil || matches {
+			t.Fatalf("changed HEAD candidate=%t/%v", matches, err)
+		}
+
+		committed := f.git(item.Path, "show", "--format=", "--name-only", "HEAD")
+		if committed != "extra-204.txt\nreviewed.txt" {
+			t.Fatalf("committed=%q", committed)
+		}
+		if got := f.git(item.Path, "show", ":outside.txt"); got != indexBefore {
+			t.Fatalf("outside staged content=%q want=%q", got, indexBefore)
+		}
+		assertFileContent(t, filepath.Join(item.Path, "outside.txt"), "unstaged outside\n")
+		assertFileContent(t, filepath.Join(item.Path, ".compozy/tasks/private.md"), "private\n")
+		plan, err = f.service.ExitPlanForPaths(context.Background(), f.workspace.ID, item.ID, []string{"extra-203.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(item.Path, "extra-203.txt"),
+			[]byte("changed after review"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.service.RunExitAction(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			ExitActionRequest{
+				Action:        ExitActionCommit,
+				IncludePaths:  plan.CommitScope.IncludePaths,
+				ExpectedScope: plan.CommitScope.Fingerprint,
+			},
+		)
+		if !errors.Is(err, ErrExitActionInvalid) {
+			t.Fatalf("stale scope error=%v", err)
+		}
+		stagedBefore := f.git(item.Path, "diff", "--cached", "--name-only")
+		_, err = f.service.runExitCommit(
+			context.Background(),
+			ExitOperation{},
+			ExitActionCommit,
+			*item,
+			plan.CommitScope,
+			"Stale queued delivery",
+		)
+		if !errors.Is(err, ErrExitActionInvalid) {
+			t.Fatalf("pre-staging scope error=%v", err)
+		}
+		if got := f.git(item.Path, "diff", "--cached", "--name-only"); got != stagedBefore {
+			t.Fatalf("stale queued delivery changed index=%q", got)
+		}
+
+		for _, path := range []string{"../outside", ".git/config", "reviewed.txt/../outside.txt"} {
+			if _, err := f.service.ExitPlanForPaths(
+				context.Background(),
+				f.workspace.ID,
+				item.ID,
+				[]string{path},
+			); !errors.Is(
+				err,
+				ErrExitActionInvalid,
+			) {
+				t.Fatalf("path %q error=%v", path, err)
+			}
+		}
+		if err := os.Symlink(t.TempDir(), filepath.Join(item.Path, "escape")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.ExitPlanForPaths(
+			context.Background(),
+			f.workspace.ID,
+			item.ID,
+			[]string{"escape/file"},
+		); !errors.Is(
+			err,
+			ErrExitActionInvalid,
+		) {
+			t.Fatalf("symlink error=%v", err)
+		}
+	})
 
 	t.Run("Should materialize bootstrap inspect and safely remove a real linked worktree", func(t *testing.T) {
 		item, err := fixture.service.Create(
@@ -1337,6 +1869,12 @@ func (r *interceptingGitRunner) Run(
 	return r.inner.Run(ctx, dir, args...)
 }
 
+func (r *interceptingGitRunner) RunWithIndex(
+	ctx context.Context, dir, index string, args ...string,
+) ([]byte, []byte, error) {
+	return r.inner.(GitIndexRunner).RunWithIndex(ctx, dir, index, args...)
+}
+
 func newRealGitFixture(t *testing.T) *realGitFixture {
 	return newRealGitFixtureWithCommit(t, true)
 }
@@ -1423,4 +1961,447 @@ func assertFileContent(t *testing.T, path, want string) {
 	if got := string(contents); got != want {
 		t.Fatalf("ReadFile(%q) = %q, want %q", path, got, want)
 	}
+}
+
+// Canonical service integration: asynchronous admission, local Git publication,
+// and forge HTTP I/O. Session identity/fencing is owned by the manager suite.
+func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject identical-tree HEAD replacement during no-op delivery", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(context.Background(), f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "No-op Head Race"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		original := f.git(item.Path, "rev-parse", "HEAD")
+		tree := f.git(item.Path, "rev-parse", "HEAD^{tree}")
+		reads := 0
+		f.service.runner = &interceptingGitRunner{inner: f.runner,
+			intercept: func(dir string, args []string) ([]byte, []byte, error, bool) {
+				if len(args) == 2 && args[0] == "rev-parse" && args[1] == "HEAD" {
+					reads++
+					if reads == 2 {
+						replacement := f.git(dir, "commit-tree", tree, "-p", original, "-m", "External no-op history")
+						f.git(dir, "update-ref", "HEAD", replacement, original)
+					}
+				}
+				return nil, nil, nil, false
+			}}
+		journal := &managedDeliveryJournal{Version: 1, Item: *item, OriginalHead: original,
+			Snapshot: tree, Phase: "prepared", Request: ExitActionRequest{DeliveryID: "noop-head-race"}}
+		err = f.service.commitManagedDelivery(context.Background(),
+			filepath.Join(f.worktreesRoot, ".delivery", "noop-race.json"), journal, ExitOperation{ID: "noop-race"})
+		if !errors.Is(err, ErrSafetyCheckFailed) || journal.Phase == "committed" {
+			t.Fatalf("no-op changed HEAD admitted: err=%v journal=%#v", err, journal)
+		}
+	})
+	for _, phase := range []string{"submit", "head-race", "ambiguous", "prepared", "committing", "pushing", "pr", "completed", "canceled"} {
+		t.Run("Should reconcile managed delivery phase "+phase, func(t *testing.T) {
+			t.Parallel()
+			f := newRealGitFixture(t)
+			remote := filepath.Join(t.TempDir(), "remote.git")
+			f.git(f.workspace.Root, "init", "--bare", remote)
+			f.git(f.workspace.Root, "remote", "add", "origin", remote)
+			f.git(f.workspace.Root, "push", "origin", "main")
+			item, err := f.service.Create(
+				context.Background(),
+				f.workspace.ID,
+				CreateOptions{ProfileID: testWorktreeProfileID, Name: "Managed " + phase},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for name, content := range map[string]string{"selected.txt": "reviewed\n", "private.txt": "private\n"} {
+				if err := os.WriteFile(filepath.Join(item.Path, name), []byte(content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			f.git(item.Path, "add", "private.txt")
+			privateIndex := f.git(item.Path, "show", ":private.txt")
+			caller := &integrationDeliveryCaller{
+				active:      true,
+				sessionID:   "managed-caller",
+				workspaceID: f.workspace.ID,
+				worktreeID:  item.ID,
+			}
+			forge := newIntegrationHTTPForge(t)
+			WithSessionGuard(caller)(f.service)
+			WithManagedDeliverySessions(caller)(f.service)
+			WithForge(forge)(f.service)
+			plan, err := f.service.ExitPlanForPaths(
+				context.Background(),
+				f.workspace.ID,
+				item.ID,
+				[]string{"selected.txt"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := f.git(item.Path, "rev-parse", "HEAD")
+			request := ExitActionRequest{
+				Action:        ExitActionDeliver,
+				DeliveryID:    "stable-intent",
+				ExpectedHead:  original,
+				Base:          " main ",
+				Message:       "Reviewed managed delivery",
+				Title:         "Managed delivery",
+				Body:          "Reviewed",
+				Draft:         true,
+				IncludePaths:  []string{"selected.txt"},
+				ExpectedScope: plan.CommitScope.Fingerprint,
+			}
+			// Invariant: fresh delivery rejects identical-tree HEAD replacement before publication.
+			// Owner: worktree delivery; canonical real Git managed Submit/Recover suite.
+			if phase == "head-race" {
+				f.service.runner = &interceptingGitRunner{
+					inner: f.runner,
+					intercept: func(dir string, args []string) ([]byte, []byte, error, bool) {
+						if len(args) > 1 && args[0] == gitLiteralPathspecs && args[1] == "commit" {
+							tree := f.git(dir, "rev-parse", "HEAD^{tree}")
+							replacement := f.git(dir, "commit-tree", tree, "-p", original, "-m", "External history")
+							f.git(dir, "update-ref", "HEAD", replacement, original)
+						}
+						return nil, nil, nil, false
+					},
+				}
+			}
+			var opID string
+			if phase == "submit" || phase == "head-race" || phase == "ambiguous" {
+				if phase == "ambiguous" {
+					forge.failNext.Store(true)
+				}
+				opID, err = f.service.SubmitManagedDelivery(
+					context.Background(),
+					f.workspace.ID,
+					item.ID,
+					caller.sessionID,
+					request,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				tree, err := f.service.deliveryExpectedTree(context.Background(), *item, request.IncludePaths)
+				if err != nil {
+					t.Fatal(err)
+				}
+				storedRequest := request
+				storedRequest.Base = "main"
+				journal := &managedDeliveryJournal{
+					Version:       1,
+					OperationID:   "interrupted-op",
+					SessionID:     caller.sessionID,
+					Item:          *item,
+					Request:       storedRequest,
+					OriginalHead:  original,
+					BaseHead:      original,
+					Snapshot:      tree,
+					ReviewedScope: plan.CommitScope,
+					RemoteURLs:    []string{remote},
+					Phase:         "prepared",
+					Result:        ExitActionResult{OperationID: "interrupted-op", Action: ExitActionDeliver},
+				}
+				path, err := f.service.deliveryJournalPath(f.workspace.ID, item.ID, request.DeliveryID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				operation := ExitOperation{
+					ID:          "interrupted-op",
+					ProfileID:   item.ProfileID,
+					WorkspaceID: f.workspace.ID,
+					WorktreeID:  item.ID,
+					Action:      string(ExitActionDeliver),
+					State:       "running",
+					StartedAt:   time.Now(),
+				}
+				if err := f.store.InsertExitOperation(context.Background(), operation); err != nil {
+					t.Fatal(err)
+				}
+				if phase == "committing" {
+					journal.Phase = "committing"
+					journal.Tree = tree
+					f.git(item.Path, "add", "selected.txt")
+					f.git(
+						item.Path,
+						"commit",
+						"--only",
+						"-m",
+						request.Message+"\n\nCompozy-Delivery: "+request.DeliveryID,
+						"--",
+						"selected.txt",
+					)
+				} else if phase == "pushing" || phase == "pr" || phase == "completed" {
+					if err := f.service.commitManagedDelivery(
+						context.Background(),
+						path,
+						journal,
+						operation,
+					); err != nil {
+						t.Fatal(err)
+					}
+					journal.Phase = phase
+					if phase == "pr" || phase == "completed" {
+						if _, err := f.service.pushManagedDelivery(context.Background(), journal); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := forge.CreatePR(
+							context.Background(),
+							ForgePRRequest{Head: item.Branch, Base: "main", HeadSHA: journal.Head, Draft: true},
+						); err != nil {
+							t.Fatal(err)
+						}
+					}
+				} else if phase == "canceled" {
+					journal.Phase = "canceled"
+				}
+				if err := saveDeliveryJournal(path, journal); err != nil {
+					t.Fatal(err)
+				}
+				recovered := f.newService(f.runner)
+				WithSessionGuard(caller)(recovered)
+				WithManagedDeliverySessions(caller)(recovered)
+				WithForge(forge)(recovered)
+				if err := recovered.RecoverManagedDeliveries(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				f.service = recovered
+				current, err := readDeliveryJournal(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				opID = current.OperationID
+			}
+			if phase == "ambiguous" {
+				waitForExitOperation(t, f.store, opID, "failed", 30*time.Second)
+				f.service.exitMu.Lock()
+				control := f.service.exits[opID]
+				f.service.exitMu.Unlock()
+				if control != nil {
+					select {
+					case <-control.done:
+					case <-time.After(30 * time.Second):
+						t.Fatal("failed delivery did not release its fence")
+					}
+				}
+				if err := f.service.RecoverManagedDeliveries(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				path, err := f.service.deliveryJournalPath(f.workspace.ID, item.ID, request.DeliveryID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				current, err := readDeliveryJournal(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				opID = current.OperationID
+			}
+			terminal := "completed"
+			if phase == "head-race" {
+				terminal = "failed"
+			}
+			if phase == "canceled" {
+				terminal = "canceled"
+			}
+			waitForExitOperation(t, f.store, opID, terminal, 30*time.Second)
+			if phase == "head-race" {
+				if got := f.git(item.Path, "ls-remote", "--heads", "origin", "refs/heads/"+item.Branch); got != "" {
+					t.Fatalf("unexpected history published: %q", got)
+				}
+				if forge.creates.Load() != 0 {
+					t.Fatal("unexpected history created PR")
+				}
+				return
+			}
+			if phase == "canceled" {
+				if got := f.git(item.Path, "rev-parse", "HEAD"); got != original {
+					t.Fatal("canceled delivery committed")
+				}
+				if forge.creates.Load() != 0 {
+					t.Fatal("canceled delivery created PR")
+				}
+				return
+			}
+			head := f.git(item.Path, "rev-parse", "HEAD")
+			if got := f.git(item.Path, "rev-list", "--count", original+"..HEAD"); got != "1" {
+				t.Fatalf("delivery commits=%q", got)
+			}
+			if got := f.git(
+				item.Path,
+				"ls-remote",
+				"--heads",
+				"origin",
+				"refs/heads/"+item.Branch,
+			); got != head+"\trefs/heads/"+item.Branch {
+				t.Fatalf("published branch=%q", got)
+			}
+			if got := f.git(
+				item.Path,
+				"diff-tree",
+				"--no-commit-id",
+				"--name-only",
+				"-r",
+				"HEAD",
+			); got != "selected.txt" {
+				t.Fatalf("published paths=%q", got)
+			}
+			if got := f.git(item.Path, "show", ":private.txt"); got != privateIndex {
+				t.Fatal("outsider staging changed")
+			}
+			if forge.creates.Load() != 1 {
+				t.Fatalf("PR create count=%d", forge.creates.Load())
+			}
+			if phase == "submit" {
+				if caller.stops.Load() != 1 {
+					t.Fatalf("caller stops=%d", caller.stops.Load())
+				}
+				// Normalization and completed receipt retries perform no effects.
+				repeated, err := f.service.SubmitManagedDelivery(
+					context.Background(),
+					f.workspace.ID,
+					item.ID,
+					caller.sessionID,
+					request,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if repeated != opID || forge.creates.Load() != 1 || caller.stops.Load() != 1 {
+					t.Fatal("completed retry repeated effects")
+				}
+			}
+		})
+	}
+}
+
+type integrationDeliveryCaller struct {
+	mu                                 sync.Mutex
+	active, fenced                     bool
+	sessionID, workspaceID, worktreeID string
+	stops                              atomic.Int64
+}
+
+func (c *integrationDeliveryCaller) HasActiveSession(context.Context, string, string) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.active, nil
+}
+
+func (c *integrationDeliveryCaller) AcquireDeliveryFence(
+	_ context.Context,
+	workspace, worktree, caller string,
+) (func(), error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fenced || caller != c.sessionID || workspace != c.workspaceID || worktree != c.worktreeID {
+		return nil, ErrSessionActive
+	}
+	c.fenced = true
+	return sync.OnceFunc(func() { c.mu.Lock(); c.fenced = false; c.mu.Unlock() }), nil
+}
+func (c *integrationDeliveryCaller) StopDeliverySession(_ context.Context, caller string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if caller != c.sessionID {
+		return ErrSessionActive
+	}
+	if c.active {
+		c.stops.Add(1)
+	}
+	c.active = false
+	return nil
+}
+
+type integrationHTTPForge struct {
+	url      string
+	creates  atomic.Int64
+	failNext atomic.Bool
+}
+
+func newIntegrationHTTPForge(t *testing.T) *integrationHTTPForge {
+	t.Helper()
+	fixture := &integrationHTTPForge{}
+	var mu sync.Mutex
+	status := ForgeStatus{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			var request ForgePRRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			fixture.creates.Add(1)
+			number := 42
+			draft := request.Draft
+			state := "open"
+			status = ForgeStatus{
+				Head:     request.Head,
+				Base:     request.Base,
+				HeadSHA:  request.HeadSHA,
+				Draft:    &draft,
+				PRNumber: &number,
+				PRState:  &state,
+				PRURL:    "https://github.com/acme/repo/pull/42",
+				Provider: "github",
+			}
+			if fixture.failNext.Swap(false) {
+				http.Error(w, "ambiguous provider response", http.StatusBadGateway)
+				return
+			}
+			if err := json.NewEncoder(w).
+				Encode(ForgePRResult{Status: "created", Number: number, URL: status.PRURL}); err != nil {
+				t.Error(err)
+			}
+			return
+		}
+		if err := json.NewEncoder(w).Encode(status); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(server.Close)
+	fixture.url = server.URL
+	return fixture
+}
+func (f *integrationHTTPForge) Capabilities(context.Context, []string) (*ForgeCapabilities, error) {
+	return &ForgeCapabilities{Provider: "github", SupportsDraft: true, DefaultBranch: "main"}, nil
+}
+func (f *integrationHTTPForge) Status(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	var status ForgeStatus
+	err = json.NewDecoder(response.Body).Decode(&status)
+	return &status, err
+}
+func (f *integrationHTTPForge) CreatePR(ctx context.Context, request ForgePRRequest) (*ForgePRResult, error) {
+	data, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.url, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("forge HTTP status %d", response.StatusCode)
+	}
+	var created ForgePRResult
+	err = json.NewDecoder(response.Body).Decode(&created)
+	return &created, err
 }

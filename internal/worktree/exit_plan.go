@@ -421,6 +421,6 @@ func (s *Service) readExitCommitScope(ctx context.Context, item Worktree, status
 	return ExitCommitScope{
 		ChangedFiles: valueOrZero(status.DirtyFiles), Insertions: valueOrZero(status.Insertions),
 		Deletions: valueOrZero(status.Deletions), UntrackedFiles: untracked,
-		UntrackedTotal: total, UntrackedTruncated: total > len(untracked),
+		UntrackedTotal: total, UntrackedTruncated: total > len(untracked), Complete: total <= len(untracked),
 	}, nil
 }

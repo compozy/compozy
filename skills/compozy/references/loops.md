@@ -772,3 +772,43 @@ definition sets `0`; only `watch-source` selects the unbounded watch default. Th
 parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
 detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
 on events.
+
+### Reusing A Recovered Review Child
+
+A recovered awaited child can release its failed parent node only with the same workspace,
+parent, node receipt, child identity, inputs and reviewed worktree candidate. Mutable task names
+or directory paths alone do not prove that the review still applies.
+
+Before the original review starts, read a scoped `compozy worktree exit <ref> --include <file>
+-o json` plan, review those files, and pass its immutable proof as the reserved optional child
+input `reviewed_worktree`:
+
+```yaml
+inputs:
+  reviewed_worktree:
+    type: string
+    required: false
+# On the parent run-loop node:
+params:
+  loop: review-and-fix
+  mode: await
+  inputs:
+    task_name: "{{ .inputs.task_name }}"
+    reviewed_worktree: "{{ .inputs.reviewed_worktree }}"
+```
+
+The JSON string contains exactly `{worktree_id, include_paths, fingerprint}`: use the canonical
+worktree ID and the scoped plan's complete include set and SHA-256 fingerprint. The child declares
+that string input; bundled `review-and-fix` accepts it. CompozyOS persists the original proof in
+child inputs and independently checks the registered worktree's repository, branch, HEAD, selected
+file contents and selected index state before adoption. Changed or absent proof, unavailable
+verification, rerunning producers, or a different child boundary require normal review execution.
+Do not calculate a new fingerprint during recovery and present it as the original review proof.
+Existing runs without the field keep their normal rerun behavior.
+
+The serialized proof is limited to 1 MiB, with 1–4096 file paths (at most 4096 bytes each),
+a canonical worktree ID and a 64-character hexadecimal fingerprint. Unknown fields and traversal
+paths are invalid. CLI `--input key=value` parses JSON values: encode the proof as a JSON string,
+including its outer quotes and escaped inner quotes, rather than passing an object value.
+HTTP/UDS `inputs.reviewed_worktree` likewise contains the serialized string. A direct template
+reference forwards that exact original value to the child.

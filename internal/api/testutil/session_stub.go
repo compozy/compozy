@@ -23,6 +23,7 @@ type StubSessionManager struct {
 	ListFn                       func() []*session.Info
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
 	ListPageFn                   func(context.Context, session.ListQuery) (session.ListPage, error)
+	CatalogFacetsFn              func(context.Context, session.ListQuery) (store.SessionCatalogFacetResult, error)
 	SubscribeCatalogFn           func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error)
 	MetricsByAgentFn             func(
 		context.Context, store.ReadScope, string,
@@ -472,4 +473,14 @@ func (s StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (s
 		return s.LatestSettledTurnFn(ctx, id)
 	}
 	return session.SettledTurn{}, nil
+}
+
+func (s StubSessionManager) CatalogFacets(
+	ctx context.Context,
+	query session.ListQuery,
+) (store.SessionCatalogFacetResult, error) {
+	if s.CatalogFacetsFn != nil {
+		return s.CatalogFacetsFn(ctx, query)
+	}
+	return store.SessionCatalogFacetResult{ByWorkspace: []store.WorkspaceSessionCatalogFacets{}}, nil
 }

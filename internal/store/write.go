@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	defaultWriteOperation         = "sqlite_write"
 	defaultWriteMaxAttempts       = 15
 	defaultWriteMinRetryDelay     = 20 * time.Millisecond
 	defaultWriteMaxRetryDelay     = 150 * time.Millisecond
@@ -60,10 +61,13 @@ func (tx *WriteTx) QueryRowContext(ctx context.Context, query string, args ...an
 
 // ExecuteWrite runs fn inside a BEGIN IMMEDIATE transaction with bounded SQLITE_BUSY retries.
 func ExecuteWrite(ctx context.Context, db *sql.DB, fn func(context.Context, *WriteTx) error) error {
-	return executeWrite(ctx, db, defaultExecuteWriteConfig(), fn)
+	cfg := defaultExecuteWriteConfig()
+	cfg.operation = writeCallerOperation()
+	return executeWrite(ctx, db, cfg, fn)
 }
 
 type executeWriteConfig struct {
+	operation     string
 	maxAttempts   int
 	minRetryDelay time.Duration
 	maxRetryDelay time.Duration
@@ -96,18 +100,29 @@ func executeWrite(
 	}
 	cfg = normalizeExecuteWriteConfig(cfg)
 
+	admission, unregister := registerWriteAdmission(db)
+	defer unregister()
+	started := time.Now()
+	releaseAdmission, err := admission.acquire(ctx)
+	if err != nil {
+		return writeContentionError(db, cfg.operation, 0, started, err)
+	}
+	defer releaseAdmission()
 	var lastErr error
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
-		err := executeWriteAttempt(ctx, db, fn)
+		err := executeWriteAttempt(ctx, db, cfg.operation, fn)
 		if err == nil {
 			return nil
 		}
 		lastErr = err
-		if !IsSQLiteBusy(err) || attempt == cfg.maxAttempts {
+		if !IsSQLiteBusy(err) {
 			return err
 		}
+		if attempt == cfg.maxAttempts {
+			return writeContentionError(db, cfg.operation, attempt, started, err)
+		}
 		if waitErr := waitForWriteRetry(ctx, cfg.jitter(cfg.minRetryDelay, cfg.maxRetryDelay)); waitErr != nil {
-			return errors.Join(err, waitErr)
+			return writeContentionError(db, cfg.operation, attempt, started, errors.Join(err, waitErr))
 		}
 	}
 
@@ -116,6 +131,9 @@ func executeWrite(
 
 func normalizeExecuteWriteConfig(cfg executeWriteConfig) executeWriteConfig {
 	defaults := defaultExecuteWriteConfig()
+	if cfg.operation == "" {
+		cfg.operation = defaultWriteOperation
+	}
 	if cfg.maxAttempts <= 0 {
 		cfg.maxAttempts = defaults.maxAttempts
 	}
@@ -134,6 +152,7 @@ func normalizeExecuteWriteConfig(cfg executeWriteConfig) executeWriteConfig {
 func executeWriteAttempt(
 	ctx context.Context,
 	db *sql.DB,
+	operation string,
 	fn func(context.Context, *WriteTx) error,
 ) (err error) {
 	conn, err := db.Conn(ctx)
@@ -154,6 +173,8 @@ func executeWriteAttempt(
 	if _, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement); err != nil {
 		return fmt.Errorf("store: begin immediate sqlite write: %w", err)
 	}
+	releaseOwner := trackWriteOwner(db, operation)
+	defer releaseOwner()
 	active := true
 	defer func() {
 		if !active {

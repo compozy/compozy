@@ -716,3 +716,32 @@ start: [{ kind: manual }]
 func containsString(value string, fragment string) bool {
 	return strings.Contains(value, fragment)
 }
+
+func TestReviewedWorktreeInputCodec(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name      string
+		value     any
+		wantError bool
+	}{
+		{"Should reject an unexpected object proof", map[string]any{"worktree_id": "wt-reviewed", "include_paths": []any{"src/change.go"}, "fingerprint": strings.Repeat("a", 64)}, true},
+		{"Should decode authored JSON string proof", `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"],"fingerprint":"` + strings.Repeat("a", 64) + `"}`, false},
+		{"Should reject trailing proof objects", `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"],"fingerprint":"` + strings.Repeat("a", 64) + `"} {}`, true},
+		{"Should reject mutable path-only proof", `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"]}`, true},
+		{"Should reject unknown proof fields", `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"],"fingerprint":"` + strings.Repeat("a", 64) + `","latest":true}`, true},
+		{"Should reject an empty reviewed include set", `{"worktree_id":"wt-reviewed","include_paths":[],"fingerprint":"` + strings.Repeat("a", 64) + `"}`, true},
+		{"Should retain compatibility when proof is absent", nil, false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			candidate, err := dsl.DecodeReviewedWorktree(map[string]any{dsl.ReviewedWorktreeInput: testCase.value})
+			if (err != nil) != testCase.wantError {
+				t.Fatalf("candidate=%#v error=%v", candidate, err)
+			}
+			if !testCase.wantError && testCase.value != nil &&
+				(candidate == nil || candidate.WorktreeID != "wt-reviewed") {
+				t.Fatalf("candidate=%#v", candidate)
+			}
+		})
+	}
+}

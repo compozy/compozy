@@ -51,12 +51,16 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	var total *int
+	if !query.SkipTotal {
+		total = &page.Total
+	}
 	c.JSON(http.StatusOK, contract.SessionCatalogResponse{
 		Sessions: payloads,
-		Page: contract.CountedCursorPagePayload{
+		Page: contract.SessionCatalogPagePayload{
 			NextCursor: page.NextCursor,
 			HasMore:    page.HasMore,
-			Total:      page.Total,
+			Total:      total,
 			Limit:      page.Limit,
 		},
 	})
@@ -76,6 +80,10 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 			return session.ListQuery{}, false, err
 		}
 		return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
+	}
+	skipTotal, err := parseBoolQuery(c, "skip_total")
+	if err != nil {
+		return session.ListQuery{}, false, err
 	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
 	if err != nil {
@@ -102,6 +110,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		return session.ListQuery{}, false, err
 	}
 	query := session.ListQuery{
+		SkipTotal:       skipTotal,
 		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		AllWorkspaces:   allWorkspaces,
@@ -111,6 +120,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		AgentName:       strings.TrimSpace(c.Query("agent")),
 		ParentSessionID: strings.TrimSpace(c.Query("parent")),
 		RootSessionID:   strings.TrimSpace(c.Query("root")),
+		SearchFields:    strings.TrimSpace(c.Query("search_fields")),
 		Search:          strings.TrimSpace(c.Query("q")),
 		Resumable:       resumable,
 		AttentionOnly:   attentionOnly,

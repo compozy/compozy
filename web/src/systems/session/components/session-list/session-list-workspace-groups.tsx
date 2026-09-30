@@ -9,6 +9,7 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import type { SessionPayload } from "../../types";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import { emptyForScope } from "@/systems/profiles";
+import { useSessionCatalog } from "../../hooks/use-session-catalog";
 import { SessionListRow } from "./session-list-row";
 
 function GroupNote({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,52 @@ function GroupNote({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-6 items-center gap-2 px-3 py-1 text-micro text-subtle">
       {children}
     </div>
+  );
+}
+
+function ConnectedGroupBody(props: Parameters<typeof GroupBody>[0]) {
+  const group = props.group;
+  const catalog = useSessionCatalog(group.workspaceId, group.catalogFilters, group.enabled, {
+    facets: false,
+  });
+  return (
+    <>
+      <GroupBody
+        {...props}
+        group={{
+          ...group,
+          sessions: catalog.sessions,
+          loading: catalog.loading,
+          failed: catalog.failed && catalog.sessions.length === 0,
+          retry: catalog.retry,
+        }}
+      />
+      {catalog.failed && catalog.sessions.length > 0 ? (
+        <GroupNote>
+          Couldn’t refresh sessions{" "}
+          <Button variant="ghost" size="sm" onClick={catalog.retry}>
+            Retry
+          </Button>
+        </GroupNote>
+      ) : null}
+      <GroupNote>
+        {catalog.previous ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={catalog.paging}
+            onClick={catalog.previousPage}
+          >
+            Previous sessions
+          </Button>
+        ) : null}
+        {catalog.next ? (
+          <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.nextPage}>
+            Next sessions
+          </Button>
+        ) : null}
+      </GroupNote>
+    </>
   );
 }
 
@@ -83,6 +130,10 @@ function GroupBody({
   );
 }
 
+function GroupBodyRenderer(props: Parameters<typeof GroupBody>[0]) {
+  return props.group.catalogFilters ? <ConnectedGroupBody {...props} /> : <GroupBody {...props} />;
+}
+
 export interface SessionListWorkspaceGroupsProps {
   groups: readonly WorkspaceSessionGroup[];
   collapsedWorkspaceIds: ReadonlySet<string>;
@@ -100,7 +151,7 @@ export interface SessionListWorkspaceGroupsProps {
 /**
  * The all-workspaces scope: every workspace's sessions, grouped and labelled,
  * with each group loading, failing, and retrying on its own. Counts come from
- * the daemon's total rather than the loaded page, so a collapsed group never
+ * the daemon's facets rather than the loaded page, so a collapsed group never
  * understates what it holds.
  */
 export function SessionListWorkspaceGroups({
@@ -146,7 +197,7 @@ export function SessionListWorkspaceGroups({
               <span className="font-mono text-micro text-faint">{group.total}</span>
             </button>
             {collapsed ? null : (
-              <GroupBody
+              <GroupBodyRenderer
                 group={group}
                 currentSessionId={currentSessionId}
                 ownerOf={ownerOf}

@@ -354,9 +354,19 @@ func (g *HeartbeatRepo) SweepHeartbeatWakeEvents(ctx context.Context, cutoff tim
 	if limit <= 0 {
 		return 0, fmt.Errorf("%w: retention limit must be positive", heartbeat.ErrInvalidWakeEvent)
 	}
-	affected, err := g.queries.SweepHeartbeatWakeEvents(ctx, sqlcgen.SweepHeartbeatWakeEventsParams{
-		Cutoff: store.FormatTimestamp(cutoff), RowLimit: int64(limit),
-	})
+	var affected int64
+	err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"sweep heartbeat wake events",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			var sweepErr error
+			affected, sweepErr = sqlcgen.New(tx).SweepHeartbeatWakeEvents(ctx, sqlcgen.SweepHeartbeatWakeEventsParams{
+				Cutoff: store.FormatTimestamp(cutoff), RowLimit: int64(limit),
+			})
+			return sweepErr
+		},
+	)
 	if err != nil {
 		return 0, fmt.Errorf("store: sweep heartbeat wake events: %w", err)
 	}

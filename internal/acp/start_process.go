@@ -154,6 +154,7 @@ func (d *Driver) newAgentProcess(
 		done:                 make(chan struct{}),
 		pendingPermissions:   make(map[string]*pendingPermission),
 		permissionTimeout:    d.permissionWait,
+		controlTimeout:       d.controlTimeout,
 		systemPrompt:         normalized.SystemPrompt,
 		startupManifest:      CloneStartupManifest(normalized.StartupManifest),
 		systemPromptDelivery: normalized.SystemPromptDelivery,
@@ -215,9 +216,9 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 			Version: defaultClientVersion,
 		},
 	}
-	initializeResponse, err := acpsdk.SendRequest[acpsdk.InitializeResponse](
-		process.conn,
+	initializeResponse, err := sendControlRequest[acpsdk.InitializeResponse](
 		ctx,
+		process,
 		acpsdk.AgentMethodInitialize,
 		initRequest,
 	)

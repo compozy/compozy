@@ -237,7 +237,7 @@ const sessionListInputSchema = `{
 		"resumable":{"type":"boolean"},
 		"archive":{"type":"string","enum":["exclude","only","include"]},
 		"include_health":{"type":"boolean"},
-		"sort":{"type":"string","enum":["recent","last_activity"]},
+		"sort":{"type":"string","enum":["recent","created","last_activity","attention","navigator"]},
 		"cursor":{"type":"string"},
 		"limit":{"type":"integer","minimum":1,"maximum":100}
 	},

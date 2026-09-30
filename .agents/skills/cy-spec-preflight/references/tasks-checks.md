@@ -3,6 +3,7 @@
 Check the current authoring output once and reuse unchanged results:
 
 - `compozy.tasks/v2` metadata, sequential nodes/files, acyclic dependency edges, and the display table agree. Per-task status lives in task frontmatter; `_tasks.md` owns topology.
+- Titles are quoted/escaped YAML strings matching the first H1 text after decoding. Validate generated files through read-only `ext__spec_cycle__import_tasks` with `{"pattern":".compozy/tasks/<workflow>/task_*.md"}`; repair errors before delivery. `passed: false` only means unfinished tasks remain, not invalid input.
 - Each task names its outcome, relevant contracts/files, task-owned checks, remaining integration checks and owner, deliverables, and acceptance. The earliest useful outcome addresses the motivating problem; foundations identify their consumers.
 - Every assigned test ID has exactly one owner and uses a suitable canonical suite. Distinct risks determine cases; there is no category/count quota. A task that changes many behaviors and carries one or two cases records why the remaining behaviors are owned elsewhere (L-011); proportion is judged per invariant, not by count.
 - Changed public/config/extension/workspace surfaces link to the owning impact/compatibility analysis. Unaffected facts do not need repeated subsections.

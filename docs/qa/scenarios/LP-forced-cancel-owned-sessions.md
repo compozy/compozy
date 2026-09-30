@@ -26,3 +26,11 @@ generation with new sessions.
 Issue #595 acceptance: explicitly stop and remove separate session-origin Goals, including one before its first work turn. Confirm cancellation before removal, no active/queued work after cancellation, and idempotent Run cancellation when the session no longer exists. Distinguish window-only dismissal and daemon reconnect from actual session stop. Retain historical attempts and verify that catalog Loop informational origins still have independent lifecycles.
 
 Targeted #595 retest evidence and limits: [Goal lifecycle report](../reports/2026-09-10-issue-595-goal-lifecycle.md). This slice does not replace earlier evidence or claim an unrun full-scenario sweep.
+
+Issue #657 acceptance: after cancellation, open each persisted stopped run-owned system session from the Loop session list. Its workspace detail read must resolve the same record as the by-ID read. Confirm Delete and verify that the record disappears from the persisted catalog and desktop windows. Repeat in a non-default profile; a foreign workspace and a wrong mutation profile must still return not found.
+
+2026-09-29 targeted retest: real Codex Loop children in default and non-default profiles rendered
+their transcripts in Web. Public Loop cancellation stopped each child; native session removal then
+succeeded under its owner profile, with an independent workspace/all-profiles GET returning 404
+only after removal. The browser Delete dialog was reviewed, but the final deletion effect was
+performed through CLI. [Reported issues QA evidence](../reports/2026-09-29-reported-issues.md).

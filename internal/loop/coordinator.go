@@ -102,6 +102,7 @@ type GateDecisionReader interface {
 
 // CoordinatorRunner computes loop generation plans without mutating task storage.
 type CoordinatorRunner struct {
+	candidateVerifier  WorktreeCandidateVerifier
 	taskRuns           CoordinatorTaskRunReader
 	store              Store
 	outputs            GenerationOutputReader

@@ -17,6 +17,7 @@ type SessionSnapshot struct {
 	AgentName        string
 	Provider         string
 	Model            string
+	WorktreeID       string
 	WorkspaceID      string
 	WorkspacePath    string
 	Type             session.Type
@@ -45,6 +46,7 @@ func SessionSnapshotFromInfo(info *session.Info) SessionSnapshot {
 		AgentName:        info.AgentName,
 		Provider:         info.Provider,
 		Model:            info.Model,
+		WorktreeID:       info.WorktreeID,
 		WorkspaceID:      info.WorkspaceID,
 		WorkspacePath:    info.Workspace,
 		Type:             info.Type,

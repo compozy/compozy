@@ -282,6 +282,7 @@ func (r *RuntimeRegistry) resolveHandleForDispatch(
 	}
 	handle, ok, err := entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
 	if err != nil {
+		logBackendFailure(ctx, entry.descriptor.ID, "tool_registry_resolve", err)
 		return nil, Availability{
 			Registered:  true,
 			Enabled:     true,

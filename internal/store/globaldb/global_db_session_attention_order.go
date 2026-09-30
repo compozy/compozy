@@ -29,6 +29,28 @@ const sessionCatalogAttentionRankExpression = `(CASE
 	ELSE 2
 END)`
 
+const sessionCatalogDisplayTitleExpression = `(CASE WHEN trim(COALESCE(name, '')) <> ''
+ AND trim(name) <> id AND trim(name) <> trim(agent_name)
+ THEN trim(name) ELSE 'New session' END)`
+
+// This expression follows session.CanonicalBadge precedence for durable snapshots.
+// Health/supervision are runtime overlays and are applied by the manager before paging.
+const sessionCatalogBadgeExpression = `(CASE
+ WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 'needs-attention'
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, ''))
+ NOT IN ('', '` + string(store.FailureCanceled) + `') THEN 'failed'
+ WHEN pending_permission_count > 0
+ OR trim(COALESCE(failure_kind, '')) IN ('` + string(store.FailurePermission) + `', '` +
+	string(store.FailureProviderAuth) + `') THEN 'waiting-for-auth'
+ WHEN pending_clarify_count > 0 THEN 'waiting-for-input'
+ WHEN state = 'stopped' THEN 'stopped'
+ WHEN trim(COALESCE(stall_state, '')) = '` + store.SessionStallStateDetected + `' THEN 'hung'
+ WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(
+ CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 'running'
+ WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 'done'
+ WHEN state = 'active' THEN 'idle'
+ ELSE 'unknown' END)`
+
 const sessionCatalogAttentionOrderClause = " ORDER BY " + sessionCatalogAttentionRankExpression +
 	" ASC, COALESCE(attention_changed_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC"
 

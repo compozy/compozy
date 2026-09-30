@@ -1,5 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
 
 import { LoopRunInputField } from "../run-form/loop-run-input-field";
 import type { LoopInputSchemaField } from "../../types";
@@ -145,5 +148,121 @@ describe("LoopRunInputField", () => {
       />
     );
     expect(screen.getByText("required")).toBeInTheDocument();
+  });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("Loop session reference paging", () => {
+  it("Should page older sessions and retain an off-page selected label with scoped detail", async () => {
+    const requests: URL[] = [];
+    const first = {
+      id: "sess-new",
+      name: "Recent session",
+      agent_name: "coder",
+      workspace_id: "ws-a",
+      state: "stopped",
+    };
+    const older = {
+      id: "sess-old",
+      name: "Older reviewed session",
+      agent_name: "reviewer",
+      workspace_id: "ws-a",
+      state: "stopped",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (request: Request) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        let body: unknown = {};
+        if (url.pathname === "/api/sessions") {
+          const olderPage = url.searchParams.get("cursor") === "older";
+          const search = url.searchParams.get("q") === "reviewer";
+          body = {
+            sessions: olderPage || search ? [older] : [first],
+            page: {
+              has_more: !olderPage && !search,
+              next_cursor: !olderPage && !search ? "older" : null,
+              limit: 100,
+            },
+          };
+        } else if (url.pathname === "/api/sessions/sess-old") {
+          body = { session: older };
+        } else if (url.pathname === "/api/profiles") {
+          body = [];
+        } else {
+          body = { profile: "default" };
+        }
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      })
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const onChange = vi.fn();
+    const view = (value: string) => (
+      <QueryClientProvider client={client}>
+        <LoopInputCatalogBoundary
+          workspaceId="ws-a"
+          needs={{ entities: new Set(["session"]), runtime: false }}
+        >
+          <LoopRunInputField
+            name="session"
+            field={field({ type: "ref", ref: { kind: "session" } })}
+            value={value}
+            onChange={onChange}
+          />
+        </LoopInputCatalogBoundary>
+      </QueryClientProvider>
+    );
+    const rendered = render(view(""));
+    await waitFor(() =>
+      expect(requests.filter(url => url.pathname === "/api/sessions")).toHaveLength(1)
+    );
+    fireEvent.click(screen.getByTestId("loop-run-field-input-session"));
+    await screen.findByRole("option", { name: /Recent session/ });
+    expect(requests.some(url => url.searchParams.has("cursor"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(await screen.findByRole("option", { name: /Older reviewed session/ }));
+    expect(onChange).toHaveBeenCalledWith("sess-old");
+    rendered.rerender(view("sess-old"));
+    fireEvent.click(screen.getByTestId("loop-run-field-input-session"));
+    fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+    await screen.findByRole("option", { name: /Recent session/ });
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-run-field-input-session")).toHaveTextContent(
+        "Older reviewed session"
+      )
+    );
+    expect(screen.queryByText("Not available")).not.toBeInTheDocument();
+    expect(
+      requests.find(url => url.pathname === "/api/sessions/sess-old")?.searchParams.get("profile")
+    ).toBe("default");
+    fireEvent.change(screen.getByRole("combobox", { name: "Search sessions" }), {
+      target: { value: "reviewer" },
+    });
+    await screen.findByRole("option", { name: /Older reviewed session/ });
+    expect(
+      requests.some(
+        url =>
+          url.pathname === "/api/sessions" &&
+          url.searchParams.get("q") === "reviewer" &&
+          url.searchParams.get("search_fields") === "title_agent" &&
+          !url.searchParams.has("cursor")
+      )
+    ).toBe(true);
+    expect(requests.some(url => url.pathname === "/api/sessions/facets")).toBe(false);
+    expect(
+      requests
+        .filter(url => url.pathname === "/api/sessions")
+        .every(
+          url =>
+            url.searchParams.get("workspace_id") === "ws-a" &&
+            url.searchParams.get("skip_total") === "true"
+        )
+    ).toBe(true);
+    client.clear();
   });
 });

@@ -592,3 +592,16 @@ ceiling. Effective config resolves field by field from built-ins, the definition
 overrides. `effective_config.sources` identifies the winning logical source for each JSON Pointer.
 Other bounded fields remain clamped to their documented ceilings. See
 [configure](/docs/loops/configure).
+
+For a review child that may be adopted after recovery, reserve an optional JSON string input
+`reviewed_worktree` containing a JSON object with exactly `worktree_id`, `include_paths`, and `fingerprint`.
+Capture its canonical ID, complete selected file list and SHA-256 fingerprint from a scoped
+`compozy worktree exit --include` plan before the original review. Pass the JSON string through
+`run-loop.params.inputs.reviewed_worktree`; an exact template reference preserves its value.
+The child definition must declare this optional JSON string input, as bundled `review-and-fix` does.
+
+Adoption requires the original persisted child inputs to equal the rematerialized parent inputs,
+then an independent check of the registered worktree's repository, branch, HEAD, selected bytes
+and index. A mutable task slug or path is insufficient. Absent or stale proof preserves normal
+review execution; recovery never replaces the reviewed fingerprint with a newly calculated one.
+The proof permits 1–4096 exact selected file paths and rejects unknown object fields.

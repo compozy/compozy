@@ -18,6 +18,7 @@ export interface LoopEntityCatalog {
 }
 
 export interface LoopInputCatalogs {
+  sessionWorkspaceId?: string;
   agents: readonly AgentPayload[];
   agentLoading: boolean;
   agentError: string | null;

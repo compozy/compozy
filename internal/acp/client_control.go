@@ -141,7 +141,19 @@ func (d *Driver) ApprovePermission(ctx context.Context, proc *AgentProcess, req 
 
 // Stop terminates the subprocess and waits for it to exit.
 func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
-	stopErr := d.stop(ctx, proc, false)
+	if ctx == nil {
+		return errors.New("acp: context is required")
+	}
+	stopCtx, cancel := context.WithTimeout(ctx, d.stopTimeout+defaultStopDrainTimeout)
+	defer cancel()
+	stopErr := d.stop(stopCtx, proc, false)
+	if stopCtx.Err() != nil && proc != nil && proc.done != nil {
+		select {
+		case <-proc.Done():
+		default:
+			stopErr = errors.Join(stopErr, d.forceStoppedProcess(proc))
+		}
+	}
 	if stopErr != nil {
 		return stopErr
 	}

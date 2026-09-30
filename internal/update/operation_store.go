@@ -108,6 +108,10 @@ func (s *OperationStore) Read(ctx context.Context) (*Operation, error) {
 	err := s.withLock(ctx, func() error {
 		var err error
 		operation, err = s.readUnlocked()
+		if err != nil {
+			return err
+		}
+		operation, err = s.reconcileUnlocked(ctx, operation)
 		return err
 	})
 	return operation, err
@@ -121,6 +125,10 @@ func (s *OperationStore) Acquire(ctx context.Context, request OperationRequest) 
 	var acquired *Operation
 	err := s.withLock(ctx, func() error {
 		existing, err := s.readUnlocked()
+		if err != nil {
+			return err
+		}
+		existing, err = s.reconcileUnlocked(ctx, existing)
 		if err != nil {
 			return err
 		}

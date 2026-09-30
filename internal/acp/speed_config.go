@@ -54,9 +54,9 @@ func (d *Driver) applySessionSpeed(
 	if err != nil {
 		return true, fmt.Errorf("acp: build speed config request: %w", err)
 	}
-	response, err := acpsdk.SendRequest[acpsdk.SetSessionConfigOptionResponse](
-		process.conn,
+	response, err := sendControlRequest[acpsdk.SetSessionConfigOptionResponse](
 		ctx,
+		process,
 		acpsdk.AgentMethodSessionSetConfigOption,
 		request,
 	)

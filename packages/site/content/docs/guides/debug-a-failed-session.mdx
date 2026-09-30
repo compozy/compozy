@@ -75,6 +75,19 @@ Check:
 What happened: the daemon returned the current session record, not a reconstructed transcript. Use
 this to learn what CompozyOS thinks the session is doing right now.
 
+### When the provider is silent during startup
+
+ACP control requests, including `initialize`, `session/new`, `session/load`, and session option
+changes, have a 30-second deadline per request. If `session/new` times out, CompozyOS stops the owned
+process tree and makes one fresh-process attempt after confirming exit. Other startup failures and
+operator cancellation do not trigger that retry. Both attempts can take their full deadline, plus
+process cleanup time.
+
+If creation still fails, the session becomes `stopped` and the startup error identifies the ACP
+method and provider. `compozy session stop <id>` also cancels a pending startup and reaps its provider
+process tree. Prompt execution and interactive clarification use their existing lifetimes; the
+control deadline does not limit an agent's working turn.
+
 ## 5. Read the durable event stream
 
 ```bash

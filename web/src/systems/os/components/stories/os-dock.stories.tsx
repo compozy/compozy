@@ -214,7 +214,7 @@ const TERMINAL_BADGE_STATES: { label: string; input: TerminalBadgeInput }[] = [
       scopeKey: "8:ws-atlas4:work",
       profileId: "work",
       inputRequests: [],
-      pendingApprovals: [],
+      pendingApprovalCount: 0,
     },
   },
   {
@@ -223,7 +223,7 @@ const TERMINAL_BADGE_STATES: { label: string; input: TerminalBadgeInput }[] = [
       scopeKey: "8:ws-atlas4:work",
       profileId: "work",
       inputRequests: [{ profile_id: "work" }],
-      pendingApprovals: [],
+      pendingApprovalCount: 0,
     },
   },
   {
@@ -233,7 +233,7 @@ const TERMINAL_BADGE_STATES: { label: string; input: TerminalBadgeInput }[] = [
       profileId: "work",
       // The last row belongs to another profile and must not be counted.
       inputRequests: [{ profile_id: "work" }, { profile_id: "work" }, { profile_id: "personal" }],
-      pendingApprovals: [{ profileId: "work" }],
+      pendingApprovalCount: 1,
     },
   },
 ];

@@ -64,6 +64,58 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name  string
+		title string
+		yaml  string
+	}{
+		{"Should preserve a quoted colon title", "Task 1: Resumo de log: nucleo e CLI (fatia 1 / MVP)", `"Task 1: Resumo de log: nucleo e CLI (fatia 1 / MVP)"`},
+		{"Should preserve escaped quotes backslashes and hash signs", `Task 1: Say "hello" at C:\logs # summary`, `"Task 1: Say \"hello\" at C:\\logs # summary"`},
+		{"Should preserve quoted YAML indicators", `Task 1: [logs] {core} &alias *ref !tag | >`, `"Task 1: [logs] {core} &alias *ref !tag | >"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tasksDir := t.TempDir()
+			writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+			body := "# " + tc.title + "\n\nImplement the outcome.\n"
+			writeImportTaskFileWithFrontmatter(t, tasksDir, "task_01.md", []string{
+				"status: pending", "title: " + tc.yaml, "type: feature", "complexity: medium",
+			}, body)
+			writeImportTaskFile(t, tasksDir, "task_02.md", "completed", "Second", "# Second\n")
+			writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Third", "# Third\n")
+			result, err := importTasks(importTasksInput{Pattern: filepath.Join(tasksDir, "task_*.md")})
+			if err != nil {
+				t.Fatalf("importTasks() error = %v", err)
+			}
+			if result.Count != 1 || result.Tasks[0].Title != tc.title {
+				t.Fatalf("importTasks() = %#v, want unchanged title %q", result, tc.title)
+			}
+			if result.Tasks[0].BodyRef != looppkg.OutputRefForPayload([]byte("\n"+body)) {
+				t.Fatalf("body_ref = %q, want matching H1 body", result.Tasks[0].BodyRef)
+			}
+		})
+	}
+
+	t.Run("Should reject an unquoted colon title", func(t *testing.T) {
+		t.Parallel()
+		tasksDir := t.TempDir()
+		writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+		writeImportTaskFile(
+			t,
+			tasksDir,
+			"task_01.md",
+			"pending",
+			"Resumo de log: nucleo e CLI",
+			"# Resumo de log: nucleo e CLI\n",
+		)
+		writeImportTaskFile(t, tasksDir, "task_02.md", "completed", "Second", "# Second\n")
+		writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Third", "# Third\n")
+		_, err := importTasks(importTasksInput{Pattern: filepath.Join(tasksDir, "task_*.md")})
+		if !errors.Is(err, looppkg.ErrValidation) || !strings.Contains(err.Error(), "task_01.md") {
+			t.Fatalf("importTasks() error = %v, want file-scoped YAML validation", err)
+		}
+	})
+
 	t.Run("Should return no work for an empty pending set", func(t *testing.T) {
 		t.Parallel()
 

@@ -21,6 +21,9 @@ const (
 
 const (
 	defaultStopTimeout          = 5 * time.Second
+	defaultStopDrainTimeout     = 3 * time.Second
+	defaultControlTimeout       = 30 * time.Second
+	defaultStartAttempts        = 2
 	defaultPromptBufSize        = 128
 	defaultPromptDrain          = 50 * time.Millisecond
 	defaultPermissionWait       = 5 * time.Minute
@@ -58,6 +61,8 @@ type Option func(*Driver)
 type Driver struct {
 	logger               *slog.Logger
 	stopTimeout          time.Duration
+	controlTimeout       time.Duration
+	startAttempts        int
 	promptBufferCap      int
 	promptDrainWait      time.Duration
 	permissionWait       time.Duration
@@ -81,6 +86,16 @@ func WithStopTimeout(timeout time.Duration) Option {
 	return func(driver *Driver) {
 		driver.stopTimeout = timeout
 	}
+}
+
+// WithControlTimeout bounds each non-prompt ACP request; nonpositive values use the default.
+func WithControlTimeout(timeout time.Duration) Option {
+	return func(driver *Driver) { driver.controlTimeout = timeout }
+}
+
+// WithStartAttempts sets the fresh-process ceiling for timed-out session/new; nonpositive values use two.
+func WithStartAttempts(attempts int) Option {
+	return func(driver *Driver) { driver.startAttempts = attempts }
 }
 
 // WithPromptBufferSize overrides the per-prompt event buffer size.
@@ -159,6 +174,8 @@ func New(opts ...Option) *Driver {
 	driver := &Driver{
 		logger:               slog.Default(),
 		stopTimeout:          defaultStopTimeout,
+		controlTimeout:       defaultControlTimeout,
+		startAttempts:        defaultStartAttempts,
 		promptBufferCap:      defaultPromptBufSize,
 		promptDrainWait:      defaultPromptDrain,
 		permissionWait:       defaultPermissionWait,
@@ -174,6 +191,12 @@ func New(opts ...Option) *Driver {
 	}
 	if driver.stopTimeout <= 0 {
 		driver.stopTimeout = defaultStopTimeout
+	}
+	if driver.startAttempts <= 0 {
+		driver.startAttempts = defaultStartAttempts
+	}
+	if driver.controlTimeout <= 0 {
+		driver.controlTimeout = defaultControlTimeout
 	}
 	if driver.promptBufferCap <= 0 {
 		driver.promptBufferCap = defaultPromptBufSize

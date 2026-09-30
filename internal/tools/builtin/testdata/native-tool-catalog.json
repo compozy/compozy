@@ -2406,7 +2406,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "4d8ca5fd25b5e8faf7dccbddbf40361a5cb15ecb0348b806447ad0c28ff16e81",
+    "input_schema_digest": "e5bfb7774ef89b4306a855dad9bb15d3d4d27b25baf1ae8efb11d063b9d19e48",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
   },
   {

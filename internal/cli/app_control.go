@@ -43,20 +43,35 @@ func appControlRunning(
 	homePaths compozyconfig.HomePaths,
 	deps commandDeps,
 ) (bool, error) {
-	_, err := deps.callAppControl(
+	running, _, err := appControlPresence(ctx, homePaths, deps)
+	return running, err
+}
+
+func appControlPresence(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	deps commandDeps,
+) (bool, string, error) {
+	result, err := deps.callAppControl(
 		ctx,
 		filepath.Join(homePaths.HomeDir, "app.sock"),
 		appDiagnoseMethod,
 		map[string]any{},
 	)
 	if err == nil {
-		return true, nil
+		version := ""
+		if fields, ok := result.(map[string]any); ok {
+			if observedVersion, ok := fields[appVersionKey].(string); ok {
+				version = observedVersion
+			}
+		}
+		return true, version, nil
 	}
 	appErr, ok := errors.AsType[*appCommandError](err)
 	if ok && (appErr.code == appNotRunningCode || appErr.code == appControlUnavailableCode) {
-		return false, nil
+		return false, "", nil
 	}
-	return false, fmt.Errorf("app: probe control channel: %w", err)
+	return false, "", fmt.Errorf("app: probe control channel: %w", err)
 }
 
 func callAppControl(ctx context.Context, socketPath string, method string, params any) (any, error) {

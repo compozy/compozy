@@ -72,7 +72,7 @@ is never treated as a template. Nested gate inputs follow the same rule.
 
 ### Typed direct references
 
-An exact reference occupying the whole value preserves its JSON type. This is required for
+An exact reference occupying the whole value preserves its value. This is required for
 `run-loop.params.config_overrides`: numeric budgets stay numbers, objects stay objects, and runtime
 rule lists stay arrays when the child receives its per-run configuration.
 
@@ -229,3 +229,9 @@ Start bindings map an activation payload into inputs with the same grammar, rest
 flat `{{ .trigger.payload.<field> }}` per input. Scheduled starts are static-inputs-only — a
 mapping is rejected — because a clock fire has no payload. See
 [automation](/docs/automation/triggers) for how triggers carry the payload.
+
+`run-loop.params.inputs.reviewed_worktree` is an optional reserved JSON string input containing
+`{worktree_id: string, include_paths: string[], fingerprint: string}`. It carries the original
+scoped worktree exit-plan proof; `fingerprint` is a SHA-256 hex digest and the include set contains
+1–4096 exact relative files. The child declares `reviewed_worktree: {type: string, required: false}`.
+Without the original proof, recovery reruns the review instead of adopting its previous result.

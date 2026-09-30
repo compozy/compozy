@@ -15,6 +15,9 @@ func (s *Service) runExitCommit(
 	scope ExitCommitScope,
 	message string,
 ) (ExitStepResult, error) {
+	if len(scope.IncludePaths) > 0 {
+		return s.runSelectedExitCommit(ctx, operation, action, item, scope, message)
+	}
 	step := ExitStepResult{Phase: ExitPhaseCommit, State: exitStepCompleted}
 	if _, stderr, err := s.runner.Run(ctx, item.Path, "add", "-A"); err != nil {
 		step.State, step.Output = exitStepFailed, exitCommandOutput(nil, stderr, err)
@@ -58,9 +61,19 @@ func (s *Service) runExitCommitCommand(
 	worktreePath string,
 	message string,
 ) ([]byte, []byte, error) {
+	return s.runExitCommitArgs(ctx, operation, action, worktreePath, "commit", "-m", message)
+}
+
+func (s *Service) runExitCommitArgs(
+	ctx context.Context,
+	operation ExitOperation,
+	action ExitAction,
+	worktreePath string,
+	args ...string,
+) ([]byte, []byte, error) {
 	runner, ok := s.runner.(StreamingGitRunner)
 	if !ok {
-		return s.runner.Run(ctx, worktreePath, "commit", "-m", message)
+		return s.runner.Run(ctx, worktreePath, args...)
 	}
 	return runner.RunStreaming(ctx, worktreePath, func(output GitOutput) {
 		chunk := redactExitHookChunk(string(output.Chunk))
@@ -74,5 +87,5 @@ func (s *Service) runExitCommitCommand(
 			Stream:      string(output.Stream),
 			Chunk:       chunk,
 		})
-	}, "commit", "-m", message)
+	}, args...)
 }

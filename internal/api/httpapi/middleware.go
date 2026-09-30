@@ -53,8 +53,25 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 			"status", c.Writer.Status(),
 			"latency_ms", time.Since(started).Milliseconds(),
 			"client_ip", c.ClientIP(),
+			"client_id", requestClientID(c.GetHeader("X-Compozy-Client-ID")),
 		)
 	}
+}
+
+// Client IDs are opaque labels, never credentials or arbitrary log content.
+func requestClientID(value string) string {
+	if value == "" || len(value) > 80 {
+		return "unidentified"
+	}
+	for _, char := range value {
+		switch {
+		case char >= 'a' && char <= 'z', char >= 'A' && char <= 'Z',
+			char >= '0' && char <= '9', char == '-', char == '_':
+		default:
+			return "unidentified"
+		}
+	}
+	return value
 }
 
 func corsMiddleware(boundHost string) gin.HandlerFunc {
@@ -65,7 +82,10 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 	return func(c *gin.Context) {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
-		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept, Authorization")
+		headers.Set(
+			"Access-Control-Allow-Headers",
+			"Content-Type, Last-Event-ID, Accept, Authorization, X-Compozy-Client-ID",
+		)
 		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		headers.Set(
 			"Access-Control-Expose-Headers",

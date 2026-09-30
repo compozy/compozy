@@ -15,7 +15,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,7 +59,11 @@ import type {
   ResolvedPaletteCommand,
 } from "../../lib/cmd-palette-types";
 import { paletteCommand } from "../../lib/__tests__/cmd-palette-dispatch-fixtures";
-import { PALETTE_SESSION_ROW_LIMIT } from "../use-os-palette-sessions-view";
+import {
+  filterPaletteSessions,
+  paletteSessionFilterCounts,
+} from "../../lib/palette-session-filters";
+import { compareAttentionFirst } from "../../lib/attention-order";
 import {
   isPaletteDomainSearchEnabled,
   projectVaultRows,
@@ -124,6 +137,9 @@ const paletteMocks = vi.hoisted(() => {
     sessionsLoading: false,
     sessionsWorkspaceId: vi.fn(),
     sessionsFilters: vi.fn(),
+    sessionsEnabled: vi.fn(),
+    nextCatalogPage: vi.fn(),
+    previousCatalogPage: vi.fn(),
     sessionGroupWorkspaces: vi.fn(),
     setSessionListScope: vi.fn(),
     toggleLocked: false,
@@ -179,8 +195,56 @@ vi.mock("@/systems/session", async importOriginal => ({
     pending: paletteMocks.fallbackPending,
     run: paletteMocks.runFallback,
   }),
-  useSessions: (workspaceId: string | null, options?: { filters?: Record<string, unknown> }) => {
+  useSessionCatalog: (
+    workspaceId: string | null,
+    filters: { q?: string; badge?: string; attention?: boolean },
+    enabled: boolean
+  ) => {
     paletteMocks.sessionsWorkspaceId(workspaceId);
+    paletteMocks.sessionsFilters(filters);
+    paletteMocks.sessionsEnabled(enabled);
+    const population =
+      workspaceId === null && paletteMocks.workspaceGroups.length > 0
+        ? paletteMocks.workspaceGroups.flatMap(group => group.sessions)
+        : paletteMocks.sessions;
+    const counts = paletteSessionFilterCounts(population as never);
+    const filterId = filters.attention
+      ? "needs-you"
+      : filters.badge === "running"
+        ? "working"
+        : filters.badge === "done"
+          ? "finished"
+          : filters.badge === "idle"
+            ? "idle"
+            : "all";
+    const matching = filterPaletteSessions(population as never, filterId, filters.q ?? "").sort(
+      compareAttentionFirst
+    );
+    return {
+      sessions: matching.slice(0, 100),
+      facets: {
+        all: counts.all,
+        needs_you: counts["needs-you"],
+        working: counts.working,
+        finished: counts.finished,
+        idle: counts.idle,
+      },
+      loading: paletteMocks.sessionsLoading,
+      failed: false,
+      next: matching.length > 100,
+      previous: false,
+      paging: false,
+      nextPage: paletteMocks.nextCatalogPage,
+      previousPage: paletteMocks.previousCatalogPage,
+      retry: vi.fn(),
+    };
+  },
+  useSessions: (
+    workspaceId: string | null,
+    options?: { filters?: Record<string, unknown>; enabled?: boolean }
+  ) => {
+    paletteMocks.sessionsWorkspaceId(workspaceId);
+    paletteMocks.sessionsEnabled(options?.enabled);
     paletteMocks.sessionsFilters(options?.filters ?? {});
     return { data: paletteMocks.sessions, isLoading: paletteMocks.sessionsLoading };
   },
@@ -767,9 +831,7 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() => expect(result.current.entities.sessions).toHaveLength(1));
     expect(result.current.entities.sessions[0]?.sessionId).toBe("s-home");
-    expect(paletteMocks.sessionGroupWorkspaces).toHaveBeenLastCalledWith(
-      paletteMocks.registeredWorkspaces
-    );
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
   });
 
   it("Should identify root session results by owner under the aggregate profile lens", async () => {
@@ -1345,6 +1407,20 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-command-palette.view.sessions")).toBeInTheDocument();
   });
 
+  it("Should enable the Global Sessions view without a project workspace", async () => {
+    const user = userEvent.setup();
+    paletteMocks.scope = "global";
+    paletteMocks.activeWorkspaceId = null;
+    paletteMocks.sessions = [paletteSession({ id: "s-global", name: "Global session" })];
+    renderPalette();
+
+    await pushSessionsView(user);
+
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
+    expect(paletteMocks.sessionsEnabled).toHaveBeenLastCalledWith(true);
+    expect(screen.getByTestId("os-palette-session-view-s-global")).toBeInTheDocument();
+  });
+
   it("Should render only the active view's results and name its own empty state [UT-060]", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = [paletteSession({ id: "s-1", name: "Refactor session store" })];
@@ -1456,7 +1532,7 @@ describe("palette nested views", () => {
 
     expect(screen.getByTestId("os-palette-session-scope")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
-    expect(screen.getByText("Gamma couldn't be loaded.")).toBeInTheDocument();
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
     // Attention-first survives the union: the needs-you row from the foreign
     // workspace outranks the idle row from this one.
     const rows = screen.getAllByTestId(/^os-palette-session-view-/);
@@ -1469,6 +1545,7 @@ describe("palette nested views", () => {
     expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
 
     paletteMocks.workspaceGroups = [];
+    paletteMocks.sessions = [];
     rendered.rerender(
       <PaletteHarness>
         <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
@@ -1621,24 +1698,35 @@ describe("palette nested views", () => {
     );
   });
 
-  it("Should bound the rendered rows and say how many matches went unrendered", async () => {
+  it("Should page bounded results while exact chips and server search include older history", async () => {
     const user = userEvent.setup();
-    paletteMocks.sessions = Array.from({ length: PALETTE_SESSION_ROW_LIMIT + 12 }, (_, index) =>
-      paletteSession({ id: `s-${index}`, name: `Session ${index}` })
+    paletteMocks.sessions = Array.from({ length: 212 }, (_, index) =>
+      paletteSession({
+        id: `s-${index}`,
+        name: `Session ${index}`,
+        ...(index === 211 ? { badge: "running", updated_at: "2020-01-01T00:00:00Z" } : {}),
+      })
     );
     renderPalette();
-    await pushSessionsView(user);
-
-    expect(screen.getAllByTestId(/^os-palette-session-view-/)).toHaveLength(
-      PALETTE_SESSION_ROW_LIMIT
+    const input = await pushSessionsView(user);
+    expect(screen.getAllByTestId(/^os-palette-session-view-/)).toHaveLength(100);
+    expect(screen.getAllByTestId(/^os-palette-session-view-/)[0]).toHaveAttribute(
+      "data-testid",
+      "os-palette-session-view-s-211"
     );
-    const list = screen.getByTestId("os-command-palette");
-    expect(
-      within(list).getByText(
-        `Showing ${PALETTE_SESSION_ROW_LIMIT} of ${PALETTE_SESSION_ROW_LIMIT + 12} — keep typing to narrow.`,
-        { exact: false }
-      )
-    ).toBeInTheDocument();
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort: "navigator", limit: 100 })
+    );
+    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*212/);
+    expect(screen.getByText("100 sessions on this page.")).toBeInTheDocument();
+    await user.click(screen.getByTestId("os-palette-sessions-next"));
+    expect(paletteMocks.nextCatalogPage).toHaveBeenCalledTimes(1);
+    await user.type(input, "Session 211");
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "Session 211", search_fields: "title_agent", limit: 100 })
+    );
+    expect(screen.getByTestId("os-palette-session-view-s-211")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*212/);
   });
 
   it("Should gate every domain read by the daemon query bounds [UT-110, UT-111]", () => {
@@ -1841,9 +1929,12 @@ describe("palette execution surfaces", () => {
     paletteMocks.desktop = desktopFixture({}, null);
   });
 
-  afterEach(() => {
-    resetPaletteExecutionEntry();
-    cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
+  afterEach(async () => {
+    cleanup();
+    await act(async () => {
+      resetPaletteExecutionEntry();
+      cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
+    });
   });
 
   it("Should retain an automatically selected row and its actions when async ranking arrives", () => {
@@ -1944,7 +2035,6 @@ describe("palette execution surfaces", () => {
   });
 
   it("Should list only meta-actions plus the verbatim reason on an unavailable row [UT-128]", async () => {
-    const user = userEvent.setup();
     renderExecutionPalette();
     const row = screen.getByTestId("os-palette-command-ext.notes.recent");
     expect(row).not.toHaveAttribute("aria-disabled", "true");
@@ -1956,13 +2046,11 @@ describe("palette execution surfaces", () => {
     // after filtering, Home reaches it through cmdk's keyboard model, then
     // Enter reaches the one dispatch seam that refuses the run with the
     // runtime's reason.
-    await user.type(
-      screen.getByPlaceholderText("Search apps, sessions, and actions…"),
-      "Recent notes"
-    );
-    await user.keyboard("{Home}");
+    const input = screen.getByPlaceholderText("Search apps, sessions, and actions…");
+    await act(async () => fireEvent.change(input, { target: { value: "Recent notes" } }));
+    await act(async () => fireEvent.keyDown(input, { key: "Home", code: "Home" }));
     expect(row).toHaveAttribute("data-selected", "true");
-    await user.keyboard("{Enter}");
+    await act(async () => fireEvent.keyDown(input, { key: "Enter", code: "Enter" }));
     await waitFor(() =>
       expect(paletteDispatch.run).toHaveBeenCalledWith(
         expect.objectContaining({ id: "ext.notes.recent", available: false }),
@@ -1970,7 +2058,7 @@ describe("palette execution surfaces", () => {
       )
     );
     expect(row).toBeInTheDocument();
-    await user.keyboard("{Meta>}k{/Meta}");
+    await act(async () => fireEvent.keyDown(input, { key: "k", code: "KeyK", metaKey: true }));
     const panel = await screen.findByTestId("os-palette-action-panel");
 
     expect(within(panel).queryByTestId("os-palette-action-primary.run")).not.toBeInTheDocument();
@@ -2052,7 +2140,7 @@ describe("palette execution surfaces", () => {
     expect(screen.getByPlaceholderText("Search apps, sessions, and actions…")).toBeInTheDocument();
 
     // Re-entering starts clean: the discarded value never comes back.
-    requestPaletteArgs(CAPTURE_COMMAND);
+    await act(async () => requestPaletteArgs(CAPTURE_COMMAND));
     await waitFor(() => expect(screen.getByTestId("os-palette-arg-title")).toHaveValue(""));
   });
 
@@ -2191,8 +2279,10 @@ describe("palette execution surfaces", () => {
     await user.click(screen.getByTestId("os-palette-command-settings.layouts"));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
 
-    cmdPaletteExecutionStore.trigger.pendingStarted({
-      pending: { commandId: CAPTURE_COMMAND.id, title: CAPTURE_COMMAND.title },
+    await act(async () => {
+      cmdPaletteExecutionStore.trigger.pendingStarted({
+        pending: { commandId: CAPTURE_COMMAND.id, title: CAPTURE_COMMAND.title },
+      });
     });
     refresh();
     const row = screen.getByTestId("os-palette-command-ext.notes.capture");
@@ -2250,7 +2340,7 @@ describe("palette execution surfaces", () => {
     );
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
 
-    requestPaletteArgs(CAPTURE_COMMAND);
+    await act(async () => requestPaletteArgs(CAPTURE_COMMAND));
     await waitFor(() => expect(screen.getByTestId("os-palette-args")).toBeInTheDocument());
     await user.keyboard("{Escape}");
     expect(screen.queryByTestId("os-palette-args")).toBeNull();

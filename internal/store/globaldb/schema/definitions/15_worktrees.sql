@@ -67,7 +67,7 @@ CREATE TABLE worktree_exit_ops (
 		op_id TEXT PRIMARY KEY,
 		workspace_id TEXT NOT NULL,
 		worktree_id TEXT NOT NULL,
-		action TEXT NOT NULL CHECK (action IN ('commit', 'commit_push', 'push', 'open_pr')),
+		action TEXT NOT NULL CHECK (action IN ('commit', 'commit_push', 'push', 'open_pr', 'deliver')),
 		state TEXT NOT NULL CHECK (state IN ('running', 'completed', 'failed', 'canceled')),
 		started_at TEXT NOT NULL,
 		finished_at TEXT,

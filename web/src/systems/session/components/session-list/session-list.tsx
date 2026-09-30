@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { WifiOff } from "lucide-react";
 
-import { Alert, AlertDescription, SearchInput } from "@compozy/ui";
+import { Alert, AlertDescription, Button, SearchInput } from "@compozy/ui";
 
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
@@ -45,14 +45,14 @@ function emptySessionListMessage(filtering: boolean, view: SessionListViewModel)
 /**
  * Shared sessions catalog body: this workspace, or every workspace.
  *
- * The narrow breadth lists the active workspace's complete catalog as
+ * The narrow breadth pages the active workspace catalog as
  * provenance threads; `All workspaces` widens to every workspace, grouped and
  * labelled, so no workspace can stall unnoticed. Ordering is served by the
  * daemon for the operator's chosen sort — this component renders the order it
  * receives rather than re-deciding it.
  *
- * A matching descendant keeps its full ancestor path visible, so a thread never
- * renders detached from its root.
+ * Loaded parents retain their descendants as threads. A parent outside the
+ * current page leaves its child visible as a root rather than hiding it.
  */
 export function SessionList({
   sessions,
@@ -68,8 +68,9 @@ export function SessionList({
   header,
 }: SessionListProps) {
   const [filter, setFilter] = useState("");
-  const normalizedFilter = filter.trim().toLocaleLowerCase();
-  const threads = buildSessionListThreads(sessions, normalizedFilter);
+  const remoteSearch = view.search !== undefined;
+  const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();
+  const threads = buildSessionListThreads(sessions, remoteSearch ? "" : normalizedFilter);
   const visibleCount = countThreadSessions(threads);
   const collapsedThreads = new Set(collapsedThreadIds);
   const allWorkspaces = view.scope === "all-workspaces";
@@ -107,8 +108,8 @@ export function SessionList({
       )}
       <div className="px-3 pb-1.5">
         <SearchInput
-          value={filter}
-          onChange={setFilter}
+          value={view.search ?? filter}
+          onChange={view.setSearch ?? setFilter}
           placeholder="Filter sessions…"
           aria-label="Filter sessions"
           containerClassName="min-w-0"
@@ -153,6 +154,37 @@ export function SessionList({
             emptyMessage={emptySessionListMessage(normalizedFilter !== "", view)}
           />
         )}
+        {!allWorkspaces && view.catalog ? (
+          <div className="flex items-center justify-between px-2 py-2">
+            {view.catalog.previous ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={view.catalog.paging}
+                onClick={view.catalog.previousPage}
+              >
+                Previous sessions
+              </Button>
+            ) : (
+              <span />
+            )}
+            {view.catalog.next ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={view.catalog.paging}
+                onClick={view.catalog.nextPage}
+              >
+                Next sessions
+              </Button>
+            ) : null}
+            {view.catalog.failed ? (
+              <Button variant="ghost" size="sm" onClick={view.catalog.retry}>
+                Retry loading sessions
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

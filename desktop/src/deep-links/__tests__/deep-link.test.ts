@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { linuxDesktopEntry } from "../linux-registration";
+
 import { DeepLinkQueue, lastDeepLink, parseDeepLink, productNavigationURL } from "../deep-link";
 
 // Invariant: only absolute, hostless product paths reach the renderer, and a pre-ready burst is last-wins exactly once.
@@ -45,5 +47,23 @@ describe("deep-link policy", () => {
     expect(
       lastDeepLink(["app", "compozyos://open/tasks/first", "--flag", "compozyos://open/tasks/last"])
     ).toBe("compozyos://open/tasks/last");
+  });
+});
+
+// Invariant: the Linux URI association launches the installed executable with the original URL.
+// Owner: desktop protocol registration. Canonical suite: deep-link.test.ts.
+describe("Linux URI registration", () => {
+  it("Should declare the scheme and launch the current executable directly", () => {
+    const entry = linuxDesktopEntry("/home/user/Applications/Compozy OS.AppImage", "1.2.3");
+    expect(entry).toContain('Exec="/home/user/Applications/Compozy OS.AppImage" %u\n');
+    expect(entry).toContain("MimeType=x-scheme-handler/compozyos;\n");
+    expect(entry).toContain("X-AppImage-Version=1.2.3\n");
+    expect(entry).not.toContain("app open");
+  });
+  it("Should escape executable field codes and reject new entry injection", () => {
+    expect(linuxDesktopEntry('/tmp/a%u"$.AppImage', "1.2.3")).toContain(
+      String.raw`a%%u\\"\\$.AppImage`
+    );
+    expect(() => linuxDesktopEntry("/tmp/a\nExec=other", "1.2.3")).toThrow("Invalid desktop entry");
   });
 });

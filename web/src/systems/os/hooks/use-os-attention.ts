@@ -14,7 +14,8 @@ import {
   type SessionCatalogStreamStatus,
   type SessionPayload,
   useSessionListPreferences,
-  useSessions,
+  useSessionCatalog,
+  sessionFacetsOptions,
 } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
 import {
@@ -22,7 +23,6 @@ import {
   terminalInputRequestsQuery,
   terminalScope,
   terminalScopeKey,
-  type TerminalInputRequest,
 } from "@/systems/terminal";
 import {
   useActiveWorkspace,
@@ -34,7 +34,6 @@ import {
 import { useBellNotifications } from "./use-bell-notifications";
 
 import { useAttentionPolicy } from "./use-attention-policy";
-import { useAttentionSessions } from "./use-attention-rows";
 import { useAttentionSummary } from "./use-attention-summary";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
@@ -58,19 +57,16 @@ export interface OsAttentionModel {
 }
 
 /**
- * The shell's attention view model.
- *
- * Counts and rows have separate authorities on purpose. Counts come from the
- * daemon's cross-workspace summary projection, so they stay exact past any page
- * size and past any worktree scope. Rows come from server-filtered
- * cross-workspace reads. The modal leg stays worktree-scoped because it is a
- * window's content, not an attention signal — and `archived` only ever reaches
- * that leg, so the archive can never inflate an attention count.
+ * The shell's attention view model. Session and terminal totals come from
+ * scoped daemon projections; bell rows come from the notification ledger.
+ * The optional modal page follows the focused window's workspace/worktree,
+ * while the production session list owns explicit continuation separately.
  */
 export function useOsAttention(
   runtimeWorkspace: WorkspacePayload | null | undefined,
   sessionCatalogStreamStatus: SessionCatalogStreamStatus,
-  archived: boolean
+  archived: boolean,
+  modalEnabled = true
 ): OsAttentionModel {
   const { scope, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const documentVisible = useDocumentVisible();
@@ -80,12 +76,12 @@ export function useOsAttention(
     scope,
     sessionCatalogStreamStatus,
     workspaceId,
+    modalEnabled,
   });
   const tasks = useTaskAttentionSources({ activeWorkspaceId, documentVisible, scope });
   const loops = useLoopAttentionSources({ documentVisible, workspaceId, workspaces });
   const terminal = useTerminalAttentionSources({
     documentVisible,
-    sessions: sessions.attention.sessions,
     workspaceId,
   });
   const policy = useAttentionPolicy();
@@ -125,45 +121,43 @@ function useSessionAttentionSources({
   scope,
   sessionCatalogStreamStatus,
   workspaceId,
+  modalEnabled,
 }: {
+  modalEnabled: boolean;
   archived: boolean;
   scope: WorkspaceScopeMode;
   sessionCatalogStreamStatus: SessionCatalogStreamStatus;
   workspaceId: string | null;
 }) {
-  const enabled = workspaceId !== null;
+  const enabled = scope === "global" || workspaceId !== null;
   const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeScopeId(), {
     enabled: enabled && scope === "workspace",
   });
   // The modal renders the same order the operator chose everywhere else.
   const listPreferences = useSessionListPreferences();
   const summary = useAttentionSummary(sessionCatalogStreamStatus);
-  const attention = useAttentionSessions(sessionCatalogStreamStatus, enabled);
   // Sessions-modal content: a shell surface, so it follows the focused window's
   // scope exactly like the menubar chip. Distinct query key, no shared snapshot.
-  const modalSessionsQuery = useSessions(workspaceId, {
-    enabled: enabled && worktree.resolved,
-    loadAll: listPreferences.scope === "workspace",
-    filters: {
+  const modalSessionsQuery = useSessionCatalog(
+    workspaceId,
+    {
       include_health: true,
       limit: 100,
       sort: sessionListSortParam(listPreferences.sort),
       worktree: worktree.worktreeId,
       ...(archived ? { archive: "only" as const } : {}),
     },
-  });
+    modalEnabled && enabled && worktree.resolved,
+    { facets: false }
+  );
   return {
-    attention,
     disconnected:
       !enabled ||
       (worktree.resolved &&
         (sessionCatalogStreamStatus !== "live" ||
-          modalSessionsQuery.isError ||
-          modalSessionsQuery.data === undefined)),
-    loading:
-      enabled &&
-      (!worktree.resolved || summary.loading || attention.loading || modalSessionsQuery.isLoading),
-    modal: modalSessionsQuery.data ?? [],
+          (modalEnabled && (modalSessionsQuery.failed || modalSessionsQuery.loading)))),
+    loading: enabled && (!worktree.resolved || summary.loading || modalSessionsQuery.loading),
+    modal: modalSessionsQuery.sessions,
     summary,
   };
 }
@@ -230,11 +224,9 @@ function useLoopAttentionSources({
 
 function useTerminalAttentionSources({
   documentVisible,
-  sessions,
   workspaceId,
 }: {
   documentVisible: boolean;
-  sessions: readonly SessionPayload[];
   workspaceId: string | null;
 }) {
   const profile = useProfileReadScope();
@@ -245,64 +237,35 @@ function useTerminalAttentionSources({
     enabled,
     refetchInterval: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
   });
-  const terminalQueryReady = !terminalRequests.isError && terminalRequests.data !== undefined;
-  return {
-    badge: terminalAttentionCount({
-      ready: terminalQueryReady,
-      profileId: profile.destinationOwner?.id,
-      workspaceId,
-      sessions,
-      scopeKey: terminalScopeKey(
-        terminalReadScope.key.workspaceId,
-        terminalReadScope.key.profileKey
-      ),
-      pendingRequests: terminalRequests.data?.pending ?? [],
+  const terminalFacets = useQuery({
+    ...sessionFacetsOptions({
+      workspace_id: workspaceId ?? undefined,
+      profile: profile.destination,
     }),
-    loading: terminalRequests.isLoading,
-    ready: terminalQueryReady,
-    rows: (terminalRequests.data?.pending ?? []).map(request => ({
-      id: request.id,
-      terminal_id: request.terminal_id,
-      ...(request.workspace_id ? { workspace_id: request.workspace_id } : {}),
-      reason: request.reason,
-      redacted: request.redacted,
-      requested_at: request.requested_at,
-      requester_id: request.requester.id,
-    })),
+    enabled,
+    refetchInterval: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
+  });
+  const ready =
+    enabled &&
+    !terminalRequests.isError &&
+    terminalRequests.data !== undefined &&
+    !terminalFacets.isError &&
+    terminalFacets.data !== undefined;
+  const profileId = profile.destinationOwner?.id;
+  return {
+    badge:
+      !ready || !profileId
+        ? undefined
+        : projectTerminalBadge({
+            scopeKey: terminalScopeKey(
+              terminalReadScope.key.workspaceId,
+              terminalReadScope.key.profileKey
+            ),
+            profileId,
+            inputRequests: terminalRequests.data?.pending ?? [],
+            pendingApprovalCount: terminalFacets.data?.facets.terminal_approvals ?? 0,
+          }).count,
+    loading: terminalRequests.isLoading || terminalFacets.isLoading,
+    ready,
   };
-}
-
-function terminalAttentionCount(input: {
-  ready: boolean;
-  profileId: string | undefined;
-  workspaceId: string | null;
-  sessions: readonly SessionPayload[];
-  scopeKey: string;
-  pendingRequests: readonly TerminalInputRequest[];
-}): number | undefined {
-  if (!input.ready) return undefined;
-  // Profile identity comes from the profile catalog, the authority that
-  // bound this read. An input request is optional and cannot identify a
-  // profile when approvals are the only pending terminal work.
-  const profileId = input.profileId;
-  if (!profileId) return undefined;
-  const pendingApprovals: Array<{ profileId: string }> = [];
-  for (const session of input.sessions) {
-    if (session.workspace_id !== input.workspaceId || session.profile_id !== profileId) continue;
-    for (const interaction of session.pending_interactions) {
-      if (
-        interaction.kind === "permission" &&
-        interaction.status === "pending" &&
-        interaction.tool_id?.startsWith("compozy__terminal_")
-      ) {
-        pendingApprovals.push({ profileId });
-      }
-    }
-  }
-  return projectTerminalBadge({
-    scopeKey: input.scopeKey,
-    profileId,
-    inputRequests: input.pendingRequests,
-    pendingApprovals,
-  }).count;
 }

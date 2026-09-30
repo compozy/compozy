@@ -35,7 +35,7 @@ func (g *TaskRepo) withTaskImmediateTransaction(
 	run func(exec taskSQLExecutor) error,
 ) error {
 	var committedEvents []taskpkg.EventRecord
-	err := store.ExecuteWrite(ctx, g.db, func(_ context.Context, tx *store.WriteTx) error {
+	err := store.ExecuteWriteOperation(ctx, g.db, action, func(_ context.Context, tx *store.WriteTx) error {
 		transaction := &taskTransactionExecutor{taskSQLExecutor: tx}
 		if err := run(transaction); err != nil {
 			return err

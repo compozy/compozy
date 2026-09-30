@@ -1,43 +1,23 @@
 import { useState } from "react";
 
-import {
-  sessionListSortParam,
-  useSessionListPreferences,
-  useSessions,
-  useWorkspaceSessionGroups,
-  type SessionPayload,
-} from "@/systems/session";
+import { useSessionListPreferences, useSessionCatalog } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { OsPaletteSessionChips } from "../components/os-palette-session-chips";
 import { OsPaletteSessionRow } from "../components/os-palette-session-row";
 import { OsPaletteViewNote } from "../components/os-palette-view-note";
-import { compareAttentionFirst } from "../lib/attention-order";
-import {
-  filterPaletteSessions,
-  paletteSessionFilter,
-  paletteSessionFilterCounts,
-  type PaletteSessionFilterId,
-} from "../lib/palette-session-filters";
+import { paletteSessionFilter, type PaletteSessionFilterId } from "../lib/palette-session-filters";
 import type { PaletteViewContent, PaletteViewControllerInput } from "../lib/palette-view-registry";
 import { useAttentionJump } from "./use-attention-jump";
 import { useProfileReadScope } from "@/systems/profiles";
-
-/**
- * How many rows the view mounts at once. Keyboard navigation needs every
- * candidate row in the DOM, so the list is bounded instead of virtualized —
- * a workspace with hundreds of sessions stays as responsive as one with five,
- * and the note below the list says exactly how many matches went unrendered.
- */
-export const PALETTE_SESSION_ROW_LIMIT = 150;
 
 /**
  * The Sessions view: Herdr's navigator flow — filter, pick, land — inside the
  * palette (US-030).
  *
  * Order, tone and landing all come from the surfaces that already own them:
- * `compareAttentionFirst` floats what needs the operator, the badge dictionary
- * draws every row, and `useAttentionJump` performs the switch-then-focus that
+ * The daemon orders each page, the badge dictionary draws every row, and
+ * `useAttentionJump` performs the switch-then-focus that
  * the bell and the sidebar perform. Breadth is the operator's persisted
  * session-list scope, so widening here is the same choice — and the same stored
  * value — as widening the sidebar.
@@ -52,73 +32,94 @@ export function useOsPaletteSessionsView({
   const [archived, setArchived] = useState(false);
   const profile = useProfileReadScope();
   const preferences = useSessionListPreferences();
-  const { registeredWorkspaces, runtimeWorkspaceId } = useActiveWorkspace();
+  const { registeredWorkspaces, runtimeWorkspaceId, scope } = useActiveWorkspace();
   const jumpToSession = useAttentionJump();
   const allWorkspaces = preferences.scope === "all-workspaces";
-  const sort = sessionListSortParam(preferences.sort);
-  const workspaceSessions = useSessions(runtimeWorkspaceId, {
-    enabled: !allWorkspaces && runtimeWorkspaceId !== null,
-    // The switcher counts what it filters, so it reads the whole workspace
-    // rather than the first page: a chip that counted one page would promise
-    // sessions the list could never show.
-    loadAll: true,
-    filters: {
+  const catalog = useSessionCatalog(
+    allWorkspaces || scope === "global" ? null : runtimeWorkspaceId,
+    {
       include_health: true,
       limit: 100,
-      sort,
+      sort: "navigator",
+      q: query.trim(),
+      search_fields: "title_agent",
+      ...paletteSessionFilterParams(filterId),
       ...(archived ? { archive: "only" as const } : {}),
     },
-  });
-  const groups = useWorkspaceSessionGroups({
-    workspaces: registeredWorkspaces,
-    sort: preferences.sort,
-    archived,
-    enabled: allWorkspaces,
-  });
-
-  const scoped: readonly SessionPayload[] = allWorkspaces
-    ? groups.flatMap(group => group.sessions)
-    : (workspaceSessions.data ?? []);
-  // Each source arrives in its own order; one attention-first pass over the
-  // union is what makes the widened list read like the narrow one.
-  const sessions = [...scoped].sort(compareAttentionFirst);
-  const counts = paletteSessionFilterCounts(sessions);
-  const matched = filterPaletteSessions(sessions, filterId, query);
-  const visible = matched.slice(0, PALETTE_SESSION_ROW_LIMIT);
+    allWorkspaces || scope === "global" || runtimeWorkspaceId !== null
+  );
+  const visible = catalog.sessions;
+  const counts = catalog.facets
+    ? {
+        all: catalog.facets.all,
+        "needs-you": catalog.facets.needs_you,
+        working: catalog.facets.working,
+        finished: catalog.facets.finished,
+        idle: catalog.facets.idle,
+      }
+    : undefined;
   const workspaceNames = new Map(
     registeredWorkspaces.map(workspace => [workspace.id, workspace.name])
   );
-  const failedWorkspaceNames: string[] = [];
-  if (allWorkspaces) {
-    for (const group of groups) {
-      if (group.failed) failedWorkspaceNames.push(group.workspaceName);
-    }
-  }
-  const loading = allWorkspaces ? groups.some(group => group.loading) : workspaceSessions.isLoading;
+  const loading = catalog.loading;
 
   return {
-    rows: visible.map(session => ({
-      value: `session:${session.id}`,
-      testId: `os-palette-session-view-${session.id}`,
-      twoLine: true,
-      node: (
-        <OsPaletteSessionRow
-          owner={profile.aggregate ? profile.ownerOf(session) : undefined}
-          session={session}
-          workspaceLabel={
-            allWorkspaces ? workspaceNames.get(session.workspace_id ?? "") : undefined
-          }
-        />
-      ),
-      onSelect: () => {
-        onDismiss();
-        jumpToSession({
-          sessionId: session.id,
-          agentName: session.agent_name,
-          workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
-        });
-      },
-    })),
+    rows: [
+      ...visible.map(session => ({
+        value: `session:${session.id}`,
+        testId: `os-palette-session-view-${session.id}`,
+        twoLine: true,
+        node: (
+          <OsPaletteSessionRow
+            owner={profile.aggregate ? profile.ownerOf(session) : undefined}
+            session={session}
+            workspaceLabel={
+              allWorkspaces ? workspaceNames.get(session.workspace_id ?? "") : undefined
+            }
+          />
+        ),
+        onSelect: () => {
+          onDismiss();
+          jumpToSession({
+            sessionId: session.id,
+            agentName: session.agent_name,
+            workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
+          });
+        },
+      })),
+      ...(catalog.previous
+        ? [
+            {
+              value: "sessions:previous",
+              testId: "os-palette-sessions-previous",
+              node: "Previous sessions",
+              disabled: catalog.paging,
+              onSelect: catalog.previousPage,
+            },
+          ]
+        : []),
+      ...(catalog.next
+        ? [
+            {
+              value: "sessions:next",
+              testId: "os-palette-sessions-next",
+              node: catalog.paging ? "Loading sessions…" : "Next sessions",
+              disabled: catalog.paging,
+              onSelect: catalog.nextPage,
+            },
+          ]
+        : []),
+      ...(catalog.failed
+        ? [
+            {
+              value: "sessions:retry",
+              testId: "os-palette-sessions-retry",
+              node: "Retry loading sessions",
+              onSelect: catalog.retry,
+            },
+          ]
+        : []),
+    ],
     header: (
       <OsPaletteSessionChips
         filterId={filterId}
@@ -137,16 +138,12 @@ export function useOsPaletteSessionsView({
       </OsPaletteViewNote>
     ),
     note:
-      visible.length === matched.length && failedWorkspaceNames.length === 0 ? null : (
+      catalog.failed || catalog.next || catalog.previous ? (
         <OsPaletteViewNote>
-          {visible.length === matched.length
-            ? null
-            : `Showing ${visible.length} of ${matched.length} — keep typing to narrow. `}
-          {failedWorkspaceNames.length === 0
-            ? null
-            : `${formatWorkspaceNames(failedWorkspaceNames)} couldn't be loaded.`}
+          {catalog.failed ? "Couldn’t load sessions. " : ""}
+          {visible.length > 0 ? `${visible.length} sessions on this page.` : null}
         </OsPaletteViewNote>
-      ),
+      ) : null,
     backHint: filterId === "all" ? "back" : "clear filter",
     resetKey: `${filterId}:${allWorkspaces ? "all-workspaces" : "workspace"}:${archived}`,
     onEmptyQueryBackspace: () => {
@@ -171,8 +168,10 @@ function emptySessionsMessage(input: {
   return paletteSessionFilter(input.filterId).emptyMessage;
 }
 
-function formatWorkspaceNames(names: readonly string[]): string {
-  if (names.length < 2) return names[0] ?? "A project";
-  if (names.length === 2) return names.join(" and ");
-  return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+function paletteSessionFilterParams(filter: PaletteSessionFilterId) {
+  if (filter === "needs-you") return { attention: true };
+  if (filter === "working") return { badge: "running" };
+  if (filter === "finished") return { badge: "done" };
+  if (filter === "idle") return { badge: "idle" };
+  return {};
 }

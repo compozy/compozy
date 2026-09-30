@@ -171,6 +171,9 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 		worktree.WithHooks(daemonWorktreeHookDispatcher{hooks: state.hookDispatcher, now: d.now}),
 		worktree.WithEvents(registry),
 		worktree.WithSessionGuard(daemonWorktreeSessionGuard{registry: registry}),
+		worktree.WithManagedDeliverySessions(
+			daemonManagedDeliverySessions{sessions: state.sessions, registry: registry},
+		),
 		worktree.WithForge(daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime}),
 		worktree.WithLogger(state.logger),
 		worktree.WithClock(d.now),
@@ -181,5 +184,15 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 	state.worktrees = service
 	state.deps.Worktrees = service
 	registerWorktreeTurnRefresh(state.sessions, service, state.logger)
+	return nil
+}
+
+func (d *Daemon) bootManagedDeliveries(ctx context.Context, state *bootState) error {
+	if state.worktrees == nil {
+		return nil
+	}
+	if err := state.worktrees.RecoverManagedDeliveries(ctx); err != nil {
+		return fmt.Errorf("daemon: recover managed deliveries: %w", err)
+	}
 	return nil
 }

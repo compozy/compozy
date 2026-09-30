@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -53,4 +54,29 @@ func (d *Driver) Kill(ctx context.Context, proc *AgentProcess) error {
 		return proc.handle.Stop(ctx)
 	}
 	return errors.New("acp: process owner cannot force termination")
+}
+
+func (d *Driver) forceStoppedProcess(proc *AgentProcess) error {
+	proc.markStopRequested()
+	pid := proc.PID
+	if pid <= 0 && proc.managed != nil {
+		pid = proc.managed.PID()
+	}
+	if pid <= 0 && proc.cmd != nil && proc.cmd.Process != nil {
+		pid = proc.cmd.Process.Pid
+	}
+	if pid <= 0 {
+		return errors.New("acp: process owner cannot force termination")
+	}
+	if err := procutil.KillProcessGroupIDAndWait(pid, time.Second); err != nil {
+		return fmt.Errorf("acp: force subprocess tree exit: %w", err)
+	}
+	waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	select {
+	case <-proc.Done():
+		return proc.Wait()
+	case <-waitCtx.Done():
+		return fmt.Errorf("acp: wait for forced subprocess exit: %w", waitCtx.Err())
+	}
 }

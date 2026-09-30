@@ -7514,3 +7514,187 @@ func TestGlobalDBShouldBackfillEventWaitAdmissionDeadline(t *testing.T) {
 		})
 	}
 }
+
+func TestGlobalDBLoopRecoveredChild(t *testing.T) {
+	t.Parallel()
+	// Invariant: durable exact-child recovery releases the parent without another review generation.
+	// Owning layer and canonical suite: GlobalDB Loop coordinator persistence and reconciliation.
+	t.Run("Should adopt the durable recovered child without reserving another child", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.September, 29, 12, 0, 0, 0, time.UTC)
+		proof := `{"worktree_id":"wt-reviewed","include_paths":["reviewed.go"],"fingerprint":"` + strings.Repeat(
+			"a",
+			64,
+		) + `"}`
+		definition := dsl.Definition{
+			Meta: dsl.Meta{Name: "parent", Version: 1},
+			Contract: dsl.Contract{
+				Goal:             "Review candidate",
+				DefinitionOfDone: "Review passes",
+				IterationCap:     7,
+				NoProgress:       dsl.NoProgress{Window: 3},
+				Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			},
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID:    "review",
+						Class: dsl.NodeClassAction,
+						Kind:  string(dsl.ActionRunLoop),
+						Params: dsl.NodeParams{
+							"loop":   "delivery",
+							"inputs": map[string]any{"tasks": "{{ .inputs.tasks }}", dsl.ReviewedWorktreeInput: proof},
+						},
+					},
+				},
+			},
+		}
+		definition.Inputs = map[string]dsl.Input{"tasks": {Type: dsl.InputTypeString, Required: true}}
+		definition.Normalize()
+		resolved, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("compile parent: %v", err)
+		}
+		effective, err := looppkg.ResolveEffectiveConfig(
+			resolved,
+			looppkg.DefaultLoopDefaults(),
+			nil,
+			looppkg.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("resolve parent: %v", err)
+		}
+		snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatalf("snapshot parent: %v", err)
+		}
+		parent := testLoopRun("looprun-recovered-parent", now, looppkg.StatusRunning)
+		parent.LoopName = "parent"
+		parent.DefinitionSnapshot = snapshot
+		parent.DefinitionDigest = digest
+		parent, err = globalDB.CreateLoopRunForStart(ctx, parent, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("create parent: %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation=1 WHERE id=?`,
+			parent.ID,
+		); err != nil {
+			t.Fatalf("seed parent generation: %v", err)
+		}
+		child := testLoopRun("looprun-recovered-child", now, looppkg.StatusDone)
+		child.ParentLoopRunID = parent.ID
+		child.Inputs[dsl.ReviewedWorktreeInput] = proof
+		child, err = globalDB.CreateLoopRunForStart(ctx, child, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("create recovered child: %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			child.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			now,
+		); err != nil {
+			t.Fatalf("settle recovered child: %v", err)
+		}
+		taskID := "loop." + string(parent.ID) + ".g1.node.review.0"
+		taskRecord := workspaceTaskRecordForTest(taskID, string(parent.WorkspaceID))
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("create review task: %v", err)
+		}
+		worker := taskRunForTest("recovered-review-worker", taskID)
+		worker.WorkspaceID = string(parent.WorkspaceID)
+		worker.LoopRunID = string(parent.ID)
+		worker.RunKind = taskpkg.RunKindWorker
+		worker.Status = taskpkg.TaskRunStatusCompleted
+		worker.EndedAt = now
+		worker.SetResult(json.RawMessage(`{"loop_run_id":"looprun-recovered-child","status":"awaiting_child"}`))
+		if err := globalDB.CreateTaskRun(ctx, worker); err != nil {
+			t.Fatalf("create completed review: %v", err)
+		}
+		failure := looppkg.NewActionFailure("child_loop_status:failed", "child failed", "rerun child")
+		failure.Target = string(child.ID)
+		ref, ok := looppkg.ActionFailureOutputRef(failure)
+		if !ok {
+			t.Fatal("encode child failure")
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (loop_run_id,generation,node_id,item_index,status,output_ref,child_loop_run_id,task_run_id,attempt) VALUES (?,1,'review',0,'failed',?,?,?,1)`,
+			parent.ID,
+			ref,
+			child.ID,
+			worker.ID,
+		); err != nil {
+			t.Fatalf("seed failed parent output: %v", err)
+		}
+		claim := claimExactLoopTaskRunForTest(
+			ctx,
+			t,
+			globalDB,
+			parent,
+			loopCoordinatorRunID(parent.ID, 1),
+			taskpkg.RunKindCoordinator,
+			now,
+		)
+		runner, err := looppkg.NewCoordinatorRunner(
+			globalDB,
+			globalDB,
+			globalDB,
+			slog.Default(),
+			looppkg.WithCoordinatorWorktreeCandidateVerifier(persistedReviewCandidateVerifier{}),
+		)
+		if err != nil {
+			t.Fatalf("create coordinator: %v", err)
+		}
+		plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
+		if err != nil {
+			t.Fatalf("reconcile recovered child: %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != "done" || plan.NextCoordinator != nil ||
+			len(plan.NodeRuns) != 0 {
+			t.Fatalf("recovery plan = %#v", plan)
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID:      claim.Run.ID,
+				ClaimToken: claim.ClaimToken,
+				Actor:      coordinatorActorContextForTest(),
+				Now:        now.Add(time.Second),
+				Plan:       plan,
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("persist recovery plan: %v", err)
+		}
+		outputs, err := globalDB.ListGenerationOutputs(ctx, parent.WorkspaceID, parent.ID, 1)
+		if err != nil || len(outputs) != 1 || outputs[0].Status != "succeeded" ||
+			outputs[0].ChildLoopRunID != string(child.ID) {
+			t.Fatalf("durable outputs = %#v, %v", outputs, err)
+		}
+		final, err := globalDB.GetLoopRunByID(ctx, parent.ID)
+		if err != nil || final.Status != looppkg.StatusDone || final.Generation != 1 {
+			t.Fatalf("parent = %#v, %v", final, err)
+		}
+	})
+}
+
+type persistedReviewCandidateVerifier struct{}
+
+func (persistedReviewCandidateVerifier) VerifyReviewCandidate(
+	_ context.Context,
+	workspaceID, worktreeID string,
+	paths []string,
+	fingerprint string,
+) (bool, error) {
+	return workspaceID != "" && worktreeID == "wt-reviewed" && slices.Equal(paths, []string{"reviewed.go"}) &&
+		fingerprint == strings.Repeat("a", 64), nil
+}
+
+var _ looppkg.WorktreeCandidateVerifier = persistedReviewCandidateVerifier{}

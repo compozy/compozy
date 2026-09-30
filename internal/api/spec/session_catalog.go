@@ -10,6 +10,7 @@ const (
 func sessionCatalogOperations() []OperationSpec {
 	return []OperationSpec{
 		sessionCatalogListOperation(),
+		sessionCatalogFacetsOperation(),
 		sessionCatalogStreamOperation(),
 		sessionWaitOperation(),
 		sessionPromptCancelOperation(),
@@ -77,6 +78,7 @@ func sessionCatalogListOperation() OperationSpec {
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
+			boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",
@@ -87,16 +89,29 @@ func sessionCatalogListOperation() OperationSpec {
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
 			queryParam("worktree", "Filter by exact bound worktree id", false),
-			queryParam("q", "Search session id, name, agent, provider, or channel", false),
+			queryParam(
+				"q",
+				"Search session id, name, agent, or provider; title_agent searches visible title and agent",
+				false,
+			),
+			enumQueryParam(
+				"search_fields",
+				"Select visible title/agent search instead of the default catalog fields",
+				[]string{"title_agent"},
+			),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
 			boolQueryParam("attention", "Only list sessions in the needs-you attention class"),
 			queryParam("badge", "Filter by comma-separated exact session badges", false),
 			enumQueryParam(
 				"archive",
 				"Archived session visibility",
-				[]string{"exclude", "only", "include"},
+				[]string{"exclude", "only", specIncludeKey},
 			),
-			enumQueryParam("sort", "Stable session ordering", []string{"recent", "last_activity", "attention"}),
+			enumQueryParam(
+				"sort",
+				"Stable session ordering",
+				[]string{"recent", "created", "last_activity", "attention", "navigator"},
+			),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),
 		),
@@ -217,6 +232,42 @@ func sessionCatalogStreamOperation() OperationSpec {
 			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Session catalog stream is unavailable", Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func sessionCatalogFacetsOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/sessions/facets",
+		OperationID: "listSessionFacets",
+		Summary:     "Count session catalog facets",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: withProfileScope(
+			queryParam("workspace_id", "Workspace id or path", false),
+			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
+			queryParam("worktree", "Filter by bound worktree id", false),
+			queryParam("agent", "Filter by exact agent name", false),
+			enumQueryParam(
+				"state",
+				"Filter by exact session state",
+				[]string{"starting", "active", "stopping", "stopped"},
+			),
+			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
+			enumQueryParam("archive", "Archived session visibility", []string{"exclude", "only", specIncludeKey}),
+		),
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Exact scope counts, independent of text query and selected badge",
+				Body:        contract.SessionCatalogFacetsResponse{},
+			},
+			{Status: 400, Description: "Invalid catalog scope or filters", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Session catalog facets are unavailable", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }

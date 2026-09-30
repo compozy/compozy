@@ -599,7 +599,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		t.Parallel()
 
 		def := parseEmbeddedLoopForTest(t, "loops/review-and-fix/loop.yaml")
-		wantInputs := []string{"task_name", "reviewer", "fixer", "auto_commit"}
+		wantInputs := []string{"task_name", "reviewer", "fixer", "auto_commit", "reviewed_worktree"}
 		if len(def.Inputs) != len(wantInputs) {
 			t.Fatalf("review-and-fix inputs = %#v, want exactly %#v", def.Inputs, wantInputs)
 		}
@@ -607,6 +607,9 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			if _, ok := def.Inputs[input]; !ok {
 				t.Fatalf("review-and-fix input %q missing", input)
 			}
+		}
+		if proof := def.Inputs["reviewed_worktree"]; proof.Required || proof.Type != dsl.InputTypeString {
+			t.Fatalf("reviewed worktree input=%#v", proof)
 		}
 		if !def.Inputs["task_name"].Required {
 			t.Fatal("task_name required = false, want true")

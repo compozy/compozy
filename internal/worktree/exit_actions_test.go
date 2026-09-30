@@ -582,9 +582,18 @@ func (r *scriptedExitRunner) commands() []string {
 	return append([]string(nil), r.calls...)
 }
 
-func waitForExitOperation(t *testing.T, store *memoryWorktreeStore, opID, state string) ExitOperation {
+func waitForExitOperation(
+	t *testing.T,
+	store *memoryWorktreeStore,
+	opID, state string,
+	timeout ...time.Duration,
+) ExitOperation {
 	t.Helper()
-	deadline := time.NewTimer(time.Second)
+	limit := time.Second
+	if len(timeout) > 0 {
+		limit = timeout[0]
+	}
+	deadline := time.NewTimer(limit)
 	defer deadline.Stop()
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()

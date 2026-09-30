@@ -1,4 +1,4 @@
-import { useSessions, type SessionPayload } from "@/systems/session";
+import { useSessionCatalog, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface SessionLaunchCatalog {
@@ -7,18 +7,19 @@ export interface SessionLaunchCatalog {
   workspaceId: string | null;
 }
 
-/** Workspace catalog for dock launch: live rows only, no worktree or archive lens. */
+/** The newest unarchived workspace session, independent of activity ordering. */
 export function useSessionLaunchCatalog(): SessionLaunchCatalog {
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = runtimeWorkspaceId?.trim() || null;
-  const query = useSessions(workspaceId, {
-    enabled: workspaceId !== null,
-    loadAll: true,
-    filters: { limit: 100 },
-  });
+  const query = useSessionCatalog(
+    workspaceId,
+    { limit: 1, sort: "created", archive: "exclude" },
+    workspaceId !== null,
+    { facets: false }
+  );
   return {
-    sessions: query.data ?? [],
-    ready: workspaceId !== null && query.isFetched && !query.isError,
+    sessions: query.sessions,
+    ready: workspaceId !== null && !query.loading && !query.failed,
     workspaceId,
   };
 }

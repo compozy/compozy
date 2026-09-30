@@ -11,12 +11,16 @@ import {
 } from "@compozy/ui";
 
 import { useAttentionJump } from "../hooks/use-attention-jump";
+import { OsSessionsDeriveHost } from "./os-sessions-derive-host";
 import {
   type SessionLifecycleActionHandlers,
   SessionList,
   type SessionPayload,
   useSessionSidebarState,
   type SessionListViewModel,
+  SessionDeleteDialog,
+  SessionRenameDialog,
+  type useSessionLifecycleActions,
 } from "@/systems/session";
 
 export interface OsSessionsModalProps {
@@ -30,6 +34,68 @@ export interface OsSessionsModalProps {
   currentWorkspaceId?: string | null;
   onNewSession: () => void;
   sessionActions: SessionLifecycleActionHandlers;
+}
+
+/** Keeps the catalog mounted beneath its derive and lifecycle confirmation dialogs. */
+export function OsSessionsDialogHost({
+  open,
+  onOpenChange,
+  disconnected,
+  view,
+  currentWorkspaceId,
+  onNewSession,
+  lifecycle,
+}: Pick<
+  OsSessionsModalProps,
+  "open" | "onOpenChange" | "disconnected" | "view" | "currentWorkspaceId" | "onNewSession"
+> & {
+  lifecycle: ReturnType<typeof useSessionLifecycleActions>;
+}) {
+  return (
+    <>
+      <OsSessionsDeriveHost
+        workspaceId={currentWorkspaceId ?? null}
+        onLanded={() => onOpenChange(false)}
+      >
+        {({ deriveOpen }) => (
+          <OsSessionsModal
+            open={open}
+            onOpenChange={onOpenChange}
+            dismissalBlocked={
+              lifecycle.deleteDialog.open || lifecycle.renameDialog.open || deriveOpen
+            }
+            sessions={view.catalog?.sessions ?? []}
+            disconnected={disconnected}
+            view={view}
+            currentWorkspaceId={currentWorkspaceId}
+            onNewSession={onNewSession}
+            sessionActions={lifecycle.actions}
+          />
+        )}
+      </OsSessionsDeriveHost>
+      {lifecycle.deleteDialog.session ? (
+        <SessionDeleteDialog
+          open={lifecycle.deleteDialog.open}
+          onOpenChange={lifecycle.deleteDialog.onOpenChange}
+          session={lifecycle.deleteDialog.session}
+          sessions={lifecycle.deleteDialog.sessions}
+          results={lifecycle.deleteDialog.results}
+          onRetry={lifecycle.deleteDialog.onRetry}
+          isDeleting={lifecycle.deleteDialog.isDeleting}
+          onConfirm={lifecycle.deleteDialog.onConfirm}
+        />
+      ) : null}
+      {lifecycle.renameDialog.session ? (
+        <SessionRenameDialog
+          open={lifecycle.renameDialog.open}
+          onOpenChange={lifecycle.renameDialog.onOpenChange}
+          session={lifecycle.renameDialog.session}
+          isRenaming={lifecycle.renameDialog.isRenaming}
+          onConfirm={lifecycle.renameDialog.onConfirm}
+        />
+      ) : null}
+    </>
+  );
 }
 
 /**

@@ -219,6 +219,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/roles/:role",
 		"GET /api/sessions",
 		"GET /api/sessions/attention-summary",
+		"GET /api/sessions/facets",
 		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/sessions/:session_id/owner",
@@ -3715,6 +3716,29 @@ func TestStatusForSessionErrorIncludesApprovalCases(t *testing.T) {
 	}
 	if status := core.StatusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
 		t.Fatalf("statusForSessionError(default) = %d, want %d", status, http.StatusInternalServerError)
+	}
+}
+
+func TestRequestLoggingClientIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, value, want string }{
+		{"Should log a bounded opaque client identity", "web-client-123", "web-client-123"},
+		{"Should reject arbitrary client log content", "unsafe/token", "unidentified"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			engine := gin.New()
+			engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(&logs, nil))))
+			engine.GET("/api/sessions", func(c *gin.Context) { c.Status(http.StatusOK) })
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", http.NoBody)
+			request.Header.Set("X-Compozy-Client-ID", tc.value)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+			if response.Code != http.StatusOK || !strings.Contains(logs.String(), `"client_id":"`+tc.want+`"`) {
+				t.Fatalf("status=%d log=%s", response.Code, logs.String())
+			}
+		})
 	}
 }
 

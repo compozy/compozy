@@ -1,3 +1,6 @@
+import { homedir } from "node:os";
+import { registerLinuxDesktop } from "./deep-links/linux-registration";
+
 import { randomUUID } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
@@ -404,6 +407,17 @@ if (!app.requestSingleInstanceLock()) {
     .whenReady()
     .then(async () => {
       applyDefaultDenyPermissions(session.defaultSession);
+      if (process.platform === "linux" && app.isPackaged) {
+        try {
+          await registerLinuxDesktop(
+            process.env.APPIMAGE || process.execPath,
+            app.getVersion(),
+            process.env.XDG_DATA_HOME || join(homedir(), ".local", "share")
+          );
+        } catch (error) {
+          logger.error("register Linux desktop URI handler", error);
+        }
+      }
       await start();
     })
     .catch(error => {

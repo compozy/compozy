@@ -14,6 +14,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -324,7 +325,7 @@ func TestDriverCancelPreservesTurnScope(t *testing.T) {
 }
 
 func TestStopManagedProcessRespectsContext(t *testing.T) {
-	t.Run("ShouldReturnDeadlineExceededWhenManagedProcessShutdownExceedsStopContext", func(t *testing.T) {
+	t.Run("Should honor caller deadline and reap the managed process", func(t *testing.T) {
 		t.Parallel()
 
 		driver := New(WithStopTimeout(5 * time.Second))
@@ -347,12 +348,12 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if shutdownErr := managed.Shutdown(cleanupCtx); shutdownErr != nil {
-				t.Fatalf("managed.Shutdown() error = %v", shutdownErr)
+				t.Errorf("managed.Shutdown() error = %v", shutdownErr)
 			}
 			select {
 			case <-proc.Done():
 			case <-cleanupCtx.Done():
-				t.Fatalf("process did not exit during cleanup: %v", cleanupCtx.Err())
+				t.Errorf("process did not exit during cleanup: %v", cleanupCtx.Err())
 			}
 		})
 
@@ -366,6 +367,11 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 		}
 		if elapsed := time.Since(startedAt); elapsed > time.Second {
 			t.Fatalf("Stop() elapsed = %v, want <= 1s", elapsed)
+		}
+		select {
+		case <-proc.Done():
+		default:
+			t.Fatal("Stop() returned before forced process cleanup completed")
 		}
 	})
 }
@@ -481,5 +487,77 @@ func TestCheckpointProcessOwnerWrapsCheckpointErrors(t *testing.T) {
 		if !errors.Is(err, root) || !strings.Contains(err.Error(), "checkpoint process owner") {
 			t.Fatalf("checkpointProcessOwner() error = %v, want ACP context wrapping root", err)
 		}
+	})
+}
+
+func TestACPControlRequestDeadlines(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume, model string }{
+		{"Should bound initialize", "stall_initialize", acpsdk.AgentMethodInitialize, "", ""},
+		{"Should bound session creation", "stall_new", acpsdk.AgentMethodSessionNew, "", ""},
+		{"Should bound session loading", "stall_load", acpsdk.AgentMethodSessionLoad, "existing", ""},
+		{"Should bound session mode negotiation", "stall_mode", acpsdk.AgentMethodSessionSetMode, "", ""},
+		{"Should bound session option negotiation", "stall_config", acpsdk.AgentMethodSessionSetConfigOption, "", "other-model"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithControlTimeout(500*time.Millisecond), WithStopTimeout(time.Second))
+			proc, err := driver.Start(
+				t.Context(),
+				StartOpts{
+					AgentName:       "silent-agent",
+					Command:         helperCommand(t),
+					Cwd:             t.TempDir(),
+					Env:             helperEnv(tc.scenario, ""),
+					ResumeSessionID: tc.resume,
+					Permissions:     compozyconfig.PermissionModeApproveAll,
+					PreferredModel:  tc.model,
+				},
+			)
+			if proc != nil || !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), tc.method) {
+				t.Fatalf("Start() = %v, %v, want stage deadline", proc, err)
+			}
+		})
+	}
+	t.Run("Should preserve caller cancellation", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithControlTimeout(time.Minute))
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, err := sendControlRequest[acpsdk.NewSessionResponse](
+			ctx,
+			proc,
+			acpsdk.AgentMethodSessionNew,
+			acpsdk.NewSessionRequest{},
+		)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("control call error = %v, want canceled", err)
+		}
+	})
+	t.Run("Should allow prompts to outlive the control budget", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithControlTimeout(200 * time.Millisecond))
+		proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		events, err := driver.Prompt(t.Context(), proc, PromptRequest{TurnID: "long-turn", Message: "wait"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if event := <-events; event.Text != "blocking" {
+			t.Fatalf("prompt event = %#v", event)
+		}
+		timer := time.NewTimer(2 * driver.controlTimeout)
+		defer timer.Stop()
+		select {
+		case event, ok := <-events:
+			t.Fatalf("prompt terminated during control budget: %#v, %t", event, ok)
+		case <-timer.C:
+		}
+		if err := driver.Cancel(t.Context(), proc); err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
 	})
 }
