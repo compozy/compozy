@@ -33,7 +33,6 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       ["--color-desk", "Desk behind panes"],
       ["--color-canvas", "Pane / card surface"],
       ["--color-canvas-soft", "Menus, dialogs, cards"],
-      ["--color-canvas-tint", "Tinted panel"],
       ["--color-sunken", "Tab strip, inset lists"],
       ["--color-surface-2", "Hover, secondary pill"],
       ["--color-selected", "Selected row / rail item"],
@@ -136,13 +135,11 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     caption:
       "Translucent ink over the ramp that flips per theme. Inline white or black alpha literals are forbidden.",
     swatches: colors([
-      ["--color-row-hover", "List / nav hover (aliased as --hover)"],
+      ["--color-row-hover", "Legacy list hover glaze (--hover now points at surface-2)"],
       ["--color-row-selected", "List / nav selected baseline"],
       ["--color-surface-glaze", "RadioCard / panel head selected"],
       ["--color-bar-fill", "Priority / progress / usage bars"],
       ["--color-input-fill", "Composer / textarea / search input"],
-      ["--color-btn-default-fill", "Neutral Button default fill"],
-      ["--color-btn-default-hover", "Neutral Button hover fill"],
       ["--color-badge-fill", "PillGroup count badge bg"],
     ]),
   },

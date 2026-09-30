@@ -16,7 +16,6 @@
   --color-desk: #fafafa;
   --color-canvas: #ffffff;
   --color-canvas-soft: #ffffff;
-  --color-canvas-tint: #f4f5f7;
   --color-sunken: #f7f8fa;
   --color-surface-2: #f4f5f7;
   --color-selected: #f0f1f3;
@@ -87,8 +86,6 @@
   --color-surface-glaze: rgba(10, 13, 18, 0.045);
   --color-bar-fill: rgba(10, 13, 18, 0.07);
   --color-input-fill: rgba(10, 13, 18, 0.02);
-  --color-btn-default-fill: rgba(10, 13, 18, 0.05);
-  --color-btn-default-hover: rgba(10, 13, 18, 0.08);
   --color-badge-fill: rgba(10, 13, 18, 0.045);
 
   /* Session transcript washes. */
@@ -180,7 +177,7 @@
     linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
   --wallpaper-thumb-carbon:
     radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%),
-    linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%);
+    linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%);
 
   /* Terminal well — ink-on-white ANSI: each hue deepened so it reads on #fff,
      and the "white" lanes become greys (a white glyph on a white well is

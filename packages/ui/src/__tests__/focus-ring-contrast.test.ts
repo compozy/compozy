@@ -42,7 +42,6 @@ const SURFACE_TOKENS = [
   "color-rail",
   "color-canvas",
   "color-canvas-soft",
-  "color-canvas-tint",
   "color-sunken",
   "color-surface-2",
   "color-selected",

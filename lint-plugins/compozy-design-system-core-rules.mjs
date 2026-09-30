@@ -269,7 +269,7 @@ export const noDesignGlazeRgba = {
     },
     messages: {
       inlineGlaze:
-        "Inline surface glaze rgba in className. Translucent white/black ink only reads on one theme; use named glaze utilities: bg-row-hover, bg-row-selected, bg-surface-glaze, bg-bar-fill, bg-input-fill, bg-btn-default-fill, bg-btn-default-hover, or bg-badge-fill (or a hairline / overlay token). See DESIGN.md §2.",
+        "Inline surface glaze rgba in className. Translucent white/black ink only reads on one theme; use a surface role (bg-surface-2, bg-selected, bg-sunken) or a named glaze utility: bg-row-hover, bg-row-selected, bg-surface-glaze, bg-bar-fill, bg-input-fill, or bg-badge-fill (or a hairline / overlay token). See DESIGN.md §2.",
     },
     schema: [],
   },

@@ -42,6 +42,10 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --height-button-default: 30px;
+  /* The hero's floating product window. The shared tokens retired the window
+     radius and shadow with the flat shell; the site keeps them for its mock. */
+  --radius-window: 12px;
+  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   /* Button labels moved to the 14.5px product body; the site keeps 12.5px. */
   --text-body: 0.78125rem;
   --text-empty-h1: 1.125rem;
@@ -151,6 +155,8 @@
   --color-danger: #e0635a;
   --color-danger-tint: rgba(224, 99, 90, 0.09);
   --color-popover: var(--color-canvas-soft);
+  /* The shared --hover now steps to surface-2; the site keeps its row glaze. */
+  --color-hover: var(--color-row-hover);
   /* Roles the primitives adopted, on the warm ramp. */
   --color-desk: var(--color-rail);
   --color-surface-2: var(--color-canvas-tint);

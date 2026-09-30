@@ -15,14 +15,13 @@ tokens:
       desk: "#101010"
       canvas: "#1a1a1a"
       canvas-soft: "#1f1f1f"
-      canvas-tint: "#242424"
       sunken: "#101010"
       surface-2: "#242424"
       selected: "#242424"
       code-bg: "#171717"
       sidebar: "#1f1f1f"
       elevated: "#2b2b2b"
-      hover: "var(--color-row-hover)"
+      hover: "var(--color-surface-2)"
       disabled: "#4d4d4d"
       line: "#303030"
       line-soft: "#262626"
@@ -72,8 +71,6 @@ tokens:
       surface-glaze: "rgba(255, 255, 255, 0.06)"
       bar-fill: "rgba(255, 255, 255, 0.085)"
       input-fill: "rgba(255, 255, 255, 0.05)"
-      btn-default-fill: "rgba(255, 255, 255, 0.07)"
-      btn-default-hover: "rgba(255, 255, 255, 0.1)"
       badge-fill: "rgba(255, 255, 255, 0.05)"
       chat-fill-user: "rgba(255, 255, 255, 0.045)"
       chat-fill-code: "rgba(255, 255, 255, 0.03)"
@@ -147,7 +144,6 @@ tokens:
       desk: "#fafafa"
       canvas: "#ffffff"
       canvas-soft: "#ffffff"
-      canvas-tint: "#f4f5f7"
       sunken: "#f7f8fa"
       surface-2: "#f4f5f7"
       selected: "#f0f1f3"
@@ -202,8 +198,6 @@ tokens:
       surface-glaze: "rgba(10, 13, 18, 0.045)"
       bar-fill: "rgba(10, 13, 18, 0.07)"
       input-fill: "rgba(10, 13, 18, 0.02)"
-      btn-default-fill: "rgba(10, 13, 18, 0.05)"
-      btn-default-hover: "rgba(10, 13, 18, 0.08)"
       badge-fill: "rgba(10, 13, 18, 0.045)"
       chat-fill-user: "rgba(10, 13, 18, 0.04)"
       chat-fill-code: "rgba(10, 13, 18, 0.03)"
@@ -291,7 +285,6 @@ tokens:
       chip: "7px"
       mono-badge: "4px"
       icon-well: "7px"
-      window: "12px"
       deck-tab: "9px"
     motion:
       distance:
@@ -325,7 +318,6 @@ tokens:
       hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
       danger-inset: "inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)"
-      window: "0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)"
     shadow-light:
       card: "0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005"
       elevated: "0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
@@ -686,7 +678,6 @@ token or component at the source; do not locally override one callsite.
 | `--color-desk`        | `#101010`                | `#fafafa`                |
 | `--color-canvas`      | `#1a1a1a`                | `#ffffff`                |
 | `--color-canvas-soft` | `#1f1f1f`                | `#ffffff`                |
-| `--color-canvas-tint` | `#242424`                | `#f4f5f7`                |
 | `--color-sunken`      | `#101010`                | `#f7f8fa`                |
 | `--color-surface-2`   | `#242424`                | `#f4f5f7`                |
 | `--color-selected`    | `#242424`                | `#f0f1f3`                |
@@ -694,7 +685,7 @@ token or component at the source; do not locally override one callsite.
 | `--color-sidebar`     | `#1f1f1f`                | `#ffffff`                |
 | `--color-elevated`    | `#2b2b2b`                | `#eeeff2`                |
 | `--color-well`        | `#1e342c`                | `#def2ea`                |
-| `--color-hover`       | `var(--color-row-hover)` | `var(--color-row-hover)` |
+| `--color-hover`       | `var(--color-surface-2)` | `var(--color-surface-2)` |
 | `--color-disabled`    | `#4d4d4d`                | `#c4c7cc`                |
 
 <!-- END:tokens:surface-ramp -->
@@ -786,16 +777,14 @@ runtime variables that intentionally stay outside `@theme`.
 
 <!-- BEGIN:tokens:glaze-ladder -->
 
-| Token                       | Dark                         | Light                     |
-| --------------------------- | ---------------------------- | ------------------------- |
-| `--color-row-hover`         | `rgba(255, 255, 255, 0.045)` | `rgba(10, 13, 18, 0.04)`  |
-| `--color-row-selected`      | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.055)` |
-| `--color-surface-glaze`     | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.045)` |
-| `--color-bar-fill`          | `rgba(255, 255, 255, 0.085)` | `rgba(10, 13, 18, 0.07)`  |
-| `--color-input-fill`        | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.02)`  |
-| `--color-btn-default-fill`  | `rgba(255, 255, 255, 0.07)`  | `rgba(10, 13, 18, 0.05)`  |
-| `--color-btn-default-hover` | `rgba(255, 255, 255, 0.1)`   | `rgba(10, 13, 18, 0.08)`  |
-| `--color-badge-fill`        | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.045)` |
+| Token                   | Dark                         | Light                     |
+| ----------------------- | ---------------------------- | ------------------------- |
+| `--color-row-hover`     | `rgba(255, 255, 255, 0.045)` | `rgba(10, 13, 18, 0.04)`  |
+| `--color-row-selected`  | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.055)` |
+| `--color-surface-glaze` | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.045)` |
+| `--color-bar-fill`      | `rgba(255, 255, 255, 0.085)` | `rgba(10, 13, 18, 0.07)`  |
+| `--color-input-fill`    | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.02)`  |
+| `--color-badge-fill`    | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.045)` |
 
 <!-- END:tokens:glaze-ladder -->
 
@@ -1058,8 +1047,7 @@ widths come from `--site-*` tokens.
 | `--radius-md`        | `8px`  | `--radius-lg`         | `12px`   |
 | `--radius-xl`        | `18px` | `--radius-pill`       | `9999px` |
 | `--radius-chip`      | `7px`  | `--radius-mono-badge` | `4px`    |
-| `--radius-icon-well` | `7px`  | `--radius-window`     | `12px`   |
-| `--radius-deck-tab`  | `9px`  |                       |          |
+| `--radius-icon-well` | `7px`  | `--radius-deck-tab`   | `9px`    |
 
 <!-- END:tokens:radii -->
 
@@ -1143,9 +1131,10 @@ There is no glass. Chrome is flat on `--color-rail`, tiled panes are flat on
 Each theme-scoped shadow is an `@theme` adapter over a `--theme-shadow-*`
 literal (dark in `tokens.css` `:root`, light in `tokens-light.css`): Tailwind
 inlines literal `--shadow-*` values into `shadow-*` utilities, so the theme must
-switch the literal behind the adapter. `--shadow-window` (with `--radius-window`)
-is not product depth: it only stages a floating window in the marketing site's
-hero mock and two session stories. Do not add product consumers.
+switch the literal behind the adapter. There is no window shadow in the shared
+tokens: product floating windows use a `line` hairline plus `--shadow-elevated`,
+and the marketing site keeps its hero mock's window radius and shadow in its own
+`packages/site/app/global.css`.
 
 <!-- BEGIN:tokens:shadows -->
 
@@ -1162,7 +1151,6 @@ hero mock and two session stories. Do not add product consumers.
 | `--shadow-hairline-inset` | `inset 0 0 0 1px var(--color-line-soft)`                                                                    | `inset 0 0 0 1px var(--color-line-soft)`                                                                            |
 | `--shadow-inset-strong`   | `inset 0 0 0 1px var(--color-line-strong)`                                                                  | `inset 0 0 0 1px var(--color-line-strong)`                                                                          |
 | `--shadow-danger-inset`   | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                 | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                         |
-| `--shadow-window`         | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)`                               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)`                                       |
 
 <!-- END:tokens:shadows -->
 
@@ -1188,7 +1176,7 @@ edge fades dissolve tiles into its popover surface.
 | `--wallpaper-flat`             | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        |
 | `--wallpaper-thumb-ember`      | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 55%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                               | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 20%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                               |
 | `--wallpaper-thumb-mesh`       | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 26%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 60%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 22%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` |
-| `--wallpaper-thumb-carbon`     | `radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%), linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%)`                                                                                                                                                   | `radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%), linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%)`                                                                                                                                                      |
+| `--wallpaper-thumb-carbon`     | `radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%), linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%)`                                                                                                                                                     | `radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%), linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%)`                                                                                                                                                        |
 | `--wallpaper-thumb-flat`       | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        |
 
 <!-- END:tokens:shell-backdrop -->

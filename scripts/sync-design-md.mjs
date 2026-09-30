@@ -16,14 +16,13 @@ const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8")
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
   "surface-ramp":
-    "rail desk canvas canvas-soft canvas-tint sunken surface-2 selected code-bg sidebar elevated well hover disabled",
+    "rail desk canvas canvas-soft sunken surface-2 selected code-bg sidebar elevated well hover disabled",
   hairlines: "line line-soft line-strong line-focus",
   "text-ladder": "fg fg-strong fg-2 fg-3 muted subtle faint",
   primary: "primary primary-hover primary-foreground",
   accent:
     "accent accent-hover accent-strong accent-ink accent-tint accent-tint-strong accent-dim accent-glow attn",
-  "glaze-ladder":
-    "row-hover row-selected surface-glaze bar-fill input-fill btn-default-fill btn-default-hover badge-fill",
+  "glaze-ladder": "row-hover row-selected surface-glaze bar-fill input-fill badge-fill",
 };
 const componentSizeTokenPattern =
   /^(basis|breakpoint|container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;

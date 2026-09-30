@@ -13,11 +13,6 @@ export {
 export { Sparkline, type SparklineProps } from "../components/custom/sparkline";
 export { IntensityMeter, type IntensityMeterProps } from "../components/custom/intensity-meter";
 export {
-  QueueHealthSparkline,
-  type QueueHealthSparklineBucket,
-  type QueueHealthSparklineProps,
-} from "../components/custom/queue-health-sparkline";
-export {
   StackedProgress,
   type StackedProgressProps,
   type StackedProgressSegment,

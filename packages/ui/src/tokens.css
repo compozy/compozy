@@ -25,14 +25,13 @@
   --color-desk: #101010;
   --color-canvas: #1a1a1a;
   --color-canvas-soft: #1f1f1f;
-  --color-canvas-tint: #242424;
   --color-sunken: #101010;
   --color-surface-2: #242424;
   --color-selected: #242424;
   --color-code-bg: #171717;
   --color-sidebar: #1f1f1f;
   --color-elevated: #2b2b2b;
-  --color-hover: var(--color-row-hover);
+  --color-hover: var(--color-surface-2);
   --color-disabled: #4d4d4d;
 
   /* Hairlines — opaque greys, one ladder per theme. line-soft is
@@ -45,7 +44,7 @@
   /* Text. fg-2 = mix(muted 60%, fg) and fg-3 = mix(fg 70%, muted), the
      reference's own recipes, resolved to literals. muted / subtle / faint all
      carry text, so each clears WCAG AA 4.5:1 on canvas, canvas-soft,
-     canvas-tint, rail and sunken — a deliberate override of the reference's
+     surface-2, rail and sunken — a deliberate override of the reference's
      dimmer greys (brand-spec.md, "Rules observed" 6). */
   --color-fg: #f5f5f5;
   --color-fg-strong: #ffffff;
@@ -109,8 +108,6 @@
   --color-surface-glaze: rgba(255, 255, 255, 0.06);
   --color-bar-fill: rgba(255, 255, 255, 0.085);
   --color-input-fill: rgba(255, 255, 255, 0.05);
-  --color-btn-default-fill: rgba(255, 255, 255, 0.07);
-  --color-btn-default-hover: rgba(255, 255, 255, 0.1);
   --color-badge-fill: rgba(255, 255, 255, 0.05);
 
   /* Session transcript washes — the ONLY message surfaces in the chat column.
@@ -563,12 +560,8 @@
   --height-modal-xl: 840px;
 
   /* Shell chrome is flat (DESIGN.md §5): no glass, no backdrop blur. The deck
-     tab radius is the only shell-specific corner. `--radius-window` and
-     `--shadow-window` survive only for the marketing site's hero mock and two
-     session stories that stage a floating window — no product consumers. */
-  --radius-window: 12px;
+     tab radius is the only shell-specific corner. */
   --radius-deck-tab: 9px;
-  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
 
   /* Shell motion tier — chrome-scale spatial transitions (window entry,
      desktop switches, minimize travel) above the base ladder; one spring. */
@@ -755,6 +748,6 @@
     linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
   --wallpaper-thumb-carbon:
     radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%),
-    linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%);
+    linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%);
   --wallpaper-thumb-flat: linear-gradient(var(--color-desk), var(--color-desk));
 }

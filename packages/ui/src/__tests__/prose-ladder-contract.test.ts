@@ -23,7 +23,7 @@ const HEADINGS_ABOVE_BODY = ["h1", "h2", "h3"] as const;
 const PROSE_SURFACES = [
   "color-canvas",
   "color-canvas-soft",
-  "color-canvas-tint",
+  "color-surface-2",
   "color-elevated",
 ] as const;
 
