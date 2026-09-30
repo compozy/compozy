@@ -306,9 +306,9 @@ The web UI presents as a desktop environment. These terms are runtime-true — e
 - `desktop`: one persistent virtual arrangement inside a workspace. It owns its tiled groups and floating-window order. Switching desktops does not switch runtime scope.
 - `window`: a frame hosting one app's durably resumed route subtree; the views inside are the same views the routes render. A window belongs to exactly one desktop and may be tiled, stacked, or floating.
 - `tiled group`: one non-overlapping arrangement tree inside a desktop. A desktop may contain multiple tiled groups alongside floating windows.
-- `desktop pager`: the minimal lower-left horizontal dot control for switching desktops, aligned with the Dock centerline. Full create, rename, reorder, transfer, and delete actions live in Desktops Overview.
-- `dock`: the bottom strip of app launchers, with running/minimized indicators and badges bound to runtime projections.
-- `menubar`: the top bar — CompozyOS mark, Global scope globe, workspace trigger, app menus, the approvals bell, the ⌘K palette, Settings. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. Chip identity is the project name when scoped down, or **Global** (`~`) when Global scope is on.
+- `desktop pager`: the minimal dot control in the menubar tray for switching desktops; an orange dot marks an off-screen desktop that needs you. The All desktops button beside it opens Desktops Overview, where full create, rename, reorder, transfer, and delete actions live.
+- `dock`: the rail of app launchers along the left edge (a bottom tab bar in compact presentation), with running/minimized indicators and badges bound to runtime projections. Its foot holds the profile switcher, the light/dark toggle, and Settings. User-facing copy says "dock", not "rail".
+- `menubar`: the top bar — CompozyOS mark (its menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray: desktop pager, All desktops, the approvals bell, the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. Chip identity is the project name when scoped down, or **Global** (`~`) when Global scope is on.
 - `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections. This presentation data never contains agent `memory`.
 
 ### Burned-Out Marketing Phrases

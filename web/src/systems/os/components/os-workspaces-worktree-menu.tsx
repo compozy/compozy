@@ -22,8 +22,7 @@ import {
 } from "@/systems/workspace";
 
 const MENU_GLASS_CLASS = cn(
-  "w-workspaces-menu max-w-workspaces-menu-max rounded-window border border-line-strong",
-  "bg-shell-glass-pop shadow-shell-strip backdrop-blur-shell-menu backdrop-saturate-shell-glass"
+  "w-workspaces-menu max-w-workspaces-menu-max rounded-lg bg-popover shadow-pop"
 );
 
 export interface OsWorkspacesWorktreeMenuProps {
@@ -106,8 +105,8 @@ export function OsWorkspacesWorktreeMenu({
           "mt-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-dashed border-line-strong px-3",
           "text-form-label font-medium whitespace-nowrap text-muted",
           "transition-colors duration-base ease-out",
-          "hover:bg-btn-default-fill hover:text-fg-strong",
-          "focus-visible:bg-btn-default-fill focus-visible:text-fg-strong focus-visible:outline-none",
+          "hover:bg-surface-2 hover:text-fg-strong",
+          "focus-visible:bg-surface-2 focus-visible:text-fg-strong focus-visible:outline-none",
           !reducedMotion && "os-wsov-menu-in"
         )}
         onClick={createNavIndex === undefined ? undefined : rowHandlers(createNavIndex).onClick}

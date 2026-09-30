@@ -6,7 +6,7 @@ import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-lay
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
-import { OsShortcutChords } from "./os-shortcut-chords";
+import { OsEmptyDesktop } from "./os-empty-desktop";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
@@ -56,6 +56,7 @@ function DesktopLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
+  onNewSession,
 }: {
   model: DesktopLayerModel;
   compact: boolean;
@@ -65,6 +66,7 @@ function DesktopLayer({
   onTransitionComplete: () => void;
   seamProjection: LayoutProjection | undefined;
   paletteShortcutLabel: string | null;
+  onNewSession: () => void;
 } & SeamGestureHandlers) {
   const incoming = transition?.toDesktopId === model.desktop.id;
   const outgoing = transition?.fromDesktopId === model.desktop.id;
@@ -111,13 +113,11 @@ function DesktopLayer({
       }}
     >
       {interactive && !model.anyVisible ? (
-        <p
-          data-testid="os-desk-hint"
-          className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 text-small-body text-subtle select-none"
-        >
-          {paletteShortcutLabel ? <OsShortcutChords label={paletteShortcutLabel} /> : null} to open
-          anything — or pick a surface from the dock
-        </p>
+        <OsEmptyDesktop
+          desktopName={model.desktop.name}
+          paletteShortcutLabel={paletteShortcutLabel}
+          onNewSession={onNewSession}
+        />
       ) : null}
       {model.frames.map(frame => (
         <OsWindow key={frame.id} frame={frame} />
@@ -151,12 +151,15 @@ export function OsWinLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
+  onNewSession,
 }: {
   model: OsWinLayerModel;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
   paletteShortcutLabel: string | null;
+  /** The empty desktop's primary action. */
+  onNewSession: () => void;
 } & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
@@ -182,6 +185,7 @@ export function OsWinLayer({
           onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
           paletteShortcutLabel={paletteShortcutLabel}
+          onNewSession={onNewSession}
         />
       ))}
       {viewportState === "rejected" ? (

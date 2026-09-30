@@ -1,4 +1,4 @@
-// Suite: menubar profile switcher
+// Suite: rail-foot profile switcher
 // Invariant: the switcher is quiet until a second profile exists, answers the boundary
 // question in one sentence, marks the active context, and refuses to offer a profile the
 // runtime would reject.
@@ -79,16 +79,20 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-all")).not.toBeInTheDocument();
   });
 
-  it("Should become an identity element once a second profile exists", () => {
+  it("Should become an identity element once a second profile exists", async () => {
+    const user = userEvent.setup();
     renderSwitcher();
     const trigger = screen.getByTestId("os-menubar-profile");
-    expect(trigger).toHaveTextContent("marketing");
     expect(trigger).toHaveAccessibleName("Profile: marketing");
+    expect(trigger.querySelector('[data-slot="profile-glyph"]')).toBeInTheDocument();
+
+    await user.hover(trigger);
+    expect(await screen.findByText("marketing")).toBeInTheDocument();
   });
 
   it("Should name the aggregate rather than a profile when it is on", () => {
     renderSwitcher({ aggregate: true });
-    expect(screen.getByTestId("os-menubar-profile")).toHaveTextContent("All profiles");
+    expect(screen.getByTestId("os-menubar-profile")).toHaveAccessibleName("Profile: All profiles");
   });
 
   it("Should answer the boundary question in one sentence", async () => {

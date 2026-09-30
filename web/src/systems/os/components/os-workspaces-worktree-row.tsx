@@ -101,17 +101,13 @@ export function OsWorkspacesWorktreeRow({
             "transition-[opacity,background-color,color] duration-base ease-out",
             "group-hover/wtnest:opacity-100 group-focus-within/wtnest:opacity-100",
             "group-data-[on=true]/wtnest:opacity-100 aria-expanded:opacity-100",
-            "hover:bg-btn-default-fill hover:text-fg-strong",
-            "focus-visible:bg-btn-default-fill focus-visible:text-fg-strong focus-visible:opacity-100 focus-visible:outline-none"
+            "hover:bg-surface-2 hover:text-fg-strong",
+            "focus-visible:bg-surface-2 focus-visible:text-fg-strong focus-visible:opacity-100 focus-visible:outline-none"
           )}
         >
           <EllipsisVertical className="size-deck-glyph" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          side="bottom"
-          className="min-w-42 rounded-lg border-line-strong bg-shell-glass-pop shadow-overlay backdrop-blur-shell-menu backdrop-saturate-[1.25]"
-        >
+        <DropdownMenuContent align="end" side="bottom" className="min-w-42">
           <DropdownMenuItem
             data-testid={`os-workspaces-worktree-copy-${entry.key}`}
             onClick={() => copyWorktreePath(entry.path)}

@@ -62,8 +62,7 @@ export function OsWorkspacesStrip({
       data-overflow={overflow}
       className={cn(
         "relative isolate flex max-w-full flex-nowrap items-stretch overflow-hidden",
-        "rounded-xl border border-line-strong bg-shell-glass-pop",
-        "shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-[1.25]",
+        "rounded-xl bg-popover shadow-pop",
         overflowing ? "w-full" : "w-max",
         className
       )}

@@ -14,7 +14,7 @@ function DockGlyph({ children, className, ...props }: GlyphProps & { children: R
     <svg
       viewBox="0 0 20 20"
       aria-hidden="true"
-      className={className ?? "size-dock-icon"}
+      className={className ?? "size-5"}
       fill="none"
       {...props}
     >

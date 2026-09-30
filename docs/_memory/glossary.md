@@ -314,15 +314,15 @@ A frame hosting one app's durably resumed route subtree. The window head is the 
 
 ### Desktop pager
 
-The minimal lower-left horizontal dot control for switching the active client's desktop, aligned with the Dock centerline. It is navigation, not a persistent management panel. Desktops Overview owns create, rename, reorder, transfer, and delete operations.
+The minimal horizontal dot control in the menubar tray for switching the active client's desktop; an orange dot marks an off-screen desktop that needs you. It is navigation, not a persistent management panel. The tray's All desktops button opens Desktops Overview, which owns create, rename, reorder, transfer, and delete operations.
 
 ### Dock
 
-The bottom strip of app launchers. It mirrors the app inventory and carries running/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks).
+The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
 
 ### Menubar
 
-The top bar across the desktop: CompozyOS mark, Global scope globe, workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
+The top bar across the full window: CompozyOS mark (whose menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
 
 ### Window manager
 

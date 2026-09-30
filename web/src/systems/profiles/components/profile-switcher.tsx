@@ -1,7 +1,15 @@
 import { useState } from "react";
-import { ChevronsUpDown, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 
-import { cn, CommandSelect, PopoverContent, PopoverTrigger } from "@compozy/ui";
+import {
+  cn,
+  CommandSelect,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import type { ProfileRow } from "../lib/profile-rows";
 import { ProfileGlyph } from "./profile-glyph";
@@ -26,7 +34,11 @@ export interface ProfileSwitcherProps {
   onRetry?: () => void;
 }
 
-/** Menubar profile switcher, quiet until a second active profile exists. */
+/**
+ * Rail-foot profile switcher (D6): a 40px rail item, quiet (a neutral person
+ * glyph) until a second active profile exists, then the active identity glyph.
+ * The name rides in the accessible name and the tooltip beside the rail.
+ */
 export function ProfileSwitcher({
   rows,
   activeName,
@@ -45,6 +57,7 @@ export function ProfileSwitcher({
 }: ProfileSwitcherProps) {
   const [open, setOpen] = useState(false);
   const active = rows.find(row => row.name === activeName);
+  const shownName = aggregate ? "All profiles" : activeName;
 
   const close = (run: () => void) => () => {
     setOpen(false);
@@ -53,40 +66,44 @@ export function ProfileSwitcher({
 
   return (
     <CommandSelect open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            data-slot="os-menubar-profile"
-            data-testid="os-menubar-profile"
-            aria-label={quiet ? "Profile" : `Profile: ${aggregate ? "All profiles" : activeName}`}
-            className={cn(
-              "flex shrink-0 items-center gap-menubar-workspace-gap rounded-md text-muted outline-none",
-              "hover:bg-btn-default-fill focus-visible:shadow-focus-ring data-[popup-open]:bg-btn-default-fill",
-              quiet ? "grid size-7 place-items-center" : "h-7 px-2"
-            )}
-          />
-        }
-      >
-        {quiet ? (
-          <UserRound aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
-        ) : (
-          <>
+      <Tooltip>
+        <PopoverTrigger
+          render={
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  data-slot="os-rail-profile"
+                  data-testid="os-menubar-profile"
+                  aria-label={quiet ? "Profile" : `Profile: ${shownName}`}
+                  className={cn(
+                    "grid size-rail-item shrink-0 place-items-center rounded-lg text-muted outline-none",
+                    "transition-[background-color,color] duration-base ease-spring",
+                    "hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring",
+                    "data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg"
+                  )}
+                />
+              }
+            />
+          }
+        >
+          {quiet ? (
+            <UserRound aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          ) : (
             <ProfileGlyph
               decorative
-              size="sm"
-              name={aggregate ? "All profiles" : activeName}
+              name={shownName}
               aggregate={aggregate}
               {...(active ? { color: active.color, icon: active.icon, emoji: active.emoji } : {})}
             />
-            <span className="max-w-32 truncate text-small-body font-semibold text-fg-strong">
-              {aggregate ? "All profiles" : activeName}
-            </span>
-            <ChevronsUpDown aria-hidden="true" className="size-3 shrink-0 text-subtle" />
-          </>
-        )}
-      </PopoverTrigger>
+          )}
+        </PopoverTrigger>
+        <TooltipContent side="right" sideOffset={10}>
+          {quiet ? "Profile" : shownName}
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent
+        side="right"
         align="end"
         className="w-70 p-1"
         data-testid="os-menubar-profile-menu"

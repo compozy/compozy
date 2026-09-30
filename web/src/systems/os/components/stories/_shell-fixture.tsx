@@ -145,7 +145,7 @@ export function createLiveStoryShell({
     windows,
     activeDesktopId: STORY_DESKTOP_ID,
     focusedId: focusedWindowId,
-    wallpaper: "ember",
+    wallpaper: "flat",
     reduceMotion: false,
     presentation: "floating",
     viewportState: "ready",

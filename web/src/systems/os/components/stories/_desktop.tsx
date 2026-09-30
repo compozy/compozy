@@ -1,9 +1,11 @@
 import type * as React from "react";
-import { cn, Kbd } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 import { fn } from "storybook/test";
 
 import { OsDock, type OsDockItemData } from "../os-dock";
+import { OsRailFoot } from "../os-dock-rail-foot";
 import { OsDockTabBar } from "../os-dock-tab-bar";
+import { OsEmptyDesktop } from "../os-empty-desktop";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
@@ -67,7 +69,7 @@ export interface DesktopShellProps {
   workspace?: { name: string; monogram: string };
   /** Menubar approvals count; 0 renders no badge. */
   notifications?: number;
-  /** Show the empty-desktop ⌘K hint (OpenDesign `desk-hint`). */
+  /** Show the empty-desktop card (VC-10). */
   deskHint?: boolean;
   /** Compact (<960px) presentation: the bottom tab bar replaces the rail. */
   compact?: boolean;
@@ -85,7 +87,7 @@ export interface DesktopShellProps {
  */
 export function DesktopShell({
   children,
-  wallpaper = "ember",
+  wallpaper = "flat",
   menubar = true,
   dock = true,
   dockItems = DESK_ITEMS,
@@ -117,7 +119,7 @@ export function DesktopShell({
           className={cn("col-span-full row-start-3", dockClassName)}
           items={dockItems}
           onSelect={fn()}
-          onNewSession={fn()}
+          trailing={<OsRailFoot onOpenSettings={fn()} tipSide="top" />}
         />
       ) : null}
       {dock && !compact ? (
@@ -125,20 +127,17 @@ export function DesktopShell({
           className={cn("col-start-1 row-start-2", dockClassName)}
           items={dockItems}
           onSelect={fn()}
+          foot={<OsRailFoot onOpenSettings={fn()} />}
         />
       ) : null}
       <div className="relative col-start-2 row-start-2 min-h-0">
         <OsWallpaper wallpaper={wallpaper} />
         {deskHint ? (
-          <p
-            data-slot="os-desk-hint"
-            className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center text-small-body text-muted"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Kbd>⌘K</Kbd>
-              to open anything — or pick a surface from the dock
-            </span>
-          </p>
+          <OsEmptyDesktop
+            desktopName="Desktop 1"
+            paletteShortcutLabel={shortcutLabel("meta+KeyK")}
+            onNewSession={fn()}
+          />
         ) : null}
         {children}
       </div>

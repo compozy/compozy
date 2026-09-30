@@ -67,11 +67,6 @@ export interface DesktopMenubarProps {
   removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
-  /**
-   * Profile switcher, supplied by the shell. It owns its own reads, so it is
-   * injected rather than constructed here — the bar stays presentational.
-   */
-  profileSwitcher?: React.ReactNode;
   /** Desktop pager, supplied by the shell (it owns the desktop switch wiring). */
   pager?: React.ReactNode;
   /** No project is bound, so there is no layout stream to report on. */
@@ -134,7 +129,6 @@ export function DesktopMenubar({
   onRemoveWorktree,
   removalProfile,
   onRemoveWorktrees,
-  profileSwitcher,
   pager,
   layoutUnbound = false,
 }: DesktopMenubarProps) {
@@ -239,7 +233,6 @@ export function DesktopMenubar({
           </>
         ) : null
       }
-      profileSwitcher={profileSwitcher}
       pager={pager}
       wrapBellTrigger={trigger => (
         <Popover

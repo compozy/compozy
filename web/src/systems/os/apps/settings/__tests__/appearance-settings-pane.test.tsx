@@ -63,7 +63,7 @@ describe("AppearanceSettingsPane", () => {
 
     const group = screen.getByRole("radiogroup", { name: "Wallpaper" });
     expect(group).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Ember/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Flat/ })).toHaveAttribute("aria-checked", "true");
 
     await user.click(screen.getByRole("radio", { name: /Carbon/ }));
     expect(manager.getState().wallpaper).toBe("carbon");
@@ -72,7 +72,7 @@ describe("AppearanceSettingsPane", () => {
     // Arrow keys move AND select (automatic activation), wrapping the group.
     screen.getByRole("radio", { name: /Carbon/ }).focus();
     await user.keyboard("{ArrowRight}");
-    expect(manager.getState().wallpaper).toBe("ember");
+    expect(manager.getState().wallpaper).toBe("flat");
     await user.keyboard("{ArrowLeft}");
     expect(manager.getState().wallpaper).toBe("carbon");
   });

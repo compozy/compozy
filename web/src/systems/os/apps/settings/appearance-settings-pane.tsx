@@ -19,12 +19,14 @@ const THEMES: ReadonlyArray<PillGroupItem<ThemePreference>> = [
 ];
 
 const WALLPAPERS: Array<{ id: OsWallpaper; label: string }> = [
+  { id: "flat", label: "Flat" },
   { id: "ember", label: "Ember" },
   { id: "mesh", label: "Mesh" },
   { id: "carbon", label: "Carbon" },
 ];
 
 const THUMB_BACKGROUND: Record<OsWallpaper, string> = {
+  flat: "var(--wallpaper-thumb-flat)",
   ember: "var(--wallpaper-thumb-ember)",
   mesh: "var(--wallpaper-thumb-mesh)",
   carbon: "var(--wallpaper-thumb-carbon)",

@@ -20,6 +20,7 @@ import { DesktopMenubar } from "./desktop-menubar";
 import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopPagerSurface } from "./desktop-pager-surface";
+import { DesktopSessionDialogs, WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
@@ -28,7 +29,6 @@ import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
 import { OsWinLayer } from "./os-win-layer";
-import { OsSessionsDialogHost } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -40,16 +40,10 @@ import {
   SessionCreateDialogHost,
   SessionCreateProvider,
   useSessionCreateActions,
-  useSessionLifecycleActions,
   useSessionListView,
 } from "@/systems/session";
 import { settingsUpdateIndicatorAvailable, useSettingsUpdate } from "@/systems/settings";
-import {
-  selectWorktreeForScope,
-  useWorkspaceSetupContent,
-  WorkspaceSetupDialog,
-  type WorkspaceSetupDefaultsModel,
-} from "@/systems/workspace";
+import { selectWorktreeForScope, type WorkspaceSetupDefaultsModel } from "@/systems/workspace";
 
 /**
  * The desktop shell replaces the AppShell chrome (ADR-001): onboarding gate,
@@ -177,7 +171,6 @@ function DesktopShellScopedBody({
   clientCommandChannel,
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
   const setAutomationEnabled = useProfileAutomationEnablement();
   // Scope and order are the operator's, persisted by the daemon; the modal
   // renders them rather than fetching its own.
@@ -231,11 +224,6 @@ function DesktopShellScopedBody({
       className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
-        profileSwitcher={
-          <ProfileSwitcherSlot
-            onOpenSettings={() => void paletteDispatch.runById("settings.profiles")}
-          />
-        }
         // Dimmed while setup blocks: readable enough to see what you unlock,
         // never bright enough to read as available.
         className={cn(
@@ -295,6 +283,12 @@ function DesktopShellScopedBody({
         onNewSession={openNewSession}
         badges={attention.badges}
         contextMenusEnabled={overlays.activeOverlay === null}
+        profileSwitcher={
+          <ProfileSwitcherSlot
+            onOpenSettings={() => void paletteDispatch.runById("settings.profiles")}
+          />
+        }
+        onOpenSettings={() => void paletteDispatch.runById("settings.general")}
       />
       <div data-slot="os-desk" className="relative col-start-2 row-start-2 min-h-0 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -310,6 +304,7 @@ function DesktopShellScopedBody({
         <OsWinLayer
           model={winLayer}
           paletteShortcutLabel={shortcutLabels.palette}
+          onNewSession={openNewSession}
           reducedMotion={reducedMotion}
           transition={transition}
           onTransitionComplete={onTransitionComplete}
@@ -347,14 +342,13 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         dispatch={paletteDispatch}
       />
-      <OsSessionsDialogHost
+      <DesktopSessionDialogs
+        workspaceId={model.runtimeWorkspaceId}
         open={overlays.activeOverlay === "sessions"}
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
         disconnected={attention.sessionsDisconnected || Boolean(sessionListView.catalog?.failed)}
         view={sessionListView}
-        currentWorkspaceId={model.runtimeWorkspaceId}
         onNewSession={openNewSession}
-        lifecycle={sessionLifecycle}
       />
       <OsShortcutsDialog
         open={overlays.activeOverlay === "shortcuts"}
@@ -433,30 +427,5 @@ function DesktopShellScopedBody({
         onSetAutomationEnabled={setAutomationEnabled}
       />
     </div>
-  );
-}
-
-/**
- * Mirrors `WorkspaceSetupDialogBoundary`: the domain hook runs in exactly one
- * place and only while the dialog is mounted, so a closed dialog holds no
- * mutation state.
- */
-function WorkspaceSetupDialogBoundary({
-  defaults,
-  onOpenChange,
-  onWorkspaceResolved,
-  open,
-}: {
-  defaults: WorkspaceSetupDefaultsModel;
-  onOpenChange: (open: boolean) => void;
-  onWorkspaceResolved: (workspaceId: string) => void;
-  open: boolean;
-}) {
-  const setup = useWorkspaceSetupContent({
-    onWorkspaceResolved,
-    onSuccessClose: () => onOpenChange(false),
-  });
-  return (
-    <WorkspaceSetupDialog model={{ defaults, setup }} onOpenChange={onOpenChange} open={open} />
   );
 }

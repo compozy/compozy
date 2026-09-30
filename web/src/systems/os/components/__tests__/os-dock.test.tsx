@@ -222,7 +222,14 @@ describe("OsDock", () => {
   it("Should wait for authoritative hydration but stay enabled while the stream reconnects", async () => {
     const user = userEvent.setup();
     setDockState({ ...desktopState(), hydration: "pending", connectionStatus: "reconnecting" });
-    const view = renderDock(<DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled />);
+    const view = renderDock(
+      <DesktopDock
+        badges={{}}
+        onNewSession={vi.fn()}
+        onOpenSettings={vi.fn()}
+        contextMenusEnabled
+      />
+    );
     const tasks = screen.getByRole("button", { name: "Tasks" });
 
     expect(tasks).toBeDisabled();
@@ -232,7 +239,12 @@ describe("OsDock", () => {
     setDockState({ ...desktopState(), connectionStatus: "reconnecting" });
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled />
+        <DesktopDock
+          badges={{}}
+          onNewSession={vi.fn()}
+          onOpenSettings={vi.fn()}
+          contextMenusEnabled
+        />
       </TooltipProvider>
     );
 
@@ -480,6 +492,62 @@ describe("OsDock", () => {
     }
   );
 
+  it("Should put the theme toggle and Settings in the rail foot, outside the launcher navigation", async () => {
+    const user = userEvent.setup();
+    const onOpenSettings = vi.fn();
+    renderDock(
+      <DesktopDock
+        badges={{}}
+        onNewSession={vi.fn()}
+        onOpenSettings={onOpenSettings}
+        contextMenusEnabled
+        profileSwitcher={<button type="button">Profile</button>}
+      />
+    );
+
+    const foot = document.querySelector('[data-slot="os-rail-foot"]');
+    if (!(foot instanceof HTMLElement)) throw new Error("Expected the rail foot");
+    const order = Array.from(foot.querySelectorAll("button")).map(
+      button => button.getAttribute("aria-label") ?? button.textContent
+    );
+    expect(order).toEqual([
+      "Profile",
+      expect.stringMatching(/^Switch to (light|dark) mode$/),
+      "Settings",
+    ]);
+    expect(foot.closest("nav")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+
+    const toggle = screen.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
+    const before = toggle.getAttribute("aria-label");
+    await user.click(toggle);
+    expect(
+      screen.getByRole("button", { name: /^Switch to (light|dark) mode$/ })
+    ).not.toHaveAttribute("aria-label", before);
+  });
+
+  it("Should keep every launcher and the foot controls in the compact tab bar, with no New session", () => {
+    setDockState({ ...desktopState(), presentation: "compact" });
+    renderDock(
+      <DesktopDock
+        badges={{ tasks: 2 }}
+        onNewSession={vi.fn()}
+        onOpenSettings={vi.fn()}
+        contextMenusEnabled
+      />
+    );
+
+    const tabBar = document.querySelector('[data-slot="os-dock-tabbar"]');
+    if (!(tabBar instanceof HTMLElement)) throw new Error("Expected the compact tab bar");
+    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(11);
+    expect(screen.getByRole("button", { name: "Tasks — 2 need you" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="os-rail"]')).toBeNull();
+  });
+
   it("Should mark Terminal running from catalog truth rather than an open window", () => {
     const open = windowFixture("window:terminal", "terminal");
     const { result, rerender } = renderHook(
@@ -567,14 +635,26 @@ describe("OsDock", () => {
   it("Should close an open destination menu and keep it unavailable while an overlay is active (UT-085)", async () => {
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
-    const view = renderDock(<DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled />);
+    const view = renderDock(
+      <DesktopDock
+        badges={{}}
+        onNewSession={vi.fn()}
+        onOpenSettings={vi.fn()}
+        contextMenusEnabled
+      />
+    );
     const taskButton = screen.getByRole("button", { name: "Tasks" });
     fireEvent.contextMenu(taskButton);
     await screen.findByText("Open in new window");
 
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock badges={{}} onNewSession={vi.fn()} contextMenusEnabled={false} />
+        <DesktopDock
+          badges={{}}
+          onNewSession={vi.fn()}
+          onOpenSettings={vi.fn()}
+          contextMenusEnabled={false}
+        />
       </TooltipProvider>
     );
 

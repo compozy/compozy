@@ -143,6 +143,43 @@ function DockItem({
   return renderItemMenu ? <>{renderItemMenu(item, interactiveItem)}</> : interactiveItem;
 }
 
+export interface OsRailButtonProps extends Omit<React.ComponentProps<"button">, "children"> {
+  /** Accessible name and the tooltip beside the rail. */
+  label: string;
+  /** Tooltip side: beside the rail, or above the compact tab bar. */
+  tipSide?: "right" | "top";
+  children: React.ReactNode;
+}
+
+/** A rail-foot control in the launcher grammar: 40px item, muted glyph, tooltip at the right. */
+export function OsRailButton({
+  label,
+  tipSide = "right",
+  className,
+  children,
+  ...props
+}: OsRailButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            className={cn(ITEM_BASE, ITEM_INTERACTIVE, className)}
+            {...props}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side={tipSide} sideOffset={RAIL_TIP_SIDE_OFFSET}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** Up/Down roving focus across the launchers, wrapping at the ends; Home/End jump. */
 function moveRovingFocus(event: React.KeyboardEvent<HTMLElement>): void {
   const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(DOCK_ITEM_SELECTOR));

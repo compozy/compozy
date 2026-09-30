@@ -6,6 +6,7 @@ import type { OsAttentionBadges } from "../lib/attention-model";
 import type { OsAppId } from "../lib/os-types";
 import { OsDock } from "./os-dock";
 import { OsDockAppMenu } from "./os-dock-app-menu";
+import { OsRailFoot } from "./os-dock-rail-foot";
 import { OsDockTabBar } from "./os-dock-tab-bar";
 
 export interface DesktopDockProps {
@@ -17,8 +18,9 @@ export interface DesktopDockProps {
   contextMenusEnabled: boolean;
   /** First run: the dock is present but asleep until setup commits. */
   dormant?: boolean;
-  /** Shell controls pinned to the rail foot (floating presentation only). */
-  railFoot?: React.ReactNode;
+  /** Profile switcher, supplied by the shell; the rail foot (or compact tab bar) hosts it. */
+  profileSwitcher?: React.ReactNode;
+  onOpenSettings: () => void;
 }
 
 /** Wake as one surface — the dock brightens back when setup finishes. */
@@ -29,8 +31,8 @@ const WAKE =
 /**
  * The wired dock: floating renders the left rail beside the desktop; compact
  * renders the full-width bottom tab bar. Each claims its own row/column of the
- * shell grid (`DesktopShellScopedBody`). Entries and activation semantics live
- * in `useDesktopDock`.
+ * shell grid (`DesktopShellScopedBody`) and carries the rail-foot controls.
+ * Entries and activation semantics live in `useDesktopDock`.
  */
 export function DesktopDock({
   onNewSession,
@@ -38,7 +40,8 @@ export function DesktopDock({
   terminalLive,
   contextMenusEnabled,
   dormant = false,
-  railFoot,
+  profileSwitcher,
+  onOpenSettings,
 }: DesktopDockProps) {
   const { entries, presentation, commandsAvailable, handleSelect } = useDesktopDock(badges, {
     onNewSession,
@@ -53,7 +56,13 @@ export function DesktopDock({
         items={entries}
         onSelect={handleSelect}
         disabled={!commandsAvailable}
-        onNewSession={onNewSession}
+        trailing={
+          <OsRailFoot
+            profileSwitcher={profileSwitcher}
+            onOpenSettings={onOpenSettings}
+            tipSide="top"
+          />
+        }
       />
     );
   }
@@ -74,7 +83,7 @@ export function DesktopDock({
                 <OsDockAppMenu appId={item.id as OsAppId}>{children}</OsDockAppMenu>
               )
       }
-      foot={railFoot}
+      foot={<OsRailFoot profileSwitcher={profileSwitcher} onOpenSettings={onOpenSettings} />}
     />
   );
 }

@@ -86,11 +86,6 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   pager?: React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
-  /**
-   * Profile switcher, rendered after the command-palette trigger. Quiet-until-plural
-   * is the switcher's own business: the bar just gives it the slot.
-   */
-  profileSwitcher?: React.ReactNode;
 }
 
 const WINDOW_DRAG = "[app-region:drag]";
@@ -224,7 +219,6 @@ export function OsMenuBar({
   scopeControl,
   wrapBellTrigger,
   pager,
-  profileSwitcher,
   className,
   ...props
 }: OsMenuBarProps) {
@@ -363,9 +357,6 @@ export function OsMenuBar({
               <Icon as={Command} className="size-4.5" />
             </Control>
           </ControlTooltip>
-          {/* Outside every `role="menubar"` subtree so its popover keeps its own
-              semantics. */}
-          {profileSwitcher}
         </div>
       </div>
     </header>
