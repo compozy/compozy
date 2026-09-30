@@ -15,48 +15,66 @@
 @custom-variant dark (&:is([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
 
 @theme {
-  /* Surface ramp — neutral, chroma-free greys (brand-spec.md, shell v2).
-     Dark values live here and are the default; tokens-light.css re-declares
-     every theme-scoped role under [data-theme="light"].
-     rail = chrome (rail + menubar) · desk = behind panes · canvas = surface
-     (panes, cards, popovers) · sunken = recessed inset (tab strip, tool lists)
-     · surface-2 = hover / secondary pill. */
+  /* Surface ramp — neutral, chroma-free greys (brand-spec.md, shell v2;
+     polish contract P1). Dark values live here and are the default;
+     tokens-light.css re-declares every theme-scoped role under
+     [data-theme="light"]. Three visible levels, darkest outside:
+     rail = chrome (rail + topbar, one surface) · desk / canvas = the content
+     panel and pane bodies · canvas-soft (`card`) = cards, KPI tiles, composer
+     · elevated (`popover`) = menus, popovers, dialogs, tooltips.
+     sunken = recessed strips (tab strip, in-window side lists) · surface-2 =
+     hover plate / secondary pill / pressed toggle · selected = active row.
+     A card is never `bg-canvas`: it takes `bg-card` plus `shadow-card`, whose
+     first layer is the `line` hairline. */
   --color-rail: #0a0a0a;
-  --color-desk: #101010;
-  --color-canvas: #1a1a1a;
-  --color-canvas-soft: #1f1f1f;
-  --color-sunken: #101010;
-  --color-surface-2: #242424;
-  --color-selected: #242424;
-  --color-code-bg: #171717;
-  --color-sidebar: #1f1f1f;
-  --color-elevated: #2b2b2b;
+  /* Chrome plates — hover and selected steps ON the rail (rail items, topbar
+     tray, deck tabs). Dark shares the pane ramp's surface-2 / selected values;
+     light steps darker than the grey chrome. Ink on a chrome plate is fg-2 /
+     fg: in light, `muted` measures 4.36:1 on rail-hover and 4.16:1 on
+     rail-selected, below AA. */
+  --color-rail-hover: #232323;
+  --color-rail-selected: #262626;
+  --color-desk: #131313;
+  --color-canvas: #131313;
+  --color-canvas-soft: #1a1a1a;
+  --color-sunken: #0e0e0e;
+  --color-surface-2: #232323;
+  --color-selected: #262626;
+  --color-code-bg: #1a1a1a;
+  --color-sidebar: var(--color-sunken);
+  --color-elevated: #1c1c1c;
   --color-hover: var(--color-surface-2);
   --color-disabled: #4d4d4d;
 
-  /* Hairlines — opaque greys, one ladder per theme. line-soft is
-     mix(line 55%, canvas); line-focus is the input focus border. */
-  --color-line: #303030;
-  --color-line-soft: #262626;
-  --color-line-strong: #424242;
+  /* Hairlines — opaque greys, one ladder per theme. `line` edges cards and
+     popovers (via shadow-card / shadow-pop) and structural rules; line-soft
+     is the quiet divider inside a card; line-focus is the input focus
+     border. */
+  --color-line: #2a2a2a;
+  --color-line-soft: #202020;
+  --color-line-strong: #3a3a3a;
   --color-line-focus: #5c5c5c;
   /* Resting non-text indicator: a dot, ring or mark that alone carries state
      (inactive pager dot, queued ring). Clears 3:1 on every surface in the ramp;
      the hairlines above stay decorative boundaries. */
   --color-indicator: #707070;
+  /* Control knob (switch thumb): the lightest ink in either theme — the
+     near-white fg on dark, pure white on light — so an off switch reads as a
+     light knob on its line-strong track, never a heavy dark disc. */
+  --color-knob: #f5f5f5;
 
   /* Text. fg-2 = mix(muted 60%, fg) and fg-3 = mix(fg 70%, muted), the
      reference's own recipes, resolved to literals. muted / subtle / faint all
      carry text, so each clears WCAG AA 4.5:1 on canvas, canvas-soft,
-     surface-2, rail and sunken — a deliberate override of the reference's
-     dimmer greys (brand-spec.md, "Rules observed" 6). */
+     sunken, rail, surface-2, selected and elevated — a deliberate override
+     of the reference's dimmer greys (brand-spec.md, "Rules observed" 6). */
   --color-fg: #f5f5f5;
   --color-fg-strong: #ffffff;
   --color-fg-2: #c4c4c4;
   --color-fg-3: #dcdcdc;
   --color-muted: #a3a3a3;
   --color-subtle: #8e8e8e;
-  --color-faint: #8c8c8c;
+  --color-faint: #8d8d8d;
 
   /* Primary — the single inverted action (near-white on dark, near-black on
      light). Never the brand hue: highlights ride the accent below. */
@@ -147,7 +165,7 @@
   --color-foreground: var(--color-fg);
   --color-card: var(--color-canvas-soft);
   --color-card-foreground: var(--color-fg);
-  --color-popover: var(--color-canvas);
+  --color-popover: var(--color-elevated);
   --color-popover-foreground: var(--color-fg);
   --color-secondary: transparent;
   --color-secondary-foreground: var(--color-fg);
@@ -201,20 +219,22 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 600;
 
-  /* Type scale shared with both web and site surfaces. The brand ramp is
-     12 (text-xs / eyebrow) · 13 meta · 13.5 small-body · 14.5 body ·
-     15 card-title / item-title · 17 heading; the other tiers below are
-     role-specific (badges, KPIs, prose, site). */
-  --text-meta: 0.8125rem; /* 13px — meta rows, tool-row trailing details */
+  /* Type scale shared with both web and site surfaces (polish contract P3 —
+     a compact product ramp). The brand ramp is 11 micro / caps · 12 (text-xs
+     / eyebrow / kbd) · 12.5 meta · 13 small-body · 13.5 body · 14 item-title /
+     card-title · 15 heading · 18 page H1; the other tiers below are
+     role-specific (badges, KPIs, prose, site). Leading: body ≈1.45–1.5,
+     titles ≈1.3, headings 1.25, transcript 1.6. */
+  --text-meta: 0.78125rem; /* 12.5px — meta rows, tool-row trailing details */
   --text-meta--line-height: 1.125rem;
-  --text-body: 0.90625rem; /* 14.5px — UI body baseline */
-  --text-body--line-height: 1.375rem;
-  --text-heading: 1.0625rem; /* 17px — surface headings, medium */
-  --text-heading--line-height: 1.5rem;
-  --text-item-title: 0.9375rem; /* 15px */
-  --text-item-title--line-height: 1.375rem;
-  --text-small-body: 0.84375rem; /* 13.5px — OpenDesign UI body / menubar labels */
-  --text-small-body--line-height: 1.25rem;
+  --text-body: 0.84375rem; /* 13.5px — UI baseline: rows, labels, tabs */
+  --text-body--line-height: 1.25rem;
+  --text-heading: 0.9375rem; /* 15px — surface headings, window titles, medium */
+  --text-heading--line-height: 1.1875rem;
+  --text-item-title: 0.875rem; /* 14px — card & row titles */
+  --text-item-title--line-height: 1.125rem;
+  --text-small-body: 0.8125rem; /* 13px — secondary text, inputs, menu items */
+  --text-small-body--line-height: 1.1875rem;
   --text-badge: 0.6875rem; /* 11px — matches --text-micro */
   --text-badge--line-height: 0.75rem;
   --text-eyebrow: 0.75rem; /* 12px */
@@ -232,8 +252,9 @@
   --text-kbd--line-height: 1rem;
   /* Weight rides the token so every text-kbd caller inherits it. */
   --text-kbd--font-weight: 425;
-  --text-display-2xl: 1.75rem; /* 28px */
-  --text-display-2xl--line-height: 1;
+  /* Empty-desktop hero question only. */
+  --text-display-2xl: 1.5rem; /* 24px */
+  --text-display-2xl--line-height: 1.25;
   --text-site-lead: 1.1875rem; /* 19px */
   --text-site-lead--line-height: 1.5;
   --text-micro: 0.6875rem; /* 11px */
@@ -241,46 +262,46 @@
   /* Count badge on pills and rail items (Pill.Count size "count"). */
   --text-count: 0.59375rem; /* 9.5px */
   --text-count--line-height: 0.9375rem; /* 15px */
-  --text-inline-code: 0.9em; /* 14.4px */
-  --text-accent-glyph: 0.85em; /* 13.6px */
+  --text-inline-code: 0.9em;
+  --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;
 
   /* Type ladder additions. */
-  --text-detail-h1: 1.4rem;
+  --text-detail-h1: 1.125rem; /* 18px — page H1 */
   --text-detail-h1--line-height: 1.25;
   /* PH3 split-pane compact page-head H1 (route chrome contract §08). */
-  --text-compact-h1: 1.0625rem; /* 17px */
+  --text-compact-h1: 0.9375rem; /* 15px */
   --text-compact-h1--line-height: 1.25;
-  --text-empty-h1: 1.0625rem; /* 17px */
-  --text-modal-title: 0.9375rem; /* 15px */
+  --text-empty-h1: 0.9375rem; /* 15px */
+  --text-modal-title: 0.875rem; /* 14px */
   --text-section-head: 0.7rem;
-  --text-form-input: 0.84375rem; /* 13.5px */
+  --text-form-input: 0.8125rem; /* 13px */
   --text-form-label: 0.8125rem; /* 13px */
   --text-form-hint: 0.75rem; /* 12px */
   --text-form-required: 0.625rem;
-  --text-metric-value: 1.375rem;
-  /* In-window KPI / metric value (DS Components §09) — 24px display number,
-     pair with --font-weight-display (620). --text-kpi-compact is the 17px tier. */
-  --text-kpi-value: 1.5rem;
-  --text-kpi-value--line-height: 1.05;
-  --text-kpi-compact: 1.0625rem; /* 17px */
-  --text-agent-metric: 1rem;
+  --text-metric-value: 1.25rem; /* 20px */
+  /* In-window KPI / metric value (DS Components §09) — 20px number at
+     font-semibold (600) with tabular-nums. --text-kpi-compact is the 15px tier. */
+  --text-kpi-value: 1.25rem; /* 20px */
+  --text-kpi-value--line-height: 1.1;
+  --text-kpi-compact: 0.9375rem; /* 15px */
+  --text-agent-metric: 0.9375rem; /* 15px */
   --text-rail-avatar: 0.71875rem;
-  --text-ws-name: 0.9375rem; /* 15px */
+  --text-ws-name: 0.875rem; /* 14px */
   --text-mono-id: 0.6875rem;
   --text-pill-group-badge: 0.5625rem;
-  /* 15 px tier for prose-adjacent / card-title surfaces (chat bubble body,
-     tool-call title). Two steps above `--text-small-body` (13.5 px), shared
+  /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
+     tool-call title). Two steps above `--text-small-body` (13 px), shared
      with `--text-item-title`. Block code never rides this sans tier — it has
      its own mono pair below. */
-  --text-card-title: 0.9375rem;
-  --text-card-title--line-height: 1.4;
-  /* Prose heading ladder (Markdown H1–H3) — must stay above the 15 px prose body. */
-  --text-prose-h1: 1.375rem; /* 22px */
+  --text-card-title: 0.875rem; /* 14px */
+  --text-card-title--line-height: 1.3;
+  /* Prose heading ladder (Markdown H1–H3) — must stay above the 13.5 px prose body. */
+  --text-prose-h1: 1.125rem; /* 18px */
   --text-prose-h1--line-height: 1.25;
-  --text-prose-h2: 1.125rem; /* 18px */
+  --text-prose-h2: 1rem; /* 16px */
   --text-prose-h2--line-height: 1.3;
-  --text-prose-h3: 1rem; /* 16px */
+  --text-prose-h3: 0.90625rem; /* 14.5px */
   --text-prose-h3--line-height: 1.4;
   /* Block-code tier — Geist Mono block surfaces (CodeBlock, JsonViewer)
      share one size; density varies padding/surface only. */
@@ -290,8 +311,9 @@
   /* Calm transcript ladder — shared by timeline rows, detail rails, working
      state, and the user-message surface. These preserve the OpenDesign rhythm
      without scattering pixel literals across the web renderer. */
-  --text-transcript-message: 0.90625rem; /* 14.5px — body */
-  --text-transcript-body: 0.8125rem; /* 13px */
+  --text-transcript-message: 0.875rem; /* 14px — chat reading text */
+  --text-transcript-message--line-height: 1.6;
+  --text-transcript-body: 0.78125rem; /* 12.5px */
   --text-transcript-meta: 0.75rem; /* 12px */
   --text-transcript-caption: 0.6875rem; /* 11px */
 
@@ -304,9 +326,10 @@
 
   /* Tracking ladder. */
   --tracking-mono: 0.02em;
-  --tracking-detail-h1: -0.028em;
-  --tracking-compact-h1: -0.022em;
-  --tracking-empty-h1: -0.022em;
+  /* Headings tighten one step (−0.015em); body stays at −0.01em. */
+  --tracking-detail-h1: -0.015em;
+  --tracking-compact-h1: -0.015em;
+  --tracking-empty-h1: -0.015em;
   --tracking-modal-title: -0.012em;
   --tracking-section-head: -0.008em;
   --tracking-tight: -0.014em;
@@ -327,8 +350,8 @@
   /* Listing-row title optical tightening (one step, matches --text-card-title). */
   --tracking-row-title: -0.01em;
   /* Prose heading ladder — tightening scales with size, like the page-head H1s. */
-  --tracking-prose-h1: -0.022em;
-  --tracking-prose-h2: -0.018em;
+  --tracking-prose-h1: -0.015em;
+  --tracking-prose-h2: -0.015em;
   --tracking-prose-h3: -0.01em;
 
   /* Radii — base + ladder: 3 / 6 / 7 / 8 / 8 / 12 / 18 / pill. Actions are
@@ -353,9 +376,11 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Shadows — whitelist. Every other surface stays flat. card / elevated are
-     the reference's verbatim stacks (composer, cards, active rail item, floating
-     windows); pop = the md drop plus elevated (menus, popovers, tooltips).
+  /* Shadows — whitelist. Every other surface stays flat. card = the `line`
+     hairline plus a soft drop (cards, tiles, composer); elevated = floating
+     windows and the active rail item; pop = the `line` hairline plus the md
+     drop (menus, popovers, tooltips); overlay = dialogs and sheets. A
+     `bg-card` / `bg-popover` surface pairs with these instead of a border.
      Theme-scoped shadows are adapters over `--theme-shadow-*` literals in
      `:root` (dark) and tokens-light.css: Tailwind inlines a literal `--shadow-*`
      value into its `shadow-*` utility, so a per-theme override of the @theme
@@ -395,20 +420,24 @@
      component-internal values (pill-group / modal widths used pre-L-024) live in
      `:root` with explicit lint allowlist entries. */
 
-  /* Button geometry — default is 32px at text-body (14.5px); xs and sm pair
-     with text-eyebrow (12px) and are distinct tiers (24 / 26); the variant still carries its own
-     padding (both tokens are consumed — button-variants + workspace). */
-  --height-button-xs: 24px;
+  /* Button geometry (polish contract P4) — every button is a pill.
+     xs 22 / 12px text / 12px glyph (inline row actions) · sm 26 / 12.5 / 14
+     (window-head, card-header and toolbar actions) · default 30 / 13 / 16
+     (forms, page bodies) · lg 34 and cta 36 / 13.5 / 16 (dialog footers, hero
+     CTA). Icon buttons: 22 / 26 / 28 / 32 with 12 / 14 / 16 / 16 glyphs. The
+     variant carries its own padding (both tokens are consumed — button-variants
+     + workspace). */
+  --height-button-xs: 22px;
   --height-button-sm: 26px;
-  --height-button-default: 32px;
+  --height-button-default: 30px;
   --height-button-lg: 34px;
   /* CTA button heights — the larger accent primary action (dialogs, forms). */
   --height-button-cta: 36px;
   --height-button-cta-lg: 44px;
-  --size-button-icon-xs: 24px;
+  --size-button-icon-xs: 22px;
   --size-button-icon-sm: 26px;
-  --size-button-icon-default: 30px;
-  --size-button-icon-lg: 34px;
+  --size-button-icon-default: 28px;
+  --size-button-icon-lg: 32px;
 
   /* Calm transcript geometry. */
   --height-transcript-row: 22px;
@@ -421,13 +450,15 @@
   --spacing-transcript-turn-gap: 18px;
   --spacing-transcript-meta-gap: 3px;
 
-  /* Form control geometry — the field-control ladder. Input / Select /
-     NativeSelect / CommandSelect trigger = 36; compact (Select sm, NativeSelect
-     sm, Command input) = 32; toolbar search = 28 (RouteNav / PillGroup track
-     outer: 24px segment + 2px padding each side); textarea min body = 84. */
-  --height-input: 36px;
-  --height-control-compact: 32px;
-  --height-search: 28px;
+  /* Form control geometry — the field-control ladder rides the button ladder
+     so a field and its button share one edge (polish contract P4). Input /
+     Select / NativeSelect / Combobox / CommandSelect / InputGroup = 30 (button
+     `default`); compact (Select sm, NativeSelect sm, Command input) = 26
+     (button `sm`); toolbar search = 26, level with `sm` toolbar buttons and
+     PillGroup / RouteNav segments; textarea min body = 84. */
+  --height-input: 30px;
+  --height-control-compact: 26px;
+  --height-search: 26px;
   /* Symbol picker geometry — the color field and icon cells share the compact
      control scale while retaining their own named dimensions. */
   --width-symbol-picker-color-input: 7.5rem;
@@ -443,7 +474,7 @@
   --width-switch-sm: 24px;
 
   /* Pill geometry — xs / sm / md heights. Pills are metadata, not controls:
-     they stay a tier below the button ladder (24/26/30). */
+     they stay a tier below the button ladder (22/26/30). */
   --height-pill-xs: 18px;
   --height-pill-sm: 20px;
   --height-pill-md: 24px;
@@ -524,8 +555,6 @@
 
   /* Layout ladder. */
   --container-content-max: 1320px;
-  /* Session transcript + composer reading column (max-w-transcript). */
-  --container-transcript: 760px;
   --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
   /* Search field: its resting width, and the floor a toolbar search shrinks to in
@@ -599,7 +628,6 @@
   --width-deck-tab-max: 208px;
   --size-deck-glyph: 13px;
   --min-width-deck-badge: 14px;
-  --size-deck-add: 28px;
   --size-deck-close: 20px;
 
   /* Compact canvas faces in Settings layouts. */
@@ -621,22 +649,17 @@
 :root {
   color-scheme: dark;
 
-  /* Numeric-display weight for KPI / metric values (approved dashboard scale, 620:
-     a soft step above semibold; requires Inter Variable wght axis). Kept out of
-     @theme so it never generates a `font-display` weight utility that collides
-     with the `--font-display` font-family utility. Consumed via
-     `style={{ fontWeight: "var(--font-weight-display)" }}`. */
-  --font-weight-display: 620;
-
-  /* Dark theme-shadow literals behind the @theme `--shadow-*` adapters. */
-  --theme-shadow-card: 0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d;
+  /* Dark theme-shadow literals behind the @theme `--shadow-*` adapters.
+     card / pop / overlay open with the 1px `line` hairline (polish contract
+     P1): a card and a popover always carry their edge, so a surface one step
+     lighter than its host still reads as a separate plane. */
+  --theme-shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px #0006, 0 2px 4px #0000004d;
   --theme-shadow-elevated:
     0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006;
   --theme-shadow-pop:
-    0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059,
+    0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059,
     0 1.5px 3px #0006;
-  --theme-shadow-overlay:
-    0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+  --theme-shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line);
   --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   --theme-shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
   --theme-shadow-focus-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
@@ -673,11 +696,11 @@
   --width-modal-xl: 1180px;
   --size-catalog-logo: 1.5rem;
   --size-provider-logo-well: 2.5rem;
-  /* PillGroup segments are filter pills: 30px at 13.5px (md). */
-  --height-pill-group-segment-md: 30px;
+  /* PillGroup segments are toolbar pills: md = the `sm` button (26px at 12.5px). */
+  --height-pill-group-segment-md: 26px;
   --height-pill-group-segment-sm: 20px;
   --space-pill-group-segment-sm-x: 8px;
-  --space-pill-group-segment-md-x: 12px;
+  --space-pill-group-segment-md-x: 10px;
   /* Home pulse geometry. */
   --space-home-pulse-gap: 3px;
   --size-home-pulse-label: 34px;

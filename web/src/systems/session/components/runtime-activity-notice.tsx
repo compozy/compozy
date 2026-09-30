@@ -192,7 +192,7 @@ function QueueClearedMarkerNotice({
       data-testid="transcript-marker-notice"
       data-marker-tone="neutral"
       tone="neutral"
-      icon={<ListX strokeWidth={1.8} />}
+      icon={<ListX />}
     >
       <span data-testid="transcript-marker-summary">
         <b>{queueClearActor(marker)} cleared the queue</b> — a queued follow-up was removed
@@ -214,7 +214,7 @@ function PostStopMarkerNotice({ label, count }: { label: string; count: number }
       data-marker-kind={label}
       data-marker-tone="neutral"
       tone="neutral"
-      icon={<ScrollText strokeWidth={1.8} />}
+      icon={<ScrollText />}
     >
       <span data-testid="transcript-marker-summary">
         <b>The agent sent more output after you stopped it</b> — discarded; the reply was not
@@ -239,7 +239,7 @@ function SessionErrorNotice({ event, count }: { event: AgentEventPayload; count:
       data-testid="session-error-notice"
       data-failure-kind={failureKind || undefined}
       tone="danger"
-      icon={<AlertCircle strokeWidth={1.8} />}
+      icon={<AlertCircle />}
     >
       <b>Session failed</b> —{" "}
       <span data-testid="session-error-detail">{sessionErrorDescription(event)}</span>
@@ -260,12 +260,7 @@ function TranscriptMarkerNotice({ event, count }: { event: AgentEventPayload; co
   }
   if (isQueueRemovalMarker(marker)) {
     return (
-      <Marker
-        role="status"
-        data-testid="transcript-marker-notice"
-        tone="neutral"
-        icon={<ListX strokeWidth={1.8} />}
-      >
+      <Marker role="status" data-testid="transcript-marker-notice" tone="neutral" icon={<ListX />}>
         <span data-testid="transcript-marker-summary">
           <b>You removed a queued follow-up</b>
         </span>
@@ -291,7 +286,7 @@ function TranscriptMarkerNotice({ event, count }: { event: AgentEventPayload; co
       data-marker-kind={markerLabel(marker, event)}
       data-marker-tone={tone}
       tone={tone}
-      icon={<Icon strokeWidth={1.8} />}
+      icon={<Icon />}
     >
       <span data-testid="transcript-marker-summary">
         {marker?.summary || event.text || "Agent update"}
@@ -315,12 +310,7 @@ function RuntimeActivityMarker({
 }) {
   const title = event.text?.trim() || detail;
   return (
-    <Marker
-      role="status"
-      tone="neutral"
-      data-testid="runtime-activity-notice"
-      icon={<Activity strokeWidth={1.8} />}
-    >
+    <Marker role="status" tone="neutral" data-testid="runtime-activity-notice" icon={<Activity />}>
       <b>{title}</b>
       {meta ? (
         <>
@@ -379,7 +369,7 @@ export function RuntimeActivityNotice({
       data-testid="runtime-activity-notice"
       data-marker-tone="warning"
       tone="warning"
-      icon={<AlertTriangle strokeWidth={1.8} />}
+      icon={<AlertTriangle />}
     >
       <b>{title}</b> — <span data-testid="runtime-activity-detail">{detail}</span>
       {meta ? (

@@ -26,9 +26,9 @@ function ThemeToggle({ resolvedTheme, className, type = "button", ...props }: Th
       type={type}
       className={cn(
         "grid size-rail-item shrink-0 cursor-pointer place-items-center rounded-lg text-muted",
-        "transition-colors duration-base ease-out hover:bg-surface-2 hover:text-fg",
+        "transition-colors duration-base ease-out hover:bg-rail-hover hover:text-fg",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
-        "[&_svg]:pointer-events-none [&_svg]:size-5",
+        "[&_svg]:pointer-events-none [&_svg]:size-4",
         className
       )}
       {...props}

@@ -192,7 +192,9 @@ function TaskRunsEmpty({
             type="button"
             variant="neutral"
           >
-            {isStartPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {isStartPending ? (
+              <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+            ) : null}
             {isStartPending ? "Starting…" : "Start run"}
           </Button>
         ) : undefined
@@ -262,7 +264,7 @@ export function TaskRunsPanel({
       ) : null}
       <LinkedRecordTableRoot
         aria-busy={isLoading || undefined}
-        className="overflow-hidden rounded-lg bg-canvas shadow-card"
+        className="overflow-hidden rounded-lg bg-card shadow-card"
         columns={RUN_COLUMNS}
         data-testid="tasks-runs-panel"
       >

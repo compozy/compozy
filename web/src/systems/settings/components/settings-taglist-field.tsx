@@ -61,7 +61,7 @@ export function SettingsTaglistField({
                 type="button"
                 variant="ghost"
               >
-                <X aria-hidden="true" className="size-2.5" />
+                <X aria-hidden="true" />
               </Button>
             </Pill>
           ))
@@ -70,7 +70,7 @@ export function SettingsTaglistField({
       <div className="flex items-center gap-1.5">
         <Input
           aria-label={label}
-          className="h-7 w-64 font-mono text-form-input"
+          className="h-control-compact w-64 font-mono text-form-input"
           disabled={disabled}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => {

@@ -221,8 +221,10 @@ function DesktopShellScopedBody({
       inert={firstRun}
       tabIndex={-1}
       // Topbar across the full width; rail + desk below it; the compact tab bar
-      // takes the last row. Each dock presentation claims its own track.
-      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
+      // takes the last row. Each dock presentation claims its own track. The
+      // grid paints the chrome, so topbar + rail read as one L-shaped surface
+      // around the inset desk panel.
+      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
         // Dimmed while setup blocks: readable enough to see what you unlock,
@@ -292,7 +294,17 @@ function DesktopShellScopedBody({
         }
         onOpenSettings={() => void paletteDispatch.runById("settings.general")}
       />
-      <div data-slot="os-desk" className="relative col-start-2 row-start-2 min-h-0 overflow-hidden">
+      <div
+        data-slot="os-desk"
+        className={cn(
+          // The desk is a panel inset into the chrome: a hairline where it meets
+          // the topbar and rail, flush with the window's right and bottom edges.
+          // It clips its children so tiled panes follow the rounded corner; the
+          // win-layer sits inside the border, so snap geometry never sees it.
+          "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-t border-line",
+          winLayer.presentation !== "compact" && "rounded-tl-lg border-l"
+        )}
+      >
         <OsWallpaper wallpaper={desktop.wallpaper} />
         {model.activeWorkspaceId !== null ? (
           <WorkspaceProfilesHint
@@ -307,7 +319,7 @@ function DesktopShellScopedBody({
           model={winLayer}
           paletteShortcutLabel={shortcutLabels.palette}
           hasProject={model.runtimeWorkspaceId !== null}
-          onNewSession={openNewSession}
+          onPickProject={() => overlays.setOverlayOpen("workspace-menu", true)}
           reducedMotion={reducedMotion}
           transition={transition}
           onTransitionComplete={onTransitionComplete}

@@ -20,7 +20,7 @@ export function SteerMarkerNotice({ view }: { view: SteerMarkerView }) {
       data-steer={view.kind}
       tone="neutral"
       className={view.kind === "superseded" ? "text-faint" : undefined}
-      icon={<Icon strokeWidth={1.8} />}
+      icon={<Icon />}
     >
       <span data-testid="steer-marker-text">{view.text}</span>
       {view.meta ? (

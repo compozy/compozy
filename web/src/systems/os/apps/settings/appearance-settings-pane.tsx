@@ -84,10 +84,10 @@ function WallpaperPicker({
             data-wallpaper-option={option.id}
             data-testid={`os-wallpaper-option-${option.id}`}
             className={cn(
-              "group flex w-full flex-col overflow-hidden rounded-lg border text-left",
+              "group flex w-full flex-col overflow-hidden rounded-lg border bg-card text-left",
               "transition-colors duration-base",
               "focus-visible:shadow-focus-ring focus-visible:outline-none",
-              selected ? "border-fg" : "border-line-strong hover:border-line-focus"
+              selected ? "border-fg" : "border-line hover:border-line-strong"
             )}
             onClick={() => onChange(option.id)}
           >
@@ -99,7 +99,7 @@ function WallpaperPicker({
             <span
               className={cn(
                 "flex items-center justify-between px-3 py-2 text-small-body",
-                selected ? "font-semibold text-fg" : "text-muted"
+                selected ? "font-medium text-fg" : "text-muted"
               )}
             >
               {option.label}

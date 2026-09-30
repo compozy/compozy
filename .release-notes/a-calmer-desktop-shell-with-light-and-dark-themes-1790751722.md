@@ -12,14 +12,21 @@ light and dark.
   to the bell and the command palette.
 - Windows tile edge to edge with no gaps. A single hairline separates them: drag it, or focus it and
   use the arrow keys (hold Shift for bigger steps), to resize the panes on both sides.
-- New windows open beside the one you are working in instead of floating on top of it.
+- New windows open as a tab in the window you are working in instead of floating on top of it; on
+  an empty desktop they fill it. Option-click a rail icon to open it split beside your window,
+  Shift-click to open it on a new desktop, or right-click it for every destination, including a
+  floating window. `compozy window open --floating` and the `floating` input of
+  `compozy__window_open` ask for a floating window explicitly.
 - **Window › Arrange** offers Main and stack, Columns, Grid, and Balance sizes, and **Window › Move
   window to** sends a window to another desktop by name. `compozy layout arrange` and the
   `compozy__layout_arrange` tool accept the new `main_stack` arrangement, and an optional
   `--keep-frames` / `keep_frames` that arranges each named tab deck whole. Without it, every named
   window is still its own participant.
 - Tabs look and behave like browser tabs, and window controls are quiet icons at the end of the head.
-- An empty desktop says so and offers a way to start.
+- An empty desktop asks "What should we work on?" above the session composer. Type a prompt and press
+  Enter to start a session right there, with your project's default agent already picked.
+- Sessions use the full width of their window again, tool calls read as quiet rows, and the list of
+  sessions is open by default.
 - Choose **Light**, **Dark**, or **System** in Settings › Appearance, or flip the theme from the dock.
   Dark stays the default. The choice is saved in this browser and applied before the first frame,
   and the terminal follows it.
@@ -31,13 +38,14 @@ light and dark.
 Three `[window_manager]` defaults change. Your saved layouts, profiles, and any value you set
 explicitly in `config.toml` are kept as they are; only unset values pick up the new defaults.
 
-| Setting                                            | Old default                   | New default    |
-| -------------------------------------------------- | ----------------------------- | -------------- |
-| `gaps.inner` / `top` / `right` / `bottom` / `left` | `8` / `8` / `10` / `8` / `10` | `0`            |
-| `new_window_policy`                                | `floating`                    | `beside_focus` |
-| `bindings.bottom_center`                           | `reserved`                    | `zoom`         |
+| Setting                                            | Old default                   | New default |
+| -------------------------------------------------- | ----------------------------- | ----------- |
+| `gaps.inner` / `top` / `right` / `bottom` / `left` | `8` / `8` / `10` / `8` / `10` | `0`         |
+| `new_window_policy`                                | `floating`                    | `tab`       |
+| `bindings.bottom_center`                           | `reserved`                    | `zoom`      |
 
-To keep the previous behavior, set the old values explicitly:
+`new_window_policy` now accepts `tab` (the new default) and `beside_focus` (tile new windows beside
+the focused one) alongside `floating`. To keep the previous behavior, set the old values explicitly:
 
 ```toml
 [window_manager]

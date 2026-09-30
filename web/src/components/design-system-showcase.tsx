@@ -56,14 +56,14 @@ export function DesignSystemShowcase() {
               </h1>
               <span
                 data-slot="page-header-count"
-                className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-surface-2 px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
+                className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-surface-2 px-1.5 font-mono text-micro font-medium tabular-nums text-muted"
               >
                 v1
               </span>
             </div>
             <div
               data-slot="page-header-meta"
-              className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-muted"
+              className="ml-auto flex shrink-0 items-center gap-2 text-small-body text-muted"
             >
               <DesignSystemShowcaseLink />
             </div>

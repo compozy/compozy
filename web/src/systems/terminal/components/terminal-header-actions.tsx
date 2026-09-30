@@ -99,7 +99,7 @@ export function TerminalWindowVerbs({
                 onClick={onNewTerminal}
                 size="icon-sm"
                 type="button"
-                variant="ghost"
+                variant="quiet"
               />
             }
           >
@@ -118,7 +118,7 @@ export function TerminalWindowVerbs({
                 onClick={onViewJournal}
                 size="icon-sm"
                 type="button"
-                variant="ghost"
+                variant="quiet"
               />
             }
           >
@@ -151,7 +151,7 @@ function TerminalPipeHeaderActions({
             data-testid="terminal-pipe-overflow"
             size="icon-sm"
             type="button"
-            variant="ghost"
+            variant="quiet"
           />
         }
       >

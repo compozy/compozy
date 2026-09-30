@@ -45,7 +45,7 @@ export function LoopReferenceInput({
   const inputClass = cn(
     "px-2.5 text-form-input",
     mono && "font-mono",
-    multiline ? "min-h-18.5 resize-y leading-relaxed" : "h-8"
+    multiline && "min-h-18.5 resize-y leading-relaxed"
   );
 
   const activeOptionId =

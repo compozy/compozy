@@ -92,13 +92,13 @@ function HomeAttentionRow({
       <span className="truncate text-small-body text-muted max-[760px]:whitespace-normal">
         <span className="font-medium text-fg-strong">{item.title}</span> {attentionSentence(item)}
       </span>
-      <span className="font-mono text-mono-id tabular-nums text-subtle max-[760px]:hidden">
+      <span className="text-eyebrow tabular-nums text-subtle max-[760px]:hidden">
         <Time iso={item.occurred_at} />
       </span>
       <span className="flex items-center gap-1.5">
         <Button
           size="icon-sm"
-          variant="ghost"
+          variant="quiet"
           aria-label={`Mark ${item.title} as read`}
           disabled={isMutating || acknowledgementDisabled || !item.notification_id}
           onClick={() => onAcknowledge(item.notification_id)}
@@ -110,7 +110,7 @@ function HomeAttentionRow({
             disabled={isMutating}
             onClick={() => onApprove(taskId)}
             size="sm"
-            variant="primary"
+            variant="secondary"
           >
             Approve
           </Button>
@@ -121,7 +121,12 @@ function HomeAttentionRow({
           </Button>
         ) : null}
         {item.actions.includes("retry") && runId ? (
-          <Button disabled={isMutating} onClick={() => onRetry(runId)} size="sm" variant="primary">
+          <Button
+            disabled={isMutating}
+            onClick={() => onRetry(runId)}
+            size="sm"
+            variant="secondary"
+          >
             Retry
           </Button>
         ) : null}
@@ -168,7 +173,7 @@ export function HomeAttentionZone({
     <span className="flex items-center gap-2">
       <Button
         size="sm"
-        variant="ghost"
+        variant="quiet"
         disabled={acknowledgementDisabled || attention.total === 0}
         aria-label={`Clear all notifications in ${scopeLabel}`}
         onClick={() => onAcknowledge()}
@@ -179,7 +184,7 @@ export function HomeAttentionZone({
         nativeButton={false}
         render={<Link search={{ mode: "inbox" }} to="/tasks" />}
         size="sm"
-        variant="ghost"
+        variant="link"
       >
         Open inbox
         <ChevronRight aria-hidden="true" />

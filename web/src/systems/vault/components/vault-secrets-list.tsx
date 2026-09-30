@@ -71,7 +71,7 @@ export function VaultSecretsList({
           </div>
         ) : (
           <div
-            className="overflow-hidden rounded-lg bg-canvas shadow-card"
+            className="overflow-hidden rounded-lg bg-card shadow-card"
             data-testid={`${testId}-rows`}
           >
             {secrets.map(secret => (

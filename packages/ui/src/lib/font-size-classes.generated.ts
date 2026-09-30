@@ -126,7 +126,6 @@ export const sizingScale = [
   "count-chip",
   "count-chip-sm",
   "deck",
-  "deck-add",
   "deck-badge",
   "deck-close",
   "deck-glyph",
@@ -245,5 +244,4 @@ export const containerScale = [
   "settings-takeover",
   "site-layout-width",
   "task-detail-rail",
-  "transcript",
 ];

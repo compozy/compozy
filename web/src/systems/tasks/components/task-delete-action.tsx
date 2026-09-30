@@ -88,7 +88,11 @@ export function TaskDeleteAction({
             />
           }
         >
-          {isPending ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
+          {isPending ? (
+            <Spinner className="size-3.5" data-icon="inline-start" />
+          ) : (
+            <Trash2 data-icon="inline-start" />
+          )}
           {triggerLabel}
         </DialogTrigger>
       )}

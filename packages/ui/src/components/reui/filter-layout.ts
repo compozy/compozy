@@ -24,11 +24,11 @@ type FilterChipSize = "sm" | "default" | "lg";
  * Chip segments are `neutral` pill segments that paint under their transparent
  * border box (`bg-clip-border`), so a chip reads as one continuous pill with no
  * canvas showing between segments. `default` chips sit at the PillGroup md
- * geometry (30 px, 13.5 px); `sm` and `lg` keep the button ladder.
+ * geometry (26 px, 12.5 px); `sm` and `lg` keep the button ladder.
  */
 export const FILTER_CHIP_SEGMENT_CLASS: Record<FilterChipSize, string> = {
   sm: "bg-clip-border",
-  default: "h-(--height-pill-group-segment-md)! bg-clip-border text-small-body",
+  default: "h-(--height-pill-group-segment-md)! bg-clip-border text-meta",
   lg: "bg-clip-border",
 };
 

@@ -209,7 +209,7 @@ export function DesktopPager({
                         }
                         tabIndex={control.key === tabStopKey ? 0 : -1}
                         className={cn(
-                          "h-7.5 w-6 min-w-0 rounded-sm p-0 hover:bg-surface-2 active:translate-y-0",
+                          "h-7.5 w-6 min-w-0 rounded-sm p-0 hover:bg-rail-hover active:translate-y-0",
                           "aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         )}
                         onClick={() => {

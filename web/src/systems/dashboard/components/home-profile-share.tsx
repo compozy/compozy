@@ -34,14 +34,14 @@ export function HomeProfileShare({ profiles, windowDays }: HomeProfileShareProps
     >
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <Eyebrow className="text-subtle">Per-profile share</Eyebrow>
-        <span className="text-micro text-faint">all profiles · last {windowDays} days</span>
+        <span className="text-eyebrow text-muted">all profiles · last {windowDays} days</span>
       </div>
       <div className="flex flex-col gap-2">
         {profiles.map(entry => (
           <div className="flex flex-col gap-1" key={entry.profile_id}>
             <div className="flex items-center justify-between gap-3">
               <ProfileOwnerTag owner={ownerFromRow(entry)} />
-              <span className="font-mono text-micro tabular-nums text-subtle">
+              <span className="text-eyebrow tabular-nums text-subtle">
                 {formatHomeTokens(entry.tokens)}
               </span>
             </div>

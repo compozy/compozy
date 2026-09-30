@@ -77,12 +77,12 @@ function MarketplaceInstalledPage({
                 onClick={() => void page.refetch()}
                 size="icon-sm"
                 type="button"
-                variant="ghost"
+                variant="quiet"
               />
             }
           >
             {page.isFetching ? (
-              <Spinner aria-hidden="true" className="size-3" />
+              <Spinner aria-hidden="true" className="size-3.5" />
             ) : (
               <RefreshCw aria-hidden="true" className="size-3.5" />
             )}
@@ -141,7 +141,7 @@ function MarketplaceInstalledBody({
     return (
       <Empty
         action={
-          <Button onClick={() => void page.refetch()} size="sm" type="button">
+          <Button onClick={() => void page.refetch()} size="sm" type="button" variant="secondary">
             Retry
           </Button>
         }
@@ -174,12 +174,11 @@ function MarketplaceInstalledBody({
         action={
           <Button
             data-testid="marketplace-browse"
-            variant="neutral"
             nativeButton={false}
             render={<Link search={{}} to="/marketplace" />}
             size="sm"
           >
-            <Store aria-hidden="true" className="size-3" />
+            <Store aria-hidden="true" />
             Browse the marketplace
           </Button>
         }

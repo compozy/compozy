@@ -43,7 +43,7 @@ export function TidyUpRow({
           disabled={!dreamAvailable || dreamPending}
           onClick={onTriggerDream}
         >
-          {dreamPending ? <Spinner className="size-3" /> : <Play className="size-3" />}
+          {dreamPending ? <Spinner className="size-3.5" /> : <Play />}
           Tidy up now
         </Button>
       }

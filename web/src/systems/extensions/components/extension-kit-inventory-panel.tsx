@@ -32,7 +32,8 @@ function KitInventoryItemRow({ item }: { item: ExtensionKitItem }) {
         </ListingRow.Meta>
       </ListingRow.Main>
       <ListingRow.Trail>
-        <Pill mono size="xs" tone={item.live ? "success" : "neutral"}>
+        <Pill form="plain" mono tone={item.live ? "success" : "neutral"}>
+          <Pill.Dot />
           {item.live ? "live" : "shipped"}
         </Pill>
       </ListingRow.Trail>
@@ -45,7 +46,7 @@ function KitInventoryGroup({ group }: { group: ExtensionKitInventoryGroup }) {
     <div>
       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
         <span className="eyebrow text-muted">{group.kind}</span>
-        <span className="font-mono text-xs text-faint tabular-nums">{group.items.length}</span>
+        <span className="font-mono text-eyebrow text-faint tabular-nums">{group.items.length}</span>
       </div>
       {group.items.map(item => (
         <KitInventoryItemRow item={item} key={`${item.kind}:${item.id}`} />
@@ -75,7 +76,7 @@ function KitInventoryContent({
     return (
       <div className="space-y-2 px-4 py-3">
         <p className="text-small-body font-medium text-danger">Kit inventory could not be loaded</p>
-        <p className="text-xs text-muted">{error.message}</p>
+        <p className="text-eyebrow text-muted">{error.message}</p>
         <Button onClick={onRetry} size="sm" type="button" variant="secondary">
           Retry
         </Button>

@@ -22,7 +22,7 @@ export interface DockProps extends React.ComponentProps<"div"> {
 /**
  * Decision card above the composer — permission and clarification surfaces
  * leave the transcript and dock here. The approval-card anatomy: a standalone
- * `canvas` card with `shadow-card`, an identity-well head, a sunken subject
+ * `card` surface with `shadow-card`, an identity-well head, a sunken subject
  * block and a pill action row. The root owns the vertical rhythm (`gap-3`), so
  * direct children drop their own top margins.
  */
@@ -30,7 +30,7 @@ function DockRoot({ children, className, ...props }: DockProps) {
   return (
     <div
       data-slot="dock"
-      className={cn("flex flex-col gap-3 rounded-lg bg-canvas p-3.5 shadow-card *:mt-0", className)}
+      className={cn("flex flex-col gap-3 rounded-lg bg-card p-3.5 shadow-card *:mt-0", className)}
       {...props}
     >
       {children}

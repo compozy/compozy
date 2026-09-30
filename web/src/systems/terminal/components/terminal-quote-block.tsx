@@ -23,19 +23,19 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
       data-testid="terminal-quote-block"
     >
       <div className="flex min-h-7 items-center gap-1.75 pr-1 pl-3 font-mono text-micro text-subtle">
-        <TerminalSquare aria-hidden="true" className="size-2.5" />
+        <TerminalSquare aria-hidden="true" className="size-3" />
         <span>
           {quote.terminalId} · lines {quote.fromLine}–{quote.toLine}
         </span>
         <Button
           aria-label="Remove quote"
-          className="ml-auto size-5"
+          className="ml-auto"
           onClick={onRemove}
           size="icon-xs"
           type="button"
-          variant="ghost"
+          variant="quiet"
         >
-          <X aria-hidden="true" className="size-2.5" />
+          <X aria-hidden="true" />
         </Button>
       </div>
       {/* A quoted excerpt sits below the live grid's 12.5px — never at it. */}
@@ -49,7 +49,7 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
           </span>
         ))}
       </div>
-      <div className="px-3 pt-0.75 pb-2 text-micro text-subtle">
+      <div className="px-3 pt-0.75 pb-2 text-eyebrow text-subtle">
         Line numbers can shift as old output is trimmed.
       </div>
     </div>

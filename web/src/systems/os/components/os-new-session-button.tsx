@@ -15,7 +15,8 @@ export interface OsNewSessionButtonProps {
 }
 
 /**
- * The shell's New session primary. Without a project it stays visible but
+ * The window-head New session action (secondary, never the inverted primary:
+ * heads carry no page CTA). Without a project it stays visible but
  * disabled and says why: a disabled button cannot take focus, so a focusable
  * wrapper carries the tooltip and the accessible name.
  */
@@ -26,7 +27,7 @@ export function OsNewSessionButton({
   disabledTestId,
 }: OsNewSessionButtonProps) {
   const button = (
-    <Button disabled={!hasProject || busy} onClick={onNewSession} variant="primary">
+    <Button disabled={!hasProject || busy} onClick={onNewSession} variant="secondary" size="sm">
       <Plus aria-hidden="true" data-icon="inline-start" />
       New session
     </Button>

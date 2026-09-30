@@ -20,7 +20,7 @@ describe("Surface", () => {
   it("Should merge consumer className onto the surface tuple", () => {
     const { container } = render(<Surface className="flex flex-col gap-2">body</Surface>);
     const root = container.querySelector<HTMLElement>('[data-slot="surface"]');
-    expect(root?.className).toContain("bg-canvas");
+    expect(root?.className).toContain("bg-card");
     expect(root?.className).toContain("flex");
   });
 
@@ -28,7 +28,8 @@ describe("Surface", () => {
     const { container } = render(<Surface>body</Surface>);
     const root = container.querySelector<HTMLElement>('[data-slot="surface"]');
     expect(root).toHaveAttribute("data-variant", "card");
-    expect(root).toHaveClass("bg-canvas", "shadow-card");
+    expect(root).toHaveClass("bg-card", "shadow-card");
+    expect(root).not.toHaveClass("bg-canvas");
   });
 
   it("Should recess the sunken variant without a border or shadow", () => {

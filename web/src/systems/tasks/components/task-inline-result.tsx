@@ -22,7 +22,7 @@ export function TaskInlineResult({
   const [open, setOpen] = useState(false);
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
-      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         {!open ? (
           <div className="max-h-44 overflow-hidden px-4 py-3.5">
             <TaskInlineResultValue jsonTestId={jsonTestId} result={result} />
@@ -41,6 +41,7 @@ export function TaskInlineResult({
                 {open ? "Collapse result" : "Expand result"}
                 <ChevronDown
                   aria-hidden="true"
+                  data-icon="inline-end"
                   className="transition-transform duration-fast group-data-panel-open/result-trigger:rotate-180 motion-reduce:transition-none"
                 />
               </Button>

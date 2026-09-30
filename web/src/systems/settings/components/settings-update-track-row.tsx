@@ -93,8 +93,8 @@ export function SettingsUpdateTrackRow({
               </SettingValue>
             </span>
           ) : (
-            <Pill tone={track.tone}>
-              {track.tone === "success" ? <Pill.Dot tone="success" /> : null}
+            <Pill form="plain" tone={track.tone}>
+              <Pill.Dot />
               {track.statusLabel}
             </Pill>
           )}
@@ -107,7 +107,7 @@ export function SettingsUpdateTrackRow({
               type="button"
               variant="ghost"
             >
-              {isCanceling ? <Spinner className="size-3" /> : null}
+              {isCanceling ? <Spinner className="size-3.5" /> : null}
               Cancel staged update
             </Button>
           ) : null}
@@ -126,7 +126,7 @@ export function SettingsUpdateTrackRow({
               size="sm"
               variant="ghost"
             >
-              <ExternalLink aria-hidden="true" className="size-3 text-subtle" />
+              <ExternalLink aria-hidden="true" className="text-subtle" />
             </Button>
           ) : null}
         </>

@@ -43,7 +43,7 @@ export function FilterConditions({
           <b className="font-mono text-form-hint font-medium text-fg">{eventKind}</b> event.
         </div>
         <Button onClick={handleAdd} size="xs" type="button" variant="neutral">
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           Add condition
         </Button>
       </div>
@@ -86,7 +86,7 @@ export function FilterConditions({
       ) : null}
       <div className="flex items-center">
         <Button onClick={handleAdd} size="xs" type="button" variant="neutral">
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           Add condition
         </Button>
         <span className="ml-2.5 text-form-hint text-faint">all conditions must match (AND)</span>

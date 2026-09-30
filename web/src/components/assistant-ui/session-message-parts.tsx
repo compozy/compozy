@@ -23,7 +23,7 @@ export function SessionMessageText({
  */
 export function SessionDataEventMarker({ name }: { name: string }) {
   return (
-    <Marker data-testid="session-data-part" icon={<Activity strokeWidth={1.8} />}>
+    <Marker data-testid="session-data-part" icon={<Activity />}>
       <b>Data event</b> <MarkerMeta>{name}</MarkerMeta>
     </Marker>
   );

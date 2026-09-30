@@ -201,7 +201,7 @@ function RosterBody({
     return (
       <SkeletonRows
         aria-hidden="true"
-        className="gap-3 rounded-lg bg-canvas shadow-card px-4 py-3"
+        className="gap-3 rounded-lg bg-card shadow-card px-4 py-3"
         count={3}
         data-testid="loop-runs-skeleton"
       >

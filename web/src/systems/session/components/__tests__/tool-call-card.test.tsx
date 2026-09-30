@@ -148,13 +148,14 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryStatusIndicator()).toBeNull();
   });
 
-  it("Should map an in-flight tool with input to the running row state glyph", () => {
+  it("Should map an in-flight tool with input to the running row state with a Spinner", () => {
     render(<SessionToolCallRow message={makeToolMessage()} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("running");
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("running");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
-    expect(indicator).toHaveAttribute("data-state", "running");
+    expect(indicator).not.toHaveClass("text-success");
+    expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Reading…");
   });

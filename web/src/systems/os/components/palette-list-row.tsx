@@ -12,7 +12,7 @@ export function PaletteListRow({ row }: { row: CmdPaletteViewRow }) {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="truncate text-small-body leading-none font-medium text-fg">{row.title}</div>
         {row.subtitle ? (
-          <div className="truncate text-micro leading-snug text-muted">{row.subtitle}</div>
+          <div className="truncate text-eyebrow leading-snug text-muted">{row.subtitle}</div>
         ) : null}
       </div>
       {row.accessories?.map(accessory => (
@@ -21,7 +21,8 @@ export function PaletteListRow({ row }: { row: CmdPaletteViewRow }) {
         </span>
       ))}
       {row.badge ? (
-        <Pill size="xs" tone={statusTone(row.badge.tone)}>
+        <Pill form="plain" size="xs" tone={statusTone(row.badge.tone)}>
+          <Pill.Dot />
           {row.badge.label}
         </Pill>
       ) : null}

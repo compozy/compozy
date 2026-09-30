@@ -36,7 +36,7 @@ function FooterNote({
 }) {
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-2.5 border-t border-line-soft bg-canvas px-3"
+      className="flex h-10 shrink-0 items-center gap-2.5 border-t border-line-soft bg-popover px-3"
       data-testid="runtime-selector-reasoning"
       data-reasoning-mode={mode}
     >
@@ -111,7 +111,7 @@ export function SelectorFooter({
 
   return (
     <div
-      className="flex h-11 shrink-0 items-center gap-2.5 border-t border-line-soft bg-canvas px-3"
+      className="flex h-11 shrink-0 items-center gap-2.5 border-t border-line-soft bg-popover px-3"
       data-testid="runtime-selector-reasoning"
       data-reasoning-mode="levels"
     >

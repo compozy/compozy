@@ -48,7 +48,7 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
   return (
     <div className="flex flex-col gap-5">
       <section
-        className="flex flex-col gap-3 rounded-lg bg-canvas shadow-card p-4"
+        className="flex flex-col gap-3 rounded-lg bg-sunken p-4"
         data-testid="provider-detail-summary"
       >
         <div className="flex flex-col gap-1">
@@ -280,7 +280,10 @@ function CredentialList({
           >
             <div className="flex items-center justify-between gap-2">
               <MonoId preserveCase value={slot.name} />
-              <Pill tone={stateTone}>{stateLabel}</Pill>
+              <Pill form="plain" tone={stateTone}>
+                <Pill.Dot />
+                {stateLabel}
+              </Pill>
             </div>
             <MetadataList>
               <MetadataListRow label="Variable">
@@ -365,9 +368,9 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
         data-testid="inspect-catalog-refresh"
       >
         {refreshMutation.isPending ? (
-          <Spinner aria-hidden="true" className="size-3" />
+          <Spinner aria-hidden="true" className="size-3.5" />
         ) : (
-          <RefreshCw aria-hidden="true" className="size-3" />
+          <RefreshCw aria-hidden="true" />
         )}
         {refreshing ? "Refreshing…" : "Refresh model list"}
       </Button>

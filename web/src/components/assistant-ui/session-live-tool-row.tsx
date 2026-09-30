@@ -1,3 +1,6 @@
+import { Layers } from "lucide-react";
+import { createElement } from "react";
+
 import {
   SessionToolCallRow,
   liveToolLabel,
@@ -8,32 +11,46 @@ import {
 import type { SessionNavigationReveal } from "./hooks/session-navigation-target-context";
 import { toolMessageFromPart } from "./session-timeline-tool-message";
 
+import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
-import { StateGlyph, ToolCallRow, TranscriptDisclosure } from "@compozy/ui";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 
-// The one live line (ADR-006 rule 1), in the sunken tool panel's grammar: kind
-// glyph, the active verb, the mono preview, and the mint running ring as the
-// row's only motion. A paused window (or reduced motion) holds the ring still;
-// the verb carries the state. Plain text, not a popover: the raw input is one
-// click away once the call settles into its tool row; a truncated title keeps
-// the full name on hover.
-function LiveToolLine({ part }: { part: SessionTimelineToolPart }) {
+function LiveToolGlyph({ part }: { part: SessionTimelineToolPart }) {
+  return createElement(getToolIcon(resolveRegisteredToolName(part.toolName), part.args), {
+    "aria-hidden": true,
+    className: "size-3.5 shrink-0 text-subtle",
+  });
+}
+
+// The one live line: kind glyph in the 20px well, the sentence shimmering
+// (plain subtle text when still — under reduced motion, or while the window
+// is paused — the word "Running" carries the state), nothing on the right.
+// Plain text, not a popover: the raw input is one click away once the call
+// settles into its tool row; a truncated title keeps the full name on hover.
+function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: boolean }) {
   const label = liveToolLabel(part.toolName, part.args, part.toolTitle);
   return (
-    <ToolCallRow
+    <div
+      className="flex min-h-transcript-line min-w-0 items-center gap-transcript-inline-gap px-1 text-small-body"
       data-testid="live-tool-row"
       data-live-kind={part.toolName}
-      icon={getToolIcon(resolveRegisteredToolName(part.toolName), part.args)}
-      toolName={
-        <span data-testid="live-tool-label" title={part.toolTitle ?? label.text}>
-          {label.verb}
-        </span>
-      }
-      preview={label.preview ?? undefined}
-      status="running"
-    />
+    >
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-xs">
+        <LiveToolGlyph part={part} />
+      </span>
+      <span
+        className={cn(
+          "min-w-0 max-w-sm flex-1 truncate font-medium",
+          still ? "text-subtle" : "session-shimmer"
+        )}
+        data-testid="live-tool-label"
+        title={part.toolTitle ?? label.text}
+      >
+        {label.text}
+      </span>
+    </div>
   );
 }
 
@@ -46,11 +63,11 @@ export interface SessionLiveToolRowViewProps {
 
 /**
  * `SessionLiveToolRow` (ADR-006 rule 1): exactly one live row for the calls
- * still running, set in the sunken tool panel. A single call reads "{verb}
- * {preview}"; several stay one honest row — "Running N tools…" — that expands
- * to the in-flight list. A running child agent is its own row with the bot
- * glyph. The running ring is the row's only motion: it holds still under
- * reduced motion and while the window is paused (US-018.EC-2) — a view that is
+ * still running. A single call reads "Running {tool} — {preview}"; several stay
+ * one honest row — "Running N tools…" with the `layers` glyph — that expands to
+ * the in-flight list. A running child agent is its own row with the bot glyph.
+ * The shimmer is the only motion in the transcript: it dies under reduced
+ * motion and stops while the window is paused (US-018.EC-2) — a view that is
  * not applying frames has no cadence to show.
  */
 export function SessionLiveToolRowView({
@@ -71,9 +88,7 @@ export function SessionLiveToolRowView({
         data-still={still || undefined}
         className="flex min-w-0 flex-col"
       >
-        <ToolCallRow.Group still={still}>
-          <LiveToolLine part={first} />
-        </ToolCallRow.Group>
+        <LiveToolLine part={first} still={still} />
         {reveal ? (
           <SessionToolCallRow
             message={toolMessageFromPart(first)}
@@ -98,9 +113,12 @@ export function SessionLiveToolRowView({
         aria-controls={detailsId}
         data-testid="live-tool-parallel"
         expanded={row.expanded}
-        icon={<StateGlyph size="sm" state="running" still={still} />}
+        icon={<Layers aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />}
         label={
-          <span className="font-medium" data-testid="live-tool-label">
+          <span
+            className={cn("font-medium", still ? "text-subtle" : "session-shimmer")}
+            data-testid="live-tool-label"
+          >
             {parallelToolLabel(row.entries.length)}
           </span>
         }
@@ -112,13 +130,16 @@ export function SessionLiveToolRowView({
         hidden={!row.expanded}
         aria-hidden={!row.expanded}
         inert={!row.expanded}
-        className={row.expanded ? "min-w-0 pt-1.5" : undefined}
+        className={
+          row.expanded
+            ? "ml-transcript-detail-indent flex min-w-0 flex-col gap-0.5 pt-0.5"
+            : undefined
+        }
       >
-        {row.expanded ? (
-          <ToolCallRow.Group still={still}>
-            {row.entries.map(part => (
+        {row.expanded
+          ? row.entries.map(part => (
               <div key={part.id} className="min-w-0">
-                <LiveToolLine part={part} />
+                <LiveToolLine part={part} still={still} />
                 {reveal && reveal.partIndex === part.partIndex ? (
                   <SessionToolCallRow
                     message={toolMessageFromPart(part)}
@@ -129,9 +150,8 @@ export function SessionLiveToolRowView({
                   />
                 ) : null}
               </div>
-            ))}
-          </ToolCallRow.Group>
-        ) : null}
+            ))
+          : null}
       </div>
     </div>
   );

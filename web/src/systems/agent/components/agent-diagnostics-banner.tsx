@@ -44,7 +44,7 @@ export function AgentDiagnosticsBanner({ diagnostics }: AgentDiagnosticsBannerPr
           >
             <ChevronRight
               aria-hidden="true"
-              className="size-3 transition-transform group-data-panel-open/agent-diagnostics:rotate-90"
+              className="size-3.5 transition-transform group-data-panel-open/agent-diagnostics:rotate-90"
             />
             Details
           </CollapsibleTrigger>

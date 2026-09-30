@@ -12,29 +12,32 @@ tokens:
   runtime:
     colors:
       rail: "#0a0a0a"
-      desk: "#101010"
-      canvas: "#1a1a1a"
-      canvas-soft: "#1f1f1f"
-      sunken: "#101010"
-      surface-2: "#242424"
-      selected: "#242424"
-      code-bg: "#171717"
-      sidebar: "#1f1f1f"
-      elevated: "#2b2b2b"
+      rail-hover: "#232323"
+      rail-selected: "#262626"
+      desk: "#131313"
+      canvas: "#131313"
+      canvas-soft: "#1a1a1a"
+      sunken: "#0e0e0e"
+      surface-2: "#232323"
+      selected: "#262626"
+      code-bg: "#1a1a1a"
+      sidebar: "var(--color-sunken)"
+      elevated: "#1c1c1c"
       hover: "var(--color-surface-2)"
       disabled: "#4d4d4d"
-      line: "#303030"
-      line-soft: "#262626"
-      line-strong: "#424242"
+      line: "#2a2a2a"
+      line-soft: "#202020"
+      line-strong: "#3a3a3a"
       line-focus: "#5c5c5c"
       indicator: "#707070"
+      knob: "#f5f5f5"
       fg: "#f5f5f5"
       fg-strong: "#ffffff"
       fg-2: "#c4c4c4"
       fg-3: "#dcdcdc"
       muted: "#a3a3a3"
       subtle: "#8e8e8e"
-      faint: "#8c8c8c"
+      faint: "#8d8d8d"
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
@@ -93,7 +96,7 @@ tokens:
       foreground: "var(--color-fg)"
       card: "var(--color-canvas-soft)"
       card-foreground: "var(--color-fg)"
-      popover: "var(--color-canvas)"
+      popover: "var(--color-elevated)"
       popover-foreground: "var(--color-fg)"
       secondary: "transparent"
       secondary-foreground: "var(--color-fg)"
@@ -137,29 +140,31 @@ tokens:
       terminal-ansi-14: "var(--terminal-ansi-14)"
       terminal-ansi-15: "var(--terminal-ansi-15)"
     colors-light:
-      rail: "#fafafa"
-      desk: "#fafafa"
+      rail: "#f2f2f3"
+      rail-hover: "#e8e8ea"
+      rail-selected: "#e3e3e6"
+      desk: "#ffffff"
       canvas: "#ffffff"
       canvas-soft: "#ffffff"
-      sunken: "#f7f8fa"
-      surface-2: "#f4f5f7"
-      selected: "#f0f1f3"
-      code-bg: "#f4f5f7"
-      sidebar: "#ffffff"
-      elevated: "#eeeff2"
+      sunken: "#f7f7f8"
+      surface-2: "#f4f4f5"
+      selected: "#efeff1"
+      code-bg: "#f6f6f7"
+      elevated: "#ffffff"
       disabled: "#c4c7cc"
-      line: "#e6e8ec"
-      line-soft: "#f1f2f5"
-      line-strong: "#d4d7dd"
+      line: "#e6e6e9"
+      line-soft: "#efeff1"
+      line-strong: "#d6d6db"
       line-focus: "#b8bcc4"
       indicator: "#888888"
+      knob: "#ffffff"
       fg: "#1a1a1a"
       fg-strong: "#0b0d12"
       fg-2: "#4c4c4c"
       fg-3: "#333333"
-      muted: "#6e6e6e"
-      subtle: "#6e6e6e"
-      faint: "#6e6e6e"
+      muted: "#6b6b6b"
+      subtle: "#6b6b6b"
+      faint: "#6b6b6b"
       primary: "#0b0d12"
       primary-hover: "#2a2f3a"
       primary-foreground: "#ffffff"
@@ -221,49 +226,48 @@ tokens:
       weight-medium: "500"
       weight-semibold: "600"
       weight-bold: "600"
-      weight-display: "620"
     typography:
-      meta: { size: "0.8125rem", line: "1.125rem" }
-      body: { size: "0.90625rem", line: "1.375rem", tracking: "-0.01em" }
-      heading: { size: "1.0625rem", line: "1.5rem" }
-      item-title: { size: "0.9375rem", line: "1.375rem" }
-      small-body: { size: "0.84375rem", line: "1.25rem" }
+      meta: { size: "0.78125rem", line: "1.125rem" }
+      body: { size: "0.84375rem", line: "1.25rem", tracking: "-0.01em" }
+      heading: { size: "0.9375rem", line: "1.1875rem" }
+      item-title: { size: "0.875rem", line: "1.125rem" }
+      small-body: { size: "0.8125rem", line: "1.1875rem" }
       badge: { size: "0.6875rem", line: "0.75rem" }
       eyebrow: { size: "0.75rem", line: "1rem", tracking: "-0.005em" }
       eyebrow-caps: { size: "0.6875rem", line: "1rem", tracking: "0.06em" }
       kbd: { size: "0.75rem", line: "1rem", tracking: "0.03em" }
       kbd--font-weight: { size: "425" }
-      display-2xl: { size: "1.75rem", line: "1" }
+      display-2xl: { size: "1.5rem", line: "1.25" }
       site-lead: { size: "1.1875rem", line: "1.5" }
       micro: { size: "0.6875rem", line: "0.75rem" }
       count: { size: "0.59375rem", line: "0.9375rem" }
       inline-code: { size: "0.9em" }
       accent-glyph: { size: "0.85em" }
       ui-title-lg: { size: "1.35rem" }
-      detail-h1: { size: "1.4rem", line: "1.25", tracking: "-0.028em" }
-      compact-h1: { size: "1.0625rem", line: "1.25", tracking: "-0.022em" }
-      empty-h1: { size: "1.0625rem", tracking: "-0.022em" }
-      modal-title: { size: "0.9375rem", tracking: "-0.012em" }
+      detail-h1: { size: "1.125rem", line: "1.25", tracking: "-0.015em" }
+      compact-h1: { size: "0.9375rem", line: "1.25", tracking: "-0.015em" }
+      empty-h1: { size: "0.9375rem", tracking: "-0.015em" }
+      modal-title: { size: "0.875rem", tracking: "-0.012em" }
       section-head: { size: "0.7rem", tracking: "-0.008em" }
-      form-input: { size: "0.84375rem" }
+      form-input: { size: "0.8125rem" }
       form-label: { size: "0.8125rem" }
       form-hint: { size: "0.75rem" }
       form-required: { size: "0.625rem" }
-      metric-value: { size: "1.375rem" }
-      kpi-value: { size: "1.5rem", line: "1.05" }
-      kpi-compact: { size: "1.0625rem" }
-      agent-metric: { size: "1rem" }
+      metric-value: { size: "1.25rem" }
+      kpi-value: { size: "1.25rem", line: "1.1" }
+      kpi-compact: { size: "0.9375rem" }
+      agent-metric: { size: "0.9375rem" }
       rail-avatar: { size: "0.71875rem" }
-      ws-name: { size: "0.9375rem" }
+      ws-name: { size: "0.875rem" }
       mono-id: { size: "0.6875rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
-      card-title: { size: "0.9375rem", line: "1.4" }
-      prose-h1: { size: "1.375rem", line: "1.25", tracking: "-0.022em" }
-      prose-h2: { size: "1.125rem", line: "1.3", tracking: "-0.018em" }
-      prose-h3: { size: "1rem", line: "1.4", tracking: "-0.01em" }
+      card-title: { size: "0.875rem", line: "1.3" }
+      prose-h1: { size: "1.125rem", line: "1.25", tracking: "-0.015em" }
+      prose-h2: { size: "1rem", line: "1.3", tracking: "-0.015em" }
+      prose-h3: { size: "0.90625rem", line: "1.4", tracking: "-0.01em" }
       code-block: { size: "0.8125rem", line: "1.5" }
-      transcript-message: { size: "0.90625rem" }
-      transcript-body: { size: "0.8125rem" }
+      transcript-message: { size: "0.875rem", line: "1.6" }
+      transcript-body: { size: "0.78125rem" }
       transcript-meta: { size: "0.75rem" }
       transcript-caption: { size: "0.6875rem" }
       workspace-avatar: { size: "9px" }
@@ -301,10 +305,10 @@ tokens:
         workspaces-stage-entry: "0.985"
         workspaces-tile-press: "0.96"
     shadow:
-      card: "0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d"
+      card: "0 0 0 1px var(--color-line), 0 1px 2px #0006, 0 2px 4px #0000004d"
       elevated: "0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006"
-      pop: "0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006"
-      overlay: "0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)"
+      pop: "0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006"
+      overlay: "0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.035)"
       focus-ring: "0 0 0 2px rgba(255, 255, 255, 0.5)"
       focus-inset: "inset 0 0 0 2px rgba(255, 255, 255, 0.5)"
@@ -313,24 +317,24 @@ tokens:
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
       danger-inset: "inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)"
     shadow-light:
-      card: "0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005"
+      card: "0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005"
       elevated: "0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
-      pop: "0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
-      overlay: "0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06)"
+      pop: "0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
+      overlay: "0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.7)"
       focus-ring: "0 0 0 2px rgba(10, 13, 18, 0.5)"
       focus-inset: "inset 0 0 0 2px rgba(10, 13, 18, 0.5)"
     sizes:
-      height-button-xs: "24px"
+      height-button-xs: "22px"
       height-button-sm: "26px"
-      height-button-default: "32px"
+      height-button-default: "30px"
       height-button-lg: "34px"
       height-button-cta: "36px"
       height-button-cta-lg: "44px"
-      size-button-icon-xs: "24px"
+      size-button-icon-xs: "22px"
       size-button-icon-sm: "26px"
-      size-button-icon-default: "30px"
-      size-button-icon-lg: "34px"
+      size-button-icon-default: "28px"
+      size-button-icon-lg: "32px"
       height-transcript-row: "22px"
       height-transcript-line: "24px"
       size-transcript-icon-well: "18px"
@@ -340,9 +344,9 @@ tokens:
       spacing-transcript-message-y: "7px"
       spacing-transcript-turn-gap: "18px"
       spacing-transcript-meta-gap: "3px"
-      height-input: "36px"
-      height-control-compact: "32px"
-      height-search: "28px"
+      height-input: "30px"
+      height-control-compact: "26px"
+      height-search: "26px"
       width-symbol-picker-color-input: "7.5rem"
       size-symbol-picker-cell: "1.75rem"
       height-color-picker-area: "9rem"
@@ -399,7 +403,6 @@ tokens:
       width-table-cell-md: "288px"
       width-table-cell-lg: "360px"
       container-content-max: "1320px"
-      container-transcript: "760px"
       width-right-rail-default: "468px"
       width-message-bubble-max: "640px"
       min-width-search-input: "220px"
@@ -441,7 +444,6 @@ tokens:
       width-deck-tab-max: "208px"
       size-deck-glyph: "13px"
       min-width-deck-badge: "14px"
-      size-deck-add: "28px"
       size-deck-close: "20px"
       height-setup-head: "52px"
       height-setup-steps: "44px"
@@ -458,10 +460,10 @@ tokens:
       width-modal-xl: "1180px"
       size-catalog-logo: "1.5rem"
       size-provider-logo-well: "2.5rem"
-      height-pill-group-segment-md: "30px"
+      height-pill-group-segment-md: "26px"
       height-pill-group-segment-sm: "20px"
       space-pill-group-segment-sm-x: "8px"
-      space-pill-group-segment-md-x: "12px"
+      space-pill-group-segment-md-x: "10px"
       space-home-pulse-gap: "3px"
       size-home-pulse-label: "34px"
       size-home-pulse-cell-min: "18px"
@@ -665,21 +667,23 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:surface-ramp -->
 
-| Token                 | Dark                     | Light                    |
-| --------------------- | ------------------------ | ------------------------ |
-| `--color-rail`        | `#0a0a0a`                | `#fafafa`                |
-| `--color-desk`        | `#101010`                | `#fafafa`                |
-| `--color-canvas`      | `#1a1a1a`                | `#ffffff`                |
-| `--color-canvas-soft` | `#1f1f1f`                | `#ffffff`                |
-| `--color-sunken`      | `#101010`                | `#f7f8fa`                |
-| `--color-surface-2`   | `#242424`                | `#f4f5f7`                |
-| `--color-selected`    | `#242424`                | `#f0f1f3`                |
-| `--color-code-bg`     | `#171717`                | `#f4f5f7`                |
-| `--color-sidebar`     | `#1f1f1f`                | `#ffffff`                |
-| `--color-elevated`    | `#2b2b2b`                | `#eeeff2`                |
-| `--color-well`        | `#1e342c`                | `#def2ea`                |
-| `--color-hover`       | `var(--color-surface-2)` | `var(--color-surface-2)` |
-| `--color-disabled`    | `#4d4d4d`                | `#c4c7cc`                |
+| Token                   | Dark                     | Light                    |
+| ----------------------- | ------------------------ | ------------------------ |
+| `--color-rail`          | `#0a0a0a`                | `#f2f2f3`                |
+| `--color-rail-hover`    | `#232323`                | `#e8e8ea`                |
+| `--color-rail-selected` | `#262626`                | `#e3e3e6`                |
+| `--color-desk`          | `#131313`                | `#ffffff`                |
+| `--color-canvas`        | `#131313`                | `#ffffff`                |
+| `--color-canvas-soft`   | `#1a1a1a`                | `#ffffff`                |
+| `--color-sunken`        | `#0e0e0e`                | `#f7f7f8`                |
+| `--color-surface-2`     | `#232323`                | `#f4f4f5`                |
+| `--color-selected`      | `#262626`                | `#efeff1`                |
+| `--color-code-bg`       | `#1a1a1a`                | `#f6f6f7`                |
+| `--color-sidebar`       | `var(--color-sunken)`    | `var(--color-sunken)`    |
+| `--color-elevated`      | `#1c1c1c`                | `#ffffff`                |
+| `--color-well`          | `#1e342c`                | `#def2ea`                |
+| `--color-hover`         | `var(--color-surface-2)` | `var(--color-surface-2)` |
+| `--color-disabled`      | `#4d4d4d`                | `#c4c7cc`                |
 
 <!-- END:tokens:surface-ramp -->
 
@@ -689,9 +693,9 @@ token or component at the source; do not locally override one callsite.
 
 | Token                 | Dark      | Light     |
 | --------------------- | --------- | --------- |
-| `--color-line`        | `#303030` | `#e6e8ec` |
-| `--color-line-soft`   | `#262626` | `#f1f2f5` |
-| `--color-line-strong` | `#424242` | `#d4d7dd` |
+| `--color-line`        | `#2a2a2a` | `#e6e6e9` |
+| `--color-line-soft`   | `#202020` | `#efeff1` |
+| `--color-line-strong` | `#3a3a3a` | `#d6d6db` |
 | `--color-line-focus`  | `#5c5c5c` | `#b8bcc4` |
 
 <!-- END:tokens:hairlines -->
@@ -706,9 +710,9 @@ token or component at the source; do not locally override one callsite.
 | `--color-fg-strong` | `#ffffff` | `#0b0d12` |
 | `--color-fg-2`      | `#c4c4c4` | `#4c4c4c` |
 | `--color-fg-3`      | `#dcdcdc` | `#333333` |
-| `--color-muted`     | `#a3a3a3` | `#6e6e6e` |
-| `--color-subtle`    | `#8e8e8e` | `#6e6e6e` |
-| `--color-faint`     | `#8c8c8c` | `#6e6e6e` |
+| `--color-muted`     | `#a3a3a3` | `#6b6b6b` |
+| `--color-subtle`    | `#8e8e8e` | `#6b6b6b` |
+| `--color-faint`     | `#8d8d8d` | `#6b6b6b` |
 
 <!-- END:tokens:text-ladder -->
 
@@ -870,13 +874,18 @@ below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
 alias, not a type-ramp utility.
 
 The body baseline is set once in `tokens-runtime.css`: Inter 425 at
-`--text-body` (14.5px), line height 1.5, `--tracking-body` (−0.01em), and
+`--text-body` (13.5px), line height 1.5, `--tracking-body` (−0.01em), and
 Inter's `cv11` (single-storey a). The weight ladder is 425 / 500 / 600
-(`font-normal` / `font-medium` / `font-semibold`; `font-bold` caps at 600).
-The brand ramp is 12 (`text-xs`, eyebrow) · 13 (`--text-meta`) · 13.5
-(`--text-small-body`) · 14.5 (`--text-body`) · 15 (`--text-card-title`,
-`--text-item-title`) · 17 (`--text-heading`). Components should compose from
-text and tracking tokens rather than re-declaring pixel sizes.
+(`font-normal` / `font-medium` / `font-semibold`; `font-bold` caps at 600) —
+no 620 or 700; KPI and metric values are `font-semibold` with tabular numerals.
+The brand ramp is compact: 11 (micro, caps) · 12 (`text-xs`, eyebrow, kbd) ·
+12.5 (`--text-meta`) · 13 (`--text-small-body`, inputs, menu items) · 13.5
+(`--text-body`: rows, labels, tabs) · 14 (`--text-card-title`,
+`--text-item-title`, dialog titles) · 15 (`--text-heading`, window titles) ·
+18 (`--text-detail-h1`, page H1) · 20 (`--text-kpi-value`). Headings track at
+−0.015em, body at −0.01em. Components compose from text and tracking tokens
+rather than re-declaring pixel sizes; raw `text-[..px]` literals are not
+allowed.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
 primitive with two fixed renditions, both utilities in `tokens-runtime.css`.
@@ -907,7 +916,6 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--font-weight-medium`   | `500`                                                                                                               |
 | `--font-weight-semibold` | `600`                                                                                                               |
 | `--font-weight-bold`     | `600`                                                                                                               |
-| `--font-weight-display`  | `620`                                                                                                               |
 
 <!-- END:tokens:fonts -->
 
@@ -917,47 +925,47 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 | Token                       | Size         | Line        | Tracking   |
 | --------------------------- | ------------ | ----------- | ---------- |
-| `--text-meta`               | `0.8125rem`  | `1.125rem`  |            |
-| `--text-body`               | `0.90625rem` | `1.375rem`  | `-0.01em`  |
-| `--text-heading`            | `1.0625rem`  | `1.5rem`    |            |
-| `--text-item-title`         | `0.9375rem`  | `1.375rem`  |            |
-| `--text-small-body`         | `0.84375rem` | `1.25rem`   |            |
+| `--text-meta`               | `0.78125rem` | `1.125rem`  |            |
+| `--text-body`               | `0.84375rem` | `1.25rem`   | `-0.01em`  |
+| `--text-heading`            | `0.9375rem`  | `1.1875rem` |            |
+| `--text-item-title`         | `0.875rem`   | `1.125rem`  |            |
+| `--text-small-body`         | `0.8125rem`  | `1.1875rem` |            |
 | `--text-badge`              | `0.6875rem`  | `0.75rem`   |            |
 | `--text-eyebrow`            | `0.75rem`    | `1rem`      | `-0.005em` |
 | `--text-eyebrow-caps`       | `0.6875rem`  | `1rem`      | `0.06em`   |
 | `--text-kbd`                | `0.75rem`    | `1rem`      | `0.03em`   |
 | `--text-kbd--font-weight`   | `425`        |             |            |
-| `--text-display-2xl`        | `1.75rem`    | `1`         |            |
+| `--text-display-2xl`        | `1.5rem`     | `1.25`      |            |
 | `--text-site-lead`          | `1.1875rem`  | `1.5`       |            |
 | `--text-micro`              | `0.6875rem`  | `0.75rem`   |            |
 | `--text-count`              | `0.59375rem` | `0.9375rem` |            |
 | `--text-inline-code`        | `0.9em`      |             |            |
 | `--text-accent-glyph`       | `0.85em`     |             |            |
 | `--text-ui-title-lg`        | `1.35rem`    |             |            |
-| `--text-detail-h1`          | `1.4rem`     | `1.25`      | `-0.028em` |
-| `--text-compact-h1`         | `1.0625rem`  | `1.25`      | `-0.022em` |
-| `--text-empty-h1`           | `1.0625rem`  |             | `-0.022em` |
-| `--text-modal-title`        | `0.9375rem`  |             | `-0.012em` |
+| `--text-detail-h1`          | `1.125rem`   | `1.25`      | `-0.015em` |
+| `--text-compact-h1`         | `0.9375rem`  | `1.25`      | `-0.015em` |
+| `--text-empty-h1`           | `0.9375rem`  |             | `-0.015em` |
+| `--text-modal-title`        | `0.875rem`   |             | `-0.012em` |
 | `--text-section-head`       | `0.7rem`     |             | `-0.008em` |
-| `--text-form-input`         | `0.84375rem` |             |            |
+| `--text-form-input`         | `0.8125rem`  |             |            |
 | `--text-form-label`         | `0.8125rem`  |             |            |
 | `--text-form-hint`          | `0.75rem`    |             |            |
 | `--text-form-required`      | `0.625rem`   |             |            |
-| `--text-metric-value`       | `1.375rem`   |             |            |
-| `--text-kpi-value`          | `1.5rem`     | `1.05`      |            |
-| `--text-kpi-compact`        | `1.0625rem`  |             |            |
-| `--text-agent-metric`       | `1rem`       |             |            |
+| `--text-metric-value`       | `1.25rem`    |             |            |
+| `--text-kpi-value`          | `1.25rem`    | `1.1`       |            |
+| `--text-kpi-compact`        | `0.9375rem`  |             |            |
+| `--text-agent-metric`       | `0.9375rem`  |             |            |
 | `--text-rail-avatar`        | `0.71875rem` |             |            |
-| `--text-ws-name`            | `0.9375rem`  |             |            |
+| `--text-ws-name`            | `0.875rem`   |             |            |
 | `--text-mono-id`            | `0.6875rem`  |             | `0`        |
 | `--text-pill-group-badge`   | `0.5625rem`  |             |            |
-| `--text-card-title`         | `0.9375rem`  | `1.4`       |            |
-| `--text-prose-h1`           | `1.375rem`   | `1.25`      | `-0.022em` |
-| `--text-prose-h2`           | `1.125rem`   | `1.3`       | `-0.018em` |
-| `--text-prose-h3`           | `1rem`       | `1.4`       | `-0.01em`  |
+| `--text-card-title`         | `0.875rem`   | `1.3`       |            |
+| `--text-prose-h1`           | `1.125rem`   | `1.25`      | `-0.015em` |
+| `--text-prose-h2`           | `1rem`       | `1.3`       | `-0.015em` |
+| `--text-prose-h3`           | `0.90625rem` | `1.4`       | `-0.01em`  |
 | `--text-code-block`         | `0.8125rem`  | `1.5`       |            |
-| `--text-transcript-message` | `0.90625rem` |             |            |
-| `--text-transcript-body`    | `0.8125rem`  |             |            |
+| `--text-transcript-message` | `0.875rem`   | `1.6`       |            |
+| `--text-transcript-body`    | `0.78125rem` |             |            |
 | `--text-transcript-meta`    | `0.75rem`    |             |            |
 | `--text-transcript-caption` | `0.6875rem`  |             |            |
 | `--text-workspace-avatar`   | `9px`        |             |            |
@@ -970,14 +978,14 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 | Token                     | Value      | Token                     | Value      |
 | ------------------------- | ---------- | ------------------------- | ---------- |
-| `--tracking-mono`         | `0.02em`   | `--tracking-detail-h1`    | `-0.028em` |
-| `--tracking-compact-h1`   | `-0.022em` | `--tracking-empty-h1`     | `-0.022em` |
+| `--tracking-mono`         | `0.02em`   | `--tracking-detail-h1`    | `-0.015em` |
+| `--tracking-compact-h1`   | `-0.015em` | `--tracking-empty-h1`     | `-0.015em` |
 | `--tracking-modal-title`  | `-0.012em` | `--tracking-section-head` | `-0.008em` |
 | `--tracking-tight`        | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
 | `--tracking-eyebrow-caps` | `0.06em`   | `--tracking-mono-id`      | `0`        |
 | `--tracking-redacted`     | `0.35em`   | `--tracking-kbd`          | `0.03em`   |
 | `--tracking-body`         | `-0.01em`  | `--tracking-row-title`    | `-0.01em`  |
-| `--tracking-prose-h1`     | `-0.022em` | `--tracking-prose-h2`     | `-0.018em` |
+| `--tracking-prose-h1`     | `-0.015em` | `--tracking-prose-h2`     | `-0.015em` |
 | `--tracking-prose-h3`     | `-0.01em`  |                           |            |
 
 <!-- END:tokens:tracking-ladder -->
@@ -1043,58 +1051,57 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:component-sizes -->
 
-| Token                                      | Value                            | Token                               | Value                                                       | Token                                   | Value     |
-| ------------------------------------------ | -------------------------------- | ----------------------------------- | ----------------------------------------------------------- | --------------------------------------- | --------- |
-| `--height-button-xs`                       | `24px`                           | `--height-button-sm`                | `26px`                                                      | `--height-button-default`               | `32px`    |
-| `--height-button-lg`                       | `34px`                           | `--height-button-cta`               | `36px`                                                      | `--height-button-cta-lg`                | `44px`    |
-| `--size-button-icon-xs`                    | `24px`                           | `--size-button-icon-sm`             | `26px`                                                      | `--size-button-icon-default`            | `30px`    |
-| `--size-button-icon-lg`                    | `34px`                           | `--height-transcript-row`           | `22px`                                                      | `--height-transcript-line`              | `24px`    |
-| `--size-transcript-icon-well`              | `18px`                           | `--spacing-transcript-inline-gap`   | `7px`                                                       | `--spacing-transcript-detail-indent`    | `25px`    |
-| `--spacing-transcript-detail-gutter`       | `11px`                           | `--spacing-transcript-message-y`    | `7px`                                                       | `--spacing-transcript-turn-gap`         | `18px`    |
-| `--spacing-transcript-meta-gap`            | `3px`                            | `--height-input`                    | `36px`                                                      | `--height-control-compact`              | `32px`    |
-| `--height-search`                          | `28px`                           | `--width-symbol-picker-color-input` | `7.5rem`                                                    | `--size-symbol-picker-cell`             | `1.75rem` |
-| `--height-color-picker-area`               | `9rem`                           | `--height-symbol-picker-grid`       | `14rem`                                                     | `--height-textarea-min`                 | `84px`    |
-| `--height-switch-default`                  | `18px`                           | `--width-switch-default`            | `32px`                                                      | `--height-switch-sm`                    | `14px`    |
-| `--width-switch-sm`                        | `24px`                           | `--height-pill-xs`                  | `18px`                                                      | `--height-pill-sm`                      | `20px`    |
-| `--height-pill-md`                         | `24px`                           | `--height-sidebar-row`              | `32px`                                                      | `--height-tabs-list`                    | `40px`    |
-| `--height-tab-underline`                   | `1.5px`                          | `--spacing-count-chip`              | `19px`                                                      | `--spacing-count-chip-sm`               | `17px`    |
-| `--height-property-row`                    | `30px`                           | `--spacing-property-row-y`          | `3px`                                                       | `--size-empty-icon`                     | `48px`    |
-| `--width-worktree-submenu`                 | `320px`                          | `--height-worktree-submenu-max`     | `420px`                                                     | `--breakpoint-shell-wide`               | `60rem`   |
-| `--width-workspaces-stage`                 | `min(1080px, calc(100% - 32px))` | `--width-workspaces-tile`           | `94px`                                                      | `--width-workspaces-tile-wide`          | `86px`    |
-| `--width-workspaces-menu`                  | `340px`                          | `--width-workspaces-edge`           | `56px`                                                      | `--width-workspaces-edge-wide`          | `72px`    |
-| `--size-workspaces-well`                   | `56px`                           | `--size-workspaces-well-wide`       | `52px`                                                      | `--height-workspaces-caption`           | `48px`    |
-| `--height-workspaces-caption-wide`         | `52px`                           | `--height-workspaces-menu-max`      | `min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px))` | `--spacing-workspaces-tile-gap`         | `7px`     |
-| `--spacing-workspaces-caption-gap`         | `3px`                            | `--spacing-workspaces-menu-gap`     | `5px`                                                       | `--size-qr-code-sm`                     | `128px`   |
-| `--size-qr-code-default`                   | `176px`                          | `--size-qr-code-lg`                 | `224px`                                                     | `--size-icon-well-row`                  | `34px`    |
-| `--size-topbar-glyph`                      | `22px`                           | `--size-profile-glyph-sm`           | `18px`                                                      | `--height-profile-row`                  | `54px`    |
-| `--size-status-dot`                        | `7px`                            | `--size-status-dot-sm`              | `6px`                                                       | `--size-avatar-sm`                      | `20px`    |
-| `--size-avatar-default`                    | `24px`                           | `--size-avatar-lg`                  | `32px`                                                      | `--height-editor-footer`                | `52px`    |
-| `--width-detail-inspector-inline`          | `320px`                          | `--width-kv-label`                  | `140px`                                                     | `--width-table-cell-sm`                 | `224px`   |
-| `--width-table-cell-md`                    | `288px`                          | `--width-table-cell-lg`             | `360px`                                                     | `--container-content-max`               | `1320px`  |
-| `--container-transcript`                   | `760px`                          | `--width-right-rail-default`        | `468px`                                                     | `--width-message-bubble-max`            | `640px`   |
-| `--min-width-search-input`                 | `220px`                          | `--min-width-search-input-floor`    | `140px`                                                     | `--width-filters-menu-default`          | `200px`   |
-| `--width-filters-menu-stack`               | `220px`                          | `--width-settings-nav`              | `264px`                                                     | `--container-settings-takeover`         | `56rem`   |
-| `--container-task-detail-rail`             | `64rem`                          | `--width-settings-sheet`            | `640px`                                                     | `--width-task-properties-rail`          | `320px`   |
-| `--spacing-settings-sheet-viewport-gutter` | `24px`                           | `--height-setting-row`              | `54px`                                                      | `--container-setting-description`       | `52ch`    |
-| `--container-settings-page-form`           | `768px`                          | `--container-settings-page-wide`    | `960px`                                                     | `--container-settings-page-canvas`      | `1040px`  |
-| `--container-layout-stage-split`           | `720px`                          | `--width-layout-inspector`          | `236px`                                                     | `--container-settings-page-description` | `72ch`    |
-| `--spacing-settings-page-bottom`           | `96px`                           | `--spacing-layout-node-indent`      | `12px`                                                      | `--container-settings-save-bar`         | `560px`   |
-| `--size-settings-save-dot`                 | `7px`                            | `--height-modal-md`                 | `760px`                                                     | `--height-modal-tall`                   | `900px`   |
-| `--height-modal-wizard`                    | `960px`                          | `--height-modal-xl`                 | `840px`                                                     | `--width-rail`                          | `60px`    |
-| `--size-rail-item`                         | `40px`                           | `--height-menubar`                  | `52px`                                                      | `--width-traffic-lights`                | `84px`    |
-| `--height-window-head`                     | `48px`                           | `--height-window-toolbar`           | `44px`                                                      | `--size-seam-hit`                       | `9px`     |
-| `--height-deck`                            | `40px`                           | `--height-deck-tab`                 | `32px`                                                      | `--min-width-deck-tab`                  | `136px`   |
-| `--width-deck-tab-max`                     | `208px`                          | `--size-deck-glyph`                 | `13px`                                                      | `--min-width-deck-badge`                | `14px`    |
-| `--size-deck-add`                          | `28px`                           | `--size-deck-close`                 | `20px`                                                      | `--height-setup-head`                   | `52px`    |
-| `--height-setup-steps`                     | `44px`                           | `--height-setup-footer`             | `58px`                                                      | `--height-setup-split`                  | `300px`   |
-| `--height-setup-row`                       | `30px`                           | `--size-setup-step-marker`          | `18px`                                                      | `--width-setup-panel`                   | `660px`   |
-| `--width-setup-panel-wide`                 | `960px`                          | `--overlay-blur`                    | `3px`                                                       | `--width-modal-sm`                      | `560px`   |
-| `--width-modal-md`                         | `720px`                          | `--width-modal-lg`                  | `880px`                                                     | `--width-modal-xl`                      | `1180px`  |
-| `--size-catalog-logo`                      | `1.5rem`                         | `--size-provider-logo-well`         | `2.5rem`                                                    | `--height-pill-group-segment-md`        | `30px`    |
-| `--height-pill-group-segment-sm`           | `20px`                           | `--space-pill-group-segment-sm-x`   | `8px`                                                       | `--space-pill-group-segment-md-x`       | `12px`    |
-| `--space-home-pulse-gap`                   | `3px`                            | `--size-home-pulse-label`           | `34px`                                                      | `--size-home-pulse-cell-min`            | `18px`    |
-| `--size-home-pulse-cell`                   | `15px`                           | `--size-home-pulse-min-w`           | `640px`                                                     | `--space-switch-thumb-inset`            | `2px`     |
-| `--space-chart-tooltip-y`                  | `6px`                            | `--space-chart-tooltip-x`           | `8px`                                                       |                                         |           |
+| Token                                | Value                            | Token                                   | Value                                                       | Token                                      | Value     |
+| ------------------------------------ | -------------------------------- | --------------------------------------- | ----------------------------------------------------------- | ------------------------------------------ | --------- |
+| `--height-button-xs`                 | `22px`                           | `--height-button-sm`                    | `26px`                                                      | `--height-button-default`                  | `30px`    |
+| `--height-button-lg`                 | `34px`                           | `--height-button-cta`                   | `36px`                                                      | `--height-button-cta-lg`                   | `44px`    |
+| `--size-button-icon-xs`              | `22px`                           | `--size-button-icon-sm`                 | `26px`                                                      | `--size-button-icon-default`               | `28px`    |
+| `--size-button-icon-lg`              | `32px`                           | `--height-transcript-row`               | `22px`                                                      | `--height-transcript-line`                 | `24px`    |
+| `--size-transcript-icon-well`        | `18px`                           | `--spacing-transcript-inline-gap`       | `7px`                                                       | `--spacing-transcript-detail-indent`       | `25px`    |
+| `--spacing-transcript-detail-gutter` | `11px`                           | `--spacing-transcript-message-y`        | `7px`                                                       | `--spacing-transcript-turn-gap`            | `18px`    |
+| `--spacing-transcript-meta-gap`      | `3px`                            | `--height-input`                        | `30px`                                                      | `--height-control-compact`                 | `26px`    |
+| `--height-search`                    | `26px`                           | `--width-symbol-picker-color-input`     | `7.5rem`                                                    | `--size-symbol-picker-cell`                | `1.75rem` |
+| `--height-color-picker-area`         | `9rem`                           | `--height-symbol-picker-grid`           | `14rem`                                                     | `--height-textarea-min`                    | `84px`    |
+| `--height-switch-default`            | `18px`                           | `--width-switch-default`                | `32px`                                                      | `--height-switch-sm`                       | `14px`    |
+| `--width-switch-sm`                  | `24px`                           | `--height-pill-xs`                      | `18px`                                                      | `--height-pill-sm`                         | `20px`    |
+| `--height-pill-md`                   | `24px`                           | `--height-sidebar-row`                  | `32px`                                                      | `--height-tabs-list`                       | `40px`    |
+| `--height-tab-underline`             | `1.5px`                          | `--spacing-count-chip`                  | `19px`                                                      | `--spacing-count-chip-sm`                  | `17px`    |
+| `--height-property-row`              | `30px`                           | `--spacing-property-row-y`              | `3px`                                                       | `--size-empty-icon`                        | `48px`    |
+| `--width-worktree-submenu`           | `320px`                          | `--height-worktree-submenu-max`         | `420px`                                                     | `--breakpoint-shell-wide`                  | `60rem`   |
+| `--width-workspaces-stage`           | `min(1080px, calc(100% - 32px))` | `--width-workspaces-tile`               | `94px`                                                      | `--width-workspaces-tile-wide`             | `86px`    |
+| `--width-workspaces-menu`            | `340px`                          | `--width-workspaces-edge`               | `56px`                                                      | `--width-workspaces-edge-wide`             | `72px`    |
+| `--size-workspaces-well`             | `56px`                           | `--size-workspaces-well-wide`           | `52px`                                                      | `--height-workspaces-caption`              | `48px`    |
+| `--height-workspaces-caption-wide`   | `52px`                           | `--height-workspaces-menu-max`          | `min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px))` | `--spacing-workspaces-tile-gap`            | `7px`     |
+| `--spacing-workspaces-caption-gap`   | `3px`                            | `--spacing-workspaces-menu-gap`         | `5px`                                                       | `--size-qr-code-sm`                        | `128px`   |
+| `--size-qr-code-default`             | `176px`                          | `--size-qr-code-lg`                     | `224px`                                                     | `--size-icon-well-row`                     | `34px`    |
+| `--size-topbar-glyph`                | `22px`                           | `--size-profile-glyph-sm`               | `18px`                                                      | `--height-profile-row`                     | `54px`    |
+| `--size-status-dot`                  | `7px`                            | `--size-status-dot-sm`                  | `6px`                                                       | `--size-avatar-sm`                         | `20px`    |
+| `--size-avatar-default`              | `24px`                           | `--size-avatar-lg`                      | `32px`                                                      | `--height-editor-footer`                   | `52px`    |
+| `--width-detail-inspector-inline`    | `320px`                          | `--width-kv-label`                      | `140px`                                                     | `--width-table-cell-sm`                    | `224px`   |
+| `--width-table-cell-md`              | `288px`                          | `--width-table-cell-lg`                 | `360px`                                                     | `--container-content-max`                  | `1320px`  |
+| `--width-right-rail-default`         | `468px`                          | `--width-message-bubble-max`            | `640px`                                                     | `--min-width-search-input`                 | `220px`   |
+| `--min-width-search-input-floor`     | `140px`                          | `--width-filters-menu-default`          | `200px`                                                     | `--width-filters-menu-stack`               | `220px`   |
+| `--width-settings-nav`               | `264px`                          | `--container-settings-takeover`         | `56rem`                                                     | `--container-task-detail-rail`             | `64rem`   |
+| `--width-settings-sheet`             | `640px`                          | `--width-task-properties-rail`          | `320px`                                                     | `--spacing-settings-sheet-viewport-gutter` | `24px`    |
+| `--height-setting-row`               | `54px`                           | `--container-setting-description`       | `52ch`                                                      | `--container-settings-page-form`           | `768px`   |
+| `--container-settings-page-wide`     | `960px`                          | `--container-settings-page-canvas`      | `1040px`                                                    | `--container-layout-stage-split`           | `720px`   |
+| `--width-layout-inspector`           | `236px`                          | `--container-settings-page-description` | `72ch`                                                      | `--spacing-settings-page-bottom`           | `96px`    |
+| `--spacing-layout-node-indent`       | `12px`                           | `--container-settings-save-bar`         | `560px`                                                     | `--size-settings-save-dot`                 | `7px`     |
+| `--height-modal-md`                  | `760px`                          | `--height-modal-tall`                   | `900px`                                                     | `--height-modal-wizard`                    | `960px`   |
+| `--height-modal-xl`                  | `840px`                          | `--width-rail`                          | `60px`                                                      | `--size-rail-item`                         | `40px`    |
+| `--height-menubar`                   | `52px`                           | `--width-traffic-lights`                | `84px`                                                      | `--height-window-head`                     | `48px`    |
+| `--height-window-toolbar`            | `44px`                           | `--size-seam-hit`                       | `9px`                                                       | `--height-deck`                            | `40px`    |
+| `--height-deck-tab`                  | `32px`                           | `--min-width-deck-tab`                  | `136px`                                                     | `--width-deck-tab-max`                     | `208px`   |
+| `--size-deck-glyph`                  | `13px`                           | `--min-width-deck-badge`                | `14px`                                                      | `--size-deck-close`                        | `20px`    |
+| `--height-setup-head`                | `52px`                           | `--height-setup-steps`                  | `44px`                                                      | `--height-setup-footer`                    | `58px`    |
+| `--height-setup-split`               | `300px`                          | `--height-setup-row`                    | `30px`                                                      | `--size-setup-step-marker`                 | `18px`    |
+| `--width-setup-panel`                | `660px`                          | `--width-setup-panel-wide`              | `960px`                                                     | `--overlay-blur`                           | `3px`     |
+| `--width-modal-sm`                   | `560px`                          | `--width-modal-md`                      | `720px`                                                     | `--width-modal-lg`                         | `880px`   |
+| `--width-modal-xl`                   | `1180px`                         | `--size-catalog-logo`                   | `1.5rem`                                                    | `--size-provider-logo-well`                | `2.5rem`  |
+| `--height-pill-group-segment-md`     | `26px`                           | `--height-pill-group-segment-sm`        | `20px`                                                      | `--space-pill-group-segment-sm-x`          | `8px`     |
+| `--space-pill-group-segment-md-x`    | `10px`                           | `--space-home-pulse-gap`                | `3px`                                                       | `--size-home-pulse-label`                  | `34px`    |
+| `--size-home-pulse-cell-min`         | `18px`                           | `--size-home-pulse-cell`                | `15px`                                                      | `--size-home-pulse-min-w`                  | `640px`   |
+| `--space-switch-thumb-inset`         | `2px`                            | `--space-chart-tooltip-y`               | `6px`                                                       | `--space-chart-tooltip-x`                  | `8px`     |
 
 <!-- END:tokens:component-sizes -->
 
@@ -1105,12 +1112,21 @@ inset rings clarify boundaries. Adding new shadow tokens is a design-system
 change, not a local styling decision.
 
 There is no glass. Chrome is flat on `--color-rail`, tiled panes are flat on
-`--color-canvas`, and the whitelist below is the only depth:
+`--color-canvas`, and the whitelist below is the only depth. The stack reads
+darkest outside → lightest inside: rail chrome → canvas pane → `card`
+(`--color-canvas-soft`) → `popover` (`--color-elevated`). A card is never
+`bg-canvas`; it is always distinguishable from the pane it sits on.
 
-- `--shadow-card` lifts the composer, cards, and the active rail item, and is
-  the hover lift for secondary pills.
+- `--shadow-card` opens with the 1px `--color-line` hairline, then a soft drop:
+  every `bg-card` surface (cards, KPI tiles, section cards, the composer) pairs
+  with it instead of a border.
 - `--shadow-elevated` sits under floating windows (with their 1px hairline).
-- `--shadow-pop` is for menus, popovers, and tooltips.
+- `--shadow-pop` is the `line` hairline plus the md drop, for `bg-popover`
+  menus, popovers, selects, and tooltips (tooltips are an elevated plate, not
+  an inverted pill). Dialogs share the `bg-popover` fill with
+  `--shadow-overlay`.
+- Pressed toggles and active segments take the `surface-2` plate, never a
+  ring or outline.
 - `--shadow-overlay` separates modals and sheets. `--shadow-highlight` is the
   small active rim used by selected controls that need a top-edge lift.
 - Focus rings live in the same shadow namespace because they replace
@@ -1126,19 +1142,19 @@ and the marketing site keeps its hero mock's window radius and shadow in its own
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                     | Dark                                                                                                        | Light                                                                                                               |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `--shadow-card`           | `0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005`                                                   |
-| `--shadow-elevated`       | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006`                        | `0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a`                            |
-| `--shadow-pop`            | `0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a` |
-| `--shadow-overlay`        | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)`                               | `0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06)`                                        |
-| `--shadow-highlight`      | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                  | `inset 0 1px 0 rgba(255, 255, 255, 0.7)`                                                                            |
-| `--shadow-focus-ring`     | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                        | `0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                   |
-| `--shadow-focus-inset`    | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                  | `inset 0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                             |
-| `--shadow-hairline`       | `0 0 0 1px var(--color-line-soft)`                                                                          | `0 0 0 1px var(--color-line-soft)`                                                                                  |
-| `--shadow-hairline-inset` | `inset 0 0 0 1px var(--color-line-soft)`                                                                    | `inset 0 0 0 1px var(--color-line-soft)`                                                                            |
-| `--shadow-inset-strong`   | `inset 0 0 0 1px var(--color-line-strong)`                                                                  | `inset 0 0 0 1px var(--color-line-strong)`                                                                          |
-| `--shadow-danger-inset`   | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                 | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                         |
+| Token                     | Dark                                                                                                              | Light                                                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `--shadow-card`           | `0 0 0 1px var(--color-line), 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005`                                                   |
+| `--shadow-elevated`       | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006`                              | `0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a`                                  |
+| `--shadow-pop`            | `0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a` |
+| `--shadow-overlay`        | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line)`                                              | `0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line)`                                                   |
+| `--shadow-highlight`      | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                        | `inset 0 1px 0 rgba(255, 255, 255, 0.7)`                                                                                  |
+| `--shadow-focus-ring`     | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                              | `0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                         |
+| `--shadow-focus-inset`    | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                        | `inset 0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                   |
+| `--shadow-hairline`       | `0 0 0 1px var(--color-line-soft)`                                                                                | `0 0 0 1px var(--color-line-soft)`                                                                                        |
+| `--shadow-hairline-inset` | `inset 0 0 0 1px var(--color-line-soft)`                                                                          | `inset 0 0 0 1px var(--color-line-soft)`                                                                                  |
+| `--shadow-inset-strong`   | `inset 0 0 0 1px var(--color-line-strong)`                                                                        | `inset 0 0 0 1px var(--color-line-strong)`                                                                                |
+| `--shadow-danger-inset`   | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                       | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                               |
 
 <!-- END:tokens:shadows -->
 
@@ -1212,9 +1228,12 @@ daemon truth.
 
 ## 8. Iconography
 
-Use Lucide icons through the shared icon helpers when possible. The default
-stroke width is 1.75; extra-small icons can use 2. Icons in buttons need
-tooltips or accessible labels when the command is not obvious.
+Use Lucide icons through the shared icon helpers when possible. One stroke
+width everywhere: 1.75, set once by `UIProvider` (the lucide default) — call
+sites do not pass `strokeWidth`. Sizes: 16px in buttons, the rail foot and the
+topbar tray; 18px rail app glyphs; 14px inline with 13px text; 12px inline
+with 12px text. Icons in buttons need tooltips or accessible labels when the
+command is not obvious.
 
 The CompozyOS wordmark is official SVG geometry from the logo sources. It never
 uses a `<text>` node or font fallback; product and provider marks still come
@@ -1228,14 +1247,24 @@ The full primitive inventory is `packages/ui/src/index.ts` — reuse before
 creating: redefining an exported name in `web/` or `packages/site/` fails the
 `compozy-ui-reuse/no-shadow-ui-primitive` lint gate.
 
-- `<Button>`: primary/default is the accent action; neutral is the filled
-  secondary action; ghost is for low-chrome commands. New callsites should not
-  use outline as the default secondary choice.
+- `<Button>`: every size is a pill — `xs` 22 / 12px text / 12px glyph (inline
+  row actions), `sm` 26 / 12.5 / 14 (window-head, card-header, toolbars),
+  `default` 30 / 13 / 16 (forms, page bodies), `lg` 34 and `cta` 36 / 13.5 /
+  16 (dialog footers, hero CTA); icon buttons 22 / 26 / 28 / 32. `primary`
+  (inverted) is the ONE main action of a page body, dialog, or empty state —
+  window heads use `secondary` `sm` instead. `secondary` (surface-2 fill) is
+  the normal action; `ghost` / `quiet` are icon buttons and low-emphasis
+  actions; text links ("Edit ›", "View all ›") are `link` or `quiet` at `sm`,
+  `muted` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
+  the `surface-2` plate, never a ring. New callsites should not use outline as
+  the default secondary choice.
 - `<Pill>`: compact status/category chip. Neutral pills are tint-only.
-  Identifier chips should use `<MonoId>` unless the product specifically needs
-  pill chrome.
-- `<PillGroup>`: segmented selector. Active state uses elevated surface plus
-  highlight, never solid accent.
+  Status indicators ("Idle", "Running") use `form="plain"` — dot + 12px
+  `muted` text, no plate — so a state never reads as a button. Identifier
+  chips should use `<MonoId>` unless the product specifically needs pill
+  chrome.
+- `<PillGroup>`: segmented selector. The active segment takes the `surface-2`
+  plate with full ink — never a ring, never solid accent.
 - `<Tabs>`: route/content navigation. Line tabs use the foreground underline;
   accent is not the tab indicator.
 - `<Empty>` and `<RouteState>`: state surfaces, not marketing cards. Use when a

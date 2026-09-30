@@ -28,7 +28,7 @@ const RUN_ICONS: Record<TriggerRunIcon, LucideIcon> = {
   ban: Ban,
 };
 
-const PANEL_SHELL = "overflow-hidden rounded-lg bg-canvas shadow-card";
+const PANEL_SHELL = "overflow-hidden rounded-lg bg-card shadow-card";
 
 /**
  * The drawer's one action, and only when the daemon recorded something to open.
@@ -57,7 +57,7 @@ function TriggerRunOpenLink({ view, className, ...props }: TriggerRunOpenLinkPro
         size="xs"
         variant="neutral"
       >
-        <ArrowRight className="size-3" />
+        <ArrowRight />
         {view.link.label}
       </Button>
     </div>
@@ -95,7 +95,7 @@ function TriggerRunRow({ view, open, onOpenToggle, className, ...props }: Trigge
           <span className="truncate">{view.statusLabel}</span>
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted">
-          <MetaIcon aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
+          <MetaIcon aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
           <span className="min-w-0 truncate">{view.meta.text}</span>
           {view.meta.monoId ? (
             <span className="shrink-0 font-mono text-mono-id text-subtle">{view.meta.monoId}</span>
@@ -110,7 +110,6 @@ function TriggerRunRow({ view, open, onOpenToggle, className, ...props }: Trigge
             "size-3.5 text-subtle transition-transform duration-base ease-out",
             open && "rotate-90"
           )}
-          strokeWidth={1.75}
         />
       </button>
       <div

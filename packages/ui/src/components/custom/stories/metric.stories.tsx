@@ -10,7 +10,7 @@ const meta: Meta<typeof Metric> = {
     docs: {
       description: {
         component:
-          "One voice for every KPI and stat — sentence or eyebrow label, 17/24px display value at --font-weight-display, plus optional icon, trailing, inline detail, and subtext. Composes Surface.",
+          "One voice for every KPI and stat — sentence or eyebrow label, 15/20px semibold tabular value, plus optional icon, trailing, inline detail, and subtext. Composes Surface.",
       },
     },
   },

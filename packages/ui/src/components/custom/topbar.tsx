@@ -285,10 +285,7 @@ function TopbarTitle({
         tabIndex={-1}
         data-slot="topbar-title"
         data-testid="topbar-title-text"
-        className={cn(
-          "min-w-0 max-w-xs text-card-title font-medium text-fg outline-none",
-          className
-        )}
+        className={cn("min-w-0 max-w-xs text-heading font-medium text-fg outline-none", className)}
       >
         <Popover>
           <PopoverTrigger

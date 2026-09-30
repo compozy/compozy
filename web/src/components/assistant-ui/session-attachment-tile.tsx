@@ -155,7 +155,7 @@ export function SessionAttachmentTile({
         </span>
         <span
           className={cn(
-            "font-mono text-micro tabular-nums",
+            "font-mono text-eyebrow tabular-nums",
             attachmentSizeTone(model.state),
             model.state === "uploading" ? "text-subtle" : null
           )}
@@ -164,7 +164,7 @@ export function SessionAttachmentTile({
         </span>
       </span>
       {showRetry ? (
-        <Button type="button" variant="ghost" size="sm" onClick={onRetry} className="text-micro">
+        <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
           Retry upload
         </Button>
       ) : null}

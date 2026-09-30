@@ -26,9 +26,9 @@ function PausedList({ automations }: { automations: readonly string[] }) {
           key={automation}
           className="flex min-h-8 items-center gap-2 border-t border-line-soft px-3 text-small-body text-fg first:border-t-0"
         >
-          <Clock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+          <Clock aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
           <span>{automation}</span>
-          <span className="ml-auto shrink-0 font-mono text-micro text-subtle">pauses</span>
+          <span className="ml-auto shrink-0 font-mono text-eyebrow text-subtle">pauses</span>
         </div>
       ))}
     </div>
@@ -46,7 +46,7 @@ function BlockerList({ blockers }: { blockers: readonly string[] }) {
           className="flex min-h-8 items-center gap-2 border-t border-line-soft px-3 text-small-body text-fg first:border-t-0"
           key={blocker}
         >
-          <TriangleAlert aria-hidden="true" className="size-3 shrink-0 text-warning" />
+          <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
           <span>{blocker}</span>
         </div>
       ))}

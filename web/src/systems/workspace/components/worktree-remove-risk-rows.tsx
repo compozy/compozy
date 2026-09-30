@@ -21,7 +21,7 @@ function WorktreeRiskRow({ icon, what, quantity, why }: WorktreeRiskRowProps) {
       <Icon as={icon} size="sm" className="mt-0.5 shrink-0 text-warning" />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="flex items-center gap-2">
-          <span className="text-small-body font-semibold text-fg">{what}</span>
+          <span className="text-small-body font-medium text-fg">{what}</span>
           <span className="font-mono text-mono-id tabular-nums text-subtle">{quantity}</span>
         </span>
         <span className="text-form-hint text-subtle">{why}</span>

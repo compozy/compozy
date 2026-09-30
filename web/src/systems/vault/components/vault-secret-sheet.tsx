@@ -128,9 +128,9 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
         onClick={onClose}
         size="icon-sm"
         type="button"
-        variant="ghost"
+        variant="quiet"
       >
-        <X aria-hidden="true" className="size-3.5" />
+        <X aria-hidden="true" />
       </Button>
     </header>
   );
@@ -192,7 +192,7 @@ function SheetReplaceSection({
   return (
     <section className="mb-4.5" data-testid="vault-secret-sheet-replace">
       <Eyebrow className="mb-2.5 text-subtle">Replace value</Eyebrow>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Input
           aria-label="New secret value"
           autoComplete="off"
@@ -208,7 +208,6 @@ function SheetReplaceSection({
           data-testid="vault-secret-sheet-replace-save"
           disabled={!isValid || isPending}
           onClick={onReplace}
-          size="sm"
           type="button"
           variant="secondary"
         >

@@ -100,7 +100,7 @@ export function LoopRunInspectRegister({
       title="Inspect"
     >
       <div
-        className="overflow-hidden rounded-lg bg-canvas shadow-card"
+        className="overflow-hidden rounded-lg bg-card shadow-card"
         data-testid="loop-run-inspect-panel"
       >
         <LaneTabs

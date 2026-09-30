@@ -49,11 +49,11 @@ export function LayoutDesktopTabs({
           <button
             aria-selected={active}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-pill px-2.5",
+              "inline-flex h-control-compact items-center gap-1.5 rounded-pill px-2.5",
               "text-small-body font-medium text-muted transition-colors duration-base ease-out",
               "hover:bg-surface-2 hover:text-fg",
               "focus-visible:outline-none focus-visible:shadow-focus-ring",
-              active && "bg-surface-2 text-fg shadow-card"
+              active && "bg-surface-2 text-fg"
             )}
             data-testid={`layout-desktop-tab-${desktop.id}`}
             key={desktop.id}
@@ -85,7 +85,7 @@ function DesktopNameInput({ name, onCommit }: { name: string; onCommit: (name: s
     <Input
       aria-label="Desktop name"
       autoFocus
-      className="h-7 w-32"
+      className="h-control-compact w-32"
       data-testid="layout-desktop-rename"
       defaultValue={name}
       onBlur={event => onCommit(event.target.value.trim() || name)}

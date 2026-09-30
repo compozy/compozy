@@ -71,9 +71,7 @@ export function WorktreeAdoptDialog({
             <p className="text-form-hint text-subtle">The directory stays exactly where it is.</p>
           </div>
           <DialogFooter variant="ruled">
-            <Button size="sm" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
+            <Button onClick={() => onOpenChange(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -93,9 +91,9 @@ export function WorktreeAdoptDialog({
         discovered ? (
           <div
             data-testid="worktree-adopt-target"
-            className="flex min-w-0 flex-col gap-1 rounded-lg bg-canvas shadow-card p-3"
+            className="flex min-w-0 flex-col gap-1 rounded-lg bg-card p-3 shadow-card"
           >
-            <span className="min-w-0 truncate text-small-body font-semibold text-fg">
+            <span className="min-w-0 truncate text-body font-medium text-fg">
               {discovered.name}
             </span>
             <MonoId className="w-full" value={discovered.branch} preserveCase size="sm" />

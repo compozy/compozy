@@ -48,7 +48,7 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
       page.workspaceId === "" ? undefined : (
         <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
           <Link
-            className={buttonVariants({ variant: "secondary" })}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
             data-testid="loops-runs-link"
             to="/loop-runs"
           >

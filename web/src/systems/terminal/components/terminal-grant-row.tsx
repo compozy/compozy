@@ -51,7 +51,7 @@ export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
           onClick={() => onRevoke(grant)}
           size="sm"
           type="button"
-          variant="ghost"
+          variant="quiet"
         >
           Revoke
         </Button>

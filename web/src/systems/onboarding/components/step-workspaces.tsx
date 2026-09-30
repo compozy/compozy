@@ -88,20 +88,20 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
               {selected.map(workspace => (
                 <li
                   key={workspace.path}
-                  className="flex flex-none items-center gap-2.5 rounded-lg bg-canvas px-2.5 py-2 shadow-card"
+                  className="flex flex-none items-center gap-2.5 rounded-lg bg-card px-2.5 py-2 shadow-card"
                   data-testid="onboarding-selected-workspace"
                 >
                   <KindIcon icon={Folder} tone="well" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-small-body font-medium text-fg">
+                    <span className="block truncate text-body font-medium text-fg">
                       {workspace.name}
                     </span>
-                    <span className="block truncate font-mono text-micro text-subtle">
+                    <span className="block truncate font-mono text-eyebrow text-subtle">
                       {workspace.path}
                     </span>
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="quiet"
                     size="icon-sm"
                     disabled={
                       workspaces.isRemoving ||

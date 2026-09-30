@@ -5,9 +5,9 @@ import { fn } from "storybook/test";
 import { OsDock, type OsDockItemData } from "../os-dock";
 import { OsRailFoot } from "../os-dock-rail-foot";
 import { OsDockTabBar } from "../os-dock-tab-bar";
-import { OsEmptyDesktop } from "../os-empty-desktop";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
+import { EmptyDesktopPreview } from "./_empty-desktop-preview";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 
 const DOCK_DEFS = [
@@ -69,7 +69,7 @@ export interface DesktopShellProps {
   workspace?: { name: string; monogram: string };
   /** Menubar approvals count; 0 renders no badge. */
   notifications?: number;
-  /** Show the empty-desktop card (VC-10). */
+  /** Show the empty desktop — question and composer (VC-10). */
   deskHint?: boolean;
   /** Compact (<960px) presentation: the bottom tab bar replaces the rail. */
   compact?: boolean;
@@ -81,8 +81,8 @@ export interface DesktopShellProps {
 
 /**
  * Story-only full desktop shell: topbar across the full width, the rail and the
- * wallpapered desk below it — the production `DesktopShellScopedBody` grid, so
- * Visual Contract rows compare the same composition. `dock={false}` drops the
+ * wallpapered desk panel inset below it — the production `DesktopShellScopedBody`
+ * grid, so Visual Contract rows compare the same composition. `dock={false}` drops the
  * rail and gives the desk the full width.
  */
 export function DesktopShell({
@@ -100,6 +100,9 @@ export function DesktopShell({
   pager,
   topbar,
 }: DesktopShellProps) {
+  // The desk is inset into the chrome only where chrome surrounds it.
+  const hasTopbar = menubar || topbar != null;
+  const hasRail = dock && !compact;
   return (
     <div className="relative grid h-screen w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail">
       {topbar ? <div className="col-span-full">{topbar}</div> : null}
@@ -130,16 +133,17 @@ export function DesktopShell({
           foot={<OsRailFoot onOpenSettings={fn()} />}
         />
       ) : null}
-      <div className="relative col-start-2 row-start-2 min-h-0">
+      <div
+        data-slot="os-desk"
+        className={cn(
+          "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-line",
+          hasTopbar && "border-t",
+          hasRail && "border-l",
+          hasTopbar && hasRail && "rounded-tl-lg"
+        )}
+      >
         <OsWallpaper wallpaper={wallpaper} />
-        {deskHint ? (
-          <OsEmptyDesktop
-            desktopName="Desktop 1"
-            paletteShortcutLabel={shortcutLabel("meta+KeyK")}
-            hasProject
-            onNewSession={fn()}
-          />
-        ) : null}
+        {deskHint ? <EmptyDesktopPreview /> : null}
         {children}
       </div>
     </div>

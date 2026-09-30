@@ -20,8 +20,8 @@ export interface SearchInputProps extends Omit<
 }
 
 /**
- * Compact toolbar search — `--height-search` (28px) matches the RouteNav /
- * PillGroup track. Eyebrow type + leading-none keep icon and text centered
+ * Compact toolbar search — `--height-search` (26px) is level with the `sm`
+ * toolbar buttons and the PillGroup / RouteNav segments. Eyebrow type + leading-none keep icon and text centered
  * without clipping. Focus strengthens the border and draws the 2 px ring.
  *
  * The native search cancel glyph is suppressed (it paints browser blue/white,
@@ -100,7 +100,7 @@ function SearchInput({
           onClick={clear}
           className="-mr-1.5 text-subtle"
         >
-          <XIcon aria-hidden="true" className="size-3" strokeWidth={1.75} />
+          <XIcon aria-hidden="true" className="size-3" />
         </Button>
       ) : kbd ? (
         <Kbd data-slot="search-input-kbd" aria-hidden="true" className="hidden sm:inline-flex">

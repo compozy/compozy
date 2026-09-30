@@ -158,7 +158,9 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
                 <MenubarItem data-testid="os-menu-move-to-desktop" disabled>
                   <span className="min-w-0 flex-1">
                     <span className="block">Move window to</span>
-                    <span className="block text-micro text-muted">{MOVE_NEEDS_DESKTOP_REASON}</span>
+                    <span className="block text-eyebrow text-muted">
+                      {MOVE_NEEDS_DESKTOP_REASON}
+                    </span>
                   </span>
                 </MenubarItem>
               ) : null

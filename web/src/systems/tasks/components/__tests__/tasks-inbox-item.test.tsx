@@ -92,7 +92,7 @@ describe("TasksInboxItem", () => {
     expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
-  it("Should render Reject as a ghost-danger button and Approve as the single accent CTA", () => {
+  it("Should render Reject as a ghost-danger button and Approve as the filled secondary row action", () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();
     const item = buildInboxItemFixture({
@@ -120,9 +120,10 @@ describe("TasksInboxItem", () => {
       "data-variant",
       "destructive-ghost"
     );
+    // A repeated row action is never the view's inverted primary (polish contract P4).
     expect(screen.getByTestId("tasks-inbox-item-approve-task_apr")).toHaveAttribute(
       "data-variant",
-      "primary"
+      "secondary"
     );
     expect(screen.getByTestId("tasks-inbox-item-open-task_apr")).toBeInTheDocument();
 

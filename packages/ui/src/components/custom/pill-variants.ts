@@ -26,6 +26,7 @@ const pillVariants = cva(
       form: {
         tint: "",
         hollow: "",
+        plain: "",
       },
       active: { true: "", false: "" },
     },
@@ -45,11 +46,15 @@ const pillVariants = cva(
       { solid: true, tone: "info", className: "bg-info text-canvas" },
       {
         active: true,
-        className: "bg-surface-2 text-fg shadow-card",
+        className: "bg-surface-2 text-fg",
       },
       {
         form: "hollow",
         className: "bg-transparent text-subtle shadow-inset-strong",
+      },
+      {
+        form: "plain",
+        className: "h-auto bg-transparent px-0 text-muted",
       },
     ],
     defaultVariants: {

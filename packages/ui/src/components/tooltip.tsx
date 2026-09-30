@@ -96,7 +96,7 @@ function TooltipContent({
                 />
               }
               className={cn(
-                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-pill bg-fg px-2.5 py-1.5 text-xs font-medium text-canvas",
+                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-popover px-2 py-1 text-eyebrow font-medium text-fg shadow-pop",
                 className
               )}
               {...props}

@@ -76,7 +76,7 @@ function SelectOptionsMenuContent<T = unknown>({
             }
             placeholder={context.i18n.placeholders.searchField(field.label || "")}
             className={cn(
-              "h-8 rounded-none border-0 border-input bg-transparent! px-2 shadow-none",
+              "h-control-compact rounded-none border-0 border-input bg-transparent! px-2 shadow-none",
               "focus-visible:border-line-strong focus-visible:shadow-focus-inset",
               open && "placeholder:text-foreground"
             )}

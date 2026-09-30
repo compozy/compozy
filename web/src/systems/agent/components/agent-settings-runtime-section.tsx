@@ -129,7 +129,7 @@ function AgentSettingsModelField({
           onClick={() => onPatch(CLEARED_RUNTIME_OVERRIDE)}
           size="sm"
           type="button"
-          variant="ghost"
+          variant="link"
         >
           Use project defaults
         </Button>

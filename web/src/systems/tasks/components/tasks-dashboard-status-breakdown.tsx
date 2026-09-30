@@ -1,4 +1,6 @@
-import { cn, Eyebrow, Panel, Pill, type PillTone } from "@compozy/ui";
+import { ChartBar } from "lucide-react";
+
+import { cn, Empty, Eyebrow, Panel, Pill, type PillTone } from "@compozy/ui";
 
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -33,12 +35,12 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
       title="Status breakdown"
     >
       {entries.length === 0 ? (
-        <p
-          className="text-form-label text-muted"
+        <Empty
           data-testid="tasks-dashboard-status-breakdown-empty"
-        >
-          No task activity yet.
-        </p>
+          icon={ChartBar}
+          size="compact"
+          title="No task activity yet."
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {entries.map(entry => {

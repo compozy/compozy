@@ -62,9 +62,9 @@ export function VaultSecretsRow({
             }}
             size="icon-sm"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
-            <Trash2 aria-hidden="true" className="size-3" />
+            <Trash2 aria-hidden="true" />
           </Button>
         ) : null}
       </ListingRow.Trail>

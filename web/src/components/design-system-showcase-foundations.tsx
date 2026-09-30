@@ -50,7 +50,7 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       data-testid={`token-${swatch.token}`}
       data-token={swatch.token}
       data-kind={swatch.kind}
-      className="flex flex-col gap-3 rounded-lg bg-canvas p-3 shadow-card"
+      className="flex flex-col gap-3 rounded-lg bg-card p-3 shadow-card"
     >
       <TokenPreview swatch={swatch} value={value} />
       <div className="flex flex-col gap-0.5">
@@ -58,7 +58,7 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
         <span data-slot="token-value" className="font-mono text-eyebrow text-muted">
           {value}
         </span>
-        {swatch.role ? <span className="text-xs text-muted">{swatch.role}</span> : null}
+        {swatch.role ? <span className="text-eyebrow text-muted">{swatch.role}</span> : null}
       </div>
     </article>
   );

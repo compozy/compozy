@@ -11,10 +11,7 @@ interface LoopRunButtonProps extends ComponentProps<typeof Button> {
 export function LoopRunButton({ loopName, onRun, className, ...props }: LoopRunButtonProps) {
   return (
     <Button
-      className={cn(
-        "shrink-0 hover:border-transparent hover:bg-accent hover:text-accent-ink",
-        className
-      )}
+      className={cn("shrink-0", className)}
       data-testid={`loop-catalog-run-${loopName}`}
       onClick={onRun}
       size="sm"
@@ -22,7 +19,7 @@ export function LoopRunButton({ loopName, onRun, className, ...props }: LoopRunB
       variant="secondary"
       {...props}
     >
-      <Play aria-hidden="true" className="size-3" />
+      <Play aria-hidden="true" />
       Run
     </Button>
   );

@@ -59,13 +59,12 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
 
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-lg bg-canvas shadow-card"
+      className="flex flex-col overflow-hidden rounded-lg bg-card shadow-card"
       data-testid="layout-profile-editor"
     >
       <div className="grid gap-3.5 p-4 sm:grid-cols-2">
         <ProfileField htmlFor="layout-profile-name" label="Name">
           <Input
-            className="h-8"
             id="layout-profile-name"
             placeholder="Two-up review"
             value={editor.displayName}
@@ -82,7 +81,7 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
           label="Resource ID"
         >
           <Input
-            className="h-8 font-mono"
+            className="font-mono"
             id="layout-profile-id"
             placeholder="two-up-review"
             value={editor.id}

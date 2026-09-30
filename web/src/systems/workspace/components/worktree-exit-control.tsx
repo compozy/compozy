@@ -39,7 +39,7 @@ const MENU_LABEL = "Git actions";
 
 function ActionIcon({ action }: { action: string }) {
   const Glyph = ACTION_ICON[action];
-  return Glyph ? <Glyph className="size-3" /> : null;
+  return Glyph ? <Glyph className="size-3.5" /> : null;
 }
 
 /**
@@ -81,7 +81,7 @@ export function WorktreeExitControl({
         role="group"
       >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 pt-[5px] pb-1">
+          <DropdownMenuLabel className="px-2 pt-1 pb-1">
             <Eyebrow>{MENU_LABEL}</Eyebrow>
           </DropdownMenuLabel>
           {ladder.menuRows.map(row => {
@@ -89,7 +89,7 @@ export function WorktreeExitControl({
             const reason = ladder.blocked ? ladder.blockedReason : row.blockedReason;
             return (
               <DropdownMenuItem
-                className="flex w-full items-start gap-[9px] rounded-sm px-2 py-1.5 text-start [&_svg]:mt-0.5 [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted"
+                className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-start [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-muted"
                 data-action={row.action}
                 data-blocked={blocked ? "" : undefined}
                 data-publish={row.publish ? "" : undefined}
@@ -107,7 +107,7 @@ export function WorktreeExitControl({
                   {row.label}
                   {reason ? (
                     <span
-                      className="mt-px block text-badge leading-[1.4] text-subtle"
+                      className="mt-px block text-eyebrow text-subtle"
                       data-slot="worktree-exit-action-reason"
                     >
                       {reason}

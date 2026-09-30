@@ -2,6 +2,7 @@
 
 import type { LucideIcon, LucideProps } from "lucide-react";
 
+import { ICON_STROKE_WIDTH } from "../lib/icon-stroke";
 import { cn } from "../lib/utils";
 
 export type IconSize = "xs" | "sm" | "default" | "lg";
@@ -21,13 +22,12 @@ export interface IconProps extends Omit<LucideProps, "size"> {
 }
 
 /**
- * Thin helper that enforces the runtime icon contract: 1.75 stroke-width by default,
- * 2 at the 11 px xs floor (per). Callers may pass `strokeWidth` to
- * override for one-off needs.
+ * Thin helper that enforces the runtime icon contract: one 1.75 stroke width at
+ * every size. Callers may pass `strokeWidth` to override for one-off needs.
  */
 function Icon({ as: As, size = "default", className, strokeWidth, ref, ...rest }: IconProps) {
   const px = SIZE_PX[size];
-  const stroke = strokeWidth ?? (size === "xs" ? 2 : 1.75);
+  const stroke = strokeWidth ?? ICON_STROKE_WIDTH;
   return (
     <As
       ref={ref}

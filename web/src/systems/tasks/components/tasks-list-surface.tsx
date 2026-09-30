@@ -277,7 +277,9 @@ function TasksListLoadMore({
         type="button"
         variant="ghost"
       >
-        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {isLoadingMore ? (
+          <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+        ) : null}
         {isLoadingMore ? "Loading more" : "Load more"}
       </Button>
     </div>

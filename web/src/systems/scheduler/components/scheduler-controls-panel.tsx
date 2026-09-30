@@ -139,7 +139,7 @@ function SchedulerControlActions({
           type="button"
           variant="neutral"
         >
-          <PlayCircle className="size-3" aria-hidden="true" />
+          <PlayCircle aria-hidden="true" />
           Resume
         </Button>
       ) : (
@@ -151,7 +151,7 @@ function SchedulerControlActions({
           type="button"
           variant="neutral"
         >
-          <PauseCircle className="size-3" aria-hidden="true" />
+          <PauseCircle aria-hidden="true" />
           Pause
         </Button>
       )}
@@ -163,7 +163,7 @@ function SchedulerControlActions({
         type="button"
         variant="neutral"
       >
-        <RotateCw className="size-3" aria-hidden="true" />
+        <RotateCw aria-hidden="true" />
         Finish current and pause
       </Button>
     </div>

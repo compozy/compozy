@@ -112,7 +112,7 @@ export function TerminalJournalRow({
       </TableCell>
       <TableCell className="min-w-0 whitespace-normal">
         <span className="block truncate font-mono text-code-block text-fg">{entry.command}</span>
-        <span className="mt-0.75 block truncate font-mono text-micro text-faint">
+        <span className="mt-0.75 block truncate font-mono text-eyebrow text-faint">
           {entry.cwd}
           {entry.terminal_id ? ` · ${entry.terminal_id}` : null}
         </span>
@@ -125,7 +125,7 @@ export function TerminalJournalRow({
         >
           {outcome.label}
         </Pill>
-        <span className="mt-0.75 block font-mono text-micro tabular-nums whitespace-nowrap text-subtle">
+        <span className="mt-0.75 block font-mono text-eyebrow tabular-nums whitespace-nowrap text-subtle">
           {outcome.code}
         </span>
       </TableCell>
@@ -156,11 +156,11 @@ export function TerminalJournalRow({
                       }}
                       size="icon-sm"
                       type="button"
-                      variant="ghost"
+                      variant="quiet"
                     />
                   }
                 >
-                  <Play aria-hidden="true" className="size-3" />
+                  <Play aria-hidden="true" />
                 </TooltipTrigger>
                 <TooltipContent side="left">Replay this recording</TooltipContent>
               </Tooltip>

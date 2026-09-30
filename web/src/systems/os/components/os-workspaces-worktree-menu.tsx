@@ -7,7 +7,7 @@ import {
 import { useState, type KeyboardEvent } from "react";
 import { Plus } from "lucide-react";
 
-import { Button, cn } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 
 import {
   WORKSPACES_MENU_CREATE_KEY,
@@ -102,7 +102,7 @@ export function OsWorkspacesWorktreeMenu({
         ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
         tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
         className={cn(
-          "mt-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-dashed border-line-strong px-3",
+          "mt-2 inline-flex h-button-sm items-center gap-1.5 rounded-md border border-dashed border-line-strong px-3",
           "text-form-label font-medium whitespace-nowrap text-muted",
           "transition-colors duration-base ease-out",
           "hover:bg-surface-2 hover:text-fg-strong",
@@ -111,7 +111,7 @@ export function OsWorkspacesWorktreeMenu({
         )}
         onClick={createNavIndex === undefined ? undefined : rowHandlers(createNavIndex).onClick}
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" className="size-3.5" />
         New worktree
       </button>
     );
@@ -177,14 +177,22 @@ function SelectableWorktreeRow({
 }) {
   const reason = selection.reason(entry);
   return (
-    <Button
-      variant="ghost"
+    // A menu row in the navigable rows' grammar (os-workspaces-worktree-row):
+    // same inset, height and hover plate, so selection mode never swaps the
+    // rows for button-shaped controls.
+    <button
+      type="button"
       role="menuitemcheckbox"
       aria-checked={selection.selectedIds.has(entry.key)}
       aria-label={`Select ${entry.name}`}
       disabled={Boolean(reason)}
       title={reason ?? undefined}
-      className="group/wtnest h-auto w-full flex-col items-stretch px-2 py-1.5 text-left"
+      className={cn(
+        "group/wtnest grid min-h-11 w-full min-w-0 items-center rounded-md px-2 py-1.5 text-left select-none",
+        "transition-colors duration-base ease-out hover:bg-surface-2",
+        "focus-visible:bg-surface-2 focus-visible:outline-none",
+        "disabled:cursor-default disabled:text-subtle disabled:hover:bg-transparent"
+      )}
       onClick={event => selection.toggle(entry, event.shiftKey)}
       onKeyDown={event => {
         if (event.key === "Enter" || event.key === " ") event.stopPropagation();
@@ -195,7 +203,7 @@ function SelectableWorktreeRow({
         userHomeDir={userHomeDir}
         checked={selection.selectedIds.has(entry.key)}
       />
-    </Button>
+    </button>
   );
 }
 
@@ -310,7 +318,7 @@ function WorktreeCreationFooter({
               onCreate?.();
             }}
           >
-            <Plus aria-hidden="true" className="size-3 justify-self-center text-subtle" />
+            <Plus aria-hidden="true" className="size-3.5 justify-self-center text-subtle" />
             <b
               className={cn(
                 "truncate text-form-label font-medium text-muted",

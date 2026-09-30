@@ -108,7 +108,7 @@ describe("theme runtime", () => {
       dataTheme: "light",
       dark: false,
       colorScheme: "light",
-      themeColor: "#fafafa",
+      themeColor: "#f2f2f3",
     });
 
     applyTheme("dark");

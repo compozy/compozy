@@ -21,9 +21,9 @@ function AgentFleetErrorState({ onRetry }: { onRetry: () => void }) {
             onClick={onRetry}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="secondary"
           >
-            <RefreshCw aria-hidden="true" className="size-3" />
+            <RefreshCw aria-hidden="true" />
             Retry
           </Button>
         }

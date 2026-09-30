@@ -13,6 +13,9 @@ import {
 import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
 import { sessionAttachmentTileState } from "./session-attachment-tile-model";
 
+// The session surface's one deliberate stroke override: the send arrow (like the
+// transcript's small check / × receipt marks) draws at 2 so it holds its weight
+// inside the filled disc; every other glyph takes the global 1.75.
 export function SessionComposerSendButton({
   canPrompt,
   hasStagedQuote = false,

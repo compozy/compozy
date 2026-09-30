@@ -66,7 +66,7 @@ function MarketplaceDetailSection({
         <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
         <Eyebrow className="text-subtle">{title}</Eyebrow>
         {summary !== undefined && summary !== null ? (
-          <span className="min-w-0 truncate text-transcript-meta text-faint">{summary}</span>
+          <span className="min-w-0 truncate text-eyebrow text-faint">{summary}</span>
         ) : null}
         <span aria-hidden="true" className="flex-1" />
         <ChevronDown
@@ -119,8 +119,8 @@ function MarketplaceDetailRailCard({
         type="button"
       >
         <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-        <span className="shrink-0 text-form-label font-semibold text-fg">{title}</span>
-        <span className="min-w-0 flex-1 truncate text-right text-transcript-caption text-faint">
+        <span className="shrink-0 text-item-title font-medium text-fg">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-right text-eyebrow text-faint">
           {summary}
         </span>
         <ChevronDown
@@ -140,11 +140,7 @@ function MarketplaceDetailRailCard({
 
 /** Quiet explanatory note inside a rail card body. */
 function MarketplaceDetailRailNote({ children }: { children: ReactNode }) {
-  return (
-    <p className="px-3.5 pt-1.5 pb-1 text-transcript-caption leading-relaxed text-faint">
-      {children}
-    </p>
-  );
+  return <p className="px-3.5 pt-1.5 pb-1 text-eyebrow leading-relaxed text-faint">{children}</p>;
 }
 
 /** Rail property row linking to the entry's repository as an owner/repo slug. */

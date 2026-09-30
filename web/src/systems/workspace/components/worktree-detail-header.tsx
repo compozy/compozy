@@ -45,7 +45,7 @@ export function WorktreeDetailHeader({
       />
       <div className="min-w-0 flex-1" data-slot="worktree-detail-header-main">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="truncate text-card-title font-semibold tracking-[-0.014em] text-fg">
+          <h1 className="truncate text-card-title font-medium tracking-tight text-fg">
             {worktree.name}
           </h1>
           {state === "ready" ? (

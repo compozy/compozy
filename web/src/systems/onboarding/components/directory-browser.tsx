@@ -78,7 +78,7 @@ export function DirectoryBrowser({
           disabled={!homePath}
           onClick={onGoHome}
           size="icon-sm"
-          variant="ghost"
+          variant="quiet"
         >
           <House className="size-3.5" />
         </Button>
@@ -87,7 +87,7 @@ export function DirectoryBrowser({
           disabled={!parentPath}
           onClick={onGoParent}
           size="icon-sm"
-          variant="ghost"
+          variant="quiet"
         >
           <ChevronUp className="size-3.5" />
         </Button>
@@ -168,7 +168,7 @@ export function DirectoryBrowser({
                 ) : (
                   <Spline className="size-4 flex-none text-faint" />
                 )}
-                <span className="truncate text-small-body text-fg">{entry.name}</span>
+                <span className="truncate text-body text-fg">{entry.name}</span>
               </button>
               <Button
                 aria-label={pickRowLabel(entry.name)}
@@ -179,7 +179,7 @@ export function DirectoryBrowser({
                 disabled={isPicked(entry.path) || pickPending}
                 onClick={() => onPick(entry.path)}
                 size="icon-sm"
-                variant="ghost"
+                variant="quiet"
               >
                 <FolderPlus className="size-3.5" />
               </Button>

@@ -32,7 +32,7 @@ export function MenubarCommandItem({ commandId, onRun }: MenubarCommandItemProps
       <span className="min-w-0 flex-1">
         <span className="block">{command.title}</span>
         {!command.available && command.reason ? (
-          <span className="block text-micro text-muted">{command.reason}</span>
+          <span className="block text-eyebrow text-muted">{command.reason}</span>
         ) : null}
       </span>
       {command.chords.length > 0 ? <MenubarShortcut>{command.chords[0]}</MenubarShortcut> : null}

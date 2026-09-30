@@ -241,7 +241,6 @@ function TaskSetupFooter({
           <Button
             data-testid="tasks-setup-toggle-json"
             onClick={onToggleJson}
-            size="sm"
             type="button"
             variant="ghost"
           >
@@ -253,7 +252,6 @@ function TaskSetupFooter({
             data-testid="tasks-setup-clear"
             disabled={isDeletePending}
             onClick={() => onClearOpenChange(true)}
-            size="sm"
             type="button"
             variant="ghost"
           >
@@ -266,7 +264,6 @@ function TaskSetupFooter({
           <Button
             data-testid="tasks-setup-edit"
             onClick={() => editor.setOpen(true)}
-            size="sm"
             type="button"
             variant="neutral"
           >
@@ -276,7 +273,6 @@ function TaskSetupFooter({
         <Button
           data-testid="tasks-setup-close"
           onClick={() => onOpenChange(false)}
-          size="sm"
           type="button"
           variant={hasActiveRun || editor.open ? "neutral" : "ghost"}
         >

@@ -77,9 +77,7 @@ export function ThinkingBlock({
           className="w-full min-w-0"
           data-testid="thinking-trigger"
           expanded={open}
-          icon={
-            <Brain aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
-          }
+          icon={<Brain aria-hidden="true" className="size-3 shrink-0 text-subtle" />}
           label={
             <>
               Thought

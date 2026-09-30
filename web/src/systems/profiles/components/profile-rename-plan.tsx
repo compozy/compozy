@@ -25,7 +25,7 @@ function Tier({ title, tag, children }: { title: string; tag: string; children: 
 }
 
 const ROW_CLASS = "flex min-h-7 items-center gap-2 text-small-body text-muted";
-const CODE_CLASS = "rounded-xs bg-code-bg px-1 py-px font-mono text-micro text-muted";
+const CODE_CLASS = "rounded-xs bg-sunken px-1 py-px font-mono text-micro text-muted";
 
 /**
  * What a rename will do, grouped by who decides.
@@ -53,9 +53,9 @@ export function ProfileRenamePlan({
         <Tier title="Machine folders" tag="automatic">
           {plan.machine_folders.map(folder => (
             <div key={folder} className={ROW_CLASS}>
-              <HardDrive aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+              <HardDrive aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
               <code className={CODE_CLASS}>{folder}</code>
-              <ArrowRight aria-hidden="true" className="size-2.5 shrink-0 text-subtle" />
+              <ArrowRight aria-hidden="true" className="size-3 shrink-0 text-subtle" />
               <code className={CODE_CLASS}>{target}</code>
             </div>
           ))}
@@ -89,7 +89,7 @@ export function ProfileRenamePlan({
               className={cn(ROW_CLASS, "text-faint")}
               data-testid="profile-rename-dormant"
             >
-              <Moon aria-hidden="true" className="size-3 shrink-0" />
+              <Moon aria-hidden="true" className="size-3.5 shrink-0" />
               <span>
                 {placement.extension} content for {placement.profile} will sleep until a profile
                 uses that name again
@@ -101,7 +101,7 @@ export function ProfileRenamePlan({
       {plan.vault_ref_rewrites > 0 ? (
         <Tier title="Stored references" tag="automatic">
           <div className={ROW_CLASS}>
-            <CircleSlash aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+            <CircleSlash aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
             <span>
               {plan.vault_ref_rewrites} credential reference
               {plan.vault_ref_rewrites === 1 ? "" : "s"} repointed

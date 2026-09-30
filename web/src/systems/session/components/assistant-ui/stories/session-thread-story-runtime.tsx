@@ -7,6 +7,11 @@ import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-t
 import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
+import { RuntimeSelector } from "@/systems/runtime";
+import { SessionContextControl } from "@/systems/session/components/session-context-control";
+import { SessionEnvironmentChip } from "@/systems/session/components/session-environment-chip";
+import { deriveSessionContext } from "@/systems/session/lib/session-context";
+import { sessionContextFixture } from "@/systems/session/mocks/context-fixtures";
 import { transcriptPayload } from "./session-thread-story-transcripts";
 
 type Story = StoryObj<typeof SessionThread>;
@@ -36,6 +41,35 @@ export const baseArgs = {
   canPrompt: true,
   onCancelPrompt: () => undefined,
 };
+
+/** The composer toolbar the session window mounts: model picker, folder and context ring. */
+export const composerToolbarArgs = {
+  runtimeControl: (
+    <RuntimeSelector
+      variant="composer"
+      value={{ provider: "claude", model: "claude-fable-5", reasoning_effort: "high" }}
+      onChange={() => undefined}
+      providers={[{ id: "claude", name: "Claude", runtime_provider: "claude", harness: "acp" }]}
+      models={[
+        {
+          id: "claude-fable-5",
+          provider: "claude",
+          name: "Claude Fable 5",
+          efforts: ["low", "medium", "high"],
+          default_effort: "medium",
+          availability: "live",
+        },
+      ]}
+    />
+  ),
+  environmentControl: <SessionEnvironmentChip state="worktree" label="shell-rail" />,
+  contextControl: (
+    <SessionContextControl
+      context={deriveSessionContext(sessionContextFixture)}
+      onOpen={() => undefined}
+    />
+  ),
+} satisfies Partial<ComponentProps<typeof SessionThread>>;
 
 export function renderWithTranscriptState(
   args: ComponentProps<typeof SessionThread>,

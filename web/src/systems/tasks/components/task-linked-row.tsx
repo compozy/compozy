@@ -63,7 +63,7 @@ export function TaskLinkedRow({
         label={STATE_LABEL[state]}
         state={STATE_GLYPH[state]}
       />
-      <span className="truncate text-ws-name font-medium text-fg-strong">
+      <span className="truncate text-item-title font-medium text-fg-strong">
         {state === "done" ? <s className="text-muted decoration-faint">{title}</s> : title}
       </span>
       {ownerName && owner ? (

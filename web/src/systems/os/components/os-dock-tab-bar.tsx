@@ -36,13 +36,13 @@ function TabBarItem({
       className={cn(
         "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted",
         "transition-[background-color,color,box-shadow] duration-base ease-spring",
-        "hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
-        item.active && "bg-selected text-fg shadow-card hover:bg-selected"
+        "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
+        item.active && "bg-rail-selected text-fg hover:bg-rail-selected"
       )}
       onFocus={() => onFocusItem(item.id)}
       onClick={() => onSelect(item.id)}
     >
-      <DockIcon name={item.icon} className={cn("size-5", item.minimized && "opacity-50")} />
+      <DockIcon name={item.icon} className={cn("size-4.5", item.minimized && "opacity-50")} />
       {item.badge ? (
         <PillCount
           data-slot="os-dock-badge"

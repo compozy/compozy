@@ -92,7 +92,7 @@ function Slider<Value extends number | readonly number[] = number>({
                   : undefined
               }
               className={cn(
-                "relative block size-3 shrink-0 rounded-pill border border-line-strong bg-canvas shadow-card",
+                "relative block size-3 shrink-0 rounded-pill border border-line-strong bg-canvas",
                 "transition-[box-shadow] duration-fast ease-out select-none after:absolute after:-inset-2",
                 "focus-visible:shadow-focus-ring focus-visible:outline-none",
                 "data-disabled:pointer-events-none"

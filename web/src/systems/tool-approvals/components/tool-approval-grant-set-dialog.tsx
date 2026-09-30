@@ -143,7 +143,7 @@ export function ToolApprovalGrantSetDialog({
 
           {error ? (
             <div
-              className="border-t border-line px-5 py-3 text-xs text-danger"
+              className="border-t border-line px-5 py-3 text-eyebrow text-danger"
               data-testid="tool-approval-grant-set-error"
             >
               {error}
@@ -157,7 +157,6 @@ export function ToolApprovalGrantSetDialog({
             <Button
               disabled={isPending}
               onClick={() => onOpenChange(false)}
-              size="sm"
               type="button"
               variant="ghost"
             >
@@ -166,10 +165,9 @@ export function ToolApprovalGrantSetDialog({
             <Button
               data-testid="tool-approval-grant-set-confirm"
               disabled={!canSubmit || isPending}
-              size="sm"
               type="submit"
             >
-              <Plus aria-hidden="true" className="size-3" />
+              <Plus aria-hidden="true" />
               Add rule
             </Button>
           </DialogFooter>

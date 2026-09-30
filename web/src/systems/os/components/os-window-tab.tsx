@@ -148,12 +148,12 @@ export function OsWindowTab({
 
 function tabPlateClass(pinned: boolean, active: boolean): string {
   return cn(
-    "group/tab relative inline-flex h-deck-tab min-w-0 items-center gap-2 rounded-t-deck-tab text-small-body font-medium transition-colors duration-base select-none",
+    "group/tab relative inline-flex h-deck-tab min-w-0 items-center gap-2 rounded-t-deck-tab text-body font-medium transition-colors duration-base select-none",
     pinned ? "shrink-0 pr-3" : "flex-1 pr-1.75",
     active
       ? // The plate's side and top hairlines are inset so the feet meet them flush.
         "z-1 bg-canvas text-fg shadow-[inset_1px_0_0_var(--color-line),inset_-1px_0_0_var(--color-line),inset_0_1px_0_var(--color-line)]"
-      : "text-muted hover:bg-surface-2 hover:text-fg"
+      : "text-muted hover:bg-rail-hover hover:text-fg"
   );
 }
 
@@ -203,7 +203,7 @@ function OsWindowTabGlyph({
   }
   if (isNewTab) return null;
   const AppIcon = app.icon;
-  return <AppIcon aria-hidden="true" className="size-3.75 shrink-0" />;
+  return <AppIcon aria-hidden="true" className="size-3.5 shrink-0" />;
 }
 
 /**

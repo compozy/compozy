@@ -430,7 +430,6 @@ export {
   type SessionWorkspaceSwitchDialogProps,
 } from "./components/session-workspace-switch-dialog";
 export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
-export { rendersTerminalBlock } from "./lib/session-terminal-tools";
 export { SessionSummaryDisclosure } from "./components/session-summary-disclosure";
 export {
   SessionChatRuntimeProvider,

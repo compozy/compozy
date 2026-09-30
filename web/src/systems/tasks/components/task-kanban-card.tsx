@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { Button, MonoId, OwnerAvatar, StateGlyph } from "@compozy/ui";
+import { Button, MonoId, OwnerAvatar, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -46,9 +46,9 @@ export function TaskKanbanCard({
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
       className={cn(
-        // A card on the sunken column: surface plus shadow-card, stepping to
-        // surface-2 on hover and to the selected plate when chosen.
-        "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-canvas p-3 text-left shadow-card transition-colors duration-base ease-out",
+        // A card on the sunken column: `card` plus shadow-card (its hairline),
+        // stepping to surface-2 on hover and to the selected plate when chosen.
+        "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-card p-3 text-left shadow-card transition-colors duration-base ease-out",
         selection.clickable && "cursor-pointer hover:bg-surface-2",
         selection.clickable && "focus-visible:shadow-focus-ring focus-visible:outline-none",
         selected && "bg-selected inset-ring-1 inset-ring-line-strong"
@@ -59,13 +59,10 @@ export function TaskKanbanCard({
           {task.title}
         </h3>
         {showStatus ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1.5 text-eyebrow text-fg-2"
-            data-testid={`tasks-kanban-card-status-${task.id}`}
-          >
+          <Pill data-testid={`tasks-kanban-card-status-${task.id}`} form="plain">
             <StateGlyph size="sm" state={taskStateGlyph(task.status)} />
             {taskStatusLabel(task.status)}
-          </span>
+          </Pill>
         ) : null}
       </div>
 

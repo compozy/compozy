@@ -13,19 +13,19 @@ function SettingsInputHarness() {
   const [decimalError, setDecimalError] = useState<string | null>(null);
 
   return (
-    <div className="grid w-full max-w-lg gap-5 rounded-lg border border-line bg-canvas p-5">
+    <div className="grid w-full max-w-lg gap-5 rounded-lg bg-card shadow-card p-5">
       <label className="grid gap-2">
-        <span className="text-sm font-medium text-fg">Max retries</span>
+        <span className="text-body font-medium text-fg">Max retries</span>
         <SettingsNumberInput
           value={whole}
           min={1}
           onValueChange={setWhole}
           onValidityChange={setWholeError}
         />
-        <span className="text-xs text-subtle">{wholeError ?? `Current value: ${whole}`}</span>
+        <span className="text-eyebrow text-subtle">{wholeError ?? `Current value: ${whole}`}</span>
       </label>
       <label className="grid gap-2">
-        <span className="text-sm font-medium text-fg">Temperature</span>
+        <span className="text-body font-medium text-fg">Temperature</span>
         <SettingsDecimalInput
           value={decimal}
           min={0}
@@ -34,7 +34,7 @@ function SettingsInputHarness() {
           onValueChange={setDecimal}
           onValidityChange={setDecimalError}
         />
-        <span className="text-xs text-subtle">
+        <span className="text-eyebrow text-subtle">
           {decimalError ?? `Current value: ${decimal.toFixed(2)}`}
         </span>
       </label>

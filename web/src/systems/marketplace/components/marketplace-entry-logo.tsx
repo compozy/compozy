@@ -46,7 +46,7 @@ const BRAND_CLASS: Record<MarketplaceEntryLogoSize, string> = {
 const MONOGRAM_CLASS: Record<MarketplaceEntryLogoSize, string> = {
   sm: "text-mono-id",
   md: "text-card-title",
-  lg: "text-xl",
+  lg: "text-detail-h1",
 };
 
 const MARBLE_PIXELS: Record<MarketplaceEntryLogoSize, number> = { sm: 24, md: 40, lg: 56 };

@@ -45,7 +45,7 @@ export function TaskKanbanColumn({
     >
       <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
         <StateGlyph data-testid={`tasks-kanban-column-glyph-${column.id}`} state={column.glyph} />
-        <h2 className="text-small-body font-medium text-fg">{column.label}</h2>
+        <h2 className="text-item-title font-medium text-fg">{column.label}</h2>
         {countLabel ? (
           <span
             className="text-small-body tabular-nums text-subtle"

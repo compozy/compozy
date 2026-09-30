@@ -45,7 +45,7 @@ export function SessionActivitySection({ activity = {} }: { activity?: SessionAc
               <li
                 key={key}
                 data-kind={key === "warning" ? "warning" : undefined}
-                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-[1.45] text-muted"
+                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-normal text-muted"
               >
                 {Icon ? (
                   <Icon

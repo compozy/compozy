@@ -130,7 +130,7 @@ export function ProfileSwitcherMenu({
                   </Button>
                 </span>
               ) : row.current && !aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg" />
+                <Check aria-hidden="true" className="ml-auto size-3.5 shrink-0 text-fg" />
               ) : null}
             </CommandItem>
           ))}
@@ -147,7 +147,7 @@ export function ProfileSwitcherMenu({
               <ProfileGlyph decorative size="sm" aggregate name="All profiles" />
               <span>All profiles</span>
               {aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg" />
+                <Check aria-hidden="true" className="ml-auto size-3.5 shrink-0 text-fg" />
               ) : null}
             </CommandItem>
           ) : null}

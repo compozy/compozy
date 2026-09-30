@@ -96,7 +96,6 @@ export function SchedulerPauseDialog({
           <Button
             disabled={isPending}
             onClick={() => handleOpenChange(false)}
-            size="sm"
             type="button"
             variant="neutral"
           >
@@ -106,7 +105,6 @@ export function SchedulerPauseDialog({
             data-testid="scheduler-controls-pause-confirm"
             disabled={isPending}
             onClick={() => void handleConfirm()}
-            size="sm"
             type="button"
           >
             Pause

@@ -364,13 +364,13 @@ function MarketplaceExtensionServerActions({
             type="button"
             variant="ghost"
           >
-            <Settings2 aria-hidden="true" className="size-3" />
+            <Settings2 aria-hidden="true" />
             Edit configuration
           </Button>
         </div>
       ) : live.query.error ? (
         <div className="flex items-center gap-2 px-3.5 pt-1.5 pb-1">
-          <span className="text-transcript-caption text-faint">Live status unavailable.</span>
+          <span className="text-eyebrow text-faint">Live status unavailable.</span>
           <Button onClick={() => void live.query.refetch()} size="xs" type="button" variant="ghost">
             Retry
           </Button>

@@ -114,7 +114,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
                             {row.label}
                             {row.alias ? <span className="text-muted"> ({row.alias})</span> : null}
                             {row.overridden ? (
-                              <span className="ml-1.5 text-badge text-muted">override</span>
+                              <span className="ml-1.5 text-eyebrow text-muted">override</span>
                             ) : null}
                           </dt>
                           <dd className="shrink-0">

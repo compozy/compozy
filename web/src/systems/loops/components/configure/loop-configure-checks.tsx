@@ -54,7 +54,7 @@ export function LoopConfigureChecks({
               <Input
                 type="text"
                 data-testid={`loop-configure-command-${descriptor.id}`}
-                className="h-8 font-mono text-form-input"
+                className="font-mono text-form-input"
                 placeholder={descriptor.declaredCommand || "command"}
                 value={state.command}
                 disabled={commandDisabled}

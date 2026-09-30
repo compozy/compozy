@@ -17,8 +17,8 @@ export const DEFAULT_THEME_PREFERENCE: ThemePreference = "dark";
  * page's `--canvas` (`--color-canvas`).
  */
 export const WINDOW_BACKGROUNDS = {
-  chrome: { dark: "#0a0a0a", light: "#fafafa" },
-  canvas: { dark: "#1a1a1a", light: "#ffffff" },
+  chrome: { dark: "#0a0a0a", light: "#f2f2f3" },
+  canvas: { dark: "#131313", light: "#ffffff" },
 } as const;
 export type WindowSurface = keyof typeof WINDOW_BACKGROUNDS;
 

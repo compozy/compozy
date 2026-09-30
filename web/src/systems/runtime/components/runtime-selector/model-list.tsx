@@ -32,7 +32,7 @@ function GroupHead({
   return (
     <div
       role="presentation"
-      className="sticky top-0 z-[1] flex items-center gap-1.5 bg-canvas px-2 pt-[7px] pb-[3px]"
+      className="sticky top-0 z-[1] flex items-center gap-1.5 bg-popover px-2 pt-[7px] pb-[3px]"
     >
       <Eyebrow className="text-faint">{name}</Eyebrow>
       {harnessBadge ? (

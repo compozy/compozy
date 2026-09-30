@@ -53,9 +53,9 @@ function ToolbarToggle({ copy, icon, on, busy, onChange, slot, testId }: Toolbar
               aria-label={copy.controlName}
               className={cn(
                 "size-7 min-w-7 p-0 text-muted hover:bg-surface-2 hover:text-fg",
-                // Pressed reads like an active pill: surface-2 + shadow-card, fg ink — never accent.
-                "aria-pressed:bg-surface-2 aria-pressed:text-fg aria-pressed:shadow-card",
-                "data-[state=on]:bg-surface-2 data-[state=on]:text-fg data-[state=on]:shadow-card",
+                // Pressed is a quiet surface-2 plate with fg ink — never a ring, never accent.
+                "aria-pressed:bg-surface-2 aria-pressed:text-fg",
+                "data-[state=on]:bg-surface-2 data-[state=on]:text-fg",
                 "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted",
                 "aria-disabled:aria-pressed:text-fg",
                 busy && "opacity-50"

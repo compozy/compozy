@@ -78,10 +78,7 @@ export function HomeUsageChart({
     >
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="flex-1">
         <div className="flex items-baseline gap-2.5">
-          <span
-            className="text-kpi-value text-fg-strong tabular-nums"
-            style={{ fontWeight: "var(--font-weight-display)" }}
-          >
+          <span className="text-kpi-value font-semibold text-fg-strong tabular-nums">
             {formatHomeTokens(usage.total_tokens)}
           </span>
           <span className="text-small-body text-subtle">{usageFigure(usage)}</span>
@@ -104,7 +101,7 @@ export function HomeUsageChart({
           />
         )}
         {footnotes.length > 0 ? (
-          <p className="text-micro leading-relaxed text-faint">{footnotes.join(" ")}</p>
+          <p className="text-eyebrow leading-relaxed text-muted">{footnotes.join(" ")}</p>
         ) : null}
         <HomeAgentShare share={usage.agent_share} />
         {profileAggregate ? (
@@ -137,7 +134,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
     >
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <Eyebrow className="text-subtle">Per-agent share</Eyebrow>
-        <span className="text-micro text-faint">last 30 days</span>
+        <span className="text-eyebrow text-muted">last 30 days</span>
       </div>
       <div
         aria-label={`Token share by agent: ${label}`}
@@ -163,7 +160,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
               style={{ background: SHARE_RAMP[Math.min(index, SHARE_RAMP.length - 1)] }}
             />
             {entry.agent_name}{" "}
-            <span className="font-mono text-micro tabular-nums text-subtle">
+            <span className="text-eyebrow tabular-nums text-subtle">
               {Math.round(entry.fraction * 100)}% · {formatHomeTokens(entry.tokens)}
             </span>
           </span>

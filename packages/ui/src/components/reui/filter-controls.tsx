@@ -53,9 +53,9 @@ function FilterInput<T = unknown>({
     <InputGroup
       className={cn(
         "w-36",
-        context.size === "sm" && "h-7!",
-        context.size === "default" && "h-8!",
-        context.size === "lg" && "h-9!",
+        context.size === "sm" && "h-button-sm!",
+        context.size === "default" && "h-(--height-pill-group-segment-md)!",
+        context.size === "lg" && "h-button-lg!",
         className
       )}
     >
@@ -73,9 +73,9 @@ function FilterInput<T = unknown>({
         onBlur={validateFilterInputOnBlur}
         onKeyDown={handleKeyDown}
         className={cn(
-          context.size === "sm" && "h-7! text-form-label",
-          context.size === "default" && "h-8!",
-          context.size === "lg" && "h-9!"
+          context.size === "sm" && "h-button-sm! text-form-label",
+          context.size === "default" && "h-(--height-pill-group-segment-md)!",
+          context.size === "lg" && "h-button-lg!"
         )}
         {...props}
       />

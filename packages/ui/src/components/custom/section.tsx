@@ -72,7 +72,7 @@ function SectionRight({
     <div
       data-slot="section-right"
       className={cn(
-        "flex w-full items-center gap-2 self-start @xl/section:w-auto @xl/section:shrink-0",
+        "flex w-full items-center gap-2 self-start @md/section:w-auto @md/section:shrink-0",
         rightClassName
       )}
     >
@@ -112,7 +112,7 @@ function SectionHead({
       data-slot="section-head"
       data-bordered={bordered ? "true" : undefined}
       className={cn(
-        "flex flex-col gap-3 pb-2 @xl/section:flex-row @xl/section:items-start @xl/section:justify-between",
+        "flex flex-col gap-3 pb-2 @md/section:flex-row @md/section:items-start @md/section:justify-between",
         bordered && "border-b border-line",
         headClassName
       )}
@@ -149,8 +149,10 @@ function Section({
   return (
     <section
       data-slot="section"
+      // A size container measures no intrinsic width, so inside a row-flex
+      // parent it would collapse to 0: the section claims the full line itself.
       className={cn(
-        "@container/section flex min-w-0 flex-col gap-3",
+        "@container/section flex w-full min-w-0 flex-col gap-3",
         divided && "border-t border-line pt-5 first:border-t-0 first:pt-0",
         className
       )}

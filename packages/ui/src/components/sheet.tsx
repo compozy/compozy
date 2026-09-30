@@ -168,7 +168,7 @@ function SheetContent({
               />
             }
             className={cn(
-              "fixed z-50 flex flex-col gap-4 bg-canvas bg-clip-padding text-small-body text-fg shadow-overlay outline-none",
+              "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-small-body text-fg shadow-overlay outline-none",
               SIDE_CLASSES[side],
               className
             )}

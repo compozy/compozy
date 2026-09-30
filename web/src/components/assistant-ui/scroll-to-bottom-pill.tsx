@@ -33,7 +33,7 @@ export function ScrollToBottomPill({
         tabIndex={visible ? 0 : -1}
         className={cn(
           "flex size-8 items-center justify-center rounded-full",
-          "border border-line bg-canvas text-muted shadow-elevated",
+          "bg-popover text-muted shadow-pop",
           "transition-colors hover:bg-surface-2 hover:text-fg",
           "focus-visible:shadow-focus-ring focus-visible:outline-none",
           visible ? "pointer-events-auto" : "pointer-events-none"

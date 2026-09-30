@@ -152,12 +152,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
           action={
-            <Button
-              onClick={() => retargetTerminal(terminal.id)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
+            <Button onClick={() => retargetTerminal(terminal.id)} type="button" variant="primary">
               Open terminal
             </Button>
           }
@@ -307,7 +302,7 @@ function TerminalWindowError({
     <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
       <Empty
         action={
-          <Button onClick={() => void retry()} size="sm" type="button" variant="outline">
+          <Button onClick={() => void retry()} size="sm" type="button" variant="secondary">
             Retry
           </Button>
         }

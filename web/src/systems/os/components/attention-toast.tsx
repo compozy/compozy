@@ -33,7 +33,7 @@ function ToastFrame({
   return (
     <div
       data-testid={testId}
-      className="pointer-events-auto relative flex w-full items-start gap-2.5 rounded-lg bg-canvas p-3 text-left shadow-pop"
+      className="pointer-events-auto relative flex w-full items-start gap-2.5 rounded-lg bg-popover p-3 text-left shadow-pop"
     >
       {mark}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -51,10 +51,10 @@ function ToastFrame({
             {title}
           </button>
         ) : (
-          <span className="truncate text-small-body font-semibold text-fg-strong">{title}</span>
+          <span className="truncate text-small-body font-medium text-fg-strong">{title}</span>
         )}
         {body ? <span className="text-small-body text-fg">{body}</span> : null}
-        {meta ? <span className="mt-0.5 font-mono text-micro text-faint">{meta}</span> : null}
+        {meta ? <span className="mt-0.5 font-mono text-eyebrow text-faint">{meta}</span> : null}
         {action ? (
           <span className="relative z-10 mt-1.5 flex">
             <Button size="sm" variant="secondary" onClick={action.onClick}>

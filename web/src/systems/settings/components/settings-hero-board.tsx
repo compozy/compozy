@@ -41,16 +41,18 @@ export function SettingsHeroBoard({
 }: SettingsHeroBoardProps) {
   return (
     <section
-      className="flex flex-col gap-4 rounded-lg bg-canvas shadow-card p-4"
+      className="flex flex-col gap-4 rounded-lg bg-card shadow-card p-4"
       data-testid={testId ?? "settings-hero-board"}
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <Pill.Dot pulse={pulse} tone={tone} />
-        <span className="min-w-0 truncate text-ws-name font-semibold text-fg">{state}</span>
+        <span className="min-w-0 truncate text-item-title font-medium text-fg">{state}</span>
         {sub ? <span className="text-form-label tabular-nums text-subtle">{sub}</span> : null}
         {pill ? (
           <span className="ml-auto shrink-0">
-            <Pill tone={tone}>{pill}</Pill>
+            <Pill form="plain" tone={tone}>
+              {pill}
+            </Pill>
           </span>
         ) : null}
       </div>

@@ -16,26 +16,24 @@ const DEFAULT_INSTALL_BLOCKER =
 interface MarketplaceCatalogTrailProps {
   entry: MarketplaceCatalogListing;
   pending?: boolean;
-  /** `primary` only in the detail head, where the one accent lives. */
-  emphasis?: "neutral" | "primary";
   onInstall: (entry: MarketplaceCatalogListing) => void;
   onUpdate: (entry: MarketplaceCatalogListing) => void;
 }
 
 /**
  * Catalog trail, one state at a time (top wins): pending → blocked → update → installed → install.
- * Blocked is a sentence, never a disabled button pretending to be an action.
+ * Blocked is a status word, never a disabled button pretending to be an action. The same trail
+ * rides the catalog row and the detail window head, where actions stay `secondary` — a window
+ * head never carries the inverted primary.
  */
 function MarketplaceCatalogTrail({
   entry,
   pending = false,
-  emphasis = "neutral",
   onInstall,
   onUpdate,
 }: MarketplaceCatalogTrailProps) {
   const version = formatMarketplaceVersion(entry.version);
   const blocked = entry.trust?.decision === "blocked" || entry.installable === false;
-  const variant = emphasis === "primary" ? "default" : "neutral";
 
   if (pending) {
     return (
@@ -45,9 +43,9 @@ function MarketplaceCatalogTrail({
         disabled
         size="sm"
         type="button"
-        variant={variant}
+        variant="secondary"
       >
-        <Spinner aria-hidden="true" className="size-3" />
+        <Spinner aria-hidden="true" className="size-3.5" />
         {entry.update_available ? "Updating…" : "Installing…"}
       </Button>
     );
@@ -59,11 +57,11 @@ function MarketplaceCatalogTrail({
       <Pill
         className="cursor-help"
         data-testid={`marketplace-name-conflict-${entry.entry_id}`}
-        form="hollow"
-        size="xs"
+        form="plain"
         title={`This name is already installed from ${origin.source}/${origin.entry_id} (${origin.source_ref}).`}
         tone="warning"
       >
+        <Pill.Dot />
         Name in use
       </Pill>
     );
@@ -74,11 +72,11 @@ function MarketplaceCatalogTrail({
       <Pill
         className="cursor-help"
         data-testid={`marketplace-blocked-${entry.entry_id}`}
-        form="hollow"
-        size="xs"
+        form="plain"
         title={entry.install_blocker?.trim() || DEFAULT_INSTALL_BLOCKER}
         tone="danger"
       >
+        <Pill.Dot />
         Blocked
       </Pill>
     );
@@ -96,7 +94,7 @@ function MarketplaceCatalogTrail({
           onClick={() => onUpdate(entry)}
           size="sm"
           type="button"
-          variant={variant}
+          variant="secondary"
         >
           Update
         </Button>
@@ -107,7 +105,7 @@ function MarketplaceCatalogTrail({
   if (entry.installed) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-subtle"
+        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-muted"
         data-testid={`marketplace-installed-${entry.entry_id}`}
       >
         <Check aria-hidden="true" className="size-3" />
@@ -123,7 +121,7 @@ function MarketplaceCatalogTrail({
       onClick={() => onInstall(entry)}
       size="sm"
       type="button"
-      variant={variant}
+      variant="secondary"
     >
       Install
     </Button>

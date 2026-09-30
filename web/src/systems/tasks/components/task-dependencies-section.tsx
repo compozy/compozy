@@ -45,7 +45,7 @@ export function TaskDependenciesSection({
       data-testid="tasks-detail-dependencies"
       label="Blocked by"
     >
-      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         {open.map(dep => (
           <TaskLinkedRow
             key={dep.depends_on.id}
@@ -69,7 +69,7 @@ export function TaskDependenciesSection({
               <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                  "size-3 text-faint",
+                  "size-3.5 text-faint",
                   !reduceMotion && "transition-transform duration-fast",
                   showResolved && "rotate-90"
                 )}

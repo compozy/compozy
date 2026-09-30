@@ -46,22 +46,20 @@ export function ExtensionProvenanceDialog({
         </DialogHeader>
         <div className="px-5 py-4" data-testid="extension-provenance-content">
           {query.isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Spinner className="size-4" />
+            <div className="flex items-center gap-2 text-small-body text-muted">
+              <Spinner className="size-3.5" />
               Loading provenance
             </div>
           ) : query.error ? (
-            <p className="text-sm text-danger">{query.error.message}</p>
+            <p className="text-small-body text-danger">{query.error.message}</p>
           ) : query.data ? (
             <ProvenanceFields provenance={query.data} />
           ) : (
-            <p className="text-sm text-muted">No provenance data is available.</p>
+            <p className="text-small-body text-muted">No provenance data is available.</p>
           )}
         </div>
         <DialogFooter variant="ruled">
-          <DialogClose render={<Button size="sm" type="button" variant="ghost" />}>
-            Done
-          </DialogClose>
+          <DialogClose render={<Button type="button" variant="ghost" />}>Done</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -72,7 +70,7 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
   return (
     <dl className="divide-y divide-line-soft" data-testid="extension-provenance-fields">
       <ProvenanceRow term="Source kind">
-        <span className="text-xs text-fg" data-testid="extension-provenance-source-kind">
+        <span className="text-small-body text-fg" data-testid="extension-provenance-source-kind">
           {extensionSourceKindLabel(provenance.installed_from)}
         </span>
         <code className="break-all font-mono text-mono-id text-muted">
@@ -80,7 +78,7 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
         </code>
       </ProvenanceRow>
       <ProvenanceRow term="Source">
-        <code className="break-all font-mono text-xs text-fg">
+        <code className="break-all font-mono text-eyebrow text-fg">
           {provenance.source_url ?? provenance.slug ?? "—"}
         </code>
       </ProvenanceRow>
@@ -88,27 +86,27 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
         {provenance.checksum_sha256 ? (
           <MonoId value={provenance.checksum_sha256} />
         ) : (
-          <code className="font-mono text-xs text-fg">—</code>
+          <code className="font-mono text-eyebrow text-fg">—</code>
         )}
       </ProvenanceRow>
       <ProvenanceRow term="Archive digest">
         {provenance.archive_digest_sha256 ? (
           <MonoId value={provenance.archive_digest_sha256} />
         ) : (
-          <code className="font-mono text-xs text-fg">—</code>
+          <code className="font-mono text-eyebrow text-fg">—</code>
         )}
       </ProvenanceRow>
       <ProvenanceRow term="Integrity and trust">
         <ExtensionTrustBadges facts={extensionTrustFacts(provenance)} showRegistryTier={false} />
         {!provenance.digest_matched && !provenance.checksum_verified ? (
-          <span className="text-xs text-muted">No integrity evidence was recorded.</span>
+          <span className="text-eyebrow text-muted">No integrity evidence was recorded.</span>
         ) : null}
       </ProvenanceRow>
       <ProvenanceRow term="Registry tier">
-        <code className="font-mono text-xs text-fg">{provenance.registry_tier || "—"}</code>
+        <code className="font-mono text-eyebrow text-fg">{provenance.registry_tier || "—"}</code>
       </ProvenanceRow>
       <ProvenanceRow term="Installed by">
-        <code className="font-mono text-xs text-fg">{provenance.installed_by || "—"}</code>
+        <code className="font-mono text-eyebrow text-fg">{provenance.installed_by || "—"}</code>
       </ProvenanceRow>
     </dl>
   );

@@ -63,7 +63,7 @@ function ShortcutBindingCell({
       <button
         aria-label={`${row.title} shortcut`}
         className={cn(
-          "inline-flex min-h-7 shrink-0 items-center rounded-pill px-2.5",
+          "inline-flex min-h-control-compact shrink-0 items-center rounded-pill px-2.5",
           "bg-surface-2 transition-colors duration-base ease-out hover:bg-selected",
           "focus-visible:outline-none focus-visible:shadow-focus-ring",
           "disabled:cursor-not-allowed disabled:opacity-60",

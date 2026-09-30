@@ -11,35 +11,41 @@
 [data-theme="light"]:root {
   color-scheme: light;
 
-  /* Surface ramp. */
-  --color-rail: #fafafa;
-  --color-desk: #fafafa;
+  /* Surface ramp (polish contract P1). Light keeps the same stack: a grey
+     chrome (rail + topbar), a white content panel and panes, white cards
+     separated by the `line` hairline and `shadow-card`, white popovers lifted
+     by `shadow-pop`. `sidebar` follows `sunken` from tokens.css. */
+  --color-rail: #f2f2f3;
+  --color-rail-hover: #e8e8ea;
+  --color-rail-selected: #e3e3e6;
+  --color-desk: #ffffff;
   --color-canvas: #ffffff;
   --color-canvas-soft: #ffffff;
-  --color-sunken: #f7f8fa;
-  --color-surface-2: #f4f5f7;
-  --color-selected: #f0f1f3;
-  --color-code-bg: #f4f5f7;
-  --color-sidebar: #ffffff;
-  --color-elevated: #eeeff2;
+  --color-sunken: #f7f7f8;
+  --color-surface-2: #f4f4f5;
+  --color-selected: #efeff1;
+  --color-code-bg: #f6f6f7;
+  --color-elevated: #ffffff;
   --color-disabled: #c4c7cc;
 
   /* Hairlines. */
-  --color-line: #e6e8ec;
-  --color-line-soft: #f1f2f5;
-  --color-line-strong: #d4d7dd;
+  --color-line: #e6e6e9;
+  --color-line-soft: #efeff1;
+  --color-line-strong: #d6d6db;
   --color-line-focus: #b8bcc4;
   --color-indicator: #888888;
+  --color-knob: #ffffff;
 
-  /* Text — muted clears AA 4.5:1 on canvas, sunken, rail and surface-2 (the
-     reference's #a1a1a1 reads 2.6:1); fg-2 / fg-3 re-derive from it. */
+  /* Text — muted clears AA 4.5:1 on every text surface, the selected row
+     included (the reference's #a1a1a1 reads 2.6:1); fg-2 / fg-3 re-derive
+     from it. */
   --color-fg: #1a1a1a;
   --color-fg-strong: #0b0d12;
   --color-fg-2: #4c4c4c;
   --color-fg-3: #333333;
-  --color-muted: #6e6e6e;
-  --color-subtle: #6e6e6e;
-  --color-faint: #6e6e6e;
+  --color-muted: #6b6b6b;
+  --color-subtle: #6b6b6b;
+  --color-faint: #6b6b6b;
 
   /* Primary (inverted). */
   --color-primary: #0b0d12;
@@ -111,14 +117,13 @@
   --color-avatar-human-2-fg: #74525c;
 
   /* Shadows — `--theme-shadow-*` literals behind the @theme adapters. */
-  --theme-shadow-card: 0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005;
+  --theme-shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005;
   --theme-shadow-elevated:
     0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
   --theme-shadow-pop:
-    0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05,
-    0 1.5px 3px #0000000a;
-  --theme-shadow-overlay:
-    0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06);
+    0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a,
+    0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
+  --theme-shadow-overlay: 0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line);
   --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   --theme-shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
   --theme-shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);

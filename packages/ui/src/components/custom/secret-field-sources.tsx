@@ -171,7 +171,7 @@ function SecretFieldSourceList({
             </Pill>
           }
           className={cn(
-            "gap-0 border border-line bg-canvas px-2.5 py-2 data-[selected]:border-line-strong data-[selected]:bg-selected",
+            "gap-0 border border-line bg-card px-2.5 py-2 data-[selected]:border-line-strong data-[selected]:bg-selected",
             DIALOG_TOUCH_TARGET_CLASS
           )}
           disabled={!source.present}
@@ -250,7 +250,7 @@ function SecretFieldSources({
   const { create } = binding;
   return (
     <div
-      className="flex flex-col gap-2.5 rounded-md bg-canvas px-3 py-3"
+      className="flex flex-col gap-2.5 rounded-md bg-sunken px-3 py-3"
       data-slot="secret-field-sources"
       data-testid={testId}
     >

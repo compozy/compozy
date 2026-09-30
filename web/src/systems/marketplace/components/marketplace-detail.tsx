@@ -39,14 +39,14 @@ function MarketplaceDetailSkeleton() {
         </div>
       </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
-        <div className="flex flex-col gap-2.5 rounded-lg bg-canvas shadow-card p-5">
+        <div className="flex flex-col gap-2.5 rounded-lg bg-card p-5 shadow-card">
           {[78, 91, 66, 82, 94, 72].map(width => (
             <Skeleton className="h-2.5" key={width} style={{ width: `${width}%` }} />
           ))}
         </div>
         <aside className="flex flex-col gap-3">
           {[0, 1].map(card => (
-            <div className="overflow-hidden rounded-lg bg-canvas shadow-card" key={card}>
+            <div className="overflow-hidden rounded-lg bg-card shadow-card" key={card}>
               <div className="border-b border-line-soft px-3.5 py-3">
                 <Skeleton className="h-2.5 w-24" />
               </div>

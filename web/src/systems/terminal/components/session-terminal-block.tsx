@@ -182,12 +182,13 @@ function SessionTerminalBlockBody({
 
 function SessionTerminalFooter({ status }: { status: SessionTerminalStatus }) {
   return (
-    <div className="flex min-h-7 items-center gap-2 border-line border-t bg-sunken px-3 font-mono text-micro text-subtle">
+    <div className="flex min-h-7 items-center gap-2 border-line border-t bg-sunken px-3 font-mono text-eyebrow text-subtle">
       {status.kind === "replay-failed" ? (
         <span role="status">{terminalReplayFailedCopy()}</span>
       ) : status.kind === "exited" ? (
         <>
-          <Pill size="xs" tone={status.tone}>
+          <Pill form="plain" size="xs" tone={status.tone}>
+            <Pill.Dot />
             {status.label}
           </Pill>
           <MonoId size="sm" value={status.code} />

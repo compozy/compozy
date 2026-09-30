@@ -3,8 +3,6 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-import { useToolCallRowGroup } from "./hooks/use-tool-call-row-group";
-import { ToolCallRowGroup } from "./tool-call-row-group";
 import {
   ToolCallRowBody,
   ToolCallRowHeader,
@@ -30,7 +28,6 @@ export type ToolCallStatus =
 
 export type ToolCallIconComponent = React.ComponentType<{
   className?: string;
-  strokeWidth?: number;
 }>;
 
 export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "title"> {
@@ -84,8 +81,6 @@ function ToolCallRowInner({
   className,
   ...props
 }: ToolCallRowProps) {
-  const { density, still } = useToolCallRowGroup();
-  const inset = density === "inset";
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded);
   const toolNameId = React.useId();
   const isExpanded = expanded ?? localExpanded;
@@ -104,12 +99,10 @@ function ToolCallRowInner({
       actions={actions}
       expandable={expandable}
       icon={icon}
-      inset={inset}
       isExpanded={isExpanded}
       preview={preview}
       stat={stat}
       status={status}
-      still={still}
       toolName={toolName}
       toolNameId={toolNameId}
     />
@@ -120,13 +113,11 @@ function ToolCallRowInner({
       data-slot="tool-call-row"
       data-status={status}
       data-expanded={expandable ? String(isExpanded) : undefined}
-      data-density={density}
       className={cn("group/tool-row min-w-0", className)}
       {...props}
     >
       {expandable ? (
         <ToolCallRowHeader
-          inset={inset}
           isExpanded={isExpanded}
           onToggle={toggle}
           statLabel={stat ? statLabel : undefined}
@@ -136,19 +127,16 @@ function ToolCallRowInner({
           {line}
         </ToolCallRowHeader>
       ) : (
-        <ToolCallRowStatic inset={inset}>{line}</ToolCallRowStatic>
+        <ToolCallRowStatic>{line}</ToolCallRowStatic>
       )}
       {expandable && isExpanded ? (
-        <ToolCallRowBody errorMessage={errorMessage} inset={inset}>
-          {children}
-        </ToolCallRowBody>
+        <ToolCallRowBody errorMessage={errorMessage}>{children}</ToolCallRowBody>
       ) : null}
     </div>
   );
 }
 
 const ToolCallRow = Object.assign(ToolCallRowInner, {
-  Group: ToolCallRowGroup,
   Input: ToolCallRowInput,
   Output: ToolCallRowOutput,
 });

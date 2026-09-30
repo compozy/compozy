@@ -69,7 +69,7 @@ export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: Onboardin
                     : "border-line-strong text-subtle"
               )}
             >
-              {state === "done" ? <Check className="size-2.5" strokeWidth={2.5} /> : entry.step}
+              {state === "done" ? <Check className="size-2.5" /> : entry.step}
             </span>
             {entry.label}
           </button>

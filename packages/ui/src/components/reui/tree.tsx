@@ -134,9 +134,9 @@ function TreeItemLabel<T>({
       {isFolder &&
         (toggleIconType === "plus-minus" ? (
           isExpanded ? (
-            <MinusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
+            <MinusIcon className="text-muted size-3" stroke="currentColor" />
           ) : (
-            <PlusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
+            <PlusIcon className="text-muted size-3" stroke="currentColor" />
           )
         ) : (
           <ChevronDownIcon className="text-muted size-3 in-aria-[expanded=false]:-rotate-90" />

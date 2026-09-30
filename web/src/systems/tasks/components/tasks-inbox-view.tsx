@@ -115,7 +115,7 @@ export function TasksInboxView({
               type="button"
               variant="ghost"
             >
-              <ListFilter aria-hidden="true" className="size-3" />
+              <ListFilter aria-hidden="true" data-icon="inline-start" />
               Filter
             </Button>
           }
@@ -280,7 +280,9 @@ function TasksInboxLoadMore({
         type="button"
         variant="ghost"
       >
-        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {isLoadingMore ? (
+          <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+        ) : null}
         {isLoadingMore ? "Loading more" : "Load more"}
       </Button>
     </div>

@@ -167,13 +167,12 @@ function ToolIcon({
 }) {
   return (
     <Button
-      className="size-6 text-muted hover:bg-surface-2 hover:text-fg"
       onClick={onClick}
-      size="icon-xs"
+      size="icon-sm"
       title={label}
       aria-label={label}
       type="button"
-      variant="ghost"
+      variant="quiet"
     >
       {children}
     </Button>

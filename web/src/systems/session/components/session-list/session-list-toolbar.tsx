@@ -73,7 +73,7 @@ export function SessionListToolbar({
           render={
             <Button
               type="button"
-              variant="ghost"
+              variant="quiet"
               size="icon-sm"
               className="ml-auto shrink-0"
               disabled={disabled}
@@ -99,8 +99,10 @@ export function SessionListToolbar({
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* Secondary, not the inverted primary: the composer's send owns that (P4). */}
       <Button
         type="button"
+        variant="secondary"
         size="icon-sm"
         className="shrink-0"
         aria-label="New session"

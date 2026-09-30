@@ -166,7 +166,6 @@ export function AgentSettingsLocation({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => page.onBackToDetail()}
               data-testid="agent-settings-cancel"
             >
@@ -175,7 +174,6 @@ export function AgentSettingsLocation({
             <Button
               type="button"
               variant="default"
-              size="sm"
               disabled={!page.dirty || page.saveBlocked || saving || page.agentLoading}
               aria-busy={saving}
               title={page.saveBlockedCaption}

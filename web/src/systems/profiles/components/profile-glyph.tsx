@@ -89,7 +89,7 @@ function ProfileGlyphMark({
   size: ProfileGlyphSize;
 }) {
   if (aggregate) {
-    return <Layers aria-hidden="true" className={GLYPH_CLASS[size]} strokeWidth={1.75} />;
+    return <Layers aria-hidden="true" className={GLYPH_CLASS[size]} />;
   }
   const symbol = symbolOf({ icon, emoji });
   if (symbol.kind === "emoji") return <span aria-hidden="true">{symbol.value}</span>;

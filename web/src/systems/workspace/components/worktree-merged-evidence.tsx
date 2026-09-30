@@ -101,14 +101,14 @@ export function WorktreeMergedEvidence({
   return (
     <div
       className={cn(
-        "flex items-center gap-2.5 rounded-lg bg-canvas shadow-card px-3.5 py-2.5 text-small-body",
+        "flex items-center gap-2.5 rounded-lg bg-card px-3.5 py-2.5 text-small-body shadow-card",
         ROW_TONE_CLASS[tone]
       )}
       {...evidenceDataAttrs(cleanup, tone)}
     >
       <span
         className={cn(
-          "grid size-4 shrink-0 place-items-center [&_svg]:size-3",
+          "grid size-4 shrink-0 place-items-center [&_svg]:size-3.5",
           ICON_TONE_CLASS[tone]
         )}
       >

@@ -51,7 +51,7 @@ export const Registry: Story = {
         {PROVIDERS.map(provider => (
           <div
             key={provider}
-            className="flex flex-col items-center gap-2 rounded-md border border-line bg-canvas p-3"
+            className="flex flex-col items-center gap-2 rounded-md bg-card shadow-card p-3"
           >
             <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-surface-2 ring-1 ring-line">
               <ProviderLogo provider={provider} className="size-5" />

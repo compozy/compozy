@@ -24,13 +24,13 @@ describe("product window chrome policy", () => {
     });
     expect(productWindowChrome("linux", false)).toEqual({
       titleBarStyle: "hidden",
-      titleBarOverlay: { color: "#fafafa", symbolColor: "#1a1a1a", height: 52 },
+      titleBarOverlay: { color: "#f2f2f3", symbolColor: "#1a1a1a", height: 52 },
     });
   });
 
   it("Should recolor only the Linux overlay when the theme changes", () => {
     expect(productTitleBarOverlay("linux", false)).toEqual({
-      color: "#fafafa",
+      color: "#f2f2f3",
       symbolColor: "#1a1a1a",
       height: 52,
     });

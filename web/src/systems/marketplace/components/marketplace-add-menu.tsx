@@ -37,7 +37,7 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
           />
         }
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add
         <ChevronDown aria-hidden="true" className="size-3 text-subtle" data-icon="inline-end" />
       </DropdownMenuTrigger>

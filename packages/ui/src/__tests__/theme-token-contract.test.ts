@@ -60,8 +60,9 @@ describe("theme-switch reach contract", () => {
 /**
  * Readable-grey floor, per theme. Secondary copy rides `muted`, `subtle`, `faint`, and
  * `fg-2`, so each must clear WCAG AA text contrast on every surface that carries text
- * in both themes: panes, cards, sunken insets, chrome, and hover steps. The reference
- * palette's dimmer greys (#a1a1a1 on white) fail this; the production override does not.
+ * in both themes: panes, cards, sunken insets, chrome, hover steps, selected rows, and
+ * popovers. The reference palette's dimmer greys (#a1a1a1 on white) fail this; the
+ * production override does not.
  */
 const TEXT_TOKENS = ["color-fg-2", "color-muted", "color-subtle", "color-faint"] as const;
 const TEXT_SURFACES = [
@@ -70,6 +71,8 @@ const TEXT_SURFACES = [
   "color-sunken",
   "color-rail",
   "color-surface-2",
+  "color-selected",
+  "color-elevated",
 ] as const;
 
 function readHex(name: string, theme: Theme): Rgb {
@@ -77,6 +80,28 @@ function readHex(name: string, theme: Theme): Rgb {
   if (!parsed) throw new Error(`expected a hex color for --${name} (${theme})`);
   return parsed;
 }
+
+/**
+ * Chrome-plate ink floor, per theme. A hovered or selected rail / topbar / deck
+ * plate steps its label to `fg-2` or `fg`; `muted` is not a chrome-plate ink (in
+ * light it falls below AA on the darker plates), so only the plate inks are held
+ * to AA there.
+ */
+const CHROME_PLATE_INKS = ["color-fg", "color-fg-2"] as const;
+const CHROME_PLATES = ["color-rail-hover", "color-rail-selected"] as const;
+
+describe.each(THEMES)("chrome plate ink contrast floor (%s theme)", theme => {
+  for (const ink of CHROME_PLATE_INKS) {
+    it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for --${ink} on every chrome plate`, () => {
+      for (const plate of CHROME_PLATES) {
+        const ratio = contrastRatio(readHex(ink, theme), readHex(plate, theme));
+        expect(ratio, `--${ink} on --${plate} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+          AA_TEXT_CONTRAST
+        );
+      }
+    });
+  }
+});
 
 describe.each(THEMES)("text ladder contrast floor (%s theme)", theme => {
   for (const text of TEXT_TOKENS) {

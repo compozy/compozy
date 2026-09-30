@@ -33,7 +33,8 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
     <Panel
       data-testid="tasks-dashboard-queue-health"
       right={
-        <Pill data-testid="tasks-dashboard-health-status" tone={healthTone}>
+        <Pill data-testid="tasks-dashboard-health-status" form="plain" tone={healthTone}>
+          <Pill.Dot />
           {health.status}
         </Pill>
       }
@@ -64,7 +65,7 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
           className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-form-label text-fg"
           data-testid="tasks-dashboard-warning"
         >
-          <AlertTriangle aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
           <span className="min-w-0">{warningMessage}</span>
         </div>
       ) : (
@@ -72,7 +73,7 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
           className="mt-4 flex items-center gap-2 text-form-label text-success"
           data-testid="tasks-dashboard-ok"
         >
-          <Check aria-hidden="true" className="size-3 shrink-0" />
+          <Check aria-hidden="true" className="size-3.5 shrink-0" />
           <span>Queue is healthy.</span>
         </div>
       )}

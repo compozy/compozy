@@ -92,7 +92,7 @@ function SplitPane({
                   type="button"
                   data-slot="split-pane-back"
                   onClick={onDetailClose}
-                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-eyebrow font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
                 >
                   <ChevronLeftIcon aria-hidden="true" className="size-3" />
                   <span>{backLabel}</span>

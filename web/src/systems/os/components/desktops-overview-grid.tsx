@@ -63,9 +63,9 @@ function DesktopActions({
           "opacity-0 transition-opacity duration-fast group-focus-within/oc:opacity-100 group-hover/oc:opacity-100",
           "aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
         )}
-        render={<Button type="button" variant="ghost" size="icon-sm" />}
+        render={<Button type="button" variant="quiet" size="icon-sm" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={onRename}>
@@ -325,7 +325,9 @@ export function DesktopsOverviewGrid({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "relative block w-full overflow-hidden rounded-lg bg-sunken shadow-card",
+                  // The thumbnail lifts off the overview panel like a card; the
+                  // current desktop trades the hairline for the selection ring.
+                  "relative block w-full overflow-hidden rounded-lg bg-card shadow-card",
                   active && "shadow-none ring-2 ring-fg"
                 )}
                 style={{ aspectRatio: desktop.aspectRatio ?? aspectRatio }}
@@ -399,7 +401,7 @@ export function DesktopsOverviewGrid({
         >
           <span
             aria-hidden="true"
-            className="grid w-full place-items-center rounded-lg text-muted ring-[1.5px] ring-line-strong ring-inset"
+            className="grid w-full place-items-center rounded-lg border border-dashed border-line-strong text-muted transition-colors duration-fast group-hover/oc:text-fg"
             style={{ aspectRatio }}
           >
             <Plus className="size-4" />

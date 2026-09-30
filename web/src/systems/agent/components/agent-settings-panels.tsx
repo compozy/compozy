@@ -40,7 +40,7 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
   const fieldsReadOnly = props.phase === "denied";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
       <AgentSettingsBanners {...props} />
       {section === "basics" ? (
         <>

@@ -40,9 +40,9 @@ function MarketplaceCatalogSection({
       >
         <ChevronDown
           aria-hidden="true"
-          className="size-3 shrink-0 -rotate-90 text-faint transition-transform duration-base group-data-panel-open/marketplace-section:rotate-0"
+          className="size-3.5 shrink-0 -rotate-90 text-faint transition-transform duration-base group-data-panel-open/marketplace-section:rotate-0"
         />
-        <span className="text-small-body font-semibold tracking-tight text-fg">{name}</span>
+        <span className="text-item-title font-medium text-fg">{name}</span>
         <Pill mono size="xs">
           {count}
         </Pill>

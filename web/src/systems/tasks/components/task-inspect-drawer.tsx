@@ -196,7 +196,6 @@ function DiagnosticsList({
   }
   return diagnostics.map(diagnostic => (
     <StatusCard
-      className="border border-line-soft"
       data-testid={`tasks-inspect-diagnostic-${diagnostic.code}`}
       key={diagnostic.id}
       tone={SEVERITY_TONE[diagnostic.severity ?? ""] ?? "neutral"}

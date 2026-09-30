@@ -87,7 +87,7 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
         {event.agent_name ? " · " : ""}
         <span className={quiet ? undefined : "font-normal text-muted"}>{eventTitle(event)}</span>
       </span>
-      <span className="font-mono text-mono-id tabular-nums text-subtle">
+      <span className="text-eyebrow tabular-nums text-subtle">
         <Time iso={event.timestamp} />
       </span>
     </div>

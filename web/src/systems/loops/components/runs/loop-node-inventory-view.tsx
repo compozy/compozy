@@ -229,7 +229,7 @@ function InventoryResults({
       <div
         aria-busy="true"
         aria-label={`Loading ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} steps`}
-        className="rounded-lg bg-canvas shadow-card p-4"
+        className="rounded-lg bg-card shadow-card p-4"
         data-testid="loop-node-inventory-loading"
       >
         <SkeletonRows className="gap-4" count={4} />
@@ -308,7 +308,7 @@ function InventoryRows({
   onLoadMore: () => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+    <div className="overflow-hidden rounded-lg bg-card shadow-card">
       <div className="flex items-center gap-4 border-b border-line px-4 py-2">
         <Eyebrow className="min-w-0 flex-1 text-muted">Step</Eyebrow>
         <Eyebrow className="hidden min-w-0 flex-1 text-muted lg:block">Loop</Eyebrow>

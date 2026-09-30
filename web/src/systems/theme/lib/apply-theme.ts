@@ -6,7 +6,7 @@ import type { ResolvedTheme } from "../types";
  */
 export const THEME_CHROME_COLOR: Readonly<Record<ResolvedTheme, string>> = {
   dark: "#0a0a0a",
-  light: "#fafafa",
+  light: "#f2f2f3",
 };
 
 /**

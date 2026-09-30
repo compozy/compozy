@@ -55,7 +55,6 @@ export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunFor
           <Button
             disabled={isPending}
             onClick={() => dialog.handleOpenChange(false)}
-            size="sm"
             type="button"
             variant="neutral"
           >
@@ -65,7 +64,6 @@ export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunFor
             data-testid="tasks-run-force-fail-confirm"
             disabled={isPending}
             onClick={() => void dialog.confirm()}
-            size="sm"
             type="button"
             variant="destructive"
           >

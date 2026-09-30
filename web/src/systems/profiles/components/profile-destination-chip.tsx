@@ -36,7 +36,7 @@ export function ProfileDestinationChip({
       )}
       {...props}
     >
-      <CornerDownRight aria-hidden="true" className="size-2.5" />
+      <CornerDownRight aria-hidden="true" className="size-3" />
       <b className="font-medium text-fg">{profile}</b>
     </span>
   );

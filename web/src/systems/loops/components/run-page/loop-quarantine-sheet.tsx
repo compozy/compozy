@@ -223,7 +223,6 @@ function QuarantineSheetFooter({
             <Button
               data-testid="loop-quarantine-cancel"
               onClick={() => onVerb("cancel", node)}
-              size="sm"
               type="button"
               variant="secondary"
             >
@@ -234,7 +233,6 @@ function QuarantineSheetFooter({
               data-testid="loop-quarantine-requeue"
               disabled={isRequeuePending}
               onClick={() => onVerb("requeue", node)}
-              size="sm"
               type="button"
               variant="primary"
             >

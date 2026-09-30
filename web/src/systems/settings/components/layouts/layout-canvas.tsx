@@ -55,7 +55,7 @@ export function LayoutCanvas({
   return (
     <div
       className={cn(
-        "relative aspect-[16/10] overflow-hidden rounded-md border border-line-strong bg-canvas",
+        "relative aspect-[16/10] overflow-hidden rounded-md border border-line-strong bg-sunken",
         "shadow-hairline-inset select-none"
       )}
       data-testid="layout-canvas"

@@ -47,7 +47,7 @@ export function SkillExposePanel({
           role="alert"
         >
           <p className="text-small-body text-danger">
-            <b>Couldn&rsquo;t update exposures.</b> {model.failure}
+            <b className="font-medium">Couldn&rsquo;t update exposures.</b> {model.failure}
             {model.rolledBack ? " The target that had finished was undone." : ""}
           </p>
           <div>
@@ -181,7 +181,7 @@ function ExposureRow({
   const untouchable = pending || exposure.status === "foreign_conflict";
   return (
     <div
-      className="flex min-w-0 items-start gap-2 border-b border-line py-2 last:border-b-0"
+      className="flex min-w-0 items-start gap-2 border-b border-line-soft py-2 last:border-b-0"
       data-status={exposure.status}
       data-testid={testId}
     >
@@ -193,7 +193,7 @@ function ExposureRow({
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 flex-wrap items-baseline gap-1.5">
-          <b className="text-small-body text-fg">{label}</b>
+          <b className="text-body font-medium text-fg">{label}</b>
           <span
             className={cn("text-form-hint", exposureStatusClass(exposure, pending))}
             data-testid={`${testId}-status`}
@@ -229,11 +229,11 @@ function PendingRow({ label, action }: { label: string; action: PendingAction })
   const status = pendingStatusWord(action);
   return (
     <div
-      className="flex min-w-0 items-center gap-2 border-b border-line py-2 last:border-b-0"
+      className="flex min-w-0 items-center gap-2 border-b border-line-soft py-2 last:border-b-0"
       data-testid={`${TEST_ID}-pending-${label}`}
     >
       <StatusDot label={status} tone="faint" variant="ring" />
-      <b className="text-small-body text-subtle">{label}</b>
+      <b className="text-body font-medium text-subtle">{label}</b>
       <span className="text-form-hint text-subtle">{status}</span>
     </div>
   );

@@ -71,7 +71,7 @@ function AutomationListFilters({
           type="button"
           variant="ghost"
         >
-          <ListFilter aria-hidden="true" className="size-3" />
+          <ListFilter aria-hidden="true" />
           Filter
         </Button>
       }

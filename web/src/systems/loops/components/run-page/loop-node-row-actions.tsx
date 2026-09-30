@@ -48,7 +48,6 @@ export function LoopNodeRowActions({
     <span className="flex shrink-0 items-center gap-1.5">
       {primary ? (
         <Button
-          className="min-h-6"
           data-testid={`loop-node-primary-${primary}-${node.nodeId}`}
           disabled={isPending}
           onClick={() => onVerb(primary, node)}
@@ -56,11 +55,7 @@ export function LoopNodeRowActions({
           type="button"
           variant="secondary"
         >
-          {primary === "requeue" ? (
-            <Redo2 aria-hidden="true" className="size-3" />
-          ) : (
-            <Play aria-hidden="true" className="size-3" />
-          )}
+          {primary === "requeue" ? <Redo2 aria-hidden="true" /> : <Play aria-hidden="true" />}
           {primary === "resume"
             ? "Resume"
             : primary === "resume-wait"

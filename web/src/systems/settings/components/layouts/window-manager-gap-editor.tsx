@@ -34,7 +34,7 @@ export function WindowManagerGapEditor({
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="relative h-54 overflow-hidden rounded-md border border-line-strong bg-canvas select-none"
+        className="relative h-54 overflow-hidden rounded-md border border-line-strong bg-sunken select-none"
         data-testid="window-manager-gap-editor"
       >
         <div

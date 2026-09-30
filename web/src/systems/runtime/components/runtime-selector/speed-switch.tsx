@@ -57,18 +57,18 @@ export function RuntimeSpeedSwitch({
       <span
         aria-hidden="true"
         className={cn(
-          "relative h-[22px] w-10 shrink-0 rounded-full transition-colors duration-200",
+          "relative h-5.5 w-10 shrink-0 rounded-full transition-colors duration-200",
           // Same track as the Switch primitive: inverted primary on, line-strong off.
           fast ? "bg-primary" : "bg-line-strong"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 left-0.5 grid h-[18px] w-[18px] place-items-center rounded-full shadow-card transition-[translate,width,background-color,color] duration-300 ease-spring motion-reduce:transition-none",
+            "absolute top-0.5 left-0.5 grid size-4.5 place-items-center rounded-full shadow-card transition-[translate,width,background-color,color] duration-300 ease-spring motion-reduce:transition-none",
             // iOS-style press stretch: the thumb elongates toward where it will travel.
-            "group-active/speed:w-[22px]",
+            "group-active/speed:w-5.5",
             fast
-              ? "translate-x-[18px] bg-primary-foreground text-primary group-active/speed:translate-x-[14px]"
+              ? "translate-x-4.5 bg-primary-foreground text-primary group-active/speed:translate-x-3.5"
               : "translate-x-0 bg-fg text-line-strong"
           )}
         >

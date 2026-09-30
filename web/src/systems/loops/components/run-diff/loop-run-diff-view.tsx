@@ -42,7 +42,7 @@ function DiffGroup({ group }: DiffGroupProps) {
   return (
     <section
       aria-labelledby={headingId}
-      className="overflow-hidden rounded-lg bg-canvas shadow-card"
+      className="overflow-hidden rounded-lg bg-card shadow-card"
       data-testid={`loop-diff-group-${group.change}`}
     >
       <ListGroupHeader

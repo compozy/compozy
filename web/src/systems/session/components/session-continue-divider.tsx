@@ -34,7 +34,7 @@ export function SessionContinueDivider({ origin, onOpenSource }: SessionContinue
       label={
         linked ? (
           <Button
-            className="h-auto max-w-full gap-1.5 px-0 text-eyebrow text-fg-2"
+            className="h-auto max-w-full gap-1.5 px-0 text-fg-2"
             data-testid="session-origin-divider-link"
             onClick={() => onOpenSource(origin.parentSessionId)}
             size="xs"

@@ -275,10 +275,7 @@ function GridTileButton({
   return (
     <div
       aria-selected={selected}
-      className={cn(
-        "min-w-0 rounded-lg p-2",
-        selected ? "bg-selected shadow-inset-strong" : "bg-canvas shadow-card"
-      )}
+      className={cn("min-w-0 rounded-lg p-2", selected ? "bg-selected" : "bg-card shadow-card")}
       data-action-count={tile.actions?.length ?? 0}
       data-testid={`palette-grid-tile-${tile.id}`}
       role="gridcell"
@@ -293,7 +290,8 @@ function GridTileButton({
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-card-title text-fg">{tile.title}</span>
           {tile.badge ? (
-            <Pill size="xs" tone={statusTone(tile.badge.tone)}>
+            <Pill form="plain" size="xs" tone={statusTone(tile.badge.tone)}>
+              <Pill.Dot />
               {tile.badge.label}
             </Pill>
           ) : null}
@@ -352,7 +350,7 @@ function TileImage({
   return (
     <div className="grid aspect-video w-full place-items-center rounded-md bg-sunken text-subtle">
       {tile.image.emoji && !failed ? (
-        <span aria-hidden="true" className="text-title">
+        <span aria-hidden="true" className="text-heading">
           {tile.image.emoji}
         </span>
       ) : TokenIcon && !failed ? (

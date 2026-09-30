@@ -290,7 +290,7 @@ function OsWorkspacesStage({
               type="button"
               onClick={() => activateEntry(ADD_ENTRY)}
             >
-              <Plus aria-hidden="true" className="size-3" />
+              <Plus aria-hidden="true" data-icon="inline-start" />
               New project
             </Button>
           </div>

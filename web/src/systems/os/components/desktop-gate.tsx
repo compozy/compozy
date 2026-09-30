@@ -53,7 +53,7 @@ export function DesktopGate({ children }: { children: ReactNode }) {
               type="button"
               variant="secondary"
             >
-              <RefreshCw className="size-3" />
+              <RefreshCw aria-hidden="true" data-icon="inline-start" />
               Retry
             </Button>
           }

@@ -33,7 +33,7 @@ function ExtensionSkippedComponents({
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
         <Eyebrow className="text-muted">Skipped</Eyebrow>
-        <span className="font-mono text-xs text-faint tabular-nums">
+        <span className="font-mono text-eyebrow text-faint tabular-nums">
           {skippedDiagnostics.length}
         </span>
       </div>
@@ -52,7 +52,7 @@ function ExtensionSkippedComponents({
               <Pill mono size="xs" tone="warning">
                 {diagnostic.severity}
               </Pill>
-              <span className="font-mono text-xs text-fg">
+              <span className="font-mono text-eyebrow text-fg">
                 {extensionDiagnosticScope(diagnostic)}
               </span>
             </div>

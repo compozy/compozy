@@ -78,7 +78,7 @@ export function SessionListRow({
         <SessionListRowDetails session={session} current={current} />
         <span className="mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
-          <Time iso={session.updated_at} className="font-mono text-micro text-subtle" />
+          <Time iso={session.updated_at} className="text-eyebrow text-subtle" />
         </span>
       </button>
       {selection ? (
@@ -124,7 +124,7 @@ function SessionListRowDetails({
     <span className={cn("min-w-0", className)} {...props}>
       <span
         className={cn(
-          "block truncate text-small-body",
+          "block truncate text-body",
           // A needs-you row keeps its pull even when the window is not focused.
           signal.attention === "needs-you" ? "font-medium text-fg" : "text-fg",
           current && "font-medium"
@@ -132,7 +132,7 @@ function SessionListRowDetails({
       >
         {getSessionDisplayTitle(session)}
       </span>
-      <span className="block truncate text-micro text-subtle">
+      <span className="block truncate text-eyebrow text-subtle">
         <span className="font-medium text-muted">{session.agent_name}</span>
         {/* The mark carries the state; the word speaks up whenever the glyph is shared. */}
         {signal.speaks ? (

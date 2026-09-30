@@ -36,7 +36,7 @@ function MarketplaceTrustWarningList({ items, className }: MarketplaceTrustWarni
               <AlertDescription>
                 <p>{item.message}</p>
                 {item.suggested_command ? (
-                  <code className="inline-flex rounded-sm bg-canvas px-2 py-1 font-mono text-form-hint text-fg">
+                  <code className="inline-flex rounded-sm bg-sunken px-2 py-1 font-mono text-form-hint text-fg">
                     {item.suggested_command}
                   </code>
                 ) : null}

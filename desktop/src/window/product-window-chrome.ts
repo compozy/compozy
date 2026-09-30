@@ -15,7 +15,7 @@ const MAC_TRAFFIC_LIGHT_POSITION = { x: 15, y: 19 } as const;
  */
 const LINUX_OVERLAY_COLORS = {
   dark: { color: "#0a0a0a", symbolColor: "#f5f5f5" },
-  light: { color: "#fafafa", symbolColor: "#1a1a1a" },
+  light: { color: "#f2f2f3", symbolColor: "#1a1a1a" },
 } as const;
 
 type ProductWindowChrome = Pick<

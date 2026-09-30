@@ -5,12 +5,12 @@ const pillGroupSegmentVariants = cva(
   {
     variants: {
       active: {
-        true: "bg-surface-2 text-fg shadow-card",
+        true: "bg-surface-2 text-fg",
         false: "bg-transparent text-muted hover:bg-surface-2 hover:text-fg",
       },
       size: {
         sm: "min-h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x) text-eyebrow",
-        md: "min-h-(--height-pill-group-segment-md) px-(--space-pill-group-segment-md-x) text-small-body",
+        md: "min-h-(--height-pill-group-segment-md) px-(--space-pill-group-segment-md-x) text-meta",
       },
     },
     defaultVariants: {

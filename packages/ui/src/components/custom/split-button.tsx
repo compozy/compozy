@@ -130,7 +130,7 @@ export function SplitButton({
         {...restActionProps}
         aria-describedby={describedBy}
         aria-disabled={blocked || undefined}
-        className="gap-1.5 whitespace-nowrap bg-clip-border aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:bg-surface-2 aria-disabled:text-subtle aria-disabled:shadow-none [&_svg]:size-3"
+        className="gap-1.5 whitespace-nowrap bg-clip-border aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:bg-surface-2 aria-disabled:text-subtle aria-disabled:shadow-none"
         data-size={size}
         data-slot="split-button-action"
         data-variant={variant}
@@ -191,7 +191,8 @@ function SplitButtonMenu({
         render={
           <Button
             className={cn(
-              "w-8 bg-clip-border px-0 [&_svg]:size-3",
+              // Square on the size ladder; the chevron takes the ladder glyph.
+              "aspect-square bg-clip-border px-0",
               (variant === "default" || variant === "primary") && SEAM_CLASS
             )}
             disabled={disabled}
@@ -201,7 +202,7 @@ function SplitButtonMenu({
           />
         }
       >
-        <ChevronDownIcon aria-hidden="true" className="size-3" />
+        <ChevronDownIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

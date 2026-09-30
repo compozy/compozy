@@ -22,12 +22,12 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
 
   return (
     <section
-      className="overflow-hidden rounded-lg bg-canvas shadow-card"
+      className="overflow-hidden rounded-lg bg-card shadow-card"
       data-slot="worktree-scope-block"
       data-truncated={scope.untracked_truncated ? "" : undefined}
     >
       <header
-        className="flex min-h-[30px] items-center gap-[7px] border-b border-line-soft px-[11px] text-small-body font-semibold text-fg [&_svg]:size-3 [&_svg]:text-muted"
+        className="flex min-h-7.5 items-center gap-2 border-b border-line-soft px-3 text-small-body font-medium text-fg [&_svg]:size-3.5 [&_svg]:text-muted"
         data-slot="worktree-scope-head"
       >
         <FilesIcon aria-hidden="true" />
@@ -39,7 +39,7 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
       {untracked.length > 0 ? (
         <Collapsible defaultOpen>
           <CollapsibleTrigger
-            className="flex w-full items-center gap-2 px-[11px] py-1.5 text-start"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-start"
             data-slot="worktree-scope-untracked-trigger"
           >
             <Eyebrow>Untracked additions</Eyebrow>
@@ -49,7 +49,7 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
             <ul className="max-h-40 overflow-y-auto p-1" data-slot="worktree-scope-list">
               {untracked.map(path => (
                 <li
-                  className="flex min-h-[25px] items-center gap-2.5 rounded-sm px-1.5 hover:bg-surface-2"
+                  className="flex min-h-6.5 items-center gap-2.5 rounded-sm px-1.5 hover:bg-surface-2"
                   key={path}
                 >
                   <MonoId copy={false} preserveCase size="sm" value={path} />

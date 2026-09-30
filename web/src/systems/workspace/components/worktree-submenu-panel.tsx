@@ -332,7 +332,7 @@ export function WorktreeSubmenuPanel({
             onClose?.();
           }}
         >
-          <Plus className="size-3 text-faint" />
+          <Plus className="size-3.5 text-faint" />
           New worktree
         </MenubarItem>
       </>
@@ -351,7 +351,7 @@ export function WorktreeSubmenuPanel({
             onClose?.();
           }}
         >
-          <Plus className="size-3 text-faint" />
+          <Plus className="size-3.5 text-faint" />
           New worktree
         </button>
       </>

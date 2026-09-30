@@ -97,7 +97,7 @@ function SettingsApplyRecordsPanel({
             disabled={isFetching}
             data-testid="settings-apply-records-refresh"
           >
-            {isFetching ? <Spinner className="size-3" /> : <RefreshCw className="size-3" />}
+            {isFetching ? <Spinner className="size-3.5" /> : <RefreshCw />}
             Refresh
           </Button>
           <Button
@@ -108,7 +108,7 @@ function SettingsApplyRecordsPanel({
             disabled={isReloading}
             data-testid="settings-apply-records-reload"
           >
-            {isReloading ? <Spinner className="size-3" /> : <RotateCw className="size-3" />}
+            {isReloading ? <Spinner className="size-3.5" /> : <RotateCw />}
             Reload settings file
           </Button>
         </div>
@@ -119,7 +119,7 @@ function SettingsApplyRecordsPanel({
         {reloadError ? (
           <Alert variant="danger" data-testid="settings-apply-records-reload-error">
             <AlertCircle className="mt-0.5 size-3 shrink-0" />
-            <AlertDescription className="text-xs">{reloadError}</AlertDescription>
+            <AlertDescription className="text-eyebrow">{reloadError}</AlertDescription>
           </Alert>
         ) : reloadResult ? (
           <Alert
@@ -127,7 +127,7 @@ function SettingsApplyRecordsPanel({
             data-testid="settings-apply-records-reload-result"
           >
             <CheckCircle2 className="mt-0.5 size-3 shrink-0" />
-            <AlertDescription className="text-xs">
+            <AlertDescription className="text-eyebrow">
               {reloadResultMessage(reloadResult)}
             </AlertDescription>
           </Alert>
@@ -136,7 +136,7 @@ function SettingsApplyRecordsPanel({
         {error ? (
           <Alert variant="danger" data-testid="settings-apply-records-error">
             <AlertCircle className="mt-0.5 size-3 shrink-0" />
-            <AlertDescription className="text-xs">{error.message}</AlertDescription>
+            <AlertDescription className="text-eyebrow">{error.message}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -177,7 +177,7 @@ function SettingsApplyRecordsPanel({
                 <div className="flex min-w-0 flex-col gap-2">
                   <span className="eyebrow text-muted">Status</span>
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <Pill tone={STATUS_TONE[record.status]} size="xs">
+                    <Pill form="plain" tone={STATUS_TONE[record.status]}>
                       <Pill.Dot />
                       {normalizeLabel(record.status)}
                     </Pill>

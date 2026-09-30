@@ -96,3 +96,33 @@ describe.each(THEMES)("shared focus indicator token contract (BUG-20260714, %s t
     }
   }
 });
+
+// Chrome plates (hovered / selected rail, topbar and deck items) only ever sit on
+// the rail, so a focused plate is audited against itself and the rail — not the
+// full pane ramp, which never borders it.
+const CHROME_PLATE_TOKENS = ["color-rail-hover", "color-rail-selected"] as const;
+
+describe.each(THEMES)("chrome plate focus indicator contract (%s theme)", theme => {
+  const rail = parseHex(readToken("color-rail", theme));
+
+  for (const token of FOCUS_SHADOW_TOKENS) {
+    const { rgb, alpha } = parseRgba(readToken(token, theme));
+
+    for (const plateName of CHROME_PLATE_TOKENS) {
+      it(`Should hold ≥${MIN_NON_TEXT_CONTRAST}:1 for --${token} on --${plateName} against itself and the rail`, () => {
+        const plate = parseHex(readToken(plateName, theme));
+        const ring = compositeOver(rgb, alpha, plate);
+        for (const [name, against] of [
+          [plateName, plate],
+          ["color-rail", rail],
+        ] as const) {
+          const ratio = contrastRatio(ring, against);
+          expect(
+            ratio,
+            `--${token} over --${plateName} vs --${name} = ${ratio.toFixed(2)}:1`
+          ).toBeGreaterThanOrEqual(MIN_NON_TEXT_CONTRAST);
+        }
+      });
+    }
+  }
+});

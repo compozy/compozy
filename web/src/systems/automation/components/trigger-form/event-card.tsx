@@ -44,11 +44,11 @@ export function EventCard({
       className={cn(
         "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors outline-none focus-visible:shadow-focus-ring",
         disabled
-          ? "cursor-not-allowed border-transparent bg-canvas opacity-50 shadow-card"
+          ? "cursor-not-allowed border-transparent bg-card opacity-50 shadow-card"
           : selected
             ? // Selection stays neutral (RadioCard grammar); accent is kept for needs-you.
               "border-transparent bg-selected shadow-inset-strong"
-            : "border-transparent bg-canvas shadow-card hover:bg-surface-2"
+            : "border-transparent bg-card shadow-card hover:bg-surface-2"
       )}
       data-testid={`trigger-event-${catalogId}`}
       onClick={onSelect}

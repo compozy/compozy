@@ -64,7 +64,7 @@ export function TaskRunRail({
   return (
     <div
       {...props}
-      className={cn("overflow-hidden rounded-lg bg-canvas shadow-card", className)}
+      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
       data-testid="tasks-run-rail"
     >
       <TaskRunSessionSection run={run} />
@@ -78,14 +78,13 @@ export function TaskRunRail({
       />
       <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
-          className="min-h-6"
           data-testid="tasks-run-inspect"
           onClick={onInspect}
           size="sm"
           type="button"
           variant="ghost"
         >
-          <Search aria-hidden="true" className="size-3" />
+          <Search aria-hidden="true" data-icon="inline-start" />
           Inspect
         </Button>
       </footer>
@@ -116,7 +115,7 @@ function TaskRunSessionSection({ run }: { run: TaskRunDetailView }) {
               to="/session/$id"
             >
               Open session
-              <ArrowUpRight aria-hidden="true" className="size-3" />
+              <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </Link>
           }
           label="Session"

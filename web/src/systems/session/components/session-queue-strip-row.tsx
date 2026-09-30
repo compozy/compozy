@@ -30,7 +30,7 @@ function SessionQueuedAttachmentWell({ summary }: { summary: QueuedPromptAttachm
     <>
       <span
         data-testid="composer-queued-attachment-well"
-        className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-xs border border-line bg-canvas"
+        className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-xs border border-line bg-card"
       >
         {summary.preview?.kind === "image" ? (
           <img src={summary.preview.url} alt="" className="size-full object-cover" />

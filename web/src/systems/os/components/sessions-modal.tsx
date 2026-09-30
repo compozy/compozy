@@ -159,7 +159,7 @@ export function OsSessionsModal({
               </Eyebrow>
               <Button
                 type="button"
-                variant="ghost"
+                variant="quiet"
                 size="icon-sm"
                 aria-label="Close sessions"
                 onClick={() => handleOpenChange(false)}

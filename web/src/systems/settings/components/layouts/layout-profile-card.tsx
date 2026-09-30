@@ -29,9 +29,9 @@ export function LayoutProfileCard({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-lg bg-canvas shadow-card",
+        "flex flex-col overflow-hidden rounded-lg bg-card shadow-card",
         "transition-colors duration-base ease-out",
-        selected ? "bg-selected shadow-inset-strong" : "hover:bg-surface-2"
+        selected ? "bg-selected" : "hover:bg-surface-2"
       )}
       data-selected={selected ? "true" : undefined}
       data-testid={`layout-profile-card-${record.id}`}
@@ -46,7 +46,7 @@ export function LayoutProfileCard({
           <LayoutProfileThumbnail record={record} />
         </span>
         <span className="block px-3 pt-2.5 pb-3">
-          <span className="block truncate text-small-body font-semibold text-fg">
+          <span className="block truncate text-body font-medium text-fg">
             {record.spec.displayName}
           </span>
           <span className="mt-0.5 block truncate font-mono text-mono-id text-faint">

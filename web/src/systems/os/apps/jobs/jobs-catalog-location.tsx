@@ -39,10 +39,11 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
       <Button
         data-testid="create-job-btn"
         onClick={page.handleCreate}
+        size="sm"
         type="button"
         variant="secondary"
       >
-        <Plus aria-hidden="true" />
+        <Plus aria-hidden="true" data-icon="inline-start" />
         Job
       </Button>
     ),

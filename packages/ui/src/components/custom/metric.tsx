@@ -26,9 +26,9 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
   trailing?: React.ReactNode;
   tone?: MetricTone;
   /**
-   * `compact` — 17px value, in-line KPI density.
-   * `default` / `lg` — 24px display value (`--text-kpi-value`) at
-   * `--font-weight-display` (620), the approved dashboard scale.
+   * `compact` — 15px value, in-line KPI density.
+   * `default` / `lg` — 20px value (`--text-kpi-value`) at semibold (600)
+   * with tabular numerals.
    */
   size?: MetricSize;
   /** `sentence` — Geist form label; `eyebrow` — canonical sentence-case eyebrow label. */
@@ -41,7 +41,7 @@ function metricValueToneClass(tone: MetricTone): string {
 
 /**
  * Metric tile — one voice for every KPI and stat. Label (sentence or eyebrow) +
- * display value at `--text-kpi-value` / `--font-weight-display` + optional
+ * value at `--text-kpi-value` / semibold + optional
  * inline detail, subtext, head icon, and trailing slot. Composes `Surface`;
  * semantic tone colors the value.
  */
@@ -104,11 +104,10 @@ function Metric({
         <span
           data-slot="metric-value"
           className={cn(
-            "min-w-0 truncate tabular-nums",
+            "min-w-0 truncate font-semibold tabular-nums",
             valueSizeClass,
             metricValueToneClass(tone)
           )}
-          style={{ fontWeight: "var(--font-weight-display)" }}
         >
           {value}
         </span>

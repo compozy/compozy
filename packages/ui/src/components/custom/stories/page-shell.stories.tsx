@@ -57,12 +57,12 @@ export const Comfortable: Story = {
         />
       }
     >
-      <h1 className="text-[22px] font-medium tracking-[-0.026em] text-fg-strong">Settings</h1>
-      <p className="text-[13px] text-muted max-w-prose">
+      <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">Settings</h1>
+      <p className="text-small-body text-muted max-w-prose">
         Body content stretches to fill available height; the sticky footer stays anchored to the
         bottom even on long forms.
       </p>
-      <div className="h-[400px] rounded-lg border border-line bg-canvas-soft p-4 text-[13px] text-muted">
+      <div className="h-[400px] rounded-lg border border-line bg-canvas-soft p-4 text-small-body text-muted">
         Tall content placeholder
       </div>
     </PageShell>
@@ -76,8 +76,10 @@ export const Compact: Story = {
   args: {},
   render: () => (
     <PageShell density="compact">
-      <h1 className="text-[18px] font-medium tracking-empty-h1 text-fg-strong">Vault</h1>
-      <p className="text-[13px] text-muted">Compact density removes a step of vertical padding.</p>
+      <h1 className="text-detail-h1 font-medium tracking-empty-h1 text-fg-strong">Vault</h1>
+      <p className="text-small-body text-muted">
+        Compact density removes a step of vertical padding.
+      </p>
     </PageShell>
   ),
 };

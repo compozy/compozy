@@ -43,10 +43,10 @@ export function SettingsInlineSaveControls({
           aria-live={error ? "assertive" : "polite"}
           className={
             error
-              ? "text-xs text-danger"
+              ? "text-eyebrow text-danger"
               : warnings.length
-                ? "text-xs text-warning"
-                : "text-xs text-muted"
+                ? "text-eyebrow text-warning"
+                : "text-eyebrow text-muted"
           }
           data-testid={`${controlTestIdPrefix}-message`}
         >
@@ -71,7 +71,7 @@ export function SettingsInlineSaveControls({
         size="sm"
         type="button"
       >
-        {isSaving ? <Spinner className="size-3" /> : null}
+        {isSaving ? <Spinner className="size-3.5" /> : null}
         {isSaving ? "Saving…" : saveLabel}
       </Button>
     </div>

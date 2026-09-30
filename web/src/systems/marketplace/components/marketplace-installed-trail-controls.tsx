@@ -69,7 +69,7 @@ function MarketplaceInstalledTrailControls({
         leading
       ) : extension.missing_inputs.length > 0 ? (
         <span
-          className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-warning"
+          className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-muted"
           data-testid={`marketplace-installed-needs-configuration-${extension.name}`}
         >
           <StatusDot aria-hidden="true" size="sm" tone="warning" />
@@ -100,7 +100,7 @@ function MarketplaceInstalledTrailControls({
               disabled={pending}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             />
           }
         >
@@ -152,7 +152,7 @@ function MarketplaceInstalledUpdate({
             type="button"
             variant="neutral"
           >
-            {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {pending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
             {pending ? "Updating…" : "Update"}
           </Button>
         </>

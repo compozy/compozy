@@ -37,7 +37,7 @@ export function MCPServersTable({
     <section
       aria-label="MCP servers"
       data-testid="settings-page-mcp-servers-list"
-      className="overflow-hidden rounded-lg bg-canvas shadow-card max-md:bg-transparent max-md:shadow-none"
+      className="overflow-hidden rounded-lg bg-card shadow-card max-md:bg-transparent max-md:shadow-none"
     >
       <div
         aria-hidden="true"
@@ -106,8 +106,8 @@ function MCPServerRow({
         "grid grid-cols-2 gap-x-3.5 gap-y-3 border-t border-line-soft p-3.5 transition-colors",
         ROW_GRID,
         "md:min-h-setting-row md:items-center md:gap-y-0",
-        "max-md:rounded-lg max-md:bg-canvas max-md:shadow-card",
-        selected ? "bg-selected" : "hover:bg-sunken"
+        "max-md:rounded-lg max-md:bg-card max-md:shadow-card",
+        selected ? "bg-selected" : "hover:bg-surface-2"
       )}
     >
       <div className="col-span-2 flex min-w-0 items-center gap-2.5 md:col-span-1">
@@ -131,7 +131,7 @@ function MCPServerRow({
             </button>
             {extension ? (
               <span
-                className="text-micro whitespace-nowrap text-subtle"
+                className="text-eyebrow whitespace-nowrap text-subtle"
                 data-testid={`${rowTestId}-owner`}
               >
                 from {extension}
@@ -139,7 +139,7 @@ function MCPServerRow({
             ) : null}
           </div>
           <div
-            className="mt-0.5 truncate text-micro text-subtle"
+            className="mt-0.5 truncate text-eyebrow text-subtle"
             data-testid={`${rowTestId}-source`}
           >
             {sourceLine}
@@ -147,8 +147,8 @@ function MCPServerRow({
         </div>
       </div>
       <div className="min-w-0" data-testid={`${rowTestId}-status`}>
-        <Pill tone={status.summary.tone === "success" ? "neutral" : status.summary.tone}>
-          <Pill.Dot tone={status.summary.tone} />
+        <Pill form="plain" tone={status.summary.tone}>
+          <Pill.Dot />
           {status.summary.label}
         </Pill>
       </div>

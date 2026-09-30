@@ -34,7 +34,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
       >
         {section.loading ? (
           <CommandItem
-            className={`${paletteRowClass} text-micro text-subtle`}
+            className={`${paletteRowClass} text-eyebrow text-subtle`}
             disabled
             forceMount
             value={`${section.title}:loading`}
@@ -45,7 +45,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
         ) : null}
         {section.error === null ? null : (
           <CommandItem
-            className={`${paletteRowClass} text-micro text-danger`}
+            className={`${paletteRowClass} text-eyebrow text-danger`}
             data-testid={`os-palette-domain-error-${section.title.toLowerCase().replaceAll(" ", "-")}`}
             disabled
             forceMount
@@ -70,19 +70,19 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
               <Icon className="size-3.5 shrink-0 text-muted" />
               <span className="min-w-0 truncate leading-none">{row.label}</span>
               {row.detail ? (
-                <span className="ml-auto max-w-48 shrink truncate text-micro text-subtle">
+                <span className="ml-auto max-w-48 shrink truncate text-eyebrow text-subtle">
                   {row.detail}
                 </span>
               ) : null}
               {row.workspaceLabel ? (
-                <span className="shrink-0 text-micro text-faint">{row.workspaceLabel}</span>
+                <span className="shrink-0 text-eyebrow text-faint">{row.workspaceLabel}</span>
               ) : null}
               {row.owner ? <ProfileOwnerTag owner={row.owner} /> : null}
             </CommandItem>
           );
         })}
         {section.total > section.rows.length ? (
-          <div className="px-3 py-1 text-micro text-faint">
+          <div className="px-3 py-1 text-eyebrow text-faint">
             {section.rows.length} of {section.total} shown
           </div>
         ) : null}

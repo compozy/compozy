@@ -34,9 +34,7 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
       <MarketplaceEntryLogo entry={entry} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-detail-h1 leading-tight font-semibold tracking-detail-h1 text-fg">
-            {entry.name}
-          </h1>
+          <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg">{entry.name}</h1>
           {entry.trust?.registry_tier === "unverified" ? (
             <Pill form="hollow" size="xs" tone="warning">
               unverified

@@ -119,7 +119,7 @@ export function LoopEditorCriteria({
               onClick={() => remove(index)}
               aria-label={`Remove criterion ${str(criterion.id) || index + 1}`}
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </div>
           <CriterionBody
@@ -139,7 +139,7 @@ export function LoopEditorCriteria({
         onClick={add}
         data-testid="loop-editor-criteria-add"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add criterion
       </Button>
     </div>
@@ -154,7 +154,7 @@ interface CriterionBodyProps {
   allowedTypes: readonly CriterionType[];
 }
 
-const fieldClass = "h-8 px-2.5 font-mono text-form-input";
+const fieldClass = "px-2.5 font-mono text-form-input";
 
 function CriterionBody({
   criterion,

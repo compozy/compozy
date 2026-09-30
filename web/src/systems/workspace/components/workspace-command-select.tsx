@@ -137,7 +137,7 @@ export function WorkspaceCommandSelect({
           <ChevronsUpDown
             aria-hidden="true"
             data-testid="workspace-switcher-chevron"
-            className="size-3 shrink-0 text-subtle"
+            className="size-3.5 shrink-0 text-subtle"
           />
         </span>
       </CommandSelectTrigger>
@@ -190,7 +190,7 @@ export function WorkspaceCommandSelect({
                   {gitBacked ? (
                     <ChevronRight
                       aria-hidden="true"
-                      className="ml-auto size-3 shrink-0 text-faint"
+                      className="ml-auto size-3.5 shrink-0 text-faint"
                     />
                   ) : null}
                 </CommandItem>

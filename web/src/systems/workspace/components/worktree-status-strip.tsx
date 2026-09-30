@@ -28,7 +28,7 @@ function Cell({ field, label, children, tone, unknown, detached }: CellProps) {
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-[3px] px-3.5 py-2.5",
+        "flex min-w-0 flex-col gap-1 px-3.5 py-2.5",
         "[&+&]:border-l [&+&]:border-line-soft",
         "max-md:[&+&]:border-t max-md:[&+&]:border-l-0"
       )}
@@ -44,7 +44,7 @@ function Cell({ field, label, children, tone, unknown, detached }: CellProps) {
       <dd
         aria-label={unknown ? "not read" : undefined}
         className={cn(
-          "flex min-h-[18px] items-center gap-1.5 text-small-body font-medium text-fg",
+          "flex min-h-4.5 items-center gap-1.5 text-small-body font-medium text-fg",
           tone === "danger" && "text-danger",
           tone === "warning" && "text-warning",
           tone === "success" && "text-success",
@@ -104,7 +104,7 @@ function DirtyCell({ status }: { status: WorktreeStatusPayload["status"] }) {
       ) : (
         <span>uncommitted</span>
       )}
-      <span className="text-micro text-subtle">{`${status.dirty_files} files`}</span>
+      <span className="text-eyebrow text-subtle">{`${status.dirty_files} files`}</span>
     </Cell>
   );
 }
@@ -130,10 +130,12 @@ function PrCell({
   if (forgeStatus.merged === true) {
     return (
       <Cell field="pr" label={label} tone="success">
-        <GitMergeIcon aria-hidden="true" className="size-3" />
+        <GitMergeIcon aria-hidden="true" className="size-3.5" />
         <span>{`Merged on ${forge.provider}`}</span>
-        {number ? <span className="text-micro text-subtle">{number}</span> : null}
-        {staleLabel ? <span className="text-micro text-faint">{`as of ${staleLabel}`}</span> : null}
+        {number ? <span className="text-eyebrow text-subtle">{number}</span> : null}
+        {staleLabel ? (
+          <span className="text-eyebrow text-faint">{`as of ${staleLabel}`}</span>
+        ) : null}
       </Cell>
     );
   }
@@ -145,7 +147,7 @@ function PrCell({
         </Pill>
       ) : null}
       <span className="text-muted">{forgeStatus.pr_state}</span>
-      {staleLabel ? <span className="text-micro text-faint">{`as of ${staleLabel}`}</span> : null}
+      {staleLabel ? <span className="text-eyebrow text-faint">{`as of ${staleLabel}`}</span> : null}
     </Cell>
   );
 }
@@ -170,7 +172,7 @@ export function WorktreeStatusStrip({
 
   return (
     <dl
-      className="flex flex-wrap items-center overflow-hidden rounded-lg bg-canvas shadow-card max-md:flex-col max-md:items-stretch"
+      className="flex flex-wrap items-center overflow-hidden rounded-lg bg-card shadow-card max-md:flex-col max-md:items-stretch"
       data-slot="worktree-status-strip"
     >
       <BranchCell status={status} />
@@ -188,7 +190,7 @@ export function WorktreeStatusStrip({
           >
             <WorktreeAheadBehindSignal ahead={status.ahead} behind={status.behind} />
             {staleLabel ? (
-              <span className="text-micro text-faint">{`as of ${staleLabel}`}</span>
+              <span className="text-eyebrow text-faint">{`as of ${staleLabel}`}</span>
             ) : null}
           </Cell>
         )
@@ -199,7 +201,7 @@ export function WorktreeStatusStrip({
       {status.read_error ? (
         <div
           aria-live="polite"
-          className="flex min-w-0 flex-col gap-[3px] border-l border-line-soft px-3.5 py-2.5 max-md:border-t max-md:border-l-0"
+          className="flex min-w-0 flex-col gap-1 border-l border-line-soft px-3.5 py-2.5 max-md:border-t max-md:border-l-0"
           data-field="status"
           data-slot="worktree-status-cell"
           data-tone="danger"
@@ -209,12 +211,12 @@ export function WorktreeStatusStrip({
             <Eyebrow>Status</Eyebrow>
           </dt>
           <dd
-            className="flex min-h-[18px] items-center gap-1.5 text-small-body font-medium text-danger"
+            className="flex min-h-4.5 items-center gap-1.5 text-small-body font-medium text-danger"
             data-slot="worktree-status-value"
           >
-            <CircleAlertIcon aria-hidden="true" className="size-3" />
+            <CircleAlertIcon aria-hidden="true" className="size-3.5" />
             <span>read failed</span>
-            <span className="text-micro text-subtle">{status.read_error}</span>
+            <span className="text-eyebrow text-subtle">{status.read_error}</span>
           </dd>
         </div>
       ) : null}

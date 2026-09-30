@@ -160,7 +160,7 @@ export function InputsAndSearchSection() {
         </Field>
         <InputGroup>
           <InputGroupAddon align="inline-start">
-            <SearchIcon className="size-3" />
+            <SearchIcon className="size-3.5" />
           </InputGroupAddon>
           <InputGroupInput placeholder="Filter sessions…" />
           <InputGroupAddon align="inline-end">
@@ -238,15 +238,15 @@ export function StatusAndMetricSection() {
       <div className="flex flex-wrap items-center gap-4 pt-4">
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="success" />
-          <span className="text-sm text-muted">Connected</span>
+          <span className="text-small-body text-muted">Connected</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="warning" pulse />
-          <span className="text-sm text-muted">Connecting</span>
+          <span className="text-small-body text-muted">Connecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="danger" />
-          <span className="text-sm text-muted">Disconnected</span>
+          <span className="text-small-body text-muted">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
         <ConnectionIndicator status="connecting" />
@@ -279,7 +279,7 @@ export function StatusAndMetricSection() {
         {STATE_GLYPH_DEMO.map(([state, label]) => (
           <div key={state} className="inline-flex items-center gap-2">
             <StateGlyph state={state} />
-            <span className="text-sm text-muted">{label}</span>
+            <span className="text-small-body text-muted">{label}</span>
           </div>
         ))}
       </div>

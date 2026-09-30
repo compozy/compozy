@@ -153,11 +153,9 @@ function SettingsSectionLink({
       }}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium @min-settings-takeover:h-8",
+        "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-body font-medium @min-settings-takeover:h-8",
         "transition-colors duration-base focus-visible:outline-none focus-visible:shadow-focus-ring",
-        isActive
-          ? "bg-selected text-fg shadow-card"
-          : "text-muted hover:bg-surface-2 hover:text-fg",
+        isActive ? "bg-selected text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
         className
       )}
       data-active={isActive ? "true" : "false"}

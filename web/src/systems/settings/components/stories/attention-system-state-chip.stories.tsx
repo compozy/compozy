@@ -17,7 +17,7 @@ export const DeliveryStates: Story = {
   args: { state: "granted" },
   render: () => (
     <CenteredSurface>
-      <div className="flex items-center gap-5 rounded-lg border border-line bg-canvas px-5 py-4">
+      <div className="flex items-center gap-5 rounded-lg bg-card shadow-card px-5 py-4">
         <AttentionSystemStateChip state="granted" />
         <AttentionSystemStateChip state="denied" />
         <AttentionSystemStateChip state="unsupported" />

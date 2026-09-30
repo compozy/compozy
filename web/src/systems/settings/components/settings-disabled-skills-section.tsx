@@ -47,7 +47,7 @@ export function SettingsDisabledSkillsSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-line"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-testid="settings-page-skills-disabled-list"
         >
           <Table>
@@ -62,8 +62,8 @@ export function SettingsDisabledSkillsSection({
                 <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
-                      <Wrench className="size-3 text-subtle" />
-                      <span className="truncate text-sm text-fg">{name}</span>
+                      <Wrench className="size-3.5 text-subtle" />
+                      <span className="truncate text-body text-fg">{name}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">

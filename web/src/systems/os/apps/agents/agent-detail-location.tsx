@@ -99,12 +99,12 @@ function AgentDetailNotFound({
         action={
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={onBack}
             data-testid="agent-detail-back-agents"
           >
-            <Compass className="size-3" />
+            <Compass aria-hidden="true" />
             Back to agents
           </Button>
         }
@@ -225,7 +225,8 @@ function AgentDetailBody({ agent, name, page, workspaceId }: AgentDetailBodyProp
           data-testid="agent-detail-tabs"
         >
           <div
-            className="flex min-h-0 flex-1 flex-col overflow-y-auto py-5"
+            // The inline 4px pad keeps card hairlines (shadow rings) clear of the scroll clip.
+            className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1 py-5"
             data-testid="agent-detail-body"
           >
             <TabsContent value="overview" className="flex flex-col gap-6">

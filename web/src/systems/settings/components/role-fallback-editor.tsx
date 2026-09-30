@@ -63,7 +63,7 @@ export function RoleFallbackEditor({
     <div {...rootProps} className={cn("flex flex-col gap-3", className)} data-testid={testId}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
-          <span className="text-ws-name font-medium text-fg">Fallback chain</span>
+          <span className="text-body font-medium text-fg">Fallback chain</span>
           <span className="text-form-label text-muted">
             Ordered routes tried before session acceptance when the primary fails.
           </span>
@@ -76,7 +76,7 @@ export function RoleFallbackEditor({
           onClick={handleAddRoute}
           data-testid={`${testId}-add`}
         >
-          <Plus className="size-3" aria-hidden="true" />
+          <Plus aria-hidden="true" />
           Add route
         </Button>
       </div>
@@ -129,7 +129,7 @@ export function RoleFallbackEditor({
                     data-testid={`${testId}-remove-${index}`}
                     onClick={() => handleRemoveRoute(index)}
                   >
-                    <Trash2 className="size-3" aria-hidden="true" />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
                 {error ? (

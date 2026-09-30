@@ -36,7 +36,7 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    /* Body baseline / DESIGN.md §9: Inter 425 at 14.5px, −0.01em, and
+    /* Body baseline / DESIGN.md §9: Inter 425 at 13.5px, −0.01em, and
        Inter's cv11 (single-storey a), as the brand reference sets it. */
     font-size: var(--text-body);
     font-weight: var(--font-weight-normal);

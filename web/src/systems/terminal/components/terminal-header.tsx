@@ -92,13 +92,14 @@ function TerminalHeaderStatus({
   return (
     <>
       {recording ? (
-        <Pill data-testid="terminal-recording-chip" size="sm" tone="neutral">
+        <Pill data-testid="terminal-recording-chip" form="plain" size="sm" tone="neutral">
           <Pill.Dot pulse tone="danger" />
           Recording {recording.elapsed}
         </Pill>
       ) : null}
       {isPipe ? (
-        <Pill data-testid="terminal-pipe-chip" size="sm" tone="neutral">
+        <Pill data-testid="terminal-pipe-chip" form="plain" size="sm" tone="neutral">
+          <Pill.Dot />
           read-only log
         </Pill>
       ) : null}
@@ -106,6 +107,7 @@ function TerminalHeaderStatus({
         <Pill
           aria-label={`${viewers} ${viewers === 1 ? "viewer" : "viewers"}`}
           data-testid="terminal-viewers"
+          form="plain"
           mono
           size="sm"
           tone="neutral"
@@ -201,7 +203,7 @@ export function TerminalHeader({
     >
       <span className="flex min-w-0 items-center gap-2">
         <TerminalIdentityIcon isPipe={isPipe} />
-        <span className="truncate font-medium text-fg text-ws-name tracking-tight">
+        <span className="truncate font-medium text-fg text-heading tracking-tight">
           {terminalDisplayTitle(terminal)}
         </span>
         {identityCount}

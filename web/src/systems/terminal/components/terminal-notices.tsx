@@ -29,7 +29,7 @@ const NOTICE_ICONS: Record<string, LucideIcon> = {
 };
 
 /** The board's notices carry no headline tier — a bold lead-in over body text. */
-const NOTICE_TITLE_CLASS = "text-form-input font-semibold";
+const NOTICE_TITLE_CLASS = "text-form-input font-medium";
 
 export interface TerminalStreamNoticeProps {
   code: string;

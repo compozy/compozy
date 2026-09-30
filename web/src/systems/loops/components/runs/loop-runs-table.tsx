@@ -56,7 +56,7 @@ export function LoopRunsTable({ group, ownerOf, nowMs, className, ...props }: Lo
       data-testid={`loop-runs-group-${group.id}`}
       {...props}
     >
-      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         <ListGroupHeader
           count={<span data-testid="loop-runs-count">{group.rows.length}</span>}
           label={<span id={headingId}>{group.label}</span>}

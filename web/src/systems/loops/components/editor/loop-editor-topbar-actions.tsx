@@ -48,19 +48,18 @@ export function LoopEditorTopbarStatus({
     >
       <Pill
         data-testid="loop-editor-version"
-        size="xs"
+        form="plain"
         title={`Version ${version ?? "?"} · ${state}`}
-        tone={tone}
       >
-        {tone === "warning" ? <Pill.Dot size="sm" tone={tone} /> : null}v{version ?? "?"} · {state}
+        <Pill.Dot tone={tone} />v{version ?? "?"} · {state}
       </Pill>
     </span>
   );
 }
 
 /**
- * Trailing shell-topbar actions for the loop editor: one secondary validation
- * action and the primary publish action.
+ * Trailing shell-topbar actions for the loop editor: a quiet validation action
+ * and the publish action. Window heads carry no inverted primary (polish P4).
  */
 export function LoopEditorTopbarActions({
   busy,
@@ -72,7 +71,7 @@ export function LoopEditorTopbarActions({
     <div className="flex items-center gap-2" data-testid="loop-editor-topbar-actions">
       <Button
         type="button"
-        variant="neutral"
+        variant="ghost"
         size="sm"
         disabled={busy}
         onClick={onValidate}
@@ -83,6 +82,7 @@ export function LoopEditorTopbarActions({
       </Button>
       <Button
         type="button"
+        variant="secondary"
         size="sm"
         disabled={publishDisabled}
         onClick={onPublish}

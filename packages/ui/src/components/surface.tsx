@@ -13,8 +13,9 @@ export interface SurfaceProps extends useRender.ComponentProps<"div"> {
    */
   size?: SurfaceSize;
   /**
-   * `card` (default) lifts content on `--canvas` with `shadow-card`. `sunken` is
-   * the recessed inset for secondary lists (tool rows, command previews): no
+   * `card` (default) lifts content one step above the pane: `bg-card` plus
+   * `shadow-card`, whose first layer is the `line` hairline. `sunken` is the
+   * recessed inset for secondary lists (tool rows, command previews): no
    * border and no shadow on `--sunken`.
    */
   variant?: SurfaceVariant;
@@ -46,7 +47,7 @@ function Surface({
       {
         className: cn(
           "rounded-lg",
-          variant === "sunken" ? "bg-sunken" : "bg-canvas shadow-card",
+          variant === "sunken" ? "bg-sunken" : "bg-card shadow-card",
           SIZE_CLASS[size],
           className
         ),

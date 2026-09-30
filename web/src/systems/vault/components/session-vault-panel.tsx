@@ -47,12 +47,14 @@ export function SessionVaultPanel({
       />
       <DataSurface.Error
         icon={KeyRound}
+        size="compact"
         title="Vault unavailable"
         description={error?.message}
         data-testid="session-inspector-vault-error"
       />
       <DataSurface.Empty
         icon={KeyRound}
+        size="compact"
         title="No session vault secrets"
         description="Session-scoped vault metadata appears here when tools store write-only values."
         data-testid="session-inspector-vault-empty"

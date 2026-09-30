@@ -70,7 +70,7 @@ function HelpTip({ label, children, side = "top", className, onClick, ...props }
           />
         }
       >
-        <CircleHelp aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
+        <CircleHelp aria-hidden="true" className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent className="max-w-72 items-start leading-normal" side={side}>
         {children}

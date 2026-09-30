@@ -51,7 +51,7 @@ export function TriggerInspectSheet({ trigger, open, onOpenChange }: TriggerInsp
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent
-        className="w-150 max-w-[calc(100%-1.5rem)] gap-0 bg-canvas sm:max-w-[calc(100%-1.5rem)]"
+        className="w-150 max-w-[calc(100%-1.5rem)] gap-0 sm:max-w-[calc(100%-1.5rem)]"
         data-testid="trigger-inspect-sheet"
         side="right"
       >

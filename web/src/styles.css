@@ -41,7 +41,7 @@
   inset-block-start: 0;
   inset-inline-start: 0;
   pointer-events: none;
-  color: var(--color-subtle);
+  color: var(--color-muted);
 }
 
 /* Marketplace install flash — one success-tint fade when a row just landed (state, not accent). */

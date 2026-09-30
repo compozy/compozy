@@ -100,14 +100,14 @@ export function LayoutSection() {
                 <button
                   type="button"
                   aria-label="Workspace compozy-core"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-selected font-mono text-eyebrow text-fg shadow-card"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-rail-selected font-mono text-eyebrow text-fg"
                 >
                   A
                 </button>
                 <button
                   type="button"
                   aria-label="Workspace research"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-line bg-canvas font-mono text-eyebrow text-muted"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-transparent font-mono text-eyebrow text-muted hover:bg-rail-hover hover:text-fg"
                 >
                   R
                 </button>
@@ -115,12 +115,12 @@ export function LayoutSection() {
             }
             header={
               <>
-                <FolderIcon className="size-3 text-subtle" />
+                <FolderIcon className="size-3.5 text-subtle" />
                 <span className="text-small-body font-medium">compozy-core</span>
               </>
             }
             nav={
-              <div className="flex flex-col gap-0.5 px-2 py-3 text-sm">
+              <div className="flex flex-col gap-0.5 px-2 py-3 text-small-body">
                 <SidebarRow icon={HomeIcon} label="Home" active />
                 <SidebarRow icon={SquareTerminalIcon} label="Sessions" />
                 <SidebarRow icon={BoxesIcon} label="Tasks" />
@@ -128,10 +128,10 @@ export function LayoutSection() {
               </div>
             }
             footer={
-              <div className="flex items-center justify-between gap-2 text-xs text-subtle">
+              <div className="flex items-center justify-between gap-2 text-eyebrow text-subtle">
                 <ConnectionIndicator status="connected" />
-                <Button variant="ghost" size="icon-sm" aria-label="Settings">
-                  <SettingsIcon className="size-3" />
+                <Button variant="quiet" size="icon-sm" aria-label="Settings">
+                  <SettingsIcon />
                 </Button>
               </div>
             }
@@ -220,7 +220,7 @@ export function ListingRowSection() {
       label={<SectionLink section={sectionById("listing-row")}>ListingRow</SectionLink>}
       right={<Pill mono>inventory</Pill>}
     >
-      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         <ListingRow>
           <ListingRow.Link href="#listing-alpha" aria-label="Open alpha-delivery">
             <ListingRow.Icon>
@@ -238,7 +238,7 @@ export function ListingRowSection() {
                 Ships a release candidate through the gate.
               </ListingRow.Description>
               <ListingRow.Meta>
-                <span className="font-mono text-[10px] text-subtle">3 inputs</span>
+                <span className="font-mono text-micro text-subtle">3 inputs</span>
                 <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
                 <span>iteration cap 8</span>
               </ListingRow.Meta>
@@ -278,7 +278,7 @@ export function ListingRowSection() {
             </ListingRow.Main>
           </ListingRow.Link>
           <ListingRow.Trail>
-            <span className="text-[11px] text-faint">2h</span>
+            <span className="text-eyebrow text-muted">2h</span>
           </ListingRow.Trail>
         </ListingRow>
         <ListingRow>
@@ -321,7 +321,7 @@ function SidebarRow({
       data-active={active ? "true" : undefined}
       className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted transition-colors hover:bg-hover hover:text-fg data-[active=true]:bg-selected data-[active=true]:text-fg"
     >
-      <Icon className="size-3 text-subtle group-data-[active=true]:text-fg" />
+      <Icon className="size-3.5 text-subtle group-data-[active=true]:text-fg" />
       <span>{label}</span>
     </button>
   );

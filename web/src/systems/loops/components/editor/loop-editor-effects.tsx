@@ -134,7 +134,7 @@ export function LoopEditorEffects({
                 onClick={() => remove(index)}
                 aria-label={`Remove ${rowName}`}
               >
-                <X aria-hidden="true" className="size-3" />
+                <X aria-hidden="true" />
               </Button>
             </div>
             <details
@@ -183,7 +183,7 @@ export function LoopEditorEffects({
         onClick={add}
         data-testid={`${testId}-add`}
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add effect
       </Button>
     </div>

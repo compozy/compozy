@@ -58,7 +58,7 @@ export function OsPaletteFooter({
     <div
       data-testid="os-palette-footer"
       className={cn(
-        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line-soft px-4 py-2 text-micro text-subtle",
+        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line-soft px-4 py-2 text-eyebrow text-subtle",
         className
       )}
     >

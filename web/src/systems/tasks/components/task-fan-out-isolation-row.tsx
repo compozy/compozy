@@ -45,7 +45,7 @@ export function TaskFanOutIsolationRow({
           </span>
           {showCount ? (
             <span
-              className="mt-[3px] block text-badge leading-[1.45] text-muted"
+              className="mt-[3px] block text-badge leading-normal text-muted"
               data-slot="task-fan-out-isolation-count"
               id={COUNT_DESCRIPTION_ID}
             >

@@ -98,7 +98,7 @@ function DesktopLayer({
   onSeamPreviewEnd,
   paletteShortcutLabel,
   hasProject,
-  onNewSession,
+  onPickProject,
 }: {
   model: DesktopLayerModel;
   compact: boolean;
@@ -109,7 +109,7 @@ function DesktopLayer({
   seamProjection: LayoutProjection | undefined;
   paletteShortcutLabel: string | null;
   hasProject: boolean;
-  onNewSession: () => void;
+  onPickProject?: () => void;
 } & SeamGestureHandlers) {
   const { incoming, interactive, style } = desktopLayerView({
     model,
@@ -138,7 +138,7 @@ function DesktopLayer({
           desktopName={model.desktop.name}
           paletteShortcutLabel={paletteShortcutLabel}
           hasProject={hasProject}
-          onNewSession={onNewSession}
+          onPickProject={onPickProject}
         />
       ) : null}
       {model.frames.map(frame => (
@@ -174,17 +174,17 @@ export function OsWinLayer({
   onSeamPreviewEnd,
   paletteShortcutLabel,
   hasProject,
-  onNewSession,
+  onPickProject,
 }: {
   model: OsWinLayerModel;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
   paletteShortcutLabel: string | null;
-  /** A project is active (Global has none): gates the empty desktop's New session. */
+  /** A project is active (Global has none): gates the empty desktop's composer. */
   hasProject: boolean;
-  /** The empty desktop's primary action. */
-  onNewSession: () => void;
+  /** Global scope has no project: the empty desktop offers the workspace picker instead. */
+  onPickProject?: () => void;
 } & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
@@ -211,7 +211,7 @@ export function OsWinLayer({
           onSeamPreviewEnd={onSeamPreviewEnd}
           paletteShortcutLabel={paletteShortcutLabel}
           hasProject={hasProject}
-          onNewSession={onNewSession}
+          onPickProject={onPickProject}
         />
       ))}
       {viewportState === "rejected" ? (
@@ -223,7 +223,7 @@ export function OsWinLayer({
           <Empty
             framed
             icon={MonitorX}
-            className="max-w-sm bg-canvas shadow-overlay"
+            className="max-w-sm bg-card shadow-overlay"
             title="Make the window wider to see your desktop"
             description="You can also change this in Settings › Layouts."
           />

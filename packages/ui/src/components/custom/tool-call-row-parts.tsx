@@ -21,32 +21,16 @@ function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
   const iconClass =
     "size-3.5 shrink-0 text-subtle transition-colors group-hover/tool-row:text-muted";
   if (icon === undefined) {
-    return (
-      <WrenchIcon
-        aria-hidden="true"
-        data-slot="tool-call-row-icon"
-        className={iconClass}
-        strokeWidth={1.75}
-      />
-    );
+    return <WrenchIcon aria-hidden="true" data-slot="tool-call-row-icon" className={iconClass} />;
   }
   if (isIconComponent(icon)) {
     const IconComp = icon;
-    return (
-      <IconComp
-        aria-hidden="true"
-        data-slot="tool-call-row-icon"
-        className={iconClass}
-        strokeWidth={1.75}
-      />
-    );
+    return <IconComp aria-hidden="true" data-slot="tool-call-row-icon" className={iconClass} />;
   }
   return icon;
 }
 
-const DEFAULT_LINE_CLASS = "min-h-6 gap-1.5 rounded-sm px-1 text-small-body";
-// Inset density (inside `ToolCallRow.Group`): the 34 px `.tool` line of the sunken panel.
-const INSET_LINE_CLASS = "min-h-8.5 gap-2.5 px-4 text-body";
+const LINE_CLASS = "min-h-6 gap-1.5 rounded-sm px-1 text-small-body";
 
 interface ToolCallRowLineProps {
   toolName: React.ReactNode;
@@ -56,8 +40,6 @@ interface ToolCallRowLineProps {
   stat?: React.ReactNode;
   actions?: React.ReactNode;
   status: ToolCallStatus;
-  still: boolean;
-  inset: boolean;
   expandable: boolean;
   isExpanded: boolean;
 }
@@ -71,8 +53,6 @@ export function ToolCallRowLine({
   stat,
   actions,
   status,
-  still,
-  inset,
   expandable,
   isExpanded,
 }: ToolCallRowLineProps) {
@@ -84,16 +64,11 @@ export function ToolCallRowLine({
       >
         {renderToolCallIcon(icon)}
       </span>
-      <span
-        className={cn("flex min-w-0 flex-1 items-baseline", inset ? "gap-2.5" : "max-w-sm gap-1.5")}
-      >
+      <span className="flex min-w-0 max-w-sm flex-1 items-baseline gap-1.5">
         <span
           id={toolNameId}
           data-slot="tool-call-row-tool"
-          className={cn(
-            "min-w-0 max-w-xs shrink truncate font-medium transition-colors",
-            inset ? "text-fg" : "text-muted group-hover/tool-row:text-fg"
-          )}
+          className="min-w-0 max-w-xs shrink truncate font-medium text-muted transition-colors group-hover/tool-row:text-fg"
           title={nativeTitle(toolName)}
         >
           {toolName}
@@ -101,10 +76,7 @@ export function ToolCallRowLine({
         {preview ? (
           <span
             data-slot="tool-call-row-preview"
-            className={cn(
-              "min-w-0 flex-1 truncate font-mono",
-              inset ? "text-meta text-muted" : "text-subtle"
-            )}
+            className="min-w-0 flex-1 truncate font-mono text-subtle"
             title={nativeTitle(preview)}
           >
             {preview}
@@ -116,10 +88,7 @@ export function ToolCallRowLine({
       {stat ? (
         <span
           data-slot="tool-call-row-stat"
-          className={cn(
-            "flex shrink-0 items-center font-mono tabular-nums",
-            inset ? "gap-2 text-meta" : "gap-1 text-transcript-caption"
-          )}
+          className="flex shrink-0 items-center gap-1 font-mono text-transcript-caption tabular-nums"
         >
           {stat}
         </span>
@@ -144,10 +113,9 @@ export function ToolCallRowLine({
               "size-3 shrink-0 text-subtle transition-transform duration-base ease-out motion-reduce:transition-none",
               isExpanded ? "rotate-90 text-muted" : null
             )}
-            strokeWidth={1.75}
           />
         ) : null}
-        <ToolCallStatusIcon status={status} still={still} />
+        <ToolCallStatusIcon status={status} />
       </span>
     </>
   );
@@ -155,7 +123,6 @@ export function ToolCallRowLine({
 
 /** Expandable header: a full-bleed trigger button under the line, labelled by its parts. */
 export function ToolCallRowHeader({
-  inset,
   isExpanded,
   status,
   statLabel,
@@ -163,7 +130,6 @@ export function ToolCallRowHeader({
   onToggle,
   children,
 }: {
-  inset: boolean;
   isExpanded: boolean;
   status: ToolCallStatus;
   statLabel?: string;
@@ -179,7 +145,7 @@ export function ToolCallRowHeader({
       data-slot="tool-call-row-header"
       className={cn(
         "relative flex w-full min-w-0 cursor-pointer items-center text-left",
-        inset ? INSET_LINE_CLASS : DEFAULT_LINE_CLASS
+        LINE_CLASS
       )}
     >
       <button
@@ -187,10 +153,7 @@ export function ToolCallRowHeader({
         data-slot="tool-call-row-trigger"
         aria-expanded={isExpanded}
         aria-labelledby={`${toolNameId}${statLabelledBy} ${triggerDescriptionId}`}
-        className={cn(
-          "absolute inset-0 outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset",
-          inset ? "rounded-none" : "rounded-sm"
-        )}
+        className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset"
         onClick={onToggle}
       />
       <span id={triggerDescriptionId} className="sr-only">
@@ -206,20 +169,11 @@ export function ToolCallRowHeader({
   );
 }
 
-export function ToolCallRowStatic({
-  inset,
-  children,
-}: {
-  inset: boolean;
-  children: React.ReactNode;
-}) {
+export function ToolCallRowStatic({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-slot="tool-call-row-static"
-      className={cn(
-        "flex w-full min-w-0 items-center",
-        inset ? INSET_LINE_CLASS : DEFAULT_LINE_CLASS
-      )}
+      className={cn("flex w-full min-w-0 items-center", LINE_CLASS)}
     >
       {children}
     </div>
@@ -227,21 +181,16 @@ export function ToolCallRowStatic({
 }
 
 export function ToolCallRowBody({
-  inset,
   errorMessage,
   children,
 }: {
-  inset: boolean;
   errorMessage?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <div
       data-slot="tool-call-row-body"
-      className={cn(
-        "mt-1 flex max-h-64 min-w-0 cursor-default flex-col gap-2 overflow-auto border-l border-line pl-3 text-small-body text-muted select-text",
-        inset ? "mr-4 mb-2 ml-11.5" : "ml-7"
-      )}
+      className="mt-1 ml-7 flex max-h-64 min-w-0 cursor-default flex-col gap-2 overflow-auto border-l border-line pl-3 text-small-body text-muted select-text"
       onClick={event => event.stopPropagation()}
       onPointerDown={event => event.stopPropagation()}
     >

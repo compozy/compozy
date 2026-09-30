@@ -36,7 +36,7 @@ function Toaster({
       }}
       style={
         {
-          "--normal-bg": "var(--color-canvas)",
+          "--normal-bg": "var(--color-popover)",
           "--normal-text": "var(--color-fg)",
           "--normal-border": "var(--color-line)",
           "--border-radius": "var(--radius-lg)",

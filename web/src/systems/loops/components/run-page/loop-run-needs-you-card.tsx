@@ -114,7 +114,7 @@ export function LoopRunNeedsYouCard({
       icon={<Bell aria-hidden="true" />}
       title="Needs you"
     >
-      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         {requests.length > 0 ? (
           <LoopRequestQuestionnaire
             requestFocus={requestFocus}
@@ -164,7 +164,7 @@ export function LoopRunNeedsYouCard({
                 ) : null}
                 {onOpenQuarantine ? (
                   <Button
-                    className="min-h-6 shrink-0"
+                    className="shrink-0"
                     data-testid={`loop-run-needs-open-quarantine-${rowKey}`}
                     onClick={() => onOpenQuarantine(node.nodeId)}
                     size="sm"

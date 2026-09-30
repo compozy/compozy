@@ -52,7 +52,7 @@ export function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps)
     <h3
       data-slot="catalog-card-title"
       className={cn(
-        "min-w-0 truncate text-small-body font-medium tracking-modal-title text-fg-strong",
+        "min-w-0 truncate text-item-title font-medium tracking-modal-title text-fg-strong",
         className
       )}
       {...props}

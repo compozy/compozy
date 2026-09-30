@@ -42,7 +42,7 @@ export function SessionSidebar({
       data-testid="session-sidebar"
       inert={!open}
       className={cn(
-        "flex shrink-0 flex-col overflow-hidden bg-rail transition-[width] duration-shell-slow motion-reduce:transition-none",
+        "flex shrink-0 flex-col overflow-hidden bg-sunken transition-[width] duration-shell-slow motion-reduce:transition-none",
         open ? "w-66 border-r border-line" : "w-0"
       )}
     >

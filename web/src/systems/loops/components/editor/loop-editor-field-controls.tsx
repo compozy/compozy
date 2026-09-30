@@ -142,7 +142,7 @@ function TextInputControl({
   return (
     <Input
       type="text"
-      className={cn("h-8 px-2.5 text-form-input", field.mono && "font-mono")}
+      className={cn("px-2.5 text-form-input", field.mono && "font-mono")}
       value={str(value)}
       disabled={disabled}
       placeholder={field.placeholder}
@@ -274,7 +274,7 @@ export function LoopEditorNumberField({
         <Input
           type="number"
           aria-invalid={over || undefined}
-          className="h-8 w-28 font-mono text-form-input"
+          className="w-28 font-mono text-form-input"
           value={raw0 === undefined || raw0 === null ? "" : String(raw0)}
           disabled={disabled}
           aria-label={field.label}

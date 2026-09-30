@@ -95,7 +95,7 @@ export function TasksInboxItem({
           className="flex items-start gap-1 text-danger"
           data-testid={`tasks-inbox-item-error-${taskId}`}
         >
-          <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           <span className="min-w-0 truncate">{failedError}</span>
         </p>
       ) : null}
@@ -265,7 +265,7 @@ function InboxApprovalActions({
           onClick={() => onApprove(taskId)}
           pending={pendingApproveIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-approve-${taskId}`}
-          variant="primary"
+          variant="secondary"
         />
       ) : null}
     </>
@@ -298,7 +298,7 @@ function InboxItemOverflowMenu({
         data-testid={`tasks-inbox-item-more-${taskId}`}
         render={<Button size="icon-xs" type="button" variant="ghost" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {onMarkRead ? (
@@ -307,7 +307,7 @@ function InboxItemOverflowMenu({
             disabled={pendingMarkReadIds?.has(taskId) ?? false}
             onClick={() => onMarkRead(taskId)}
           >
-            <Eye aria-hidden="true" className="size-3" />
+            <Eye aria-hidden="true" />
             Mark read
           </DropdownMenuItem>
         ) : null}
@@ -317,7 +317,7 @@ function InboxItemOverflowMenu({
             disabled={pendingDismissIds?.has(taskId) ?? false}
             onClick={() => onDismiss(taskId)}
           >
-            <ArchiveX aria-hidden="true" className="size-3" />
+            <ArchiveX aria-hidden="true" />
             Dismiss
           </DropdownMenuItem>
         ) : null}
@@ -327,7 +327,7 @@ function InboxItemOverflowMenu({
             disabled={pendingArchiveIds?.has(taskId) ?? false}
             onClick={() => onArchive(taskId)}
           >
-            <Archive aria-hidden="true" className="size-3" />
+            <Archive aria-hidden="true" />
             Archive
           </DropdownMenuItem>
         ) : null}
@@ -343,16 +343,17 @@ interface ActionButtonProps {
   pending: boolean;
   testId: string;
   /**
-   * `primary` -- solid accent CTA (max one per card).
+   * `secondary` -- the row's filled resolving action. A repeated row action is
+   * never the inverted primary: a view carries at most one of those.
    * `ghost` -- neutral secondary action.
    * `destructive-ghost` -- ghost with `text-danger`. Solid-filled destructive
    * buttons only belong inside a confirmation dialog, not inline on a row.
    */
-  variant: "primary" | "ghost" | "destructive-ghost";
+  variant: "secondary" | "ghost" | "destructive-ghost";
 }
 
 function ActionButton({ label, icon, onClick, pending, testId, variant }: ActionButtonProps) {
-  const buttonVariant = variant === "primary" ? "default" : "ghost";
+  const buttonVariant = variant === "secondary" ? "secondary" : "ghost";
   return (
     <Button
       aria-busy={pending}

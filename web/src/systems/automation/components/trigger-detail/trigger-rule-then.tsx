@@ -128,7 +128,7 @@ export function TriggerRuleThen({ trigger, loopWorkspaceName }: TriggerRuleThenP
       <>
         <span className="flex min-w-0 items-center gap-2">
           <TargetChip>
-            <Workflow className="size-3" strokeWidth={1.75} />
+            <Workflow className="size-3" />
           </TargetChip>
           <b className="min-w-0 truncate text-modal-title font-medium text-fg-strong">
             <Link

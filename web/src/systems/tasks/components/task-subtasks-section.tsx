@@ -36,7 +36,7 @@ export function TaskSubtasksSection({ items }: { items: readonly TaskChildSummar
         </span>
       }
     >
-      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card">
         <div className="px-4 pt-3.5 pb-0.5">
           <StackedProgress
             ariaLabel={`${done} done, ${active} active, ${pending} not started; ${items.length} subtasks total`}

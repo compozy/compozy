@@ -1,7 +1,9 @@
-import { SessionWorkEntryList } from "./session-work-entry";
+import { Check, LoaderCircle } from "lucide-react";
+
+import { SessionWorkEntryView } from "./session-work-entry";
 import { summaryFailureSuffix } from "./session-timeline-summary";
 import { isStreamingState, type SessionWorkRow } from "./session-timeline.logic";
-import { StateGlyph, TranscriptDisclosure } from "@compozy/ui";
+import { TranscriptDisclosure } from "@compozy/ui";
 
 export interface SessionToolGroupRowProps {
   row: SessionWorkRow;
@@ -32,7 +34,16 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
         expanded={row.expanded}
         onToggle={onToggle}
         aria-controls={detailsId}
-        icon={<StateGlyph size="sm" state={busy ? "running" : "done"} />}
+        icon={
+          busy ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="size-3 shrink-0 animate-spin text-subtle motion-reduce:animate-none"
+            />
+          ) : (
+            <Check aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+          )
+        }
         label={
           <span data-testid="work-summary-label">
             {summary.label}
@@ -53,16 +64,19 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
         hidden={!row.expanded}
         aria-hidden={!row.expanded}
         inert={!row.expanded}
-        className={row.expanded ? "flex min-w-0 flex-col gap-1.5 pt-1.5" : undefined}
+        className={row.expanded ? "flex min-w-0 flex-col gap-0.5 pt-0.5" : undefined}
       >
-        {row.expanded ? (
-          <SessionWorkEntryList
-            entries={row.entries}
-            disclosed
-            active={row.active}
-            turnFailed={turnFailed}
-          />
-        ) : null}
+        {row.expanded
+          ? row.entries.map(entry => (
+              <SessionWorkEntryView
+                key={`${entry.kind}:${entry.id}`}
+                entry={entry}
+                disclosed
+                active={row.active}
+                turnFailed={turnFailed}
+              />
+            ))
+          : null}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Pill,
   StateGlyph,
   TopbarOverflowIcon,
 } from "@compozy/ui";
@@ -21,16 +22,13 @@ const CANCELABLE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
   "running",
 ]);
 
+/** Run status in the window head: a plain indicator (glyph + label), never a button-like pill. */
 export function TaskRunPageStatus({ status }: { status: TaskRunStatus }) {
   return (
-    <span
-      className="inline-flex items-center gap-1.75 text-meta font-medium text-fg-2"
-      data-state={taskRunStateGlyph(status)}
-      data-testid="tasks-run-status"
-    >
+    <Pill data-state={taskRunStateGlyph(status)} data-testid="tasks-run-status" form="plain">
       <StateGlyph state={taskRunStateGlyph(status)} />
       {taskRunStatusLabel(status)}
-    </span>
+    </Pill>
   );
 }
 
@@ -63,8 +61,9 @@ export function TaskRunPageActions({
         onClick={onRetry}
         size="sm"
         type="button"
+        variant="secondary"
       >
-        <RotateCw aria-hidden="true" className="size-3" />
+        <RotateCw aria-hidden="true" data-icon="inline-start" />
         Retry
       </Button>
     );
@@ -72,19 +71,17 @@ export function TaskRunPageActions({
 
   if (!sessionId) return null;
 
-  const isTerminal =
-    record.status === "completed" || record.status === "failed" || record.status === "canceled";
-
+  // Window-head action: secondary at `sm`, never the inverted primary.
   return (
     <Button
       data-testid="tasks-run-open-session"
       onClick={() => onOpenSession(sessionId)}
       size="sm"
       type="button"
-      variant={isTerminal ? "neutral" : "default"}
+      variant="secondary"
     >
       Open session
-      <ArrowUpRight aria-hidden="true" className="size-3" />
+      <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
     </Button>
   );
 }
@@ -125,9 +122,9 @@ export function TaskRunPageOverflow({
       <DropdownMenuTrigger
         aria-label="More actions"
         data-testid="tasks-run-overflow"
-        render={<Button className="size-6" type="button" variant="ghost" size="icon-sm" />}
+        render={<Button size="icon-sm" type="button" variant="quiet" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="tasks-run-overflow-menu">
         {canRecover ? (
@@ -136,7 +133,7 @@ export function TaskRunPageOverflow({
             disabled={pending.recover}
             onClick={onRecover}
           >
-            <LifeBuoy aria-hidden="true" className="size-3" />
+            <LifeBuoy aria-hidden="true" />
             Try again
           </DropdownMenuItem>
         ) : null}

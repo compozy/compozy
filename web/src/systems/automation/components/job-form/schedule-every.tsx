@@ -14,9 +14,9 @@ const EVERY_PRESETS = ["5m", "15m", "30m", "1h", "4h", "12h", "24h"];
 
 const CHIP_BASE =
   "inline-flex items-center rounded-pill border px-2.5 py-1 font-mono text-form-label font-medium transition-colors outline-none focus-visible:shadow-focus-ring";
-// Pill-group grammar: quiet at rest, the selected chip steps to surface-2 + shadow-card.
+// Pill-group grammar: quiet at rest, the selected chip is the pressed plate (surface-2, no ring).
 const CHIP_RESTING = "border-transparent text-muted hover:bg-surface-2 hover:text-fg";
-const CHIP_SELECTED = "border-transparent bg-surface-2 text-fg shadow-card";
+const CHIP_SELECTED = "border-transparent bg-surface-2 text-fg";
 
 /**
  * Fixed-interval schedule editor. Pure and presentational: the parent owns

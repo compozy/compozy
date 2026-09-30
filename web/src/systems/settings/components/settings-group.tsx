@@ -42,7 +42,7 @@ export function SettingsGroup({
       {bare ? (
         children
       ) : (
-        <div className="overflow-hidden rounded-lg bg-canvas shadow-card">{children}</div>
+        <div className="overflow-hidden rounded-lg bg-card shadow-card">{children}</div>
       )}
     </section>
   );
@@ -53,7 +53,7 @@ function SettingsGroupTitle({ title, help }: Pick<SettingsGroupProps, "title" | 
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       {title ? (
-        <h2 className="text-ws-name font-semibold tracking-tight text-fg">{title}</h2>
+        <h2 className="text-item-title font-medium tracking-tight text-fg">{title}</h2>
       ) : null}
       {help ? <HelpTip label={groupHelpLabel(title)}>{help}</HelpTip> : null}
     </div>
@@ -72,7 +72,7 @@ function SettingsGroupHeader({
       <div className="flex min-w-0 flex-col gap-0.5">
         <SettingsGroupTitle help={help} title={title} />
         {description ? (
-          <p className="max-w-settings-page-description text-form-label text-muted">
+          <p className="max-w-settings-page-description text-small-body text-muted">
             {description}
           </p>
         ) : null}

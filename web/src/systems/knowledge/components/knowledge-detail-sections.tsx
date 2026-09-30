@@ -39,7 +39,7 @@ function KnowledgeDetailHeader({
       data-testid="knowledge-detail-header"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-item-title font-medium text-fg">{memory.name}</h2>
+        <h2 className="text-detail-h1 font-medium tracking-detail-h1 text-fg">{memory.name}</h2>
         {memory.description ? (
           <p
             className="text-small-body leading-relaxed text-muted"
@@ -59,7 +59,7 @@ function KnowledgeDetailHeader({
             type="button"
             variant="secondary"
           >
-            <Pencil className="size-3" />
+            <Pencil />
             Edit
           </Button>
         ) : null}
@@ -71,7 +71,7 @@ function KnowledgeDetailHeader({
           type="button"
           variant="ghost"
         >
-          <Trash2 className="size-3" />
+          <Trash2 />
           Delete
         </Button>
       </div>
@@ -102,7 +102,7 @@ function KnowledgeContentSection({
           type="button"
           variant="ghost"
         >
-          <Code className="size-3" />
+          <Code />
           {showSource ? "View formatted" : "View source"}
         </Button>
       }
@@ -217,7 +217,7 @@ function KnowledgeDetailSkeleton() {
       role="status"
     >
       <div className="flex flex-col gap-2 pt-4">
-        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-5 w-48" />
         <Skeleton className="h-3 w-3/4" />
       </div>
       <div className="flex flex-col gap-6 py-5">

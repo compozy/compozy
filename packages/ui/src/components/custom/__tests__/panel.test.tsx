@@ -44,6 +44,7 @@ describe("Panel", () => {
     const panel = container.querySelector<HTMLElement>('[data-slot="panel"]');
     expect(panel?.tagName).toBe("SECTION");
     expect(panel).toHaveAttribute("data-variant", "card");
-    expect(panel).toHaveClass("bg-canvas", "shadow-card", "rounded-lg");
+    expect(panel).toHaveClass("bg-card", "shadow-card", "rounded-lg");
+    expect(panel).not.toHaveClass("bg-canvas");
   });
 });

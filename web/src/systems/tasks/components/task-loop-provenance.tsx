@@ -41,7 +41,7 @@ export function TaskLoopProvenance({ loop }: TaskLoopProvenanceProps) {
               to={runLink.to}
             >
               <span className="truncate">Open run</span>
-              <ArrowUpRight aria-hidden="true" className="size-3" />
+              <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </Link>
           ) : (
             <span className="text-muted" data-testid="task-loop-provenance-run-gone">

@@ -78,7 +78,7 @@ export function LoopEditorWatchEvents({
               aria-label={`Remove subscription ${index + 1}`}
               className="ml-auto"
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </div>
           <div className="flex flex-col gap-2">
@@ -126,7 +126,7 @@ export function LoopEditorWatchEvents({
         onClick={add}
         data-testid="loop-editor-watch-events-add"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add subscription
       </Button>
     </div>

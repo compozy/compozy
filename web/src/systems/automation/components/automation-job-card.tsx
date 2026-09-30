@@ -64,7 +64,7 @@ function AutomationJobCard({
           type="button"
           variant="secondary"
         >
-          <Play aria-hidden="true" className="size-3" />
+          <Play aria-hidden="true" />
           {isRunPending ? "Starting…" : "Run now"}
         </Button>
       </CatalogCard.Actions>

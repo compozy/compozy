@@ -1,4 +1,5 @@
 import {
+  Button,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -196,18 +197,22 @@ export function OsWindowDeck({
         })}
         {indicatorIndex === frame.members.length ? <InsertionCaret /> : null}
       </div>
-      <button
+      <Button
         type="button"
+        variant="quiet"
+        size="icon-sm"
         aria-label={`New tab${shortcutLabels?.newTab ? ` (${shortcutLabels.newTab})` : ""}`}
         data-slot="os-window-tab-add"
-        className="mb-0.5 -ml-1 grid size-deck-add shrink-0 place-items-center rounded-pill text-muted transition-colors duration-base hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        // Centred on the 32px tab row, whose bottom sits on the strip's edge.
+        className="mb-0.75 -ml-1 hover:bg-rail-hover"
         onClick={deck.openNewTab}
       >
         <Plus aria-hidden="true" className="size-3.75" />
-      </button>
+      </Button>
       <span aria-hidden="true" className="min-w-3 flex-1 self-stretch" />
       <OsTrafficLights
         className="self-center"
+        surface="strip"
         onSelect={onTrafficLight}
         wrapZoom={zoomMenu}
         zoomed={frame.zoomed}

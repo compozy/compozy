@@ -73,13 +73,13 @@ export function SettingsSkillCustomSources({
         />
       ))}
       <div className="flex min-w-0 flex-wrap items-center gap-2 px-3 py-2.5">
-        <label className="mr-auto text-sm text-fg" htmlFor={INPUT_ID}>
+        <label className="mr-auto text-body text-fg" htmlFor={INPUT_ID}>
           Add your own folder
         </label>
         <Input
           aria-describedby={error !== null ? ERROR_ID : undefined}
           aria-invalid={error !== null}
-          className="h-7 w-64 font-mono text-form-input"
+          className="h-control-compact w-64 font-mono text-form-input"
           data-testid={`${TEST_ID}-input`}
           disabled={disabled}
           id={INPUT_ID}
@@ -141,7 +141,7 @@ function PendingCustomRow({
       data-testid={`${TEST_ID}-pending-${entry}`}
     >
       <FolderPlus aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
-      <span className="truncate font-mono text-xs text-muted">{entry}</span>
+      <span className="truncate font-mono text-eyebrow text-muted">{entry}</span>
       <span aria-hidden="true" className="flex-1" />
       <span className="shrink-0 text-form-hint text-subtle">not scanned yet</span>
       <Button

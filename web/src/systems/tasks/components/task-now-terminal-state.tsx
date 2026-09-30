@@ -54,7 +54,6 @@ function TaskNowFailedState({
       actions={
         failed ? (
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-open-failed-run"
             onClick={() => onOpenRun(failed.id)}
             size="sm"
@@ -106,7 +105,6 @@ function TaskNowCompletedState({
       actions={
         completed ? (
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-view-result"
             onClick={onViewResult}
             size="sm"

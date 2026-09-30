@@ -25,11 +25,11 @@ export function OsPaletteBreadcrumb({ breadcrumb }: OsPaletteBreadcrumbProps) {
       aria-label="Location"
       data-testid="os-palette-breadcrumb"
       className={cn(
-        "flex items-center gap-1.5 pt-2 pb-1.5 text-micro text-muted",
+        "flex items-center gap-1.5 pt-2 pb-1.5 text-eyebrow text-muted",
         paletteViewLeadClass
       )}
     >
-      <Icon as={CornerUpLeft} size="xs" className="shrink-0 text-subtle" aria-hidden="true" />
+      <Icon as={CornerUpLeft} size="sm" className="shrink-0 text-subtle" aria-hidden="true" />
       {breadcrumb.truncated ? (
         <>
           <span data-slot="os-palette-crumb-more" title="Earlier levels">

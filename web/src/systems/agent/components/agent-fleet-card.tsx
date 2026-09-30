@@ -52,7 +52,7 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
       <CatalogCard.Actions className="justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {sessionsAvailable && signals ? (
-            <Pill size="sm" tone="neutral" data-testid={`agent-fleet-status-${agent.name}`}>
+            <Pill form="plain" data-testid={`agent-fleet-status-${agent.name}`}>
               <StateGlyph state={signals.status === "active" ? "running" : "idle"} size="sm" />
               {signals.status === "active" ? "Active" : "Idle"}
             </Pill>

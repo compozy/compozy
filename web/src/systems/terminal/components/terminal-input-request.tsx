@@ -74,14 +74,14 @@ function RequestPin({
           {terminalInputRequestTitle(request)}
         </span>
         {showOrigin && terminalTitle ? (
-          <span className="flex flex-none items-center gap-1.5 font-mono font-normal text-micro text-subtle">
+          <span className="flex flex-none items-center gap-1.5 font-mono font-normal text-eyebrow text-subtle">
             {terminalTitle}
             <MonoId size="sm" value={request.terminal_id} />
           </span>
         ) : null}
         <span
           className={cn(
-            "ml-auto flex-none font-mono font-normal text-micro",
+            "ml-auto flex-none font-mono font-normal text-eyebrow",
             expired ? "text-muted" : "text-faint"
           )}
           data-testid={`terminal-input-request-expiry-${request.id}`}
@@ -90,7 +90,7 @@ function RequestPin({
         </span>
       </div>
       <p className="text-small-body text-muted">{request.reason}</p>
-      <div className="rounded-lg bg-sunken px-3 py-2 font-mono text-badge leading-normal break-all whitespace-pre-wrap text-fg-3">
+      <div className="rounded-lg bg-sunken px-3 py-2 font-mono text-eyebrow leading-normal break-all whitespace-pre-wrap text-fg-3">
         {request.prompt_excerpt}
       </div>
       {children}

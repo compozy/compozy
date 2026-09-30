@@ -1,5 +1,6 @@
 import {
   baseArgs,
+  composerToolbarArgs,
   GoalCommandErrorFixture,
   renderWithTranscriptState,
   quietTimelineStory,
@@ -61,7 +62,7 @@ const meta: Meta<typeof SessionThread> = {
     docs: {
       description: {
         component:
-          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The transcript sits in a centered `max-w-transcript` column; the composer is the InputGroup `composer` card (`--canvas` + `shadow-card`, lifting to `shadow-elevated` on focus). The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows the round inverted send (`--primary`); while a turn runs the primary disc becomes a Stop, Enter queues the draft (with a visible hint), and queued prompts sit in a sunken panel above the composer as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
+          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The transcript and composer span the full pane width, sharing only the inset padding; the composer is the raised InputGroup `composer` plate (`--canvas-soft` + `--line` hairline, plus `shadow-card` in light; focus deepens the hairline to `--line-strong`). The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows the round inverted send (`--primary`); while a turn runs the primary disc becomes a Stop, Enter queues the draft (with a visible hint), and queued prompts sit in a sunken panel above the composer as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
       },
     },
   },
@@ -339,6 +340,12 @@ export const BusyInputControls: Story = {
   },
 };
 
+/** Composer toolbar — model picker, folder and context ring on the raised composer plate. */
+export const ComposerToolbar: Story = {
+  ...BusyInputControls,
+  args: { ...baseArgs, ...composerToolbarArgs },
+};
+
 /**
  * Wide panel — viewport and composer share the same full-width content rail.
  */
@@ -387,7 +394,7 @@ export const OnboardingInset: Story = {
 /**
  * Scroll-to-bottom pill — the live-follow affordance revealed when the reader
  * scrolls away from the live edge. Neutral `size-8 rounded-full` disc
- * (`bg-canvas` + `border-line` + `shadow-elevated`, no glass/backdrop-blur), floating over the
+ * (`bg-popover` + `shadow-pop`, whose ring is the hairline; no glass/backdrop-blur), floating over the
  * transcript above the composer. Interaction-gated in production; rendered here
  * in its visible state over a transcript-like backdrop.
  */

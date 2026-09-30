@@ -46,12 +46,12 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
                 onClick={() => void page.refresh()}
                 size="icon-sm"
                 type="button"
-                variant="ghost"
+                variant="quiet"
               />
             }
           >
             {page.isRefreshing ? (
-              <Spinner aria-hidden="true" className="size-3" />
+              <Spinner aria-hidden="true" className="size-3.5" />
             ) : (
               <RefreshCw aria-hidden="true" className="size-3.5" />
             )}

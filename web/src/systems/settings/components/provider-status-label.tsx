@@ -2,14 +2,10 @@ import { cn, Pill } from "@compozy/ui";
 
 import type { ProviderStateView } from "../lib/provider-state";
 
-const LABEL_TONE_CLASS: Partial<Record<ProviderStateView["tone"], string>> = {
-  warning: "text-warning",
-  danger: "text-danger",
-};
-
 /**
- * Provider readiness as dot + label. Ready stays quiet (neutral dot, muted
- * text) so only providers that need attention carry signal color.
+ * Provider readiness as a plain status readout: dot + muted label, never a
+ * plate. Ready stays quiet (neutral dot) so only providers that need attention
+ * carry signal color — on the dot, not the text.
  */
 export function ProviderStatusLabel({
   label,
@@ -27,17 +23,15 @@ export function ProviderStatusLabel({
   "data-state"?: string;
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex min-w-0 items-center gap-1.5 truncate text-form-label font-medium",
-        ready ? "text-muted" : (LABEL_TONE_CLASS[tone] ?? "text-muted"),
-        className
-      )}
+    <Pill
+      className={cn("min-w-0 truncate", className)}
       data-state={dataState}
       data-testid={testId}
+      form="plain"
+      tone={ready ? "neutral" : tone}
     >
-      <Pill.Dot tone={ready ? "neutral" : tone} />
+      <Pill.Dot />
       {label}
-    </span>
+    </Pill>
   );
 }

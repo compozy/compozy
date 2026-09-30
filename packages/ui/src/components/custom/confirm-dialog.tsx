@@ -138,7 +138,7 @@ function ConfirmDialogStack({
           variant={noteTone === "neutral" ? "default" : noteTone}
           role="note"
           {...restNoteProps}
-          className={cn("text-xs", noteClassName)}
+          className={cn("text-eyebrow", noteClassName)}
         >
           <AlertDescription>{note}</AlertDescription>
         </Alert>
@@ -203,7 +203,7 @@ function ConfirmDialogError({
   const { className: errorClassName, ...restErrorProps } = errorProps ?? {};
   return (
     <div className="border-t border-line px-5 py-3">
-      <Alert variant="danger" {...restErrorProps} className={cn("text-xs", errorClassName)}>
+      <Alert variant="danger" {...restErrorProps} className={cn("text-eyebrow", errorClassName)}>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     </div>
@@ -256,13 +256,12 @@ function ConfirmDialogFooter({
       >
         <DialogClose
           ref={cancelRef}
-          render={<Button size="sm" type="button" variant="ghost" {...cancelButtonProps} />}
+          render={<Button type="button" variant="ghost" {...cancelButtonProps} />}
         >
           {cancelLabel}
         </DialogClose>
         <Button
           disabled={confirmBlocked}
-          size="sm"
           type="button"
           variant={confirmVariant}
           {...confirmButtonProps}
@@ -272,7 +271,7 @@ function ConfirmDialogFooter({
             void onConfirm();
           }}
         >
-          {ConfirmIcon ? <ConfirmIcon className="size-3" /> : null}
+          {ConfirmIcon ? <ConfirmIcon /> : null}
           {confirmLabel}
         </Button>
       </div>

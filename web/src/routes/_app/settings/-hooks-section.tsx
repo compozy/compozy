@@ -51,6 +51,7 @@ export function HooksSection({
 
   return (
     <SettingsGroup
+      bare
       data-testid="settings-page-hooks-section"
       title="Lifecycle hooks"
       description="Restart CompozyOS to re-read hook declarations. Enablement changes persist immediately."
@@ -68,6 +69,7 @@ export function HooksSection({
           icon={Webhook}
           title="No hooks yet"
           description="Hooks are added in your settings file."
+          framed
           action={
             <a
               className={buttonVariants({ size: "sm", variant: "secondary" })}
@@ -86,7 +88,7 @@ export function HooksSection({
             className="flex flex-wrap items-center gap-2"
             data-testid="settings-page-hooks-listbar"
           >
-            <span className="text-form-label text-subtle">
+            <span className="text-small-body text-subtle">
               Registered <span className="font-medium text-muted">{hooks.length}</span>
             </span>
             <SearchInput
@@ -112,7 +114,7 @@ export function HooksSection({
             </span>
           </div>
           <ul
-            className="overflow-hidden rounded-lg bg-canvas shadow-card"
+            className="overflow-hidden rounded-lg bg-card shadow-card"
             data-testid="settings-page-hooks-list"
           >
             {visible.map(entry => (

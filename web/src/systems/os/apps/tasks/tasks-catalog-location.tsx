@@ -70,10 +70,11 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         data-testid="tasks-open-create"
         disabled={!page.hasActiveTaskScope}
         onClick={() => openCreate()}
+        size="sm"
         type="button"
         variant="secondary"
       >
-        <Plus aria-hidden="true" />
+        <Plus aria-hidden="true" data-icon="inline-start" />
         New task
       </Button>
     ),

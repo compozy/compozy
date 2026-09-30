@@ -35,7 +35,7 @@ export function TasksListSort({ sortBy, onSortChange }: TasksListSortProps) {
           />
         }
       >
-        <ArrowUpDown aria-hidden="true" className="size-3 text-subtle" />
+        <ArrowUpDown aria-hidden="true" className="text-subtle" />
         <span className="hidden @4xl/tasks-strip:inline">{SORT_LABELS[sortBy]}</span>
         <ChevronDown
           aria-hidden="true"

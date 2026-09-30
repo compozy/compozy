@@ -52,7 +52,7 @@ export function TaskFanOutRunResults({
 
   return (
     <div
-      className="overflow-hidden rounded-lg bg-canvas shadow-card"
+      className="overflow-hidden rounded-lg bg-card shadow-card"
       data-slot="task-fan-out-run-results"
     >
       {currentRuns.map(run => {
@@ -101,7 +101,7 @@ export function TaskFanOutRunResults({
               </ItemDescription>
               {run.error ? (
                 <p
-                  className="mt-px block text-badge leading-[1.45] text-danger"
+                  className="mt-px block text-badge leading-normal text-danger"
                   data-slot="task-fan-out-run-error"
                 >
                   {run.error}

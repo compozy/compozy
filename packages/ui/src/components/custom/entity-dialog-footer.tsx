@@ -126,7 +126,7 @@ function EntityDialogFooter({
         type={primaryType}
       >
         {isSaving ? (
-          <Spinner className="size-3" />
+          <Spinner />
         ) : PrimaryIcon ? (
           <PrimaryIcon aria-hidden="true" className="size-4" />
         ) : null}

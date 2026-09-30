@@ -1,6 +1,7 @@
+import { FileX } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { Section } from "@compozy/ui";
+import { Empty, Section } from "@compozy/ui";
 
 import type { TaskRun } from "../types";
 import { TaskExternalResult } from "./task-external-result";
@@ -36,9 +37,9 @@ export function TaskResultSection({
       {resultRef && external ? (
         <TaskExternalResult controller={external} resultBytes={resultBytes} resultRef={resultRef} />
       ) : result == null ? (
-        <p className="rounded-lg bg-canvas shadow-card px-4 py-3.5 text-small-body text-muted">
-          {emptyMessage}
-        </p>
+        <div className="rounded-lg bg-card px-4 py-5 shadow-card">
+          <Empty icon={FileX} size="compact" title={emptyMessage} />
+        </div>
       ) : (
         <TaskInlineResult jsonTestId={jsonTestId} result={result} />
       )}

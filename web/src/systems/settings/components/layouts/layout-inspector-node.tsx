@@ -115,8 +115,8 @@ function ArrangeAction({
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
         "disabled:cursor-not-allowed disabled:opacity-35",
         active
-          ? "bg-selected text-fg shadow-inset-strong"
-          : "bg-canvas shadow-card hover:not-disabled:bg-surface-2 hover:not-disabled:text-fg"
+          ? "bg-selected text-fg"
+          : "bg-card shadow-card hover:not-disabled:bg-surface-2 hover:not-disabled:text-fg"
       )}
       data-testid={`layout-inspector-arrange-${label.toLowerCase()}`}
       disabled={disabled}

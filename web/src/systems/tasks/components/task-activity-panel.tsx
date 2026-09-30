@@ -124,14 +124,16 @@ export function TaskActivityPanel({
         />
       }
     >
-      <div className="rounded-lg bg-canvas shadow-card px-4 pt-3">
+      <div className="rounded-lg bg-card px-4 pt-3 shadow-card">
         {visible.length === 0 ? (
-          <p
-            className="px-4 py-4 text-small-body text-muted"
+          <Empty
+            className="pt-2 pb-5"
             data-testid="tasks-activity-filter-empty"
-          >
-            {emptyCopy.title}. {emptyCopy.description}
-          </p>
+            description={emptyCopy.description}
+            icon={Activity}
+            size="compact"
+            title={emptyCopy.title}
+          />
         ) : (
           <Timeline ariaLabel="Task activity events">
             {visible.map(({ item, view }) => (
@@ -143,7 +145,6 @@ export function TaskActivityPanel({
       {canLoadMore && onLoadMore ? (
         <div className="flex items-center justify-center pt-1">
           <Button
-            className="min-h-6"
             data-testid="tasks-activity-load-more"
             onClick={onLoadMore}
             size="sm"

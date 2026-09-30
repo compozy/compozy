@@ -82,7 +82,9 @@ export function SymbolPickerEmojiPane({
             CategoryHeader: ({ category, ...props }) => (
               <div
                 {...props}
-                className="bg-canvas px-1 pt-2 pb-1 text-micro font-medium text-subtle"
+                // Sticky over the scrolling rows, so it paints its host's fill:
+                // the picker only lives in dialogs and popovers (`popover`).
+                className="bg-popover px-1 pt-2 pb-1 text-micro font-medium text-subtle"
               >
                 {category.label}
               </div>

@@ -19,7 +19,7 @@ export function TerminalJournalHostChrome({
           glyph: <ScrollText />,
           crumb: "Journal",
           status: projectLabel ? (
-            <span className="truncate text-badge text-subtle">{projectLabel}</span>
+            <span className="truncate text-eyebrow text-subtle">{projectLabel}</span>
           ) : undefined,
           ...(onBack ? { onBack } : {}),
         }

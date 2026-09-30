@@ -54,8 +54,9 @@ function KnowledgeCreateButton({ page }: { page: KnowledgePageModel }) {
       onClick={() => page.setCreateOpen(true)}
       size="sm"
       type="button"
+      variant="secondary"
     >
-      <Plus className="size-3" />
+      <Plus />
       Create
     </Button>
   );
@@ -151,7 +152,7 @@ function KnowledgeLocationBody({ page }: { page: KnowledgePageModel }) {
       >
         <Empty
           action={
-            <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
+            <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="secondary">
               Retry loading knowledge
             </Button>
           }

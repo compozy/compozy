@@ -36,6 +36,7 @@ export function TriggersCatalogLocation({ search }: { search: AutomationRouteSea
       <Button
         data-testid="create-trigger-btn"
         onClick={page.handleCreate}
+        size="sm"
         type="button"
         variant="secondary"
       >

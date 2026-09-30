@@ -203,13 +203,13 @@ export function OverlaysSection() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem>
-              <PlayIcon className="size-3" /> Start run
+              <PlayIcon /> Start run
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <GitBranchIcon className="size-3" /> Fork session
+              <GitBranchIcon /> Fork session
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <BellIcon className="size-3" /> Notify on completion
+              <BellIcon /> Notify on completion
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
@@ -224,17 +224,19 @@ export function OverlaysSection() {
             <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
-            <p className="text-sm text-muted">
+            <p className="text-small-body text-muted">
               Tabs host section switches: Base UI driven, motion-free.
             </p>
           </TabsContent>
           <TabsContent value="events">
-            <p className="text-sm text-muted">
+            <p className="text-small-body text-muted">
               Replayable event timeline lives under this tab in production.
             </p>
           </TabsContent>
           <TabsContent value="artifacts">
-            <p className="text-sm text-muted">Generated files with their provenance chain.</p>
+            <p className="text-small-body text-muted">
+              Generated files with their provenance chain.
+            </p>
           </TabsContent>
         </Tabs>
         <Accordion defaultValue={["item-1"]}>
@@ -256,7 +258,9 @@ export function OverlaysSection() {
             Toggle diagnostics
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <p className="text-sm text-muted">Collapsed content reveals with a CSS animation.</p>
+            <p className="text-small-body text-muted">
+              Collapsed content reveals with a CSS animation.
+            </p>
           </CollapsibleContent>
         </Collapsible>
       </div>

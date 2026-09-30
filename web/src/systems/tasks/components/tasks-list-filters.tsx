@@ -55,7 +55,7 @@ export function TasksListFilters({
             type="button"
             variant="quiet"
           >
-            <ListFilter aria-hidden="true" className="size-3" />
+            <ListFilter aria-hidden="true" />
             <span className="hidden @md/tasks-strip:inline">Filter</span>
           </Button>
         }

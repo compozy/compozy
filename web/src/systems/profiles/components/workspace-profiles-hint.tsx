@@ -32,7 +32,7 @@ export function WorkspaceProfilesHint({ hints, workspaceId }: WorkspaceProfilesH
 
   return (
     <aside
-      className="absolute top-3 left-1/2 z-30 flex w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 items-start gap-2 rounded-md border border-line bg-canvas px-3 py-2.5"
+      className="absolute top-3 left-1/2 z-30 flex w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 items-start gap-2 rounded-lg bg-popover px-3 py-2.5 shadow-pop"
       data-testid="workspace-profiles-hint"
     >
       <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />

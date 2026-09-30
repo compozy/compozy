@@ -105,7 +105,13 @@ export function LoopDetailView({
     crumb: loop.name,
     actions: (
       <div className="flex items-center" data-testid="loop-detail-actions">
-        <Button type="button" size="sm" onClick={onRun} data-testid="loop-run-action">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onRun}
+          data-testid="loop-run-action"
+        >
           <Play aria-hidden="true" className="size-3.5" />
           Run loop
         </Button>
@@ -118,7 +124,7 @@ export function LoopDetailView({
           data-testid="loop-detail-overflow"
           render={<Button type="button" variant="ghost" size="icon-sm" />}
         >
-          <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+          <TopbarOverflowIcon aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="loop-detail-overflow-menu">
           <DropdownMenuItem data-testid="loop-edit-action" onClick={onOpenEditor}>
@@ -201,11 +207,7 @@ export function LoopDetailView({
                       type="button"
                       variant="ghost"
                     >
-                      {writable ? (
-                        <PencilLine aria-hidden="true" className="size-3" />
-                      ) : (
-                        <Copy aria-hidden="true" className="size-3" />
-                      )}
+                      {writable ? <PencilLine aria-hidden="true" /> : <Copy aria-hidden="true" />}
                       {writable ? "Edit steps" : "Copy and edit"}
                     </Button>
                   </span>

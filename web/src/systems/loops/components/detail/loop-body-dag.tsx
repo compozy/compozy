@@ -62,7 +62,7 @@ function DagNode({ node }: { node: LoopGraphNode }) {
     : undefined;
   return (
     <div
-      className="flex w-31 shrink-0 flex-col gap-1 overflow-hidden rounded-md bg-canvas px-3 py-2.5 shadow-card"
+      className="flex w-31 shrink-0 flex-col gap-1 overflow-hidden rounded-md bg-card px-3 py-2.5 shadow-card"
       data-testid="loop-dag-node"
       data-node-id={node.id}
     >

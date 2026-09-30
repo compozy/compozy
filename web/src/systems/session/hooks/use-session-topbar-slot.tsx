@@ -152,13 +152,13 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
         render={
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="icon-sm"
             className="focus-visible:shadow-focus-inset"
           />
         }
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

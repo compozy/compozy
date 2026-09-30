@@ -31,7 +31,7 @@ export interface LoopEditorRouteProps {
 }
 
 const EMPTY_ROUTE: LoopRouteEntry = { when: "", to: "" };
-const CONTROL_CLASS = "h-8 px-2.5 font-mono text-form-input";
+const CONTROL_CLASS = "px-2.5 font-mono text-form-input";
 const ADD_ROUTE_FOCUS = '[data-focus-key="add"]';
 
 function moveEntry(routes: readonly LoopRouteEntry[], index: number, delta: number) {
@@ -145,7 +145,7 @@ export function LoopEditorRoute({
             type="button"
             variant="quiet"
           >
-            <Plus aria-hidden="true" className="size-3" />
+            <Plus aria-hidden="true" />
             Add route
           </Button>
         </div>
@@ -208,7 +208,7 @@ function RouteRow({
             type="button"
             variant="ghost"
           >
-            <ChevronUp aria-hidden="true" className="size-3" />
+            <ChevronUp aria-hidden="true" />
           </Button>
           <Button
             aria-label={`Move route ${position} down`}
@@ -219,7 +219,7 @@ function RouteRow({
             type="button"
             variant="ghost"
           >
-            <ChevronDown aria-hidden="true" className="size-3" />
+            <ChevronDown aria-hidden="true" />
           </Button>
           <Button
             aria-label={`Remove route ${position}`}
@@ -231,7 +231,7 @@ function RouteRow({
             type="button"
             variant="ghost"
           >
-            <X aria-hidden="true" className="size-3" />
+            <X aria-hidden="true" />
           </Button>
         </div>
       </div>

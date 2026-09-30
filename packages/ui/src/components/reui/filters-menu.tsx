@@ -80,7 +80,7 @@ function FilterSubmenuContent<T = unknown>({
             }
             placeholder={i18n.placeholders.searchField(field.label || "")}
             className={cn(
-              "h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
+              "h-control-compact rounded-none border-0 bg-transparent! px-2 shadow-none",
               "focus-visible:border-line-strong focus-visible:shadow-focus-inset",
               isActive && "placeholder:text-foreground"
             )}

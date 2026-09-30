@@ -127,7 +127,7 @@ function CommitHookFeedback({
       {hookError ? <FieldError>{hookError}</FieldError> : null}
       {hookOutput ? (
         <pre
-          className="mt-1.5 max-h-24 overflow-y-auto rounded-md bg-rail px-2.5 py-2 font-mono text-micro leading-[1.6] whitespace-pre-wrap text-subtle"
+          className="mt-1.5 max-h-24 overflow-y-auto rounded-md bg-sunken px-2.5 py-2 font-mono text-eyebrow leading-relaxed whitespace-pre-wrap text-subtle"
           data-slot="worktree-commit-hook-output"
         >
           {hookOutput}

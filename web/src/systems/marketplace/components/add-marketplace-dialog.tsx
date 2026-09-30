@@ -120,7 +120,7 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
                 data-testid="add-marketplace-checking"
                 role="status"
               >
-                <Spinner aria-hidden="true" className="size-3" />
+                <Spinner aria-hidden="true" className="size-3.5" />
                 Reading the plugin list…
               </p>
             ) : null}
@@ -167,7 +167,7 @@ export function AddMarketplaceDialog({ open, onOpenChange, onAdded }: AddMarketp
               Cancel
             </Button>
             <Button data-testid="add-marketplace-submit" disabled={!form.canAdd} type="submit">
-              {form.isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {form.isPending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
               {form.isPending ? "Adding…" : "Add marketplace"}
             </Button>
           </DialogFooter>

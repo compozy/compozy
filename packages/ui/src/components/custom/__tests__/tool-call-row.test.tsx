@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 
-// Calm-transcript status budget: the mint in-progress ring (StateGlyph) and the
-// failure × carry a hue — the success check stays grey.
+// Calm-transcript status budget: only the failure × carries a signal hue —
+// success check and running spinner stay grey.
 const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: string }> = [
-  { status: "running", label: "Running", tone: "text-success" },
+  { status: "running", label: "Running", tone: "text-subtle" },
   { status: "failed", label: "Error", tone: "text-danger" },
   { status: "absorbed", label: "Failed", tone: "text-subtle" },
   { status: "success", label: "Done", tone: "text-subtle" },
@@ -200,39 +200,5 @@ describe("ToolCallRow", () => {
     for (const className of classesOf(row!)) {
       expect(className).not.toMatch(/\baccent\b/);
     }
-  });
-
-  it("Should switch every row inside ToolCallRow.Group to inset density", () => {
-    const { container } = render(
-      <ToolCallRow.Group>
-        <ToolCallRow
-          toolName="Read"
-          preview="web/src/checkout/order-summary.tsx"
-          status="success"
-        />
-        <ToolCallRow toolName="Run" preview="bun run test checkout" status="running" />
-      </ToolCallRow.Group>
-    );
-    const group = container.querySelector('[data-slot="tool-call-row-group"]');
-    expect(group).toHaveClass("bg-sunken", "rounded-lg");
-    const rows = container.querySelectorAll('[data-slot="tool-call-row"]');
-    expect(rows).toHaveLength(2);
-    for (const row of rows) expect(row).toHaveAttribute("data-density", "inset");
-    expect(
-      render(<ToolCallRow toolName="Bash" status="success" />).container.querySelector(
-        '[data-slot="tool-call-row"]'
-      )
-    ).toHaveAttribute("data-density", "default");
-  });
-
-  it("Should hold the running glyph still inside a still group", () => {
-    const { container } = render(
-      <ToolCallRow.Group still>
-        <ToolCallRow toolName="Run" status="running" />
-      </ToolCallRow.Group>
-    );
-    const glyph = statusGlyph(container);
-    expect(glyph).toHaveAttribute("data-state", "running");
-    expect(glyph).not.toHaveAttribute("data-spinning");
   });
 });

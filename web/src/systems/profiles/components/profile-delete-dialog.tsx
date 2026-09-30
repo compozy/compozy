@@ -46,7 +46,7 @@ function Enumeration({ removed }: { removed: ProfileRemovalSummary }) {
       data-testid="profile-delete-enumeration"
     >
       <div className="flex min-h-8 items-center gap-2 px-3 text-small-body text-fg">
-        <UserRound aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+        <UserRound aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
         <span>Profile identity and settings</span>
       </div>
       {rows.map(row => (
@@ -54,9 +54,9 @@ function Enumeration({ removed }: { removed: ProfileRemovalSummary }) {
           key={row.key}
           className="flex min-h-8 items-center gap-2 border-t border-line-soft px-3 text-small-body text-fg"
         >
-          <row.icon aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+          <row.icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
           <span>{row.label}</span>
-          <span className="ml-auto shrink-0 font-mono text-micro text-subtle">
+          <span className="ml-auto shrink-0 font-mono text-eyebrow text-subtle">
             {removed[row.key]}
           </span>
         </div>
@@ -76,7 +76,7 @@ function BlockerList({ blockers }: { blockers: readonly string[] }) {
           className="flex min-h-8 items-center gap-2 border-t border-line-soft px-3 text-small-body text-fg first:border-t-0"
           key={blocker}
         >
-          <TriangleAlert aria-hidden="true" className="size-3 shrink-0 text-warning" />
+          <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
           <span>{blocker}</span>
         </div>
       ))}

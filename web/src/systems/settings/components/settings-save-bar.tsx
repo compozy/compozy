@@ -54,7 +54,7 @@ function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSa
       <div
         aria-atomic="true"
         aria-live={liveRegion}
-        className="pointer-events-auto flex w-full max-w-settings-save-bar items-center gap-3 rounded-lg bg-canvas py-2.5 pr-3 pl-4 shadow-pop"
+        className="pointer-events-auto flex w-full max-w-settings-save-bar items-center gap-3 rounded-lg bg-popover py-2.5 pr-3 pl-4 shadow-pop"
         data-dirty={isDirty ? "true" : "false"}
         data-state={state.kind}
         data-testid={`settings-page-${slug}-save-bar`}

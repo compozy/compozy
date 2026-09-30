@@ -59,7 +59,7 @@ export function TaskPropertiesRail({
   return (
     <div
       {...props}
-      className={cn("overflow-hidden rounded-lg bg-canvas shadow-card", className)}
+      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
       data-testid="tasks-detail-rail"
     >
       {/* Leads the rail: "what is this record, which run owns it" comes first. */}
@@ -113,12 +113,13 @@ export function TaskPropertiesRail({
       <RailSection
         action={
           <Button
-            className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
+            // Optical: the link's text lands on the rail's value edge.
+            className="-mr-2.5"
             data-testid="tasks-rail-edit-setup"
             onClick={onEditSetup}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="link"
           >
             Edit setup
           </Button>
@@ -162,14 +163,13 @@ export function TaskPropertiesRail({
 
       <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
-          className="min-h-6"
           data-testid="tasks-rail-inspect"
           onClick={onInspect}
           size="sm"
           type="button"
           variant="ghost"
         >
-          <Search aria-hidden="true" className="size-3" />
+          <Search aria-hidden="true" data-icon="inline-start" />
           Inspect
         </Button>
       </footer>

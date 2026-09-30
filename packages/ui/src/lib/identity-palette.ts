@@ -25,7 +25,7 @@ export type IdentityTheme = "dark" | "light";
 /** Mirrored from `--color-canvas-soft` per theme; the token-contract suite prevents drift. */
 export const IDENTITY_SURFACE_TOKEN = "color-canvas-soft";
 export const IDENTITY_SURFACE_VALUES: Readonly<Record<IdentityTheme, string>> = {
-  dark: "#1f1f1f",
+  dark: "#1a1a1a",
   light: "#ffffff",
 };
 /** The default (dark) theme's surface, used when a caller names no surface. */

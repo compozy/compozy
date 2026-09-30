@@ -69,7 +69,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
       >
         <header className="flex h-setup-head flex-none items-center gap-2.5 border-b border-line pr-3.5 pl-4">
           <Logo variant="symbol" decorative className="size-5" />
-          <DialogTitle className="text-modal-title font-semibold tracking-modal-title text-fg">
+          <DialogTitle className="text-modal-title font-medium tracking-modal-title text-fg">
             Set up CompozyOS
           </DialogTitle>
           <span aria-hidden="true" className="min-w-2 flex-1" />
@@ -105,7 +105,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
               <h3
                 ref={titleRef}
                 tabIndex={-1}
-                className="text-compact-h1 font-semibold tracking-compact-h1 text-fg outline-none"
+                className="text-compact-h1 font-medium tracking-compact-h1 text-fg outline-none"
               >
                 {wizard.meta.title}
               </h3>

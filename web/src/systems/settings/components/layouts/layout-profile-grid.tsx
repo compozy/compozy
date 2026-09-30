@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { Button, ConfirmDialog } from "@compozy/ui";
+import { cn, ConfirmDialog } from "@compozy/ui";
 
 import type { WindowManagerLayoutProfilesModel } from "../../hooks/use-window-manager-layout-profiles";
 import { isSelectedLayoutProfile } from "../../lib/window-manager-layout-profile-key";
@@ -41,19 +41,23 @@ export function LayoutProfileGrid({ editor, document }: LayoutProfileGridProps) 
             }}
           />
         ))}
-        <Button
-          className="h-auto min-h-50 flex-col gap-2 border-dashed"
+        <button
+          className={cn(
+            "flex min-h-50 flex-col items-center justify-center gap-2 rounded-lg",
+            "border border-dashed border-line-strong bg-card text-small-body font-medium text-muted",
+            "transition-colors duration-base ease-out hover:bg-surface-2 hover:text-fg",
+            "focus-visible:outline-none focus-visible:shadow-focus-ring"
+          )}
           data-testid="layout-profile-new"
           type="button"
-          variant="secondary"
           onClick={() => {
             editor.startNew();
             setEditing(true);
           }}
         >
-          <Plus aria-hidden="true" className="size-4.5" />
+          <Plus aria-hidden="true" className="size-4" />
           Save the current layout
-        </Button>
+        </button>
       </div>
 
       {editing ? (

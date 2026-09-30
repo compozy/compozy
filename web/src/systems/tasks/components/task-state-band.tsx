@@ -11,13 +11,15 @@ export interface TaskStateBandProps extends Omit<React.ComponentProps<"div">, "t
   actions?: React.ReactNode;
 }
 
+// Neutral reads as a card (`card` + its hairline ring); a tinted tone's border
+// is its only edge, so the card shadow stays off there.
 const TONE_SURFACE: Record<PillTone, string> = {
-  neutral: "border-transparent bg-sunken",
-  accent: "border-accent/40 bg-accent-tint",
-  info: "border-info/25 bg-info-tint",
-  success: "border-success/25 bg-success-tint",
-  warning: "border-warning/25 bg-warning-tint",
-  danger: "border-danger/25 bg-danger-tint",
+  neutral: "border-transparent bg-card shadow-card",
+  accent: "border-accent/40 bg-accent-tint shadow-none",
+  info: "border-info/25 bg-info-tint shadow-none",
+  success: "border-success/25 bg-success-tint shadow-none",
+  warning: "border-warning/25 bg-warning-tint shadow-none",
+  danger: "border-danger/25 bg-danger-tint shadow-none",
 };
 
 const TONE_TITLE: Record<PillTone, string> = {

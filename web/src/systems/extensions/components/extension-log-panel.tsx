@@ -49,7 +49,7 @@ export function ExtensionLogPanel({
           role="status"
         >
           {logs.status === "connecting" ? <Spinner aria-hidden="true" className="size-3" /> : null}
-          <span className="truncate text-xs text-muted">{STATUS_TEXT[logs.status]}</span>
+          <span className="truncate text-eyebrow text-muted">{STATUS_TEXT[logs.status]}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <Eyebrow className="text-muted" id={followLabelId}>
@@ -82,7 +82,7 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
     return (
       <div className="space-y-2 px-4 py-3">
         <p className="text-small-body font-medium text-danger">Logs could not be loaded</p>
-        <p className="text-xs text-muted">{logs.error.message}</p>
+        <p className="text-eyebrow text-muted">{logs.error.message}</p>
         <Button onClick={logs.refetch} size="sm" type="button" variant="secondary">
           Retry logs
         </Button>
@@ -109,7 +109,7 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
             <span aria-hidden="true">·</span>
             <span>{entry.sequence}</span>
           </span>
-          <span className="break-words font-mono text-xs text-fg">{entry.message}</span>
+          <span className="break-words font-mono text-eyebrow text-fg">{entry.message}</span>
         </li>
       ))}
     </ol>

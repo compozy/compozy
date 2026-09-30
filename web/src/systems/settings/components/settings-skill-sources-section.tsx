@@ -30,6 +30,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
 
   return (
     <Section
+      bodyClassName="gap-3"
       divided
       label="Sources"
       right={
@@ -49,7 +50,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       }
     >
       {model.readOnly ? (
-        <p className="text-sm text-muted" data-testid={`${TEST_ID}-read-only`}>
+        <p className="text-small-body text-muted" data-testid={`${TEST_ID}-read-only`}>
           {model.readOnlyReason === "repository-profile"
             ? "This project uses the active profile's settings and can't be edited here."
             : "Sources are set for you or for a project, not per agent. Here you can only turn skills off."}
@@ -57,7 +58,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       ) : null}
       {(model.saveError ?? model.inheritError) ? (
         <p
-          className="flex flex-wrap items-center gap-1.5 text-sm text-danger"
+          className="flex flex-wrap items-center gap-1.5 text-small-body text-danger"
           data-testid={`${TEST_ID}-save-error`}
           role="alert"
         >
@@ -72,7 +73,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       ) : null}
       <SourceKeyGroup model={model} posture={postureFor(model.postures, "sources")} title="Presets">
         <div
-          className="overflow-hidden rounded-lg border border-line"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-testid={`${TEST_ID}-list`}
         >
           {groups.presets.map(source => (
@@ -92,7 +93,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
         posture={postureFor(model.postures, "custom_sources")}
         title="Your folders"
       >
-        <div className="overflow-hidden rounded-lg border border-line">
+        <div className="overflow-hidden rounded-lg bg-card shadow-card">
           <SettingsSkillCustomSources
             disabled={model.readOnly}
             entries={model.customEntries}
@@ -142,7 +143,7 @@ function SourceKeyGroup({
     <div className="flex min-w-0 flex-col gap-2" data-testid={testId}>
       {posture !== null ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-fg">{title}</span>
+          <span className="text-body font-medium text-fg">{title}</span>
           <Pill size="xs" data-testid={`${testId}-posture`}>
             {posture.inherited ? "inherited" : "custom for this project"}
           </Pill>

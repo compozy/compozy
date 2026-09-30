@@ -98,7 +98,7 @@ export function AgentSessionsTab({
         onClick={onNewSession}
         size="sm"
         type="button"
-        variant="link"
+        variant="secondary"
       >
         New session
       </Button>

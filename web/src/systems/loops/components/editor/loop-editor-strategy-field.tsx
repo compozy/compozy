@@ -101,7 +101,7 @@ function StrategyRefinements({ spec, disabled, onApply }: StrategyRefinementsPro
           </FieldHeader>
           <Input
             aria-label="Strategy threshold"
-            className="h-8 w-28 px-2.5 font-mono text-form-input"
+            className="w-28 px-2.5 font-mono text-form-input"
             data-testid="loop-strategy-threshold"
             disabled={disabled}
             onChange={event => onApply({ threshold: event.target.value })}

@@ -44,7 +44,7 @@ function TriggerRailCard({
 }: TriggerRailCardProps) {
   return (
     <Collapsible
-      className="overflow-hidden rounded-lg bg-canvas shadow-card"
+      className="overflow-hidden rounded-lg bg-card shadow-card"
       defaultOpen={defaultOpen}
     >
       <CollapsibleTrigger
@@ -54,13 +54,12 @@ function TriggerRailCard({
         )}
         data-testid={testId}
       >
-        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
+        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
         <span className="shrink-0 text-form-label font-medium text-fg-strong">{title}</span>
         <span className="min-w-0 flex-1 truncate text-right text-badge text-faint">{summary}</span>
         <ChevronDown
           aria-hidden="true"
           className="size-3 shrink-0 -rotate-90 text-subtle transition-transform duration-base ease-out group-data-panel-open/rail:rotate-0"
-          strokeWidth={1.75}
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -140,7 +139,7 @@ export function TriggerDetailRail({
           type="button"
           variant="ghost"
         >
-          <Search className="size-3" />
+          <Search />
           Inspect
         </Button>
         <span className="truncate font-mono text-badge text-faint">

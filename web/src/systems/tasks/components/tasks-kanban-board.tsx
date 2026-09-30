@@ -165,7 +165,9 @@ function KanbanLoadMore({
         type="button"
         variant="ghost"
       >
-        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {isLoadingMore ? (
+          <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+        ) : null}
         {isLoadingMore ? "Loading more" : "Load more"}
       </Button>
     </div>
@@ -176,7 +178,7 @@ function KanbanCardSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="flex w-full min-w-0 shrink-0 flex-col gap-2 rounded-lg bg-canvas p-3 shadow-card"
+      className="flex w-full min-w-0 shrink-0 flex-col gap-2 rounded-lg bg-card p-3 shadow-card"
       data-testid="tasks-kanban-card-skeleton"
     >
       <Skeleton className="h-3 w-4/5 rounded-xs" />

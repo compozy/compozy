@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { Search } from "lucide-react";
 import { m, MotionConfigContext, useReducedMotionConfig } from "motion/react";
 import { useContext, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
+import { ICON_STROKE_WIDTH } from "../../../lib/icon-stroke";
 import { UIProvider, type UIProviderProps } from "../ui-provider";
 
 function Probe() {
@@ -34,6 +36,24 @@ describe("UIProvider", () => {
   it("Should render children without crashing under the default config", () => {
     renderWithProvider({}, <span data-testid="child">content</span>);
     expect(screen.getByTestId("child")).toHaveTextContent("content");
+  });
+
+  it("Should draw every bare lucide icon at the shared stroke width", () => {
+    const { container } = renderWithProvider(
+      {},
+      <>
+        <Search data-testid="bare" />
+        <Search data-testid="override" strokeWidth={1} />
+      </>
+    );
+    expect(container.querySelector('[data-testid="bare"]')).toHaveAttribute(
+      "stroke-width",
+      String(ICON_STROKE_WIDTH)
+    );
+    expect(container.querySelector('[data-testid="override"]')).toHaveAttribute(
+      "stroke-width",
+      "1"
+    );
   });
 
   it("Should load LazyMotion features for m.* animation primitives", async () => {

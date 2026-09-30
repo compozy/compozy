@@ -21,7 +21,7 @@ export function LoopInputControl({
   return (
     <div className="flex flex-col gap-1.5" data-testid="loop-input-control" data-input={name}>
       <label htmlFor={controlId} className="flex items-center gap-1.5">
-        <span className="font-mono text-xs text-fg-strong">{name}</span>
+        <span className="font-mono text-mono-id text-fg-strong">{name}</span>
         {field.required ? (
           <span className="font-semibold text-muted" aria-label="required">
             *

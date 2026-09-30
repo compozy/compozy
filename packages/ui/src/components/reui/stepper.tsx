@@ -213,7 +213,7 @@ function StepperIndicator({ children, className }: ComponentProps<"div">) {
       data-slot="stepper-indicator"
       data-state={state}
       className={cn(
-        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold tabular-nums transition-[background-color,color,box-shadow] duration-base ease-in-out",
+        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-eyebrow font-semibold tabular-nums transition-[background-color,color,box-shadow] duration-base ease-in-out",
         "data-[state=inactive]:bg-canvas data-[state=inactive]:text-subtle data-[state=inactive]:shadow-inset-strong",
         "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_0_4px_var(--color-surface-2)]",
         "data-[state=completed]:bg-primary data-[state=completed]:text-primary-foreground",

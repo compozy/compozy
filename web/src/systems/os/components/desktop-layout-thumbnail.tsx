@@ -110,7 +110,7 @@ export function DesktopLayoutThumbnail({
             key={tile.key}
             data-slot="desktop-thumbnail-window"
             className={cn(
-              "absolute min-h-px min-w-px overflow-hidden bg-canvas",
+              "absolute min-h-px min-w-px overflow-hidden bg-card",
               "before:absolute before:inset-x-0 before:top-0 before:h-2.25 before:border-b before:border-line-soft before:bg-surface-2",
               tile.floating ? "rounded-xs shadow-card" : "ring-[0.5px] ring-line"
             )}

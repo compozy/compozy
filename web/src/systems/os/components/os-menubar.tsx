@@ -21,7 +21,8 @@ import { cn } from "@/lib/utils";
  * The desktop topbar: CompozyOS mark, Global globe toggle, workspace chip, app
  * menus, then the tray — desktop pager dots, All desktops, the approvals bell,
  * and the ⌘K palette button. Flat chrome on the rail surface across the full
- * window width (shell-rail v2 `.bar`).
+ * window width with no bottom hairline: topbar and rail read as one surface
+ * around the inset desk panel, which draws the only edge.
  *
  * The mark and the workspace chip are separate `role="menubar"`s so the globe
  * toggle can sit between them without becoming a menu item. App menus follow
@@ -92,11 +93,11 @@ const WINDOW_DRAG = "[app-region:drag]";
 const WINDOW_NO_DRAG = "[app-region:no-drag]";
 const INTERACTIVE = [
   WINDOW_NO_DRAG,
-  "transition-colors duration-base hover:bg-surface-2 hover:text-fg",
-  "data-popup-open:bg-surface-2 data-popup-open:text-fg",
+  "transition-colors duration-base hover:bg-rail-hover hover:text-fg",
+  "data-popup-open:bg-rail-selected data-popup-open:text-fg",
   "focus-visible:shadow-focus-ring focus-visible:outline-none",
 ].join(" ");
-/** Tray icon button (shell-rail v2 `.ib`): 34px pill, muted glyph. */
+/** Tray icon button (shell-rail v2 `.ib`): 34px pill, muted 16px glyph. */
 const ICON_BUTTON = "relative grid size-8.5 place-items-center rounded-pill text-muted";
 
 interface ControlProps extends Omit<React.ComponentProps<"button">, "onClick" | "children"> {
@@ -180,7 +181,9 @@ function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }
   return (
     <>
       <Avatar size="sm" className="size-5.5">
-        <AvatarFallback className="text-badge font-semibold">{workspace.monogram}</AvatarFallback>
+        <AvatarFallback className="bg-rail-selected text-badge font-semibold">
+          {workspace.monogram}
+        </AvatarFallback>
       </Avatar>
       <span className="text-item-title font-medium text-fg">{workspace.name}</span>
       {workspace.worktree ? (
@@ -250,7 +253,7 @@ export function OsMenuBar({
       data-slot="os-menubar"
       aria-label="System bar"
       className={cn(
-        "flex h-menubar shrink-0 items-center border-b border-line bg-rail select-none",
+        "flex h-menubar shrink-0 items-center bg-rail select-none",
         WINDOW_DRAG,
         className
       )}
@@ -313,10 +316,10 @@ export function OsMenuBar({
               aria-label="All desktops"
               aria-haspopup={onDesktopsClick ? "dialog" : undefined}
               aria-expanded={onDesktopsClick ? desktopsOpen : undefined}
-              className={cn(ICON_BUTTON, desktopsOpen && "bg-surface-2 text-fg")}
+              className={cn(ICON_BUTTON, desktopsOpen && "bg-rail-selected text-fg")}
               onClick={onDesktopsClick}
             >
-              <Icon as={LayoutGrid} className="size-4.5" />
+              <Icon as={LayoutGrid} className="size-4" />
             </Control>
           </ControlTooltip>
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
@@ -331,7 +334,7 @@ export function OsMenuBar({
             className={ICON_BUTTON}
             wrap={wrapBellTrigger}
           >
-            <Icon as={Bell} className="size-4.5" />
+            <Icon as={Bell} className="size-4" />
             {notifications ? (
               <PillCount
                 count={notifications}
@@ -354,7 +357,7 @@ export function OsMenuBar({
               className={ICON_BUTTON}
               onClick={onCommandClick}
             >
-              <Icon as={Command} className="size-4.5" />
+              <Icon as={Command} className="size-4" />
             </Control>
           </ControlTooltip>
         </div>

@@ -184,7 +184,7 @@ function SecretField({
 
       {showPresenceSummary ? (
         <div
-          className="flex flex-wrap items-center gap-2 rounded-md bg-canvas px-3 py-2"
+          className="flex flex-wrap items-center gap-2 rounded-md bg-sunken px-3 py-2"
           data-slot="secret-field-presence"
           data-testid={testIdPrefix && `${testIdPrefix}-presence`}
         >

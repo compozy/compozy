@@ -93,7 +93,7 @@ export function RolePanel({
           />
           {/* One recessed well, not a stack of frames: routing and policy rows
               read as a single list separated by hairlines. */}
-          <div className="overflow-hidden rounded-lg border border-line-soft bg-canvas">
+          <div className="overflow-hidden rounded-lg border border-line-soft bg-sunken">
             <RoleRoutingFields
               vm={vm}
               options={options}

@@ -40,7 +40,7 @@ export function ObservabilityNumberField({
         {suffix ? <span className="text-form-label text-subtle">{suffix}</span> : null}
       </div>
       {errorMessage && !hideLabel ? (
-        <span className="text-xs text-danger">{errorMessage}</span>
+        <span className="text-eyebrow text-danger">{errorMessage}</span>
       ) : null}
     </div>
   );

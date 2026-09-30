@@ -49,7 +49,7 @@ export function WindowManagerRatioTrack({
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="relative h-20 overflow-hidden rounded-md border border-line-strong bg-canvas select-none"
+        className="relative h-20 overflow-hidden rounded-md border border-line-strong bg-sunken select-none"
         data-testid="window-manager-ratio-track"
         ref={trackRef}
         onPointerDown={addStop}

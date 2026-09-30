@@ -56,15 +56,15 @@ export function TerminalJournalHead({
           onClick={onBack}
           size="icon-sm"
           type="button"
-          variant="ghost"
+          variant="quiet"
         >
-          <ArrowLeft aria-hidden="true" className="size-3.5" />
+          <ArrowLeft aria-hidden="true" />
         </Button>
       ) : null}
       <ScrollText aria-hidden="true" className="size-3.5 text-muted" />
-      <span className="truncate font-medium text-fg text-ws-name tracking-tight">Journal</span>
+      <span className="truncate font-medium text-fg text-heading tracking-tight">Journal</span>
       {projectLabel ? (
-        <span className="truncate text-badge text-subtle">{projectLabel}</span>
+        <span className="truncate text-eyebrow text-subtle">{projectLabel}</span>
       ) : null}
     </header>
   );

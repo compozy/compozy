@@ -166,7 +166,7 @@ function QuestionnaireInput({
       <QuestionnairePrimitive.Input
         data-slot="questionnaire-input"
         className={cn(
-          "h-8 w-full min-w-0 rounded-md border border-line bg-canvas px-2.5 py-1 text-form-input transition-[color,box-shadow,background-color] outline-none",
+          "h-input w-full min-w-0 rounded-md border border-line bg-canvas px-2.5 py-1 text-form-input transition-[color,box-shadow,background-color] outline-none",
           "placeholder:text-faint focus-visible:border-line-strong focus-visible:shadow-focus-ring",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger",
           className

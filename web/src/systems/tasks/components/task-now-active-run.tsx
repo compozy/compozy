@@ -40,7 +40,6 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
             </span>
           ) : null}
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-open-run"
             onClick={() => onOpenRun(run.id)}
             size="sm"
@@ -48,7 +47,7 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
             variant="ghost"
           >
             Open run
-            <ArrowUpRight aria-hidden="true" className="size-3" />
+            <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
           </Button>
         </>
       }

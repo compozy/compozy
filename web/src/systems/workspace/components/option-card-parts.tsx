@@ -61,7 +61,7 @@ export function OptionCardTitle({ className, children, ...props }: React.Compone
   return (
     <p
       data-slot="option-card-title"
-      className={cn("text-small-body font-medium text-fg", className)}
+      className={cn("text-item-title font-medium text-fg", className)}
       {...props}
     >
       {children}

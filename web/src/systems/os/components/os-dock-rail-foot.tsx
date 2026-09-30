@@ -44,7 +44,7 @@ export function OsRailFoot({
         tipSide={tipSide}
         onClick={onOpenSettings}
       >
-        <Icon as={Settings} className="size-5" />
+        <Icon as={Settings} className="size-4" />
       </OsRailButton>
     </>
   );

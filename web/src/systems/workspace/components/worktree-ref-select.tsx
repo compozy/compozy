@@ -94,7 +94,7 @@ export function WorktreeRefSelect({
               (isEmptySelection ? emptyOption.label : (selected?.name ?? (value || placeholder)))}
           </span>
         </span>
-        <ChevronsUpDown aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+        <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-subtle" />
       </CommandSelectTrigger>
       <CommandSelectShell className="min-w-64" inputPlaceholder="Search worktrees...">
         <CommandList>

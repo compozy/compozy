@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ChevronRight } from "lucide-react";
+import { Activity, AlertCircle, ChevronRight } from "lucide-react";
 
-import { Eyebrow, Panel, Pill, StateGlyph } from "@compozy/ui";
+import { Empty, Eyebrow, Panel, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -40,12 +40,13 @@ export function TasksDashboardActiveRuns({
       title="Active runs"
     >
       {visible.length === 0 ? (
-        <p
-          className="px-5 py-6 text-form-label text-muted"
+        <Empty
+          className="px-5 py-6"
           data-testid="tasks-dashboard-active-runs-empty"
-        >
-          No active runs right now.
-        </p>
+          icon={Activity}
+          size="compact"
+          title="No active runs right now."
+        />
       ) : (
         <ul className="divide-y divide-line-soft" data-testid="tasks-dashboard-active-runs-list">
           {visible.map(run => {
@@ -67,7 +68,7 @@ export function TasksDashboardActiveRuns({
                 >
                   <StateGlyph state={taskRunStateGlyph(run.run_status)} />
                   <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <span className="min-w-0 truncate text-section-head font-medium tracking-section-head text-fg-strong">
+                    <span className="min-w-0 truncate text-small-body font-medium text-fg-strong">
                       {run.task_title}
                     </span>
                     {run.task_identifier ? (
@@ -98,7 +99,7 @@ export function TasksDashboardActiveRuns({
                   ) : null}
                   <ChevronRight
                     aria-hidden="true"
-                    className="size-3 shrink-0 text-faint transition-colors group-hover:text-muted"
+                    className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-muted"
                   />
                 </Link>
                 {run.error ? (

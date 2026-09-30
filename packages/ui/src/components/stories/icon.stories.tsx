@@ -27,19 +27,19 @@ export const SizeRamp: Story = {
     <div className="flex items-end gap-4 text-fg-strong">
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="xs" />
-        <span className="text-[10px] text-muted">xs · 11</span>
+        <span className="text-micro text-muted">xs · 11</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="sm" />
-        <span className="text-[10px] text-muted">sm · 12</span>
+        <span className="text-micro text-muted">sm · 12</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} />
-        <span className="text-[10px] text-muted">default · 14</span>
+        <span className="text-micro text-muted">default · 14</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="lg" />
-        <span className="text-[10px] text-muted">lg · 16</span>
+        <span className="text-micro text-muted">lg · 16</span>
       </div>
     </div>
   ),

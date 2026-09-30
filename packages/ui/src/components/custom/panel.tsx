@@ -21,11 +21,11 @@ function hasSlot(value: React.ReactNode): boolean {
 }
 
 /**
- * Panel container — a `Surface` card (`canvas` + `shadow-card`, the same card
+ * Panel container — a `Surface` card (`card` + `shadow-card`, the same card
  * language as Metric tiles) behind dashboard zones and grouped rows. Head and foot are optional hairline-separated slots; the
  * foot pins to the bottom (`mt-auto`) so paired panels in a grid close flush.
- * Identity H1s never live here; panel titles render an h3 styled with the
- * `text-section-head` token so pages keep a single h1/h2 outline.
+ * Identity H1s never live here; panel titles render an h3 at the card-title
+ * tier (`text-item-title`, 14/500) so pages keep a single h1/h2 outline.
  */
 export function Panel({
   title,
@@ -53,7 +53,7 @@ export function Panel({
           <div className="flex min-w-0 items-baseline gap-2">
             {hasSlot(title) ? (
               <h3
-                className="truncate text-form-label font-medium text-fg-strong"
+                className="truncate text-item-title font-medium text-fg-strong"
                 data-slot="panel-title"
               >
                 {title}

@@ -126,10 +126,9 @@ function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
       <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
         <span
           className={cn(
-            "text-kpi-compact leading-none tracking-tight text-fg",
+            "text-kpi-compact leading-none font-semibold tracking-tight text-fg",
             view.warning && "text-warning"
           )}
-          style={{ fontWeight: "var(--font-weight-display)" }}
         >
           {view.value}
         </span>

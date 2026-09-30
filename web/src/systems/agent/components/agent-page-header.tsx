@@ -18,7 +18,7 @@ export interface AgentPageStatusPillProps {
 export function AgentPageStatusPill({ activeCount }: AgentPageStatusPillProps) {
   const active = activeCount > 0;
   return (
-    <Pill tone="neutral" data-testid="agent-page-status">
+    <Pill form="plain" data-testid="agent-page-status">
       <StateGlyph state={active ? "running" : "idle"} size="sm" />
       {active ? "Active" : "Idle"}
     </Pill>
@@ -31,7 +31,7 @@ export interface AgentPageActionsProps {
   newSessionDisabled: boolean;
 }
 
-/** The single primary action in the agent-detail window head. */
+/** The agent-detail window-head action: a secondary pill, never the inverted primary (P4). */
 export function AgentPageActions({
   onNewSession,
   isCreatingSession,
@@ -41,14 +41,14 @@ export function AgentPageActions({
     <div className="flex items-center gap-2" data-testid="agent-page-toolbar">
       <Button
         type="button"
-        variant="default"
+        variant="secondary"
         size="sm"
         onClick={onNewSession}
         disabled={newSessionDisabled}
         aria-busy={isCreatingSession}
         data-testid="agent-page-new-session"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         New session
       </Button>
     </div>
@@ -72,13 +72,13 @@ export function AgentPageOverflow({
       <DropdownMenuTrigger
         aria-label="More agent actions"
         data-testid="agent-page-overflow"
-        render={<Button type="button" variant="ghost" size="icon-sm" />}
+        render={<Button type="button" variant="quiet" size="icon-sm" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="agent-page-overflow-menu">
         <DropdownMenuItem data-testid="agent-page-edit-settings" onClick={onEditSettings}>
-          <Settings2 aria-hidden="true" className="size-3" />
+          <Settings2 aria-hidden="true" />
           Edit settings
         </DropdownMenuItem>
         <DropdownMenuItem data-testid="agent-page-duplicate" onClick={onDuplicate}>

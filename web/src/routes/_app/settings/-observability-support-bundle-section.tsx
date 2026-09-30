@@ -172,10 +172,11 @@ function LogTailRow({ logTail }: { logTail: LogTailMeta }) {
       description={
         <Pill
           data-testid="settings-page-observability-log-tail-transport"
-          size="xs"
+          form="plain"
           title={logTail.transport ? `Transport: ${logTail.transport}` : undefined}
           tone={logTail.available ? "success" : "neutral"}
         >
+          <Pill.Dot />
           {logTail.available ? "Available" : "Unavailable"}
         </Pill>
       }
@@ -188,7 +189,7 @@ function LogTailRow({ logTail }: { logTail: LogTailMeta }) {
             rel="noreferrer"
             target="_blank"
           >
-            <ExternalLink className="size-3" />
+            <ExternalLink className="size-3.5" />
             Open stream
           </a>
         ) : null

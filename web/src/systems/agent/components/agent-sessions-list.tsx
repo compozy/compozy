@@ -84,9 +84,9 @@ export function AgentSessionsList({
                   onClick={onRetry}
                   size="sm"
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                 >
-                  <RefreshCw aria-hidden="true" className="size-3" />
+                  <RefreshCw aria-hidden="true" />
                   Retry
                 </Button>
               ) : undefined
@@ -206,7 +206,7 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
         <Link
           to="/agents/$name/sessions/$id"
           params={{ name: agentName, id: session.id }}
-          className="text-item-title flex flex-col gap-0.5 text-fg"
+          className="flex flex-col gap-0.5 text-body text-fg"
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
@@ -214,7 +214,7 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap justify-start gap-1">
-          <Pill tone="neutral" data-testid={`agent-session-status-${session.id}`}>
+          <Pill form="plain" data-testid={`agent-session-status-${session.id}`}>
             <StateGlyph state={status.glyph} size="sm" />
             {status.label}
           </Pill>
@@ -258,17 +258,20 @@ function ArchivedSessionsSection({
         render={
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="sm"
             aria-label={total === undefined ? "Archived sessions" : `Archived sessions (${total})`}
-            className="w-full justify-start gap-2 px-2 text-small-body text-subtle"
+            className="w-full justify-start"
           />
         }
       >
-        <ChevronRight className="size-3 transition-transform group-data-panel-open/agent-sessions-archived:rotate-90" />
+        <ChevronRight
+          aria-hidden="true"
+          className="transition-transform group-data-panel-open/agent-sessions-archived:rotate-90"
+        />
         Archived
         {total === undefined ? null : (
-          <span className="font-mono text-micro text-faint">{total}</span>
+          <span className="text-eyebrow text-subtle tabular-nums">{total}</span>
         )}
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-1">

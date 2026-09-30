@@ -104,7 +104,7 @@ export function TokenListField({
             onClick={commit}
             size="icon-xs"
           >
-            <Plus aria-hidden="true" className="size-3" />
+            <Plus aria-hidden="true" />
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>

@@ -16,7 +16,7 @@ const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8")
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
   "surface-ramp":
-    "rail desk canvas canvas-soft sunken surface-2 selected code-bg sidebar elevated well hover disabled",
+    "rail rail-hover rail-selected desk canvas canvas-soft sunken surface-2 selected code-bg sidebar elevated well hover disabled",
   hairlines: "line line-soft line-strong line-focus",
   "text-ladder": "fg fg-strong fg-2 fg-3 muted subtle faint",
   primary: "primary primary-hover primary-foreground",
@@ -26,8 +26,8 @@ const colorGroups = {
 };
 const componentSizeTokenPattern =
   /^(basis|breakpoint|container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;
-// Matched against every declaration, not just @theme: `--font-weight-display`
-// lives in `:root` (L-023).
+// Matched against every declaration, not just @theme, so a `:root`-scoped font
+// token (L-023) still reaches the table.
 const fontTokenPattern = /^font-/;
 const runtimeTheme = parseTheme(
   runtimeCss,

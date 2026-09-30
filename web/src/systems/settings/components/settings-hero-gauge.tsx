@@ -44,7 +44,7 @@ export function SettingsHeroGauge({
 
   return (
     <section
-      className="flex flex-col gap-3 rounded-lg bg-canvas shadow-card p-4"
+      className="flex flex-col gap-3 rounded-lg bg-card shadow-card p-4"
       data-testid={testId ?? "settings-hero-gauge"}
     >
       <div className="flex min-w-0 items-baseline gap-2.5">
@@ -55,7 +55,10 @@ export function SettingsHeroGauge({
           {Math.round(clamped)}%
         </span>
         <span className="ml-auto shrink-0 self-center">
-          <Pill tone={tone}>{pill}</Pill>
+          <Pill form="plain" tone={tone}>
+            <Pill.Dot />
+            {pill}
+          </Pill>
         </span>
       </div>
       <div

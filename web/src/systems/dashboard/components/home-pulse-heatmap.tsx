@@ -43,7 +43,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
     <Section
       data-slot="home-pulse"
       label="When agents were busy"
-      right={<span className="text-micro text-muted">Last 14 days</span>}
+      right={<span className="text-eyebrow text-muted">Last 14 days</span>}
     >
       <Panel bodyClassName="p-0">
         <div className="overflow-x-auto px-4 pt-4 pb-1.5">
@@ -80,7 +80,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
                   {WEEKDAY_LABELS[pulse.busiest.weekday]}{" "}
                   {String(pulse.busiest.hour).padStart(2, "0")}:00
                 </span>{" "}
-                <span className="font-mono text-micro tabular-nums text-subtle">
+                <span className="text-eyebrow tabular-nums text-subtle">
                   {pulse.busiest.events} events
                 </span>
               </span>
@@ -94,7 +94,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
                 <span className="font-medium text-fg">
                   {formatHomeDurationSeconds(pulse.longest_session.duration_seconds, "compact")}
                 </span>{" "}
-                <span className="font-mono text-micro tabular-nums text-subtle">
+                <span className="text-eyebrow tabular-nums text-subtle">
                   {pulse.longest_session.agent_name} · {pulse.longest_session.date}
                 </span>
               </span>

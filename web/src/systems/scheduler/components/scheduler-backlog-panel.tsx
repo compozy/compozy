@@ -63,9 +63,15 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
                 </div>
               </div>
               {item.task.effective_paused ? (
-                <Pill tone="neutral">Paused</Pill>
+                <Pill form="plain">
+                  <Pill.Dot tone="warning" />
+                  Paused
+                </Pill>
               ) : (
-                <Pill tone="neutral">Queued</Pill>
+                <Pill form="plain">
+                  <Pill.Dot tone="neutral" />
+                  Queued
+                </Pill>
               )}
             </div>
           ))}

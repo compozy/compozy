@@ -63,7 +63,6 @@ function TaskBlockingState({
         actions={
           dependencyId ? (
             <Button
-              className="min-h-6"
               data-testid={`tasks-detail-now-open-blocking-${key}`}
               onClick={() => handlers.onOpenTask(dependencyId)}
               size="sm"
@@ -91,7 +90,6 @@ function TaskBlockingState({
       <TaskStateBand
         actions={
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-resume"
             disabled={pending.resume}
             onClick={handlers.onResume}
@@ -116,7 +114,6 @@ function TaskBlockingState({
       actions={
         blockId ? (
           <Button
-            className="min-h-6"
             data-testid={`tasks-detail-now-clear-block-${key}`}
             disabled={pending.clearBlock}
             onClick={() => handlers.onClearBlock(blockId)}
@@ -153,7 +150,6 @@ function TaskNeedsAttentionState({
       actions={
         canRecover ? (
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-recover"
             disabled={pending.recover}
             onClick={handlers.onRecover}

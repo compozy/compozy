@@ -18,7 +18,8 @@ export function SchedulerStatusSummary({ status, isLoading }: SchedulerStatusSum
         <h2 className="text-item-title font-medium text-fg-strong">Task queue</h2>
         <SchedulerStateLabel isInitialLoading={isInitialStatusLoading} paused={status?.paused} />
         {isLoading && status ? (
-          <Pill data-testid="scheduler-controls-loading" tone="neutral">
+          <Pill data-testid="scheduler-controls-loading" form="plain">
+            <Pill.Dot tone="neutral" pulse />
             Loading
           </Pill>
         ) : null}

@@ -80,8 +80,8 @@ export function ProfileSwitcher({
                   className={cn(
                     "grid size-rail-item shrink-0 place-items-center rounded-lg text-muted outline-none",
                     "transition-[background-color,color] duration-base ease-spring",
-                    "hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring",
-                    "data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg"
+                    "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring",
+                    "data-[popup-open]:bg-rail-selected data-[popup-open]:text-fg"
                   )}
                 />
               }
@@ -89,7 +89,7 @@ export function ProfileSwitcher({
           }
         >
           {quiet ? (
-            <UserRound aria-hidden="true" className="size-5" strokeWidth={1.75} />
+            <UserRound aria-hidden="true" className="size-4" />
           ) : (
             <ProfileGlyph
               decorative

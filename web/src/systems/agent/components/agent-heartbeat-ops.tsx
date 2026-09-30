@@ -73,7 +73,7 @@ export function AgentHeartbeatOps({
 
   return (
     <div
-      className="flex flex-col gap-4 rounded-md border border-line p-4"
+      className="flex flex-col gap-4 rounded-lg bg-card p-4 shadow-card"
       data-testid="agent-heartbeat-ops"
     >
       {statusError ? (

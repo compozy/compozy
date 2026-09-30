@@ -155,7 +155,7 @@ function TaskDetailNotFound({ message, onBack }: { message?: string; onBack: () 
         description={message ?? `This task isn't in this project.`}
         action={
           <Button onClick={onBack} size="sm" type="button" variant="ghost">
-            <ClipboardList aria-hidden="true" className="size-3" />
+            <ClipboardList aria-hidden="true" data-icon="inline-start" />
             Back to tasks
           </Button>
         }

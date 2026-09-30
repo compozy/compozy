@@ -31,7 +31,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
     );
   }
   return (
-    <div className="flex flex-col rounded-lg bg-canvas shadow-card" data-testid="loop-recent-runs">
+    <div className="flex flex-col rounded-lg bg-card shadow-card" data-testid="loop-recent-runs">
       {runs.map(run => (
         <Link
           key={run.id}

@@ -112,12 +112,12 @@ function MarketplaceResults({
           <Empty
             action={
               <>
-                <Button onClick={onAddMarketplace} size="sm" type="button" variant="neutral">
-                  <Store aria-hidden="true" className="size-3" />
+                <Button onClick={onAddMarketplace} size="sm" type="button">
+                  <Store aria-hidden="true" />
                   Add plugin marketplace…
                 </Button>
                 <Button onClick={onInstallFromGitHub} size="sm" type="button" variant="ghost">
-                  <GithubLogo aria-hidden="true" className="size-3" />
+                  <GithubLogo aria-hidden="true" className="size-3.5" />
                   Install from GitHub…
                 </Button>
               </>

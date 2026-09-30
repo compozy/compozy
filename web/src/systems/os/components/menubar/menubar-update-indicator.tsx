@@ -27,13 +27,13 @@ export function MenubarUpdateIndicator({ available, onActivate }: MenubarUpdateI
         render={
           <Button
             aria-label="Update available"
-            className="relative size-7 text-muted"
+            className="relative size-8.5 hover:bg-rail-hover"
             data-slot="os-menubar-update"
             data-testid="os-menubar-update"
             onClick={onActivate}
             size="icon"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
             <Icon as={Download} size="lg" />
             {/* Quiet offer: a dot, not an accent fill competing with the bell. */}

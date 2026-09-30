@@ -5,7 +5,7 @@ import { compactSessionSummary } from "../lib/session-summary";
 import { DetailPayload } from "./tool-renderers/detail-payload";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
-import { rendersTerminalBlock } from "../lib/session-terminal-tools";
+import { isDeliberateTerminalTool, readSupervisedTerminalId } from "../lib/session-terminal-tools";
 import { fileDiffStatForTool, type ToolFileDiffStat } from "../lib/tool-diff-stat";
 import {
   getToolCompactSummary,
@@ -252,9 +252,10 @@ function ToolCallStat({
   if (!diffStat) return null;
   return (
     <>
-      {/* The +/− pair reads in the diff hues, like the turn's changed-files row. */}
-      <span className="font-medium text-success">+{diffStat.additions}</span>
-      <span className="font-medium text-danger">−{diffStat.deletions}</span>
+      {/* Per-call stats stay neutral; the sign carries the meaning. The turn's
+          changed-files row is the one place additions/deletions take color. */}
+      <span className="font-medium text-subtle">+{diffStat.additions}</span>
+      <span className="font-medium text-subtle">−{diffStat.deletions}</span>
     </>
   );
 }
@@ -309,7 +310,10 @@ export function SessionToolCallRow({
   turnFailed = false,
 }: SessionToolCallRowProps) {
   const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
-  if (rendersTerminalBlock(message)) {
+  if (
+    isDeliberateTerminalTool(message.toolName) &&
+    readSupervisedTerminalId(message.toolResult?.rawOutput)
+  ) {
     return (
       <Suspense fallback={null}>
         <TerminalContent message={message} />

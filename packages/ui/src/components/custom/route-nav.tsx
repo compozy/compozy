@@ -34,7 +34,7 @@ function RouteNavLink({ className, render, ...props }: useRender.ComponentProps<
       {
         className: cn(
           pillGroupSegmentVariants({ size: "md" }),
-          "aria-[current=page]:bg-surface-2 aria-[current=page]:text-fg aria-[current=page]:shadow-card",
+          "aria-[current=page]:bg-surface-2 aria-[current=page]:text-fg",
           className
         ),
       },

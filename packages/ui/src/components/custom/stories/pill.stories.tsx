@@ -11,7 +11,7 @@ const meta: Meta<typeof Pill> = {
     docs: {
       description: {
         component:
-          "Unified semantic pill — fully rounded across every size, sans sentence-case label at 12.5px / 510 by default. `mono` is the opt-in variant for raw identifiers and renders at 11px / 600. Compose with `Pill.Dot` for leading status dots.",
+          "Unified semantic pill — fully rounded across every size, sans sentence-case label at 12px / 500 by default. `mono` is the opt-in variant for raw identifiers and renders at 11px / 600. Compose with `Pill.Dot` for leading status dots.",
       },
     },
   },
@@ -91,6 +91,35 @@ export const HollowForm: Story = {
     docs: {
       description: {
         story: "`form=hollow` is a transparent outline plate with an inset rim.",
+      },
+    },
+  },
+};
+
+/** Status indicator — dot + text, no plate, so a state never reads as a button. */
+export const PlainStatus: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-wrap items-center gap-4">
+      <Pill form="plain" tone="neutral">
+        <Pill.Dot />
+        Idle
+      </Pill>
+      <Pill form="plain" tone="success" pulse>
+        <Pill.Dot />
+        Running
+      </Pill>
+      <Pill form="plain" tone="accent">
+        <Pill.Dot />
+        Needs you
+      </Pill>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`form=plain` drops the plate and padding: `muted` 12px ink, the tone rides only the dot.",
       },
     },
   },

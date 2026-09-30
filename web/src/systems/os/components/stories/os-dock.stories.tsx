@@ -50,7 +50,7 @@ const SESSION_ROWS = [
 function SessionsNewAction() {
   useTopbarSlot({
     actions: (
-      <Button size="sm" variant="ghost" onClick={fn()}>
+      <Button size="sm" variant="secondary" onClick={fn()}>
         New session
       </Button>
     ),
@@ -63,12 +63,12 @@ function SessionsBody() {
     <div className="flex h-full min-h-0 flex-col bg-canvas">
       <SessionsNewAction />
       <header className="flex shrink-0 items-center gap-2 px-3.5 pt-3 pb-1.5">
-        <p className="flex-1 font-mono text-[10px] font-semibold tracking-[0.08em] text-subtle uppercase">
+        <p className="flex-1 eyebrow-caps text-subtle">
           Sessions <span className="ml-1.5 font-mono tracking-normal text-faint">7</span>
         </p>
       </header>
       <div className="shrink-0 px-3.5 pb-1.5">
-        <label className="flex h-8 items-center gap-2 rounded-md border border-line bg-canvas-soft px-2.5 text-muted">
+        <label className="flex h-search items-center gap-2 rounded-md border border-line bg-canvas-soft px-2.5 text-muted">
           <Search className="size-3.5 shrink-0" aria-hidden="true" />
           <input
             readOnly
@@ -137,6 +137,27 @@ export const Resting: Story = {
         focused
         onTrafficLight={fn()}
         className="absolute top-[38px] left-[56px] h-[560px] w-[420px]"
+      >
+        <SessionsBody />
+      </OsWindowFrame>
+    </DesktopShell>
+  ),
+};
+
+/**
+ * Compact (<960px) — the bottom tab bar replaces the rail, so the desk panel
+ * spans the full width with only its top and bottom edges against the chrome.
+ */
+export const Compact: Story = {
+  args: { items: SESSIONS_DESK, onSelect: fn() },
+  render: () => (
+    <DesktopShell dockItems={SESSIONS_DESK} compact>
+      <OsWindowFrame
+        title="Sessions"
+        focused
+        presentation="compact"
+        onTrafficLight={fn()}
+        className="absolute inset-0"
       >
         <SessionsBody />
       </OsWindowFrame>

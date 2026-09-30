@@ -26,7 +26,7 @@ export function TaskExternalResult({
 }) {
   return (
     <Collapsible onOpenChange={controller.onOpenChange} open={controller.open}>
-      <div className="rounded-lg bg-canvas shadow-card">
+      <div className="rounded-lg bg-card shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
           <span className="text-small-body text-muted tabular-nums">
             {formatByteCount(resultBytes)}
@@ -38,6 +38,7 @@ export function TaskExternalResult({
                 {controller.open ? "Hide result" : "View result"}
                 <ChevronDown
                   aria-hidden="true"
+                  data-icon="inline-end"
                   className="transition-transform duration-fast group-data-panel-open/result-trigger:rotate-180 motion-reduce:transition-none"
                 />
               </Button>
@@ -112,7 +113,7 @@ function TaskExternalResultPage({
             onClick={controller.onPreviousPage}
             size="icon-sm"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
             <ChevronLeft aria-hidden="true" />
           </Button>
@@ -122,7 +123,7 @@ function TaskExternalResultPage({
             onClick={controller.onNextPage}
             size="icon-sm"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
             <ChevronRight aria-hidden="true" />
           </Button>

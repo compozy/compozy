@@ -142,7 +142,7 @@ export function MCPOverrideEditor({
                 type="button"
                 variant="ghost"
               >
-                <RotateCcw aria-hidden="true" className="size-3" />
+                <RotateCcw aria-hidden="true" />
                 Reset override
               </Button>
             ) : undefined
@@ -241,7 +241,7 @@ function MCPOverridePairsEditor({
                   type="button"
                   variant="ghost"
                 >
-                  <Trash2 aria-hidden="true" className="size-3" />
+                  <Trash2 aria-hidden="true" />
                 </Button>
               </div>
               {rowError ? (
@@ -264,7 +264,7 @@ function MCPOverridePairsEditor({
           type="button"
           variant="ghost"
         >
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           {addLabel}
         </Button>
       </div>

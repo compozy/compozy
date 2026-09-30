@@ -18,7 +18,8 @@ export function AutomationStateBadges({ enabled, source }: AutomationStateBadges
   return (
     <>
       {enabled ? null : (
-        <Pill data-testid="automation-disabled-badge" size="xs">
+        <Pill data-testid="automation-disabled-badge" form="plain">
+          <Pill.Dot tone="neutral" />
           Disabled
         </Pill>
       )}

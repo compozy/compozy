@@ -1,4 +1,4 @@
-import { Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 import { List, PanelRight } from "lucide-react";
 
 const PANELS = {
@@ -26,15 +26,15 @@ export function SessionPanelToggle({
             variant="quiet"
             size="icon-sm"
             aria-label={name}
+            // Pressed reads as the held hover plate (`surface-2` + `fg`), from the variant.
             aria-pressed={open}
-            className={cn(open ? "bg-selected text-fg" : null)}
             data-state={open ? "open" : "closed"}
             data-testid={testId}
             onClick={onToggle}
           />
         }
       >
-        <Glyph aria-hidden="true" className="size-3.5" />
+        <Glyph aria-hidden="true" className="size-4" />
       </TooltipTrigger>
       <TooltipContent>{name}</TooltipContent>
     </Tooltip>

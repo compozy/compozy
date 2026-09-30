@@ -14,12 +14,12 @@ describe("Icon", () => {
     expect(svg?.getAttribute("data-icon-size")).toBe("default");
   });
 
-  it("Should render at 11 px with stroke 2 when size is xs", () => {
+  it("Should render at 11 px with the same 1.75 stroke when size is xs", () => {
     const { container } = render(<Icon as={Sparkles} size="xs" />);
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("width")).toBe("11");
     expect(svg?.getAttribute("height")).toBe("11");
-    expect(svg?.getAttribute("stroke-width")).toBe("2");
+    expect(svg?.getAttribute("stroke-width")).toBe("1.75");
   });
 
   it("Should map sm to 12 px and lg to 16 px (stroke 1.75)", () => {

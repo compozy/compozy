@@ -67,9 +67,9 @@ export function TerminalJournalDetail({
               onClick={onClose}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </>
         ) : (

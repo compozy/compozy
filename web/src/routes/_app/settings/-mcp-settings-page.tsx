@@ -44,8 +44,9 @@ export function MCPSettingsPage() {
         onClick={page.openCreate}
         size="sm"
         type="button"
+        variant="secondary"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add MCP server
       </Button>
     ),
@@ -156,7 +157,7 @@ function MCPServersBody({
     return (
       <div
         aria-busy="true"
-        className="rounded-lg bg-canvas shadow-card p-3.5"
+        className="rounded-lg bg-card shadow-card p-3.5"
         data-testid="settings-page-mcp-loading"
         role="status"
       >
@@ -192,9 +193,8 @@ function MCPServersBody({
             onClick={page.openCreate}
             size="sm"
             type="button"
-            variant="neutral"
           >
-            <Plus aria-hidden="true" className="size-3" />
+            <Plus aria-hidden="true" />
             Add MCP server
           </Button>
         }

@@ -13,7 +13,7 @@ function ComboboxInputGroup({ className, ...props }: React.ComponentProps<"div">
       data-slot="combobox-input-group"
       role="group"
       className={cn(
-        "group/combobox-input-group relative flex h-9 w-full min-w-0 items-center rounded-md border border-line bg-canvas text-fg hover:border-line-strong transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-disabled:border-line-soft has-disabled:bg-canvas has-disabled:text-disabled has-disabled:opacity-100 has-[input:focus-visible]:border-line-strong has-[input:focus-visible]:shadow-focus-ring has-[input[aria-invalid=true]]:border-danger [&>input]:pr-1.5",
+        "group/combobox-input-group relative flex h-input w-full min-w-0 items-center rounded-md border border-line bg-canvas text-fg hover:border-line-strong transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-disabled:border-line-soft has-disabled:bg-canvas has-disabled:text-disabled has-disabled:opacity-100 has-[input:focus-visible]:border-line-strong has-[input:focus-visible]:shadow-focus-ring has-[input[aria-invalid=true]]:border-danger [&>input]:pr-1.5",
         className
       )}
       {...props}
@@ -145,7 +145,7 @@ function ComboboxContent({
           data-slot="combobox-content"
           data-chips={!!anchor}
           className={cn(
-            "group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+(--spacing(7)))] origin-(--transform-origin) overflow-hidden rounded-lg bg-canvas text-fg shadow-pop duration-fast data-[chips=true]:min-w-(--anchor-width) data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+(--spacing(7)))] origin-(--transform-origin) overflow-hidden rounded-lg bg-popover text-fg shadow-pop duration-fast data-[chips=true]:min-w-(--anchor-width) data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}
@@ -241,7 +241,7 @@ function ComboboxChips({
     <ComboboxPrimitive.Chips
       data-slot="combobox-chips"
       className={cn(
-        "flex min-h-9 flex-wrap items-center gap-1 rounded-md border border-line bg-canvas bg-clip-padding px-3 py-1.5 hover:border-line-strong text-small-body text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring has-disabled:border-line-soft has-disabled:bg-canvas has-disabled:text-disabled has-disabled:opacity-100 has-aria-invalid:border-danger has-data-[slot=combobox-chip]:px-1",
+        "flex min-h-input flex-wrap items-center gap-1 rounded-md border border-line bg-canvas bg-clip-padding px-3 py-1.5 hover:border-line-strong text-small-body text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring has-disabled:border-line-soft has-disabled:bg-canvas has-disabled:text-disabled has-disabled:opacity-100 has-aria-invalid:border-danger has-data-[slot=combobox-chip]:px-1",
         className
       )}
       {...props}

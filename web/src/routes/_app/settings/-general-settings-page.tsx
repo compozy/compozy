@@ -185,7 +185,7 @@ function GeneralAdvancedSection({
             type="button"
             variant="neutral"
           >
-            {page.isReloading ? <Spinner className="size-3" /> : null}
+            {page.isReloading ? <Spinner className="size-3.5" /> : null}
             Reload
           </Button>
         }

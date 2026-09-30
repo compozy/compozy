@@ -82,9 +82,15 @@ describe("InputGroup", () => {
     );
     const group = container.querySelector('[data-slot="input-group"]');
     expect(group).toHaveAttribute("data-variant", "composer");
-    expect(group).toHaveClass("bg-canvas", "shadow-card");
+    expect(group).toHaveClass("bg-card", "shadow-card");
+    expect(group).not.toHaveClass("bg-canvas");
     const send = screen.getByRole("button", { name: "Send message" });
-    expect(send).toHaveClass("bg-primary", "text-primary-foreground", "size-7.5!", "rounded-pill");
+    expect(send).toHaveClass(
+      "bg-primary",
+      "text-primary-foreground",
+      "size-button-icon-default!",
+      "rounded-pill"
+    );
     expect(screen.getByRole("button", { name: "Attach files" })).not.toHaveClass("bg-primary");
   });
 });

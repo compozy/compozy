@@ -77,7 +77,7 @@ export function ProviderErrorNotice({ view, count }: { view: ProviderErrorView; 
       data-provider-error={view.code}
       data-provider-next-action={view.nextAction}
       tone="danger"
-      icon={<AlertCircle strokeWidth={1.8} />}
+      icon={<AlertCircle />}
     >
       <b data-testid="provider-error-subject">{providerErrorSubject(view)}</b> —{" "}
       <span data-testid="session-error-detail">
