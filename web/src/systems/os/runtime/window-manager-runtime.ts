@@ -162,7 +162,11 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     }
     const outcome = this.dispatch({
       ...openWindowCommand(target, id, desktopId),
-      expectedRevision: state.snapshot?.revision,
+      // Identity lookups keep their revision fence. Deliberate new windows
+      // skip that lookup and bind to the serializer's execution revision.
+      ...(target.forceNewInstance || target.stackTargetWindowId
+        ? {}
+        : { expectedRevision: state.snapshot?.revision }),
     });
     this.publish();
     return this.recoverOpenOrFocus(target, id, outcome, recoverTopologyConflict);
