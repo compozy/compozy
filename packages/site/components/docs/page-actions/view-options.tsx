@@ -10,6 +10,11 @@ import {
 import { GithubLogo } from "@compozy/ui/logos";
 import { ExternalLink, FileText, MoreHorizontal } from "lucide-react";
 
+import {
+  SITE_MENU_CONTENT_CLASS,
+  SITE_MENU_ITEM_CLASS,
+} from "@/components/docs/page-actions/menu-classes";
+
 export interface ViewOptionsProps {
   markdownUrl: string;
   githubUrl: string;
@@ -30,8 +35,9 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
           </Button>
         }
       />
-      <DropdownMenuContent align="end" sideOffset={6}>
+      <DropdownMenuContent align="end" className={SITE_MENU_CONTENT_CLASS} sideOffset={6}>
         <DropdownMenuItem
+          className={SITE_MENU_ITEM_CLASS}
           render={
             <a href={githubUrl} rel="noreferrer noopener" target="_blank">
               <GithubLogo aria-hidden className="size-3" />
@@ -41,6 +47,7 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
           }
         />
         <DropdownMenuItem
+          className={SITE_MENU_ITEM_CLASS}
           render={
             <a href={markdownUrl} rel="noreferrer noopener" target="_blank">
               <FileText aria-hidden />

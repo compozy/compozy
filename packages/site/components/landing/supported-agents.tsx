@@ -41,6 +41,10 @@ import type { ReactNode } from "react";
 import { BUILTIN_PROVIDER_INTEGRATIONS, type BuiltinProviderIntegration } from "./provider-data";
 import { SectionFrame } from "./primitives/section-frame";
 
+// D9: the site keeps its boxed tooltip; the shared tooltip became the product's inverted pill.
+const SITE_TOOLTIP_CLASS =
+  "rounded-md! bg-canvas-soft px-3 text-form-label font-normal text-fg-strong shadow-hairline";
+
 type Provider = BuiltinProviderIntegration & { logo: ReactNode };
 
 const logoClassName = "size-6 text-fg";
@@ -189,7 +193,7 @@ function ProviderQuilt({ providers }: { providers: Provider[] }) {
                       {provider.logo}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{provider.name}</TooltipContent>
+                  <TooltipContent className={SITE_TOOLTIP_CLASS}>{provider.name}</TooltipContent>
                 </Tooltip>
               );
             })}
