@@ -378,6 +378,38 @@ describe("useOsAttention", () => {
     expect(result.current.notificationCount).toBe(230);
   });
 
+  it("Should title an untitled session occurrence as its window does, never by its raw id", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    notificationResponse = {
+      snapshot: "snapshot",
+      total: 1,
+      needs_you: 1,
+      finished: 0,
+      items: [
+        {
+          id: "occurrence",
+          kind: "session",
+          source_id: "sess-fc79f940924ca862",
+          workspace_id: "ws-other",
+          workspace_label: "other",
+          title: "sess-fc79f940924ca862",
+          detail: "Edit rollout plan",
+          badge: "waiting-for-permission",
+          agent_name: "walk-agent",
+          occurred_at: "2026-09-10T12:00:00Z",
+          item_index: 0,
+          generation: 0,
+          redacted: false,
+          finished: false,
+        },
+      ],
+    };
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+    expect(result.current.sections.needsYou).toEqual([
+      expect.objectContaining({ kind: "session", title: "New session" }),
+    ]);
+  });
+
   it("Should compose exact healthy loop totals and rows without changing session counts", () => {
     vi.mocked(useAttentionSummary).mockReturnValue({
       summary: { needsYou: 2, finished: 0 },
