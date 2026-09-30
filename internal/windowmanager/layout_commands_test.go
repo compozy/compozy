@@ -273,30 +273,35 @@ func TestArrangeWithoutKeepFramesNamesEachWindow(t *testing.T) {
 	// The public command without keep_frames keeps its original meaning: every
 	// named window is its own participant, even two tabs of one deck.
 	for _, arrangement := range []Arrangement{ArrangementHorizontal, ArrangementVertical} {
-		t.Run("Should split two explicitly named tabs of one deck into leaves as "+string(arrangement), func(t *testing.T) {
-			t.Parallel()
-			environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
-			createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		t.Run(
+			"Should split two explicitly named tabs of one deck into leaves as "+string(arrangement),
+			func(t *testing.T) {
+				t.Parallel()
+				environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+				createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
 
-			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
-				DesktopID: "desktop-default", WindowIDs: []WindowID{"w1", "w2"},
-				Arrangement: arrangement, Frame: fullRect(), GroupID: "group-arranged",
-			})
-			desktop := result.Snapshot.Desktops[0]
-			if len(desktop.Groups) != 1 || len(desktop.FloatingStacks) != 0 {
-				t.Fatalf("desktop = %+v, want one arranged group and no floating deck", desktop)
-			}
-			root := desktop.Groups[0].Root
-			if root.Kind != NodeKindSplit || valueOrZero(root.Axis) != axisFor(arrangement) || len(root.Children) != 2 {
-				t.Fatalf("arranged root = %+v, want a two-leaf %s split", root, arrangement)
-			}
-			for index, want := range []WindowID{"w1", "w2"} {
-				if child := root.Children[index]; child.Kind != NodeKindLeaf || valueOrZero(child.WindowID) != want {
-					t.Fatalf("child %d = %+v, want leaf %q", index, child, want)
+				result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+					DesktopID: "desktop-default", WindowIDs: []WindowID{"w1", "w2"},
+					Arrangement: arrangement, Frame: fullRect(), GroupID: "group-arranged",
+				})
+				desktop := result.Snapshot.Desktops[0]
+				if len(desktop.Groups) != 1 || len(desktop.FloatingStacks) != 0 {
+					t.Fatalf("desktop = %+v, want one arranged group and no floating deck", desktop)
 				}
-			}
-			requireValidSnapshot(t, result.Snapshot)
-		})
+				root := desktop.Groups[0].Root
+				if root.Kind != NodeKindSplit || valueOrZero(root.Axis) != axisFor(arrangement) ||
+					len(root.Children) != 2 {
+					t.Fatalf("arranged root = %+v, want a two-leaf %s split", root, arrangement)
+				}
+				for index, want := range []WindowID{"w1", "w2"} {
+					if child := root.Children[index]; child.Kind != NodeKindLeaf ||
+						valueOrZero(child.WindowID) != want {
+						t.Fatalf("child %d = %+v, want leaf %q", index, child, want)
+					}
+				}
+				requireValidSnapshot(t, result.Snapshot)
+			},
+		)
 	}
 }
 
