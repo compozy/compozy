@@ -1,12 +1,12 @@
 import { cva } from "class-variance-authority";
 
 const toggleVariants = cva(
-  "group/toggle inline-flex items-center justify-center gap-1 rounded-md text-form-label font-medium tracking-eyebrow whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] duration-fast ease-out outline-none hover:bg-btn-default-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-danger aria-pressed:bg-elevated aria-pressed:text-fg-strong aria-pressed:shadow-highlight data-[state=on]:bg-elevated data-[state=on]:text-fg-strong data-[state=on]:shadow-highlight [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/toggle inline-flex items-center justify-center gap-1 rounded-pill text-form-label font-medium tracking-eyebrow whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity] duration-fast ease-out outline-none hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-danger aria-pressed:bg-surface-2 aria-pressed:text-fg aria-pressed:shadow-card data-[state=on]:bg-surface-2 data-[state=on]:text-fg data-[state=on]:shadow-card [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-transparent text-muted",
-        outline: "border border-line bg-transparent text-fg hover:bg-btn-default-hover",
+        outline: "border border-line bg-transparent text-fg hover:bg-surface-2",
       },
       size: {
         default:

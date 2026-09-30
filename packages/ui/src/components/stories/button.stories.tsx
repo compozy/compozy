@@ -10,7 +10,7 @@ const meta: Meta<typeof Button> = {
     docs: {
       description: {
         component:
-          "Primary button primitive. Variants — default, primary (semantic alias for default), outline, secondary, ghost, destructive (tinted), destructive-solid (irreversible Kill), success, link, neutral (warm `--btn-default-fill` glaze). Sizes — default/xs/sm/lg/cta/cta-lg + icon/icon-xs/icon-sm/icon-lg.",
+          "Pill action primitive. Variants — default (the single inverted primary), primary (semantic alias for default), neutral/secondary (`surface-2` pill, no border), outline (hairline ghost), ghost, destructive (tinted), destructive-solid (irreversible Kill), success, link. Every size is a pill. `kbd` adds a decorative trailing key hint. Sizes — default/xs/sm/lg/cta/cta-lg + icon/icon-xs/icon-sm/icon-lg.",
       },
     },
   },
@@ -29,7 +29,7 @@ export const Primary: Story = {
     docs: {
       description: {
         story:
-          'Semantic alias for `default` — same accent CTA chrome, expresses caller intent ("primary action"). Pairs with `neutral` for the proposal\'s main CTA / fallback button duo.',
+          'Semantic alias for `default` — the same inverted pill (white on dark, near-black on light), expressing caller intent ("primary action"). One per surface; pairs with `neutral` for the main CTA / fallback duo.',
       },
     },
   },
@@ -41,7 +41,7 @@ export const Neutral: Story = {
     docs: {
       description: {
         story:
-          "Filled secondary action with `--btn-default-fill` (0.04 glaze) → `--btn-default-hover` (0.07). No border. Use when `secondary` is too quiet and `outline` is too noisy.",
+          "Secondary pill on `surface-2`; hover steps to `selected` and adds `shadow-card`. No border, and the label never dims.",
       },
     },
   },
@@ -90,6 +90,19 @@ export const DestructivePair: Story = {
     <div className="flex flex-wrap items-center gap-2 bg-background p-4 text-foreground">
       <Button variant="destructive">Cancel run</Button>
       <Button variant="destructive-solid">Kill run</Button>
+    </div>
+  ),
+};
+
+/** Approval footer grammar: a quiet secondary beside the single inverted primary with its ↵ hint. */
+export const WithKbdHint: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2 bg-background p-4 text-foreground">
+      <Button variant="neutral">Deny</Button>
+      <Button variant="primary" kbd="↵" aria-keyshortcuts="Enter">
+        Allow once
+      </Button>
     </div>
   ),
 };

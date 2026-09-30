@@ -96,13 +96,12 @@ function TooltipContent({
                 />
               }
               className={cn(
-                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-canvas-soft px-3 py-1.5 text-form-label text-fg-strong shadow-hairline has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-xs",
+                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-pill bg-fg px-2.5 py-1.5 text-xs font-medium text-canvas",
                 className
               )}
               {...props}
             >
               {children}
-              <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-var(--space-switch-thumb-inset))] rotate-45 rounded-xs bg-canvas-soft fill-canvas-soft data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
             </TooltipPrimitive.Popup>
           </TooltipPrimitive.Positioner>
         </TooltipPrimitive.Portal>

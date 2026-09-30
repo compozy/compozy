@@ -49,7 +49,7 @@ export interface SplitButtonProps extends Omit<React.ComponentProps<"div">, "onS
   children?: React.ReactNode;
 }
 
-const SEAM_CLASS = "border-l border-l-accent-ink/20";
+const SEAM_CLASS = "border-l border-l-primary-foreground/20";
 
 /**
  * A primary action paired with a menu of its alternatives.
@@ -186,7 +186,10 @@ function SplitButtonMenu({
         data-variant={variant}
         render={
           <Button
-            className={cn("w-8 px-0 [&_svg]:size-3", variant === "default" && SEAM_CLASS)}
+            className={cn(
+              "w-8 px-0 [&_svg]:size-3",
+              (variant === "default" || variant === "primary") && SEAM_CLASS
+            )}
             disabled={disabled}
             size={size}
             type="button"
