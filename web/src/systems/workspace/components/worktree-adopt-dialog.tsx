@@ -93,7 +93,7 @@ export function WorktreeAdoptDialog({
         discovered ? (
           <div
             data-testid="worktree-adopt-target"
-            className="flex min-w-0 flex-col gap-1 rounded-md border border-line bg-canvas-soft p-3"
+            className="flex min-w-0 flex-col gap-1 rounded-lg bg-canvas shadow-card p-3"
           >
             <span className="min-w-0 truncate text-small-body font-semibold text-fg-strong">
               {discovered.name}

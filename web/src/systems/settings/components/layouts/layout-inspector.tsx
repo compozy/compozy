@@ -152,7 +152,7 @@ function InspectorShell({
   return (
     <aside
       aria-label="Selection inspector"
-      className="flex min-w-0 flex-col border-line-soft bg-canvas-tint"
+      className="flex min-w-0 flex-col border-line-soft bg-sunken"
       data-testid="layout-inspector"
     >
       <header className="border-b border-line-soft px-3.5 py-3">

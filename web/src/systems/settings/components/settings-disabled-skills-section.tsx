@@ -52,7 +52,7 @@ export function SettingsDisabledSkillsSection({
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-elevated">
+              <TableRow>
                 <TableHead className="eyebrow text-muted">Skill</TableHead>
                 <TableHead className="eyebrow w-[1%] text-right text-muted">Disabled</TableHead>
               </TableRow>

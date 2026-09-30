@@ -1,6 +1,6 @@
 import { FolderGit2Icon } from "lucide-react";
 
-import { Button, PillDot } from "@compozy/ui";
+import { Button, KindIcon, PillDot } from "@compozy/ui";
 
 import { toWorktreeDisplayState } from "../lib/worktree-display";
 import type { WorktreePayload } from "../types";
@@ -37,13 +37,12 @@ export function WorktreeDetailHeader({
       data-slot="worktree-detail-header"
       data-state={state}
     >
-      <span
+      <KindIcon
         aria-hidden="true"
-        className="grid size-8 shrink-0 place-items-center rounded-md border border-line bg-elevated text-muted [&_svg]:size-[15px]"
         data-slot="worktree-detail-header-icon"
-      >
-        <FolderGit2Icon />
-      </span>
+        icon={FolderGit2Icon}
+        tone="well"
+      />
       <div className="min-w-0 flex-1" data-slot="worktree-detail-header-main">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="truncate text-card-title font-semibold tracking-[-0.014em] text-fg-strong">

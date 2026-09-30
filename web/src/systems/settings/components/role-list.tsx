@@ -54,7 +54,7 @@ export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
           {allExpanded ? "Collapse all" : "Expand all"}
         </Button>
       </header>
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
         {roles.map(vm => (
           <RolePanel
             key={vm.role}

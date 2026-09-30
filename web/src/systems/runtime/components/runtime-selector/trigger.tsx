@@ -47,9 +47,9 @@ function triggerSurfaceClass(
     );
   }
   return cn(
-    "bg-elevated shadow-highlight hover:bg-btn-default-hover focus-visible:ring-2 focus-visible:ring-accent",
+    "border-transparent bg-surface-2 hover:bg-selected hover:shadow-card focus-visible:shadow-focus-ring",
     variant === "small" ? "h-button-lg gap-2 px-2.5" : "h-[34px] gap-2.5 px-3",
-    open ? "border-accent-dim" : "border-line-strong",
+    open && "bg-selected shadow-card",
     inert && "cursor-not-allowed opacity-60 hover:bg-transparent"
   );
 }
@@ -158,7 +158,7 @@ export function RuntimeSelectorTrigger({
       data-open={open ? "true" : "false"}
       data-variant={variant}
       className={cn(
-        "inline-flex select-none items-center rounded-md border outline-none transition-colors",
+        "inline-flex select-none items-center rounded-pill border outline-none transition-colors",
         triggerSurfaceClass(variant, open, inert),
         className
       )}

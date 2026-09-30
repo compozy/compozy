@@ -39,7 +39,7 @@ export function ExtensionLogPanel({
   const followLabelId = `extension-logs-follow-${name}`;
   const body = (
     <div
-      className={cn(!bare && "overflow-hidden rounded-lg bg-canvas-soft")}
+      className={cn(!bare && "overflow-hidden rounded-lg bg-sunken")}
       data-testid="extension-logs-panel"
     >
       <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">

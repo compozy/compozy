@@ -156,7 +156,7 @@ function MCPServersBody({
     return (
       <div
         aria-busy="true"
-        className="rounded-lg border border-line bg-canvas-soft p-3.5"
+        className="rounded-lg bg-canvas shadow-card p-3.5"
         data-testid="settings-page-mcp-loading"
         role="status"
       >

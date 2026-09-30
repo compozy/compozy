@@ -34,10 +34,7 @@ function ExtensionKitInventoryPanel({
   const total = items?.length ?? 0;
   const body = (
     <div
-      className={cn(
-        "divide-y divide-line-soft",
-        !bare && "overflow-hidden rounded-lg bg-canvas-soft"
-      )}
+      className={cn("divide-y divide-line-soft", !bare && "overflow-hidden rounded-lg bg-sunken")}
       data-testid="extension-kit-inventory"
     >
       {isLoading ? (

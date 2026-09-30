@@ -101,7 +101,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
     return (
       <span
         aria-hidden="true"
-        className={cn(wellClass, "bg-surface-glaze")}
+        className={cn(wellClass, "bg-surface-2")}
         data-rung="icon"
         data-slot="marketplace-entry-logo"
       >
@@ -122,7 +122,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
     return (
       <span
         aria-hidden="true"
-        className={cn(wellClass, "bg-surface-glaze")}
+        className={cn(wellClass, "bg-surface-2")}
         data-rung="brand"
         data-slot="marketplace-entry-logo"
       >
@@ -143,7 +143,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
       aria-hidden="true"
       className={cn(
         wellClass,
-        "bg-surface-glaze font-sans font-semibold tracking-tight uppercase",
+        "bg-surface-2 font-sans font-semibold tracking-tight uppercase",
         MONOGRAM_CLASS[size]
       )}
       data-rung="monogram"

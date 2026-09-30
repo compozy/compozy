@@ -36,7 +36,7 @@ export function OptionCardIcon({
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-glaze",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-2",
         tone === "accent" ? "text-accent" : "text-fg",
         className
       )}

@@ -39,7 +39,7 @@ function MarketplaceGridSkeleton({ count = 6, className }: { count?: number; cla
   return (
     <MarketplaceGrid
       className={cn(
-        "[&_[data-slot=skeleton]]:animate-none [&_[data-slot=skeleton]]:bg-surface-glaze [&_[data-slot=skeleton]]:bg-none",
+        "[&_[data-slot=skeleton]]:animate-none [&_[data-slot=skeleton]]:bg-surface-2 [&_[data-slot=skeleton]]:bg-none",
         className
       )}
       data-testid="marketplace-grid-skeleton"
@@ -49,7 +49,7 @@ function MarketplaceGridSkeleton({ count = 6, className }: { count?: number; cla
         return (
           <div
             aria-hidden="true"
-            className="grid min-h-15 grid-cols-[var(--size-provider-logo-well)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-canvas-soft px-3 py-2.5"
+            className="grid min-h-15 grid-cols-[var(--size-provider-logo-well)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-canvas px-3 py-2.5 shadow-card"
             key={index}
           >
             <Skeleton className="size-(--size-provider-logo-well) rounded-md" />

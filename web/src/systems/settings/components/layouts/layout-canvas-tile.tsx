@@ -32,7 +32,7 @@ export function LayoutCanvasTile({
       aria-pressed={selected}
       className={cn(
         "absolute flex min-h-0 min-w-0 flex-col overflow-hidden rounded-sm border text-left",
-        "border-line-strong bg-surface-glaze transition-colors duration-base ease-out",
+        "border-line-strong bg-surface-2 transition-colors duration-base ease-out",
         "hover:border-line-focus focus-visible:outline-none focus-visible:shadow-focus-ring",
         selected && "border-accent bg-accent-tint"
       )}

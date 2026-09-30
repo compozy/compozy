@@ -1,6 +1,6 @@
 import { GitMerge, TriangleAlert } from "lucide-react";
 
-import { cn, Eyebrow, Icon, PillDot, StatusDot } from "@compozy/ui";
+import { cn, Eyebrow, Icon, StateGlyph } from "@compozy/ui";
 
 /**
  * Row signals. Every part returns `null` when its fact is unknown — an absent
@@ -107,12 +107,8 @@ export function WorktreeAgentSignal({ activity, title, showLabel }: WorktreeAgen
       title={title}
       className="inline-flex shrink-0 items-center gap-1.5 text-mono-id text-subtle"
     >
-      {activity === "running" ? (
-        <PillDot tone="accent" pulse size="sm" />
-      ) : (
-        // Hollow, unpulsed: the turn finished and the user owns the next move.
-        <StatusDot tone="accent" variant="ring" size="sm" label={label} />
-      )}
+      {/* Awaiting input: the turn finished and the user owns the next move. */}
+      <StateGlyph state={activity === "running" ? "running" : "attention"} size="sm" />
       {showLabel ? label : <span className="sr-only">{label}</span>}
     </span>
   );

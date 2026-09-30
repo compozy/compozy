@@ -118,7 +118,7 @@ export function WorkspaceCommandSelect({
             data-testid="workspace-switcher-avatar"
             className={cn(
               "inline-flex shrink-0 items-center justify-center rounded-sm font-mono text-eyebrow font-medium tracking-mono text-fg",
-              size === "compact" ? "size-4 bg-canvas-tint" : "size-button-icon-xs bg-elevated"
+              size === "compact" ? "size-4 bg-surface-2" : "size-button-icon-xs bg-surface-2"
             )}
           >
             {workspaceInitial(label)}
@@ -179,7 +179,7 @@ export function WorkspaceCommandSelect({
                   <span
                     aria-hidden="true"
                     data-testid={`${testIdPrefix}-item-avatar-${workspace.id}`}
-                    className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
+                    className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-surface-2 font-mono text-eyebrow font-medium tracking-mono text-fg"
                   >
                     {workspaceInitial(workspace.name)}
                   </span>

@@ -44,7 +44,7 @@ export function SettingsWindowNav({
     <nav
       aria-label="Settings navigation"
       className={cn(
-        "flex w-full shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-line-soft bg-canvas-soft px-2 py-1.5",
+        "flex w-full shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-line-soft bg-sunken px-2 py-1.5",
         "@min-settings-takeover:w-settings-nav @min-settings-takeover:flex-col @min-settings-takeover:items-stretch @min-settings-takeover:gap-0 @min-settings-takeover:overflow-y-auto @min-settings-takeover:border-r @min-settings-takeover:border-b-0 @min-settings-takeover:px-2.5 @min-settings-takeover:py-0",
         className
       )}
@@ -156,8 +156,8 @@ function SettingsSectionLink({
         "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium @min-settings-takeover:h-8",
         "transition-colors duration-base focus-visible:outline-none focus-visible:shadow-focus-ring",
         isActive
-          ? "bg-accent-tint text-accent-strong"
-          : "text-muted hover:bg-row-hover hover:text-fg",
+          ? "bg-selected text-fg shadow-card"
+          : "text-muted hover:bg-surface-2 hover:text-fg",
         className
       )}
       data-active={isActive ? "true" : "false"}
@@ -166,7 +166,7 @@ function SettingsSectionLink({
     >
       <Icon
         aria-hidden="true"
-        className={cn("size-4 shrink-0", isActive ? "text-accent-strong" : "text-subtle")}
+        className={cn("size-4 shrink-0", isActive ? "text-fg" : "text-subtle")}
       />
       <span className="whitespace-nowrap @min-settings-takeover:truncate" title={section.label}>
         {section.label}

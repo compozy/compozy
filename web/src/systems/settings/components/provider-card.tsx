@@ -16,7 +16,7 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
   const testId = `settings-page-providers-card-${provider.name}`;
 
   return (
-    <CatalogCard actionable className="border border-line p-0" data-state={view.state.label}>
+    <CatalogCard actionable className="p-0" data-state={view.state.label}>
       <button
         className="group flex min-h-full w-full flex-col gap-3 px-4 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}

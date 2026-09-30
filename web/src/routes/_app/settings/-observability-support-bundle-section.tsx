@@ -1,7 +1,7 @@
 import { Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Pill, Spinner } from "@compozy/ui";
+import { Button, Checkbox, Pill, Spinner } from "@compozy/ui";
 import {
   SettingsFieldRow,
   SettingsGroup,
@@ -99,19 +99,18 @@ function SupportBundleRow() {
       />
       {consentOpen ? (
         <div
-          className="mx-4 mb-3 flex flex-col gap-3 rounded-md border border-line bg-canvas px-4 py-3"
+          className="mx-4 mb-3 flex flex-col gap-3 rounded-lg bg-sunken px-4 py-3"
           data-testid="settings-page-observability-support-bundle-consent-panel"
         >
           <label className="flex items-start gap-3 text-small-body text-subtle">
-            <input
+            <Checkbox
               checked={approved}
-              className="mt-0.5 size-4 rounded border border-line bg-canvas-soft accent-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="mt-0.5"
               data-testid="settings-page-observability-support-bundle-consent"
-              onChange={event => {
-                setApproved(event.currentTarget.checked);
-                if (event.currentTarget.checked) setConsentError(null);
+              onCheckedChange={checked => {
+                setApproved(checked);
+                if (checked) setConsentError(null);
               }}
-              type="checkbox"
             />
             <span>I approve creating a privacy-safe support bundle.</span>
           </label>

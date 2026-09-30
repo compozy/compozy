@@ -34,7 +34,7 @@ export function OnboardingSetupFooter({
   return (
     <footer
       data-slot="onboarding-setup-footer"
-      className="flex h-setup-footer flex-none items-center gap-4 border-t border-line bg-canvas-soft px-4 max-md:h-auto max-md:flex-wrap max-md:py-3"
+      className="flex h-setup-footer flex-none items-center gap-4 border-t border-line-soft px-4 max-md:h-auto max-md:flex-wrap max-md:py-3"
     >
       <div
         className="flex min-w-0 flex-1 flex-col gap-0.5"

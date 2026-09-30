@@ -22,7 +22,7 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
 
   return (
     <section
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="overflow-hidden rounded-lg bg-canvas shadow-card"
       data-slot="worktree-scope-block"
       data-truncated={scope.untracked_truncated ? "" : undefined}
     >

@@ -29,9 +29,9 @@ export function LayoutProfileCard({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-lg border border-line bg-canvas-soft",
-        "transition-colors duration-base ease-out hover:border-line-strong",
-        selected && "border-accent-dim bg-accent-tint"
+        "flex flex-col overflow-hidden rounded-lg bg-canvas shadow-card",
+        "transition-colors duration-base ease-out",
+        selected ? "bg-selected shadow-inset-strong" : "hover:bg-surface-2"
       )}
       data-selected={selected ? "true" : undefined}
       data-testid={`layout-profile-card-${record.id}`}
@@ -115,7 +115,7 @@ function LayoutProfileThumbnail({ record }: { record: WindowManagerLayoutResourc
         <g key={`${tile.x}:${tile.y}:${tile.w}:${tile.h}`}>
           {tile.stacked ? (
             <rect
-              className="fill-surface-glaze stroke-line-strong"
+              className="fill-surface-2 stroke-line-strong"
               height={tile.h}
               rx="1.6"
               strokeWidth="0.8"

@@ -58,7 +58,7 @@ export function RoleAdvancedDetails({
     >
       <div className="flex flex-col gap-6 pt-4">
         {advancedFields.length > 0 ? (
-          <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+          <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
             {advancedFields.map(field => {
               const id = roleFieldId(role, field.key);
               return (

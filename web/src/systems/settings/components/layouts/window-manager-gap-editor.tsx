@@ -48,7 +48,7 @@ export function WindowManagerGapEditor({
           }}
         >
           {[0, 1, 2, 3].map(index => (
-            <div className="rounded-xxs border border-line-strong bg-surface-glaze" key={index} />
+            <div className="rounded-xxs border border-line-strong bg-surface-2" key={index} />
           ))}
         </div>
 

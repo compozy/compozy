@@ -29,7 +29,7 @@ export function ExtensionPalettePanel({ extension }: ExtensionPalettePanelProps)
     <section
       aria-label={`${extension.name} palette contributions`}
       className={cn(
-        "overflow-hidden rounded-lg border border-line bg-canvas-soft",
+        "overflow-hidden rounded-lg bg-canvas shadow-card",
         unavailable && "text-muted"
       )}
       data-testid={`extension-palette-${extension.name}`}

@@ -210,15 +210,19 @@ describe("AgentSessionsList", () => {
     );
 
     const status = screen.getByTestId("agent-session-status-sess_user_running");
-    expect(status).toHaveTextContent("RUNNING");
+    expect(status).toHaveTextContent("Running");
+    expect(status.querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "running"
+    );
     expect(screen.getByTestId("agent-session-status-sess_spawned_running")).toHaveTextContent(
-      "RUNNING"
+      "Running"
     );
     expect(screen.getByTestId("agent-session-status-sess_system_running")).toHaveTextContent(
-      "RUNNING"
+      "Running"
     );
     expect(screen.getByTestId("agent-session-status-sess_coordinator_running")).toHaveTextContent(
-      "RUNNING"
+      "Running"
     );
   });
 
@@ -234,9 +238,14 @@ describe("AgentSessionsList", () => {
       />
     );
 
-    expect(screen.getByTestId("agent-session-status-sess_idle")).toHaveTextContent("ACTIVE");
+    expect(screen.getByTestId("agent-session-status-sess_idle")).toHaveTextContent("Active");
+    for (const id of ["sess_idle", "sess_stopped"]) {
+      expect(
+        screen.getByTestId(`agent-session-status-${id}`).querySelector('[data-slot="state-glyph"]')
+      ).not.toHaveAttribute("data-state", "running");
+    }
     expect(screen.getByTestId("agent-session-status-sess_idle")).not.toHaveAttribute("aria-label");
-    expect(screen.getByTestId("agent-session-status-sess_stopped")).toHaveTextContent("DONE");
+    expect(screen.getByTestId("agent-session-status-sess_stopped")).toHaveTextContent("Done");
     expect(screen.getByTestId("agent-session-status-sess_stopped")).not.toHaveAttribute(
       "aria-label"
     );
@@ -254,13 +263,13 @@ describe("AgentSessionsList", () => {
       />
     );
 
-    expect(screen.getByTestId("agent-session-status-sess_hung")).toHaveTextContent("HUNG");
-    expect(screen.getByTestId("agent-session-status-sess_hung")).not.toHaveTextContent("RUNNING");
+    expect(screen.getByTestId("agent-session-status-sess_hung")).toHaveTextContent("Hung");
+    expect(screen.getByTestId("agent-session-status-sess_hung")).not.toHaveTextContent("Running");
     expect(screen.getByTestId("agent-session-status-sess_unhealthy")).toHaveTextContent(
-      "UNHEALTHY"
+      "Unhealthy"
     );
     expect(screen.getByTestId("agent-session-status-sess_unhealthy")).not.toHaveTextContent(
-      "RUNNING"
+      "Running"
     );
   });
 
@@ -295,16 +304,16 @@ describe("AgentSessionsList", () => {
       />
     );
 
-    expect(screen.getByTestId("agent-session-status-sess_hung_activity")).toHaveTextContent("HUNG");
+    expect(screen.getByTestId("agent-session-status-sess_hung_activity")).toHaveTextContent("Hung");
     expect(screen.getByTestId("agent-session-status-sess_hung_activity")).not.toHaveTextContent(
-      "RUNNING"
+      "Running"
     );
     expect(screen.getByTestId("agent-session-status-sess_unhealthy_activity")).toHaveTextContent(
-      "UNHEALTHY"
+      "Unhealthy"
     );
     expect(
       screen.getByTestId("agent-session-status-sess_unhealthy_activity")
-    ).not.toHaveTextContent("RUNNING");
+    ).not.toHaveTextContent("Running");
   });
 
   it("loads the next server page from an accessible loading-aware control", () => {

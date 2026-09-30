@@ -63,9 +63,7 @@ export function SettingsGroup({
       {bare ? (
         children
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-          {children}
-        </div>
+        <div className="overflow-hidden rounded-lg bg-canvas shadow-card">{children}</div>
       )}
     </section>
   );

@@ -308,7 +308,7 @@ export function WorktreeSubmenuPanel({
           data-testid={`${testIdPrefix}-worktree-option-${entry.key}`}
           className={cn(
             "group/wtnest flex min-h-control-compact min-w-0 items-center overflow-hidden rounded-md px-1.5 py-1 text-left",
-            "hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none focus-visible:shadow-focus-ring",
+            "hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring",
             !entry.selectable && "pointer-events-none opacity-50"
           )}
           onClick={() => selectEntry(entry)}
@@ -344,7 +344,7 @@ export function WorktreeSubmenuPanel({
           data-testid={`${testIdPrefix}-worktree-create-${workspaceId}`}
           className={cn(
             FOOTER_ROW_CLASS,
-            "flex w-full items-center gap-2 rounded-md px-1.5 text-form-label text-subtle hover:bg-elevated"
+            "flex w-full items-center gap-2 rounded-md px-1.5 text-form-label text-subtle hover:bg-surface-2"
           )}
           onClick={() => {
             onCreateWorktree();

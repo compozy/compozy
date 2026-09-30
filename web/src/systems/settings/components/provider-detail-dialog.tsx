@@ -189,7 +189,7 @@ function ProviderDetailTabs({
   onChange: (next: DetailTab) => void;
 }) {
   return (
-    <div className="border-b border-line bg-canvas-soft px-5 pb-2">
+    <div className="border-b border-line px-5 pb-2">
       <LaneTabs<DetailTab>
         ariaLabel="Provider detail sections"
         items={DETAIL_TABS}

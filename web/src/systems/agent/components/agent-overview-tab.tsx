@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, MessageSquare } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, MetadataList, Panel, Pill, Skeleton } from "@compozy/ui";
+import { Button, Empty, MetadataList, Panel, Pill, Skeleton, StateGlyph } from "@compozy/ui";
 
 import { permissionLabel } from "../lib/agent-permissions";
 import type { AgentPayload } from "../types";
@@ -160,8 +160,8 @@ export function AgentOverviewTab({
                         <span className="mt-1 block text-small-body text-muted">{elapsed}</span>
                       ) : null}
                     </span>
-                    <Pill size="sm" tone="success">
-                      <Pill.Dot size="sm" tone="success" />
+                    <Pill size="sm" tone="neutral">
+                      <StateGlyph state="running" size="sm" />
                       Active
                     </Pill>
                   </Link>

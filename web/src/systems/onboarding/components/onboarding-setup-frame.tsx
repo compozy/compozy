@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Lock } from "lucide-react";
 
 import { Dialog, DialogContent, DialogTitle, Icon, Logo, Pill, cn } from "@compozy/ui";
@@ -26,6 +27,9 @@ export interface OnboardingSetupFrameProps {
  */
 export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
   const { height: bodyHeight, measureRef } = useSetupBodyHeight();
+  // Opening lands on the step title so a reader hears the question first; the
+  // default (first tabbable) would ring the progress strip before any input.
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const model = wizard.defaultModel;
   const summary = onboardingSummary({
     step: wizard.step,
@@ -48,18 +52,19 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
         // Blocking by construction: Esc and outside presses are inert, so assistive
         // tech gets the explicit-choice contract the interaction already implements.
         role="alertdialog"
+        initialFocus={titleRef}
         data-testid="onboarding-setup-panel"
         data-step={wizard.step}
         className={cn(
-          "flex max-h-[calc(100dvh-3rem)] flex-col border border-line-strong bg-canvas",
+          "flex max-h-[calc(100dvh-3rem)] flex-col",
           // Beats DIALOG_CONTENT_BASE's `sm:max-w-sm` without dropping the viewport
           // guard: the 960px step-2 panel must still fit a 768px window.
-          "rounded-xl shadow-window sm:max-w-[calc(100%-3rem)]",
+          "sm:max-w-[calc(100%-3rem)]",
           "transition-[width] duration-shell-slow ease-spring motion-reduce:transition-none",
           wizard.step === 2 ? "w-setup-panel-wide" : "w-setup-panel",
           // Below md the panel is the whole viewport: a sheet, not a dialog.
           "max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-none max-md:w-full",
-          "max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:border-0"
+          "max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none"
         )}
       >
         <header className="flex h-setup-head flex-none items-center gap-2.5 border-b border-line pr-3.5 pl-4">
@@ -71,7 +76,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
           <Pill
             size="md"
             tone="neutral"
-            className="flex-none gap-1.5 border border-line bg-transparent text-subtle"
+            className="flex-none"
             title="CompozyOS runs on this machine — no account, no upload."
           >
             <Icon as={Lock} size="sm" aria-hidden="true" />
@@ -97,7 +102,11 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
         >
           <div key={wizard.step} className="onboarding-setup-pane-in">
             <div ref={measureRef} className="flex flex-col px-6 pt-5.5 pb-6.5 max-md:px-4">
-              <h3 className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
+              <h3
+                ref={titleRef}
+                tabIndex={-1}
+                className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong outline-none"
+              >
                 {wizard.meta.title}
               </h3>
               <p

@@ -1,4 +1,4 @@
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import { isSessionRunning, type SessionPayload } from "@/systems/session";
 
@@ -15,28 +15,28 @@ export type AgentSessionStatusKind =
 export interface AgentSessionStatus {
   kind: AgentSessionStatusKind;
   label: string;
-  tone: PillTone;
+  glyph: StateGlyphState;
 }
 
-const ACTIVE_STATUS: AgentSessionStatus = { kind: "active", label: "ACTIVE", tone: "success" };
-const RUNNING_STATUS: AgentSessionStatus = { kind: "running", label: "RUNNING", tone: "info" };
+const ACTIVE_STATUS: AgentSessionStatus = { kind: "active", label: "Active", glyph: "idle" };
+const RUNNING_STATUS: AgentSessionStatus = { kind: "running", label: "Running", glyph: "running" };
 const STARTING_STATUS: AgentSessionStatus = {
   kind: "starting",
-  label: "STARTING",
-  tone: "warning",
+  label: "Starting",
+  glyph: "queued",
 };
 const STOPPING_STATUS: AgentSessionStatus = {
   kind: "stopping",
-  label: "STOPPING",
-  tone: "warning",
+  label: "Stopping",
+  glyph: "stopped",
 };
-const FAILED_STATUS: AgentSessionStatus = { kind: "failed", label: "FAILED", tone: "danger" };
-const DONE_STATUS: AgentSessionStatus = { kind: "done", label: "DONE", tone: "neutral" };
-const HUNG_STATUS: AgentSessionStatus = { kind: "hung", label: "HUNG", tone: "warning" };
+const FAILED_STATUS: AgentSessionStatus = { kind: "failed", label: "Failed", glyph: "failed" };
+const DONE_STATUS: AgentSessionStatus = { kind: "done", label: "Done", glyph: "done" };
+const HUNG_STATUS: AgentSessionStatus = { kind: "hung", label: "Hung", glyph: "failed" };
 const UNHEALTHY_STATUS: AgentSessionStatus = {
   kind: "unhealthy",
-  label: "UNHEALTHY",
-  tone: "warning",
+  label: "Unhealthy",
+  glyph: "failed",
 };
 
 export function isAgentSessionFailure(session: SessionPayload): boolean {

@@ -37,7 +37,7 @@ export function ProfileSettingsList({
 }: ProfileSettingsListProps) {
   return (
     <div
-      className="overflow-hidden rounded-md border border-line bg-canvas-soft"
+      className="overflow-hidden rounded-lg bg-canvas shadow-card"
       data-testid={`profiles-${variant}-list`}
     >
       {profiles.map(profile => {

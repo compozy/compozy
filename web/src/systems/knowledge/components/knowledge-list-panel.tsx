@@ -51,7 +51,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
   return (
     <Item
       as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
+      className="rounded-none border-x-0 border-t-0 border-b border-line-soft px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
       indicator={isSelected ? "rail" : "none"}

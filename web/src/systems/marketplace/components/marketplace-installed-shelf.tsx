@@ -43,7 +43,7 @@ function MarketplaceInstalledShelf({ items, updates, query }: MarketplaceInstall
           />
         ))}
         {overflow > 0 ? (
-          <span className="-ml-1.5 grid size-(--size-catalog-logo) shrink-0 place-items-center rounded-sm bg-elevated font-mono text-mono-id font-semibold text-subtle ring-2 ring-canvas">
+          <span className="-ml-1.5 grid size-(--size-catalog-logo) shrink-0 place-items-center rounded-sm bg-surface-2 font-mono text-mono-id font-semibold text-subtle ring-2 ring-canvas">
             +{overflow}
           </span>
         ) : null}

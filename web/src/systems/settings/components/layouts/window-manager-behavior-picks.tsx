@@ -1,6 +1,6 @@
 import type { ComponentType, Dispatch, SetStateAction } from "react";
 
-import { HelpTip, Switch, cn } from "@compozy/ui";
+import { HelpTip, PillGroup, Switch, cn } from "@compozy/ui";
 
 import { SettingRow } from "../setting-row";
 import {
@@ -200,12 +200,13 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
             <button
               aria-checked={selected}
               className={cn(
-                "flex w-26 flex-col items-start gap-1.5 rounded-md border border-line px-2.5 pt-2 pb-2.5",
-                "bg-btn-default-fill text-left text-form-label font-medium text-muted",
+                "flex w-26 flex-col items-start gap-1.5 rounded-lg px-2.5 pt-2 pb-2.5",
+                "text-left text-form-label font-medium text-muted",
                 "transition-colors duration-base ease-out",
-                "hover:border-line-strong hover:bg-btn-default-hover hover:text-fg",
                 "focus-visible:outline-none focus-visible:shadow-focus-ring",
-                selected && "border-accent-dim bg-accent-tint text-accent-strong"
+                selected
+                  ? "bg-selected text-fg shadow-inset-strong"
+                  : "bg-canvas shadow-card hover:bg-surface-2 hover:text-fg"
               )}
               data-testid={`window-manager-pick-${String(row.key)}-${option.value}`}
               key={option.value}
@@ -243,32 +244,26 @@ function ModifierRow({
   return (
     <SettingRow
       control={
-        <div
+        <PillGroup
           aria-label={label}
-          className="inline-flex gap-0.5 rounded-md border border-line-soft bg-canvas-tint p-0.5"
-          role="radiogroup"
-        >
-          {MODIFIER_KEYS.map(key => (
-            <button
-              aria-checked={key.value === value}
-              aria-label={key.name}
-              className={cn(
-                "inline-flex h-6.5 min-w-8.5 items-center justify-center rounded-sm px-2",
-                "font-keys text-ws-name text-muted transition-colors duration-base ease-out",
-                "hover:bg-row-hover hover:text-fg",
-                "focus-visible:outline-none focus-visible:shadow-focus-ring",
-                key.value === "none" && "text-form-label font-medium",
-                key.value === value && "bg-elevated text-fg-strong shadow-highlight"
-              )}
-              key={key.value}
-              role="radio"
-              type="button"
-              onClick={() => onChange(key.value)}
-            >
-              {key.symbol}
-            </button>
-          ))}
-        </div>
+          items={MODIFIER_KEYS.map(key => ({
+            value: key.value,
+            label:
+              key.value === "none" ? (
+                key.symbol
+              ) : (
+                <>
+                  <span aria-hidden="true" className="font-keys">
+                    {key.symbol}
+                  </span>
+                  <span className="sr-only">{key.name}</span>
+                </>
+              ),
+          }))}
+          value={value}
+          onChange={onChange}
+          size="sm"
+        />
       }
       help={help}
       label={label}

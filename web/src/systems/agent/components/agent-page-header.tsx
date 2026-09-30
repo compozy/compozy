@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Pill,
+  StateGlyph,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
@@ -15,14 +16,11 @@ export interface AgentPageStatusPillProps {
 }
 
 export function AgentPageStatusPill({ activeCount }: AgentPageStatusPillProps) {
-  const status =
-    activeCount > 0
-      ? { label: "Active", tone: "success" as const }
-      : { label: "Idle", tone: "neutral" as const };
+  const active = activeCount > 0;
   return (
-    <Pill tone={status.tone} data-testid="agent-page-status">
-      <Pill.Dot tone={status.tone} size="sm" />
-      {status.label}
+    <Pill tone="neutral" data-testid="agent-page-status">
+      <StateGlyph state={active ? "running" : "idle"} size="sm" />
+      {active ? "Active" : "Idle"}
     </Pill>
   );
 }

@@ -27,7 +27,7 @@ export function LayoutDesktopTabs({
   return (
     <div
       aria-label="Desktops"
-      className="flex flex-wrap items-center gap-1 border-b border-line-soft bg-canvas-tint px-2.5 py-2"
+      className="flex flex-wrap items-center gap-1 border-b border-line-soft px-2.5 py-2"
       data-testid="layout-desktop-tabs"
       role="tablist"
     >
@@ -49,11 +49,11 @@ export function LayoutDesktopTabs({
           <button
             aria-selected={active}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-2.5",
+              "inline-flex h-7 items-center gap-1.5 rounded-pill px-2.5",
               "text-small-body font-medium text-muted transition-colors duration-base ease-out",
-              "hover:bg-row-hover hover:text-fg",
+              "hover:bg-surface-2 hover:text-fg",
               "focus-visible:outline-none focus-visible:shadow-focus-ring",
-              active && "border-line bg-elevated text-fg-strong shadow-highlight"
+              active && "bg-surface-2 text-fg shadow-card"
             )}
             data-testid={`layout-desktop-tab-${desktop.id}`}
             key={desktop.id}

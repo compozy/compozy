@@ -170,7 +170,7 @@ export function WorktreeStatusStrip({
 
   return (
     <dl
-      className="flex flex-wrap items-center overflow-hidden rounded-lg border border-line bg-canvas-soft max-md:flex-col max-md:items-stretch"
+      className="flex flex-wrap items-center overflow-hidden rounded-lg bg-canvas shadow-card max-md:flex-col max-md:items-stretch"
       data-slot="worktree-status-strip"
     >
       <BranchCell status={status} />

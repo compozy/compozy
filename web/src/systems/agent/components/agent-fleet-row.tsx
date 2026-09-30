@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@compozy/ui";
+import { KindIcon, ListingRow, Pill, StateGlyph, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
@@ -69,12 +69,8 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
       </ListingRow.Link>
       <ListingRow.Trail className="gap-3">
         {sessionsAvailable && signals ? (
-          <Pill
-            size="sm"
-            tone={signals.status === "active" ? "success" : "neutral"}
-            data-testid={`agent-fleet-status-${agent.name}`}
-          >
-            <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
+          <Pill size="sm" tone="neutral" data-testid={`agent-fleet-status-${agent.name}`}>
+            <StateGlyph state={signals.status === "active" ? "running" : "idle"} size="sm" />
             {signals.status === "active" ? "Active" : "Idle"}
           </Pill>
         ) : null}

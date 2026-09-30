@@ -56,7 +56,7 @@ export function WindowManagerRatioTrack({
       >
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute top-2.5 bottom-2.5 left-2.5 rounded-xxs border border-line-soft bg-surface-glaze"
+          className="pointer-events-none absolute top-2.5 bottom-2.5 left-2.5 rounded-xxs border border-line-soft bg-surface-2"
           style={{ width: `calc((100% - ${EDGE_PAD * 2}px) * ${preview})` }}
         />
         <span

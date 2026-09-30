@@ -65,7 +65,7 @@ export function WindowManagerConfigEditor({
           overrides={section.config.shortcuts}
           onChange={recorder.applyShortcuts}
         />
-        <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
           <WindowManagerShortcutTable
             aliases={aliases}
             apply={bindingApply}
@@ -170,7 +170,7 @@ function WindowManagerConfigCard({
 }) {
   return (
     <section
-      className={`flex flex-col overflow-hidden rounded-lg border border-line bg-canvas-soft ${className ?? ""}`}
+      className={`flex flex-col overflow-hidden rounded-lg bg-canvas shadow-card ${className ?? ""}`}
     >
       <header className="border-b border-line-soft px-3.5 py-3">
         <div className="flex items-center gap-1.5">

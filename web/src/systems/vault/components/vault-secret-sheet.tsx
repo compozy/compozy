@@ -95,7 +95,7 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
     <header className="flex items-start gap-3 border-b border-line px-5 py-4.5">
       <span
         aria-hidden="true"
-        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-glaze text-muted"
+        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-2 text-muted"
       >
         <KeyRound className="size-4" />
       </span>

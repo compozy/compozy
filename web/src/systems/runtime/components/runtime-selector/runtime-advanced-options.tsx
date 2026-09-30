@@ -239,7 +239,7 @@ export function RuntimeAdvancedOptions({
       {expanded ? (
         <div
           aria-disabled={controlsDisabled || undefined}
-          className={cn("bg-canvas-soft", controlsDisabled && "opacity-60")}
+          className={cn("bg-sunken", controlsDisabled && "opacity-60")}
           data-testid="runtime-selector-advanced-panel"
           id={panelId}
         >

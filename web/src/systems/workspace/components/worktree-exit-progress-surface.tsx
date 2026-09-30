@@ -13,7 +13,7 @@ export function WorktreeExitProgressSurface({ model }: { model: WorktreeDetailMo
   return (
     <aside
       aria-label="Worktree exit progress"
-      className="fixed right-4 bottom-4 z-50 max-w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-line bg-popover p-3 shadow-overlay"
+      className="fixed right-4 bottom-4 z-50 max-w-[min(28rem,calc(100vw-2rem))] rounded-lg bg-canvas p-3 shadow-pop"
       data-slot="worktree-exit-progress-surface"
     >
       <WorktreeExitProgress

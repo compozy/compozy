@@ -37,12 +37,12 @@ export function MCPServersTable({
     <section
       aria-label="MCP servers"
       data-testid="settings-page-mcp-servers-list"
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft max-md:border-0 max-md:bg-transparent"
+      className="overflow-hidden rounded-lg bg-canvas shadow-card max-md:bg-transparent max-md:shadow-none"
     >
       <div
         aria-hidden="true"
         className={cn(
-          "hidden min-h-9 items-center gap-x-3.5 border-b border-line bg-elevated px-3.5 md:grid",
+          "hidden min-h-9 items-center gap-x-3.5 border-b border-line px-3.5 md:grid",
           ROW_GRID
         )}
       >
@@ -106,14 +106,14 @@ function MCPServerRow({
         "grid grid-cols-2 gap-x-3.5 gap-y-3 border-t border-line-soft p-3.5 transition-colors",
         ROW_GRID,
         "md:min-h-setting-row md:items-center md:gap-y-0",
-        "max-md:rounded-lg max-md:border max-md:border-line max-md:bg-canvas-soft",
-        selected ? "bg-row-selected ring-1 ring-line-strong ring-inset" : "hover:bg-row-hover"
+        "max-md:rounded-lg max-md:bg-canvas max-md:shadow-card",
+        selected ? "bg-selected" : "hover:bg-sunken"
       )}
     >
       <div className="col-span-2 flex min-w-0 items-center gap-2.5 md:col-span-1">
         <span
           aria-hidden="true"
-          className="grid size-8 shrink-0 place-items-center rounded-md bg-elevated text-muted"
+          className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2 text-muted"
         >
           <Plug className="size-4" />
         </span>

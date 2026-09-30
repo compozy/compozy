@@ -44,7 +44,7 @@ export function SettingsHeroGauge({
 
   return (
     <section
-      className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-4"
+      className="flex flex-col gap-3 rounded-lg bg-canvas shadow-card p-4"
       data-testid={testId ?? "settings-hero-gauge"}
     >
       <div className="flex min-w-0 items-baseline gap-2.5">

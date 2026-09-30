@@ -112,7 +112,7 @@ export function HooksSection({
             </span>
           </div>
           <ul
-            className="overflow-hidden rounded-lg border border-line"
+            className="overflow-hidden rounded-lg bg-canvas shadow-card"
             data-testid="settings-page-hooks-list"
           >
             {visible.map(entry => (
@@ -161,7 +161,7 @@ function HookRow({
 
   return (
     <ListingRow
-      className="border-b-0 bg-canvas-soft py-2.5"
+      className="border-b-0 py-2.5"
       data-testid={`settings-page-hooks-row-${entry.name}`}
       interactive={false}
     >

@@ -142,7 +142,7 @@ function VaultPageLoading() {
     <ListingPage data-testid="vault-page-loading">
       <div aria-label="Loading secrets" role="status">
         <SkeletonRows
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-canvas shadow-card"
           count={4}
           rowClassName="flex-row items-center gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
         >

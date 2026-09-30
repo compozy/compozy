@@ -41,7 +41,7 @@ export function SettingsHeroBoard({
 }: SettingsHeroBoardProps) {
   return (
     <section
-      className="flex flex-col gap-4 rounded-lg border border-line bg-canvas-soft p-4"
+      className="flex flex-col gap-4 rounded-lg bg-canvas shadow-card p-4"
       data-testid={testId ?? "settings-hero-board"}
     >
       <div className="flex min-w-0 items-center gap-2.5">

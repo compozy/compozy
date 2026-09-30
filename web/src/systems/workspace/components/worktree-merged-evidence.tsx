@@ -37,7 +37,7 @@ export function WorktreeMergedEvidence({
   return (
     <div
       className={cn(
-        "flex items-center gap-2.5 rounded-lg border border-line bg-canvas-soft px-3.5 py-2.5 text-small-body",
+        "flex items-center gap-2.5 rounded-lg bg-canvas shadow-card px-3.5 py-2.5 text-small-body",
         tone === "success" && "text-fg",
         tone === "info" && "text-muted",
         tone === "warning" && "text-muted"

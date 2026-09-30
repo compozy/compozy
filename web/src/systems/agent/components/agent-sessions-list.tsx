@@ -10,6 +10,7 @@ import {
   CollapsibleTrigger,
   Pill,
   Skeleton,
+  StateGlyph,
   Spinner,
   Table,
   TableBody,
@@ -18,7 +19,6 @@ import {
   TableHeader,
   TableRow,
   Time,
-  cn,
   formatDuration as formatCanonicalDuration,
 } from "@compozy/ui";
 
@@ -26,7 +26,6 @@ import { getAgentSessionStatus } from "../lib/session-status";
 
 import {
   getSessionDisplayTitle,
-  isSessionRunning,
   type SessionLifecycleActionHandlers,
   type SessionPayload,
   SessionRowActions,
@@ -200,7 +199,6 @@ interface AgentSessionRowProps {
 
 function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
-  const running = isSessionRunning(session);
   const title = getSessionDisplayTitle(session);
   return (
     <TableRow data-testid={`agent-session-row-${session.id}`} data-state={status.kind}>
@@ -208,10 +206,7 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
         <Link
           to="/agents/$name/sessions/$id"
           params={{ name: agentName, id: session.id }}
-          className={cn(
-            "text-item-title flex flex-col gap-0.5 text-fg",
-            "transition-colors hover:text-accent"
-          )}
+          className="text-item-title flex flex-col gap-0.5 text-fg"
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
@@ -219,8 +214,8 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap justify-start gap-1">
-          <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
-            {running ? <Spinner className="size-3" /> : null}
+          <Pill tone="neutral" data-testid={`agent-session-status-${session.id}`}>
+            <StateGlyph state={status.glyph} size="sm" />
             {status.label}
           </Pill>
           {session.archived_at !== null ? <Pill tone="neutral">Archived</Pill> : null}
