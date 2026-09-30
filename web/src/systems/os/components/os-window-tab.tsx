@@ -1,4 +1,12 @@
-import { Pill, Tooltip, TooltipContent, TooltipTrigger, type TopbarSlotStore } from "@compozy/ui";
+import {
+  Pill,
+  StateGlyph,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  type StateGlyphState,
+  type TopbarSlotStore,
+} from "@compozy/ui";
 import { X } from "lucide-react";
 import * as React from "react";
 
@@ -21,20 +29,17 @@ const TAB_STATE_LABELS: Record<Exclude<OsWindowTabState, null>, string> = {
   quiet: "Session idle",
 };
 
-function TabStateDot({ state, label }: { state: OsWindowTabState; label: string }) {
+/** Tab vocabulary → the canonical StateGlyph states (StateGlyph mapping table). */
+const TAB_STATE_GLYPH: Record<Exclude<OsWindowTabState, null>, StateGlyphState> = {
+  running: "running",
+  "needs-input": "attention",
+  attention: "attention",
+  quiet: "idle",
+};
+
+function TabStateGlyph({ state, label }: { state: OsWindowTabState; label: string }) {
   if (state === null) return null;
-  return (
-    <Pill.Dot
-      aria-hidden={undefined}
-      className="shrink-0"
-      pulse={state === "running"}
-      size="sm"
-      tone={state === "running" ? "success" : state === "quiet" ? "neutral" : "accent"}
-      data-state={state}
-      role="img"
-      aria-label={label}
-    />
-  );
+  return <StateGlyph state={TAB_STATE_GLYPH[state]} size="sm" label={label} />;
 }
 
 export interface OsWindowTabProps {
@@ -170,7 +175,7 @@ function OsWindowTabGlyph({
 }) {
   if (isSession) {
     const state = sessionTabState(session);
-    return <TabStateDot state={state} label={state ? TAB_STATE_LABELS[state] : "Session idle"} />;
+    return <TabStateGlyph state={state} label={state ? TAB_STATE_LABELS[state] : "Session idle"} />;
   }
   if (isNewTab) return null;
   const AppIcon = app.icon;

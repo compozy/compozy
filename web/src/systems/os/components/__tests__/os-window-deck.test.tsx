@@ -284,9 +284,10 @@ describe("OsWindowDeck", () => {
     const view = renderDeck(frame);
 
     const sessionTab = screen.getByTestId("os-window-tab-window:session");
+    // needs-input shares the attention glyph; its accessible name keeps the distinction.
     expect(within(sessionTab).getByRole("img", { name: "Session needs input" })).toHaveAttribute(
       "data-state",
-      "needs-input"
+      "attention"
     );
     // The state dot alone carries needs-input; no second hard-coded count badge.
     expect(within(sessionTab).queryByText("1")).toBeNull();

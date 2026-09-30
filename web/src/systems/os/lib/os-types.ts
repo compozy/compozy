@@ -70,11 +70,11 @@ export interface OsWindow {
   parentAxis: LayoutAxis | null;
 }
 
-export type OsWallpaper = "ember" | "mesh" | "carbon";
+export type OsWallpaper = "flat" | "ember" | "mesh" | "carbon";
 export type OsPresentation = "floating" | "compact";
 export type OsViewportState = "ready" | "rejected";
 export type OsHydration = "pending" | "live" | "degraded";
-export type OsArrangePreset = "two-up" | "grid";
+export type OsArrangePreset = "two-up" | "grid" | "main-stack" | "columns";
 
 export interface OsOpenTarget {
   app: OsAppId;
@@ -244,5 +244,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
 }
 
 export const OS_COMPACT_BREAKPOINT = 960;
-export const OS_WINDOW_MIN_WIDTH = 280;
-export const OS_WINDOW_MIN_HEIGHT = 180;
+/** Per-pane floor (shell-rail VC-03): seams and free edges stop at 220px on either axis. */
+export const OS_WINDOW_MIN_WIDTH = 220;
+export const OS_WINDOW_MIN_HEIGHT = 220;

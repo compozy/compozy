@@ -87,6 +87,7 @@ export function opContext(frame: OsWindowFrameModel | null, focusedId: string | 
     reopenWindow: vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) })),
     switchDesktop: vi.fn(),
     switchDesktopDirection: vi.fn(),
+    moveWindowToDesktop: vi.fn(),
     createDesktop: vi.fn(),
     closeWindow: vi.fn(() => Promise.resolve(true)),
     groupWindows: vi.fn(),

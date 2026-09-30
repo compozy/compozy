@@ -114,6 +114,27 @@ describe("cmd-palette client-op table — navigation v2", () => {
     expect(context.manager.switchDesktop).toHaveBeenCalledOnce();
   });
 
+  it("Should move the focused window to a desktop slot in switcher order and no-op onto its own desktop", () => {
+    const context = opContext(null, "w-2");
+    context.state.desktops = [
+      { id: "desktop:c", order: 1 },
+      { id: "desktop:b", order: 0 },
+      { id: "desktop:a", order: 0 },
+    ];
+
+    void run("window.move_to_desktop.3", context);
+    expect(context.manager.moveWindowToDesktop).toHaveBeenCalledExactlyOnceWith("w-2", "desktop:c");
+
+    void run("window.move_to_desktop.1", context);
+    void run("window.move_to_desktop.9", context);
+    expect(context.manager.moveWindowToDesktop).toHaveBeenCalledOnce();
+
+    const unfocused = opContext(null, null);
+    unfocused.state.desktops = [{ id: "desktop:b", order: 0 }];
+    void run("window.move_to_desktop.1", unfocused);
+    expect(unfocused.manager.moveWindowToDesktop).not.toHaveBeenCalled();
+  });
+
   it("Should route session and attention actions through their shared shell owners [UT-074]", () => {
     const context = opContext(null, null);
     void run("session.cycle.next", context);

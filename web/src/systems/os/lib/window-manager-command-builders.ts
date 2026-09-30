@@ -61,23 +61,48 @@ export function swapWindowsCommand(
   };
 }
 
+const ARRANGEMENT_BY_PRESET = {
+  "two-up": "horizontal",
+  grid: "grid",
+  "main-stack": "main_stack",
+  columns: "horizontal",
+} as const satisfies Record<OsArrangePreset, string>;
+
+/**
+ * Participants per preset, anchor first: two-up pairs the anchor with one peer
+ * and grid caps at four; main-stack and columns take every visible peer (the
+ * active member of each tab frame), so no hidden tab is pulled out of its deck.
+ */
+function arrangeParticipants(
+  anchor: OsWindow,
+  peers: readonly OsWindow[],
+  preset: OsArrangePreset
+): string[] {
+  switch (preset) {
+    case "two-up":
+      return [anchor.id, ...peers.slice(0, 1).map(window => window.id)];
+    case "grid":
+      return [anchor.id, ...peers.slice(0, 3).map(window => window.id)];
+    case "main-stack":
+    case "columns":
+      return [anchor.id, ...peers.flatMap(window => (window.stackActive ? [window.id] : []))];
+  }
+}
+
 export function arrangeLayoutCommand(
   anchor: OsWindow,
   peers: readonly OsWindow[],
   preset: OsArrangePreset,
   groupId: string
 ): WindowManagerCommandInput | null {
-  const participants =
-    preset === "two-up"
-      ? [anchor.id, ...peers.slice(0, 1).map(window => window.id)]
-      : [anchor.id, ...peers.slice(0, 3).map(window => window.id)];
+  const participants = arrangeParticipants(anchor, peers, preset);
   if (participants.length < 2) return null;
   return {
     commandId: "layout.arrange",
     payload: {
       desktop_id: anchor.desktopId,
       window_ids: participants,
-      arrangement: preset === "two-up" ? "horizontal" : "grid",
+      arrangement: ARRANGEMENT_BY_PRESET[preset],
       frame: normalizedRectToWire({ x: 0, y: 0, w: 1, h: 1 }),
       group_id: groupId,
     },

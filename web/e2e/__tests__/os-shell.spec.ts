@@ -1430,7 +1430,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.keyboard.press("Escape");
 
   await openMenu(appPage, "Window");
-  await appPage.getByRole("menuitem", { name: /^Desktops overview/ }).click();
+  await appPage.getByRole("menuitem", { name: /^All desktops/ }).click();
   const desktops = appPage.locator('[data-slot="desktops-overview"]');
   await expect(desktops).toBeVisible();
   await expect(desktops.getByRole("heading", { name: "Desktops" })).toBeVisible();

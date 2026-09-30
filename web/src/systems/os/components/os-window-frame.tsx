@@ -66,7 +66,7 @@ function OsWindowToolbar() {
   return (
     <div
       data-slot="os-window-toolbar"
-      className="no-scrollbar flex h-[38px] shrink-0 items-center gap-2.5 overflow-x-auto border-b border-line bg-canvas px-3 py-0.5 [&_[data-slot=listing-toolbar]]:w-full [&_[data-slot=listing-toolbar]]:flex-nowrap"
+      className="no-scrollbar flex h-window-toolbar shrink-0 items-center gap-2.5 overflow-x-auto border-b border-line bg-canvas px-3 [&_[data-slot=listing-toolbar]]:w-full [&_[data-slot=listing-toolbar]]:flex-nowrap"
     >
       {slot.toolbar}
     </div>

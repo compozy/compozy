@@ -28,7 +28,7 @@ const PLACEMENTS: readonly (SnapSide | SnapCorner)[] = [
   "bottom-left",
   "bottom-right",
 ];
-const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid"];
+const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid", "main-stack", "columns"];
 
 function focusedWindowId(context: PaletteClientOpContext): string | null {
   return currentState(context).focusedId;
@@ -90,6 +90,18 @@ function tilePlacement(placement: SnapSide | SnapCorner): PaletteClientOpHandler
     const state = currentState(context);
     if (state.focusedId === null || state.windowManagerConfig === null) return;
     context.manager.tileWindow(state.focusedId, placement);
+  };
+}
+
+/** Sends the focused window to the desktop at `slot` (1-based, in desktop order). */
+function moveFocusedWindowToDesktop(slot: number): PaletteClientOpHandler {
+  return context => {
+    const state = currentState(context);
+    const focusedId = state.focusedId;
+    const window = focusedId === null ? undefined : state.windows[focusedId];
+    const target = orderedDesktops(state.desktops)[slot - 1];
+    if (!window || !target || target.id === window.desktopId) return;
+    context.manager.moveWindowToDesktop(window.id, target.id);
   };
 }
 
@@ -171,6 +183,9 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
           if (target) context.manager.switchDesktop(target.id);
         },
       ] as const
+  ),
+  ...DESKTOP_SWITCH_SLOTS.map(
+    slot => [`window.move_to_desktop.${slot}`, moveFocusedWindowToDesktop(slot)] as const
   ),
   ...PLACEMENTS.map(placement => [`window.tile.${placement}`, tilePlacement(placement)] as const),
   ...ARRANGE_PRESETS.map(preset => [`layout.arrange.${preset}`, arrangePreset(preset)] as const),

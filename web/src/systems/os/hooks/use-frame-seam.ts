@@ -3,7 +3,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import { frameSeamDeltaNormalized } from "../lib/frame-seams";
 import type { ProjectedFrameSeam } from "../lib/window-manager-types";
-import { createSeamDragLogic } from "./seam-drag-store";
+import { createSeamDragLogic, seamKeyStep } from "./seam-drag-store";
 
 /** Matches the daemon's `weightTolerance` no-op band. */
 const FRAME_SEAM_EPSILON = 0.000001;
@@ -12,10 +12,11 @@ function resizeKeyStep(
   event: KeyboardEvent<HTMLElement>,
   orientation: ProjectedFrameSeam["orientation"]
 ): number | null {
-  if (orientation === "vertical" && event.key === "ArrowLeft") return -0.02;
-  if (orientation === "vertical" && event.key === "ArrowRight") return 0.02;
-  if (orientation === "horizontal" && event.key === "ArrowUp") return -0.02;
-  if (orientation === "horizontal" && event.key === "ArrowDown") return 0.02;
+  const step = seamKeyStep(event);
+  if (orientation === "vertical" && event.key === "ArrowLeft") return -step;
+  if (orientation === "vertical" && event.key === "ArrowRight") return step;
+  if (orientation === "horizontal" && event.key === "ArrowUp") return -step;
+  if (orientation === "horizontal" && event.key === "ArrowDown") return step;
   return null;
 }
 

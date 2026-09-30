@@ -4,6 +4,7 @@ import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "../popover";
+import { KindIcon } from "./kind-icon";
 
 import { cn } from "../../lib/utils";
 import {
@@ -176,21 +177,24 @@ function TopbarIdentity({
 
   return (
     <div data-slot="topbar-identity" className="flex min-w-0 items-center gap-2.25">
-      {mark ? (
+      {mark && slot?.glyphPresentation === "state" ? (
         <span
           data-slot="topbar-glyph"
-          data-presentation={slot?.glyphPresentation ?? "icon"}
+          data-presentation="state"
           aria-hidden="true"
-          className={cn(
-            "inline-flex shrink-0 items-center justify-center",
-            slot?.glyphPresentation === "state"
-              ? "text-accent"
-              : // Identity well: the app glyph on a mint tint over the surface.
-                "size-6.5 rounded-sm bg-well text-success [&_svg]:size-4"
-          )}
+          className="inline-flex shrink-0 items-center justify-center text-accent"
         >
           {mark}
         </span>
+      ) : mark ? (
+        <KindIcon
+          aria-hidden="true"
+          data-slot="topbar-glyph"
+          data-presentation="icon"
+          glyph={mark}
+          size="sm"
+          tone="well"
+        />
       ) : null}
       <TopbarTitle titleRef={titleRef}>{leaf}</TopbarTitle>
       {count}

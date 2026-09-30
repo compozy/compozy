@@ -122,7 +122,7 @@ var fixedShellCommands = []shellCommandDefinition{
 	{id: "desktop.switch.previous", title: "Previous desktop", section: coreSectionDesktops, icon: coreIconChevronLeft},
 	{id: "desktop.switch.next", title: "Next desktop", section: coreSectionDesktops, icon: coreIconChevronRight},
 	{id: "desktop.create", title: "Create desktop", section: coreSectionDesktops, icon: coreIconPlus},
-	{id: "desktop.overview", title: "Desktops overview", section: coreSectionDesktops, icon: coreIconMonitor},
+	{id: "desktop.overview", title: "All desktops", section: coreSectionDesktops, icon: coreIconMonitor},
 	{id: "workspace.picker", title: "Workspace picker", section: coreSectionWorkspaces, icon: "folder"},
 	{
 		id:      "workspace.cycle.previous",
@@ -139,20 +139,27 @@ var fixedShellCommands = []shellCommandDefinition{
 		needsFocus: true,
 	},
 	{
-		id:         "layout.arrange.grid",
-		title:      "Arrange in grid",
-		section:    coreSectionLayout,
-		icon:       "layout-grid",
-		needsFocus: true,
-	},
-	{
 		id:         "layout.arrange.main-stack",
-		title:      "Arrange main and stack",
+		title:      "Main and stack",
 		section:    coreSectionLayout,
 		icon:       "layout-panel-left",
 		needsFocus: true,
 	},
-	{id: "layout.balance", title: "Balance layout", section: coreSectionLayout, icon: "scale", needsFocus: true},
+	{
+		id:         "layout.arrange.columns",
+		title:      "Columns",
+		section:    coreSectionLayout,
+		icon:       "columns-3",
+		needsFocus: true,
+	},
+	{
+		id:         "layout.arrange.grid",
+		title:      "Grid",
+		section:    coreSectionLayout,
+		icon:       "layout-grid",
+		needsFocus: true,
+	},
+	{id: "layout.balance", title: "Balance sizes", section: coreSectionLayout, icon: "scale", needsFocus: true},
 	{id: "layout.undo", title: "Undo layout", section: coreSectionLayout, icon: "undo-2"},
 	{id: "layout.redo", title: "Redo layout", section: coreSectionLayout, icon: "redo-2"},
 }
@@ -181,6 +188,13 @@ func shellCommands() []cmdpalette.Descriptor {
 		definitions = append(definitions, shellCommandDefinition{
 			id:    cmdpalette.CommandID(fmt.Sprintf("desktop.switch.%d", slot)),
 			title: fmt.Sprintf("Switch to desktop %d", slot), section: coreSectionDesktops, icon: coreIconMonitor,
+		})
+	}
+	for slot := 1; slot <= 9; slot++ {
+		definitions = append(definitions, shellCommandDefinition{
+			id:    cmdpalette.CommandID(fmt.Sprintf("window.move_to_desktop.%d", slot)),
+			title: fmt.Sprintf("Move window to desktop %d", slot), section: coreSectionDesktops,
+			icon: coreIconMonitor, needsFocus: true,
 		})
 	}
 	commands := make([]cmdpalette.Descriptor, 0, len(definitions))

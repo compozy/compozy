@@ -108,8 +108,8 @@ const CONFIG: WindowManagerConfig = {
 describe("window-manager view", () => {
   it("Should derive each window minimum from the same frame contract", () => {
     expect(buildWindowManagerMinimums(SNAPSHOT)).toEqual({
-      "window:dashboard": { width: 280, height: 180 },
-      "window:tasks": { width: 280, height: 180 },
+      "window:dashboard": { width: 220, height: 220 },
+      "window:tasks": { width: 220, height: 220 },
     });
   });
 
@@ -126,7 +126,7 @@ describe("window-manager view", () => {
         connectedAt: "2026-07-22T00:00:00Z",
         presentationRevision: 1,
       },
-      { x: 0, y: 0, w: 540, h: 400 },
+      { x: 0, y: 0, w: 400, h: 400 },
       CONFIG
     );
 
@@ -141,14 +141,14 @@ describe("window-manager view", () => {
       snapshot: SNAPSHOT,
       client: null,
       projections,
-      workArea: { x: 0, y: 0, w: 540, h: 400 },
+      workArea: { x: 0, y: 0, w: 400, h: 400 },
       gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: false,
     });
     const windows = buildWindowManagerWindows({
       snapshot: SNAPSHOT,
       client: null,
-      workArea: { x: 0, y: 0, w: 540, h: 400 },
+      workArea: { x: 0, y: 0, w: 400, h: 400 },
       projections,
       frames,
     });
