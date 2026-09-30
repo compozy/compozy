@@ -282,6 +282,7 @@ function DesktopShellScopedBody({
       <ShellDesktopDock
         dormant={firstRun}
         onNewSession={openNewSession}
+        onPickProject={() => overlays.setOverlayOpen("workspace-menu", true)}
         badges={attention.badges}
         contextMenusEnabled={overlays.activeOverlay === null}
         profileSwitcher={
@@ -305,6 +306,7 @@ function DesktopShellScopedBody({
         <OsWinLayer
           model={winLayer}
           paletteShortcutLabel={shortcutLabels.palette}
+          hasProject={model.runtimeWorkspaceId !== null}
           onNewSession={openNewSession}
           reducedMotion={reducedMotion}
           transition={transition}

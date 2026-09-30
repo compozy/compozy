@@ -11,6 +11,10 @@ export const GLOBAL_SCOPE_COPY = {
   paletteToggleOff: "Turn off Global scope",
   paletteSwitchTurnsOff: "turns Global scope off",
   skipOnboarding: "Skip — use my home folder",
+  /** Global has no project to start a session in: the reason on every New session it disables. */
+  newSessionNeedsProject: "Pick a project to start a session",
+  /** Accessible name of a disabled New session control in Global. */
+  newSessionNeedsProjectName: "New session — pick a project to start a session",
 } as const;
 
 export function globalScopeTooltipOn(workspaceName: string): string {

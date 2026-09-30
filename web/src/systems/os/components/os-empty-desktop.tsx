@@ -1,13 +1,16 @@
-import { AppWindow, Plus } from "lucide-react";
+import { AppWindow } from "lucide-react";
 
-import { Button, Card, CardDescription, CardTitle, KindIcon } from "@compozy/ui";
+import { Card, CardDescription, CardTitle, KindIcon } from "@compozy/ui";
 
+import { OsNewSessionButton } from "./os-new-session-button";
 import { OsShortcutChords } from "./os-shortcut-chords";
 
 export interface OsEmptyDesktopProps {
   desktopName: string;
   /** Live palette chord ("⌘K"); omitted until the keymap is known. */
   paletteShortcutLabel: string | null;
+  /** Global scope has no project to start a session in. */
+  hasProject: boolean;
   onNewSession: () => void;
 }
 
@@ -18,6 +21,7 @@ export interface OsEmptyDesktopProps {
 export function OsEmptyDesktop({
   desktopName,
   paletteShortcutLabel,
+  hasProject,
   onNewSession,
 }: OsEmptyDesktopProps) {
   return (
@@ -41,10 +45,11 @@ export function OsEmptyDesktop({
             "."
           )}
         </CardDescription>
-        <Button onClick={onNewSession}>
-          <Plus aria-hidden="true" data-icon="inline-start" />
-          New session
-        </Button>
+        <OsNewSessionButton
+          hasProject={hasProject}
+          onNewSession={onNewSession}
+          disabledTestId="os-desk-new-session-disabled"
+        />
       </Card>
     </div>
   );

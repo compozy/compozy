@@ -461,6 +461,42 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
   });
 
+  it("Should hand a Global dock click with no sessions to the workspace switcher and say why", () => {
+    launchCatalog.workspaceId = null;
+    launchCatalog.sessions = [];
+    const onNewSession = vi.fn();
+    const onPickProject = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession, onPickProject }));
+    setDockState(desktopState());
+
+    const sessions = result.current.entries.find(entry => entry.id === "session");
+    expect(sessions?.hint).toBe("Pick a project to start a session");
+    act(() => result.current.handleSelect("session"));
+
+    expect(onPickProject).toHaveBeenCalledOnce();
+    expect(onNewSession).not.toHaveBeenCalled();
+  });
+
+  it("Should name the Sessions launcher with its Global hint", () => {
+    renderDock(
+      <OsDock
+        items={[
+          {
+            id: "session",
+            name: "Sessions",
+            icon: "sessions",
+            hint: "Pick a project to start a session",
+          },
+        ]}
+        onSelect={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Sessions. Pick a project to start a session" })
+    ).toBeInTheDocument();
+  });
+
   it("Should ignore a Sessions dock click while the catalog is still unknown", async () => {
     launchCatalog.ready = false;
     const onNewSession = vi.fn();
@@ -615,6 +651,17 @@ describe("OsDock", () => {
     expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
     expect(document.querySelector('[data-slot="os-rail"]')).toBeNull();
+
+    // One tab stop for the strip; Left/Right rove and wrap like the rail's Up/Down.
+    const launchers = Array.from(
+      tabBar.querySelectorAll<HTMLButtonElement>('[data-slot="os-dock-item"]')
+    );
+    expect(launchers.filter(button => button.tabIndex === 0)).toHaveLength(1);
+    launchers[0]?.focus();
+    fireEvent.keyDown(launchers[0] as HTMLElement, { key: "ArrowLeft" });
+    expect(launchers.at(-1)).toHaveFocus();
+    fireEvent.keyDown(launchers.at(-1) as HTMLElement, { key: "ArrowRight" });
+    expect(launchers[0]).toHaveFocus();
   });
 
   it("Should mark Terminal running from catalog truth rather than an open window", () => {

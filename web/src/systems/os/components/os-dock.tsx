@@ -4,15 +4,14 @@ import { PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui"
 
 import { cn } from "@/lib/utils";
 
-import { dockItemAccessibleName, type OsDockItemData } from "../lib/os-dock-model";
+import { dockTabStopId, moveDockRovingFocus } from "../lib/dock-roving-focus";
+import { dockItemAccessibleName, dockItemTip, type OsDockItemData } from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
 export type { OsDockItemData } from "../lib/os-dock-model";
 
 /** Tip clearance beside the rail item (shell-rail v2 `.tip`). */
 const RAIL_TIP_SIDE_OFFSET = 10;
-
-const DOCK_ITEM_SELECTOR = '[data-slot="os-dock-item"]:not(:disabled)';
 
 /**
  * The rail: the dock as a vertical launcher column on the chrome surface,
@@ -92,7 +91,7 @@ function DockItem({
   const classes = cn(ITEM_BASE, onSelect && ITEM_INTERACTIVE, item.active && ITEM_ACTIVE);
   const tip = (
     <TooltipContent side="right" sideOffset={RAIL_TIP_SIDE_OFFSET}>
-      {item.name}
+      {dockItemTip(item)}
     </TooltipContent>
   );
 
@@ -180,22 +179,6 @@ export function OsRailButton({
   );
 }
 
-/** Up/Down roving focus across the launchers, wrapping at the ends; Home/End jump. */
-function moveRovingFocus(event: React.KeyboardEvent<HTMLElement>): void {
-  const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(DOCK_ITEM_SELECTOR));
-  const index = items.findIndex(item => item === event.target);
-  const targets: Record<string, number> = {
-    ArrowDown: index + 1,
-    ArrowUp: index - 1,
-    Home: 0,
-    End: items.length - 1,
-  };
-  const target = targets[event.key];
-  if (index < 0 || target === undefined) return;
-  event.preventDefault();
-  items[(target + items.length) % items.length]?.focus();
-}
-
 export function OsDock({
   items,
   onSelect,
@@ -207,12 +190,7 @@ export function OsDock({
   ...props
 }: OsDockProps) {
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  // One tab stop for the whole rail: the last focused launcher, else the
-  // focused app's launcher, else the first.
-  const tabStopId =
-    (focusedId !== null && items.some(item => item.id === focusedId) ? focusedId : null) ??
-    items.find(item => item.active)?.id ??
-    items[0]?.id;
+  const tabStopId = dockTabStopId(items, focusedId);
 
   return (
     <div
@@ -227,7 +205,7 @@ export function OsDock({
         data-slot="os-dock"
         aria-label={ariaLabel}
         className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-1.5 overflow-y-auto py-3.5"
-        onKeyDown={onSelect ? moveRovingFocus : undefined}
+        onKeyDown={onSelect ? event => moveDockRovingFocus(event, "vertical") : undefined}
       >
         {items.map(item => (
           <DockItem

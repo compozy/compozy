@@ -51,7 +51,7 @@ export function DesktopGate({ children }: { children: ReactNode }) {
               onClick={() => void onboarding.refetch()}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <RefreshCw className="size-3" />
               Retry
