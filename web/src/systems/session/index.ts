@@ -491,3 +491,4 @@ export {
 
 export { useSessionCatalog } from "./hooks/use-session-catalog";
 export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
+export { fetchSessionFacets } from "./adapters/session-catalog-api";

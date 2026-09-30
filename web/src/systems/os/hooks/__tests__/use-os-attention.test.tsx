@@ -101,17 +101,19 @@ import { useProfileReadScope } from "@/systems/profiles";
 import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 import { useAttentionSummary } from "../use-attention-summary";
 import { useOsAttention } from "../use-os-attention";
-import { useSessionCatalog, type SessionPayload } from "@/systems/session";
+import {
+  fetchSessionFacets,
+  sessionFacetsOptions,
+  useSessionCatalog,
+  type SessionCatalogStreamStatus,
+  type SessionPayload,
+} from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
 import {
   useActiveWorkspace,
   useScopedWorktreeFilter,
   type WorkspacePayload,
 } from "@/systems/workspace";
-
-import { fetchSessionFacets } from "@/systems/session/adapters/session-catalog-api";
-import { sessionFacetsOptions } from "@/systems/session/lib/session-catalog-options";
-import type { SessionCatalogStreamStatus } from "@/systems/session";
 
 const workspace: WorkspacePayload = {
   id: "ws_alpha",
