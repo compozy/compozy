@@ -30,7 +30,7 @@ import { LoopPageLede } from "../loop-page-lede";
 import { LoopSection } from "../loop-section";
 
 import type { LoopBindingRow } from "../../lib/loop-bindings";
-import { loopSourceLabel, successRateLabel } from "../../lib/loop-catalog";
+import { loopMonthActivity, loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
   LoopAggregate30d,
@@ -171,7 +171,7 @@ export function LoopDetailView({
             ...(category ? [category] : []),
             `${graph.nodes.length} ${graph.nodes.length === 1 ? "step" : "steps"}`,
             ...(aggregate && successRate !== null
-              ? [`${successRateLabel(successRate)} success · ${aggregate.runs} runs this month`]
+              ? [detailActivityLine(aggregate.runs, successRate)]
               : []),
           ]}
           name={loop.name}
@@ -249,4 +249,10 @@ export function LoopDetailView({
       </div>
     </div>
   );
+}
+
+/** The lede's 30-day line; a Loop with no runs states that instead of "0% success". */
+function detailActivityLine(runs: number, successRate: number): string {
+  const activity = loopMonthActivity(runs, successRate);
+  return activity.hasRuns ? `${activity.rate} success · ${activity.runs}` : activity.runs;
 }

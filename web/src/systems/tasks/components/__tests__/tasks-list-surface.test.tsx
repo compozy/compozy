@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -259,6 +259,56 @@ describe("TasksListSurface", () => {
         "aria-pressed",
         "false"
       );
+    }
+  });
+
+  // One visible representation per status: the pill that expresses it, or the
+  // Filter chip when no pill can (another status, or a strip too narrow for pills).
+  it("Should show the active status once — as a pill or as a Filter chip, never both", () => {
+    const toolbar = (statusFilter: TaskStatus | null) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={countTasksByStatus([])}
+          statusFilter={statusFilter}
+        />
+      </UIProvider>
+    );
+    const statusChip = () =>
+      within(screen.getByTestId("tasks-list-filters")).queryByText("In progress");
+
+    const { rerender, unmount } = render(toolbar("in_progress"));
+    expect(screen.getByTestId("tasks-quick-status-in_progress")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(statusChip()).toBeNull();
+
+    rerender(toolbar("failed"));
+    expect(within(screen.getByTestId("tasks-list-filters")).getByText("Failed")).toBeVisible();
+    unmount();
+
+    // A strip too narrow for the pills hands the status back to the Filter chip.
+    const measure = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(DOMRect.fromRect({ width: 400, height: 38 }));
+    try {
+      render(toolbar("in_progress"));
+      expect(screen.queryByTestId("tasks-quick-status")).toBeNull();
+      expect(statusChip()).toBeVisible();
+    } finally {
+      measure.mockRestore();
     }
   });
 

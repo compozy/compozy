@@ -214,8 +214,10 @@ function TaskRunHistorySections({
               <Time iso={lastFailedRun.ended_at} mode="relative" />
             </PropertyRow>
           ) : null}
-          <PropertyRow label="Duration" mono>
-            {computeElapsed(lastFailedRun) ?? "—"}
+          <PropertyRow label="Duration">
+            <span className="tabular-nums" data-testid="task-last-run-duration">
+              {computeElapsed(lastFailedRun) ?? "—"}
+            </span>
           </PropertyRow>
         </RailSection>
       ) : null}

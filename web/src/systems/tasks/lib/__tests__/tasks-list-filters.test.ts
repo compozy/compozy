@@ -5,6 +5,7 @@ import {
   buildTaskFilterFields,
   taskOwnerFilterValue,
   taskFiltersToChips,
+  taskQuickStatusExpresses,
 } from "../tasks-list-filters";
 
 describe("taskFiltersToChips", () => {
@@ -111,6 +112,48 @@ describe("applyTaskFilterChips", () => {
 
     expect(handlers.onStatusChange).toHaveBeenCalledWith(null);
     expect(handlers.onPriorityChange).toHaveBeenCalledWith(null);
+  });
+});
+
+// One visible representation per filter: while the quick pills show the status,
+// the Filter strip renders no status chip — and its absence is not a removal.
+describe("status shown by the quick pills", () => {
+  const handlers = () => ({
+    onStatusChange: vi.fn(),
+    onOwnerChange: vi.fn(),
+    onPriorityChange: vi.fn(),
+  });
+
+  it("Should leave the status to the pills and keep the other chips", () => {
+    const chips = taskFiltersToChips(
+      { statusFilter: "in_progress", ownerFilter: null, priorityFilter: "high" },
+      { statusShownElsewhere: true }
+    );
+    expect(chips.map(chip => chip.field)).toEqual(["priority"]);
+  });
+
+  it("Should keep the pill's status when another chip is removed", () => {
+    const setters = handlers();
+    applyTaskFilterChips([], setters, { statusShownElsewhere: true });
+    expect(setters.onStatusChange).not.toHaveBeenCalled();
+    expect(setters.onPriorityChange).toHaveBeenCalledWith(null);
+  });
+
+  it("Should let a status picked from the Filter menu replace the pill's status", () => {
+    const setters = handlers();
+    applyTaskFilterChips(
+      [{ id: "task-filter-status", field: "status", operator: "is", values: ["failed"] }],
+      setters,
+      { statusShownElsewhere: true }
+    );
+    expect(setters.onStatusChange).toHaveBeenCalledWith("failed");
+  });
+
+  it("Should say which statuses the pills express", () => {
+    expect(taskQuickStatusExpresses("in_progress")).toBe(true);
+    expect(taskQuickStatusExpresses("needs_attention")).toBe(true);
+    expect(taskQuickStatusExpresses("failed")).toBe(false);
+    expect(taskQuickStatusExpresses(null)).toBe(false);
   });
 });
 

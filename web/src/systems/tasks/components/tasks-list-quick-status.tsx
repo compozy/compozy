@@ -8,7 +8,6 @@ import {
 import type { TaskStatus } from "../types";
 
 export interface TasksListQuickStatusProps {
-  className?: string;
   statusFilter: TaskStatus | null;
   statusCounts: Record<TaskStatus, number>;
   onStatusChange: (next: TaskStatus | null) => void;
@@ -16,7 +15,6 @@ export interface TasksListQuickStatusProps {
 
 /** Leading status shortcuts on the Tasks strip (All · In progress · Needs attention). */
 export function TasksListQuickStatus({
-  className,
   statusFilter,
   statusCounts,
   onStatusChange,
@@ -33,7 +31,6 @@ export function TasksListQuickStatus({
   return (
     <PillGroup
       aria-label="Status"
-      className={className}
       data-testid="tasks-quick-status"
       items={items}
       onChange={next => onStatusChange(next === "all" || next === "other" ? null : next)}

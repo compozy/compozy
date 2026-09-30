@@ -1,11 +1,15 @@
 import { ListingToolbar } from "@compozy/ui";
 
-import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
+import { taskQuickStatusExpresses, type TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListSortKey, TaskPriority, TaskRecordsFilter, TaskStatus } from "../types";
+import { useInlineSizeAtLeast } from "../hooks/use-inline-size-at-least";
 import { TasksListFilters } from "./tasks-list-filters";
 import { TasksListQuickStatus } from "./tasks-list-quick-status";
 import { TasksListRecordsFilter } from "./tasks-list-records-filter";
 import { TasksListSort } from "./tasks-list-sort";
+
+/** Strip width (px) at which the quick status pills fit beside search and Filter. */
+const QUICK_STATUS_MIN_STRIP_WIDTH = 672;
 
 export interface TasksListToolbarProps {
   statusFilter: TaskStatus | null;
@@ -41,19 +45,26 @@ export function TasksListToolbar({
   onSearchQueryChange,
   onRecordsFilterChange,
 }: TasksListToolbarProps) {
+  // The quick pills need the strip's own width (a tiled pane, not the viewport).
+  // One measurement decides both whether they show and whether the Filter strip
+  // may leave their status to them — so a status is always visible exactly once.
+  const [toolbarRef, quickStatusFits] = useInlineSizeAtLeast<HTMLDivElement>(
+    QUICK_STATUS_MIN_STRIP_WIDTH
+  );
   return (
     // The strip collapses by priority as the pane narrows (a size container, so
     // it measures its own share of the strip): the quick status pills leave
-    // first — status stays under Filter — then Filter, the reveal and the sort
-    // drop to their icons, keeping their accessible names.
-    <ListingToolbar className="@container/tasks-strip w-full min-w-0">
+    // first — their status returns as a Filter chip — then Filter, the reveal and
+    // the sort drop to their icons, keeping their accessible names.
+    <ListingToolbar className="@container/tasks-strip w-full min-w-0" ref={toolbarRef}>
       <ListingToolbar.Leading className="flex-nowrap">
-        <TasksListQuickStatus
-          className="hidden @2xl/tasks-strip:inline-flex"
-          onStatusChange={onStatusChange}
-          statusCounts={statusCounts}
-          statusFilter={statusFilter}
-        />
+        {quickStatusFits ? (
+          <TasksListQuickStatus
+            onStatusChange={onStatusChange}
+            statusCounts={statusCounts}
+            statusFilter={statusFilter}
+          />
+        ) : null}
         <ListingToolbar.Search
           aria-label="Search tasks"
           containerClassName="min-w-20 max-w-48 flex-1"
@@ -71,6 +82,7 @@ export function TasksListToolbar({
             ownerOptions={ownerOptions}
             priorityFilter={priorityFilter}
             statusFilter={statusFilter}
+            statusShownElsewhere={quickStatusFits && taskQuickStatusExpresses(statusFilter)}
           />
         </ListingToolbar.Filters>
       </ListingToolbar.Leading>

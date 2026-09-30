@@ -179,8 +179,10 @@ function TaskRunTimingSection({
           <Time iso={record.ended_at} mode="relative" />
         </PropertyRow>
       ) : null}
-      <PropertyRow label={record.ended_at ? "Duration" : "Elapsed"} mono>
-        {duration ?? METRIC_PLACEHOLDER}
+      <PropertyRow label={record.ended_at ? "Duration" : "Elapsed"}>
+        <span className="tabular-nums" data-testid="task-run-rail-duration">
+          {duration ?? METRIC_PLACEHOLDER}
+        </span>
       </PropertyRow>
     </TaskRailSection>
   );

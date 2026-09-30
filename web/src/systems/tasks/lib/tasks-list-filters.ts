@@ -111,9 +111,12 @@ export function buildTaskFilterFields(
  * chip array. Chip ids are derived from `{field, value}` so the same logical
  * filter keeps a stable identity across renders without an intermediate cache.
  */
-export function taskFiltersToChips(state: TaskFilterState): Filter<string>[] {
+export function taskFiltersToChips(
+  state: TaskFilterState,
+  options: TaskChipOptions = {}
+): Filter<string>[] {
   const chips: Filter<string>[] = [];
-  if (state.statusFilter) {
+  if (state.statusFilter && !options.statusShownElsewhere) {
     chips.push(buildChip("status", state.statusFilter));
   }
   if (state.priorityFilter) {
@@ -137,15 +140,23 @@ function buildChip(field: TaskFilterFieldKey, value: string): Filter<string> {
 /**
  * Decode the `<Filters>` chip array back into the typed setters owned by
  * `useTasksPage`. Filters that disappear from the array reset their slot to
- * `null` so removing a chip restores the default.
+ * `null` so removing a chip restores the default. A status another control
+ * shows (see {@link TaskChipOptions}) never had a chip, so its absence is not a
+ * removal — it is kept unless a status chip is added.
  */
-export function applyTaskFilterChips(chips: Filter<string>[], handlers: TaskFilterHandlers): void {
+export function applyTaskFilterChips(
+  chips: Filter<string>[],
+  handlers: TaskFilterHandlers,
+  options: TaskChipOptions = {}
+): void {
   const lookup = new Map<string, string | undefined>();
   for (const chip of chips) {
     lookup.set(chip.field, chip.values[0]);
   }
 
-  handlers.onStatusChange(asTaskStatus(lookup.get("status")));
+  if (lookup.has("status") || !options.statusShownElsewhere) {
+    handlers.onStatusChange(asTaskStatus(lookup.get("status")));
+  }
   handlers.onPriorityChange(asTaskPriority(lookup.get("priority")));
   handlers.onOwnerChange(taskOwnerFilterFromValue(lookup.get("owner")));
 }
@@ -160,6 +171,15 @@ function asTaskPriority(value: string | undefined): TaskPriority | null {
   return (TASK_PRIORITY_OPTIONS as readonly string[]).includes(value)
     ? (value as TaskPriority)
     : null;
+}
+
+/**
+ * One visible representation per filter: while the quick status pills are on
+ * screen and the active status is one they express, the pill carries it and the
+ * Filter strip renders no duplicate chip.
+ */
+export interface TaskChipOptions {
+  statusShownElsewhere?: boolean;
 }
 
 /** Quick status shortcuts on the Tasks strip; each writes the same single `status` filter. */
@@ -200,4 +220,10 @@ export function taskQuickStatusItems(
     const exact = statusFilter === null || statusFilter === value;
     return exact ? { value, label, count } : { value, label };
   });
+}
+
+/** Whether the quick pills express `statusFilter` (so the Filter strip should not repeat it). */
+export function taskQuickStatusExpresses(statusFilter: TaskStatus | null): boolean {
+  const quick = taskQuickStatusFor(statusFilter);
+  return quick !== null && quick !== "all";
 }

@@ -14,6 +14,8 @@ import {
 
 export interface TasksListFiltersProps extends TaskFilterState {
   ownerOptions: TaskFilterOwnerOption[];
+  /** The quick pills carry the active status, so no duplicate status chip renders. */
+  statusShownElsewhere?: boolean;
   onStatusChange: TaskFilterHandlers["onStatusChange"];
   onOwnerChange: TaskFilterHandlers["onOwnerChange"];
   onPriorityChange: TaskFilterHandlers["onPriorityChange"];
@@ -27,16 +29,14 @@ export function TasksListFilters({
   onStatusChange,
   onOwnerChange,
   onPriorityChange,
+  statusShownElsewhere = false,
 }: TasksListFiltersProps) {
   const fields = buildTaskFilterFields(ownerOptions);
-  const chips = taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter });
+  const chipOptions = { statusShownElsewhere };
+  const chips = taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter }, chipOptions);
 
   const handleFiltersChange = (next: Filter<string>[]) => {
-    applyTaskFilterChips(next, {
-      onStatusChange,
-      onOwnerChange,
-      onPriorityChange,
-    });
+    applyTaskFilterChips(next, { onStatusChange, onOwnerChange, onPriorityChange }, chipOptions);
   };
 
   return (
