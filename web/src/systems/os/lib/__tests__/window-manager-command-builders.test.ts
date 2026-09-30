@@ -1,7 +1,8 @@
 // Suite: window-manager command builders
 // Invariant: each Window › Arrange preset becomes one `layout.arrange` command
-// with its daemon arrangement and anchor-first participants; the all-peer
-// presets never pull a hidden tab out of its deck.
+// with its daemon arrangement and anchor-first participants, one per frame: a
+// deck is named once, by its active tab (the daemon then arranges the whole
+// deck), and the anchor's own deck is never named again.
 // Owning layer: web/src/systems/os/lib/window-manager-command-builders.ts
 import { describe, expect, it } from "vitest";
 
@@ -32,9 +33,11 @@ function osWindow(id: string, overrides: Partial<OsWindow> = {}): OsWindow {
 }
 
 const ANCHOR = osWindow("w-anchor");
+// A tiled two-tab deck (w-2 hidden behind w-1) listed hidden-tab first, then
+// three lone windows.
 const PEERS = [
-  osWindow("w-1"),
-  osWindow("w-2", { stackActive: false }),
+  osWindow("w-2", { stackId: "stack:deck", stackActive: false }),
+  osWindow("w-1", { stackId: "stack:deck" }),
   osWindow("w-3"),
   osWindow("w-4"),
   osWindow("w-5"),
@@ -43,7 +46,7 @@ const PEERS = [
 describe("arrangeLayoutCommand", () => {
   it.each<{ preset: OsArrangePreset; arrangement: string; windowIds: string[] }>([
     { preset: "two-up", arrangement: "horizontal", windowIds: ["w-anchor", "w-1"] },
-    { preset: "grid", arrangement: "grid", windowIds: ["w-anchor", "w-1", "w-2", "w-3"] },
+    { preset: "grid", arrangement: "grid", windowIds: ["w-anchor", "w-1", "w-3", "w-4"] },
     {
       preset: "main-stack",
       arrangement: "main_stack",
@@ -72,9 +75,13 @@ describe("arrangeLayoutCommand", () => {
     }
   );
 
-  it("Should skip an all-peer preset when no other window is visible", () => {
+  it("Should not name the anchor's own deck again, and skip when it is the only frame", () => {
+    const anchor = osWindow("w-anchor", { stackId: "stack:own" });
+    const sibling = osWindow("w-sibling", { stackId: "stack:own", stackActive: false });
+
+    expect(arrangeLayoutCommand(anchor, [sibling], "columns", "g")).toBeNull();
     expect(
-      arrangeLayoutCommand(ANCHOR, [osWindow("w-hidden", { stackActive: false })], "columns", "g")
-    ).toBeNull();
+      arrangeLayoutCommand(anchor, [sibling, osWindow("w-peer")], "main-stack", "g")?.payload
+    ).toMatchObject({ window_ids: ["w-anchor", "w-peer"] });
   });
 });

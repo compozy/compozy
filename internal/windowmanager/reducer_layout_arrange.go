@@ -30,7 +30,10 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 		}
 		seen[windowID] = struct{}{}
 	}
-	for _, windowID := range command.WindowIDs {
+	// Each named window brings its whole tab frame: a deck is arranged as one
+	// participant, keeping its members, active tab and stack identity.
+	frames := collectArrangeFrames(snapshot, command.WindowIDs)
+	for _, windowID := range arrangeFrameWindowIDs(frames) {
 		removeWindow(snapshot, windowID)
 		window := snapshot.Windows[windowID]
 		window.Minimized = false
@@ -40,7 +43,7 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 		r.changes.window(windowID)
 	}
 	r.clearDesktopZoom(snapshot, command.DesktopID)
-	root, err := r.buildArrangement(command.WindowIDs, command.Arrangement)
+	root, err := r.buildArrangement(frames, command.Arrangement)
 	if err != nil {
 		return false, err
 	}
@@ -73,35 +76,29 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 	return true, nil
 }
 
-func (r *reducer) buildArrangement(windowIDs []WindowID, arrangement Arrangement) (LayoutNode, error) {
-	if len(windowIDs) == 1 {
-		return newLeaf(windowIDs[0], r.generate)
+func (r *reducer) buildArrangement(frames []arrangeFrame, arrangement Arrangement) (LayoutNode, error) {
+	if len(frames) == 1 && arrangement != ArrangementStack {
+		return r.frameNode(frames[0])
 	}
 	switch arrangement {
 	case ArrangementHorizontal:
-		return r.buildSplit(windowIDs, AxisHorizontal)
+		return r.buildSplit(frames, AxisHorizontal)
 	case ArrangementVertical:
-		return r.buildSplit(windowIDs, AxisVertical)
+		return r.buildSplit(frames, AxisVertical)
 	case ArrangementStack:
-		id, err := r.generate("node")
-		if err != nil {
-			return LayoutNode{}, fmt.Errorf("generate stack ID: %w", err)
-		}
-		active := windowIDs[0]
-		return LayoutNode{
-			ID:        NodeID(id),
-			Kind:      NodeKindStack,
-			WindowIDs: append([]WindowID(nil), windowIDs...),
-			ActiveID:  &active,
-		}, nil
+		// Every participant joins one deck, led by the first frame's active tab.
+		return r.frameNode(arrangeFrame{
+			windowIDs: arrangeFrameWindowIDs(frames),
+			activeID:  firstFrameActive(frames[0]),
+		})
 	case ArrangementMainStack:
-		return r.buildMainStack(windowIDs)
+		return r.buildMainStack(frames)
 	case ArrangementGrid:
-		columns := int(math.Ceil(math.Sqrt(float64(len(windowIDs)))))
-		rows := make([]LayoutNode, 0, (len(windowIDs)+columns-1)/columns)
-		for start := 0; start < len(windowIDs); start += columns {
-			end := min(start+columns, len(windowIDs))
-			row, err := r.buildArrangement(windowIDs[start:end], ArrangementHorizontal)
+		columns := int(math.Ceil(math.Sqrt(float64(len(frames)))))
+		rows := make([]LayoutNode, 0, (len(frames)+columns-1)/columns)
+		for start := 0; start < len(frames); start += columns {
+			end := min(start+columns, len(frames))
+			row, err := r.buildArrangement(frames[start:end], ArrangementHorizontal)
 			if err != nil {
 				return LayoutNode{}, err
 			}
@@ -125,12 +122,12 @@ func (r *reducer) buildArrangement(windowIDs []WindowID, arrangement Arrangement
 // mainStackWeight is the main column's share of a main_stack arrangement.
 const mainStackWeight = 0.6
 
-func (r *reducer) buildMainStack(windowIDs []WindowID) (LayoutNode, error) {
-	main, err := newLeaf(windowIDs[0], r.generate)
+func (r *reducer) buildMainStack(frames []arrangeFrame) (LayoutNode, error) {
+	main, err := r.frameNode(frames[0])
 	if err != nil {
 		return LayoutNode{}, err
 	}
-	side, err := r.buildArrangement(windowIDs[1:], ArrangementVertical)
+	side, err := r.buildArrangement(frames[1:], ArrangementVertical)
 	if err != nil {
 		return LayoutNode{}, err
 	}
@@ -148,14 +145,14 @@ func (r *reducer) buildMainStack(windowIDs []WindowID) (LayoutNode, error) {
 	}, nil
 }
 
-func (r *reducer) buildSplit(windowIDs []WindowID, axis Axis) (LayoutNode, error) {
-	children := make([]LayoutNode, len(windowIDs))
-	for index, windowID := range windowIDs {
-		leaf, err := newLeaf(windowID, r.generate)
+func (r *reducer) buildSplit(frames []arrangeFrame, axis Axis) (LayoutNode, error) {
+	children := make([]LayoutNode, len(frames))
+	for index, frame := range frames {
+		child, err := r.frameNode(frame)
 		if err != nil {
 			return LayoutNode{}, err
 		}
-		children[index] = leaf
+		children[index] = child
 	}
 	id, err := r.generate("node")
 	if err != nil {
@@ -168,4 +165,14 @@ func (r *reducer) buildSplit(windowIDs []WindowID, axis Axis) (LayoutNode, error
 		Children: children,
 		Weights:  equalWeights(len(children)),
 	}, nil
+}
+
+// firstFrameActive is the tab a merged deck opens on: the leading frame's
+// active member, or its only window.
+func firstFrameActive(frame arrangeFrame) *WindowID {
+	if frame.activeID != nil {
+		return clonePointer(frame.activeID)
+	}
+	first := frame.windowIDs[0]
+	return &first
 }

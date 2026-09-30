@@ -183,6 +183,91 @@ func TestMainStackArrangement(t *testing.T) {
 	}
 }
 
+func TestArrangeKeepsTabFramesWhole(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Config
+		arrangement Arrangement
+		floating    bool
+	}{
+		{
+			name:        "Should arrange a tiled deck and a peer as main and stack without splitting the deck",
+			config:      DefaultConfig(),
+			arrangement: ArrangementMainStack,
+		},
+		{
+			name:        "Should arrange a tiled deck and a peer as columns without splitting the deck",
+			config:      DefaultConfig(),
+			arrangement: ArrangementHorizontal,
+		},
+		{
+			name:        "Should tile a floating deck whole into a main and stack arrangement",
+			config:      floatingConfig(),
+			arrangement: ArrangementMainStack,
+			floating:    true,
+		},
+		{
+			name:        "Should tile a floating deck whole into a columns arrangement",
+			config:      floatingConfig(),
+			arrangement: ArrangementHorizontal,
+			floating:    true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, test.config, "workspace-a")
+			stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+			if got := len(stacked.Snapshot.Desktops[0].FloatingStacks) == 1; got != test.floating {
+				t.Fatalf("deck floating = %v, want %v: %+v", got, test.floating, stacked.Snapshot.Desktops[0])
+			}
+			deck, found := findStackByWindow(&stacked.Snapshot, "w1")
+			if !found {
+				t.Fatalf("w1 is not in a deck: %+v", stacked.Snapshot.Desktops[0])
+			}
+			deckID, deckMembers := deck.id(), slices.Clone(deck.members())
+			deckActive := valueOrZero(deck.activeID())
+			openTestWindow(t, environment.manager, "workspace-a", nil, "w3", "desktop-default")
+
+			// The Web names one window per frame: the deck's active tab and the peer.
+			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+				DesktopID: "desktop-default", WindowIDs: []WindowID{deckActive, "w3"},
+				Arrangement: test.arrangement, Frame: fullRect(), GroupID: "group-arranged",
+			})
+			desktop := result.Snapshot.Desktops[0]
+			if len(desktop.Groups) != 1 || desktop.Groups[0].ID != "group-arranged" {
+				t.Fatalf("groups = %+v, want the one arranged group", desktop.Groups)
+			}
+			if len(desktop.Floating) != 0 || len(desktop.FloatingStacks) != 0 {
+				t.Fatalf(
+					"floating = %v, stacks = %+v, want every frame tiled",
+					desktop.Floating,
+					desktop.FloatingStacks,
+				)
+			}
+			root := desktop.Groups[0].Root
+			if root.Kind != NodeKindSplit || len(root.Children) != 2 {
+				t.Fatalf("arranged root = %+v, want the deck beside the peer", root)
+			}
+			arrangedDeck := root.Children[0]
+			if arrangedDeck.Kind != NodeKindStack || arrangedDeck.ID != deckID ||
+				!slices.Equal(arrangedDeck.WindowIDs, deckMembers) || valueOrZero(arrangedDeck.ActiveID) != deckActive {
+				t.Fatalf(
+					"arranged deck = %+v, want stack %q holding %v on %q",
+					arrangedDeck,
+					deckID,
+					deckMembers,
+					deckActive,
+				)
+			}
+			if peer := root.Children[1]; peer.Kind != NodeKindLeaf || valueOrZero(peer.WindowID) != "w3" {
+				t.Fatalf("peer = %+v, want leaf w3", peer)
+			}
+			requireValidSnapshot(t, result.Snapshot)
+		})
+	}
+}
+
 func TestStructuralDropPlacements(t *testing.T) {
 	tests := []struct {
 		name      string

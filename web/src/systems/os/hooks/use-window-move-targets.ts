@@ -3,34 +3,44 @@ import { shallowEqual } from "@xstate/store";
 import { orderedDesktops } from "../lib/desktop-order";
 import { useDesktop } from "./use-desktop";
 
+/** Desktops 1–9 carry a numbered registry command (and its keyboard chord). */
+export const MOVE_TO_DESKTOP_SLOT_COUNT = 9;
+
+export function moveToDesktopSlotCommandId(slot: number): string {
+  return `window.move_to_desktop.${slot}`;
+}
+
 export interface WindowMoveTarget {
-  /** Registry slot command (`window.move_to_desktop.N`, 1-based desktop order). */
-  commandId: string;
+  /**
+   * Registry slot command (`window.move_to_desktop.N`, 1-based desktop order)
+   * for the first nine desktops; `null` past them, where the destination moves
+   * the window by desktop id instead.
+   */
+  slotCommandId: string | null;
   desktopId: string;
   name: string;
 }
 
 /**
- * The desktops the focused window can move to, in switcher order. The slot
- * index is the desktop's position, so the item runs the same registry command
- * as its palette row; the current desktop is left out (VC-11).
+ * Every desktop the focused window can move to, in switcher order. A slot
+ * destination runs the same registry command as its palette row; the current
+ * desktop is left out (VC-11).
  */
 export function useWindowMoveTargets(): readonly WindowMoveTarget[] {
   return useDesktop(state => {
     const current = state.activeDesktopId;
-    return orderedDesktops(state.desktops)
-      .slice(0, 9)
-      .flatMap((desktop, index) =>
-        desktop.id === current
-          ? []
-          : [
-              {
-                commandId: `window.move_to_desktop.${index + 1}`,
-                desktopId: desktop.id,
-                name: desktop.name,
-              },
-            ]
-      );
+    return orderedDesktops(state.desktops).flatMap((desktop, index) =>
+      desktop.id === current
+        ? []
+        : [
+            {
+              slotCommandId:
+                index < MOVE_TO_DESKTOP_SLOT_COUNT ? moveToDesktopSlotCommandId(index + 1) : null,
+              desktopId: desktop.id,
+              name: desktop.name,
+            },
+          ]
+    );
   }, sameTargets);
 }
 

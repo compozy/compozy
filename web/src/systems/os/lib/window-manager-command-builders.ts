@@ -69,23 +69,46 @@ const ARRANGEMENT_BY_PRESET = {
 } as const satisfies Record<OsArrangePreset, string>;
 
 /**
+ * One participant per frame, in peer order: a lone window, or a deck named by
+ * its active tab. The daemon arranges each named window's whole tab frame, so
+ * a hidden tab stays in its deck and the anchor's own deck is never named twice.
+ */
+function framePeers(anchor: OsWindow, peers: readonly OsWindow[]): OsWindow[] {
+  const claimedStacks = new Set<string>(anchor.stackId === null ? [] : [anchor.stackId]);
+  const participants: OsWindow[] = [];
+  for (const window of peers) {
+    const stackId = window.stackId;
+    if (stackId === null) {
+      participants.push(window);
+      continue;
+    }
+    if (claimedStacks.has(stackId)) continue;
+    claimedStacks.add(stackId);
+    participants.push(
+      peers.find(member => member.stackId === stackId && member.stackActive) ?? window
+    );
+  }
+  return participants;
+}
+
+/**
  * Participants per preset, anchor first: two-up pairs the anchor with one peer
- * and grid caps at four; main-stack and columns take every visible peer (the
- * active member of each tab frame), so no hidden tab is pulled out of its deck.
+ * frame and grid caps at four frames; main-stack and columns take every frame.
  */
 function arrangeParticipants(
   anchor: OsWindow,
   peers: readonly OsWindow[],
   preset: OsArrangePreset
 ): string[] {
+  const frames = framePeers(anchor, peers).map(window => window.id);
   switch (preset) {
     case "two-up":
-      return [anchor.id, ...peers.slice(0, 1).map(window => window.id)];
+      return [anchor.id, ...frames.slice(0, 1)];
     case "grid":
-      return [anchor.id, ...peers.slice(0, 3).map(window => window.id)];
+      return [anchor.id, ...frames.slice(0, 3)];
     case "main-stack":
     case "columns":
-      return [anchor.id, ...peers.flatMap(window => (window.stackActive ? [window.id] : []))];
+      return [anchor.id, ...frames];
   }
 }
 

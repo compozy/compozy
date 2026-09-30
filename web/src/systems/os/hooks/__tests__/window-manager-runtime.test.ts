@@ -1832,6 +1832,71 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it.each([
+    { anchor: "app:board", preset: "columns" as const, windowIds: ["app:board", "app:agents"] },
+    { anchor: "app:agents", preset: "main-stack" as const, windowIds: ["app:agents", "app:board"] },
+  ])(
+    "Should arrange a deck and a peer naming the deck once by its active tab ($preset from $anchor)",
+    async ({ anchor, preset, windowIds }) => {
+      const queryClient = new QueryClient();
+      const stacked = snapshotWithFloatingStack();
+      const snapshot: WindowManagerSnapshot = {
+        ...stacked,
+        desktops: stacked.desktops.map(desktop =>
+          desktop.id === "desktop:one" ? { ...desktop, floating: ["app:board"] } : desktop
+        ),
+        windows: {
+          ...stacked.windows,
+          "app:board": {
+            ...stacked.windows["app:tasks"]!,
+            id: "app:board",
+            app: "tasks",
+            placement: "floating",
+            floatingRect: { x: 0.6, y: 0.1, w: 0.3, h: 0.5 },
+          },
+        },
+      };
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+      });
+      vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+        snapshot: { ...snapshot, revision: 8 },
+        applied: true,
+        changes: { ...EMPTY_CHANGES },
+        diagnostics: [],
+        client: null,
+        rebasedFrom: null,
+      });
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: anchor,
+        focusOrder: [anchor],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.arrangeLayout(anchor, preset);
+
+      await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4]).toMatchObject({
+        commandId: "layout.arrange",
+        payload: { window_ids: windowIds, frame: { x: 0, y: 0, width: 1, height: 1 } },
+      });
+      runtime.stop();
+    }
+  );
+
   it("Should arrange a floating tab frame as one tiled stack and reactivate its active tab", async () => {
     const queryClient = new QueryClient();
     const snapshot = snapshotWithFloatingStack();

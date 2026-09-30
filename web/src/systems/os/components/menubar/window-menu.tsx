@@ -11,8 +11,15 @@ import {
   MenubarTrigger,
 } from "@compozy/ui";
 
+import { useOsShell } from "../../hooks/use-os-shell";
 import { usePaletteCommand, usePaletteRegistry } from "../../hooks/use-palette-registry";
-import { useWindowMoveTargets, type WindowMoveTarget } from "../../hooks/use-window-move-targets";
+import {
+  MOVE_TO_DESKTOP_SLOT_COUNT,
+  moveToDesktopSlotCommandId,
+  useWindowMoveTargets,
+  type WindowMoveTarget,
+} from "../../hooks/use-window-move-targets";
+import { moveFocusedWindowToDesktopId } from "../../lib/cmd-palette-window-ops";
 import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
@@ -29,10 +36,15 @@ const ARRANGE_COMMANDS = [
   "layout.arrange.grid",
   "layout.balance",
 ];
-const MOVE_SLOT_COMMANDS = Array.from(
-  { length: 9 },
-  (_, index) => `window.move_to_desktop.${index + 1}`
+const MOVE_SLOT_COMMANDS = Array.from({ length: MOVE_TO_DESKTOP_SLOT_COUNT }, (_, index) =>
+  moveToDesktopSlotCommandId(index + 1)
 );
+/**
+ * Destinations past the ninth slot have no command of their own; they share
+ * the move family's registry availability (a focused window), read from its
+ * first slot, and move by desktop id through the same move boundary.
+ */
+const MOVE_FAMILY_COMMAND = MOVE_SLOT_COMMANDS[0]!;
 /** Why "Move window to" has nothing to offer on a single desktop. */
 const MOVE_NEEDS_DESKTOP_REASON = "needs another desktop";
 const STATE_COMMANDS = ["window.zoom", "window.minimize", "window.toggle_floating"];
@@ -53,26 +65,35 @@ function menuGroup(id: string, content: React.ReactNode) {
 
 /**
  * One "Move window to" destination. The desktop's name is the destination
- * itself, not a second copy of the command title; availability, reason and
- * chord still come from the slot's registry projection.
+ * itself, not a second copy of the command title; availability and reason come
+ * from the registry projection, and a slot destination keeps its chord.
  */
 function MoveToDesktopItem({
   target,
   onRun,
+  onMove,
 }: {
   target: WindowMoveTarget;
   onRun: (commandId: string) => void;
+  onMove: (desktopId: string) => void;
 }) {
-  const command = usePaletteCommand(target.commandId);
+  const slotCommandId = target.slotCommandId;
+  const command = usePaletteCommand(slotCommandId ?? MOVE_FAMILY_COMMAND);
   if (command === null) return null;
   return (
     <MenubarItem
-      data-testid={`os-menubar-command-${target.commandId}`}
+      data-testid={
+        slotCommandId === null
+          ? `os-menubar-move-to-desktop-${target.desktopId}`
+          : `os-menubar-command-${slotCommandId}`
+      }
       disabled={!command.available}
-      onClick={() => onRun(target.commandId)}
+      onClick={() => (slotCommandId === null ? onMove(target.desktopId) : onRun(slotCommandId))}
     >
       <span className="min-w-0 flex-1 truncate">{target.name}</span>
-      {command.chords.length > 0 ? <MenubarShortcut>{command.chords[0]}</MenubarShortcut> : null}
+      {slotCommandId !== null && command.chords.length > 0 ? (
+        <MenubarShortcut>{command.chords[0]}</MenubarShortcut>
+      ) : null}
     </MenubarItem>
   );
 }
@@ -88,9 +109,13 @@ function MoveToDesktopItem({
 export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
   const registry = usePaletteRegistry();
   const moveTargets = useWindowMoveTargets();
+  const { manager } = useOsShell();
+  const moveTo = (desktopId: string) => moveFocusedWindowToDesktopId(manager, desktopId);
   const has = (commandId: string) => registry.byId.has(commandId);
   const arrangeCommands = ARRANGE_COMMANDS.filter(has);
-  const reachableTargets = moveTargets.filter(target => has(target.commandId));
+  const reachableTargets = moveTargets.filter(target =>
+    has(target.slotCommandId ?? MOVE_FAMILY_COMMAND)
+  );
   const canMoveToDesktop = MOVE_SLOT_COMMANDS.some(has);
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
@@ -118,7 +143,12 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
                   </MenubarSubTrigger>
                   <MenubarSubContent>
                     {reachableTargets.map(target => (
-                      <MoveToDesktopItem key={target.commandId} onRun={onRun} target={target} />
+                      <MoveToDesktopItem
+                        key={target.desktopId}
+                        onMove={moveTo}
+                        onRun={onRun}
+                        target={target}
+                      />
                     ))}
                   </MenubarSubContent>
                 </MenubarSub>

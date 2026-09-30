@@ -94,14 +94,26 @@ function tilePlacement(placement: SnapSide | SnapCorner): PaletteClientOpHandler
 }
 
 /** Sends the focused window to the desktop at `slot` (1-based, in desktop order). */
+/**
+ * Moves the focused window to a desktop by id — the one move boundary behind
+ * both the numbered slot commands and named destinations past the ninth slot.
+ */
+export function moveFocusedWindowToDesktopId(
+  manager: PaletteClientOpContext["manager"],
+  desktopId: string
+): void {
+  const state = manager.getState();
+  const focusedId = state.focusedId;
+  const window = focusedId === null ? undefined : state.windows[focusedId];
+  if (!window || desktopId === window.desktopId) return;
+  if (!state.desktops.some(desktop => desktop.id === desktopId)) return;
+  manager.moveWindowToDesktop(window.id, desktopId);
+}
+
 function moveFocusedWindowToDesktop(slot: number): PaletteClientOpHandler {
   return context => {
-    const state = currentState(context);
-    const focusedId = state.focusedId;
-    const window = focusedId === null ? undefined : state.windows[focusedId];
-    const target = orderedDesktops(state.desktops)[slot - 1];
-    if (!window || !target || target.id === window.desktopId) return;
-    context.manager.moveWindowToDesktop(window.id, target.id);
+    const target = orderedDesktops(currentState(context).desktops)[slot - 1];
+    if (target) moveFocusedWindowToDesktopId(context.manager, target.id);
   };
 }
 
