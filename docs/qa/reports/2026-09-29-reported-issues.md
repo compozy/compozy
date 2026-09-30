@@ -116,7 +116,11 @@ the same receipt. The targeted real-Git integration suites now run in the existi
 Inventory restoration after successful daemon boot is owned by a cancellable recovery worker
 with backoff capped at thirty seconds, ending after successful recovery. Existing daemon
 boot-worktree tests use real SQLite and filesystem failure/restoration without a second manual
-recovery call; shutdown and failed-boot paths cancel and join it. The existing managed-delivery
+recovery call; shutdown and failed-boot paths cancel and join it. A further Greptile finding
+extends the same retry policy to wrapped SQLite BUSY/LOCKED using the existing store classifier.
+The canonical daemon suite produces a real SQLite write-lock failure at the persistence boundary,
+then verifies recovery of the original receipt with one terminal event after releasing the lock.
+These added regressions require current-head CI evidence. The existing managed-delivery
 real-Git suite also protects a concurrent live receipt from delayed recovery. The subsequent ACP
 timestamp review is a source-backed false positive: the single production constructor records
 the timestamp before publication and session wrappers preserve it.

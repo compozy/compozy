@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -438,9 +441,9 @@ func TestDaemonTerminalExecutionRoot(t *testing.T) {
 // Canonical boot-worktree suite owns deferred journal recovery and cancellation with real SQLite/filesystem.
 func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 	t.Parallel()
-	// Invariant: restored inventory resumes the same receipt without restart; shutdown joins pending retry.
+	// Invariant: restored inventory survives SQLite contention without duplicate receipts; shutdown joins retry.
 	// Owner: daemon managed-delivery boot lifecycle; existing boot-worktree suite.
-	for _, mode := range []string{"restore", "shutdown", "boot-failure"} {
+	for _, mode := range []string{"restore", "sqlite-busy", "shutdown", "boot-failure"} {
 		t.Run("Should own deferred inventory recovery through "+mode, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
@@ -477,8 +480,15 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			if err := os.WriteFile(directory, []byte("not a directory"), 0o600); err != nil {
 				t.Fatal(err)
 			}
+			var events worktree.EventSink = db
+			var busy *managedDeliveryBusyEvents
+			var unlock func()
+			if mode == "sqlite-busy" {
+				busy, unlock = newManagedDeliveryBusyEvents(t, db)
+				events = busy
+			}
 			service := worktree.NewService(db.Worktrees, nil,
-				worktree.WithConfig(config.WorktreesConfig{}, root), worktree.WithEvents(db))
+				worktree.WithConfig(config.WorktreesConfig{}, root), worktree.WithEvents(events))
 			state := &bootState{worktrees: service, logger: slog.Default()}
 			cleanup := &bootCleanup{}
 			if err := new(Daemon).bootManagedDeliveries(ctx, state, cleanup); err != nil {
@@ -499,7 +509,8 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 				running[0].ID != operation.ID {
 				t.Fatalf("unreadable inventory altered original receipt: %#v error=%v", running, err)
 			}
-			if mode == "shutdown" {
+			switch mode {
+			case "shutdown":
 				stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer cancel()
 				var errs []error
@@ -507,7 +518,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 				if err := errors.Join(errs...); err != nil {
 					t.Fatal(err)
 				}
-			} else if mode == "boot-failure" {
+			case "boot-failure":
 				bootErr := errors.New("later boot step failed")
 				cleanup.run(ctx, &bootErr)
 			}
@@ -529,7 +540,24 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(directory, "restored.json"), data, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if mode != "restore" {
+			if busy != nil {
+				select {
+				case err := <-busy.contended:
+					if !store.IsSQLiteBusy(err) {
+						t.Fatalf("expected real SQLite contention: %v", err)
+					}
+				case <-time.After(10 * time.Second):
+					t.Fatal("recovery never attempted the contended receipt")
+				}
+				if running, err := db.Worktrees.ListRunningExitOperations(
+					ctx,
+				); err != nil || len(running) != 1 ||
+					running[0].ID != operation.ID {
+					t.Fatalf("contention changed receipt: %#v error=%v", running, err)
+				}
+				unlock()
+			}
+			if mode != "restore" && mode != "sqlite-busy" {
 				select {
 				case <-worker.Stop():
 				default:
@@ -564,4 +592,69 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The real SQLite lock supplies the persistence-boundary failure without replacing recovery.
+type managedDeliveryBusyEvents struct {
+	*globaldb.GlobalDB
+	writer    *sql.DB
+	contended chan error
+	attempted bool
+}
+
+func (s *managedDeliveryBusyEvents) FinishExitOperationWithEvent(
+	ctx context.Context, workspaceID, worktreeID, operationID, state string,
+	finishedAt time.Time, event worktree.LifecycleEvent,
+) (bool, error) {
+	if !s.attempted {
+		s.attempted = true
+		err := store.ExecuteWrite(ctx, s.writer, func(context.Context, *store.WriteTx) error { return nil })
+		s.contended <- err
+		if err != nil {
+			return false, fmt.Errorf("receipt repair: %w", err)
+		}
+	}
+	return s.GlobalDB.FinishExitOperationWithEvent(ctx, workspaceID, worktreeID, operationID, state, finishedAt, event)
+}
+
+func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managedDeliveryBusyEvents, func()) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "external-writer.db")
+	locker, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := locker.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	writer, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := writer.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	conn, err := locker.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := conn.ExecContext(t.Context(), "BEGIN IMMEDIATE"); err != nil {
+		t.Fatal(err)
+	}
+	unlock := sync.OnceFunc(func() {
+		if _, err := conn.ExecContext(context.WithoutCancel(t.Context()), "ROLLBACK"); err != nil {
+			t.Error(err)
+		}
+	})
+	t.Cleanup(unlock)
+	return &managedDeliveryBusyEvents{GlobalDB: db, writer: writer, contended: make(chan error, 1)}, unlock
 }

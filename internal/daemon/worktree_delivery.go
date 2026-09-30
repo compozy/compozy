@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -88,7 +89,7 @@ func retryManagedDeliveryRecovery(
 		case <-timer.C:
 		}
 		err := recoverOperation(ctx)
-		if !errors.Is(err, worktree.ErrDeliveryInventoryUnavailable) {
+		if !errors.Is(err, worktree.ErrDeliveryInventoryUnavailable) && !store.IsSQLiteBusy(err) {
 			if err != nil && ctx.Err() == nil {
 				logger.ErrorContext(ctx, "managed delivery deferred recovery failed", "error", err)
 			}
