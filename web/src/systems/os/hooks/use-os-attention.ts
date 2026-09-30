@@ -82,6 +82,7 @@ export function useOsAttention(
   const loops = useLoopAttentionSources({ documentVisible, workspaceId, workspaces });
   const terminal = useTerminalAttentionSources({
     documentVisible,
+    sessionCatalogStreamStatus,
     workspaceId,
   });
   const policy = useAttentionPolicy();
@@ -224,9 +225,11 @@ function useLoopAttentionSources({
 
 function useTerminalAttentionSources({
   documentVisible,
+  sessionCatalogStreamStatus,
   workspaceId,
 }: {
   documentVisible: boolean;
+  sessionCatalogStreamStatus: SessionCatalogStreamStatus;
   workspaceId: string | null;
 }) {
   const profile = useProfileReadScope();
@@ -243,7 +246,12 @@ function useTerminalAttentionSources({
       profile: profile.destination,
     }),
     enabled,
-    refetchInterval: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
+    // Catalog wakes own this read while connected; a second poll would
+    // amplify each authoritative update with an independent timer read.
+    refetchInterval: query => {
+      if (!documentVisible || sessionCatalogStreamStatus === "live") return false;
+      return query.state.status === "error" ? 30_000 : ATTENTION_REFETCH_INTERVAL_MS;
+    },
   });
   const ready =
     enabled &&

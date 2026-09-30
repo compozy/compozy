@@ -3,8 +3,8 @@
 // exact session/terminal counters come from authoritative projections rather
 // than hydrated history or page lengths, and keep their workspace/profile scope.
 // Owning layer: OS attention query adapter. Canonical suite: this hook test.
-import { renderHook as renderReactHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook as renderReactHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -13,8 +13,10 @@ vi.mock("@tanstack/react-query", async importOriginal => {
     ...actual,
     useQuery: Object.assign(
       vi.fn((options: { queryKey: readonly unknown[] }) => {
-        if (options.queryKey.includes("facets"))
+        if (options.queryKey.includes("facets")) {
+          if (realFacetQueries) return actual.useQuery(options);
           return { data: terminalMetadata, isError: terminalMetadataError, isLoading: false };
+        }
         if (options.queryKey[0] === "notifications")
           return { data: notificationResponse, isError: notificationStale, isLoading: false };
         return queryMock(options);
@@ -23,6 +25,11 @@ vi.mock("@tanstack/react-query", async importOriginal => {
     ),
   };
 });
+vi.mock("@/systems/session/adapters/session-catalog-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-catalog-api")>()),
+  fetchSessionFacets: vi.fn(),
+}));
+
 vi.mock("@/systems/profiles", () => ({ useProfileReadScope: vi.fn() }));
 vi.mock("@/systems/session/hooks/use-session-catalog", () => ({ useSessionCatalog: vi.fn() }));
 // The list preference decides the order the modal query asks for; its own
@@ -82,8 +89,8 @@ let notificationResponse: AttentionNotifications;
 let notificationStale = false;
 let terminalMetadata: { facets: { terminal_approvals: number } } | undefined;
 let terminalMetadataError = false;
-function renderHook<T>(callback: () => T) {
-  const client = new QueryClient();
+let realFacetQueries = false;
+function renderHook<T>(callback: () => T, client = new QueryClient()) {
   return renderReactHook(callback, {
     wrapper: ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children),
@@ -101,6 +108,10 @@ import {
   useScopedWorktreeFilter,
   type WorkspacePayload,
 } from "@/systems/workspace";
+
+import { fetchSessionFacets } from "@/systems/session/adapters/session-catalog-api";
+import { sessionFacetsOptions } from "@/systems/session/lib/session-catalog-options";
+import type { SessionCatalogStreamStatus } from "@/systems/session";
 
 const workspace: WorkspacePayload = {
   id: "ws_alpha",
@@ -175,6 +186,10 @@ function workspaceForCall(call: number): string | null | undefined {
 }
 
 describe("useOsAttention", () => {
+  afterEach(() => {
+    realFacetQueries = false;
+    vi.useRealTimers();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     notificationResponse = { snapshot: "snapshot", total: 0, needs_you: 0, finished: 0, items: [] };
@@ -397,6 +412,71 @@ describe("useOsAttention", () => {
     expect(vi.mocked(useSessionCatalog)).toHaveBeenCalledTimes(1);
     expect(filtersForCall(MODAL_CALL).attention).toBeUndefined();
     expect(filtersForCall(MODAL_CALL).badge).toBeUndefined();
+  });
+
+  // Invariant: live catalog wakes are the sole terminal-facets refresh owner;
+  // disconnected polling still refreshes the exact projection and backs off errors.
+  // Layer: OS attention/query integration. Canonical suite: this existing hook suite.
+  it("Should refresh terminal facets on live wakes without a second poll and retain fallback", async () => {
+    vi.useFakeTimers();
+    realFacetQueries = true;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 1 },
+      by_workspace: [],
+    });
+    let status: SessionCatalogStreamStatus = "live";
+    const { result, rerender, unmount } = renderHook(
+      () => useOsAttention(workspace, status, false),
+      client
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    expect(result.current.badges.terminal).toBe(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 2 },
+      by_workspace: [],
+    });
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: sessionFacetsOptions({ workspace_id: workspace.id, profile: "work" }).queryKey,
+        exact: true,
+      });
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    expect(result.current.badges.terminal).toBe(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    status = "stale";
+    rerender();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(3);
+    vi.mocked(fetchSessionFacets).mockRejectedValue(new Error("facets unavailable"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(5);
+    unmount();
+    client.clear();
   });
 
   it("Should scope terminal approval metadata to the destination profile even in aggregate view", () => {

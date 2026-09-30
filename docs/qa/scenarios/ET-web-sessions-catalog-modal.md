@@ -72,3 +72,8 @@ rolling sixty-second window against the existing fixed budgets: 26 lists, 13 fac
 summaries and 52 combined. Native visibility/focus, monotonic duration, current head and runtime
 digest are retained in the CI artifact. The existing desktop CI lane owns execution; its pending
 result cannot be replaced by the historical soak.
+
+When the catalog stream is live, terminal badge facets follow the shared stream reconciliation
+clock without an independent shell polling timer. A disconnected stream retains visible-window
+fallback polling; hiding the document disables that fallback. Verify badge freshness across live,
+disconnected and reconnect transitions without multiplying shared facet requests.

@@ -135,3 +135,12 @@ current-head CI evidence. The existing managed-delivery
 real-Git suite also protects a concurrent live receipt from delayed recovery. The subsequent ACP
 timestamp review is a source-backed false positive: the single production constructor records
 the timestamp before publication and session wrappers preserve it.
+
+Current-head CI on `15d73b337d5b6ca72ea41d1574e4b0e99afa8d84` verified 600 publicly
+created/stopped sessions and a running real Loop, then failed the fixed facets ceiling after
+61.518 seconds of measurement: list/ facets/ summary maxima were 20/15/10, combined 45.
+The retained receipt has no cleanup error and one actual renderer client. The shell terminal
+badge independently polled the shared facets query while live stream reconciliation also
+reread it. The production correction disables that duplicate polling while the stream is live
+and preserves visible disconnected fallback; the same Electron regression retains every budget
+and assertion. This failed window is not a sixty-minute pass; corrected-head CI owns acceptance.
