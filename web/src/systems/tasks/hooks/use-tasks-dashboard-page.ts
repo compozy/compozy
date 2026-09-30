@@ -70,7 +70,7 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
   return {
     dashboard: dashboardQuery.data ?? null,
     dashboardError: dashboardQuery.error ?? null,
-    dashboardLoading: dashboardQuery.isLoading && !dashboardQuery.data,
+    dashboardLoading: dashboardQuery.isPending && !dashboardQuery.data,
     handleDrainScheduler,
     handlePauseScheduler,
     handleResumeScheduler,
@@ -79,9 +79,9 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
     isSchedulerResumePending: resumeMutation.isPending,
     schedulerBacklog: schedulerBacklogQuery.data ?? null,
     schedulerBacklogError: schedulerBacklogQuery.error ?? null,
-    schedulerBacklogLoading: schedulerBacklogQuery.isLoading && !schedulerBacklogQuery.data,
+    schedulerBacklogLoading: schedulerBacklogQuery.isPending && !schedulerBacklogQuery.data,
     schedulerStatus: schedulerStatusQuery.data ?? null,
     schedulerStatusError: schedulerStatusQuery.error ?? null,
-    schedulerStatusLoading: schedulerStatusQuery.isLoading && !schedulerStatusQuery.data,
+    schedulerStatusLoading: schedulerStatusQuery.isPending && !schedulerStatusQuery.data,
   };
 }

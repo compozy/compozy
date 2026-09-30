@@ -312,6 +312,50 @@ describe("TasksListSurface", () => {
     }
   });
 
+  it("Should fold search to a toggle only when the strip is too narrow for a usable field", () => {
+    const toolbar = (searchQuery: string) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery={searchQuery}
+          sortBy="recent"
+          statusCounts={countTasksByStatus([])}
+          statusFilter={null}
+        />
+      </UIProvider>
+    );
+    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    try {
+      // Narrow enough for the icon strip, still wide enough for the field.
+      measure.mockReturnValue(DOMRect.fromRect({ width: 400, height: 38 }));
+      const wide = render(toolbar(""));
+      expect(screen.getByTestId("tasks-list-search-input")).toBeVisible();
+      wide.unmount();
+
+      // Below the field's usable floor: a named toggle, never a clipped field.
+      measure.mockReturnValue(DOMRect.fromRect({ width: 300, height: 38 }));
+      const narrow = render(toolbar(""));
+      expect(screen.queryByTestId("tasks-list-search-input")).toBeNull();
+      expect(screen.getByRole("button", { name: "Search tasks" })).toBeVisible();
+      narrow.unmount();
+
+      // A live query keeps its field on screen even in the narrow strip.
+      render(toolbar("deploy"));
+      expect(screen.getByTestId("tasks-list-search-input")).toHaveValue("deploy");
+    } finally {
+      measure.mockRestore();
+    }
+  });
+
   it("Should name the profile the list is scoped to, not the create target", () => {
     renderSurface({ tasks: [] });
     expect(screen.getByTestId("tasks-list-surface-empty")).toHaveTextContent(

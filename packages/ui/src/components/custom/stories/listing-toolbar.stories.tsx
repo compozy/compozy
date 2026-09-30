@@ -9,19 +9,32 @@ function ListingToolbarDemo({
   initialView = "rows" as ListingViewMode,
   withFilters = true,
   withViewToggle = true,
+  collapsedSearch = false,
 }: {
   initialView?: ListingViewMode;
   withFilters?: boolean;
   withViewToggle?: boolean;
+  collapsedSearch?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ListingViewMode>(initialView);
 
   return (
-    <div className="w-[720px] rounded-lg border border-line bg-canvas p-4">
+    <div
+      className={
+        collapsedSearch
+          ? "w-[300px] rounded-lg border border-line bg-canvas p-4"
+          : "w-[720px] rounded-lg border border-line bg-canvas p-4"
+      }
+    >
       <ListingToolbar>
         <ListingToolbar.Leading>
-          <ListingToolbar.Search onChange={setSearch} placeholder="Search skills" value={search} />
+          <ListingToolbar.Search
+            collapsed={collapsedSearch}
+            onChange={setSearch}
+            placeholder="Search skills"
+            value={search}
+          />
           {withFilters ? (
             <ListingToolbar.Filters>
               <Button size="segment" type="button" variant="quiet">
@@ -68,4 +81,9 @@ export const CardsActive: Story = {
 
 export const SearchOnly: Story = {
   render: () => <ListingToolbarDemo withFilters={false} withViewToggle={false} />,
+};
+
+/** A strip too narrow for a usable field: search folds to a toggle that opens it on demand. */
+export const CollapsedSearch: Story = {
+  render: () => <ListingToolbarDemo collapsedSearch withViewToggle={false} />,
 };

@@ -220,11 +220,13 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const hasListFilters = Boolean(
     statusFilter || ownerFilter || priorityFilter || routeSearchQuery.trim() || includeLoop
   );
+  // `isPending`, not `isLoading`: a suspended window disables the read, and a
+  // disabled read with no data yet is still waiting, not an empty project.
   const isEmpty =
     hasActiveTaskScope &&
     !scopeLoading &&
     !scopeError &&
-    !tasksQuery.isLoading &&
+    !tasksQuery.isPending &&
     !tasksQuery.error &&
     tasksQuery.total === 0 &&
     !hasListFilters;
@@ -259,7 +261,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     inbox: inboxQuery.data ?? null,
     inboxError: scopeError ?? inboxQuery.error ?? null,
     inboxLaneFilter,
-    inboxLoading: scopeLoading || (inboxQuery.isLoading && !inboxQuery.data),
+    inboxLoading: scopeLoading || (inboxQuery.isPending && !inboxQuery.data),
     inboxPriorityFilter,
     inboxSearchQuery: inboxSearch.draftValue,
     inboxStatusFilter,
@@ -271,7 +273,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     isLoadingMoreTasks: tasksQuery.isFetchingNextPage,
     kanbanColumns,
     listError: scopeError ?? tasksQuery.error ?? null,
-    listLoading: scopeLoading || (tasksQuery.isLoading && allTasks.length === 0),
+    listLoading: scopeLoading || (tasksQuery.isPending && allTasks.length === 0),
     listUpdatedAt: tasksQuery.dataUpdatedAt,
     loadMoreInbox,
     loadMoreTasks,

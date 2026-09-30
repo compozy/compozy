@@ -2,7 +2,7 @@ import { ListingToolbar } from "@compozy/ui";
 
 import { taskQuickStatusExpresses, type TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListSortKey, TaskPriority, TaskRecordsFilter, TaskStatus } from "../types";
-import { useInlineSizeAtLeast } from "../hooks/use-inline-size-at-least";
+import { useInlineSize } from "../hooks/use-inline-size";
 import { TasksListFilters } from "./tasks-list-filters";
 import { TasksListQuickStatus } from "./tasks-list-quick-status";
 import { TasksListRecordsFilter } from "./tasks-list-records-filter";
@@ -10,6 +10,12 @@ import { TasksListSort } from "./tasks-list-sort";
 
 /** Strip width (px) at which the quick status pills fit beside search and Filter. */
 const QUICK_STATUS_MIN_STRIP_WIDTH = 672;
+/**
+ * Strip width (px) below which even the icon-only strip leaves the search short
+ * of its usable floor: the field folds to an icon button instead of clipping.
+ * The field's 140px floor plus the icon-only controls and gaps measure 329px.
+ */
+const SEARCH_FIELD_MIN_STRIP_WIDTH = 336;
 
 export interface TasksListToolbarProps {
   statusFilter: TaskStatus | null;
@@ -48,14 +54,15 @@ export function TasksListToolbar({
   // The quick pills need the strip's own width (a tiled pane, not the viewport).
   // One measurement decides both whether they show and whether the Filter strip
   // may leave their status to them — so a status is always visible exactly once.
-  const [toolbarRef, quickStatusFits] = useInlineSizeAtLeast<HTMLDivElement>(
-    QUICK_STATUS_MIN_STRIP_WIDTH
-  );
+  const [toolbarRef, stripWidth] = useInlineSize<HTMLDivElement>();
+  const quickStatusFits = stripWidth === null || stripWidth >= QUICK_STATUS_MIN_STRIP_WIDTH;
+  const searchCollapsed = stripWidth !== null && stripWidth < SEARCH_FIELD_MIN_STRIP_WIDTH;
   return (
     // The strip collapses by priority as the pane narrows (a size container, so
     // it measures its own share of the strip): the quick status pills leave
     // first — their status returns as a Filter chip — then Filter, the reveal and
-    // the sort drop to their icons, keeping their accessible names.
+    // the sort drop to their icons, keeping their accessible names; last the
+    // search folds to an icon button rather than clip below its usable width.
     <ListingToolbar className="@container/tasks-strip w-full min-w-0" ref={toolbarRef}>
       <ListingToolbar.Leading className="flex-nowrap">
         {quickStatusFits ? (
@@ -67,7 +74,8 @@ export function TasksListToolbar({
         ) : null}
         <ListingToolbar.Search
           aria-label="Search tasks"
-          containerClassName="min-w-20 max-w-48 flex-1"
+          collapsed={searchCollapsed}
+          containerClassName="max-w-48 flex-1"
           data-testid="tasks-list-search-input"
           onChange={onSearchQueryChange}
           placeholder="Search tasks"

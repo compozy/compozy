@@ -1,7 +1,9 @@
-import { LayoutGrid, List } from "lucide-react";
+import { LayoutGrid, List, SearchIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Button } from "../button";
+import { useCollapsibleSearch } from "./hooks/use-collapsible-search";
 import { PillGroup } from "./pill-group";
 import { SearchInput, type SearchInputProps } from "./search-input";
 
@@ -9,7 +11,16 @@ export type ListingViewMode = "rows" | "cards";
 export type ListingToolbarLeadingProps = React.ComponentProps<"div">;
 export type ListingToolbarTrailingProps = React.ComponentProps<"div">;
 export type ListingToolbarFiltersProps = React.ComponentProps<"div">;
-export type ListingToolbarSearchProps = SearchInputProps;
+export interface ListingToolbarSearchProps extends SearchInputProps {
+  /**
+   * The strip is too narrow for a usable field. The search shows as an icon
+   * button that opens the field on demand and folds back once the field is
+   * empty and loses focus (or Escape is pressed); a field holding a query
+   * stays open, since a clipped field is worse than none but a hidden query
+   * is worse still.
+   */
+  collapsed?: boolean;
+}
 
 export interface ListingToolbarViewToggleProps extends Omit<
   React.ComponentProps<"div">,
@@ -70,8 +81,34 @@ export function ListingToolbarTrailing({ className, ...props }: ListingToolbarTr
 export function ListingToolbarSearch({
   kbd = "/",
   containerClassName,
+  collapsed = false,
+  ref,
+  onBlur,
+  onKeyDown,
   ...props
 }: ListingToolbarSearchProps) {
+  const hasQuery = (props.value ?? String(props.defaultValue ?? "")) !== "";
+  const { showToggle, open, close, inputRefs, toggleRef } = useCollapsibleSearch(
+    collapsed,
+    hasQuery,
+    ref
+  );
+
+  if (showToggle) {
+    return (
+      <Button
+        aria-label={props["aria-label"] ?? props.placeholder ?? "Search"}
+        data-slot="listing-toolbar-search-toggle"
+        onClick={open}
+        ref={toggleRef}
+        size="segment"
+        type="button"
+        variant="quiet"
+      >
+        <SearchIcon aria-hidden="true" className="size-3 text-subtle" />
+      </Button>
+    );
+  }
   return (
     <SearchInput
       kbd={kbd}
@@ -80,6 +117,20 @@ export function ListingToolbarSearch({
         "basis-search-input min-w-search-input-floor shrink",
         containerClassName
       )}
+      ref={inputRefs}
+      onBlur={event => {
+        onBlur?.(event);
+        if (event.currentTarget.value === "") close(false);
+      }}
+      onKeyDown={event => {
+        onKeyDown?.(event);
+        if (collapsed && event.key === "Escape" && event.currentTarget.value === "") {
+          // Consumed: a host's document-level Escape (e.g. the desktop's
+          // focus return) must not pull focus off the toggle.
+          event.preventDefault();
+          close(true);
+        }
+      }}
       {...props}
     />
   );
