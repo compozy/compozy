@@ -109,8 +109,13 @@ func TestProviderAbsorption(t *testing.T) {
 			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
 				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
 			}
-			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextWindowFocused {
-				t.Errorf("command %q when = %#v, want the focused-window requirement", id, command.When)
+			// A preset has nothing to lay out without a peer: it reads disabled
+			// with the reason instead of running as a no-op.
+			if len(command.When) != 2 || command.When[0].Key != cmdpalette.ContextWindowFocused ||
+				command.When[1].Key != cmdpalette.ContextDesktopWindowCount ||
+				command.When[1].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
+				command.When[1].Value != 2 || command.When[1].Reason != "needs two windows on this desktop" {
+				t.Errorf("command %q when = %#v, want focused window + two windows on this desktop", id, command.When)
 			}
 		}
 	})

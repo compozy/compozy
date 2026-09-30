@@ -18,6 +18,19 @@ type shellCommandDefinition struct {
 	when []cmdpalette.Predicate
 }
 
+// arrangeWhen gates layout presets on a focused window with at least one
+// visible peer on its desktop: with a single window they have nothing to lay
+// out, so they read disabled with a reason instead of doing nothing.
+var arrangeWhen = []cmdpalette.Predicate{
+	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window"},
+	{
+		Key:      cmdpalette.ContextDesktopWindowCount,
+		Operator: cmdpalette.PredicateGreaterThanOrEqual,
+		Value:    2,
+		Reason:   "needs two windows on this desktop",
+	},
+}
+
 var fixedShellCommands = []shellCommandDefinition{
 	{
 		id:                 "palette.open",
@@ -132,34 +145,34 @@ var fixedShellCommands = []shellCommandDefinition{
 	},
 	{id: "workspace.cycle.next", title: "Next workspace", section: coreSectionWorkspaces, icon: coreIconChevronRight},
 	{
-		id:         "layout.arrange.two-up",
-		title:      "Arrange left and right",
-		section:    coreSectionLayout,
-		icon:       "columns-2",
-		needsFocus: true,
+		id:      "layout.arrange.two-up",
+		title:   "Arrange left and right",
+		section: coreSectionLayout,
+		icon:    "columns-2",
+		when:    arrangeWhen,
 	},
 	{
-		id:         "layout.arrange.main-stack",
-		title:      "Main and stack",
-		section:    coreSectionLayout,
-		icon:       "layout-panel-left",
-		needsFocus: true,
+		id:      "layout.arrange.main-stack",
+		title:   "Main and stack",
+		section: coreSectionLayout,
+		icon:    "layout-panel-left",
+		when:    arrangeWhen,
 	},
 	{
-		id:         "layout.arrange.columns",
-		title:      "Columns",
-		section:    coreSectionLayout,
-		icon:       "columns-3",
-		needsFocus: true,
+		id:      "layout.arrange.columns",
+		title:   "Columns",
+		section: coreSectionLayout,
+		icon:    "columns-3",
+		when:    arrangeWhen,
 	},
 	{
-		id:         "layout.arrange.grid",
-		title:      "Grid",
-		section:    coreSectionLayout,
-		icon:       "layout-grid",
-		needsFocus: true,
+		id:      "layout.arrange.grid",
+		title:   "Grid",
+		section: coreSectionLayout,
+		icon:    "layout-grid",
+		when:    arrangeWhen,
 	},
-	{id: "layout.balance", title: "Balance sizes", section: coreSectionLayout, icon: "scale", needsFocus: true},
+	{id: "layout.balance", title: "Balance sizes", section: coreSectionLayout, icon: "scale", when: arrangeWhen},
 	{id: "layout.undo", title: "Undo layout", section: coreSectionLayout, icon: "undo-2"},
 	{id: "layout.redo", title: "Redo layout", section: coreSectionLayout, icon: "redo-2"},
 }

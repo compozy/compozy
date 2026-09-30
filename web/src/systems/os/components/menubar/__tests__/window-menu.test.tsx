@@ -1,7 +1,8 @@
 // Suite: Window menu curation
 // Invariant: the Window menu lists the Arrange presets in the shell-rail order
 // straight from the registry, and "Move window to" names each other desktop
-// while dispatching that desktop's registry slot command.
+// while dispatching that desktop's registry slot command; with no other desktop
+// it stays in place disabled with its reason.
 // Boundary IN: WindowMenu, the registry context, and the real menubar primitive.
 // Boundary OUT: desktop runtime state (move targets are injected) and command execution.
 // No existing suite owns the Window menu; the item adapter has its own suite.
@@ -95,9 +96,12 @@ describe("WindowMenu", () => {
     expect(onRun).toHaveBeenCalledExactlyOnceWith("window.move_to_desktop.3");
   });
 
-  it("Should omit Move window to when no other desktop exists", () => {
+  it("Should disable Move window to with its reason when no other desktop exists", () => {
     renderMenu();
 
-    expect(screen.queryByTestId("os-menu-move-to-desktop")).toBeNull();
+    const item = screen.getByTestId("os-menu-move-to-desktop");
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(item).toHaveTextContent("Move window to");
+    expect(item).toHaveTextContent("needs another desktop");
   });
 });

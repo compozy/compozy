@@ -2191,6 +2191,88 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should balance the focused window's whole group, never its leaf node", async () => {
+    const queryClient = new QueryClient();
+    const tiled = (id: string, app: string) => ({
+      id,
+      app,
+      instanceKey: null,
+      route: { pathname: `/${app}`, search: {} },
+      navStack: [],
+      pinned: false,
+      placement: "tiled" as const,
+      desktopId: "desktop:one",
+      floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+      minimized: false,
+      zoomed: false,
+      returnAnchor: null,
+    });
+    const snapshot: WindowManagerSnapshot = {
+      ...SNAPSHOT,
+      desktops: SNAPSHOT.desktops.map(desktop =>
+        desktop.id === "desktop:one"
+          ? {
+              ...desktop,
+              groups: [
+                {
+                  id: "group:one",
+                  frame: { x: 0, y: 0, w: 1, h: 1 },
+                  root: {
+                    id: "split:one",
+                    kind: "split",
+                    axis: "horizontal",
+                    weights: [0.7, 0.3],
+                    children: [
+                      { id: "leaf:tasks", kind: "leaf", windowId: "app:tasks" },
+                      { id: "leaf:agents", kind: "leaf", windowId: "app:agents" },
+                    ],
+                  },
+                },
+              ],
+            }
+          : desktop
+      ),
+      windows: {
+        "app:tasks": tiled("app:tasks", "tasks"),
+        "app:agents": tiled("app:agents", "agents"),
+      },
+    };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    windowManagerStore.trigger.workAreaMeasured({
+      workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+    });
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 8 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:tasks",
+      focusOrder: ["app:tasks"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    runtime.balanceFocusedLayout();
+    await flushCommandQueue();
+
+    // The daemon rejects a split_id that names a leaf, so the group is the target.
+    expect(vi.mocked(executeWindowManagerCommand).mock.calls.map(call => call[4])).toEqual([
+      expect.objectContaining({ commandId: "layout.balance", payload: { group_id: "group:one" } }),
+    ]);
+    runtime.stop();
+  });
+
   it("Should describe a bare daemon refusal code in plain language", async () => {
     vi.useFakeTimers();
     try {

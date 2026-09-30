@@ -86,10 +86,14 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     this.dispatch({ commandId: "layout.redo", payload: {} });
   }
 
+  /**
+   * Evens every split in the focused window's tiled group. The window's own
+   * node is a leaf, never a split, so it is not a valid balance target.
+   */
   balanceFocusedLayout(): void {
     const focused = this.view.focusedId ? this.view.windows[this.view.focusedId] : undefined;
-    if (!focused) return;
-    this.balanceLayout(focused.groupId ?? undefined, focused.nodeId ?? undefined);
+    if (!focused?.groupId) return;
+    this.balanceLayout(focused.groupId);
   }
 
   protected buildView(): OsDesktopRuntimeStore {

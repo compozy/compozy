@@ -29,6 +29,12 @@ const ARRANGE_COMMANDS = [
   "layout.arrange.grid",
   "layout.balance",
 ];
+const MOVE_SLOT_COMMANDS = Array.from(
+  { length: 9 },
+  (_, index) => `window.move_to_desktop.${index + 1}`
+);
+/** Why "Move window to" has nothing to offer on a single desktop. */
+const MOVE_NEEDS_DESKTOP_REASON = "needs another desktop";
 const STATE_COMMANDS = ["window.zoom", "window.minimize", "window.toggle_floating"];
 const TILE_COMMANDS = [
   "window.tile.left",
@@ -85,6 +91,7 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
   const has = (commandId: string) => registry.byId.has(commandId);
   const arrangeCommands = ARRANGE_COMMANDS.filter(has);
   const reachableTargets = moveTargets.filter(target => has(target.commandId));
+  const canMoveToDesktop = MOVE_SLOT_COMMANDS.some(has);
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Window</MenubarTrigger>
@@ -115,6 +122,15 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
                     ))}
                   </MenubarSubContent>
                 </MenubarSub>
+              ) : canMoveToDesktop ? (
+                // One desktop: the destination list is empty, so the entry
+                // stays in place disabled with its reason instead of vanishing.
+                <MenubarItem data-testid="os-menu-move-to-desktop" disabled>
+                  <span className="min-w-0 flex-1">
+                    <span className="block">Move window to</span>
+                    <span className="block text-micro text-muted">{MOVE_NEEDS_DESKTOP_REASON}</span>
+                  </span>
+                </MenubarItem>
               ) : null
             ),
             menuGroup(
