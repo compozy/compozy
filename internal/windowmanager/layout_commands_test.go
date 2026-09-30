@@ -1254,7 +1254,7 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 
 	t.Run("Should tile after an explicit beside window without a client focus", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, besideFocusConfig(), "workspace-a")
 		clientID := ClientID("client-a")
 		registerTestClient(t, environment.manager, "workspace-a", clientID)
 		openTestWindow(t, environment.manager, "workspace-a", &clientID, "a", "desktop-default")
@@ -1274,6 +1274,162 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 				got,
 				opened.Snapshot.Windows["c"].Placement,
 			)
+		}
+	})
+
+	t.Run("Should open a client open as a tab of the focused frame under the default policy", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		first := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w1", "desktop-default")
+		groups := first.Snapshot.Desktops[0].Groups
+		if first.Snapshot.Windows["w1"].Placement != WindowPlacementTiled || len(groups) != 1 ||
+			groups[0].Frame != fullRect() {
+			t.Fatalf("first open on an empty desktop = %+v, want one full-frame tile", first.Snapshot.Desktops[0])
+		}
+		second := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		location := stackLocationForWindow(t, second.Snapshot, "w2")
+		if members := location.members(); !slices.Equal(members, []WindowID{"w1", "w2"}) ||
+			len(second.Snapshot.Desktops[0].Groups) != 1 {
+			t.Fatalf("tab open = %v in %+v, want w2 joining the w1 frame", members, second.Snapshot.Desktops[0])
+		}
+		if second.Client == nil || valueOrZero(second.Client.FocusedWindowID) != "w2" ||
+			second.Client.StackActive[location.id()] != "w2" {
+			t.Fatalf("issuing client after a tab open = %+v, want w2 focused and active", second.Client)
+		}
+
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID, ToggleFloatingCommand{WindowID: "w2"})
+		floated := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w3", "desktop-default")
+		if members := stackMembersForWindow(t, floated.Snapshot, "w3"); !slices.Contains(members, "w2") ||
+			len(floated.Snapshot.Desktops[0].FloatingStacks) != 1 {
+			t.Fatalf(
+				"tab open onto a floating focus = %+v, want w3 in the floating frame",
+				floated.Snapshot.Desktops[0],
+			)
+		}
+		requireValidSnapshot(t, floated.Snapshot)
+	})
+
+	t.Run("Should keep a zoomed focused frame zoomed when a tab open joins it", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "w1", "desktop-default")
+		zoomed := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			ZoomWindowCommand{WindowID: "w1"},
+		)
+		if !zoomed.Snapshot.Windows["w1"].Zoomed || zoomed.Snapshot.Windows["w1"].DesktopID != "desktop-default" ||
+			len(zoomed.Snapshot.Desktops[0].Groups) != 1 {
+			t.Fatalf("zoomed w1 = %+v, want zoomed in place", zoomed.Snapshot.Desktops[0])
+		}
+		frameID := zoomed.Snapshot.Desktops[0].Groups[0].ID
+
+		joined := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		members := stackMembersForWindow(t, joined.Snapshot, "w2")
+		groups := joined.Snapshot.Desktops[0].Groups
+		if !slices.Equal(members, []WindowID{"w1", "w2"}) || len(groups) != 1 || groups[0].ID != frameID {
+			t.Fatalf("tab open onto a zoomed frame = %v in %+v, want w2 in the same frame", members, groups)
+		}
+		if !joined.Snapshot.Windows["w1"].Zoomed || joined.Snapshot.Windows["w2"].Zoomed ||
+			!unitZoomed(&joined.Snapshot, members) {
+			t.Fatalf("zoom after the tab open = %+v, want the frame still zoomed through w1", joined.Snapshot.Windows)
+		}
+		requireValidSnapshot(t, joined.Snapshot)
+	})
+
+	t.Run("Should fall back to beside-focus placement when no visible focus can take the tab", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "w1", "desktop-default")
+
+		clientless := openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		if _, stacked := findStackByWindow(&clientless.Snapshot, "w2"); stacked ||
+			clientless.Snapshot.Windows["w2"].Placement != WindowPlacementFloating {
+			t.Fatalf("clientless open = %+v, want a floating window outside the focused frame",
+				clientless.Snapshot.Windows["w2"])
+		}
+		clients, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients() error = %v", err)
+		}
+		if len(clients) != 1 || valueOrZero(clients[0].FocusedWindowID) != "w1" {
+			t.Fatalf("client after a clientless open = %+v, want w1 still focused", clients)
+		}
+
+		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w2"})
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID,
+			CloseWindowCommand{WindowID: "w1", Minimize: true})
+		reopened := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w3", "desktop-default")
+		groups := reopened.Snapshot.Desktops[0].Groups
+		if _, stacked := findStackByWindow(&reopened.Snapshot, "w3"); stacked || len(groups) != 1 ||
+			groups[0].Frame != fullRect() || !slices.Equal(nodeWindowIDs(groups[0].Root), []WindowID{"w3"}) ||
+			!reopened.Snapshot.Windows["w1"].Minimized {
+			t.Fatalf("open beside a minimized focus = %+v, want w3 alone in a full-frame tile",
+				reopened.Snapshot.Desktops[0])
+		}
+	})
+
+	t.Run("Should let an explicit split, beside anchor, or floating open win over the tab policy", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "a", "desktop-default")
+		open := func(clientID *ClientID, spec WindowSpec) Result {
+			t.Helper()
+			spec.App, spec.Route, spec.DesktopID = "Test", testRoute("/test"), "desktop-default"
+			spec.FloatingRect = NormalizedRect{X: 0.2, Y: 0.2, Width: 0.5, Height: 0.5}
+			return executeTestCommand(t, environment.manager, "workspace-a", clientID, OpenWindowCommand{Window: spec})
+		}
+
+		split := open(&clientID, WindowSpec{ID: "b", InsertTiled: true})
+		if got := nodeWindowIDs(split.Snapshot.Desktops[0].Groups[0].Root); !slices.Equal(got, []WindowID{"a", "b"}) ||
+			split.Snapshot.Windows["b"].Placement != WindowPlacementTiled {
+			t.Fatalf("explicit split = %v, want b tiled beside a", got)
+		}
+		anchor := WindowID("a")
+		beside := open(nil, WindowSpec{ID: "c", BesideWindowID: &anchor})
+		if got := nodeWindowIDs(
+			beside.Snapshot.Desktops[0].Groups[0].Root,
+		); !slices.Equal(
+			got,
+			[]WindowID{"a", "c", "b"},
+		) {
+			t.Fatalf("explicit beside anchor = %v, want c tiled right after a", got)
+		}
+		floating := open(&clientID, WindowSpec{ID: "d", Floating: true})
+		if window := floating.Snapshot.Windows["d"]; window.Placement != WindowPlacementFloating ||
+			!slices.Contains(floating.Snapshot.Desktops[0].Floating, "d") {
+			t.Fatalf("explicit floating open = %+v, want a free floating window", window)
+		}
+
+		beforeCommits := len(environment.repository.Commits("workspace-a"))
+		for _, spec := range []WindowSpec{
+			{ID: "e", Floating: true, InsertTiled: true},
+			{ID: "f", Floating: true, StackTargetWindowID: &anchor},
+		} {
+			snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatalf("Snapshot() error = %v", err)
+			}
+			spec.App, spec.Route = "Test", testRoute("/test")
+			if _, err := environment.manager.Execute(t.Context(), CommandRequest{
+				WorkspaceID: "workspace-a", ExpectedRevision: snapshot.Revision, ClientID: &clientID,
+				Payload: OpenWindowCommand{Window: spec},
+			}); !errors.Is(err, ErrInvalidCommand) {
+				t.Fatalf("Execute(floating %+v) error = %v, want ErrInvalidCommand", spec, err)
+			}
+		}
+		if len(environment.repository.Commits("workspace-a")) != beforeCommits {
+			t.Fatal("a conflicting floating open wrote a commit")
 		}
 	})
 
@@ -1327,7 +1483,7 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 func TestArrangeDisplacesIslands(t *testing.T) {
 	t.Run("Should end zoom on open and shrink its island when the new window tiles to the edge", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, besideFocusConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
 			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},

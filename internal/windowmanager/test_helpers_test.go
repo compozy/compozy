@@ -44,6 +44,14 @@ func floatingConfig() Config {
 	return config
 }
 
+// besideFocusConfig returns the defaults with beside-focus placement, for fixtures whose client opens
+// must tile beside focus instead of joining the focused frame as a tab.
+func besideFocusConfig() Config {
+	config := DefaultConfig()
+	config.NewWindowPolicy = NewWindowInsert
+	return config
+}
+
 func newTestEnvironment(t *testing.T, config Config, workspaces ...WorkspaceID) testEnvironment {
 	t.Helper()
 	return newTestEnvironmentWithOptions(t, config, workspaces)

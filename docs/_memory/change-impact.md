@@ -50,6 +50,24 @@ Owning design: `docs/design/opendesign/shell-rail/` (`shell-rail-v2.html`, `DESI
   presets, move window to desktop, dock foot + compact tab bar, empty-desktop card, Inter type ramp,
   theme scenarios); `ET-web-dock-magnification` is deleted and `ET-web-geist-wght-medium-510`
   retired. The final QA pass walks them.
+- **Polish round 2 (P6, window opening):** `new_window_policy` gains `tab` and it becomes the default
+  in both config layers (was `beside_focus` on this unreleased branch, `floating` in the last
+  release): a client open joins the client's focused window as a tab when that window is visible on
+  the open's desktop, otherwise it falls back to beside-focus placement (an empty desktop gets one
+  full pane). Clientless opens never join a frame by policy; a peer client keeps its visible tab when
+  another client's open creates a new frame. `window.open` gains an optional `floating` flag
+  (additive: contract DTO, OpenAPI/TS, `compozy__window_open`, `compozy window open --floating`);
+  it conflicts with `insert_tiled`/`stack_target_window_id`. The Settings enum, Settings › Layouts
+  picker (Tab in focused window), `config.toml` example, site docs (`config-toml.mdx`,
+  `window-management.mdx`, generated `cli/window/open.mdx`), the release note's migration table, and
+  `skills/compozy/references/{window-management,native-tools}.md` carry both. Web: rail ⌥-click
+  splits, ⇧-click opens on a new desktop, and the rail menu (now on Sessions too) offers new tab /
+  split / new window / new desktop / Go to tab. Workspace data isolation unchanged. QA: dock default
+  size, Sessions launch, multi-instance, terminal native flow, and tab deck scenarios updated.
+  E2E triage on the integrated tree added three product fixes with no contract change: snaps store
+  exact zone fractions (odd-width desks drifted), a client's fallback focus after a close resolves to
+  the frame's shown tab (daemon `focusForDesktop`), and Continue/Fork "New window" opens the child as
+  a split so the source stays visible under the tab default.
 
 ## PR 685 — Wake creator on child turn completion
 

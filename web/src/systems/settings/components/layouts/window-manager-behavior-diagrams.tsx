@@ -75,6 +75,16 @@ export function DiagramSplitBesideFocus() {
   );
 }
 
+export function DiagramTabInFocus() {
+  return (
+    <Diagram>
+      <Pane height={6} width={22} x={3} y={3} />
+      <Subject height={6} width={22} x={27} y={3} />
+      <Subject height={25} width={82} x={3} y={10} />
+    </Diagram>
+  );
+}
+
 export function DiagramFoldIntoStack() {
   return (
     <Diagram>

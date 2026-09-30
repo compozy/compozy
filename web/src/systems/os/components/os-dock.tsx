@@ -5,6 +5,7 @@ import { PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui"
 import { cn } from "@/lib/utils";
 
 import { dockTabStopId, moveDockRovingFocus } from "../lib/dock-roving-focus";
+import type { LaunchModifiers } from "../lib/launch-placement";
 import { dockItemAccessibleName, dockItemTip, type OsDockItemData } from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
@@ -20,8 +21,12 @@ const RAIL_TIP_SIDE_OFFSET = 10;
  */
 export interface OsDockProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   items: OsDockItemData[];
-  /** Item activation. Omit to render items as presentation. */
-  onSelect?: (id: string) => void;
+  /**
+   * Item activation. Pointer clicks report their ⌥ / ⇧ modifiers; keyboard
+   * activation never does, so Enter and Space always act as a plain click.
+   * Omit to render items as presentation.
+   */
+  onSelect?: (id: string, modifiers?: LaunchModifiers) => void;
   /** Keeps launchers visible while the authoritative command fence hydrates. */
   disabled?: boolean;
   /** Wraps each interactive item with its destination context menu (US-006). */
@@ -43,7 +48,7 @@ function DockItemBody({ item }: { item: OsDockItemData }) {
   const state = dockItemState(item);
   return (
     <>
-      <DockIcon name={item.icon} className={cn("size-5", item.minimized && "opacity-50")} />
+      <DockIcon name={item.icon} className={cn("size-4.5", item.minimized && "opacity-50")} />
       <span
         data-slot="os-dock-indicator"
         aria-hidden="true"
@@ -69,8 +74,8 @@ function DockItemBody({ item }: { item: OsDockItemData }) {
 const ITEM_BASE =
   "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted transition-[background-color,color,box-shadow] duration-base ease-spring";
 const ITEM_INTERACTIVE =
-  "hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none";
-const ITEM_ACTIVE = "bg-selected text-fg shadow-card hover:bg-selected";
+  "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none";
+const ITEM_ACTIVE = "bg-rail-selected text-fg hover:bg-rail-selected";
 
 function DockItem({
   item,
@@ -83,7 +88,7 @@ function DockItem({
   item: OsDockItemData;
   tabStop: boolean;
   onFocusItem: (id: string) => void;
-  onSelect?: (id: string) => void;
+  onSelect?: OsDockProps["onSelect"];
   disabled?: boolean;
   renderItemMenu?: OsDockProps["renderItemMenu"];
 }) {
@@ -130,7 +135,13 @@ function DockItem({
             disabled={disabled}
             className={classes}
             onFocus={() => onFocusItem(item.id)}
-            onClick={() => onSelect(item.id)}
+            onClick={event =>
+              onSelect(
+                item.id,
+                // `detail` is 0 for keyboard (and programmatic) activation.
+                event.detail === 0 ? undefined : { altKey: event.altKey, shiftKey: event.shiftKey }
+              )
+            }
           />
         }
       >
@@ -195,10 +206,7 @@ export function OsDock({
   return (
     <div
       data-slot="os-rail"
-      className={cn(
-        "flex w-rail shrink-0 flex-col items-center border-r border-line bg-rail",
-        className
-      )}
+      className={cn("flex w-rail shrink-0 flex-col items-center bg-rail", className)}
       {...props}
     >
       <nav

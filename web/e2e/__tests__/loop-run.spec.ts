@@ -66,7 +66,7 @@ const DEEP_CHAIN_LOOP = "run-page-deep-chain-e2e";
 test.use({
   runtimeOptions: {
     // Run pages open as floating windows narrower than the desk, so the fixed-width
-    // DAG (E2E-016) overflows its lane; the daemon default tiles beside focus.
+    // DAG (E2E-016) overflows its lane; the shipped `tab` default would fill the desk instead.
     newWindowPolicy: "floating",
     seed: {
       mockAgents: [

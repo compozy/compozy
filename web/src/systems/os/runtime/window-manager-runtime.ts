@@ -156,9 +156,11 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     }
 
     const desktopId =
+      target.desktopId ??
       (target.stackTargetWindowId
         ? state.windows[target.stackTargetWindowId]?.desktopId
-        : undefined) ?? state.activeDesktopId;
+        : undefined) ??
+      state.activeDesktopId;
     const id = randomOsWindowId();
     if (desktopId === null || desktopId === undefined) {
       return { windowId: id, accepted: false, completion: Promise.resolve(false) };

@@ -591,7 +591,7 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			}
 
 			// The window.stack.group journey below groups two floating windows. The
-			// shipped new_window_policy is beside_focus (tiling), so the floating
+			// shipped new_window_policy is tab (tiled tabs), so the floating
 			// premise is set explicitly through the public settings route.
 			var windowManagerSettings map[string]json.RawMessage
 			if err := runtimeHarness.HTTPJSON(

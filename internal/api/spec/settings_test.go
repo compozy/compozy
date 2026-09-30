@@ -434,6 +434,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			propertySchema(t, windowManagerConfigSchema, "new_window_policy"),
 			"beside_focus",
 			"floating",
+			"tab",
 		)
 		assertEnumValues(
 			t,

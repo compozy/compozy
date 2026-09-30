@@ -29,10 +29,10 @@ func TestWindowManagerConfig(t *testing.T) {
 		if err := got.Validate(); err != nil {
 			t.Fatalf("WindowManager.Validate() error = %v", err)
 		}
-		if got.NewWindowPolicy != WindowNewPolicyBesideFocus ||
+		if got.NewWindowPolicy != WindowNewPolicyTab ||
 			got.SmallViewportPolicy != WindowSmallViewportStack ||
 			got.HistoryLimit != 50 || got.NavStackLimit != 50 || got.ClosedEntryLimit != 20 {
-			t.Fatalf("WindowManager = %#v, want beside_focus/stack/history/nav/closed defaults", got)
+			t.Fatalf("WindowManager = %#v, want tab/stack/history/nav/closed defaults", got)
 		}
 		if got.Gaps != (WindowManagerGapsConfig{}) {
 			t.Fatalf("WindowManager.Gaps = %#v, want flush zero gaps", got.Gaps)

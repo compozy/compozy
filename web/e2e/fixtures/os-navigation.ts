@@ -77,6 +77,23 @@ export async function windowID(win: Locator): Promise<string> {
   return testID.slice(prefix.length);
 }
 
+/**
+ * Close one app window the way an operator would. New windows open as tabs of
+ * the focused window by default, and a shared frame's own Close window would
+ * close every tab in it — so a window with a tab closes through that tab.
+ */
+export async function closeAppWindow(page: Page, win: Locator): Promise<void> {
+  const tabClose = page
+    .getByTestId(`os-window-tab-${await windowID(win)}`)
+    .locator('[data-slot="os-window-tab-close"]');
+  if ((await tabClose.count()) > 0) {
+    await tabClose.click();
+  } else {
+    await win.getByRole("button", { name: "Close window" }).click();
+  }
+  await expect(win).toBeHidden();
+}
+
 function escapeAttributeValue(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }

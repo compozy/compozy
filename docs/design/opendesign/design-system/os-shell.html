@@ -252,8 +252,10 @@
         <span class="shell-tip">Sessions <span style="opacity:.6">⌘1</span></span>
         <span class="shell-tip">Light mode</span>
         <p class="demo-note" style="max-width:44ch">Tooltips sit to the right (offset 10) as an inverted pill. Up/Down rove
-        the launchers (wrapping), Home/End jump. The context menu offers <b>Open in new window</b>,
-        <b>Open as tab in focused window</b> and <b>Go to tab</b>. The theme toggle shows a sun while dark and a moon
+        the launchers (wrapping), Home/End jump. A click goes to the app's window or opens it as a tab; ⌥-click
+        splits and ⇧-click opens a new desktop. The context menu offers <b>Open in new tab</b>, <b>Open in split</b>
+        (⌥ click), <b>Open in new window</b>, <b>Open in new desktop</b> (⇧ click) and, once the app has a window,
+        <b>Go to tab</b>. The theme toggle shows a sun while dark and a moon
         while light ("Switch to light mode" / "Switch to dark mode").</p>
       </div>
     </div>
@@ -516,7 +518,7 @@
   <section class="sec" id="focus" data-od-id="sec-focus">
     <h2><span class="num">09</span>Focus &amp; z-order</h2>
     <p class="lead">Focus behaviour is daemon configuration (<code>[window_manager]</code>), readable and writable per workspace.
-    The default <code>new_window_policy</code> is <code>beside_focus</code>: new windows tile next to the focused one.</p>
+    The default <code>new_window_policy</code> is <code>tab</code>: new windows open as a tab in the focused window (an empty desktop gets one full pane).</p>
     <div class="demo demo--col demo--soft" data-od-id="demo-z">
       <div class="osx-zbar"><b>1</b><span><i style="width:22%"></i>tiled windows</span></div>
       <div class="osx-zbar"><b>2+n</b><span><i style="width:32%"></i>floating windows: base 2 plus the window's own layer</span></div>

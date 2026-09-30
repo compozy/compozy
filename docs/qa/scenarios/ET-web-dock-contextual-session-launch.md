@@ -5,7 +5,7 @@ title: Launch or focus a session from the dock
 persona: Bruno
 journey: J-operate-desktop-shell
 expected: Clicking Sessions at the top of the dock (the left rail) opens the new-session flow only when the workspace catalog is empty and otherwise opens the last created live session, focusing an existing window for that session when one is already open including minimized, off-desktop, or inactive-stack-tab windows; the Sessions item carries the active plate while that window is focused and its badge names what needs you ("Sessions — 1 needs you").
-entry_points: web dock Sessions (left rail)
+entry_points: web dock Sessions (left rail) — click, ⌥-click, ⇧-click, right-click menu
 qa_status: untested
 bug_ids:
 fix_status:
@@ -34,3 +34,5 @@ session was focused. Verdict: pass.
 QA re-walk 2026-09-30: PASS on actual isolated Electron final Web index71ea3236e585a54471d994843a07ea687a1797a34badc28b6af7086f13d18b57. A newly registered empty project opened the real Start session form from Sessions; Cancel preserved the empty catalog. Public CLI then created Dock external newest session, and the next actual dock click opened that exact session instead of another create form. Actual window Minimize followed by dock click restored the same session, visible and focused. The cache was empty before external creation; its value at click was not independently observed. Unchanged remote E2E-136 covers the precise stale-cache regression. Evidence: final-dock-cold-workspace.json, final-dock-external-new.json and final-dock-restored.json in the canonical report lab.
 
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The dock moved from the bottom glass strip to the 60px left rail (same launch rules, new component). Reset for a walk of the three cases: empty catalog → create, catalog row without a window → last created, last-created already open (including minimized) → focus.
+
+qa-impact: 2026-09-30 shell-rail polish P6 — plain Sessions clicks keep the three cases above; a last-created session with no window now opens as a tab of the focused window (daemon default `tab`). New: Option (⌥)-click, Shift (⇧)-click, and the Sessions right-click menu (Open in new tab / Open in split / Open in new window / Open in new desktop / Go to tab) open the session list window (`/sessions`, "No session selected") at that destination instead of jumping to the latest session; in Global scope with no sessions every gesture still opens the workspace switcher. Reset for a walk of those gestures.

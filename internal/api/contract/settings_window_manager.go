@@ -7,6 +7,7 @@ type SettingsWindowNewPolicy string
 const (
 	SettingsWindowNewPolicyFloating    SettingsWindowNewPolicy = "floating"
 	SettingsWindowNewPolicyBesideFocus SettingsWindowNewPolicy = "beside_focus"
+	SettingsWindowNewPolicyTab         SettingsWindowNewPolicy = "tab"
 )
 
 type SettingsWindowSmallViewportPolicy string

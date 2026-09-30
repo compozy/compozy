@@ -67,7 +67,7 @@ const permissionHardeningFixture = path.resolve(
 test.use({
   runtimeOptions: {
     // The shell invariants below drag, move, snap, and deck floating windows; the
-    // daemon default (`beside_focus`) is owned by the window-manager Go suites.
+    // daemon default (`tab`) is owned by the window-manager Go suites.
     newWindowPolicy: "floating",
     seed: {
       mockAgents: [
@@ -2335,12 +2335,12 @@ test("E2E-033 (logical E2E-006): dock context opens a second app instance as a t
   await tasksDockItem.press("Shift+F10");
   let menu = appPage.getByTestId("os-dock-app-menu-tasks");
   await expect(menu).toBeVisible();
-  await menu.getByText("Open as tab in focused window", { exact: true }).click();
+  await menu.getByTestId("os-dock-app-menu-tasks-tab").click();
 
   await tasksDockItem.click({ button: "right" });
   menu = appPage.getByTestId("os-dock-app-menu-tasks");
   await expect(menu).toBeVisible();
-  await menu.getByText("Open as tab in focused window", { exact: true }).click();
+  await menu.getByTestId("os-dock-app-menu-tasks-tab").click();
 
   await expect
     .poll(async () => {
@@ -2380,6 +2380,57 @@ test("E2E-033 (logical E2E-006): dock context opens a second app instance as a t
     "aria-selected",
     "true"
   );
+});
+
+test.describe("shipped new-window policy", () => {
+  // Every other shell journey pins `floating`; this one runs on the daemon's
+  // shipped `tab` default, which the rail's plain and ⌥ clicks exercise.
+  test.use({ runtimeOptions: {} });
+
+  test("Shell-rail P6: the rail opens a second app as a tab of the focused window and ⌥-click splits", async ({
+    appPage,
+    runtime,
+  }) => {
+    const workspace = await prepareShell(appPage, runtime);
+    const dock = appPage.locator('[data-slot="os-dock"]');
+    const tasks = await openDockApp(appPage, "Tasks", "tasks");
+    const tasksID = await windowID(tasks);
+    const agents = await openDockApp(appPage, "Agents", "agents");
+    const agentsID = await windowID(agents);
+
+    await expect
+      .poll(async () => {
+        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+        const stack = tiledStackNodeForWindow(snapshot, tasksID);
+        return stack !== null && stack === tiledStackNodeForWindow(snapshot, agentsID);
+      })
+      .toBe(true);
+    const shell = osShellSelectors(appPage);
+    await expect(shell.tabButton(tasksID)).toBeVisible();
+    await expect(shell.tabButton(agentsID)).toHaveAttribute("aria-selected", "true");
+
+    await dock.getByRole("button", { name: "Tasks", exact: true }).click({ modifiers: ["Alt"] });
+    let splitID = "";
+    await expect
+      .poll(async () => {
+        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+        const split = Object.values(snapshot.windows).find(
+          window => window.app === "tasks" && window.id !== tasksID
+        );
+        splitID = split?.id ?? "";
+        if (split === undefined) return null;
+        const group = layoutGroupForWindow(snapshot, split.id);
+        return {
+          placement: split.placement,
+          stacked: tiledStackNodeForWindow(snapshot, split.id) !== null,
+          sameGroup: group !== null && group.id === layoutGroupForWindow(snapshot, tasksID)?.id,
+          rootKind: group?.root.kind,
+        };
+      })
+      .toEqual({ placement: "tiled", stacked: false, sameGroup: true, rootKind: "split" });
+    await expect(shell.window(splitID)).toBeVisible();
+    await expect(shell.window(agentsID)).toBeVisible();
+  });
 });
 
 test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W until unpinned", async ({

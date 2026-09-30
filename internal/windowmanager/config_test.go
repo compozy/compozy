@@ -72,7 +72,7 @@ func TestEffectiveConfig(t *testing.T) {
 		if snap.RepeatRatios[0] != 0.4 || shortcuts["layout.balance"][0] != " Shift + Meta + KeyB " {
 			t.Fatal("effective config aliases caller-owned collections")
 		}
-		if defaults.NewWindowPolicy != NewWindowInsert || defaults.HistoryLimit != 50 {
+		if defaults.NewWindowPolicy != NewWindowTab || defaults.HistoryLimit != 50 {
 			t.Fatalf("defaults were mutated = %+v", defaults)
 		}
 	})

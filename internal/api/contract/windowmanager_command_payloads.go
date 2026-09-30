@@ -39,6 +39,7 @@ type WindowManagerWindowSpecPayload struct {
 	DesktopID           windowmanager.DesktopID      `json:"desktop_id"`
 	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect"`
 	InsertTiled         bool                         `json:"insert_tiled"`
+	Floating            bool                         `json:"floating,omitempty"`
 	StackTargetWindowID *windowmanager.WindowID      `json:"stack_target_window_id,omitempty"`
 }
 
@@ -209,7 +210,7 @@ func decodeOpenWindowPayload(raw json.RawMessage) (windowmanager.Command, error)
 		ID: payload.Window.ID, App: payload.Window.App, InstanceKey: payload.Window.InstanceKey,
 		Route: payload.Window.Route, DesktopID: payload.Window.DesktopID,
 		FloatingRect: payload.Window.FloatingRect, InsertTiled: payload.Window.InsertTiled,
-		StackTargetWindowID: payload.Window.StackTargetWindowID,
+		Floating: payload.Window.Floating, StackTargetWindowID: payload.Window.StackTargetWindowID,
 	}
 	return windowmanager.OpenWindowCommand{Window: spec, RestoreWindowID: payload.RestoreWindowID}, nil
 }

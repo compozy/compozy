@@ -23,6 +23,7 @@ type DesktopTransition string
 const (
 	NewWindowFloating          NewWindowPolicy     = "floating"
 	NewWindowInsert            NewWindowPolicy     = "beside_focus"
+	NewWindowTab               NewWindowPolicy     = "tab"
 	SmallViewportStack         SmallViewportPolicy = "stack"
 	SmallViewportReject        SmallViewportPolicy = "reject"
 	FocusClickDirectional      FocusPolicy         = "click_directional"
@@ -109,7 +110,7 @@ type WorkspaceConfig struct {
 // DefaultConfig returns production defaults from the accepted contract.
 func DefaultConfig() Config {
 	return Config{
-		NewWindowPolicy:     NewWindowInsert,
+		NewWindowPolicy:     NewWindowTab,
 		SmallViewportPolicy: SmallViewportStack,
 		FocusPolicy:         FocusClickDirectional,
 		RaiseOnFocus:        true,
@@ -143,7 +144,9 @@ func validateConfig(config Config) error {
 }
 
 func validateBehaviorConfig(config Config) error {
-	if config.NewWindowPolicy != NewWindowFloating && config.NewWindowPolicy != NewWindowInsert {
+	switch config.NewWindowPolicy {
+	case NewWindowFloating, NewWindowInsert, NewWindowTab:
+	default:
 		return fmt.Errorf("new window policy %q: %w", config.NewWindowPolicy, ErrInvalidCommand)
 	}
 	if config.SmallViewportPolicy != SmallViewportStack && config.SmallViewportPolicy != SmallViewportReject {

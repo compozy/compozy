@@ -137,6 +137,7 @@ const windowManagerWindowOpenInputSchema = `{
 		"route":` + windowManagerRouteSchema + `,
 		"floating_rect":` + windowManagerRectSchema + `,
 		"insert_tiled":{"type":"boolean"},
+		"floating":{"type":"boolean"},
 		"stack_target_window_id":{"type":"string","minLength":1},
 		"restore_window_id":{"type":"string","minLength":1},
 		"rebase":` + windowManagerRebaseSchema + `,

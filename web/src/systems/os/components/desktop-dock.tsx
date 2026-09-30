@@ -46,11 +46,14 @@ export function DesktopDock({
   profileSwitcher,
   onOpenSettings,
 }: DesktopDockProps) {
-  const { entries, presentation, commandsAvailable, handleSelect } = useDesktopDock(badges, {
-    onNewSession,
-    onPickProject,
-    terminalLive,
-  });
+  const { entries, presentation, commandsAvailable, handleSelect, handleLaunch } = useDesktopDock(
+    badges,
+    {
+      onNewSession,
+      onPickProject,
+      terminalLive,
+    }
+  );
   const dormancy = cn(WAKE, dormant && DORMANT);
 
   if (presentation === "compact") {
@@ -80,12 +83,14 @@ export function DesktopDock({
       renderItemMenu={
         !commandsAvailable || !contextMenusEnabled
           ? undefined
-          : (item, children) =>
-              item.id === "session" ? (
-                children
-              ) : (
-                <OsDockAppMenu appId={item.id as OsAppId}>{children}</OsDockAppMenu>
-              )
+          : (item, children) => (
+              <OsDockAppMenu
+                appId={item.id as OsAppId}
+                onLaunch={placement => handleLaunch(item.id, placement)}
+              >
+                {children}
+              </OsDockAppMenu>
+            )
       }
       foot={<OsRailFoot profileSwitcher={profileSwitcher} onOpenSettings={onOpenSettings} />}
     />

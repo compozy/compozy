@@ -114,4 +114,24 @@ describe("useAttentionJump", () => {
     });
     expect(notifyUser).not.toHaveBeenCalled();
   });
+
+  it("Should keep a requested placement through agent resolution", async () => {
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-alpha", workspaceId: "ws-alpha", placement: "split" });
+    });
+
+    await waitFor(() => {
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-alpha",
+        route: {
+          pathname: "/agents/claude/sessions/sess-alpha",
+          search: {},
+        },
+        placement: "split",
+      });
+    });
+  });
 });

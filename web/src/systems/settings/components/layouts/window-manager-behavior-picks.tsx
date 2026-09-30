@@ -15,6 +15,7 @@ import {
   DiagramRefuse,
   DiagramSlide,
   DiagramSplitBesideFocus,
+  DiagramTabInFocus,
 } from "./window-manager-behavior-diagrams";
 import type { WindowManagerConfig, WindowManagerDragModifier } from "@/systems/os";
 
@@ -38,8 +39,9 @@ const NEW_WINDOW: PickRow<"newWindowPolicy"> = {
   label: "New windows",
   description: "Where a window lands when it opens without a home.",
   options: [
-    { value: "floating", label: "Float on top", diagram: DiagramFloatOnTop },
+    { value: "tab", label: "Tab in focused window", diagram: DiagramTabInFocus },
     { value: "beside_focus", label: "Split beside focus", diagram: DiagramSplitBesideFocus },
+    { value: "floating", label: "Float on top", diagram: DiagramFloatOnTop },
   ],
 };
 
@@ -183,7 +185,7 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
     <div className="flex flex-col gap-3 border-t border-line-soft px-4 py-3.5 first:border-t-0 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between min-[720px]:gap-6">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="text-ws-name font-medium text-fg">{row.label}</p>
+          <p className="text-body font-medium text-fg">{row.label}</p>
           <HelpTip label={`About ${row.label.toLowerCase()}`}>{row.description}</HelpTip>
         </div>
       </div>
@@ -205,8 +207,8 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
                 "transition-colors duration-base ease-out",
                 "focus-visible:outline-none focus-visible:shadow-focus-ring",
                 selected
-                  ? "bg-selected text-fg shadow-inset-strong"
-                  : "bg-canvas shadow-card hover:bg-surface-2 hover:text-fg"
+                  ? "bg-selected text-fg"
+                  : "bg-card shadow-card hover:bg-surface-2 hover:text-fg"
               )}
               data-testid={`window-manager-pick-${String(row.key)}-${option.value}`}
               key={option.value}

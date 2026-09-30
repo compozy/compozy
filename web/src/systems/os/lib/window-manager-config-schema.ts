@@ -64,7 +64,7 @@ export const shortcutsSchema = z
 
 export const windowManagerWorkspaceConfigSchema = z
   .strictObject({
-    new_window_policy: z.enum(["floating", "beside_focus"]).optional(),
+    new_window_policy: z.enum(["floating", "beside_focus", "tab"]).optional(),
     small_viewport_policy: z.enum(["stack", "reject"]).optional(),
     focus_policy: z.enum(["click_directional", "directional"]).optional(),
     focus_wrap: z.boolean().optional(),
@@ -107,7 +107,7 @@ export const windowManagerWorkspaceConfigSchema = z
   );
 
 export const windowManagerWireConfigSchema = z.strictObject({
-  new_window_policy: z.enum(["floating", "beside_focus"]),
+  new_window_policy: z.enum(["floating", "beside_focus", "tab"]),
   small_viewport_policy: z.enum(["stack", "reject"]),
   focus_policy: z.enum(["click_directional", "directional"]),
   focus_wrap: z.boolean(),

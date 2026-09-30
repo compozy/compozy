@@ -84,6 +84,14 @@ export interface OsOpenTarget {
   stackTargetWindowId?: string;
   /** Skip focus-first resolution and always create another instance (ADR-002). */
   forceNewInstance?: boolean;
+  /**
+   * Explicit placement for a window this open creates. Omitted follows the
+   * daemon's new-window policy (a tab in the focused window by default):
+   * `split` tiles beside the focused window, `floating` opens a free window.
+   */
+  placement?: "split" | "floating";
+  /** Open onto this desktop instead of the client's active one. */
+  desktopId?: string;
   /** Classified navigation intent when the target resolves to a live window (ADR-011). */
   navigateMode?: OsNavigateMode;
 }
@@ -221,7 +229,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   setWallpaper(wallpaper: OsWallpaper): void;
   setReduceMotion(on: boolean): void;
   setDesktopBounds(bounds: OsDesktopBounds): void;
-  createDesktop(): void;
+  /** Creates a desktop; callers that act on it next pass their own ID. */
+  createDesktop(desktopId?: string): WindowManagerCommandOutcome;
   renameDesktop(desktopId: string, name: string): void;
   reorderDesktop(desktopId: string, order: number): void;
   switchDesktop(desktopId: string): void;

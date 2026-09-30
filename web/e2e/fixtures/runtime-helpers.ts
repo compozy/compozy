@@ -22,7 +22,7 @@ export interface RuntimeConfigInput {
   modelsDevEnabled?: boolean;
   memoryEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
-  newWindowPolicy?: "floating" | "beside_focus";
+  newWindowPolicy?: "floating" | "beside_focus" | "tab";
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";

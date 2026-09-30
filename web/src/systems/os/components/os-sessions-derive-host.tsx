@@ -34,6 +34,7 @@ export function OsSessionsDeriveHost({
           sessionId: child.id,
           agentName: child.agent_name,
           workspaceId: child.workspace_id?.trim() || host.workspaceId,
+          placement: "split",
         });
       }}
     >

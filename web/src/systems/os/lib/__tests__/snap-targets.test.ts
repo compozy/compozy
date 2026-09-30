@@ -13,6 +13,7 @@ import {
   DEFAULT_SNAP_TARGET_CONFIG,
   resolveSnapTarget,
   snapTargetIsContained,
+  tileZoneFraction,
   type OccupiedSnapCandidate,
   type ResolveSnapTargetInput,
 } from "../snap-targets";
@@ -146,6 +147,36 @@ describe("resolveSnapTarget", () => {
 
     expect(left.rect.x + left.rect.w).toBe(right.rect.x);
     expect(top.rect.y + top.rect.h).toBe(bottom.rect.y);
+  });
+
+  it.each([
+    { edge: "left", fraction: { x: 0, y: 0, w: 0.5, h: 1 } },
+    { edge: "right", fraction: { x: 0.5, y: 0, w: 0.5, h: 1 } },
+    { edge: "top", fraction: { x: 0, y: 0, w: 1, h: 0.5 } },
+    { edge: "bottom", fraction: { x: 0, y: 0.5, w: 1, h: 0.5 } },
+    { edge: "top-left", fraction: { x: 0, y: 0, w: 0.5, h: 0.5 } },
+    { edge: "bottom-right", fraction: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } },
+  ] as const)(
+    "Should store the $edge half of an odd work area as an exact fraction",
+    ({ edge, fraction }) => {
+      // 1201 × 801 rounds every half-way edge to a whole pixel; the stored
+      // frame must stay the exact half so peers at other widths agree.
+      const target = createTileSnapTarget({ x: 10, y: 20, w: 1201, h: 801 }, edge, [0.5]);
+
+      expect(tileZoneFraction(target)).toEqual(fraction);
+    }
+  );
+
+  it("Should store a progressive two-thirds side as the exact ratio", () => {
+    const target = createTileSnapTarget(
+      { x: 0, y: 0, w: 1201, h: 801 },
+      "right",
+      [0.5, 0.666667],
+      1
+    );
+
+    expect(target.ratio).toBe(0.666667);
+    expect(tileZoneFraction(target)).toEqual({ x: 1 - 0.666667, y: 0, w: 0.666667, h: 1 });
   });
 
   it.each([9, 10])("Should leave exactly one gap of %i px between two facing tiles", innerGap => {

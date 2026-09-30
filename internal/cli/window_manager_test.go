@@ -488,6 +488,16 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			},
 		},
 		{
+			name:            "Should open an explicit floating window",
+			commandID:       contract.WindowManagerCommandWindowOpen,
+			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false,"floating":true}}`,
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "7", "--app", "tasks",
+				"--pathname", "/tasks", "--search-json", "{}", "--floating",
+			},
+			expectedRoute: &windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+		},
+		{
 			name:            "Should group windows at an insertion index",
 			commandID:       contract.WindowManagerCommandWindowStackGroup,
 			expectedPayload: `{"target_window_id":"win-1","window_ids":["win-2","win-3"],"insert_index":1}`,

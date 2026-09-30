@@ -128,10 +128,10 @@ func terminalWindowExists(snapshot windowmanager.Snapshot, terminalID string) bo
 }
 
 // boundSessionWindow is the window already showing the terminal's bound
-// session. The terminal lands on its desktop and, under beside_focus, tiles
-// right after it — the agent's shell belongs next to the agent, and the open
-// carries no client, so nothing takes focus. Without one the reducer default
-// applies.
+// session. The terminal lands on its desktop and, under the tab or
+// beside_focus policy, tiles right after it — the agent's shell belongs next
+// to the agent, and the open carries no client, so nothing takes focus.
+// Without one the reducer default applies.
 func boundSessionWindow(
 	snapshot windowmanager.Snapshot,
 	event terminalpkg.Event,

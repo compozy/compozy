@@ -701,6 +701,27 @@ func TestWindowTabCloseAndReopenV3(t *testing.T) {
 		}
 	})
 
+	t.Run("Should move the closing client's focus to the tab its frame shows next", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		// w1 enters the focus history ahead of w2, then w3 becomes the shown tab.
+		for _, windowID := range []WindowID{"w1", "w3"} {
+			executeTestCommand(t, environment.manager, "workspace-a", &clientID,
+				FocusWindowCommand{WindowID: new(windowID)})
+		}
+
+		closed := executeTestCommand(t, environment.manager, "workspace-a", &clientID,
+			CloseWindowCommand{WindowID: "w3"})
+		location := stackLocationForWindow(t, closed.Snapshot, "w1")
+		if closed.Client == nil || closed.Client.StackActive[location.id()] != "w2" ||
+			valueOrZero(closed.Client.FocusedWindowID) != "w2" {
+			t.Fatalf("client after closing the shown tab = %+v, want focus on the next shown tab w2", closed.Client)
+		}
+	})
+
 	t.Run("Should close a whole frame as one ordered entry [UT-021]", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")

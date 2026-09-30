@@ -23,7 +23,7 @@ import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
-  manager: { getState: vi.fn() },
+  manager: { getState: vi.fn(), createDesktop: vi.fn(), switchDesktop: vi.fn() },
   coordinator: {
     userActivateWindow: vi.fn(),
     userMinimize: vi.fn(),
@@ -39,6 +39,9 @@ const launchCatalog = vi.hoisted(() => ({
 }));
 
 const jumpToSession = vi.hoisted(() => vi.fn());
+const notifyUser = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
 
 const catalogInputs = vi.hoisted(() => ({
   workspace: { runtimeWorkspaceId: null as string | null, pending: false },
@@ -713,52 +716,170 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should dispatch each explicit launch destination from an open app menu (UT-083)", async () => {
+  it("Should report each explicit launch destination from an open app menu (UT-083)", async () => {
     const user = userEvent.setup();
-    const task = windowFixture("window:tasks", "tasks");
-    const focused = windowFixture("window:dashboard", "dashboard");
-    setDockState(
-      desktopState({ [task.id]: task, [focused.id]: focused }, focused.id, [task.id, focused.id])
-    );
+    const onLaunch = vi.fn();
     render(
-      <OsDockAppMenu appId="tasks">
+      <OsDockAppMenu appId="tasks" onLaunch={onLaunch}>
         <button type="button">Tasks</button>
       </OsDockAppMenu>
     );
 
+    for (const [label, placement] of [
+      ["Open in new tab", "tab"],
+      ["Open in split", "split"],
+      ["Open in new window", "window"],
+      ["Open in new desktop", "desktop"],
+    ] as const) {
+      fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
+      await user.click(await screen.findByText(label));
+      expect(onLaunch).toHaveBeenLastCalledWith(placement);
+    }
     fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    await user.click(await screen.findByText("Open in new window"));
-    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
-      app: "tasks",
-      forceNewInstance: true,
-    });
+    expect(await screen.findByTestId("os-dock-app-menu-tasks-split")).toHaveTextContent("⌥ click");
+    expect(screen.getByTestId("os-dock-app-menu-tasks-desktop")).toHaveTextContent("⇧ click");
+  });
 
-    fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    await user.click(await screen.findByText("Open as tab in focused window"));
+  it("Should open each explicit destination as a new instance of the launcher (UT-083)", async () => {
+    const focused = windowFixture("window:dashboard", "dashboard");
+    setDockState(desktopState({ [focused.id]: focused }, focused.id, [focused.id]));
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(true),
+    });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleLaunch("tasks", "tab"));
     expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
       app: "tasks",
       forceNewInstance: true,
       stackTargetWindowId: focused.id,
     });
+    act(() => result.current.handleLaunch("tasks", "split"));
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "tasks",
+      forceNewInstance: true,
+      placement: "split",
+    });
+    act(() => result.current.handleLaunch("tasks", "window"));
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "tasks",
+      forceNewInstance: true,
+      placement: "floating",
+    });
+
+    act(() => result.current.handleLaunch("tasks", "desktop"));
+    await waitFor(() =>
+      expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+        app: "tasks",
+        forceNewInstance: true,
+        desktopId: expect.stringMatching(/^desktop-[0-9a-f]{32}$/),
+      })
+    );
+    const desktopId = dockShell.manager.createDesktop.mock.calls[0]?.[0];
+    expect(dockShell.manager.switchDesktop).toHaveBeenCalledExactlyOnceWith(desktopId);
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({ desktopId })
+    );
   });
 
-  it("Should expose Go to tab and explain why a tab destination is unavailable (UT-084)", async () => {
+  it("Should say so and open nothing when the new desktop is refused", async () => {
+    setDockState(desktopState());
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(false),
+    });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleLaunch("tasks", "desktop"));
+
+    await waitFor(() =>
+      expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
+        message: "Couldn't create a new desktop. Try again.",
+        tone: "error",
+      })
+    );
+    expect(dockShell.manager.switchDesktop).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should split on ⌥-click and open a new desktop on ⇧-click, including Sessions", async () => {
+    const task = windowFixture("window:tasks", "tasks");
+    setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
+    launchCatalog.sessions = [catalogSession("session:latest", "2026-07-31T00:00:00Z")];
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(true),
+    });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleSelect("tasks", { altKey: true, shiftKey: false }));
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "tasks",
+      forceNewInstance: true,
+      placement: "split",
+    });
+
+    act(() => result.current.handleSelect("session", { altKey: true, shiftKey: false }));
+    expect(jumpToSession).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "session",
+      forceNewInstance: true,
+      placement: "split",
+    });
+
+    act(() => result.current.handleSelect("session", { altKey: true, shiftKey: true }));
+    await waitFor(() =>
+      expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+        app: "session",
+        forceNewInstance: true,
+        desktopId: expect.stringMatching(/^desktop-/),
+      })
+    );
+
+    act(() => result.current.handleSelect("tasks"));
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userMinimize).toHaveBeenCalledWith(task.id);
+  });
+
+  it("Should report pointer modifiers but treat keyboard activation as a plain click", () => {
+    const onSelect = vi.fn();
+    renderDock(
+      <OsDock items={[{ id: "tasks", name: "Tasks", icon: "tasks" }]} onSelect={onSelect} />
+    );
+    const tasks = screen.getByRole("button", { name: "Tasks" });
+
+    fireEvent.click(tasks, { detail: 1, altKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith("tasks", { altKey: true, shiftKey: false });
+    fireEvent.click(tasks, { detail: 0, shiftKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith("tasks", undefined);
+  });
+
+  it("Should expose Go to tab only while the launcher has an instance (UT-084)", async () => {
     const user = userEvent.setup();
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, null, [task.id]));
-    render(
-      <OsDockAppMenu appId="tasks">
+    const view = render(
+      <OsDockAppMenu appId="tasks" onLaunch={vi.fn()}>
         <button type="button">Tasks</button>
       </OsDockAppMenu>
     );
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    const tabDestination = await screen.findByText("Open as tab (no window focused)");
-    expect(tabDestination).toHaveAttribute("data-disabled");
-    expect(await screen.findByText("Go to tab")).toBeInTheDocument();
-
+    expect(await screen.findByText("Open in new tab")).not.toHaveAttribute("data-disabled");
     await user.click(screen.getByText("Go to tab"));
     expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledWith(task.id);
+
+    setDockState(desktopState());
+    view.rerender(
+      <OsDockAppMenu appId="tasks" onLaunch={vi.fn()}>
+        <button type="button">Tasks</button>
+      </OsDockAppMenu>
+    );
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
+    await screen.findByText("Open in new tab");
+    expect(screen.queryByText("Go to tab")).not.toBeInTheDocument();
   });
 
   it("Should close an open destination menu and keep it unavailable while an overlay is active (UT-085)", async () => {
@@ -799,8 +920,9 @@ describe("OsDock", () => {
     setDockState(
       desktopState({ [task.id]: task, [focused.id]: focused }, focused.id, [task.id, focused.id])
     );
+    const onLaunch = vi.fn();
     render(
-      <OsDockAppMenu appId="tasks">
+      <OsDockAppMenu appId="tasks" onLaunch={onLaunch}>
         <button type="button">Tasks</button>
       </OsDockAppMenu>
     );
@@ -829,9 +951,6 @@ describe("OsDock", () => {
     expect(keyboardMenuEvent?.clientY).toBe(64);
     await user.keyboard("{ArrowDown}{Enter}");
 
-    expect(dockShell.coordinator.userOpen).toHaveBeenCalledWith({
-      app: "tasks",
-      forceNewInstance: true,
-    });
+    expect(onLaunch).toHaveBeenCalledExactlyOnceWith("tab");
   });
 });

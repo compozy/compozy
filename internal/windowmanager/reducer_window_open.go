@@ -18,11 +18,11 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 	windowID := window.ID
 	desktopID := window.DesktopID
 	snapshot.Windows[windowID] = window
-	if command.Window.StackTargetWindowID != nil {
+	if stackTarget := r.openStackTarget(snapshot, command.Window, window); stackTarget != nil {
 		desktopIndex, _ := desktopIndexByID(snapshot, desktopID)
 		snapshot.Desktops[desktopIndex].Floating = append(snapshot.Desktops[desktopIndex].Floating, windowID)
 		changed, groupErr := r.groupWindows(snapshot, GroupWindowsCommand{
-			TargetWindowID: *command.Window.StackTargetWindowID,
+			TargetWindowID: *stackTarget,
 			WindowIDs:      []WindowID{windowID},
 		})
 		if groupErr != nil {
@@ -30,7 +30,10 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 		}
 		return changed, nil
 	}
-	insertTiled := command.Window.InsertTiled || r.config.NewWindowPolicy == NewWindowInsert
+	// The tab policy falls back to beside-focus placement when there is no
+	// frame to join; an explicit floating open never tiles.
+	insertTiled := command.Window.InsertTiled ||
+		(!command.Window.Floating && r.config.NewWindowPolicy != NewWindowFloating)
 	if insertTiled {
 		tiled, err := r.placeTiledOpen(snapshot, window, command.Window.BesideWindowID)
 		if err != nil {
@@ -49,6 +52,30 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 	r.changes.window(windowID)
 	r.changes.desktop(desktopID)
 	return true, nil
+}
+
+// openStackTarget is the window whose frame a new window joins as a tab: the
+// spec's explicit stack target, else — under the tab policy, for an open that
+// asks for no other placement — the client's focused window when it is placed
+// and visible on the open's desktop. A clientless open has no focus, so the
+// policy never folds it into a frame the user is looking at; like a focus on
+// another desktop or a minimized focus, it falls back to beside-focus placement.
+func (r *reducer) openStackTarget(snapshot *Snapshot, spec WindowSpec, window Window) *WindowID {
+	if spec.StackTargetWindowID != nil {
+		return spec.StackTargetWindowID
+	}
+	if r.config.NewWindowPolicy != NewWindowTab || spec.Floating || spec.InsertTiled ||
+		spec.BesideWindowID != nil || r.focusedWindow == nil {
+		return nil
+	}
+	focused, exists := snapshot.Windows[*r.focusedWindow]
+	if !exists || focused.Minimized || focused.DesktopID != window.DesktopID {
+		return nil
+	}
+	if _, placed := findWindowPlacement(snapshot, focused.ID); !placed {
+		return nil
+	}
+	return &focused.ID
 }
 
 // placeTiledOpen tiles a new window beside its anchor: the spec's explicit
@@ -193,6 +220,9 @@ func (r *reducer) newOpenWindow(snapshot *Snapshot, spec WindowSpec) (Window, er
 	}
 	if reservedWindowID(snapshot, windowID) {
 		return Window{}, fmt.Errorf("window %q already exists: %w", windowID, ErrInvalidCommand)
+	}
+	if spec.Floating && (spec.InsertTiled || spec.StackTargetWindowID != nil || spec.BesideWindowID != nil) {
+		return Window{}, fmt.Errorf("floating open cannot also tile or join a stack: %w", ErrInvalidCommand)
 	}
 	if spec.StackTargetWindowID != nil {
 		target, exists := snapshot.Windows[*spec.StackTargetWindowID]

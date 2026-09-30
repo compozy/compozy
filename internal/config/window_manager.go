@@ -15,6 +15,7 @@ const (
 
 	WindowNewPolicyFloating    = "floating"
 	WindowNewPolicyBesideFocus = "beside_focus"
+	WindowNewPolicyTab         = "tab"
 
 	WindowSmallViewportStack  = "stack"
 	WindowSmallViewportReject = "reject"
@@ -99,7 +100,7 @@ type WindowManagerBindingConfig struct {
 // DefaultWindowManagerConfig returns the built-in behavior shared by daemon and web clients.
 func DefaultWindowManagerConfig() WindowManagerConfig {
 	return WindowManagerConfig{
-		NewWindowPolicy:     WindowNewPolicyBesideFocus,
+		NewWindowPolicy:     WindowNewPolicyTab,
 		SmallViewportPolicy: WindowSmallViewportStack,
 		FocusPolicy:         WindowFocusClickDirectional,
 		FocusWrap:           false,
@@ -167,6 +168,7 @@ func (c WindowManagerConfig) validateEnums() error {
 		c.NewWindowPolicy,
 		WindowNewPolicyFloating,
 		WindowNewPolicyBesideFocus,
+		WindowNewPolicyTab,
 	); err != nil {
 		return err
 	}

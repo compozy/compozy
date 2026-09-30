@@ -1222,6 +1222,52 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should carry an explicit split, floating, or target desktop onto the open command", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    const openedWindow = async (target: Parameters<typeof runtime.openOrFocus>[0]) => {
+      vi.mocked(executeWindowManagerCommand).mockClear();
+      await runtime.openOrFocus(target).completion;
+      const command = vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4];
+      return (command?.payload as { window: Record<string, unknown> } | undefined)?.window;
+    };
+
+    const plain = await openedWindow({ app: "tasks", forceNewInstance: true });
+    expect(plain).toMatchObject({ insert_tiled: false, desktop_id: "desktop:one" });
+    expect(plain).not.toHaveProperty("floating");
+    expect(
+      await openedWindow({ app: "tasks", forceNewInstance: true, placement: "split" })
+    ).toMatchObject({ insert_tiled: true });
+    expect(
+      await openedWindow({ app: "tasks", forceNewInstance: true, placement: "floating" })
+    ).toMatchObject({ insert_tiled: false, floating: true });
+    expect(
+      await openedWindow({ app: "tasks", forceNewInstance: true, desktopId: "desktop:two" })
+    ).toMatchObject({ desktop_id: "desktop:two" });
+    runtime.stop();
+  });
+
   it("[UT-041] Should keep another Tasks instance's route intent after closing its sibling", async () => {
     const firstId = "w-tasks-first";
     const secondId = "w-tasks-second";
@@ -1720,7 +1766,7 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should normalize a tile command against the same gap-inset area used by its preview", async () => {
+  it("Should store a tile as the exact zone fraction of the gap-inset area, whatever its pixel width", async () => {
     const queryClient = new QueryClient();
     const snapshot: WindowManagerSnapshot = {
       ...SNAPSHOT,
@@ -1750,9 +1796,11 @@ describe("WindowManagerRuntime", () => {
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, { ...SETTINGS_SECTION, config });
+    // An odd-width layout area (1201 − 20 gaps = 1181px) rounds the preview's
+    // edge to a whole pixel; the stored frame must still be the exact half.
     windowManagerStore.trigger.workAreaMeasured({
       workArea: {
-        rect: { x: 10, y: 20, w: 1200, h: 800 },
+        rect: { x: 10, y: 20, w: 1201, h: 800 },
         origin: { x: 0, y: 0 },
       },
     });

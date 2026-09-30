@@ -14,7 +14,7 @@ fallback_targets = ["agent"]
 personalization = true
 
 [window_manager]
-new_window_policy = "beside_focus"
+new_window_policy = "tab"
 small_viewport_policy = "stack"
 focus_policy = "click_directional"
 focus_wrap = false

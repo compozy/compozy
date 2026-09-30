@@ -18,6 +18,7 @@ import { windowManagerLayoutArea } from "./window-manager-layout-area";
 export {
   createTileSnapTarget,
   progressiveSnapRatio,
+  tileZoneFraction,
   type SnapCorner,
   type SnapEdge,
   type SnapSide,

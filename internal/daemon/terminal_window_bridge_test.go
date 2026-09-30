@@ -191,7 +191,7 @@ func TestOpenTerminalWindow(t *testing.T) {
 		}
 	})
 
-	t.Run("Should tile the window right after the bound session under beside_focus", func(t *testing.T) {
+	t.Run("Should tile the window right after the bound session under the default policy", func(t *testing.T) {
 		t.Parallel()
 		manager := newBridgeTestManager(t)
 		provider := &staticWindowManagerProvider{manager: manager}

@@ -75,3 +75,5 @@ The ordered Tasks, Skills, and Home tabs and the active Skills member persisted 
 merge target or duplicate frame.
 
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The deck became browser tabs on a recessed strip; the traffic lights moved to quiet trailing controls. Reset for a grouping, reorder, tear-out and reload walk in both themes.
+
+qa-impact: 2026-09-30 shell-rail polish P6 — with the new default `new_window_policy = tab`, opening an app from the rail, palette, or menubar while a window is focused adds it to that window's deck as the active tab; a deck therefore also forms without any drag or Command-T. Walk one rail-opened tab alongside the grouping, reorder, tear-out and reload checks.

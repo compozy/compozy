@@ -183,7 +183,7 @@ personalization = true
 "session.new" = "new"
 
 [window_manager]
-new_window_policy = "beside_focus"
+new_window_policy = "tab"
 small_viewport_policy = "stack"
 focus_policy = "click_directional"
 focus_wrap = false
@@ -1016,7 +1016,7 @@ Settings › Layouts, while agents can use `compozy config` or the typed
 
 | Field                   | Type    | Default             | Valid values                              | Description                                               |
 | ----------------------- | ------- | ------------------- | ----------------------------------------- | --------------------------------------------------------- |
-| `new_window_policy`     | string  | `beside_focus`      | `floating`, `beside_focus`                | Initial structural placement.                             |
+| `new_window_policy`     | string  | `tab`               | `tab`, `beside_focus`, `floating`         | Initial structural placement.                             |
 | `small_viewport_policy` | string  | `stack`             | `stack`, `reject`                         | Projection behavior when minimum sizes cannot fit.        |
 | `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                     |
 | `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.    |

@@ -59,8 +59,16 @@ resumes after reload or daemon restart and converges in peer clients. Add `--cli
 
 ## Tiling behavior
 
-New windows tile beside the focused window by default (`new_window_policy = "beside_focus"`); set
-`floating` to open them as floating windows instead. Structural drops
+New windows open as a new tab in the focused window by default (`new_window_policy = "tab"`). On an
+empty desktop, or when the focused window sits on another desktop or is minimized, the first window
+fills the whole desktop instead. Set `beside_focus` to tile new windows beside the focused one, or
+`floating` to open them as floating windows. An open without a connected client (for example an
+agent's `compozy__window_open` call without `client_id`) never joins a tab you are looking at. When
+another client's open turns a window you are showing into a tab group, you keep seeing that window;
+pass `--id` (`window_id`) with the open for this to hold, because a window whose ID the daemon
+generates becomes the group's active tab for every other connected client. An explicit placement
+always wins over the policy: `--stack-target` joins that window's tabs, `--tiled` splits beside the
+client's focus, and `--floating` opens a free floating window. Structural drops
 use `before`, `after`, `left`, `right`, `top`, `bottom`, or `center`; dropping onto an occupied target
 reflows the tree instead of overlapping it. Shared-boundary resize updates all descendants on each
 side. When a viewport cannot satisfy minimum window sizes, that client projects the affected split
@@ -80,6 +88,21 @@ window takes the main column), **Columns** (every visible window side by side), 
 **Window › Move window to** sends the focused window to another desktop by name. The panes between
 tiled windows share a single hairline; drag it, or focus it and use the arrow keys (hold Shift for
 10% steps), to resize the panes on either side. Each pane keeps at least 220 px.
+
+In the app, clicking an icon in the left rail goes to that app's open window, or opens it as a new
+tab when it has none (Sessions goes to your latest session). Hold a modifier to open another window of
+the app instead:
+
+| Gesture            | Opens                                               |
+| ------------------ | --------------------------------------------------- |
+| Click              | The open window, or a new tab in the focused window |
+| Option (⌥) + click | A new window split beside the focused one           |
+| Shift (⇧) + click  | A new desktop, with the new window filling it       |
+
+Right-click an icon (or focus it and press Shift+F10) for every destination: **Open in new tab**,
+**Open in split**, **Open in new window** (a floating window), **Open in new desktop**, and **Go to
+tab** when the app already has a window. For Sessions, these open the session list window, where you
+pick a session or start a new one. Enter and Space on a focused icon act like a plain click.
 
 Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
 targets zoom the window: the unit holding it (the window or its whole tab frame) becomes the only

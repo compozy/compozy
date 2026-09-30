@@ -3,6 +3,12 @@ import { shallowEqual } from "@xstate/store";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import { notifyUser } from "@/lib/user-feedback";
+import {
+  launchInPlacement,
+  launchPlacementForModifiers,
+  type LaunchModifiers,
+  type LaunchPlacement,
+} from "../lib/launch-placement";
 import { dockBadgeFor, dockIconForApp, type OsDockItemData } from "../lib/os-dock-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
@@ -17,7 +23,10 @@ export interface DesktopDockModel {
   entries: OsDockItemData[];
   presentation: OsPresentation;
   commandsAvailable: boolean;
-  handleSelect: (id: string) => void;
+  /** Plain activation is focus-first; ⌥ / ⇧ launch a new instance (split / new desktop). */
+  handleSelect: (id: string, modifiers?: LaunchModifiers) => void;
+  /** An explicit destination from the launcher menu or a modifier click. */
+  handleLaunch: (id: string, placement: LaunchPlacement) => void;
 }
 
 export interface UseDesktopDockOptions {
@@ -37,7 +46,8 @@ export interface UseDesktopDockOptions {
 /**
  * Dock view-model: registry order with running/active/minimized/badge state
  * and the open-or-minimize activation semantics (tab-bar taps never minimize —
- * os-v2.js:462).
+ * os-v2.js:462). A plain launch that has to open follows the daemon's
+ * new-window policy (a tab in the focused window by default).
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
@@ -98,8 +108,27 @@ export function useDesktopDock(
       }),
   ];
 
-  const handleSelect = (id: string) => {
+  // Sessions launches its picker window: the latest session already has its
+  // one home (plain click jumps there), so a new placement starts from the list.
+  const handleLaunch = (id: string, placement: LaunchPlacement) => {
     if (!commandsAvailable) return;
+    if (id === sessionApp.id) {
+      if (!launchCatalog.ready) return;
+      if (needsProject) {
+        onPickProject();
+        return;
+      }
+    }
+    void launchInPlacement({ manager, coordinator }, { app: id as OsAppId }, placement);
+  };
+
+  const handleSelect = (id: string, modifiers?: LaunchModifiers) => {
+    if (!commandsAvailable) return;
+    const placement = launchPlacementForModifiers(modifiers);
+    if (placement !== null) {
+      handleLaunch(id, placement);
+      return;
+    }
     const appId = id as OsAppId;
     const state = manager.getState();
     if (appId === "session") {
@@ -152,5 +181,5 @@ export function useDesktopDock(
     void coordinator.userActivateWindow(target.id);
   };
 
-  return { entries, presentation, commandsAvailable, handleSelect };
+  return { entries, presentation, commandsAvailable, handleSelect, handleLaunch };
 }

@@ -20,3 +20,5 @@ Derived from J-organize-tabbed-work step 4 and its reload aftermath. Covers ADR-
 scope clarity, history bounds, missing-desktop fallback, and the TechSpec invariant 13 hot spot.
 
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). Tab close moved to the 20px close button on browser-style tabs and window close to the quiet Close icon control. Reset to re-walk the close scopes and multi-level reopen from the new controls.
+
+qa-impact: 2026-09-30 shell-rail polish E2E triage — after the focused tab closes, the client's focus falls back to the tab its frame now shows, never to a hidden tab from focus history, so a second Command-W closes the tab on screen (E2E-040). Walk: close two tabs of one deck in a row with Command-W and confirm each closes the visible tab.

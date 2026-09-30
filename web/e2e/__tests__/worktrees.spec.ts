@@ -116,7 +116,11 @@ async function selectWorkspace(page: Page, workspaceId: string) {
 }
 
 async function openSessionCreate(page: Page) {
-  await page.getByRole("button", { name: "New session", exact: true }).click();
+  // The empty desktop now starts sessions from its composer (shell-rail P7);
+  // the create dialog, with its environment picker, lives in the Session menu.
+  await page.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await expect(page.getByTestId("os-menu-session")).toBeVisible();
+  await page.getByRole("menuitem", { name: /^New session/ }).click();
   const dialog = page.getByTestId("session-create-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByTestId("session-create-agent-select").click();

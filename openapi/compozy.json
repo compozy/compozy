@@ -6487,6 +6487,9 @@
               "desktop_id": {
                 "type": "string"
               },
+              "floating": {
+                "type": "boolean"
+              },
               "floating_rect": {
                 "properties": {
                   "height": {
@@ -150526,7 +150529,8 @@
                         "new_window_policy": {
                           "enum": [
                             "floating",
-                            "beside_focus"
+                            "beside_focus",
+                            "tab"
                           ],
                           "type": "string"
                         },
@@ -151155,7 +151159,8 @@
                       "new_window_policy": {
                         "enum": [
                           "floating",
-                          "beside_focus"
+                          "beside_focus",
+                          "tab"
                         ],
                         "type": "string"
                       },
@@ -151613,7 +151618,8 @@
                         "new_window_policy": {
                           "enum": [
                             "floating",
-                            "beside_focus"
+                            "beside_focus",
+                            "tab"
                           ],
                           "type": "string"
                         },

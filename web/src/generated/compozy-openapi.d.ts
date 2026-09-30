@@ -8637,6 +8637,7 @@ export interface components {
       window: {
         app: string;
         desktop_id: string;
+        floating?: boolean;
         floating_rect: {
           /** Format: double */
           height: number;
@@ -61332,7 +61333,7 @@ export interface operations {
               history_limit: number;
               nav_stack_limit: number;
               /** @enum {string} */
-              new_window_policy: "floating" | "beside_focus";
+              new_window_policy: "floating" | "beside_focus" | "tab";
               raise_on_focus: boolean;
               shortcuts: {
                 [key: string]: string[] | string;
@@ -61535,7 +61536,7 @@ export interface operations {
             history_limit: number;
             nav_stack_limit: number;
             /** @enum {string} */
-            new_window_policy: "floating" | "beside_focus";
+            new_window_policy: "floating" | "beside_focus" | "tab";
             raise_on_focus: boolean;
             shortcuts: {
               [key: string]: string[] | string;
@@ -61682,7 +61683,7 @@ export interface operations {
               history_limit: number;
               nav_stack_limit: number;
               /** @enum {string} */
-              new_window_policy: "floating" | "beside_focus";
+              new_window_policy: "floating" | "beside_focus" | "tab";
               raise_on_focus: boolean;
               shortcuts: {
                 [key: string]: string[] | string;
