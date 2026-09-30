@@ -2092,7 +2092,7 @@ test("Should bound catalog requests during sixty minutes of native desktop uptim
     let runtimeDigest: string | undefined;
     if (runtimePath) {
       try {
-        runtimeDigest = await executableSha256File(runtimePath);
+        runtimeDigest = (await executableSha256File(runtimePath)).toString("hex");
       } catch (error) {
         cleanupErrors.push(error);
       }
