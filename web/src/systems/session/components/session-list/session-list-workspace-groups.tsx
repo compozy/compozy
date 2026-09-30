@@ -29,6 +29,9 @@ function ConnectedGroupBody(props: Parameters<typeof GroupBody>[0]) {
     <>
       <GroupBody
         {...props}
+        onSelectSession={session => {
+          if (!catalog.paging) props.onSelectSession(session);
+        }}
         group={{
           ...group,
           sessions: catalog.sessions,
@@ -46,6 +49,7 @@ function ConnectedGroupBody(props: Parameters<typeof GroupBody>[0]) {
         </GroupNote>
       ) : null}
       <GroupNote>
+        {catalog.paging ? <span role="status">Loading sessions…</span> : null}
         {catalog.previous ? (
           <Button
             variant="ghost"

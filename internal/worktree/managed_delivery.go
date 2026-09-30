@@ -2,7 +2,6 @@ package worktree
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"strings"
 	"time"
@@ -132,13 +131,13 @@ func (s *Service) executeManagedDelivery(
 	if err := s.reconcileDeliveryIdentity(ctx, j); err != nil {
 		return err
 	}
-	if j.Phase == "committed" {
-		j.Phase = "pushing"
+	if j.Phase == deliveryPhaseCommitted {
+		j.Phase = deliveryPhasePushing
 		if err := saveDeliveryJournal(path, j); err != nil {
 			return err
 		}
 	}
-	if j.Phase == "pushing" {
+	if j.Phase == deliveryPhasePushing {
 		// A repeated ordinary push is safe only for the exact recorded local HEAD.
 		step, err := s.pushManagedDelivery(ctx, j)
 		if err != nil {
@@ -148,12 +147,12 @@ func (s *Service) executeManagedDelivery(
 			return ErrSafetyCheckFailed
 		}
 		j.Result.Steps = append(j.Result.Steps, step)
-		j.Phase = "pr"
+		j.Phase = string(ExitPhasePR)
 		if err := saveDeliveryJournal(path, j); err != nil {
 			return err
 		}
 	}
-	if j.Phase == "pr" {
+	if j.Phase == string(ExitPhasePR) {
 		if err := s.reconcileManagedPR(ctx, j); err != nil {
 			return err
 		}
@@ -217,51 +216,14 @@ func (s *Service) replayManagedDelivery(
 		!reflect.DeepEqual(journal.Request, request) {
 		return true, "", refusal(ErrSafetyCheckFailed, "Delivery ID belongs to a different intent.")
 	}
-	if journal.Phase == exitOperationCanceled {
-		operation := ExitOperation{
-			ID:          journal.OperationID,
-			ProfileID:   journal.Item.ProfileID,
-			WorkspaceID: journal.Item.WorkspaceID,
-			WorktreeID:  journal.Item.ID,
-			Action:      string(ExitActionDeliver),
-		}
-		if _, err := s.finishExitOperation(
-			ctx,
-			operation,
-			exitOperationCanceled,
-			EventExitActionCanceled,
-			ExitEventPayload{
-				OperationID: operation.ID,
-				Action:      ExitActionDeliver,
-				State:       exitOperationCanceled,
-				Result:      &journal.Result,
-			},
-		); err != nil {
+	if deliveryJournalTerminal(journal) {
+		if err := s.finishManagedDeliveryReceipt(ctx, journal); err != nil {
 			return true, "", err
 		}
-		return true, "", refusal(ErrExitActionInvalid, "Managed delivery was canceled; create a new reviewed intent.")
-	}
-	if journal.Phase == exitStepCompleted {
-		operation := ExitOperation{
-			ID:          journal.OperationID,
-			ProfileID:   journal.Item.ProfileID,
-			WorkspaceID: journal.Item.WorkspaceID,
-			WorktreeID:  journal.Item.ID,
-			Action:      string(ExitActionDeliver),
+		if journal.Phase != exitStepCompleted {
+			return true, "", refusal(ErrExitActionInvalid, "Managed delivery ended; create a new reviewed intent.")
 		}
-		_, err := s.finishExitOperation(
-			ctx,
-			operation,
-			exitStepCompleted,
-			EventExitActionCompleted,
-			ExitEventPayload{
-				OperationID: operation.ID,
-				Action:      ExitActionDeliver,
-				State:       exitStepCompleted,
-				Result:      &journal.Result,
-			},
-		)
-		return true, journal.OperationID, err
+		return true, journal.OperationID, nil
 	}
 
 	return false, "", nil
@@ -318,7 +280,7 @@ func (s *Service) prepareManagedDelivery(
 		BaseHead:     baseHead,
 		Snapshot:     snapshot,
 		RemoteURLs:   plan.RemoteURLs,
-		Phase:        "prepared",
+		Phase:        deliveryPhasePrepared,
 		Result:       ExitActionResult{OperationID: opID, Action: ExitActionDeliver},
 	}
 	if err := s.reviewManagedDeliveryScope(ctx, journal); err != nil {
@@ -335,28 +297,16 @@ func (s *Service) runManagedDelivery(
 	executionCtx context.Context, cancel context.CancelFunc, control *exitOperationControl, releaseSessions func(),
 	sessionID, path string, journal *managedDeliveryJournal, operation ExitOperation,
 ) {
-	defer releaseSessions()
-	defer cancel()
-	defer close(control.done)
 	defer func() { s.exitMu.Lock(); delete(s.exits, operation.ID); s.exitMu.Unlock() }()
+	defer close(control.done)
+	defer cancel()
+	defer releaseSessions()
 	err := s.deliverySessions.StopDeliverySession(executionCtx, sessionID)
 	if err == nil {
 		err = s.executeManagedDelivery(executionCtx, path, journal, operation)
 	}
 	if err != nil {
-		if errors.Is(executionCtx.Err(), context.Canceled) {
-			journal.Phase = exitOperationCanceled
-			if saveErr := saveDeliveryJournal(path, journal); saveErr != nil {
-				s.logger.ErrorContext(
-					executionCtx,
-					"managed delivery cancellation journal failed",
-					"op_id",
-					operation.ID,
-					"error",
-					saveErr,
-				)
-			}
-		}
+		s.persistManagedDeliveryFailure(executionCtx, path, journal, err)
 		s.finishExitFailure(executionCtx, operation, journal.Result, err)
 		return
 	}

@@ -1128,6 +1128,20 @@ job alongside Gateway recovery; no safety check or test assertion was removed.
 Owning delivery: branch `fix/reported-issues-657-682`; real-runtime evidence and remaining
 verification are tracked in `docs/qa/reports/2026-09-29-reported-issues.md`.
 
+PR #686 review remediation keeps the same audit owner. Managed delivery rechecks selected index
+state before staging and records its own staged proof for recovery; deterministic safety refusals
+are terminal, completion releases the session fence first, and unreadable journals remain intact
+while unmatched interrupted SQL receipts fail without effects. Live applying installer identity
+survives its deadline, Linux discovery compares all versioned installations and retains an
+unversioned fallback, and MIME registration has bounded subprocess cleanup. ACP forced stop
+verifies PID/start identity; SQLite callbacks reject active same-database reentry and preserve
+request diagnostic context. Facets documents its existing parent/root/resumable filters through
+generated OpenAPI consumers. Web blocked-query retries retain only blocked hashes, unused facets
+are disabled, search is debounced with scope-fenced previous rows and disabled stale actions, and
+request client IDs reuse the existing browser cryptography boundary. No config, hooks, capability
+IDs, SQLite shape, or permission boundary changes; journal additions preserve existing records.
+The official worktree reference and generated CLI example require the actual reviewed scope.
+
 - **Native tools / CLI / HTTP / UDS / SDK:** worktree exit plans and commits add explicit reviewed
   paths and a content fingerprint; managed delivery uses validated session identity, a durable
   intent, checkout fencing and exact draft-PR reconciliation. Existing whole-worktree commit

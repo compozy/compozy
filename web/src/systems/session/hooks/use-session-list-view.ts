@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
+
 import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -58,14 +60,18 @@ export function useSessionListView(
   const { registeredWorkspaces: workspaces, runtimeWorkspaceId, scope } = useActiveWorkspace();
   const profile = useProfileReadScope();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
-  const [search, setSearch] = useState("");
+  const {
+    draftValue: search,
+    committedValue: remoteSearch,
+    setDraftValue: setSearch,
+  } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
   const [archived, setArchived] = useState(false);
   const workspaceGroups = useWorkspaceSessionGroups({
     workspaces,
     sort: preferences.sort,
     archived,
     enabled: (options.enabled ?? true) && preferences.scope === "all-workspaces",
-    search,
+    search: remoteSearch,
   });
 
   const workspaceId = options.workspaceId === undefined ? runtimeWorkspaceId : options.workspaceId;
@@ -75,7 +81,7 @@ export function useSessionListView(
       include_health: true,
       limit: 100,
       sort: sessionListSortParam(preferences.sort),
-      q: search,
+      q: remoteSearch,
       search_fields: "title_agent",
       worktree: options.worktreeId,
       ...(archived ? { archive: "only" as const } : {}),
@@ -86,7 +92,12 @@ export function useSessionListView(
   );
 
   return {
-    catalog,
+    catalog: {
+      ...catalog,
+      paging: catalog.paging || search !== remoteSearch,
+      next: search === remoteSearch && catalog.next,
+      previous: search === remoteSearch && catalog.previous,
+    },
     search,
     setSearch,
     scope: preferences.scope,

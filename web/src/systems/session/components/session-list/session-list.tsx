@@ -188,6 +188,7 @@ function SessionListBody({
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
       data-scope={view.scope}
+      aria-busy={view.catalog?.paging || undefined}
     >
       {allWorkspaces ? (
         <SessionListWorkspaceGroups
@@ -198,7 +199,9 @@ function SessionListBody({
           scopeLabel={view.scopeLabel}
           archived={view.archived}
           onToggleWorkspace={view.toggleWorkspace}
-          onSelectSession={onSelectSession}
+          onSelectSession={session => {
+            if (!view.catalog?.paging) onSelectSession(session);
+          }}
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
         />
@@ -209,7 +212,9 @@ function SessionListBody({
           currentSessionId={currentSessionId}
           ownerOf={ownerOf}
           onToggleThread={onToggleThread}
-          onSelectSession={onSelectSession}
+          onSelectSession={session => {
+            if (!view.catalog?.paging) onSelectSession(session);
+          }}
           selection={selection}
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
@@ -230,6 +235,7 @@ function SessionListCatalogNavigation({
 }) {
   return (
     <div className="flex items-center justify-between px-2 py-2">
+      {catalog.paging ? <span role="status">Loading sessions…</span> : null}
       {catalog.previous ? (
         <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.previousPage}>
           Previous sessions

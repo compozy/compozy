@@ -59,7 +59,11 @@ export function OsPaletteEntitySections({
               forceMount
               key={session.sessionId}
               value={`session:${session.sessionId}`}
-              onSelect={() => onOpenSession(session)}
+              disabled={session.busy}
+              aria-busy={session.busy || undefined}
+              onSelect={() => {
+                if (!session.busy) onOpenSession(session);
+              }}
             >
               {session.owner === undefined ? (
                 <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />

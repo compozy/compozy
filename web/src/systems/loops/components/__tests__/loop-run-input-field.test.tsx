@@ -240,9 +240,19 @@ describe("Loop session reference paging", () => {
     expect(
       requests.find(url => url.pathname === "/api/sessions/sess-old")?.searchParams.get("profile")
     ).toBe("default");
-    fireEvent.change(screen.getByRole("combobox", { name: "Search sessions" }), {
-      target: { value: "reviewer" },
-    });
+    // Remote search coalesces a typing burst while the input remains immediate.
+    const searchInput = screen.getByRole("combobox", { name: "Search sessions" });
+    fireEvent.change(searchInput, { target: { value: "rev" } });
+    fireEvent.change(searchInput, { target: { value: "reviewer" } });
+    expect(searchInput).toHaveValue("reviewer");
+    const previousRow = screen.getByRole("option", { name: /Recent session/ });
+    expect(previousRow).toHaveAttribute("aria-disabled", "true");
+    const selectedBeforeSearch = onChange.mock.calls.length;
+    fireEvent.click(previousRow);
+    expect(onChange).toHaveBeenCalledTimes(selectedBeforeSearch);
+    expect(
+      requests.some(url => url.pathname === "/api/sessions" && url.searchParams.has("q"))
+    ).toBe(false);
     await screen.findByRole("option", { name: /Older reviewed session/ });
     expect(
       requests.some(
@@ -253,6 +263,7 @@ describe("Loop session reference paging", () => {
           !url.searchParams.has("cursor")
       )
     ).toBe(true);
+    expect(requests.some(url => url.searchParams.get("q") === "rev")).toBe(false);
     expect(requests.some(url => url.pathname === "/api/sessions/facets")).toBe(false);
     expect(
       requests

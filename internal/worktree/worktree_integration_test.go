@@ -137,6 +137,10 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		scope, err := f.service.selectedCommitScope(t.Context(), item.Path, []string{"selected.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
 		journal := &managedDeliveryJournal{
 			Version:      1,
 			Item:         *item,
@@ -144,9 +148,10 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			Snapshot:     tree,
 			Phase:        "prepared",
 			Request: ExitActionRequest{
-				DeliveryID:   "hook-intent",
-				Message:      "Reviewed delivery",
-				IncludePaths: []string{"selected.txt"},
+				DeliveryID:    "hook-intent",
+				ExpectedScope: scope.Fingerprint,
+				Message:       "Reviewed delivery",
+				IncludePaths:  []string{"selected.txt"},
 			},
 		}
 		err = f.service.commitManagedDelivery(
@@ -1997,7 +2002,9 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 			t.Fatalf("no-op changed HEAD admitted: err=%v journal=%#v", err, journal)
 		}
 	})
-	for _, phase := range []string{"submit", "head-race", "ambiguous", "prepared", "committing", "pushing", "pr", "completed", "canceled"} {
+	for _, phase := range []string{
+		"submit", "head-race", "restaged", "restaged-recovery", "staged-recovery", "staged-restaged", "legacy-staged",
+		"ambiguous", "prepared", "committing", "pushing", "pr", "completed", "canceled"} {
 		t.Run("Should reconcile managed delivery phase "+phase, func(t *testing.T) {
 			t.Parallel()
 			f := newRealGitFixture(t)
@@ -2025,6 +2032,22 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 				sessionID:   "managed-caller",
 				workspaceID: f.workspace.ID,
 				worktreeID:  item.ID,
+			}
+			// Invariant: selected index changes cannot overwrite the reviewed staged version.
+			// Owner: worktree delivery; canonical real Git managed delivery suite.
+			if phase == "restaged" {
+				caller.beforeStop = func() {
+					if err := os.WriteFile(
+						filepath.Join(item.Path, "selected.txt"), []byte("new staged version\n"), 0o600,
+					); err != nil {
+						t.Error(err)
+						return
+					}
+					f.git(item.Path, "add", "selected.txt")
+					if err := os.WriteFile(filepath.Join(item.Path, "selected.txt"), []byte("reviewed\n"), 0o600); err != nil {
+						t.Error(err)
+					}
+				}
 			}
 			forge := newIntegrationHTTPForge(t)
 			WithSessionGuard(caller)(f.service)
@@ -2068,7 +2091,7 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 				}
 			}
 			var opID string
-			if phase == "submit" || phase == "head-race" || phase == "ambiguous" {
+			if phase == "submit" || phase == "head-race" || phase == "restaged" || phase == "ambiguous" {
 				if phase == "ambiguous" {
 					forge.failNext.Store(true)
 				}
@@ -2119,7 +2142,32 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 				if err := f.store.InsertExitOperation(context.Background(), operation); err != nil {
 					t.Fatal(err)
 				}
-				if phase == "committing" {
+				if phase == "restaged-recovery" || phase == "legacy-staged" ||
+					phase == "staged-recovery" || phase == "staged-restaged" {
+					f.git(item.Path, "add", "selected.txt")
+					if phase != "restaged-recovery" {
+						journal.Phase = deliveryPhaseCommitting
+						journal.Tree = tree
+					}
+					if phase == "staged-recovery" || phase == "staged-restaged" {
+						scope, err := f.service.selectedCommitScope(t.Context(), item.Path, request.IncludePaths)
+						if err != nil {
+							t.Fatal(err)
+						}
+						journal.StagedScope = scope.Fingerprint
+						if phase == "staged-restaged" {
+							if err := os.WriteFile(
+								filepath.Join(item.Path, "selected.txt"), []byte("new staged version\n"), 0o600,
+							); err != nil {
+								t.Fatal(err)
+							}
+							f.git(item.Path, "add", "selected.txt")
+							if err := os.WriteFile(filepath.Join(item.Path, "selected.txt"), []byte("reviewed\n"), 0o600); err != nil {
+								t.Fatal(err)
+							}
+						}
+					}
+				} else if phase == "committing" {
 					journal.Phase = "committing"
 					journal.Tree = tree
 					f.git(item.Path, "add", "selected.txt")
@@ -2199,19 +2247,60 @@ func TestWorktreeManagedDeliveryIntegration(t *testing.T) {
 				opID = current.OperationID
 			}
 			terminal := "completed"
-			if phase == "head-race" {
+			if phase == "head-race" || phase == "restaged" || phase == "restaged-recovery" ||
+				phase == "legacy-staged" || phase == "staged-restaged" {
 				terminal = "failed"
 			}
 			if phase == "canceled" {
 				terminal = "canceled"
 			}
 			waitForExitOperation(t, f.store, opID, terminal, 30*time.Second)
-			if phase == "head-race" {
+			if terminal == "failed" {
+				if phase != "head-race" && f.git(item.Path, "rev-parse", "HEAD") != original {
+					t.Fatal("changed selected index was committed")
+				}
+				if phase == "restaged" || phase == "staged-restaged" {
+					if got := f.git(item.Path, "show", ":selected.txt"); got != "new staged version" {
+						t.Fatalf("unreviewed selected staged version overwritten: %q", got)
+					}
+				}
 				if got := f.git(item.Path, "ls-remote", "--heads", "origin", "refs/heads/"+item.Branch); got != "" {
 					t.Fatalf("unexpected history published: %q", got)
 				}
 				if forge.creates.Load() != 0 {
 					t.Fatal("unexpected history created PR")
+				}
+				path, err := f.service.deliveryJournalPath(f.workspace.ID, item.ID, request.DeliveryID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				journal, err := readDeliveryJournal(path)
+				if err != nil || journal.Phase != exitStepFailed {
+					t.Fatalf("non-retryable failure journal=%#v error=%v", journal, err)
+				}
+				f.service.exitMu.Lock()
+				control := f.service.exits[opID]
+				f.service.exitMu.Unlock()
+				if control != nil {
+					select {
+					case <-control.done:
+					case <-time.After(30 * time.Second):
+						t.Fatal("delivery cleanup did not complete")
+					}
+				}
+				stops := caller.stops.Load()
+				caller.mu.Lock()
+				caller.active = true
+				caller.mu.Unlock()
+				if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.service.SubmitManagedDelivery(t.Context(), f.workspace.ID,
+					item.ID, caller.sessionID, request); !errors.Is(err, ErrExitActionInvalid) {
+					t.Fatalf("failed intent replay error=%v", err)
+				}
+				if caller.stops.Load() != stops {
+					t.Fatal("terminal failure stopped resumed caller")
 				}
 				return
 			}
@@ -2281,6 +2370,7 @@ type integrationDeliveryCaller struct {
 	active, fenced                     bool
 	sessionID, workspaceID, worktreeID string
 	stops                              atomic.Int64
+	beforeStop                         func()
 }
 
 func (c *integrationDeliveryCaller) HasActiveSession(context.Context, string, string) (bool, error) {
@@ -2308,6 +2398,9 @@ func (c *integrationDeliveryCaller) StopDeliverySession(_ context.Context, calle
 		return ErrSessionActive
 	}
 	if c.active {
+		if c.beforeStop != nil {
+			c.beforeStop()
+		}
 		c.stops.Add(1)
 	}
 	c.active = false

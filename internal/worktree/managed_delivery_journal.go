@@ -11,9 +11,16 @@ import (
 	"strings"
 )
 
-const deliveryPhaseCommitting = "committing"
+const (
+	deliveryPhasePrepared   = "prepared"
+	deliveryPhaseCommitting = "committing"
+	deliveryPhaseCommitted  = "committed"
+	deliveryPhasePushing    = "pushing"
+)
 
 type managedDeliveryJournal struct {
+	StagedScope   string            `json:"staged_scope,omitempty"`
+	Failure       string            `json:"failure,omitempty"`
 	ReviewedScope ExitCommitScope   `json:"reviewed_scope"`
 	Version       int               `json:"version"`
 	OperationID   string            `json:"operation_id"`
@@ -53,7 +60,13 @@ func readDeliveryJournal(path string) (*managedDeliveryJournal, error) {
 	if journal.Version != 1 {
 		return nil, refusal(ErrSafetyCheckFailed, "Unknown delivery journal version.")
 	}
-	return &journal, nil
+	switch journal.Phase {
+	case deliveryPhasePrepared, deliveryPhaseCommitting, deliveryPhaseCommitted, deliveryPhasePushing, string(ExitPhasePR),
+		exitStepCompleted, exitOperationCanceled, exitStepFailed:
+		return &journal, nil
+	default:
+		return nil, refusal(ErrSafetyCheckFailed, "Unknown delivery journal phase.")
+	}
 }
 
 func saveDeliveryJournal(path string, journal *managedDeliveryJournal) error {

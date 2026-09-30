@@ -430,6 +430,69 @@ describe("useSessionCatalogStreams", () => {
     unmount();
   });
 
+  it("Should retry only blocked catalogs until a new wake includes healthy siblings", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const failing = vi.fn(async () => {
+      throw new Error("catalog unavailable");
+    });
+    const healthy = vi.fn(async () => []);
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        useQuery({
+          queryKey: [...sessionKeys.workspaceLists(""), "failing"],
+          queryFn: failing,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        });
+        useQuery({
+          queryKey: [...sessionKeys.workspaceLists(""), "healthy"],
+          queryFn: healthy,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    await act(async () => {
+      source.emit("open");
+      await Promise.resolve();
+    });
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(healthy).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_busy",
+        session_id: "sess_busy",
+      });
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+    });
+    expect(healthy).toHaveBeenCalledTimes(2);
+    for (let window = 0; window < 5; window++) {
+      await act(async () => {
+        vi.advanceTimersByTime(5_000);
+        await Promise.resolve();
+      });
+      expect(healthy).toHaveBeenCalledTimes(2);
+    }
+    expect(failing).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      source.emit("open");
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+    });
+    expect(healthy).toHaveBeenCalledTimes(3);
+    expect(failing).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
   it("Should reopen under the new profile and stop the old socket on a switch", () => {
     const queryClient = new QueryClient();
     const sources: FakeCatalogEventSource[] = [];

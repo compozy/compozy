@@ -3,6 +3,8 @@ package update
 import (
 	"context"
 	"slices"
+
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 func (s *OperationStore) reconcileUnlocked(ctx context.Context, operation *Operation) (*Operation, error) {
@@ -18,6 +20,12 @@ func (s *OperationStore) reconcileUnlocked(ctx context.Context, operation *Opera
 		target = TargetApp
 	}
 	if !deadlineCanSettle(operation, target) {
+		return operation, nil
+	}
+	// An applying process can still own an installer after its deadline or lease expires.
+	if target == TargetApp && operation.App.Phase == PhaseApplying && operation.Holder != nil &&
+		procutil.Alive(operation.Holder.PID) &&
+		procutil.MatchesStartTime(operation.Holder.PID, operation.Holder.PIDStartTime) {
 		return operation, nil
 	}
 	updated := cloneOperation(operation)

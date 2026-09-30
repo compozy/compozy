@@ -15,6 +15,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -339,9 +340,14 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 			t.Fatalf("Launch() error = %v", err)
 		}
 
+		identityStartedAt, err := procutil.StartedAt(managed.PID())
+		if err != nil {
+			t.Fatal(err)
+		}
 		proc := &AgentProcess{
-			managed: managed,
-			done:    make(chan struct{}),
+			managed:   managed,
+			StartedAt: identityStartedAt,
+			done:      make(chan struct{}),
 		}
 		go proc.waitForExit(context.Background(), defaultProcessRecordTimeout)
 		t.Cleanup(func() {

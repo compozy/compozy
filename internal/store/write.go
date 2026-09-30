@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync/atomic"
 	"time"
 
 	"modernc.org/sqlite"
@@ -24,6 +25,16 @@ const (
 	sqliteCommitStatement         = "COMMIT"
 	sqliteRollbackStatement       = "ROLLBACK"
 )
+
+var errWriteReentry = errors.New("store: nested write transaction on the same database is not supported")
+
+type writeContextKey struct{}
+
+type writeContextOwner struct {
+	db     *sql.DB
+	parent *writeContextOwner
+	active atomic.Bool
+}
 
 // WriteTx is the single-connection transaction handle passed to ExecuteWrite callbacks.
 type WriteTx struct {
@@ -59,7 +70,7 @@ func (tx *WriteTx) QueryRowContext(ctx context.Context, query string, args ...an
 	return tx.conn.QueryRowContext(ctx, query, args...)
 }
 
-// ExecuteWrite runs fn inside a BEGIN IMMEDIATE transaction with bounded SQLITE_BUSY retries.
+// ExecuteWrite runs bounded immediate writes; callbacks propagate ctx and reuse WriteTx for the same database.
 func ExecuteWrite(ctx context.Context, db *sql.DB, fn func(context.Context, *WriteTx) error) error {
 	cfg := defaultExecuteWriteConfig()
 	cfg.operation = writeCallerOperation()
@@ -98,6 +109,12 @@ func executeWrite(
 	if fn == nil {
 		return errors.New("store: execute write callback is required")
 	}
+	parent, _ := ctx.Value(writeContextKey{}).(*writeContextOwner)
+	for owner := parent; owner != nil; owner = owner.parent {
+		if owner.db == db && owner.active.Load() {
+			return errWriteReentry
+		}
+	}
 	cfg = normalizeExecuteWriteConfig(cfg)
 
 	admission, unregister := registerWriteAdmission(db)
@@ -108,6 +125,10 @@ func executeWrite(
 		return writeContentionError(db, cfg.operation, 0, started, err)
 	}
 	defer releaseAdmission()
+	owner := &writeContextOwner{db: db, parent: parent}
+	owner.active.Store(true)
+	defer owner.active.Store(false)
+	ctx = context.WithValue(ctx, writeContextKey{}, owner)
 	var lastErr error
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
 		err := executeWriteAttempt(ctx, db, cfg.operation, fn)

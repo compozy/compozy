@@ -68,6 +68,14 @@ func (d *Driver) forceStoppedProcess(proc *AgentProcess) error {
 	if pid <= 0 {
 		return errors.New("acp: process owner cannot force termination")
 	}
+	exited, err := procutil.VerifyProcessExit(pid, proc.StartedAt)
+	if err != nil {
+		return fmt.Errorf("acp: verify forced-stop process identity: %w", err)
+	}
+	if exited {
+		// The original supervisor owns remaining descendants after the leader exits.
+		return nil
+	}
 	if err := procutil.KillProcessGroupIDAndWait(pid, time.Second); err != nil {
 		return fmt.Errorf("acp: force subprocess tree exit: %w", err)
 	}

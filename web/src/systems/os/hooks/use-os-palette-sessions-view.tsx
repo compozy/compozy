@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useDebouncedValue } from "@/hooks/use-debounced-input";
+
 import {
   useSessionListPreferences,
   useSessionCatalog,
@@ -34,6 +36,8 @@ export function useOsPaletteSessionsView({
   query,
   onDismiss,
 }: PaletteViewControllerInput): PaletteViewContent {
+  const remoteQuery = useDebouncedValue(query.trim());
+  const searchPending = remoteQuery !== query.trim();
   const [filterId, setFilterId] = useState<PaletteSessionFilterId>("all");
   // Transient, like the sidebar's: the archive is a way of looking right now,
   // not a preference worth round-tripping through config.
@@ -49,19 +53,20 @@ export function useOsPaletteSessionsView({
       include_health: true,
       limit: 100,
       sort: "navigator",
-      q: query.trim(),
+      q: remoteQuery,
       search_fields: "title_agent",
       ...paletteSessionFilterParams(filterId),
       ...(archived ? { archive: "only" as const } : {}),
     },
-    allWorkspaces || scope === "global" || runtimeWorkspaceId !== null
+    allWorkspaces || scope === "global" || runtimeWorkspaceId !== null,
+    { facets: true }
   );
   const visible = catalog.sessions;
   const counts = paletteSessionCounts(catalog.facets);
   const workspaceNames = new Map(
     registeredWorkspaces.map(workspace => [workspace.id, workspace.name])
   );
-  const loading = catalog.loading;
+  const loading = catalog.loading || catalog.paging || searchPending;
 
   return {
     rows: [
@@ -71,8 +76,9 @@ export function useOsPaletteSessionsView({
         runtimeWorkspaceId,
         onDismiss,
         jumpToSession,
+        busy: loading,
       }),
-      ...paletteSessionPageRows(catalog),
+      ...paletteSessionPageRows({ ...catalog, paging: loading }),
     ],
     header: (
       <OsPaletteSessionChips
@@ -91,7 +97,7 @@ export function useOsPaletteSessionsView({
         {emptySessionsMessage({ loading, query, filterId, allWorkspaces, archived })}
       </OsPaletteViewNote>
     ),
-    note: paletteSessionsNote(catalog, visible.length),
+    note: paletteSessionsNote({ ...catalog, paging: loading }, visible.length),
     backHint: filterId === "all" ? "back" : "clear filter",
     resetKey: `${filterId}:${allWorkspaces ? "all-workspaces" : "workspace"}:${archived}`,
     onEmptyQueryBackspace: () => {
@@ -147,7 +153,9 @@ function projectPaletteSessionRows(
     runtimeWorkspaceId,
     onDismiss,
     jumpToSession,
+    busy,
   }: {
+    busy: boolean;
     allWorkspaces: boolean;
     workspaceNames: ReadonlyMap<string, string>;
     runtimeWorkspaceId: string | null;
@@ -159,6 +167,7 @@ function projectPaletteSessionRows(
     value: `session:${session.id}`,
     testId: `os-palette-session-view-${session.id}`,
     twoLine: true,
+    disabled: busy,
     node: (
       <OsPaletteSessionRow
         owner={profile.aggregate ? profile.ownerOf(session) : undefined}
@@ -167,6 +176,7 @@ function projectPaletteSessionRows(
       />
     ),
     onSelect: () => {
+      if (busy) return;
       onDismiss();
       jumpToSession({
         sessionId: session.id,
@@ -206,9 +216,10 @@ function paletteSessionPageRows(catalog: PaletteSessionCatalog): PaletteViewRow[
 }
 
 function paletteSessionsNote(catalog: PaletteSessionCatalog, visibleCount: number) {
-  if (!catalog.failed && !catalog.next && !catalog.previous) return null;
+  if (!catalog.paging && !catalog.failed && !catalog.next && !catalog.previous) return null;
   return (
     <OsPaletteViewNote>
+      {catalog.paging ? "Loading sessions… " : ""}
       {catalog.failed ? "Couldn’t load sessions. " : ""}
       {visibleCount > 0 ? `${visibleCount} sessions on this page.` : null}
     </OsPaletteViewNote>

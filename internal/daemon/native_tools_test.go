@@ -2672,7 +2672,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should report skill backend phase without exposing private backend errors", func(t *testing.T) {
 		t.Parallel()
 		privateCause := errors.New("private credential and skill contents")
-		err := skillViewResourceError(toolspkg.ToolIDSkillView, "private/path.md", privateCause)
+		err := skillViewResourceError(t.Context(), toolspkg.ToolIDSkillView, "private/path.md", privateCause)
 		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
 		if !ok || toolErr.Code != toolspkg.ErrorCodeBackendFailed || toolErr.Operator == nil ||
 			!errors.Is(err, privateCause) {

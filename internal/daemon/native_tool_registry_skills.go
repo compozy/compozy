@@ -153,7 +153,7 @@ func (n *daemonNativeTools) skillView(
 	}
 	if err != nil {
 		if file != "" {
-			return toolspkg.ToolResult{}, skillViewResourceError(req.ToolID, file, err)
+			return toolspkg.ToolResult{}, skillViewResourceError(ctx, req.ToolID, file, err)
 		}
 		if errors.Is(err, skillspkg.ErrInvalidDefinition) {
 			return toolspkg.ToolResult{}, skillViewDefinitionError(req.ToolID, err)
@@ -191,7 +191,7 @@ func (n *daemonNativeTools) skillView(
 	return result, nil
 }
 
-func skillViewResourceError(id toolspkg.ToolID, file string, err error) error {
+func skillViewResourceError(ctx context.Context, id toolspkg.ToolID, file string, err error) error {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		message := fmt.Sprintf("skill resource %q not found", file)
@@ -207,7 +207,7 @@ func skillViewResourceError(id toolspkg.ToolID, file string, err error) error {
 		errors.Is(err, skillspkg.ErrResourcePathOutside):
 		return nativeCommandInvalidInputError(id, fmt.Sprintf("skill resource path %q is invalid", file))
 	default:
-		return skillViewBackendError(context.Background(), id, "skill_resource_load", err)
+		return skillViewBackendError(ctx, id, "skill_resource_load", err)
 	}
 }
 

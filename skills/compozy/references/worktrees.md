@@ -71,8 +71,10 @@ finished id is a no-op and cannot cancel a later action.
 
 HTTP and UDS expose the same exit contract at `GET .../exit`, `POST .../exit/actions`, and
 `POST .../exit/cancel`. Repeat `include` query parameters on `GET .../exit` for a scoped plan. Action input is
-`{action, message?, title?, body?, draft?, base?, include_paths?, expected_scope?}` and accepted
-execution returns `{op_id}`.
+`{action, message?, title?, body?, draft?, base?, include_paths?, expected_scope?, delivery_id?, expected_head?}`
+and accepted execution returns `{op_id}`. For `action: "deliver"`, `delivery_id`, `expected_head`,
+`message`, `base`, a nonempty `include_paths`, and `expected_scope` are required; the validated
+native session owns caller identity.
 
 ## Cleanup
 
@@ -112,8 +114,22 @@ Branch on the deterministic API/CLI code before free-form text. The worktree voc
 
 ### Managed delivery handoff
 
-A bound managed session uses `compozy worktree deliver <ref> --delivery-id <stable-intent-id> --expected-head <reviewed-sha> -m <message> --title <title> --body <body> --base <branch>` after review and QA. For a reviewed subset, pass the same repeatable `--include` paths and `--expected-scope` fingerprint returned by the scoped exit plan. The local UDS validates `COMPOZY_SESSION_ID` and `COMPOZY_AGENT`; a request body cannot select another caller. This action always creates or reuses a draft PR through the native forge provider.
+A bound managed session first reviews a scoped exit plan, then submits that exact scope:
+
+    compozy worktree exit <ref> --include src/change.go --include docs/change.md -o json
+    compozy worktree deliver <ref> --delivery-id <stable-intent-id> --expected-head <reviewed-sha> --include src/change.go --include docs/change.md --expected-scope <commit_scope.fingerprint> -m <message> --title <title> --body <body> --base <branch>
+
+Both the repeatable `--include` paths and the scoped plan's `--expected-scope` fingerprint are
+required for managed delivery. Whole-worktree `commit` remains a separate action. The local UDS
+validates `COMPOZY_SESSION_ID` and `COMPOZY_AGENT`; a request body cannot select another caller.
+This action always creates or reuses a draft PR through the native forge provider.
 
 The command returns an operation ID after durably admitting the delivery intent. CompozyOS then stops that exact bound caller and completes delivery autonomously. A session admission fence prevents new or resumed sessions on that checkout; another active bound session refuses the handoff. Unrelated sessions remain running. Repository and worktree usage locks serialize the Git effects. Selected delivery preserves unrelated working files and staged entries; the actual commit tree must match the authorized candidate before any push.
 
 Use a stable delivery ID when retrying an identical intent. The daemon retains its journal under the configured worktrees root and reconciles worktree path, branch, base SHA, remote destination, original HEAD, expected commit tree and exact draft PR before repeating effects after restart or an ambiguous provider response. Reusing an ID for another intent is refused. Managed delivery requires a single identical fetch/push destination and publishes one explicit branch refspec. A changed identity or competing session fails explicitly instead of broadening the authorization.
+
+The selected index is checked again before staging. Recovery accepts only the original reviewed
+scope or the recorded proof of the daemon's own authorized staging. A safety refusal is terminal
+and requires a new reviewed intent; it cannot repeatedly stop a resumed caller after restart.
+Unreadable journals remain available for diagnosis while unmatched interrupted operation receipts
+settle as explicit failures without session, Git, or forge effects.

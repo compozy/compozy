@@ -467,8 +467,13 @@ func TestProvider(t *testing.T) {
 			defer closeServer()
 			request := createRequest()
 			request.HeadSHA = "reviewed-sha"
-			if got, err := provider.CreatePR(context.Background(), request); err == nil || posts.Load() != 0 {
-				t.Fatalf("mismatched CreatePR = %#v, %v, posts=%d", got, err, posts.Load())
+			want := "does not match the delivery candidate"
+			if mismatch == "ambiguous" {
+				want = "multiple pull requests match"
+			}
+			if got, err := provider.CreatePR(context.Background(), request); err == nil ||
+				!strings.Contains(err.Error(), want) || posts.Load() != 0 {
+				t.Fatalf("mismatched CreatePR = %#v, %v, posts=%d; want %q", got, err, posts.Load(), want)
 			}
 		})
 	}

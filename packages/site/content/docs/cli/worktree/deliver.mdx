@@ -11,6 +11,13 @@ Submit a reviewed draft delivery from the bound managed session
 compozy worktree deliver <ref> [flags]
 ```
 
+### Examples
+
+```
+# Output example
+compozy worktree deliver <ref> --delivery-id reviewed-delivery --expected-head <reviewed-sha> --include src/change.go --expected-scope <commit_scope.fingerprint> --message "fix: deliver reviewed changes" --base main --title "Reviewed changes" --body "Review and QA complete"
+```
+
 ### Options
 
 ```
@@ -48,5 +55,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy worktree deliver <ref> -o json
+compozy worktree deliver <ref> --delivery-id reviewed-delivery --expected-head <reviewed-sha> --include src/change.go --expected-scope <commit_scope.fingerprint> --message "fix: deliver reviewed changes" --base main --title "Reviewed changes" --body "Review and QA complete" -o json
 ```

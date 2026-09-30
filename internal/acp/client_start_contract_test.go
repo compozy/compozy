@@ -1960,3 +1960,31 @@ func TestStartCapturesSteerCapability(t *testing.T) {
 		})
 	}
 }
+
+func TestStartWithUnconfiguredAttempts(t *testing.T) {
+	t.Parallel()
+	for _, count := range []int{0, -1} {
+		name := "Should launch when the driver attempt count is zero"
+		if count < 0 {
+			name = "Should launch when the driver attempt count is negative"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			launchErr := errors.New("launch rejected")
+			launcher := &recordingLauncher{err: launchErr}
+			driver := &Driver{startAttempts: count}
+			proc, err := driver.Start(t.Context(), StartOpts{
+				AgentName: "helper",
+				Command:   helperCommand(t),
+				Cwd:       t.TempDir(),
+				Launcher:  launcher,
+			})
+			if proc != nil || !errors.Is(err, launchErr) {
+				t.Fatalf("Start() = %v, %v, want launch failure", proc, err)
+			}
+			if _, launched := launcher.lastSpec(); !launched {
+				t.Fatal("Start() never attempted process launch")
+			}
+		})
+	}
+}

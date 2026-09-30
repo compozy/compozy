@@ -1,6 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
+import { useDebouncedValue } from "@/hooks/use-debounced-input";
 import { getSessionDisplayTitle, useSessionCatalog, type SessionPayload } from "@/systems/session";
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
@@ -40,6 +41,7 @@ export interface OsPaletteTabResult {
 
 export interface OsPaletteSessionResult {
   sessionId: string;
+  busy?: boolean;
   title: string;
   agentName: string;
   workspaceId: string;
@@ -147,6 +149,8 @@ export function useOsPaletteEntities({
   signals,
   workspaces,
 }: UseOsPaletteEntitiesOptions): OsPaletteEntities {
+  const remoteQuery = useDebouncedValue(query.trim());
+  const searchPending = remoteQuery !== query.trim();
   const profile = useProfileReadScope();
   const queryEnabled = paletteEntityQueryEnabled(destination, query, signals);
   const worktreeScopeId = useFocusedWorktreeScopeId();
@@ -165,12 +169,12 @@ export function useOsPaletteEntities({
     scope === "global" ? null : runtimeWorkspaceId,
     {
       limit: 100,
-      q: query.trim(),
+      q: remoteQuery,
       search_fields: "title_agent",
       ...(scope === "workspace" ? { worktree: worktreeFilter.worktreeId } : {}),
     },
     open &&
-      queryEnabled &&
+      paletteEntityQueryEnabled(destination, remoteQuery, signals) &&
       (scope === "global" || runtimeWorkspaceId !== null) &&
       worktreeFilter.resolved
   );
@@ -195,7 +199,7 @@ export function useOsPaletteEntities({
       keywords: [row.agentName, ...(row.owner === undefined ? [] : [row.owner.name])],
     }),
     "Sessions",
-    query,
+    remoteQuery,
     signals,
     destination
   );
@@ -216,8 +220,13 @@ export function useOsPaletteEntities({
     false
   );
   return {
-    sessions: rankedSessions.rows,
-    sessionTotal: rankedSessions.total,
+    sessions: (searchPending || sessions.paging ? sessionRows : rankedSessions.rows).map(
+      session => ({
+        ...session,
+        busy: searchPending || sessions.paging,
+      })
+    ),
+    sessionTotal: searchPending || sessions.paging ? sessionRows.length : rankedSessions.total,
     tabs: rankedTabs.rows,
     tabTotal: rankedTabs.total,
     worktrees: rankedWorktrees.rows,

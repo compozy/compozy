@@ -90,6 +90,34 @@ describe("api client", () => {
     });
     expect(result).toBe(response);
   });
+
+  it("loads and sends a stable client identifier when randomUUID is unavailable", async () => {
+    const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+    vi.stubGlobal("crypto", { getRandomValues });
+    vi.resetModules();
+    const { apiClient: client } = await import("@/lib/api-client");
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } })
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.GET("/api/status");
+    await client.GET("/api/status");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const first = (fetchMock.mock.calls[0]?.[0] as Request | undefined)?.headers.get(
+      "X-Compozy-Client-ID"
+    );
+    const second = (fetchMock.mock.calls[1]?.[0] as Request | undefined)?.headers.get(
+      "X-Compozy-Client-ID"
+    );
+    expect(first).toMatch(/^web-[a-zA-Z0-9_-]{1,76}$/);
+    expect(second).toBe(first);
+  });
 });
 
 describe("api client helpers", () => {

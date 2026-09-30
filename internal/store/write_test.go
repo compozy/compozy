@@ -12,6 +12,76 @@ import (
 )
 
 func TestExecuteWrite(t *testing.T) {
+	t.Run("Should reject same database reentry and roll back the outer write", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "reentry.db"))
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('outer')`); err != nil {
+				return err
+			}
+			return ExecuteWrite(ctx, db, func(context.Context, *WriteTx) error {
+				t.Error("reentrant callback must not execute")
+				return nil
+			})
+		})
+		if !errors.Is(err, errWriteReentry) || errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("same database reentry error = %v", err)
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM items`).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("rows after rejected nested write = %d, error = %v", count, err)
+		}
+		if err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('recovered')`)
+			return err
+		}); err != nil {
+			t.Fatalf("write after rejected reentry: %v", err)
+		}
+	})
+
+	t.Run("Should permit nested writes on another database and reuse completed callback contexts", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "outer.db"))
+		otherDB := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "inner.db"))
+		if _, err := otherDB.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		var completedCtx context.Context
+		err := ExecuteWrite(ctx, db, func(ctx context.Context, _ *WriteTx) error {
+			completedCtx = ctx
+			return ExecuteWrite(ctx, otherDB, func(ctx context.Context, tx *WriteTx) error {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('inner')`); err != nil {
+					return err
+				}
+				err := ExecuteWrite(ctx, db, func(context.Context, *WriteTx) error {
+					t.Error("ancestor database reentrant callback must not execute")
+					return nil
+				})
+				if !errors.Is(err, errWriteReentry) {
+					return errors.New("ancestor database reentry was not rejected")
+				}
+				return nil
+			})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var count int
+		if err := otherDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM items`).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("committed nested rows = %d, error = %v", count, err)
+		}
+		if err := ExecuteWrite(completedCtx, db, func(context.Context, *WriteTx) error { return nil }); err != nil {
+			t.Fatalf("write using completed callback context: %v", err)
+		}
+	})
+
 	t.Run("Should cancel local writer admission without spending SQLite attempts", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

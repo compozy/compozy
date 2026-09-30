@@ -2,6 +2,12 @@
 
 ## Authoritative runtime verdict
 
+The native runtime verdict below belongs to the recorded pre-remediation artifacts. PR #686 review
+remediation adds new index/recovery, installer/process identity, browser/catalog and contract
+regressions in the existing canonical suites. Their validation runs in CI on the new published
+head, per the user's instruction; historical runtime and CI receipts are not relabeled as proof
+of those changed bytes. The PR's current check rollup owns subsequent delivery status.
+
 **Runtime QA: PASS for the eleven reported issue journeys, with the evidence boundaries below.** Native managed delivery created the single authorized draft [PR #686](https://github.com/compozy/compozy/pull/686). Exact-head CI and owned-lab teardown are separate delivery checks and remain pending at this report checkpoint; successful publication is no longer pending.
 
 - Scope: #657, #659, #663, #665, #666, #675, #676, #677, #678, #679, #682.
@@ -79,3 +85,24 @@ Historical failed attempts remain failures:
 Runtime journeys are complete with the exact build/platform/provider qualifications above. Publication #676 is Pass; [PR686](https://github.com/compozy/compozy/pull/686) remains a draft until the controller verifies the final head. The user explicitly directed delivery gates to CI; no additional broad local gate/test/typecheck was used as a substitute.
 
 The controller owns the final report/scenario/impact/test-fixture public commit, exact-head CI and terminal release. External `/tmp/compozy-issues-20260929/ci/` receipts own remote CI status. The final verification/strict QA evidence audit and owned-lab teardown receipts will be retained under the canonical lab; their completion must be read independently from runtime Pass. Operator browsers, Spaces, profiles, unrelated Git entries and unrelated live/queued processes remain outside teardown ownership. No human action or permission is currently required.
+
+## PR review remediation
+
+All eighteen inline findings and the request-context nit were confirmed against source. Coverage
+stays in the existing real Git/SQLite/subprocess, API contract, provider, query/cache, and caller
+UI suites. The changes preserve reviewed index versions, terminalize deterministic delivery
+refusals, release fences before completion, retire orphan receipts without effects, preserve
+unknown journals, protect live installers and process identities, compare Linux installation
+versions, bound MIME registration, reject write reentry, publish the honored facet filters, and
+retain browser/query/search contracts without suppressing errors or increasing existing budgets.
+
+The general Linked Issues check exposed documentation omissions: official managed handoff now
+requires include/scope, its JSON shape names delivery identity fields, and the owning Cobra output
+example supplies every required flag. Both excluded task templates already require quoted YAML
+titles with quote/backslash escaping; the importer retains indicator round trips and malformed
+input rejection. The bot's partial docstring metric names no missing function contract and
+conflicts with the explicit one-line WHY comment policy. Named safety invariants are documented
+at their owners; no review configuration or threshold was lowered. The historical sixty-minute
+catalog run remains qualified by its exact original source and assets. New blocked-sibling,
+facets and debounced-search regressions must pass the new-head CI and do not reuse that soak as
+new-byte evidence.

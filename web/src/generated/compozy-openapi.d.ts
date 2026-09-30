@@ -50461,6 +50461,12 @@ export interface operations {
         worktree?: string;
         /** @description Filter by exact agent name */
         agent?: string;
+        /** @description Filter by exact parent session id */
+        parent?: string;
+        /** @description Filter by exact root session id (includes the root itself) */
+        root?: string;
+        /** @description Only count sessions eligible for explicit attach */
+        resumable?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */

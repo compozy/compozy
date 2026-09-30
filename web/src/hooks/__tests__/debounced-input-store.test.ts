@@ -2,9 +2,11 @@
 // Invariant: only the latest draft commits, reset/disposal cancel pending work, and route
 // acknowledgements already reflected in the store cannot erase a newer local draft.
 // Owning layer: shared debounced-input store. Boundary OUT: route/query consumers.
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { debouncedInputLogic } from "../debounced-input-store";
+import { useDebouncedValue } from "../use-debounced-input";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -113,5 +115,26 @@ describe("debouncedInputLogic", () => {
     vi.runAllTimers();
 
     expect(commit).not.toHaveBeenCalled();
+  });
+});
+
+// Invariant: controlled remote queries commit only the latest burst and cancel on unmount.
+// Owning layer: shared debounce adapter; canonical suite: debounced input interaction store.
+describe("useDebouncedValue", () => {
+  it("Should debounce controlled changes and dispose the pending commit", () => {
+    vi.useFakeTimers();
+    const { result, rerender, unmount } = renderHook(({ value }) => useDebouncedValue(value), {
+      initialProps: { value: "initial" },
+    });
+    rerender({ value: "r" });
+    rerender({ value: "reviewer" });
+    expect(result.current).toBe("initial");
+    act(() => vi.advanceTimersByTime(179));
+    expect(result.current).toBe("initial");
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current).toBe("reviewer");
+    rerender({ value: "pending" });
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

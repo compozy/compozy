@@ -55,3 +55,12 @@ for a focused re-walk; the derive flows themselves are walked in ET-web-session-
 ET-web-session-fork-from-here.
 
 QA walk 2026-09-28 (task_08 part B2): Session menu → catalog. User rows offer Continue/Fork after Rename; the archived row offers Rename/Unarchive/Delete only. Continue and Fork open their dialog over the still-open catalog, Cancel returns to it, and a submitted fork opens the child in its own window. Children nest under their source. Found: the row menu popup was 128px wide with wrapped items (visual contract VC-01/02); fixed with `min-w-56`. Verdict: pass (after fix). Report: `docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md`.
+
+PR #686 review regression: type a rapid remote-search burst. The input responds immediately,
+requests use the existing debounce scheduler, and the previous bounded page remains visible with
+pending feedback. Previous session choices and cursor actions are disabled until the new page
+arrives. Changing workspace or profile never reuses the previous population. Views without count
+consumers do not request facets. When one observed query is failing or slow, retries target only
+that blocked query; healthy siblings refetch again only for a fresh wake. Existing catalog hook,
+stream reconciliation, debounce, and Loop session selector suites own these regressions in CI;
+the earlier native sixty-minute receipt remains evidence only for its recorded historical assets.

@@ -583,6 +583,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listSessions, "skip_total", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSessions, "search_fields", openapi3.ParameterInQuery, false)
 				facetsOperation := operationFor(t, doc, "/api/sessions/facets", "GET")
+				assertParameter(t, facetsOperation, "parent", openapi3.ParameterInQuery, false)
+				assertParameter(t, facetsOperation, "root", openapi3.ParameterInQuery, false)
+				assertParameter(t, facetsOperation, "resumable", openapi3.ParameterInQuery, false)
 				facetsResponse := jsonResponseSchema(t, facetsOperation, 200)
 				assertRequired(t, facetsResponse, "facets", "by_workspace")
 				assertRequired(

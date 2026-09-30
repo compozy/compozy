@@ -44,7 +44,7 @@ export function LoopSessionValueSelect({
         data-testid={testId}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
-        aria-busy={catalog.loading || catalog.selectedLoading || undefined}
+        aria-busy={catalog.loading || catalog.paging || catalog.selectedLoading || undefined}
         disabled={disabled}
         selected={value !== ""}
       >
@@ -61,6 +61,7 @@ export function LoopSessionValueSelect({
           "aria-label": "Search sessions",
         }}
       >
+        {catalog.paging ? <span role="status">Loading sessions…</span> : null}
         <CommandList>
           <CommandEmpty>
             {catalog.loading
@@ -75,7 +76,9 @@ export function LoopSessionValueSelect({
                 key={session.id}
                 value={session.id}
                 data-checked={session.id === value ? "true" : "false"}
+                disabled={catalog.paging}
                 onSelect={() => {
+                  if (catalog.paging) return;
                   onChange(session.id);
                   setOpen(false);
                 }}

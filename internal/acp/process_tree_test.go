@@ -187,3 +187,63 @@ func processAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
+
+func TestForcedStopProcessIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should leave a reused process group running", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		unrelated := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{})
+		t.Cleanup(func() { stopProcess(t, driver, unrelated) })
+		stale := &AgentProcess{
+			PID:       unrelated.PID,
+			StartedAt: unrelated.StartedAt.Add(-time.Hour),
+			done:      make(chan struct{}),
+		}
+		if err := driver.forceStoppedProcess(stale); err != nil {
+			t.Fatal(err)
+		}
+		events, err := driver.Prompt(t.Context(), unrelated, PromptRequest{TurnID: "unrelated-turn", Message: "still alive"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !containsEventText(collectEvents(t, events), "still alive") {
+			t.Fatal("unrelated process stopped responding")
+		}
+	})
+	t.Run("Should skip an exited leader while post-exit cleanup is pending", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		original := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{})
+		stopProcess(t, driver, original)
+		pending := &AgentProcess{
+			PID:       original.PID,
+			StartedAt: original.StartedAt,
+			done:      make(chan struct{}),
+		}
+		if err := driver.forceStoppedProcess(pending); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should force the owned live wrapper and its children on cancellation", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		pidFile := filepath.Join(t.TempDir(), "owned-child.pid")
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			Command: helperWrapperCommand(t),
+			Env: append(helperEnv("echo_prompt", ""),
+				testWrapperEnvKey+"=1",
+				testWrapperPIDFileEnvKey+"="+pidFile,
+			),
+		})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		childPID := waitForWrapperChildPID(t, pidFile)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := driver.Stop(ctx, proc); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Stop() = %v, want caller cancellation", err)
+		}
+		waitForProcessExit(t, childPID, time.Second)
+		waitForProcessExit(t, proc.PID, time.Second)
+	})
+}

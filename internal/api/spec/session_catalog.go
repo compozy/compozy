@@ -249,6 +249,9 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			queryParam("worktree", "Filter by bound worktree id", false),
 			queryParam("agent", "Filter by exact agent name", false),
+			queryParam("parent", "Filter by exact parent session id", false),
+			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
+			boolQueryParam("resumable", "Only count sessions eligible for explicit attach"),
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",

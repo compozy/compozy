@@ -1,17 +1,21 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { useProfileReadScope } from "@/systems/profiles";
 import { sessionScopedDetailOptions, useSessionCatalog } from "@/systems/session";
 
 export function useLoopSessionCatalog(workspaceId: string, value: string) {
-  const [search, setSearch] = useState("");
+  const {
+    draftValue: search,
+    committedValue: remoteSearch,
+    setDraftValue: setSearch,
+  } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
   const { params } = useProfileReadScope();
   const catalog = useSessionCatalog(
     workspaceId,
     {
       limit: 100,
-      q: search,
+      q: remoteSearch,
       search_fields: "title_agent",
     },
     workspaceId !== "",
@@ -28,6 +32,9 @@ export function useLoopSessionCatalog(workspaceId: string, value: string) {
     selectedQuery.data?.workspace_id === workspaceId ? selectedQuery.data : undefined;
   return {
     ...catalog,
+    paging: catalog.paging || search !== remoteSearch,
+    next: search === remoteSearch && catalog.next,
+    previous: search === remoteSearch && catalog.previous,
     search,
     setSearch,
     selected: visibleSelection ?? scopedSelection,

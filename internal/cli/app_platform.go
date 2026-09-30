@@ -105,12 +105,12 @@ func resolveLinuxAppInstallation() (appInstallation, error) {
 }
 
 func resolveLinuxAppInstallationAt(homeDir string) (appInstallation, error) {
+	var installed appInstallation
 	if homeDir != "" {
 		matches, err := filepath.Glob(filepath.Join(homeDir, "Applications", "CompozyOS-*-linux-*.AppImage"))
 		if err != nil {
 			return appInstallation{}, err
 		}
-		var installed appInstallation
 		for _, path := range matches {
 			executable, executableFound, err := inspectLinuxAppExecutable(path)
 			if err != nil {
@@ -119,23 +119,10 @@ func resolveLinuxAppInstallationAt(homeDir string) (appInstallation, error) {
 			if !executableFound {
 				continue
 			}
-			version, _, found := strings.Cut(strings.TrimPrefix(filepath.Base(path), "CompozyOS-"), "-linux-")
-			if found {
-				candidate, err := semver.NewVersion(version)
-				if err != nil {
-					continue
-				}
-				if installed.Installed {
-					previous, err := semver.NewVersion(installed.Version)
-					if err == nil && !candidate.GreaterThan(previous) {
-						continue
-					}
-				}
-				installed = appInstallation{Installed: true, Version: version, Executable: executable}
-			}
-		}
-		if installed.Installed {
-			return installed, nil
+			version, _, _ := strings.Cut(strings.TrimPrefix(filepath.Base(path), "CompozyOS-"), "-linux-")
+			installed = newerLinuxAppInstallation(installed, appInstallation{
+				Installed: true, Version: version, Executable: executable,
+			})
 		}
 	}
 	candidates := make([]string, 0, 4)
@@ -159,13 +146,29 @@ func resolveLinuxAppInstallationAt(homeDir string) (appInstallation, error) {
 			return appInstallation{}, err
 		}
 		if found {
-			return installation, nil
+			installed = newerLinuxAppInstallation(installed, installation)
 		}
 	}
 	if executable, err := exec.LookPath("compozyos"); err == nil {
-		return appInstallation{Installed: true, Executable: executable}, nil
+		installed = newerLinuxAppInstallation(installed, appInstallation{Installed: true, Executable: executable})
 	}
-	return appInstallation{}, nil
+	return installed, nil
+}
+
+func newerLinuxAppInstallation(current, candidate appInstallation) appInstallation {
+	candidateVersion, candidateErr := semver.NewVersion(candidate.Version)
+	if candidateErr != nil {
+		candidate.Version = ""
+		if !current.Installed {
+			return candidate
+		}
+		return current
+	}
+	currentVersion, currentErr := semver.NewVersion(current.Version)
+	if currentErr != nil || candidateVersion.GreaterThan(currentVersion) {
+		return candidate
+	}
+	return current
 }
 
 func parseDesktopRegistration(path string) (appInstallation, bool, error) {

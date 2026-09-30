@@ -121862,6 +121862,30 @@
             }
           },
           {
+            "description": "Filter by exact parent session id",
+            "in": "query",
+            "name": "parent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact root session id (includes the root itself)",
+            "in": "query",
+            "name": "root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only count sessions eligible for explicit attach",
+            "in": "query",
+            "name": "resumable",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Filter by exact session state",
             "in": "query",
             "name": "state",

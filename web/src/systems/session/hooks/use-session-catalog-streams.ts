@@ -98,7 +98,7 @@ export interface SessionCatalogStreamHandlers {
 // one background transition into repeated full-catalog walks.
 function createCatalogReconciler(queryClient: QueryClient) {
   const workspaces = new Set<string>();
-  let dirty = false;
+  const pending = new Set<string>();
   let lastRead = -Infinity;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let focused = true;
@@ -106,12 +106,25 @@ function createCatalogReconciler(queryClient: QueryClient) {
     focused && (typeof document === "undefined" || document.visibilityState !== "hidden");
   const flush = () => {
     timer = undefined;
-    if (!dirty || !visible()) return;
-    dirty = false;
+    if ((workspaces.size === 0 && pending.size === 0) || !visible()) return;
     lastRead = Date.now();
-    const options = { cancelRefetch: false };
-    // Errors remain visible. Push activity must not bypass the failure backoff.
+    const hashes = new Set(pending);
+    pending.clear();
+    const prefixes = [
+      ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
+      ...(workspaces.size > 0
+        ? [sessionKeys.attentionSummary(), notificationKeys.attentionRoot()]
+        : []),
+    ];
+    workspaces.clear();
+    for (const queryKey of prefixes) {
+      for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+        hashes.delete(query.queryHash);
+      }
+    }
+    // A retry retains only blocked identities. Healthy siblings require a new wake.
     const predicate = (query: {
+      queryHash: string;
       state: { status: string; errorUpdatedAt: number; fetchStatus: string };
       getObserversCount: () => number;
     }) => {
@@ -119,29 +132,22 @@ function createCatalogReconciler(queryClient: QueryClient) {
         query.getObserversCount() > 0 &&
         (query.state.fetchStatus === "fetching" ||
           (query.state.status === "error" && Date.now() - query.state.errorUpdatedAt < 30_000));
-      if (blocked) dirty = true;
+      if (blocked) pending.add(query.queryHash);
       return !blocked;
     };
-    for (const workspace of workspaces) {
+    for (const queryKey of prefixes) {
+      void queryClient.invalidateQueries({ queryKey, predicate }, { cancelRefetch: false });
+    }
+    if (hashes.size > 0) {
       void queryClient.invalidateQueries(
-        { queryKey: sessionKeys.workspaceLists(workspace), predicate },
-        options
+        { predicate: query => hashes.has(query.queryHash) && predicate(query) },
+        { cancelRefetch: false }
       );
     }
-
-    void queryClient.invalidateQueries(
-      { queryKey: sessionKeys.attentionSummary(), predicate },
-      options
-    );
-    void queryClient.invalidateQueries(
-      { queryKey: notificationKeys.attentionRoot(), predicate },
-      options
-    );
-    if (!dirty) workspaces.clear();
     schedule();
   };
   const schedule = () => {
-    if (timer !== undefined || !visible() || !dirty) return;
+    if (timer !== undefined || !visible() || (workspaces.size === 0 && pending.size === 0)) return;
     const delay = Math.max(0, 5_000 - (Date.now() - lastRead));
     if (delay === 0) flush();
     else timer = setTimeout(flush, delay);
@@ -163,7 +169,6 @@ function createCatalogReconciler(queryClient: QueryClient) {
     wake(workspace?: string) {
       workspaces.add("");
       if (workspace !== undefined) workspaces.add(workspace);
-      dirty = true;
       schedule();
     },
     close() {

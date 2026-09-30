@@ -22,9 +22,9 @@ export async function registerLinuxDesktop(
   await writeFile(join(applications, "compozyos.desktop"), linuxDesktopEntry(executable, version), {
     mode: 0o644,
   });
-  await promisify(execFile)("xdg-mime", [
-    "default",
-    "compozyos.desktop",
-    "x-scheme-handler/compozyos",
-  ]);
+  await promisify(execFile)(
+    "xdg-mime",
+    ["default", "compozyos.desktop", "x-scheme-handler/compozyos"],
+    { timeout: 5_000, killSignal: "SIGKILL" }
+  );
 }

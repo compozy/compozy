@@ -32,3 +32,13 @@ CLI/API public transport rewalk remains required by the delivery report.
 With a real managed session bound to the checkout, read the scoped exit plan and submit `worktree deliver` with a stable delivery ID, the reviewed HEAD, selected paths, and returned scope fingerprint. Verify the command returns an operation ID, Compozy stops only the caller, and the resulting remote branch and draft PR contain only the selected commit. Unrelated files and pre-staged changes remain local. While delivery owns the checkout, another start or resume on it is refused; unrelated checkout sessions remain usable.
 
 Repeat the same admitted intent after an interrupted commit, push, or ambiguous forge response. Verify the daemon reconciles the exact branch/base/HEAD and reuses the intended draft PR without duplicate commits or PRs. Change the base, selected content, remote, or HEAD and verify recovery refuses publication. Configure a different push URL and verify managed delivery refuses it before pushing.
+
+PR #686 review regression: after admission, restage a selected file with different contents and
+restore its reviewed working bytes. Delivery must refuse before overwriting that staged version;
+repeat through recovery. Recover the daemon's recorded authorized staging, but refuse a legacy
+ambiguous post-staging state. A deterministic safety refusal remains terminal after caller resume
+and daemon restart. Completion observers must see the session fence released. Corrupt or unknown
+journals remain unchanged, sibling recovery continues, and an interrupted deliver receipt without
+a readable journal fails without stopping a session or performing Git/forge effects. Existing
+`TestWorktreeManagedDeliveryIntegration` and `TestExitActions` own these regressions in CI;
+historical native delivery receipts do not certify the new remediation bytes.

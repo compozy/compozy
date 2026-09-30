@@ -535,22 +535,32 @@ describe("bounded session catalog", () => {
       createElement(QueryClientProvider, { client }, children);
     const { result } = renderHook(
       () => ({
-        search: useSessionCatalog("ws_alpha", {
-          q: "older",
-          search_fields: "title_agent",
-          sort: "last_activity",
-          limit: 100,
-          parent: " parent-session ",
-          root: "root-session",
-        }),
-        attention: useSessionCatalog("ws_alpha", {
-          attention: true,
-          sort: "attention",
-          include_health: true,
-          limit: 50,
-          parent: "parent-session",
-          root: "root-session",
-        }),
+        search: useSessionCatalog(
+          "ws_alpha",
+          {
+            q: "older",
+            search_fields: "title_agent",
+            sort: "last_activity",
+            limit: 100,
+            parent: " parent-session ",
+            root: "root-session",
+          },
+          true,
+          { facets: true }
+        ),
+        attention: useSessionCatalog(
+          "ws_alpha",
+          {
+            attention: true,
+            sort: "attention",
+            include_health: true,
+            limit: 50,
+            parent: "parent-session",
+            root: "root-session",
+          },
+          true,
+          { facets: true }
+        ),
         picker: useSessionCatalog("ws_alpha", { q: "picker", limit: 100 }, true, { facets: false }),
       }),
       { wrapper }
@@ -585,7 +595,10 @@ describe("bounded session catalog", () => {
     }));
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children);
-    const { result } = renderHook(() => useSessionCatalog("ws_alpha", { limit: 100 }), { wrapper });
+    const { result } = renderHook(
+      () => useSessionCatalog("ws_alpha", { limit: 100 }, true, { facets: true }),
+      { wrapper }
+    );
     await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
     expect(result.current.total).toBe(201);
     expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1);
@@ -607,5 +620,34 @@ describe("bounded session catalog", () => {
     ).toHaveLength(1);
     act(() => result.current.previousPage());
     await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
+  });
+  it("Should retain search rows without reusing another workspace or fetching unused facets", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValueOnce({
+      sessions: [makeSession({ id: "sess-original" })],
+      page: { has_more: true, next_cursor: "old-cursor", limit: 100 },
+    });
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(() => new Promise(() => {}));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result, rerender, unmount } = renderHook(
+      ({ workspace, search }) => useSessionCatalog(workspace, { q: search, limit: 100 }),
+      { wrapper, initialProps: { workspace: "ws_alpha", search: "original" } }
+    );
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-original"));
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
+    rerender({ workspace: "ws_alpha", search: "changed" });
+    expect(result.current.sessions[0]?.id).toBe("sess-original");
+    expect(result.current.paging).toBe(true);
+    expect(result.current.next).toBe(false);
+    expect(result.current.previous).toBe(false);
+    act(() => result.current.nextPage());
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(2);
+    rerender({ workspace: "ws_beta", search: "changed" });
+    expect(result.current.sessions).toEqual([]);
+    expect(result.current.loading).toBe(true);
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
   });
 });
