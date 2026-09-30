@@ -122,6 +122,9 @@ body {
 .boot__control:hover:not(:disabled) {
   background: var(--surface-hover);
 }
+.boot__control:not(.boot__control--primary):hover:not(:disabled, :focus-visible) {
+  box-shadow: var(--surface-hover-shadow);
+}
 .boot__control:focus-visible,
 .boot__technical summary:focus-visible {
   /* The product focus ring; the transparent outline stays visible in forced-colors mode. */

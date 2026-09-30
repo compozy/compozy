@@ -32,8 +32,10 @@ const bootTokenMap = {
   warning: "color-warning",
   info: "color-info",
   line: "color-line",
-  surface: "color-surface-glaze",
-  "surface-hover": "color-btn-default-hover",
+  // Boot controls are secondary pills: the product's rest and hover fills.
+  surface: "color-surface-2",
+  "surface-hover": "color-selected",
+  "surface-hover-shadow": "theme-shadow-card",
   sans: "font-sans",
   mono: "font-mono",
 } as const;
