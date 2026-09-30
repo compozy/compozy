@@ -249,8 +249,9 @@ function useTerminalAttentionSources({
     // Catalog wakes own this read while connected; a second poll would
     // amplify each authoritative update with an independent timer read.
     refetchInterval: query => {
-      if (!documentVisible || sessionCatalogStreamStatus === "live") return false;
-      return query.state.status === "error" ? 30_000 : ATTENTION_REFETCH_INTERVAL_MS;
+      if (!documentVisible) return false;
+      if (query.state.status === "error") return 30_000;
+      return sessionCatalogStreamStatus === "live" ? false : ATTENTION_REFETCH_INTERVAL_MS;
     },
   });
   const ready =

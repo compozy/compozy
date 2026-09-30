@@ -142,5 +142,6 @@ created/stopped sessions and a running real Loop, then failed the fixed facets c
 The retained receipt has no cleanup error and one actual renderer client. The shell terminal
 badge independently polled the shared facets query while live stream reconciliation also
 reread it. The production correction disables that duplicate polling while the stream is live
-and preserves visible disconnected fallback; the same Electron regression retains every budget
-and assertion. This failed window is not a sixty-minute pass; corrected-head CI owns acceptance.
+and preserves visible disconnected fallback. Failed reads retain bounded thirty-second retries
+even with a live stream, repairing the subsequent Greptile quiet-workspace badge finding; the
+same Electron regression retains every budget and assertion. This failed window is not a sixty-minute pass; corrected-head CI owns acceptance.

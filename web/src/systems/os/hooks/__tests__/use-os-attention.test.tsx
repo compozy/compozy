@@ -479,6 +479,41 @@ describe("useOsAttention", () => {
     client.clear();
   });
 
+  // Invariant: a failed scoped facet read recovers in a quiet live workspace
+  // without polling healthy siblings or requiring another lifecycle event.
+  // Layer: OS attention/query integration; canonical suite: this hook suite.
+  it("Should recover a failed terminal facet read after quiet live-stream backoff", async () => {
+    vi.useFakeTimers();
+    realFacetQueries = true;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockRejectedValue(new Error("facets unavailable"));
+    const { result, unmount } = renderHook(() => useOsAttention(workspace, "live", false), client);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    expect(result.current.badges.terminal).toBeUndefined();
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 3 },
+      by_workspace: [],
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    expect(result.current.badges.terminal).toBe(3);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    unmount();
+    client.clear();
+  });
+
   it("Should scope terminal approval metadata to the destination profile even in aggregate view", () => {
     vi.mocked(useProfileReadScope).mockReturnValue({
       destination: "work",

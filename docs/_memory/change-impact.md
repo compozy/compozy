@@ -1147,8 +1147,10 @@ The existing packaged Electron shell suite owns a real sixty-minute catalog requ
 regression using public session/Loop activity and unchanged fixed budgets. Desktop CI retains
 its current-head/runtime/client receipt on success or failure; no local runtime is launched.
 CI exposed duplicate shell terminal-facet polling alongside live stream reconciliation. The
-shell now uses the shared live clock and retains visible disconnected polling fallback. Native
-public surfaces, configuration, persisted state and official skill contracts remain unchanged.
+shell now uses the shared live clock for healthy reads, retains visible disconnected polling
+fallback and retries failed facets reads at the existing thirty-second error interval even with a
+live stream. Native public surfaces, configuration, persisted state and official skill contracts
+remain unchanged.
 
 - **Native tools / CLI / HTTP / UDS / SDK:** worktree exit plans and commits add explicit reviewed
   paths and a content fingerprint; managed delivery uses validated session identity, a durable

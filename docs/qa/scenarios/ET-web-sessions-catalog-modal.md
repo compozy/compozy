@@ -74,6 +74,8 @@ digest are retained in the CI artifact. The existing desktop CI lane owns execut
 result cannot be replaced by the historical soak.
 
 When the catalog stream is live, terminal badge facets follow the shared stream reconciliation
-clock without an independent shell polling timer. A disconnected stream retains visible-window
-fallback polling; hiding the document disables that fallback. Verify badge freshness across live,
-disconnected and reconnect transitions without multiplying shared facet requests.
+clock without an independent polling timer for healthy reads. A failed facets read retries at the
+existing thirty-second error interval even while the stream is live, so a quiet workspace can
+recover its badge. A disconnected stream retains visible-window fallback polling; hiding the
+document disables that fallback. Verify badge freshness across live, error recovery, disconnected
+and reconnect transitions without multiplying healthy facet requests.
