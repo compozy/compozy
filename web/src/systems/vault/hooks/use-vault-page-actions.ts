@@ -60,8 +60,10 @@ function useVaultRouteSelection(routeRef: string | null, { pageStore, flow }: Va
 interface VaultInventoryQuery {
   data?: VaultSecret[];
   error: unknown;
+  isFetching: boolean;
   isStale: boolean;
   isSuccess: boolean;
+  refetch: () => unknown;
 }
 
 function useVaultEditor(
@@ -75,6 +77,15 @@ function useVaultEditor(
     inventory.data,
     inventory.isSuccess && !inventory.isStale
   );
+  // Collision protection needs a fresh inventory, and nothing else refreshes it
+  // while the create editor sits open past the stale time: refetch here, or a
+  // valid draft would stay unsavable.
+  const inventoryNeedsRefresh =
+    isCreating && inventory.isSuccess && inventory.isStale && !inventory.isFetching;
+  const { refetch } = inventory;
+  useEffect(() => {
+    if (inventoryNeedsRefresh) void refetch();
+  }, [inventoryNeedsRefresh, refetch]);
 
   const openCreate = () => {
     putMutation.reset();
@@ -158,7 +169,11 @@ function useVaultInspect(
   };
 }
 
-function useVaultDelete({ pageStore, flow }: VaultPageFlowHandle, target: VaultSecret | null) {
+function useVaultDelete(
+  { pageStore, flow }: VaultPageFlowHandle,
+  target: VaultSecret | null,
+  updateSearch: VaultSearchUpdater
+) {
   const deleteMutation = useDeleteVaultSecret();
 
   const openDelete = (secret: VaultSecret) => {
@@ -173,7 +188,15 @@ function useVaultDelete({ pageStore, flow }: VaultPageFlowHandle, target: VaultS
   };
   const confirmDelete = () => {
     if (!flow.deleteTargetRef) return;
-    pageStore.trigger.deleteRequested({ execute: ref => deleteMutation.mutateAsync(ref) });
+    pageStore.trigger.deleteRequested({
+      execute: async ref => {
+        await deleteMutation.mutateAsync(ref);
+        // A deep link to the secret just deleted would reopen it as "not found".
+        updateSearch(current =>
+          current.ref?.trim() === ref ? { ...current, ref: undefined } : current
+        );
+      },
+    });
   };
 
   return {
