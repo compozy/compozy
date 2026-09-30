@@ -1135,7 +1135,13 @@ verification are tracked in `docs/qa/reports/2026-09-29-reported-issues.md`.
   ordinary clients retain exact totals. A separate scoped metadata facets read owns exact chip
   and group counts, including pending terminal approvals. Web catalog rows use bounded count-free
   pages with explicit continuation, Unicode-aware title/agent search and preserved navigator ordering.
-  Dock selection uses the existing creation order through a bounded one-row page. Workspace detail reads explicitly request the operator's
+  Dock selection uses the existing creation order through a bounded one-row page; an explicit click
+  resolves current server truth before selecting create or open and allows retry after a read failure.
+  Deliberate new window opens use the serialized command's current revision; ordinary semantic
+  identity lookups retain their revision fence against duplicate windows.
+  The separate unread-notification title channel retains bounded background polling and error
+  backoff while automatic session catalog and summary reads pause when hidden.
+  Workspace detail reads explicitly request the operator's
   aggregate profile view; server workspace and agent authorization remain authoritative.
   Aborted presence requests retain the shared cancellation status. Forge contracts add optional
   branch, base, commit and draft evidence; old extensions remain usable for ordinary exit actions,

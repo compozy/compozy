@@ -450,11 +450,17 @@ describe("WindowManagerRuntime", () => {
   it("Should open a forced-new terminal at the accepted revision of its queued adoption", async () => {
     const queryClient = new QueryClient();
     const sourceId = "app:agents";
-    const initial = snapshotWithFloatingStack();
-    initial.windows[sourceId] = {
-      ...initial.windows[sourceId]!,
-      app: "terminal",
-      route: { pathname: "/terminal", search: {} },
+    const stacked = snapshotWithFloatingStack();
+    const initial: WindowManagerSnapshot = {
+      ...stacked,
+      windows: {
+        ...stacked.windows,
+        [sourceId]: {
+          ...stacked.windows[sourceId]!,
+          app: "terminal",
+          route: { pathname: "/terminal", search: {} },
+        },
+      },
     };
     const route = { pathname: "/terminal/term-adopted", search: {} };
     const adopted: WindowManagerSnapshot = {
