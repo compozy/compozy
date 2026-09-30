@@ -88,7 +88,7 @@ export function UserMessageBubble({
         data-clamped={clamped || undefined}
         data-subdued={subdued || undefined}
         className={cn(
-          "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3 py-transcript-message-y",
+          "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3.5 py-2.5",
           "text-transcript-message leading-relaxed [overflow-wrap:anywhere]",
           subdued ? "text-subtle" : "text-fg",
           clamped

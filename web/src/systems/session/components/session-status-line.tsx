@@ -2,19 +2,12 @@ import type * as React from "react";
 
 import { cn } from "@compozy/ui";
 
-import { sessionBadgeSignal, type SessionBadgeToken } from "../lib/session-badge";
+import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
 import type { SessionOriginView } from "../lib/session-origin";
 import { SessionBadgeGlyph } from "./session-badge-mark";
 import { SessionOriginPill } from "./session-origin-pill";
-import type { SessionPayload, SessionState } from "../types";
-
-const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadgeToken> = {
-  active: "idle",
-  starting: "running",
-  stopping: "running",
-  stopped: "stopped",
-};
+import type { SessionPayload } from "../types";
 
 export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span">, "children"> {
   session: SessionPayload;
@@ -37,7 +30,7 @@ export function SessionStatusLine({
   onOpenOriginSource,
   ...props
 }: SessionStatusLineProps) {
-  const badge = session.badge || STATE_BADGE_FALLBACK[session.state];
+  const badge = sessionBadgeOf(session);
   const signal = sessionBadgeSignal(badge);
   const agentLabel = session.agent_name.trim();
   const providerLabel = session.runtime.effective?.provider.trim();
@@ -69,7 +62,10 @@ export function SessionStatusLine({
               ·
             </span>
           ) : null}
-          <span data-testid="session-status-agent" className="truncate text-eyebrow text-muted">
+          <span
+            data-testid="session-status-agent"
+            className="truncate text-eyebrow font-medium text-fg-2"
+          >
             {agentLabel}
           </span>
         </>

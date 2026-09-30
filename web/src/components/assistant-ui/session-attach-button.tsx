@@ -1,11 +1,9 @@
 import { useAui } from "@assistant-ui/react";
-import { Button } from "@compozy/ui";
+import { InputGroupButton } from "@compozy/ui";
 import { Paperclip } from "lucide-react";
 import { useRef, type ComponentProps } from "react";
 
-import { cn } from "@/lib/utils";
-
-export type SessionAttachButtonViewProps = ComponentProps<typeof Button>;
+export type SessionAttachButtonViewProps = ComponentProps<typeof InputGroupButton>;
 
 export function SessionAttachButtonView({
   disabled = false,
@@ -14,19 +12,17 @@ export function SessionAttachButtonView({
   ...props
 }: SessionAttachButtonViewProps) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-xs"
+    <InputGroupButton
+      size="tool"
       aria-label="Attach files"
       title={title}
       data-testid="composer-attach-button"
       disabled={disabled}
-      className={cn("text-muted hover:bg-row-hover hover:text-fg-strong", className)}
+      className={className}
       {...props}
     >
-      <Paperclip className="size-3.5" />
-    </Button>
+      <Paperclip />
+    </InputGroupButton>
   );
 }
 

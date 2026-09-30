@@ -735,16 +735,13 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     const chatView = screen.getByTestId("chat-view");
+    // Both surfaces sit on one centered transcript measure with the same inset.
     const viewportRail = within(chatView).getByTestId("thread-content-rail");
-    expect(viewportRail).toHaveClass("px-4", "w-full");
-    expect(viewportRail).not.toHaveClass("mx-auto");
-    expect(viewportRail.className).not.toContain("max-w-");
+    expect(viewportRail).toHaveClass("px-4", "w-full", "mx-auto", "max-w-transcript");
 
     const composerShell = screen.getByTestId("composer-shell");
     const composerRail = within(composerShell).getByTestId("thread-content-rail");
-    expect(composerRail).toHaveClass("px-4", "w-full");
-    expect(composerRail).not.toHaveClass("mx-auto");
-    expect(composerRail.className).not.toContain("max-w-");
+    expect(composerRail).toHaveClass("px-4", "w-full", "mx-auto", "max-w-transcript");
   });
 
   let transcriptMessages = sessionTranscriptFixture.slice(0, 2);

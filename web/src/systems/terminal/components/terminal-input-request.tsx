@@ -1,10 +1,9 @@
 "use client";
 
-import { Check, Clock, KeyRound, Keyboard, MessageCircleQuestionMark, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { KeyRound, MessageCircleQuestionMark } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-import { Button, cn, Input, MonoId, Time } from "@compozy/ui";
+import { Button, cn, Input, MonoId, StateGlyph, type StateGlyphState, Time } from "@compozy/ui";
 
 import { terminalInputOutcomeCopy } from "../lib/terminal-copy";
 import { terminalInputExpiry } from "../lib/terminal-input-expiry";
@@ -188,18 +187,13 @@ export function TerminalInputRequestCard({
   );
 }
 
-const RESOLVED_GLYPHS: Record<TerminalInputOutcome, LucideIcon> = {
-  answered: Check,
-  rejected: X,
-  superseded: Keyboard,
-  expired: Clock,
-};
-
-const RESOLVED_TONES: Record<TerminalInputOutcome, string> = {
-  answered: "bg-success-tint text-success",
-  rejected: "bg-badge-fill text-muted",
-  superseded: "bg-info-tint text-info",
-  expired: "bg-badge-fill text-muted",
+// Canonical state mapping: a declined prompt is a rejection (failed); one the
+// person typed past or that ran out of time was skipped (stopped).
+const RESOLVED_STATES: Record<TerminalInputOutcome, StateGlyphState> = {
+  answered: "done",
+  rejected: "failed",
+  superseded: "stopped",
+  expired: "stopped",
 };
 
 export interface TerminalInputResolvedRowProps {
@@ -213,20 +207,14 @@ export interface TerminalInputResolvedRowProps {
  * is the whole record, in the stream, the journal, and the replay alike.
  */
 export function TerminalInputResolvedRow({ request }: TerminalInputResolvedRowProps) {
-  const Glyph = RESOLVED_GLYPHS[request.outcome];
   return (
     <div
       className="flex flex-none items-center gap-2 border-line border-t bg-terminal-bg px-3.5 py-3"
       data-outcome={request.outcome}
       data-testid={`terminal-input-resolved-${request.outcome}`}
     >
-      <span
-        className={cn(
-          "grid size-6.5 flex-none place-items-center rounded-sm",
-          RESOLVED_TONES[request.outcome]
-        )}
-      >
-        <Glyph aria-hidden="true" className="size-3.5" />
+      <span className="grid size-6.5 flex-none place-items-center">
+        <StateGlyph state={RESOLVED_STATES[request.outcome]} />
       </span>
       <span className="text-muted text-transcript-meta">
         <b className="font-semibold text-fg">

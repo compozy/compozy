@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { cn, Eyebrow, TranscriptDisclosure } from "@compozy/ui";
+import { Eyebrow, StateGlyph, type StateGlyphState, TranscriptDisclosure } from "@compozy/ui";
 
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 import { SessionGoalStripBody } from "./session-goal-strip-body";
@@ -30,12 +30,12 @@ function goalStripState(snapshot: SessionGoalSnapshot): GoalStripState {
   }
 }
 
-const STATE_DOT: Record<GoalStripState, string> = {
-  active: "bg-accent session-state-pulse",
-  paused: "bg-warning",
-  blocked: "bg-warning",
-  done: "bg-success",
-  moved: "bg-faint",
+const STATE_GLYPH: Record<GoalStripState, StateGlyphState> = {
+  active: "running",
+  paused: "stopped",
+  blocked: "attention",
+  done: "done",
+  moved: "idle",
 };
 
 /**
@@ -72,13 +72,7 @@ export function SessionGoalStrip({
         className="w-full min-w-0 gap-2 font-normal"
         data-testid="goal-strip-line"
         expanded={open}
-        icon={
-          <span
-            aria-hidden="true"
-            data-testid="goal-strip-dot"
-            className={cn("size-1.5 shrink-0 rounded-full", STATE_DOT[state])}
-          />
-        }
+        icon={<StateGlyph data-testid="goal-strip-dot" size="sm" state={STATE_GLYPH[state]} />}
         label={
           <span className="flex min-w-0 items-center gap-2">
             <Eyebrow className="shrink-0 text-subtle">Goal</Eyebrow>

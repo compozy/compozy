@@ -46,7 +46,7 @@ export function TerminalJournalHead({
 }) {
   return (
     <header
-      className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
+      className="flex min-h-window-head flex-none items-center gap-2.5 border-line border-b bg-canvas px-4"
       data-testid="terminal-journal-head"
     >
       {onBack ? (
@@ -62,9 +62,7 @@ export function TerminalJournalHead({
         </Button>
       ) : null}
       <ScrollText aria-hidden="true" className="size-3.5 text-muted" />
-      <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
-        Journal
-      </span>
+      <span className="truncate font-medium text-fg text-ws-name tracking-tight">Journal</span>
       {projectLabel ? (
         <span className="truncate text-badge text-subtle">{projectLabel}</span>
       ) : null}

@@ -10,9 +10,9 @@ import {
 } from "@/systems/session";
 
 /**
- * The one badge dictionary, rendered at both of its scales. Every row pairs a
- * tone with a distinct shape or glyph and the exact CLI state word, so no state
- * is ever carried by colour alone.
+ * The one badge dictionary, rendered at both of its scales with the shared
+ * state glyphs. Badges that share a glyph speak their word wherever the mark
+ * shows, so no state is ever carried by colour alone.
  */
 function BadgeDictionary() {
   return (
@@ -35,6 +35,7 @@ function BadgeDictionary() {
                 : signal.attention === "finished"
                   ? "finished, clears on focus"
                   : "no attention"}
+              {signal.speaks ? ` · says "${signal.displayLabel}"` : null}
             </span>
           </div>
         );
@@ -50,7 +51,7 @@ const meta: Meta<typeof BadgeDictionary> = {
     docs: {
       description: {
         component:
-          "The exported badge dictionary at both scales: 7–9 px row marks and 18 px tinted glyph roundels. The needs-you class shares one tone and separates by glyph, except `needs-attention` (an unverified stop), which is inked warning; `done` is its own tone and never counts toward needs-you; `unknown` stays visually distinct from `stopped` so the shell never fakes liveness.",
+          "The exported badge dictionary at both scales (12 px row marks, 18 px footprints), drawn with StateGlyph. Needs-you asks share the orange attention dot and failures share the danger ring, so those badges always speak their state word; `done` never counts toward needs-you; `unknown` names itself instead of resting on the idle dot, so the shell never fakes liveness.",
       },
     },
   },

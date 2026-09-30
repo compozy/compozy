@@ -132,8 +132,8 @@ function SessionListRowDetails({
       </span>
       <span className="block truncate text-micro text-subtle">
         <span className="font-medium text-muted">{session.agent_name}</span>
-        {/* The mark carries every state; the word only speaks up when the row needs you. */}
-        {signal.attention === "needs-you" ? (
+        {/* The mark carries the state; the word speaks up whenever the glyph is shared. */}
+        {signal.speaks ? (
           <>
             <span aria-hidden="true"> · </span>
             <span className={sessionBadgeWordClass(session.badge)}>{signal.displayLabel}</span>

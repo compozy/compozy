@@ -1,9 +1,9 @@
 // Suite: session-badge
 // Invariant: one exported badge dictionary covers the daemon's eleven-token
-// vocabulary exhaustively, is the only tone/glyph source for every attention
-// surface, pairs each tone with a distinct shape or glyph so no state reads as
-// colour alone, mirrors the daemon's attention classes, and narrows
-// unrecognized tokens to the honesty state.
+// vocabulary exhaustively, is the only state-glyph/tone source for every
+// attention surface, spells out the state word wherever a glyph is shared so no
+// state reads as colour or shape alone, mirrors the daemon's attention classes,
+// and narrows unrecognized tokens to the honesty state.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
@@ -18,10 +18,14 @@ import {
   type SessionBadgeToken,
 } from "../session-badge";
 
-/** "You are the blocker": one danger tone, separated by shape and glyph. */
-const BLOCKED_ON_YOU: SessionBadgeToken[] = ["waiting-for-input", "waiting-for-auth", "failed"];
-/** The daemon's needs-you class (`session.ClassForBadge`), including the unverified stop. */
-const NEEDS_YOU: SessionBadgeToken[] = [...BLOCKED_ON_YOU, "needs-attention"];
+/** Asks waiting on the operator: one attention glyph, told apart by their words. */
+const WAITING_ON_YOU: SessionBadgeToken[] = [
+  "waiting-for-input",
+  "waiting-for-auth",
+  "needs-attention",
+];
+/** The daemon's needs-you class (`session.ClassForBadge`). */
+const NEEDS_YOU: SessionBadgeToken[] = [...WAITING_ON_YOU, "failed"];
 
 describe("session badge dictionary", () => {
   it("Should cover the daemon's eleven-token vocabulary exhaustively (UT-050)", () => {
@@ -46,49 +50,54 @@ describe("session badge dictionary", () => {
   });
 
   it("Should never convey a state by colour alone (UT-050)", () => {
-    // Every badge carries a glyph, a shape, a plain state word, and the exact
-    // CLI token, so a shared tone is always disambiguated on a second channel.
+    // Every badge carries a state glyph, a plain state word, and the exact CLI
+    // token. Badges that share a glyph must speak their word wherever the mark
+    // shows, so a shared glyph is always disambiguated on a second channel.
     for (const badge of SESSION_BADGES) {
       const signal = SESSION_BADGE_SIGNAL[badge];
-      expect(signal.glyph).toBeDefined();
-      expect(signal.shape).toBeTruthy();
+      expect(signal.state).toBeTruthy();
       expect(signal.label).toBe(badge);
       expect(signal.displayLabel).toMatch(/^[A-Z][a-z -]+$/);
     }
     expect(SESSION_BADGE_SIGNAL["waiting-for-input"].displayLabel).toBe("Needs your answer");
     expect(SESSION_BADGE_SIGNAL.hung.displayLabel).toBe("Stuck");
-    const blockedShapes = BLOCKED_ON_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].shape);
-    const blockedGlyphs = BLOCKED_ON_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].glyph);
-    expect(new Set(BLOCKED_ON_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].tone))).toEqual(
-      new Set(["danger"])
-    );
-    expect(new Set(blockedShapes).size).toBe(BLOCKED_ON_YOU.length);
-    expect(new Set(blockedGlyphs).size).toBe(BLOCKED_ON_YOU.length);
-    // No two badges share a tone and a shape: the mark alone tells them apart.
-    const marks = SESSION_BADGES.map(
-      badge => `${SESSION_BADGE_SIGNAL[badge].tone}:${SESSION_BADGE_SIGNAL[badge].shape}`
-    );
-    expect(new Set(marks).size).toBe(SESSION_BADGES.length);
-    const needsYouGlyphs = NEEDS_YOU.map(badge => SESSION_BADGE_SIGNAL[badge].glyph);
-    expect(new Set(needsYouGlyphs).size).toBe(NEEDS_YOU.length);
+    const byState = new Map<string, SessionBadgeToken[]>();
+    for (const badge of SESSION_BADGES) {
+      const state = SESSION_BADGE_SIGNAL[badge].state;
+      byState.set(state, [...(byState.get(state) ?? []), badge]);
+    }
+    for (const [state, badges] of byState) {
+      const silent = badges.filter(badge => !SESSION_BADGE_SIGNAL[badge].speaks);
+      // At most one badge per glyph may rest on the glyph alone.
+      expect(silent.length, `glyph ${state}`).toBeLessThanOrEqual(1);
+    }
+    // Every needs-you badge names itself in words.
+    for (const badge of NEEDS_YOU) expect(SESSION_BADGE_SIGNAL[badge].speaks).toBe(true);
   });
 
-  it("Should ink the locked tone per state (UT-050)", () => {
-    // Resting states stay neutral: colour is reserved for states that ask
-    // something of the user, and the glyph carries done/idle.
-    expect(SESSION_BADGE_SIGNAL.done.tone).toBe("neutral");
-    expect(SESSION_BADGE_SIGNAL.running.tone).toBe("accent");
-    expect(SESSION_BADGE_SIGNAL.running.pulse).toBe(true);
-    expect(SESSION_BADGE_SIGNAL.idle.tone).toBe("neutral");
-    expect(SESSION_BADGE_SIGNAL.hung.tone).toBe("warning");
-    expect(SESSION_BADGE_SIGNAL.unhealthy.tone).toBe("warning");
-    // An unverified stop asks for attention on warning, never danger: the
-    // runtime could not prove the process is gone; nothing of yours failed.
-    expect(SESSION_BADGE_SIGNAL["needs-attention"].tone).toBe("warning");
-    expect(SESSION_BADGE_SIGNAL["needs-attention"].pulse).toBe(false);
-    // The honesty state must stay visually distinct from a stopped session.
-    expect(SESSION_BADGE_SIGNAL.unknown.shape).toBe("dashed-ring");
-    expect(SESSION_BADGE_SIGNAL.stopped.shape).toBe("ring");
+  it("Should map each badge to its canonical state glyph and tone (UT-050)", () => {
+    // Needs-you is the Compozy-orange attention dot (never the warning amber),
+    // failures and a stuck runtime are the danger ring, work in flight is the
+    // mint running ring, and resting states stay neutral.
+    for (const badge of WAITING_ON_YOU) {
+      expect(SESSION_BADGE_SIGNAL[badge].state).toBe("attention");
+      expect(SESSION_BADGE_SIGNAL[badge].tone).toBe("accent");
+    }
+    for (const badge of ["failed", "hung", "unhealthy"] as const) {
+      expect(SESSION_BADGE_SIGNAL[badge].state).toBe("failed");
+      expect(SESSION_BADGE_SIGNAL[badge].tone).toBe("danger");
+    }
+    expect(SESSION_BADGE_SIGNAL.running.state).toBe("running");
+    expect(SESSION_BADGE_SIGNAL.done.state).toBe("done");
+    expect(SESSION_BADGE_SIGNAL.stopped.state).toBe("stopped");
+    expect(SESSION_BADGE_SIGNAL.idle.state).toBe("idle");
+    for (const badge of ["running", "done", "stopped", "idle", "unknown"] as const) {
+      expect(SESSION_BADGE_SIGNAL[badge].tone).toBe("neutral");
+    }
+    // The honesty state never fakes liveness: it names itself instead of
+    // resting on the idle dot it shares.
+    expect(SESSION_BADGE_SIGNAL.unknown.speaks).toBe(true);
+    expect(SESSION_BADGE_SIGNAL.stopped.state).not.toBe(SESSION_BADGE_SIGNAL.unknown.state);
   });
 
   it("Should render an unrecognized token as unknown rather than guessing", () => {

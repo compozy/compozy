@@ -1,6 +1,6 @@
 import { Eye, FileText, TerminalSquare } from "lucide-react";
 
-import { Pill, useTopbarSlot } from "@compozy/ui";
+import { Pill, StateGlyph, type StateGlyphState, useTopbarSlot } from "@compozy/ui";
 
 import type { TerminalInfo } from "../types";
 import { TerminalHeaderActions, TerminalWindowVerbs } from "./terminal-header-actions";
@@ -41,6 +41,18 @@ function terminalCapCount(terminalCount: number | undefined, limit: number | und
       {terminalCount} of {limit}
     </span>
   );
+}
+
+/**
+ * The head's leading state mark. Only a clean exit earns the done check; a
+ * failing run stays neutral (information, not an emergency — see
+ * `terminalExitCopy`), and a signal reads as stopped.
+ */
+function terminalStateGlyph(terminal: TerminalInfo): StateGlyphState {
+  if (terminal.state === "running") return "running";
+  if (terminal.exit?.cause === "signaled") return "stopped";
+  if (terminal.exit?.cause === "exited" && terminal.exit.code === 0) return "done";
+  return "idle";
 }
 
 /**
@@ -109,7 +121,8 @@ export function TerminalHeader({
   useTopbarSlot(
     hostChrome
       ? {
-          glyph: isPipe ? <FileText /> : <TerminalSquare />,
+          glyph: <StateGlyph size="sm" state={terminalStateGlyph(terminal)} />,
+          glyphPresentation: "state",
           crumb: terminal.title,
           count: identityCount,
           status,
@@ -120,7 +133,7 @@ export function TerminalHeader({
   if (hostChrome) return null;
   return (
     <header
-      className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
+      className="flex min-h-window-head flex-none items-center gap-2.5 border-line border-b bg-canvas px-4"
       data-testid="terminal-header"
     >
       <span className="flex min-w-0 items-center gap-2">
@@ -129,7 +142,7 @@ export function TerminalHeader({
         ) : (
           <TerminalSquare aria-hidden="true" className="size-3.5 text-muted" />
         )}
-        <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
+        <span className="truncate font-medium text-fg text-ws-name tracking-tight">
           {terminal.title}
         </span>
         {identityCount}

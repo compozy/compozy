@@ -185,7 +185,6 @@ export {
   type SessionAttentionClass,
   type SessionBadgeGlyphProps,
   type SessionBadgeMarkProps,
-  type SessionBadgeShape,
   type SessionBadgeSignal,
   type SessionBadgeToken,
   type SessionListPreferences,
@@ -421,7 +420,7 @@ export { SessionList, type SessionListProps } from "./components/session-list/se
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export {
   buildSessionTree,
-  childSessionSignalTone,
+  childSessionSignalState,
   collectThreadSessions,
   visibleSessionOrder,
   type VisibleSessionOrderOptions,
@@ -431,6 +430,7 @@ export {
   type SessionWorkspaceSwitchDialogProps,
 } from "./components/session-workspace-switch-dialog";
 export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
+export { rendersTerminalBlock } from "./lib/session-terminal-tools";
 export { SessionSummaryDisclosure } from "./components/session-summary-disclosure";
 export {
   SessionChatRuntimeProvider,

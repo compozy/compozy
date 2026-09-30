@@ -23,7 +23,7 @@ import {
 import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionLiveToolRowView } from "./session-live-tool-row";
-import { SessionWorkEntryView } from "./session-work-entry";
+import { SessionWorkEntryList } from "./session-work-entry";
 import { SessionToolGroupRow } from "./session-tool-group-row";
 import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
 import { SessionTurnFoldRowView } from "./session-turn-fold-row";
@@ -131,15 +131,8 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
     );
   }
   return (
-    <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
-      {row.entries.map(entry => (
-        <SessionWorkEntryView
-          key={`${entry.kind}:${entry.id}`}
-          entry={entry}
-          active={row.active}
-          turnFailed={turnFailed}
-        />
-      ))}
+    <div data-testid="work-row" className="flex min-w-0 flex-col gap-1.5">
+      <SessionWorkEntryList entries={row.entries} active={row.active} turnFailed={turnFailed} />
     </div>
   );
 }

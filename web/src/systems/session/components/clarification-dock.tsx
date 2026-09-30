@@ -1,3 +1,4 @@
+import { MessageCircleQuestion } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import {
@@ -9,6 +10,7 @@ import {
   ChoiceList,
   ChoiceRow,
   Dock,
+  KindIcon,
 } from "@compozy/ui";
 
 import { useClarificationDock } from "../hooks/use-clarification-dock";
@@ -35,7 +37,8 @@ function indexedChoices(choices: readonly string[]) {
 }
 
 /**
- * The pending clarification as a composer-docked decision panel. Bounded
+ * The pending clarification as a composer-docked decision card led by its
+ * identity well. Bounded
  * questions answer as 30px choice rows on digit keys 1–9; a question with no
  * choices renders the quiet free-text form (Enter submits, Shift+Enter breaks).
  * The deadline hint is static — the broker enforces the timeout server-side.
@@ -67,7 +70,7 @@ export function ClarificationDock({
   return (
     <Dock data-testid="clarification-dock" role="region" aria-label="Clarification question">
       <Dock.Head>
-        <Dock.Eyebrow data-testid="clarification-dock-eyebrow">Question</Dock.Eyebrow>
+        <KindIcon data-testid="clarification-dock-well" icon={MessageCircleQuestion} tone="well" />
         <Dock.Title data-testid="clarification-dock-question">{clarification.question}</Dock.Title>
         {countLabel ? <Dock.Count>{countLabel}</Dock.Count> : null}
         {deadlineHint ? (
@@ -107,11 +110,11 @@ export function ClarificationDock({
           <ChoiceFreeBar>
             <span className="flex-1" />
             <Button
-              size="sm"
               variant="primary"
               data-testid="clarification-dock-submit"
               disabled={!dock.canSubmitText}
               onClick={dock.submitText}
+              kbd="↵"
             >
               Send answer
             </Button>

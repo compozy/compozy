@@ -1,5 +1,7 @@
 import type { TerminalExit, TerminalInfo, TerminalSignal } from "@/systems/terminal/parts";
 
+import type { UIMessage } from "../types";
+
 /** Native tools that open or run a supervised terminal — not internal command output. */
 const DELIBERATE_TERMINAL_TOOLS = new Set(["compozy__terminal_exec", "compozy__terminal_open"]);
 
@@ -40,6 +42,17 @@ function asEnvelopeRecord(value: unknown): Record<string, unknown> | null {
 /** The supervised terminal this tool call named, when the runtime created one. */
 export function readSupervisedTerminalId(rawOutput: unknown): string | null {
   return readNonEmptyString(readTerminalEnvelope(rawOutput).terminal_id);
+}
+
+/**
+ * A deliberate terminal call with a supervised terminal renders as the live
+ * terminal block, not a tool line — so it sits outside a sunken tool panel.
+ */
+export function rendersTerminalBlock(message: UIMessage): boolean {
+  return (
+    isDeliberateTerminalTool(message.toolName) &&
+    readSupervisedTerminalId(message.toolResult?.rawOutput) !== null
+  );
 }
 
 export function readNonEmptyString(value: unknown): string | null {

@@ -18,7 +18,6 @@ export {
 } from "./lib/session-badge";
 export type {
   SessionAttentionClass,
-  SessionBadgeShape,
   SessionBadgeSignal,
   SessionBadgeToken,
 } from "./lib/session-badge";

@@ -1,21 +1,15 @@
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import { ChevronRight } from "lucide-react";
 
-import { Icon } from "@compozy/ui";
+import { Icon, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { childSessionSignalTone } from "../../lib/session-hierarchy";
+import { childSessionSignalState, type ChildSessionSignalState } from "../../lib/session-hierarchy";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import { SessionListRow } from "./session-list-row";
-
-const CHILD_SIGNAL_CLASS: Record<string, string> = {
-  danger: "bg-danger",
-  warning: "bg-warning",
-  accent: "bg-accent",
-};
 
 export interface SessionListThreadProps {
   session: SessionPayload;
@@ -66,7 +60,7 @@ export function SessionListThread({
             sessionId={session.id}
             childCount={childSessions.length}
             collapsed={collapsed}
-            signalTone={collapsed ? childSessionSignalTone(childSessions) : null}
+            childSignal={collapsed ? childSessionSignalState(childSessions) : null}
             onToggleThread={onToggleThread}
             testIdPrefix={testIdPrefix}
           />
@@ -109,14 +103,14 @@ function ThreadToggle({
   sessionId,
   childCount,
   collapsed,
-  signalTone,
+  childSignal,
   onToggleThread,
   testIdPrefix,
 }: {
   sessionId: string;
   childCount: number;
   collapsed: boolean;
-  signalTone: string | null;
+  childSignal: ChildSessionSignalState | null;
   onToggleThread: (sessionId: string) => void;
   testIdPrefix: string;
 }) {
@@ -135,12 +129,7 @@ function ThreadToggle({
         className={cn("transition-transform", !collapsed && "rotate-90")}
       />
       {childCount}
-      {signalTone !== null ? (
-        <span
-          className={cn("size-[5px] rounded-full", CHILD_SIGNAL_CLASS[signalTone])}
-          aria-hidden="true"
-        />
-      ) : null}
+      {childSignal !== null ? <StateGlyph size="sm" state={childSignal} /> : null}
     </button>
   );
 }

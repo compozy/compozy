@@ -2540,12 +2540,15 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    // ADR-006: a call still in flight is the turn's one live row — the verb
-    // shimmers, nothing on the right; never the legacy bordered "preparing
-    // input" box and never a stacked card.
+    // ADR-006: a call still in flight is the turn's one live row — a line in
+    // the sunken tool panel with the running ring on the right; never the
+    // legacy bordered "preparing input" box and never a stacked card.
     const row = await screen.findByTestId("live-tool");
     expect(within(row).getByTestId("live-tool-label")).toHaveTextContent("Reading");
-    expect(row.querySelector('[data-slot="tool-call-row-status"]')).toBeNull();
+    expect(row.querySelector('[data-slot="tool-call-row-status"]')).toHaveAttribute(
+      "data-state",
+      "running"
+    );
     expect(screen.queryByTestId("tool-call-row")).not.toBeInTheDocument();
     expect(screen.queryByText(/preparing input/i)).not.toBeInTheDocument();
   });
@@ -2590,10 +2593,11 @@ describe("SessionThread transcript states", () => {
 
     const row = await screen.findByTestId("live-tool");
     expect(row).toHaveAttribute("data-still", "true");
-    const label = within(row).getByTestId("live-tool-label");
-    expect(label).toHaveTextContent("Running shell");
-    expect(label).not.toHaveClass("session-shimmer");
-    expect(label).toHaveClass("text-subtle");
+    expect(within(row).getByTestId("live-tool-label")).toHaveTextContent("Running shell");
+    // The running ring is the live row's only motion; a paused window holds it.
+    const ring = row.querySelector('[data-slot="tool-call-row-status"]');
+    expect(ring).toHaveAttribute("data-state", "running");
+    expect(ring).not.toHaveAttribute("data-spinning");
     const working = screen.getByTestId("session-working-row");
     expect(working.querySelector(".session-working-dots")).toBeNull();
     expect(within(working).getByTestId("session-working-as-of")).toHaveTextContent(/as of/);

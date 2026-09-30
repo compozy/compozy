@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Spinner,
+  StateGlyph,
   TopbarOverflowIcon,
   useTopbarSlot,
 } from "@compozy/ui";
@@ -19,6 +20,7 @@ import { SessionPanelToggle } from "../components/session-panel-toggle";
 import type { WorktreePayload } from "@/systems/workspace";
 
 import { getSessionDisplayTitle } from "../lib/session-display-title";
+import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
 import type { SessionOriginView } from "../lib/session-origin";
 import { isSessionRunning, isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
@@ -214,7 +216,6 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
 export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { session, worktreeBinding, transportChip } = input;
   const actions = sessionTopbarActions(input);
-  const { isActive } = actions;
   const overflow = useSessionTopbarOverflow(input, actions);
   // The slot consumer (the OS head) renders outside this window's session
   // runtime provider, so a node that reads the transport — the chip — would
@@ -224,15 +225,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const transport = useSessionTransportState();
 
   useTopbarSlot({
-    glyph: (
-      <span
-        className={
-          isActive
-            ? "size-[7px] rounded-full bg-accent motion-safe:animate-pulse"
-            : "size-[7px] rounded-full bg-faint"
-        }
-      />
-    ),
+    glyph: <StateGlyph size="sm" state={sessionBadgeSignal(sessionBadgeOf(session)).state} />,
     glyphPresentation: "state",
     crumb: getSessionDisplayTitle(session),
     status: (
