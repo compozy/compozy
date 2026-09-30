@@ -1,6 +1,7 @@
 // Suite: session document topbar publisher
-// Invariant: one session publisher exposes self-title, state mark, runtime meta, lifecycle controls,
-// sidebar toggle, and inspector toggle before overflow.
+// Invariant: one session publisher exposes self-title, state mark and overflow, then the agent
+// chip (avatar, agent, bound provider) with the last-change time, then lifecycle controls and the
+// sidebar and inspector toggles.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
@@ -91,6 +92,53 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("session-inspector-toggle")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("Should lead the trail with the agent chip and time, then the run verbs and panel toggles", () => {
+    renderWithTopbar(<SessionPublisher onStop={vi.fn()} />);
+
+    const chip = screen.getByTestId("session-status-agent-chip");
+    expect(chip.querySelector('[data-slot="owner-avatar"]')).toHaveAttribute(
+      "aria-label",
+      `Agent ${primarySessionFixture.agent_name}`
+    );
+    expect(screen.getByTestId("session-status-provider")).toHaveTextContent("codex");
+    expect(screen.getByTestId("session-status-time")).toHaveAttribute(
+      "dateTime",
+      primarySessionFixture.updated_at
+    );
+
+    const status = document.querySelector('[data-slot="topbar-status"]')!;
+    const actions = document.querySelector('[data-slot="topbar-actions"]')!;
+    expect(status).toContainElement(chip);
+    const order = [
+      screen.getByRole("button", { name: "Stop session" }),
+      screen.getByTestId("session-sidebar-toggle"),
+      screen.getByTestId("session-inspector-toggle"),
+    ];
+    for (const control of order) expect(actions).toContainElement(control);
+    for (let index = 1; index < order.length; index += 1) {
+      expect(
+        order[index - 1]!.compareDocumentPosition(order[index]!) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    }
+  });
+
+  it("Should keep an unbound runtime out of the chip instead of inventing a provider", () => {
+    renderWithTopbar(
+      <SessionPublisher
+        onStop={vi.fn()}
+        session={{
+          ...primarySessionFixture,
+          runtime: { ...primarySessionFixture.runtime, effective: undefined },
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("session-status-agent")).toHaveTextContent(
+      primarySessionFixture.agent_name
+    );
+    expect(screen.queryByTestId("session-status-provider")).not.toBeInTheDocument();
   });
 
   it.each(["system", "coordinator", "spawned"] as const)(

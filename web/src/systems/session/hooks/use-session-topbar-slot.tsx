@@ -252,15 +252,16 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         ) : null}
       </span>
     ),
+    // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
+        {input.goalAction}
+        <SessionPrimaryAction {...input} {...actions} />
         <SessionPanelToggle
           panel="sidebar"
           open={input.sidebarOpen}
           onToggle={input.onSidebarToggle}
         />
-        {input.goalAction}
-        <SessionPrimaryAction {...input} {...actions} />
         <SessionPanelToggle
           panel="inspector"
           open={input.inspectorOpen}

@@ -23,14 +23,11 @@ export function SessionPanelToggle({
         render={
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="icon-sm"
             aria-label={name}
             aria-pressed={open}
-            className={cn(
-              "size-11 focus-visible:shadow-focus-inset",
-              open ? "bg-selected text-fg" : null
-            )}
+            className={cn(open ? "bg-selected text-fg" : null)}
             data-state={open ? "open" : "closed"}
             data-testid={testId}
             onClick={onToggle}
