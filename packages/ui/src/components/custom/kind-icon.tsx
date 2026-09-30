@@ -39,7 +39,7 @@ const KIND_ICON_TONE: Record<KindIconTone, string> = {
   default: "text-fg",
   muted: "text-subtle",
   accent: "text-accent",
-  well: "size-6.5 rounded-icon-well bg-well text-success",
+  well: "size-6.5 rounded-icon-well bg-well text-well-ink",
 };
 
 const KIND_ICON_SIZE: Record<KindIconSize, string> = {

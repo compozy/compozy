@@ -57,7 +57,7 @@ export function EventCard({
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded",
-          selected ? "bg-well text-success" : "bg-surface-2 text-muted"
+          selected ? "bg-well text-well-ink" : "bg-surface-2 text-muted"
         )}
       >
         <Icon aria-hidden="true" className="size-4" />

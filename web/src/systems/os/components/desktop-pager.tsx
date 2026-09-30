@@ -238,7 +238,7 @@ export function DesktopPager({
                           active && "w-4.5 bg-fg",
                           !active && "w-1.5",
                           !active &&
-                            (needsYou ? "bg-attn" : "bg-line-strong group-hover/button:bg-muted")
+                            (needsYou ? "bg-attn" : "bg-indicator group-hover/button:bg-muted")
                         )}
                       />
                     ) : (

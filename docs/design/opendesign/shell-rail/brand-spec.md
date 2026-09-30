@@ -15,7 +15,7 @@ a single inverted primary, Inter at weight 425, and mint for "in progress" and b
 | border / strong | #303030 / #424242 | #e6e8ec / #d4d7dd | ab-border(-strong) |
 | fg / muted / subtle | #f5f5f5 / #a3a3a3 / #737373 | #1a1a1a / #a1a1a1 / #a1a1a1 | ab-text* |
 | primary / on-primary | #f5f5f5 / #0a0a0a | #0b0d12 / #fff | ab-accent / ab-on-accent |
-| highlight / needs-you (Compozy) | #e8572a | #d14e25 | Compozy accent (overrides the reference) |
+| highlight / needs-you (Compozy) | #e8572a | #c94b24 (tuned from #d14e25 so white counts clear 4.5:1, rule 6) | Compozy accent (overrides the reference) |
 | success · warning · danger | #34d399 · #f5b14c · #f87171 | #15a06a · #d98404 · #dc2626 | ab-success… |
 | shadow-card / elevated | verbatim | verbatim | ab-shadow-card / -elevated |
 

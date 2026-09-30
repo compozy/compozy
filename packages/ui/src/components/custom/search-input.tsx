@@ -6,6 +6,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
+import { Kbd } from "../kbd";
 
 export interface SearchInputProps extends Omit<
   React.ComponentProps<"input">,
@@ -102,13 +103,9 @@ function SearchInput({
           <XIcon aria-hidden="true" className="size-3" strokeWidth={1.75} />
         </Button>
       ) : kbd ? (
-        <span
-          data-slot="search-input-kbd"
-          aria-hidden="true"
-          className="eyebrow hidden items-center rounded-xs bg-surface-2 px-1 py-px leading-none text-fg-2 inset-ring inset-ring-line sm:inline-flex"
-        >
+        <Kbd data-slot="search-input-kbd" aria-hidden="true" className="hidden sm:inline-flex">
           {kbd}
-        </span>
+        </Kbd>
       ) : null}
     </div>
   );

@@ -77,7 +77,7 @@ describe("KindIcon", () => {
     render(<KindIcon kind="claude" tone="well" data-testid="icon" />);
     const well = screen.getByTestId("icon");
     expect(well).toHaveAttribute("data-tone", "well");
-    expect(well).toHaveClass("size-6.5", "rounded-icon-well", "bg-well", "text-success");
+    expect(well).toHaveClass("size-6.5", "rounded-icon-well", "bg-well", "text-well-ink");
     expect(well.querySelector("svg")).toHaveClass("size-4");
   });
 

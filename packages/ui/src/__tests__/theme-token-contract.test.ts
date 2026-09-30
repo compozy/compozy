@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { AA_TEXT_CONTRAST, contrastRatio, parseHexColor, type Rgb } from "../lib/contrast";
+import {
+  AA_NON_TEXT_CONTRAST,
+  AA_TEXT_CONTRAST,
+  contrastRatio,
+  parseHexColor,
+  type Rgb,
+} from "../lib/contrast";
 import { THEMES, TOKENS_CSS, TOKENS_LIGHT_CSS, readToken, type Theme } from "./token-source";
 
 /**
@@ -83,4 +89,48 @@ describe.each(THEMES)("text ladder contrast floor (%s theme)", theme => {
       }
     });
   }
+});
+
+/**
+ * Non-text indicator floor, per theme (DESIGN.md accessibility floor). A resting
+ * dot, ring or mark that alone carries state rides `--color-indicator`, so it must
+ * clear 3:1 on every surface it can rest on; hairlines stay decorative and are not
+ * held to it. The identity well's glyph and the accent count pill are paired inks:
+ * the glyph clears 3:1 on its well, and the count's text clears AA on its fill.
+ */
+const INDICATOR_SURFACES = [
+  "color-rail",
+  "color-desk",
+  "color-canvas",
+  "color-sunken",
+  "color-surface-2",
+  "color-selected",
+] as const;
+
+describe.each(THEMES)("non-text indicator contrast floor (%s theme)", theme => {
+  it(`Should hold ≥${AA_NON_TEXT_CONTRAST}:1 for --color-indicator on every resting surface`, () => {
+    for (const surface of INDICATOR_SURFACES) {
+      const ratio = contrastRatio(readHex("color-indicator", theme), readHex(surface, theme));
+      expect(
+        ratio,
+        `--color-indicator on --${surface} = ${ratio.toFixed(2)}:1`
+      ).toBeGreaterThanOrEqual(AA_NON_TEXT_CONTRAST);
+    }
+  });
+
+  it(`Should hold ≥${AA_NON_TEXT_CONTRAST}:1 for the identity-well glyph on its well`, () => {
+    const ratio = contrastRatio(readHex("color-well-ink", theme), readHex("color-well", theme));
+    expect(
+      ratio,
+      `--color-well-ink on --color-well = ${ratio.toFixed(2)}:1`
+    ).toBeGreaterThanOrEqual(AA_NON_TEXT_CONTRAST);
+  });
+
+  it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for count ink on the accent fill`, () => {
+    const ratio = contrastRatio(readHex("color-accent-ink", theme), readHex("color-accent", theme));
+    expect(
+      ratio,
+      `--color-accent-ink on --color-accent = ${ratio.toFixed(2)}:1`
+    ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+  });
 });

@@ -38,7 +38,7 @@ const SIZE_CLASS: Record<StateGlyphSize, string> = {
 
 const STATE_CLASS: Record<StateGlyphState, string> = {
   running: "text-success",
-  queued: "text-line-strong",
+  queued: "text-indicator",
   done: "text-success",
   attention: "text-accent",
   failed: "text-danger",

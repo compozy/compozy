@@ -47,7 +47,7 @@ export function DesignSystemShowcase() {
               <span
                 aria-hidden="true"
                 data-slot="page-header-icon"
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-icon-well bg-well text-success"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-icon-well bg-well text-well-ink"
               >
                 <SparklesIcon className="size-3" />
               </span>

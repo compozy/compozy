@@ -27,6 +27,7 @@ tokens:
       line-soft: "#262626"
       line-strong: "#424242"
       line-focus: "#5c5c5c"
+      indicator: "#707070"
       fg: "#f5f5f5"
       fg-strong: "#ffffff"
       fg-2: "#c4c4c4"
@@ -55,6 +56,7 @@ tokens:
       info: "#8e8eb5"
       info-tint: "rgba(142, 142, 181, 0.12)"
       well: "#1e342c"
+      well-ink: "var(--color-success)"
       spectrum-blue: "#4ea7fc"
       spectrum-violet: "#c26ad6"
       neutral: "#7a7a80"
@@ -150,6 +152,7 @@ tokens:
       line-soft: "#f1f2f5"
       line-strong: "#d4d7dd"
       line-focus: "#b8bcc4"
+      indicator: "#888888"
       fg: "#1a1a1a"
       fg-strong: "#0b0d12"
       fg-2: "#4c4c4c"
@@ -160,14 +163,14 @@ tokens:
       primary: "#0b0d12"
       primary-hover: "#2a2f3a"
       primary-foreground: "#ffffff"
-      accent: "#d14e25"
+      accent: "#c94b24"
       accent-hover: "#b9441f"
       accent-strong: "#b9441f"
       accent-ink: "#ffffff"
-      accent-tint: "rgba(209, 78, 37, 0.08)"
-      accent-tint-strong: "rgba(209, 78, 37, 0.14)"
-      accent-dim: "rgba(209, 78, 37, 0.22)"
-      accent-glow: "rgba(209, 78, 37, 0.05)"
+      accent-tint: "rgba(201, 75, 36, 0.08)"
+      accent-tint-strong: "rgba(201, 75, 36, 0.14)"
+      accent-dim: "rgba(201, 75, 36, 0.22)"
+      accent-glow: "rgba(201, 75, 36, 0.05)"
       success: "#15a06a"
       success-tint: "rgba(21, 160, 106, 0.08)"
       warning: "#d98404"
@@ -177,6 +180,7 @@ tokens:
       info: "#5f5f94"
       info-tint: "rgba(95, 95, 148, 0.1)"
       well: "#def2ea"
+      well-ink: "#139362"
       spectrum-blue: "#1d7fd8"
       spectrum-violet: "#a347b8"
       neutral: "#8a8a90"
@@ -730,14 +734,14 @@ needs-you (`--color-attn`), not the default action.
 
 | Token                        | Dark                      | Light                     |
 | ---------------------------- | ------------------------- | ------------------------- |
-| `--color-accent`             | `#e8572a`                 | `#d14e25`                 |
+| `--color-accent`             | `#e8572a`                 | `#c94b24`                 |
 | `--color-accent-hover`       | `#d14e25`                 | `#b9441f`                 |
 | `--color-accent-strong`      | `#f6874f`                 | `#b9441f`                 |
 | `--color-accent-ink`         | `#17110f`                 | `#ffffff`                 |
-| `--color-accent-tint`        | `rgba(232, 87, 42, 0.1)`  | `rgba(209, 78, 37, 0.08)` |
-| `--color-accent-tint-strong` | `rgba(232, 87, 42, 0.16)` | `rgba(209, 78, 37, 0.14)` |
-| `--color-accent-dim`         | `rgba(232, 87, 42, 0.24)` | `rgba(209, 78, 37, 0.22)` |
-| `--color-accent-glow`        | `rgba(232, 87, 42, 0.05)` | `rgba(209, 78, 37, 0.05)` |
+| `--color-accent-tint`        | `rgba(232, 87, 42, 0.1)`  | `rgba(201, 75, 36, 0.08)` |
+| `--color-accent-tint-strong` | `rgba(232, 87, 42, 0.16)` | `rgba(201, 75, 36, 0.14)` |
+| `--color-accent-dim`         | `rgba(232, 87, 42, 0.24)` | `rgba(201, 75, 36, 0.22)` |
+| `--color-accent-glow`        | `rgba(232, 87, 42, 0.05)` | `rgba(201, 75, 36, 0.05)` |
 | `--color-attn`               | `var(--color-accent)`     | `var(--color-accent)`     |
 
 <!-- END:tokens:accent -->

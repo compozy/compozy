@@ -29,6 +29,7 @@
   --color-line-soft: #f1f2f5;
   --color-line-strong: #d4d7dd;
   --color-line-focus: #b8bcc4;
+  --color-indicator: #888888;
 
   /* Text — muted clears AA 4.5:1 on canvas, sunken, rail and surface-2 (the
      reference's #a1a1a1 reads 2.6:1); fg-2 / fg-3 re-derive from it. */
@@ -46,14 +47,15 @@
   --color-primary-foreground: #ffffff;
 
   /* Accent — Compozy orange, one step deeper. */
-  --color-accent: #d14e25;
+  /* Deep enough that white count ink clears 4.5:1 on the fill. */
+  --color-accent: #c94b24;
   --color-accent-hover: #b9441f;
   --color-accent-strong: #b9441f;
   --color-accent-ink: #ffffff;
-  --color-accent-tint: rgba(209, 78, 37, 0.08);
-  --color-accent-tint-strong: rgba(209, 78, 37, 0.14);
-  --color-accent-dim: rgba(209, 78, 37, 0.22);
-  --color-accent-glow: rgba(209, 78, 37, 0.05);
+  --color-accent-tint: rgba(201, 75, 36, 0.08);
+  --color-accent-tint-strong: rgba(201, 75, 36, 0.14);
+  --color-accent-dim: rgba(201, 75, 36, 0.22);
+  --color-accent-glow: rgba(201, 75, 36, 0.05);
 
   /* Signal palette. */
   --color-success: #15a06a;
@@ -65,6 +67,7 @@
   --color-info: #5f5f94;
   --color-info-tint: rgba(95, 95, 148, 0.1);
   --color-well: #def2ea;
+  --color-well-ink: #139362;
   --color-spectrum-blue: #1d7fd8;
   --color-spectrum-violet: #a347b8;
   --color-neutral: #8a8a90;

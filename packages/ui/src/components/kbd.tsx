@@ -23,8 +23,10 @@ function KbdGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <kbd
       data-slot="kbd-group"
+      // The group is a <kbd> too: without its own type, loose text between caps
+      // (an "or" slash) falls back to the browser's monospace at body size.
       className={cn(
-        "inline-flex items-center gap-1 in-data-[slot=button]:gap-px in-data-[slot=tooltip-content]:gap-px",
+        "inline-flex items-center gap-1 font-keys text-kbd tracking-kbd in-data-[slot=button]:gap-px in-data-[slot=tooltip-content]:gap-px",
         className
       )}
       {...props}

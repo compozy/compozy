@@ -154,7 +154,7 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-11 focus-visible:shadow-focus-inset"
+            className="focus-visible:shadow-focus-inset"
           />
         }
       >

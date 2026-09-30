@@ -16,6 +16,8 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
+
 interface SessionListSelectionBarProps {
   count: number;
   hiddenByFilter: number;
@@ -56,7 +58,7 @@ export function SessionListSelectionBar({
     <div
       role="toolbar"
       aria-label="Selected sessions"
-      className="flex min-h-[calc(var(--height-button-default)+var(--spacing)*3)] items-center gap-1 px-3 py-1.5"
+      className={SESSION_LIST_BAR_CLASS}
       data-testid={`${testIdPrefix}-selection-bar`}
     >
       <Tooltip>

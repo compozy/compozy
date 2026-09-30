@@ -40,6 +40,10 @@
   --color-line-soft: #262626;
   --color-line-strong: #424242;
   --color-line-focus: #5c5c5c;
+  /* Resting non-text indicator: a dot, ring or mark that alone carries state
+     (inactive pager dot, queued ring). Clears 3:1 on every surface in the ramp;
+     the hairlines above stay decorative boundaries. */
+  --color-indicator: #707070;
 
   /* Text. fg-2 = mix(muted 60%, fg) and fg-3 = mix(fg 70%, muted), the
      reference's own recipes, resolved to literals. muted / subtle / faint all
@@ -83,6 +87,8 @@
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
   --color-well: #1e342c;
+  /* Identity-well glyph ink: mint that clears 3:1 on --color-well. */
+  --color-well-ink: var(--color-success);
   /* Spectrum-only hues — identity/color data, never status signals. */
   --color-spectrum-blue: #4ea7fc;
   --color-spectrum-violet: #c26ad6;
