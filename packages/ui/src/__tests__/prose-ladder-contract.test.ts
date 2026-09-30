@@ -12,7 +12,7 @@ import {
   parseHexColor,
   type Rgb,
 } from "../lib/contrast";
-import { readToken } from "./token-source";
+import { THEMES, readToken, type Theme } from "./token-source";
 
 // Token contract for rendered Markdown, read from the same constants the prose components render with.
 
@@ -42,8 +42,8 @@ function readRem(variantUtility: string): number {
   return Number(match[1]);
 }
 
-function readHex(name: string): Rgb {
-  const parsed = parseHexColor(readToken(name));
+function readHex(name: string, theme: Theme = "dark"): Rgb {
+  const parsed = parseHexColor(readToken(name, theme));
   if (!parsed) throw new Error(`expected a hex color for --${name}`);
   return parsed;
 }
@@ -85,18 +85,18 @@ describe("compact prose heading tier token contract", () => {
   }
 });
 
-describe("prose link color token contract", () => {
-  const text = readHex(`color-${utilityToken(PROSE_LINK.text, "text")}`);
-  const underline = readHex(`color-${utilityToken(PROSE_LINK.underline, "decoration")}`);
+describe.each(THEMES)("prose link color token contract (%s theme)", theme => {
+  const text = readHex(`color-${utilityToken(PROSE_LINK.text, "text")}`, theme);
+  const underline = readHex(`color-${utilityToken(PROSE_LINK.underline, "decoration")}`, theme);
 
   for (const surface of PROSE_SURFACES) {
     it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for link text on --${surface}`, () => {
-      const ratio = contrastRatio(text, readHex(surface));
+      const ratio = contrastRatio(text, readHex(surface, theme));
       expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
     });
 
     it(`Should hold ≥${AA_NON_TEXT_CONTRAST}:1 for the link underline on --${surface}`, () => {
-      const ratio = contrastRatio(underline, readHex(surface));
+      const ratio = contrastRatio(underline, readHex(surface, theme));
       expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_NON_TEXT_CONTRAST);
     });
   }

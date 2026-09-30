@@ -42,6 +42,11 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --height-button-default: 30px;
+  /* The product's primary action is inverted (near-white on dark); the site
+     keeps its Compozy-orange CTA. */
+  --color-primary: var(--color-accent);
+  --color-primary-hover: var(--color-accent-hover);
+  --color-primary-foreground: var(--color-accent-ink);
   --font-sans: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
   --font-mono:

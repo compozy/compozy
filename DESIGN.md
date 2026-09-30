@@ -2,6 +2,7 @@
 # Generated from:
 #   packages/ui/src/tokens.css         (runtime)
 #   packages/ui/src/terminal-tokens.css (terminal runtime)
+#   packages/ui/src/tokens-light.css   (light theme overrides)
 #   packages/site/app/global.css       (site extensions)
 # by scripts/sync-design-md.mjs.
 # Do not edit by hand. Run make codegen to refresh.
@@ -33,7 +34,7 @@ tokens:
       fg-3: "#dcdcdc"
       muted: "#a3a3a3"
       subtle: "#8e8e8e"
-      faint: "#8a8a8a"
+      faint: "#8c8c8c"
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
@@ -143,6 +144,88 @@ tokens:
       terminal-ansi-13: "var(--terminal-ansi-13)"
       terminal-ansi-14: "var(--terminal-ansi-14)"
       terminal-ansi-15: "var(--terminal-ansi-15)"
+    colors-light:
+      rail: "#fafafa"
+      desk: "#fafafa"
+      canvas: "#ffffff"
+      canvas-soft: "#ffffff"
+      canvas-tint: "#f4f5f7"
+      sunken: "#f7f8fa"
+      surface-2: "#f4f5f7"
+      selected: "#f0f1f3"
+      code-bg: "#f4f5f7"
+      sidebar: "#ffffff"
+      elevated: "#eeeff2"
+      disabled: "#c4c7cc"
+      line: "#e6e8ec"
+      line-soft: "#f1f2f5"
+      line-strong: "#d4d7dd"
+      line-focus: "#b8bcc4"
+      fg: "#1a1a1a"
+      fg-strong: "#0b0d12"
+      fg-2: "#4c4c4c"
+      fg-3: "#333333"
+      muted: "#6e6e6e"
+      subtle: "#6e6e6e"
+      faint: "#6e6e6e"
+      primary: "#0b0d12"
+      primary-hover: "#2a2f3a"
+      primary-foreground: "#ffffff"
+      accent: "#d14e25"
+      accent-hover: "#b9441f"
+      accent-strong: "#b9441f"
+      accent-ink: "#ffffff"
+      accent-tint: "rgba(209, 78, 37, 0.08)"
+      accent-tint-strong: "rgba(209, 78, 37, 0.14)"
+      accent-dim: "rgba(209, 78, 37, 0.22)"
+      accent-glow: "rgba(209, 78, 37, 0.05)"
+      success: "#15a06a"
+      success-tint: "rgba(21, 160, 106, 0.08)"
+      warning: "#d98404"
+      warning-tint: "rgba(217, 132, 4, 0.08)"
+      danger: "#dc2626"
+      danger-tint: "rgba(220, 38, 38, 0.07)"
+      info: "#5f5f94"
+      info-tint: "rgba(95, 95, 148, 0.1)"
+      well: "#def2ea"
+      spectrum-blue: "#1d7fd8"
+      spectrum-violet: "#a347b8"
+      neutral: "#8a8a90"
+      neutral-ink: "#6b6b70"
+      neutral-tint: "rgba(110, 110, 120, 0.07)"
+      viz-line: "rgba(10, 13, 18, 0.45)"
+      viz-fill: "rgba(10, 13, 18, 0.05)"
+      viz-bar: "rgba(10, 13, 18, 0.28)"
+      viz-other: "rgba(10, 13, 18, 0.2)"
+      viz-grid: "rgba(10, 13, 18, 0.06)"
+      viz-cell: "#0b0d12"
+      row-hover: "rgba(10, 13, 18, 0.04)"
+      row-selected: "rgba(10, 13, 18, 0.055)"
+      surface-glaze: "rgba(10, 13, 18, 0.045)"
+      bar-fill: "rgba(10, 13, 18, 0.07)"
+      input-fill: "rgba(10, 13, 18, 0.02)"
+      btn-default-fill: "rgba(10, 13, 18, 0.05)"
+      btn-default-hover: "rgba(10, 13, 18, 0.08)"
+      badge-fill: "rgba(10, 13, 18, 0.045)"
+      chat-fill-user: "rgba(10, 13, 18, 0.04)"
+      chat-fill-code: "rgba(10, 13, 18, 0.03)"
+      overlay-scrim: "rgba(15, 17, 22, 0.28)"
+      overlay-ghost-hover: "rgba(10, 13, 18, 0.05)"
+      avatar-agent-0-bg: "rgba(214, 110, 60, 0.14)"
+      avatar-agent-0-fg: "#a4491f"
+      avatar-agent-1-bg: "rgba(110, 124, 190, 0.14)"
+      avatar-agent-1-fg: "#4a5590"
+      avatar-agent-2-bg: "rgba(70, 160, 128, 0.14)"
+      avatar-agent-2-fg: "#2a7259"
+      avatar-agent-3-bg: "rgba(190, 110, 150, 0.14)"
+      avatar-agent-3-fg: "#914a70"
+      avatar-human-0-bg: "rgba(200, 160, 70, 0.16)"
+      avatar-human-0-fg: "#7e5f14"
+      avatar-human-1-bg: "rgba(170, 140, 105, 0.16)"
+      avatar-human-1-fg: "#6e5a3f"
+      avatar-human-2-bg: "rgba(170, 130, 140, 0.16)"
+      avatar-human-2-fg: "#74525c"
+      destructive-foreground: "#ffffff"
     fonts:
       sans: '"Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
       mono: '"Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace'
@@ -253,6 +336,14 @@ tokens:
       shell-strip: "var(--shadow-overlay), var(--shadow-highlight)"
       shell-plate: "inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)"
       shell-current-halo: "0 0 0 2px var(--color-shell-glass-pop)"
+    shadow-light:
+      card: "0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005"
+      elevated: "0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
+      pop: "0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
+      overlay: "0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06)"
+      highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.7)"
+      focus-ring: "0 0 0 2px rgba(10, 13, 18, 0.5)"
+      focus-inset: "inset 0 0 0 2px rgba(10, 13, 18, 0.5)"
     sizes:
       height-button-xs: "24px"
       height-button-sm: "26px"
@@ -546,7 +637,8 @@ this way, which semantic contracts components must preserve, and which
 anti-patterns are blocked by repo guardrails.
 
 The generated frontmatter and token tables are derived from
-`packages/ui/src/tokens.css` and `packages/site/app/global.css`. Do not edit
+`packages/ui/src/tokens.css`, `packages/ui/src/tokens-light.css`, and
+`packages/site/app/global.css`. Do not edit
 generated token regions by hand. Change the CSS source, then run
 `make codegen` so `DESIGN.md` is refreshed by
 `scripts/sync-design-md.mjs`.
@@ -555,29 +647,34 @@ generated token regions by hand. Change the CSS source, then run
 
 CompozyOS is an agent operating system for everyone who works with AI agents — not
 an expert-only console. The product should feel quiet, calm, and intentional:
-a warm near-black canvas, restrained text, flat depth, and a single action
-accent. It is not a marketing-gradient system, not a generic SaaS blue-gray
-dashboard, and no longer the dense operator cockpit of its early direction.
+neutral chroma-free greys, restrained text, quiet depth, pill actions with a
+single inverted primary, and Compozy orange only where something needs you. It
+is not a marketing-gradient system, not a generic SaaS blue-gray dashboard,
+and no longer the dense operator cockpit of its early direction.
 
-The runtime is dark-only. `color-scheme: dark` is part of the product
-contract, not a theme preference. Surfaces must never depend on white
-backgrounds, pastel cards, decorative blur, or ambient shadows for legibility.
-The single sanctioned exception is OS-shell chrome: the menubar, dock,
-shell popovers, and window frames use the tokenized shell
-glass and blur from §5. Content inside window bodies never does.
+The runtime ships two themes. Dark is the default; light is the same system's
+light set. `<html data-theme="dark|light">` and the `.dark` class move
+together, set by one function before first paint, and `color-scheme` follows
+the theme. The `@theme` block in `tokens.css` holds the dark values;
+`tokens-light.css` re-declares every theme-scoped token for light. Every
+surface must read correctly in both themes, so components use tokens, never a
+literal that only works on one of them.
 
 The core atmosphere is:
 
-- Warm dark, never cool slate — and never brown. The neutral ramp carries a
-  whisper of warmth (OKLCH chroma ≤0.005, hue in the 60–90° band) so extended
-  working sessions feel less harsh than pure black or blue-gray. Warmth past
-  that band reads as a sepia/olive cast, not warmth: if a surface's R−B delta
-  exceeds ~3, the ramp has drifted brown and must be pulled back toward
-  neutral.
-- One accent. `--color-accent` means "act" and should usually appear once in a
-  viewport as the active CTA or primary identity marker.
-- Flat depth. Hierarchy comes from the surface ramp, translucent hairlines, and
-  inset focus rings. Content cards do not cast shadows.
+- Neutral, never tinted. The ramp is chroma-free grey in both themes: no warm
+  cast, no blue-gray. Chrome (`rail`) and the desk sit behind panes on
+  `canvas`; secondary lists recess into `sunken`; hover and secondary pills
+  step to `surface-2`.
+- Two surface levels. Content sits on a card surface; secondary lists sit in a
+  sunken inset panel with no border.
+- One primary, one highlight. The single primary action is inverted
+  (`--color-primary`). `--color-accent` (Compozy orange, also `--color-attn`)
+  marks highlights and needs-you, and should usually appear once in a
+  viewport. Amber (`--color-warning`) is only for real warnings.
+- Quiet depth. Hierarchy comes from the surface ramp, opaque hairlines, and the
+  small `shadow-card` / `shadow-elevated` / `shadow-pop` whitelist. Hovers step
+  the surface or add `shadow-card`; they never dim the text.
 - Calm by default, deep on demand. Default views show few, plainly named
   things with generous rhythm; scanning depth (event trails, wire views, raw
   payloads) lives one step away on inspection surfaces. Density is a tool for
@@ -588,9 +685,11 @@ The core atmosphere is:
 
 ## 2. Color and surface rationale
 
-Color carries state. The warm ramp separates shell, page, grouped surfaces, and
-active surfaces without decorative depth. Hairlines use low-alpha white so they
-layer consistently across every ramp step. Signal colors are desaturated and
+Color carries state. The neutral ramp separates chrome, desk, panes, sunken
+insets, and active surfaces without decorative depth. Hairlines are opaque
+greys with one ladder per theme. Translucent families (the glaze ladder, chat
+fills, data-viz ink, overlays) are white-alpha on dark and black-alpha on
+light, so they layer over any ramp step. Signal colors are desaturated and
 usually appear as tint backgrounds plus readable text, not as solid banners.
 Signal color is information, never decoration: it marks the states actually
 present (running, needs attention, failed), not taxonomy. Rows and cards stay
@@ -602,7 +701,8 @@ acceptable only in the token source, static generated artifacts, or documented
 asset work that cannot consume CSS variables.
 
 Accessibility floor: body text and labels must meet WCAG AA contrast against
-their owning surface. Non-text indicators such as dots, bars, and rails must
+their owning surface, in both themes (`muted`, `subtle`, and `faint` all carry
+text, so each clears 4.5:1). Non-text indicators such as dots, bars, and rails must
 meet the 3:1 non-text floor. If a token retune drops below those floors, fix the
 token or component at the source; do not locally override one callsite.
 
@@ -610,16 +710,22 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:surface-ramp -->
 
-| Token                 | Value                    |
-| --------------------- | ------------------------ |
-| `--color-rail`        | `#0a0a0a`                |
-| `--color-canvas`      | `#1a1a1a`                |
-| `--color-canvas-soft` | `#1f1f1f`                |
-| `--color-canvas-tint` | `#242424`                |
-| `--color-sidebar`     | `#1f1f1f`                |
-| `--color-elevated`    | `#2b2b2b`                |
-| `--color-hover`       | `var(--color-row-hover)` |
-| `--color-disabled`    | `#4d4d4d`                |
+| Token                 | Dark                     | Light                    |
+| --------------------- | ------------------------ | ------------------------ |
+| `--color-rail`        | `#0a0a0a`                | `#fafafa`                |
+| `--color-desk`        | `#101010`                | `#fafafa`                |
+| `--color-canvas`      | `#1a1a1a`                | `#ffffff`                |
+| `--color-canvas-soft` | `#1f1f1f`                | `#ffffff`                |
+| `--color-canvas-tint` | `#242424`                | `#f4f5f7`                |
+| `--color-sunken`      | `#101010`                | `#f7f8fa`                |
+| `--color-surface-2`   | `#242424`                | `#f4f5f7`                |
+| `--color-selected`    | `#242424`                | `#f0f1f3`                |
+| `--color-code-bg`     | `#171717`                | `#f4f5f7`                |
+| `--color-sidebar`     | `#1f1f1f`                | `#ffffff`                |
+| `--color-elevated`    | `#2b2b2b`                | `#eeeff2`                |
+| `--color-well`        | `#1e342c`                | `#def2ea`                |
+| `--color-hover`       | `var(--color-row-hover)` | `var(--color-row-hover)` |
+| `--color-disabled`    | `#4d4d4d`                | `#c4c7cc`                |
 
 <!-- END:tokens:surface-ramp -->
 
@@ -627,12 +733,12 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:hairlines -->
 
-| Token                 | Value     |
-| --------------------- | --------- |
-| `--color-line`        | `#303030` |
-| `--color-line-soft`   | `#262626` |
-| `--color-line-strong` | `#424242` |
-| `--color-line-focus`  | `#5c5c5c` |
+| Token                 | Dark      | Light     |
+| --------------------- | --------- | --------- |
+| `--color-line`        | `#303030` | `#e6e8ec` |
+| `--color-line-soft`   | `#262626` | `#f1f2f5` |
+| `--color-line-strong` | `#424242` | `#d4d7dd` |
+| `--color-line-focus`  | `#5c5c5c` | `#b8bcc4` |
 
 <!-- END:tokens:hairlines -->
 
@@ -640,30 +746,49 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:text-ladder -->
 
-| Token               | Value     |
-| ------------------- | --------- |
-| `--color-fg`        | `#f5f5f5` |
-| `--color-fg-strong` | `#ffffff` |
-| `--color-muted`     | `#a3a3a3` |
-| `--color-subtle`    | `#8e8e8e` |
-| `--color-faint`     | `#8a8a8a` |
+| Token               | Dark      | Light     |
+| ------------------- | --------- | --------- |
+| `--color-fg`        | `#f5f5f5` | `#1a1a1a` |
+| `--color-fg-strong` | `#ffffff` | `#0b0d12` |
+| `--color-fg-2`      | `#c4c4c4` | `#4c4c4c` |
+| `--color-fg-3`      | `#dcdcdc` | `#333333` |
+| `--color-muted`     | `#a3a3a3` | `#6e6e6e` |
+| `--color-subtle`    | `#8e8e8e` | `#6e6e6e` |
+| `--color-faint`     | `#8c8c8c` | `#6e6e6e` |
 
 <!-- END:tokens:text-ladder -->
+
+### Primary action
+
+The single primary action is inverted: near-white on dark, near-black on
+light. It is never the brand hue; Compozy orange marks highlights and
+needs-you (`--color-attn`), not the default action.
+
+<!-- BEGIN:tokens:primary -->
+
+| Token                        | Dark      | Light     |
+| ---------------------------- | --------- | --------- |
+| `--color-primary`            | `#f5f5f5` | `#0b0d12` |
+| `--color-primary-hover`      | `#ffffff` | `#2a2f3a` |
+| `--color-primary-foreground` | `#0a0a0a` | `#ffffff` |
+
+<!-- END:tokens:primary -->
 
 ### Accent
 
 <!-- BEGIN:tokens:accent -->
 
-| Token                        | Value                     |
-| ---------------------------- | ------------------------- |
-| `--color-accent`             | `#e8572a`                 |
-| `--color-accent-hover`       | `#d14e25`                 |
-| `--color-accent-strong`      | `#f6874f`                 |
-| `--color-accent-ink`         | `#17110f`                 |
-| `--color-accent-tint`        | `rgba(232, 87, 42, 0.1)`  |
-| `--color-accent-tint-strong` | `rgba(232, 87, 42, 0.16)` |
-| `--color-accent-dim`         | `rgba(232, 87, 42, 0.24)` |
-| `--color-accent-glow`        | `rgba(232, 87, 42, 0.05)` |
+| Token                        | Dark                      | Light                     |
+| ---------------------------- | ------------------------- | ------------------------- |
+| `--color-accent`             | `#e8572a`                 | `#d14e25`                 |
+| `--color-accent-hover`       | `#d14e25`                 | `#b9441f`                 |
+| `--color-accent-strong`      | `#f6874f`                 | `#b9441f`                 |
+| `--color-accent-ink`         | `#17110f`                 | `#ffffff`                 |
+| `--color-accent-tint`        | `rgba(232, 87, 42, 0.1)`  | `rgba(209, 78, 37, 0.08)` |
+| `--color-accent-tint-strong` | `rgba(232, 87, 42, 0.16)` | `rgba(209, 78, 37, 0.14)` |
+| `--color-accent-dim`         | `rgba(232, 87, 42, 0.24)` | `rgba(209, 78, 37, 0.22)` |
+| `--color-accent-glow`        | `rgba(232, 87, 42, 0.05)` | `rgba(209, 78, 37, 0.05)` |
+| `--color-attn`               | `var(--color-accent)`     | `var(--color-accent)`     |
 
 <!-- END:tokens:accent -->
 
@@ -671,52 +796,53 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:signal -->
 
-| Role    | Token             | Value     | Tint token             | Tint value                  |
-| ------- | ----------------- | --------- | ---------------------- | --------------------------- |
-| Success | `--color-success` | `#34d399` | `--color-success-tint` | `rgba(52, 211, 153, 0.1)`   |
-| Warning | `--color-warning` | `#f5b14c` | `--color-warning-tint` | `rgba(245, 177, 76, 0.1)`   |
-| Danger  | `--color-danger`  | `#f87171` | `--color-danger-tint`  | `rgba(248, 113, 113, 0.1)`  |
-| Info    | `--color-info`    | `#8e8eb5` | `--color-info-tint`    | `rgba(142, 142, 181, 0.12)` |
-| Neutral | `--color-neutral` | `#7a7a80` | `--color-neutral-tint` | `rgba(150, 150, 155, 0.06)` |
+| Role    | Token             | Dark      | Light     | Tint dark                   | Tint light                  |
+| ------- | ----------------- | --------- | --------- | --------------------------- | --------------------------- |
+| Success | `--color-success` | `#34d399` | `#15a06a` | `rgba(52, 211, 153, 0.1)`   | `rgba(21, 160, 106, 0.08)`  |
+| Warning | `--color-warning` | `#f5b14c` | `#d98404` | `rgba(245, 177, 76, 0.1)`   | `rgba(217, 132, 4, 0.08)`   |
+| Danger  | `--color-danger`  | `#f87171` | `#dc2626` | `rgba(248, 113, 113, 0.1)`  | `rgba(220, 38, 38, 0.07)`   |
+| Info    | `--color-info`    | `#8e8eb5` | `#5f5f94` | `rgba(142, 142, 181, 0.12)` | `rgba(95, 95, 148, 0.1)`    |
+| Neutral | `--color-neutral` | `#7a7a80` | `#8a8a90` | `rgba(150, 150, 155, 0.06)` | `rgba(110, 110, 120, 0.07)` |
 
 <!-- END:tokens:signal -->
 
 ### Surface glaze ladder
 
-Glaze tokens are named because white-alpha literals drift quickly. Use the
+Glaze tokens are named because alpha literals drift quickly (white-alpha on
+dark, black-alpha on light). Use the
 bare Tailwind utilities generated from these tokens when possible
 (for example `bg-row-hover`), and reserve arbitrary `(--token)` syntax for
 runtime variables that intentionally stay outside `@theme`.
 
 <!-- BEGIN:tokens:glaze-ladder -->
 
-| Token                       | Value                        |
-| --------------------------- | ---------------------------- |
-| `--color-row-hover`         | `rgba(255, 255, 255, 0.045)` |
-| `--color-row-selected`      | `rgba(255, 255, 255, 0.06)`  |
-| `--color-surface-glaze`     | `rgba(255, 255, 255, 0.06)`  |
-| `--color-bar-fill`          | `rgba(255, 255, 255, 0.085)` |
-| `--color-input-fill`        | `rgba(255, 255, 255, 0.05)`  |
-| `--color-btn-default-fill`  | `rgba(255, 255, 255, 0.07)`  |
-| `--color-btn-default-hover` | `rgba(255, 255, 255, 0.1)`   |
-| `--color-badge-fill`        | `rgba(255, 255, 255, 0.05)`  |
+| Token                       | Dark                         | Light                     |
+| --------------------------- | ---------------------------- | ------------------------- |
+| `--color-row-hover`         | `rgba(255, 255, 255, 0.045)` | `rgba(10, 13, 18, 0.04)`  |
+| `--color-row-selected`      | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.055)` |
+| `--color-surface-glaze`     | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.045)` |
+| `--color-bar-fill`          | `rgba(255, 255, 255, 0.085)` | `rgba(10, 13, 18, 0.07)`  |
+| `--color-input-fill`        | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.02)`  |
+| `--color-btn-default-fill`  | `rgba(255, 255, 255, 0.07)`  | `rgba(10, 13, 18, 0.05)`  |
+| `--color-btn-default-hover` | `rgba(255, 255, 255, 0.1)`   | `rgba(10, 13, 18, 0.08)`  |
+| `--color-badge-fill`        | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.045)` |
 
 <!-- END:tokens:glaze-ladder -->
 
 ### Shell glass
 
-OS-shell chrome (menubar, dock, shell popovers, window frames)
-reads its translucent glass surfaces from these tokens — the only sanctioned
-glass in the system. Window-body content never uses them (§5).
+Retiring. The rail shell has no glass: chrome sits flat on `--color-rail`. These
+tokens remain only until the last dock-era consumer is removed, and are themed
+meanwhile so they read on both themes. Do not add new consumers.
 
 <!-- BEGIN:tokens:shell-glass -->
 
-| Token                     | Value                    |
-| ------------------------- | ------------------------ |
-| `--shell-glass`           | `rgba(10, 10, 10, 0.72)` |
-| `--color-shell-glass`     | `var(--shell-glass)`     |
-| `--shell-glass-pop`       | `rgba(26, 26, 26, 0.94)` |
-| `--color-shell-glass-pop` | `var(--shell-glass-pop)` |
+| Token                     | Dark                     | Light                       |
+| ------------------------- | ------------------------ | --------------------------- |
+| `--shell-glass`           | `rgba(10, 10, 10, 0.72)` | `rgba(250, 250, 250, 0.78)` |
+| `--color-shell-glass`     | `var(--shell-glass)`     | `var(--shell-glass)`        |
+| `--shell-glass-pop`       | `rgba(26, 26, 26, 0.94)` | `rgba(255, 255, 255, 0.94)` |
+| `--color-shell-glass-pop` | `var(--shell-glass-pop)` | `var(--shell-glass-pop)`    |
 
 <!-- END:tokens:shell-glass -->
 
@@ -728,16 +854,24 @@ families so owner color is deterministic by kind and id.
 
 <!-- BEGIN:tokens:owner-avatar -->
 
-| Token                       | Value                       | Token                       | Value                 |
-| --------------------------- | --------------------------- | --------------------------- | --------------------- |
-| `--color-avatar-agent-0-bg` | `rgba(232, 144, 99, 0.18)`  | `--color-avatar-agent-0-fg` | `#f2b895`             |
-| `--color-avatar-agent-1-bg` | `rgba(168, 178, 220, 0.16)` | `--color-avatar-agent-1-fg` | `#c5cce7`             |
-| `--color-avatar-agent-2-bg` | `rgba(143, 196, 178, 0.18)` | `--color-avatar-agent-2-fg` | `#a9d9c7`             |
-| `--color-avatar-agent-3-bg` | `rgba(214, 168, 192, 0.18)` | `--color-avatar-agent-3-fg` | `#e0bcd0`             |
-| `--color-avatar-human-0-bg` | `rgba(220, 192, 134, 0.2)`  | `--color-avatar-human-0-fg` | `#e5cc9a`             |
-| `--color-avatar-human-1-bg` | `rgba(195, 178, 156, 0.2)`  | `--color-avatar-human-1-fg` | `#d6c5aa`             |
-| `--color-avatar-human-2-bg` | `rgba(192, 173, 178, 0.2)`  | `--color-avatar-human-2-fg` | `#d2bfc5`             |
-| `--color-avatar-system-bg`  | `var(--color-elevated)`     | `--color-avatar-system-fg`  | `var(--color-subtle)` |
+| Token                       | Dark                        | Light                       |
+| --------------------------- | --------------------------- | --------------------------- |
+| `--color-avatar-agent-0-bg` | `rgba(232, 144, 99, 0.18)`  | `rgba(214, 110, 60, 0.14)`  |
+| `--color-avatar-agent-0-fg` | `#f2b895`                   | `#a4491f`                   |
+| `--color-avatar-agent-1-bg` | `rgba(168, 178, 220, 0.16)` | `rgba(110, 124, 190, 0.14)` |
+| `--color-avatar-agent-1-fg` | `#c5cce7`                   | `#4a5590`                   |
+| `--color-avatar-agent-2-bg` | `rgba(143, 196, 178, 0.18)` | `rgba(70, 160, 128, 0.14)`  |
+| `--color-avatar-agent-2-fg` | `#a9d9c7`                   | `#2a7259`                   |
+| `--color-avatar-agent-3-bg` | `rgba(214, 168, 192, 0.18)` | `rgba(190, 110, 150, 0.14)` |
+| `--color-avatar-agent-3-fg` | `#e0bcd0`                   | `#914a70`                   |
+| `--color-avatar-human-0-bg` | `rgba(220, 192, 134, 0.2)`  | `rgba(200, 160, 70, 0.16)`  |
+| `--color-avatar-human-0-fg` | `#e5cc9a`                   | `#7e5f14`                   |
+| `--color-avatar-human-1-bg` | `rgba(195, 178, 156, 0.2)`  | `rgba(170, 140, 105, 0.16)` |
+| `--color-avatar-human-1-fg` | `#d6c5aa`                   | `#6e5a3f`                   |
+| `--color-avatar-human-2-bg` | `rgba(192, 173, 178, 0.2)`  | `rgba(170, 130, 140, 0.16)` |
+| `--color-avatar-human-2-fg` | `#d2bfc5`                   | `#74525c`                   |
+| `--color-avatar-system-bg`  | `var(--color-elevated)`     | `var(--color-elevated)`     |
+| `--color-avatar-system-fg`  | `var(--color-subtle)`       | `var(--color-subtle)`       |
 
 <!-- END:tokens:owner-avatar -->
 
@@ -749,9 +883,9 @@ new tone map at each feature boundary.
 
 ### Terminal emulator ramp
 
-The terminal grid is the one surface in the product that owns a solid
-sub-canvas ground: `--terminal-bg` sits a step below `--color-canvas`, because a
-terminal is a byte well, not a card.
+The terminal well sits on the pane surface (`--terminal-bg` matches
+`--color-canvas`) and follows the theme: dark ANSI on dark, deepened ink-on-white
+ANSI on light, where the "white" lanes become greys.
 
 The ramp follows the shell-glass shape — one literal, two names. The canonical
 `--terminal-*` variables below are the identity the `TerminalView` theme bridge
@@ -761,27 +895,37 @@ terminal chrome uses generated utilities (`bg-terminal-bg`,
 `text-terminal-ansi-8`) like any other colour in the system. The values live in
 exactly one place.
 
-Indices 1, 2, 3 and their bright pairs 9, 10, 11 ride the danger, success and
-warning lanes so a red test failure in the grid is the same red as a danger
-chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
+Indices 1, 2, 3 ride the danger, success and warning lanes (their bright
+pairs 9, 10, 11 are the matching lighter or deeper step) so a red test failure
+in the grid reads as the same red as a danger chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
 (~0.68–0.72) so no ANSI color outshouts the signal palette. Index 8 is
 dim-by-design (~3.5:1) — that is terminal convention for dim text, and it is
 never a legal color for UI copy.
 
 <!-- BEGIN:tokens:terminal-ansi -->
 
-| Token                | Value     | Token                  | Value                       |
-| -------------------- | --------- | ---------------------- | --------------------------- |
-| `--terminal-bg`      | `#1a1a1a` | `--terminal-fg`        | `#dcdcdc`                   |
-| `--terminal-cursor`  | `#f5f5f5` | `--terminal-selection` | `rgba(255, 255, 255, 0.16)` |
-| `--terminal-ansi-0`  | `#2b2b2b` | `--terminal-ansi-1`    | `#f87171`                   |
-| `--terminal-ansi-2`  | `#34d399` | `--terminal-ansi-3`    | `#f5b14c`                   |
-| `--terminal-ansi-4`  | `#7d9bc8` | `--terminal-ansi-5`    | `#b48ec6`                   |
-| `--terminal-ansi-6`  | `#6fb5ab` | `--terminal-ansi-7`    | `#c9c9c9`                   |
-| `--terminal-ansi-8`  | `#737373` | `--terminal-ansi-9`    | `#fa9494`                   |
-| `--terminal-ansi-10` | `#6ee7b7` | `--terminal-ansi-11`   | `#f8c77a`                   |
-| `--terminal-ansi-12` | `#9db9e3` | `--terminal-ansi-13`   | `#cdaade`                   |
-| `--terminal-ansi-14` | `#8fd0c6` | `--terminal-ansi-15`   | `#f5f5f5`                   |
+| Token                  | Dark                        | Light                    |
+| ---------------------- | --------------------------- | ------------------------ |
+| `--terminal-bg`        | `#1a1a1a`                   | `#ffffff`                |
+| `--terminal-fg`        | `#dcdcdc`                   | `#434343`                |
+| `--terminal-cursor`    | `#f5f5f5`                   | `#1a1a1a`                |
+| `--terminal-selection` | `rgba(255, 255, 255, 0.16)` | `rgba(10, 13, 18, 0.12)` |
+| `--terminal-ansi-0`    | `#2b2b2b`                   | `#1a1a1a`                |
+| `--terminal-ansi-1`    | `#f87171`                   | `#dc2626`                |
+| `--terminal-ansi-2`    | `#34d399`                   | `#15a06a`                |
+| `--terminal-ansi-3`    | `#f5b14c`                   | `#b86e00`                |
+| `--terminal-ansi-4`    | `#7d9bc8`                   | `#2f6fd0`                |
+| `--terminal-ansi-5`    | `#b48ec6`                   | `#9a4fb5`                |
+| `--terminal-ansi-6`    | `#6fb5ab`                   | `#178a8a`                |
+| `--terminal-ansi-7`    | `#c9c9c9`                   | `#8a8a8a`                |
+| `--terminal-ansi-8`    | `#737373`                   | `#737373`                |
+| `--terminal-ansi-9`    | `#fa9494`                   | `#b91c1c`                |
+| `--terminal-ansi-10`   | `#6ee7b7`                   | `#0f8a5a`                |
+| `--terminal-ansi-11`   | `#f8c77a`                   | `#a86200`                |
+| `--terminal-ansi-12`   | `#9db9e3`                   | `#1d5bbf`                |
+| `--terminal-ansi-13`   | `#cdaade`                   | `#83399e`                |
+| `--terminal-ansi-14`   | `#8fd0c6`                   | `#0e7373`                |
+| `--terminal-ansi-15`   | `#f5f5f5`                   | `#b0b0b0`                |
 
 <!-- END:tokens:terminal-ansi -->
 
@@ -909,11 +1053,29 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 ## 4. Layout grammar
 
-The runtime shell is a desktop: a menubar across the top, a dock along the
-bottom, and free-floating windows over a wallpapered desktop. Each window
-hosts one app's route subtree. Page identity belongs in the window head, which
-is the route's `<Topbar>` with OS window controls injected into its leading
-zone. Detail surfaces may add `<DetailHeader>` inside the window body, but
+The runtime shell is a desktop with flat chrome on `--color-rail`:
+
+- A full-width topbar (`--height-menubar`, 52px). Its first
+  `--width-traffic-lights` (84px) are reserved for the frameless window's macOS
+  controls; the mark, the menus, and the tray follow. The tray carries the
+  pager dots (the active desktop is a pill; an orange dot marks an off-screen
+  desktop that needs you) and the All desktops button that opens the overview.
+- A left rail (`--width-rail`, 60px; items `--size-rail-item`, 40px) that is
+  the dock: app launchers in dock order without dividers, a running dot per
+  open app, a hollow ring for minimized ones, and the profile switcher, theme
+  toggle and Settings in its foot. Below 960px the rail hides and the bottom
+  tab bar takes over.
+- Gutterless tiling on `--color-desk`. Tiled windows are flat panes on
+  `--color-canvas` with no radius, border or shadow; the 1px `line` seam is the
+  only divider, with a `--size-seam-hit` (9px) hit area that turns accent on
+  hover and drag. Floating windows keep a 1px hairline and `shadow-elevated`.
+- Browser-style tabs. A window with several tabs shows the deck
+  (`--height-deck`, 40px): a recessed `sunken` strip where the active tab is a
+  surface plate fused with the head, and tabs shrink from 208px to 136px.
+
+Each window hosts one app's route subtree. Page identity belongs in the window
+head (`--height-window-head`, 48px), which is the route's `<Topbar>` with the
+window controls injected into its leading zone. Detail surfaces may add `<DetailHeader>` inside the window body, but
 list and route pages should not invent body-side page H1s.
 
 The page envelope is calm by default. Route content gets constrained width,
@@ -1020,31 +1182,46 @@ The model is flat by default. The surface ramp creates depth; hairlines and
 inset rings clarify boundaries. Adding new shadow tokens is a design-system
 change, not a local styling decision.
 
-Depth has two layers. OS-shell chrome — the menubar, dock,
-shell popovers, and window frames — is the one place glass, backdrop blur,
-and cast window shadows are allowed, drawn from the shell tokens below. This
-carve-out separates floating chrome from the wallpaper behind it. Content
-inside window bodies stays on the flat ramp/hairline model: no glass, no
-blur, no cast shadows.
+There is no glass. Chrome is flat on `--color-rail`, tiled panes are flat on
+`--color-canvas`, and the whitelist below is the only depth:
 
-`--shadow-overlay` is for modal/sheet separation. `--shadow-highlight` is the
-small active rim used by selected controls that need a top-edge lift. Focus
-rings live in the same shadow namespace because they replace border-color
-thrash with a stable ring.
+- `--shadow-card` lifts the composer, cards, and the active rail item, and is
+  the hover lift for secondary pills.
+- `--shadow-elevated` sits under floating windows (with their 1px hairline).
+- `--shadow-pop` is for menus, popovers, and tooltips.
+- `--shadow-overlay` separates modals and sheets. `--shadow-highlight` is the
+  small active rim used by selected controls that need a top-edge lift.
+- Focus rings live in the same shadow namespace because they replace
+  border-color thrash with a stable ring.
+
+Each theme-scoped shadow is an `@theme` adapter over a `--theme-shadow-*`
+literal (dark in `tokens.css` `:root`, light in `tokens-light.css`): Tailwind
+inlines literal `--shadow-*` values into `shadow-*` utilities, so the theme must
+switch the literal behind the adapter. The window, dock, and shell-* shadows
+in the table are retiring with the dock-era shell.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                       | Value                                                                                                       | Token                           | Value                                                                                |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ |
-| `--shadow-card`             | `0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `--shadow-elevated`             | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` |
-| `--shadow-pop`              | `0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `--shadow-overlay`              | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)`        |
-| `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                  | `--shadow-focus-ring`           | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                 |
-| `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                  | `--shadow-hairline`             | `0 0 0 1px var(--color-line-soft)`                                                   |
-| `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                                                    | `--shadow-inset-strong`         | `inset 0 0 0 1px var(--color-line-strong)`                                           |
-| `--shadow-danger-inset`     | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                 | `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)`        |
-| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                                                     | `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                              |
-| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                                                      | `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                                     |
-| `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`                                   | `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                             |
+| Token                           | Dark                                                                                                        | Light                                                                                                               |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `--shadow-card`                 | `0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005`                                                   |
+| `--shadow-elevated`             | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006`                        | `0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a`                            |
+| `--shadow-pop`                  | `0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a` |
+| `--shadow-overlay`              | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)`                               | `0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06)`                                        |
+| `--shadow-highlight`            | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                  | `inset 0 1px 0 rgba(255, 255, 255, 0.7)`                                                                            |
+| `--shadow-focus-ring`           | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                        | `0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                   |
+| `--shadow-focus-inset`          | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                  | `inset 0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                             |
+| `--shadow-hairline`             | `0 0 0 1px var(--color-line-soft)`                                                                          | `0 0 0 1px var(--color-line-soft)`                                                                                  |
+| `--shadow-hairline-inset`       | `inset 0 0 0 1px var(--color-line-soft)`                                                                    | `inset 0 0 0 1px var(--color-line-soft)`                                                                            |
+| `--shadow-inset-strong`         | `inset 0 0 0 1px var(--color-line-strong)`                                                                  | `inset 0 0 0 1px var(--color-line-strong)`                                                                          |
+| `--shadow-danger-inset`         | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                 | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                         |
+| `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)`                               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)`                                       |
+| `--shadow-window-unfocused`     | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                                                     | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                                                             |
+| `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                                                     | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                                                             |
+| `--shadow-dock`                 | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                                                      | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                                                              |
+| `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                                                            | `var(--shadow-overlay), var(--shadow-highlight)`                                                                    |
+| `--shadow-shell-plate`          | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`                                   | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`                                           |
+| `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                                                    | `0 0 0 2px var(--color-shell-glass-pop)`                                                                            |
 
 <!-- END:tokens:shadows -->
 
@@ -1052,16 +1229,30 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shell-backdrop -->
 
-| Token                      | Value                                                                                                                                                                                                           | Token                     | Value                                                                                                                                                                                                                                                                                              | Token                     | Value                                                                                                                                                                                                                                                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--blur-shell`             | `28px`                                                                                                                                                                                                          | `--blur-shell-pop`        | `32px`                                                                                                                                                                                                                                                                                             | `--blur-shell-scrim`      | `8px`                                                                                                                                                                                                                                                                                                          |
-| `--blur-shell-strip`       | `34px`                                                                                                                                                                                                          | `--blur-shell-menu`       | `30px`                                                                                                                                                                                                                                                                                             | `--blur-shell-plate`      | `12px`                                                                                                                                                                                                                                                                                                         |
-| `--saturate-shell-glass`   | `1.25`                                                                                                                                                                                                          | `--saturate-shell-plate`  | `1.2`                                                                                                                                                                                                                                                                                              | `--shell-plate-gradient`  | `linear-gradient( 180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035) )`                                                                                                                                                                                                                             |
-| `--shell-well-gradient`    | `linear-gradient( 180deg, color-mix(in oklch, var(--color-elevated) 90%, var(--color-fg) 5%), var(--color-elevated) )`                                                                                          | `--shell-edge-veil`       | `rgba(0, 0, 0, 0.28)`                                                                                                                                                                                                                                                                              | `--shell-edge-fade-start` | `linear-gradient(90deg, var(--shell-edge-veil) 0%, transparent 55%), linear-gradient( 90deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100% )`                                                                                                  |
-| `--shell-edge-fade-end`    | `linear-gradient(270deg, var(--shell-edge-veil) 0%, transparent 55%), linear-gradient( 270deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100% )` | `--wallpaper-teal`        | `#225555`                                                                                                                                                                                                                                                                                          | `--wallpaper-grid`        | `radial-gradient( 1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.035) 40%, transparent 41% )`                                                                                                                                                                                                                   |
-| `--wallpaper-grid-size`    | `26px`                                                                                                                                                                                                          | `--wallpaper-ember`       | `radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 38%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)` | `--wallpaper-mesh`        | `radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%), radial-gradient( 1200px 700px at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 40%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)`                           |
-| `--wallpaper-carbon`       | `radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%)`                                                    | `--wallpaper-thumb-ember` | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 55%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                   | `--wallpaper-thumb-mesh`  | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 26%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 60%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` |
-| `--wallpaper-thumb-carbon` | `radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%), linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%)`                                                    |                           |                                                                                                                                                                                                                                                                                                    |                           |                                                                                                                                                                                                                                                                                                                |
+| Token                      | Dark                                                                                                                                                                                                                                                                                                           | Light                                                                                                                                                                                                                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--blur-shell`             | `28px`                                                                                                                                                                                                                                                                                                         | `28px`                                                                                                                                                                                                                                                                                                         |
+| `--blur-shell-pop`         | `32px`                                                                                                                                                                                                                                                                                                         | `32px`                                                                                                                                                                                                                                                                                                         |
+| `--blur-shell-scrim`       | `8px`                                                                                                                                                                                                                                                                                                          | `8px`                                                                                                                                                                                                                                                                                                          |
+| `--blur-shell-strip`       | `34px`                                                                                                                                                                                                                                                                                                         | `34px`                                                                                                                                                                                                                                                                                                         |
+| `--blur-shell-menu`        | `30px`                                                                                                                                                                                                                                                                                                         | `30px`                                                                                                                                                                                                                                                                                                         |
+| `--blur-shell-plate`       | `12px`                                                                                                                                                                                                                                                                                                         | `12px`                                                                                                                                                                                                                                                                                                         |
+| `--saturate-shell-glass`   | `1.25`                                                                                                                                                                                                                                                                                                         | `1.25`                                                                                                                                                                                                                                                                                                         |
+| `--saturate-shell-plate`   | `1.2`                                                                                                                                                                                                                                                                                                          | `1.2`                                                                                                                                                                                                                                                                                                          |
+| `--shell-plate-gradient`   | `linear-gradient( 180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035) )`                                                                                                                                                                                                                             | `linear-gradient(180deg, rgba(10, 13, 18, 0.06), rgba(10, 13, 18, 0.03))`                                                                                                                                                                                                                                      |
+| `--shell-well-gradient`    | `linear-gradient( 180deg, color-mix(in oklch, var(--color-elevated) 90%, var(--color-fg) 5%), var(--color-elevated) )`                                                                                                                                                                                         | `linear-gradient( 180deg, color-mix(in oklch, var(--color-elevated) 90%, var(--color-fg) 5%), var(--color-elevated) )`                                                                                                                                                                                         |
+| `--shell-edge-veil`        | `rgba(0, 0, 0, 0.28)`                                                                                                                                                                                                                                                                                          | `rgba(10, 13, 18, 0.06)`                                                                                                                                                                                                                                                                                       |
+| `--shell-edge-fade-start`  | `linear-gradient(90deg, var(--shell-edge-veil) 0%, transparent 55%), linear-gradient( 90deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100% )`                                                                                                  | `linear-gradient(90deg, var(--shell-edge-veil) 0%, transparent 55%), linear-gradient( 90deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100% )`                                                                                                  |
+| `--shell-edge-fade-end`    | `linear-gradient(270deg, var(--shell-edge-veil) 0%, transparent 55%), linear-gradient( 270deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100% )`                                                                                                | `linear-gradient(270deg, var(--shell-edge-veil) 0%, transparent 55%), linear-gradient( 270deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100% )`                                                                                                |
+| `--wallpaper-teal`         | `#225555`                                                                                                                                                                                                                                                                                                      | `#225555`                                                                                                                                                                                                                                                                                                      |
+| `--wallpaper-grid`         | `radial-gradient( 1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.035) 40%, transparent 41% )`                                                                                                                                                                                                                   | `radial-gradient( 1.5px 1.5px at 50% 50%, rgba(10, 13, 18, 0.06) 40%, transparent 41% )`                                                                                                                                                                                                                       |
+| `--wallpaper-grid-size`    | `26px`                                                                                                                                                                                                                                                                                                         | `26px`                                                                                                                                                                                                                                                                                                         |
+| `--wallpaper-ember`        | `radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 38%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`             | `radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 38%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`             |
+| `--wallpaper-mesh`         | `radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%), radial-gradient( 1200px 700px at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 40%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)`                           | `radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%), radial-gradient( 1200px 700px at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 40%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)`                           |
+| `--wallpaper-carbon`       | `radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%)`                                                                                                                                                   | `radial-gradient(1000px 620px at 50% -14%, rgba(10, 13, 18, 0.03), transparent 58%), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%)`                                                                                                                                                      |
+| `--wallpaper-thumb-ember`  | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 55%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                               | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 55%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                               |
+| `--wallpaper-thumb-mesh`   | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 26%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 60%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 26%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 60%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` |
+| `--wallpaper-thumb-carbon` | `radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%), linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%)`                                                                                                                                                   | `radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%), linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%)`                                                                                                                                                      |
 
 <!-- END:tokens:shell-backdrop -->
 
@@ -1075,8 +1266,8 @@ implemented in `tokens.css` with a near-zero duration so animation lifecycle
 callbacks still fire.
 
 Shell chrome adds one tier above the base ladder for spatial transitions —
-window entry, dock magnification, and minimize travel — at chrome scale with
-a single spring ease. Window-body content keeps the base ladder.
+window entry, desktop switches, and minimize travel — at chrome scale with a
+single spring ease. Window-body content keeps the base ladder.
 
 <!-- BEGIN:tokens:motion -->
 
@@ -1187,9 +1378,15 @@ is listed.
   eyebrow style with uppercase, mono/sans choices, arbitrary text sizes, or
   arbitrary tracking. Replace with `<Eyebrow>` or the structural `.eyebrow`
   utility. Rule: `compozy-design-system/no-inline-eyebrow`.
-- Inline glaze rgba. Pattern: `bg-[rgba(255,255,255,0.0NN)]`. Replace with
-  named glaze utilities such as `bg-row-hover` or `bg-surface-glaze`. Rule:
-  `compozy-design-system/no-design-glaze-rgba`.
+- Theme-blind ink. Pattern: translucent white or black painted directly —
+  `bg-[rgba(255,255,255,0.0NN)]`, `border-[rgba(0,0,0,…)]`, `bg-white/5`,
+  `bg-black/[0.3]` — which reads on one theme only. Replace with named glaze,
+  hairline, or overlay utilities (`bg-row-hover`, `bg-surface-glaze`,
+  `border-line`, `bg-overlay-scrim`) that flip per theme. Rule:
+  `compozy-design-system/no-design-glaze-rgba`. Focus variants additionally
+  reject white/black ring ink and hand-rolled `shadow-[…rgba(255,255,255,…)]`
+  rings in favor of `shadow-focus-ring` / `shadow-focus-inset`. Rule:
+  `compozy-design-system/no-low-contrast-focus-ring`.
 - Banned loading imports. Pattern: direct runtime imports of Lucide loading
   glyphs that bypass the shared spinner semantics. Replace with `<Spinner>` or
   the entity activity dot. Rule: `compozy-design-system/no-banned-imports`.
@@ -1208,9 +1405,8 @@ is listed.
   states that matter are the only things in color.
 - Decorative depth. Pattern: generic Tailwind shadow utilities on cards,
   popovers, headers, or rows. Use the flat ring/ramp model and the shadow
-  whitelist above. The only cast-shadow and glass exception is OS-shell chrome
-  (menubar, dock, shell popovers, window frames) per §5; window
-  content stays flat.
+  whitelist above (card, elevated, pop, overlay) per §5; there is no glass
+  anywhere, and tiled window frames stay flat.
 - Fake affordances. Pattern: UI controls, metrics, or statuses that are not
   backed by runtime APIs, CLI/UDS/HTTP surfaces, or real state.
 
@@ -1292,7 +1488,7 @@ Site classes are intentionally narrow:
 - `.site-home` gates landing layout width and canvas, never typography.
 - `.site-doc-masthead__title` and `.site-doc-body h2` are the docs Playfair roles.
 - `.site-doc-body` owns docs prose rhythm and MDX article width.
-- `.site-bento-overlay-*` fades illustration assets into the warm-dark ramp.
+- `.site-bento-overlay-*` fades illustration assets into the dark ramp.
 - `.compozy-mermaid` owns Mermaid diagram theming for docs.
 
 Site stale-token fixes are tracked by the generator's `--audit-site` mode.

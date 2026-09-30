@@ -17,6 +17,8 @@ import {
   noInlineEyebrow,
   normalizeFilename,
   splitClassTokens,
+  THEME_BLIND_INK_LITERAL_RE,
+  THEME_BLIND_INK_RE,
 } from "./compozy-design-system-core-rules.mjs";
 
 /**
@@ -111,10 +113,17 @@ const preferBareTokenUtility = {
 // failure). The low-contrast hairline colors (`ring-line-strong` / `ring-ring`)
 // and the sub-2px width (`ring-1`) are therefore forbidden inside ANY focus
 // variant. Callers use the shared focus tokens `shadow-focus-ring` (outset) /
-// `shadow-focus-inset` (inset); accent focus rings stay on `ring-2 ring-accent`.
+// `shadow-focus-inset` (inset), which flip per theme (50% white on dark, 50% ink on
+// light); accent focus rings stay on `ring-2 ring-accent`. A white or black ring ink
+// only reads on one theme, so it is banned inside focus variants too.
 const FOCUS_RING_COLOR_UTILITIES = new Set(["ring-line-strong", "ring-ring"]);
 
 const FOCUS_RING_WIDTH_UTILITIES = new Set(["ring-1"]);
+
+// Opaque or numeric-opacity `ring-white` / `ring-black` (and `outline-*`); arbitrary
+// translucent forms and hand-rolled `shadow-[…rgba(255,255,255,…)]` rings are caught by
+// the shared theme-blind ink matchers.
+const FOCUS_RING_THEME_INK_RE = /^(?:ring|outline)-(?:white|black)$/;
 
 function focusRingUtilityViolation(token) {
   // Strip an optional Tailwind opacity modifier (e.g. `ring-ring/50`).
@@ -128,6 +137,13 @@ function focusRingUtilityViolation(token) {
   if (!variants.includes("focus")) return null;
   if (FOCUS_RING_COLOR_UTILITIES.has(utility)) return "focusRingColor";
   if (FOCUS_RING_WIDTH_UTILITIES.has(utility)) return "focusRingWidth";
+  if (
+    FOCUS_RING_THEME_INK_RE.test(utility) ||
+    THEME_BLIND_INK_RE.test(token) ||
+    (utility.startsWith("shadow-[") && THEME_BLIND_INK_LITERAL_RE.test(utility))
+  ) {
+    return "focusRingThemeInk";
+  }
   return null;
 }
 
@@ -151,6 +167,8 @@ const noLowContrastFocusRing = {
     messages: {
       focusRingColor:
         "Low-contrast focus ring in className. :focus-visible indicators need ≥3:1 contrast (GhostFocus is a critical a11y failure). Use focus-visible:shadow-focus-ring (outset) or focus-visible:shadow-focus-inset (inset); for accent focus use focus-visible:ring-2 focus-visible:ring-accent. ring-line-strong / ring-ring are banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
+      focusRingThemeInk:
+        "Theme-blind focus ring ink in className. A white or black ring only reads on one theme. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, which flip per theme (or focus-visible:ring-2 focus-visible:ring-accent). See BUG-20260714 and DESIGN.md §10.",
       focusRingWidth:
         "Sub-2px focus ring in className. :focus-visible indicators must be ≥2px thick. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, or focus-visible:ring-2 for accent rings. ring-1 is banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
     },

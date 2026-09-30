@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { TOKENS_CSS, TOKENS_LIGHT_CSS } from "./token-source";
+import { AA_TEXT_CONTRAST, contrastRatio, parseHexColor, type Rgb } from "../lib/contrast";
+import { THEMES, TOKENS_CSS, TOKENS_LIGHT_CSS, readToken, type Theme } from "./token-source";
 
 /**
  * Theme-switch reach contract.
@@ -48,4 +49,38 @@ describe("theme-switch reach contract", () => {
     const missing = themeAdapters.filter(adapter => !light.has(adapter.target));
     expect(missing).toEqual([]);
   });
+});
+
+/**
+ * Readable-grey floor, per theme. Secondary copy rides `muted`, `subtle`, `faint`, and
+ * `fg-2`, so each must clear WCAG AA text contrast on every surface that carries text
+ * in both themes: panes, cards, sunken insets, chrome, and hover steps. The reference
+ * palette's dimmer greys (#a1a1a1 on white) fail this; the production override does not.
+ */
+const TEXT_TOKENS = ["color-fg-2", "color-muted", "color-subtle", "color-faint"] as const;
+const TEXT_SURFACES = [
+  "color-canvas",
+  "color-canvas-soft",
+  "color-sunken",
+  "color-rail",
+  "color-surface-2",
+] as const;
+
+function readHex(name: string, theme: Theme): Rgb {
+  const parsed = parseHexColor(readToken(name, theme));
+  if (!parsed) throw new Error(`expected a hex color for --${name} (${theme})`);
+  return parsed;
+}
+
+describe.each(THEMES)("text ladder contrast floor (%s theme)", theme => {
+  for (const text of TEXT_TOKENS) {
+    it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for --${text} on every text surface`, () => {
+      for (const surface of TEXT_SURFACES) {
+        const ratio = contrastRatio(readHex(text, theme), readHex(surface, theme));
+        expect(ratio, `--${text} on --${surface} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+          AA_TEXT_CONTRAST
+        );
+      }
+    });
+  }
 });

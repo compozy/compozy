@@ -43,7 +43,20 @@ const ARBITRARY_TRACKING_RE = /tracking-\[[^\]]+\]/;
 
 const DELETED_EYEBROW_UTILITY_RE = /\beyebrow-(?:badge|micro)\b/;
 
-const DESIGN_GLAZE_RGBA_RE = /\bbg-\[rgba\(255,255,255,0\.0\d+\)\]/;
+// Theme-blind ink: a translucent white or black painted by a color utility. White-alpha
+// glaze vanishes on the light theme and black-alpha on the dark one; the named glaze
+// tokens flip per theme. Matches arbitrary rgba()/rgb(/ a)/alpha-hex literals and the
+// palette `white/NN` / `black/NN` opacity forms, behind any variant chain.
+const GLAZE_COLOR_UTILITY =
+  "(?:bg|border(?:-[trblxyse])?|text|ring(?:-offset)?|outline|divide|from|via|to|fill|stroke|decoration|shadow|caret|placeholder)";
+const INK_RGBA = String.raw`rgba?\((?<ink>255|0)[,_\s]+\k<ink>[,_\s]+\k<ink>[,_\s/]+(?:0?\.\d+|\d{1,2}%)\)`;
+const INK_HEX = String.raw`#(?:fff|000)[0-9a-f]|#(?:ffffff|000000)[0-9a-f]{2}`;
+// The bare white/black alpha literal, wherever it sits inside an arbitrary value.
+export const THEME_BLIND_INK_LITERAL_RE = new RegExp(`${INK_RGBA}|${INK_HEX}`, "i");
+export const THEME_BLIND_INK_RE = new RegExp(
+  String.raw`(?:^|[\s:!])${GLAZE_COLOR_UTILITY}-(?:\[(?:color:)?(?:${INK_RGBA}|${INK_HEX})\]|(?:white|black)\/(?:\d+|\[[^\]]+\]))(?=$|\s)`,
+  "i"
+);
 
 const BANNED_LOADER_IMPORTS = new Set(["Loader2", "Loader2Icon"]);
 
@@ -150,7 +163,7 @@ function isViolation(value) {
 }
 
 function hasDesignGlazeRgba(value) {
-  return typeof value === "string" && DESIGN_GLAZE_RGBA_RE.test(value);
+  return typeof value === "string" && THEME_BLIND_INK_RE.test(value);
 }
 
 function findInlineDesignTuple(values) {
@@ -251,12 +264,12 @@ export const noDesignGlazeRgba = {
     type: "problem",
     docs: {
       description:
-        "Forbid inline white rgba glaze backgrounds in frontend JSX className. Use named Compozy glaze tokens instead.",
+        "Forbid theme-blind translucent white/black ink (inline rgba/alpha-hex or white/NN, black/NN) in frontend JSX className. Use named Compozy glaze tokens, which flip per theme.",
       recommended: false,
     },
     messages: {
       inlineGlaze:
-        "Inline surface glaze rgba in className. Use named glaze utilities: bg-row-hover, bg-row-selected, bg-surface-glaze, bg-bar-fill, bg-input-fill, bg-btn-default-fill, bg-btn-default-hover, or bg-badge-fill. See DESIGN.md §2.5.",
+        "Inline surface glaze rgba in className. Translucent white/black ink only reads on one theme; use named glaze utilities: bg-row-hover, bg-row-selected, bg-surface-glaze, bg-bar-fill, bg-input-fill, bg-btn-default-fill, bg-btn-default-hover, or bg-badge-fill (or a hairline / overlay token). See DESIGN.md §2.",
     },
     schema: [],
   },

@@ -273,6 +273,17 @@ describe("compozy-design-system lint plugin", () => {
           jsxExpression(logical(identifier("active"), literal("focus-visible:ring-line-strong")))
         )
       ).toHaveLength(1);
+      // Theme-blind ring ink → focusRingThemeInk: white/black rings read on one theme only.
+      for (const themeBlind of [
+        "focus-visible:ring-2 focus-visible:ring-white/50",
+        "focus-visible:ring-2 focus-visible:ring-black",
+        "focus-visible:shadow-[0_0_0_2px_rgba(255,255,255,0.5)]",
+      ]) {
+        expect(
+          runClassNameRule("no-low-contrast-focus-ring", src, literal(themeBlind)),
+          themeBlind
+        ).toEqual([expect.objectContaining({ messageId: "focusRingThemeInk" })]);
+      }
       // Allowed: shared focus tokens, accent ring at ≥2px, ring-0, and resting/hover rings.
       for (const allowed of [
         "focus-visible:shadow-focus-ring",
@@ -461,6 +472,37 @@ describe("compozy-design-system lint plugin", () => {
           literal("bg-[rgba(255,255,255,0.022)]")
         )
       ).toHaveLength(0);
+    });
+
+    it("reports theme-blind white or black ink in any color utility, allows theme tokens", () => {
+      // Each paints a translucent ink that only reads on one of the two themes.
+      for (const themeBlind of [
+        "bg-[rgba(0,0,0,0.4)]",
+        "hover:border-[rgba(255,_255,_255,_0.08)]",
+        "bg-[rgb(255_255_255/0.06)]",
+        "bg-[#ffffff0f]",
+        "bg-white/5",
+        "dark:bg-black/[0.3]",
+        "divide-white/10",
+      ]) {
+        expect(
+          runClassNameRule("no-design-glaze-rgba", "/repo/web/src/foo.tsx", literal(themeBlind)),
+          themeBlind
+        ).toHaveLength(1);
+      }
+      // Tokens flip per theme; opaque palette colors and other hues are not glaze.
+      for (const allowed of [
+        "bg-row-hover",
+        "bg-accent/10",
+        "border-line",
+        "text-white",
+        "bg-[rgba(255,0,255,0.2)]",
+      ]) {
+        expect(
+          runClassNameRule("no-design-glaze-rgba", "/repo/web/src/foo.tsx", literal(allowed)),
+          allowed
+        ).toHaveLength(0);
+      }
     });
 
     it("reports no-banned-imports only for Loader2 family outside canonical owners", () => {
