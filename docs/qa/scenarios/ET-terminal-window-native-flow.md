@@ -27,7 +27,7 @@ Walk:
 2. From the head, open the Journal; confirm the head shows the Journal crumb with a back affordance, and back returns to the same terminal with its scroll intact.
 3. Use the head's New terminal; confirm a second terminal joins the frame as an OS window tab and the deck is the only tab strip visible.
 4. Use the dock's right-click Open in new window; confirm another terminal opens without touching the existing ones.
-5. Use Stop and confirm the window stays on the exit bar. Close it with the traffic-light control without a running warning. A running terminal instead asks for confirmation; there is no redundant Close terminal header action.
+5. Use Stop and confirm the window stays on the exit bar. Close it with the window's Close control without a running warning. A running terminal instead asks for confirmation; there is no redundant Close terminal header action.
 
 2026-09-30 queued adoption acceptance: seed eight running terminals, open Terminal from the dock,
 and immediately use New terminal while the adopted terminal's route is settling. The deliberate

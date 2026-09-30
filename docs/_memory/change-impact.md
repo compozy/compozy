@@ -1,5 +1,52 @@
 # Compozy Change Impact
 
+## Shell rail v2 — rail dock, flush tiling defaults, light and dark themes
+
+Owning design: `docs/design/opendesign/shell-rail/` (`shell-rail-v2.html`, `DESIGN-NOTES.md`,
+`brand-spec.md`, `IMPLEMENTATION-PLAN.md`); orchestration contract `.compozy/tasks/shell-rail/CONTRACT.md`
+(decisions D1–D9).
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `compozy__layout_arrange` and
+  `compozy layout arrange --arrangement` gain `main_stack` (the first listed window takes a 60% main
+  column; the rest stack beside it); the OpenAPI enum and generated clients carry it. The command
+  palette registry gains `layout.arrange.main-stack`, `layout.arrange.columns`, and
+  `window.move_to_desktop.1` … `.9`, all unbound by default and bindable through
+  `window_manager.shortcuts`. No `compozy__*` ID, route, DTO field, or verb is renamed or removed.
+- **Extensibility / hooks / config:** no new hook, event, or extension capability; arrange presets
+  and move-to-desktop run through the existing layout/window commands and emit the existing
+  window-manager events. Three public `[window_manager]` **defaults** change (SD-013 public-surface
+  change, auto-migrating because only the default moves): `gaps.*` 8/8/10/8/10 → `0`,
+  `new_window_policy` `floating` → `beside_focus`, `bindings.bottom_center` `reserved` → `zoom`.
+  Explicit values in `config.toml` or layout documents keep winning; no key is renamed and no stored
+  value is rewritten. The repo `config.toml` example follows the new defaults. The theme is not a
+  config key: the preference lives in browser localStorage (`compozy.theme`: `light` | `dark` |
+  `system`, default `dark`) and is applied before first paint by the same-origin `/theme-boot.js`.
+- **Workspace data isolation:** unchanged. Window arrangements stay per (workspace, profile); new
+  presets and moves act only on the addressed workspace's topology. The theme is per browser, never
+  per workspace or per profile, and never crosses to the daemon.
+- **Official CompozyOS skill:** `skills/compozy/references/window-management.md` documents
+  `main_stack`; its configuration section states no default values, so the default changes need no
+  skill edit. `references/configuration.md` points to the same section; checked, no stale values.
+- **Web / Docs impact:** the Web shell is redesigned — full-width 52px topbar with the desktop pager
+  and All desktops in the tray, the dock as a 60px left rail with a profile / theme / Settings foot
+  (bottom tab bar below 960px), gutterless flat tiling with 9px hairline seams, browser-style window
+  tabs, quiet window controls, a flat default desk with an empty-desktop card, Inter/Geist Mono type,
+  and light plus dark themes across every primitive. `packages/site` keeps its own theme and type
+  (D9, pinned in `packages/site/app/global.css`). Public docs updated:
+  `configuration/config-toml.mdx` (new defaults), `configuration/shortcuts.mdx` (new palette ids),
+  `cli/layout/arrange.mdx`, `workspaces/window-management.mdx`. Internal design references updated:
+  `DESIGN.md` (per-theme tables), `docs/design/opendesign/design-system/` (chapter 02 and the shared
+  CSS), `COPY.md`, `docs/_memory/glossary.md`.
+- **Compatibility:** user state is untouched (no migration; layout documents, profiles, and
+  `config.toml` values survive as written). Users who relied on the old defaults restore them with
+  explicit values; the release note carries the SD-013 migration block. Retired internal tokens
+  (`--shell-glass*`, dock/window shadows and radii, traffic-light sizes) are internal-regime and are
+  deleted with their last consumer, without aliases.
+- **QA:** changed shell scenarios are reset to `untested` and new ones added (seam resize, arrange
+  presets, move window to desktop, dock foot + compact tab bar, empty-desktop card, Inter type ramp,
+  theme scenarios); `ET-web-dock-magnification` is deleted and `ET-web-geist-wght-medium-510`
+  retired. The final QA pass walks them.
+
 ## PR 685 — Wake creator on child turn completion
 
 - **Native tools / CLI / HTTP / UDS:** no `compozy__*` ID, toolset, route, DTO, flag, or schema

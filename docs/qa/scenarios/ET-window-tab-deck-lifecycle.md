@@ -4,9 +4,9 @@ area: ET
 title: Group related work into one persistent tab deck
 persona: Bruno
 journey: J-organize-tabbed-work
-expected: Drag, context-menu, and Command-T grouping each create one ordered frame; dragging a window over a solo window's head shows the accent "Group as tabs" affordance and release folds both into one deck; the deck mounts only at two or more members with traffic lights, tab labels, and the new-tab control on one shared centerline, keeps hidden bodies mounted, supports reorder and tear-out, and survives reload with the same active member and placement.
+expected: Drag, context-menu, and Command-T grouping each create one ordered frame; dragging a window over a solo window's head shows the accent "Group as tabs" affordance and release folds both into one deck; the deck mounts only at two or more members as a 40px recessed strip of browser-style tabs (208px shrinking to 136px, the active tab a surface plate with concave feet fused with the head, hairlines between inactive tabs, a 28px New tab button, 20px close buttons) with the quiet window controls on the right, keeps hidden bodies mounted, supports reorder and tear-out, and survives reload with the same active member and placement.
 entry_points: web desktop window drag; tab and dock context menus; Command-T; web /new-tab
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -73,3 +73,5 @@ qa-completion: 2026-08-10 isolated retest — Bruno grouped Home and Tasks, drag
 the live deck target, cancelled one preview with Escape, committed the next preview, and reloaded.
 The ordered Tasks, Skills, and Home tabs and the active Skills member persisted without a stuck
 merge target or duplicate frame.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The deck became browser tabs on a recessed strip; the traffic lights moved to quiet trailing controls. Reset for a grouping, reorder, tear-out and reload walk in both themes.

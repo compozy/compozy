@@ -1,11 +1,11 @@
 ---
 id: ET-web-dock-default-window-size
 area: ET
-title: Dock apps open at enlarged default window sizes
+title: Dock apps open beside the focused window, or at their default size when floating
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Opening Agents, Loops, Jobs, Triggers, Knowledge, Vault, Marketplace, Dashboard, or Session from a fresh closed state lands a floating window at the enlarged registry defaultRect (≈920×640 list surfaces, ≈960×680 dashboards/marketplace, Session ≈860×680); Tasks and Settings keep their existing large defaults; clampRect still fits the window inside the desktop gutters on smaller viewports; closing and reopening applies the registry defaults again.
-entry_points: web desktop dock; app-registry defaultRect
+expected: With the default `new_window_policy = beside_focus`, opening an app from the dock onto an empty desktop fills the desk as one flat tiled pane, and opening it while a tiled window on the same desktop is focused splits that pane with the new window after it and focuses it; when the focused window floats, or `new_window_policy = floating` is set explicitly, the app opens as a floating window (1px hairline + elevated shadow) at the enlarged registry defaultRect (≈920×640 list surfaces, ≈960×680 dashboards/marketplace, Session ≈860×680) clamped inside the desk; closing and reopening applies the same rule; an explicit config value always wins over the new default.
+entry_points: web dock (left rail); [window_manager] new_window_policy; app-registry defaultRect
 qa_status: untested
 bug_ids:
 fix_status:
@@ -21,3 +21,5 @@ Opening Agents, Loops, Jobs, Triggers, Knowledge, Vault, Marketplace, Dashboard,
 Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The default policy changed from `floating` to `beside_focus` (SD-013 public default change; explicit values keep their behaviour). Walk both: a fresh config (tiles beside focus, no gaps) and `new_window_policy = "floating"` in `config.toml` (floating at defaultRect). The old dock band no longer exists, so floating clamps stop at the desk edges instead.

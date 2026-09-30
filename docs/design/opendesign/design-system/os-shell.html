@@ -86,14 +86,14 @@
     <p class="eyebrow">CompozyOS · Chapter 02 · Shell chrome · shell v2</p>
     <h1>OS Shell — Window Manager</h1>
     <p>The shell is flat chrome around a desk of gutterless tiles: a full-width <b>52px topbar</b> whose
-    first 84px are reserved for the window's traffic lights, a <b>60px rail on the left</b> — the dock —
+    first 84px are reserved for the window's traffic lights, a <b>60px rail on the left</b> (the dock),
     and the <b>desk</b>, where windows tile edge to edge, split by a single hairline. There is no glass and
     no radius waiver: chrome sits on <code>--rail</code>, panes on <code>--canvas</code>, and only floating
     windows, menus and popovers lift. Every value here is production truth from
     <code>web/src/systems/os</code> and <code>packages/ui/src/tokens.css</code>, expressed as the
     <code>ds-shell.css</code> classes. The design reference is
     <a href="../shell-rail/shell-rail-v2.html"><code>shell-rail/shell-rail-v2.html</code></a>, which supersedes
-    the dock-era edition of this chapter. Use <b>Theme</b> (or <code>?theme=light</code>) — every specimen
+    the dock-era edition of this chapter. Use <b>Theme</b> (or <code>?theme=light</code>): every specimen
     reads in both themes.</p>
   </header>
 
@@ -209,26 +209,26 @@
   <section class="sec" id="topbar" data-od-id="sec-topbar">
     <h2><span class="num">02</span>Topbar (the menubar)</h2>
     <p class="lead">One flat 52px strip on <code>--rail</code> with a hairline under it (<code>aria-label="System bar"</code>).
-    <b>Leading</b> is where you are — the traffic-light reserve, the mark, the Global scope globe, the project
-    chip and the app menus. <b>Trailing</b> is the tray — desktop pager, All desktops, the bell and ⌘K.
+    <b>Leading</b> is where you are: the traffic-light reserve, the mark, the Global scope globe, the project
+    chip and the app menus. <b>Trailing</b> is the tray: desktop pager, All desktops, the bell and ⌘K.
     Settings is not in the topbar: it lives in the rail foot and in the mark's menu.</p>
 
     <table class="spec" data-od-id="topbar-spec">
       <tr><th>Slot</th><th>Spec</th></tr>
       <tr><td>Traffic-light reserve</td><td>the first <code>--width-traffic-lights</code> (84px) belong to the frameless window's macOS controls and double as the drag handle; the mark follows. On the web there is no reserve.</td></tr>
       <tr><td>Mark</td><td>34px pill button, 20px Compozy symbol; its menu ("System menu") holds About and the Settings, Appearance and Layouts entries</td></tr>
-      <tr><td>Global scope</td><td>34px globe toggle between the mark and the chip — the only owner of Global vs workspace destination</td></tr>
+      <tr><td>Global scope</td><td>34px globe toggle between the mark and the chip, the only owner of Global vs workspace destination</td></tr>
       <tr><td>Project chip</td><td>34px pill · 22px round avatar · name <b>15/500</b> · <code>/ worktree</code> muted (truncates at 170) · chevron</td></tr>
-      <tr><td>App menus</td><td>a 1px divider, then <b>Session · Go · Window · Help</b> — 32px pills, <code>--fg-2</code> 500 → <code>--fg</code> on <code>--surface-2</code> when open; hidden below 960px</td></tr>
-      <tr><td>Tray</td><td>pager · <b>All desktops</b> (layout-grid, opens the Desktops overview) · update indicator (only when one exists) · bell ("Attention, N waiting") · ⌘K ("Command palette") — 34px pill icon buttons, 18px glyphs</td></tr>
+      <tr><td>App menus</td><td>a 1px divider, then <b>Session · Go · Window · Help</b>: 32px pills, <code>--fg-2</code> 500 → <code>--fg</code> on <code>--surface-2</code> when open; hidden below 960px</td></tr>
+      <tr><td>Tray</td><td>pager · <b>All desktops</b> (layout-grid, opens the Desktops overview) · update indicator (only when one exists) · bell ("Attention, N waiting") · ⌘K ("Command palette"); 34px pill icon buttons, 18px glyphs</td></tr>
       <tr><td>Count badge</td><td>15px <code>--attn</code> pill, 9.5/600 (<code>--text-count</code>), 2px ring cut from the chrome; zero hides it</td></tr>
-      <tr><td>Popovers</td><td><code>--canvas</code> · radius 12 · <code>--shadow-pop</code> · pad 6 · rows 32px · z 900 — no glass</td></tr>
+      <tr><td>Popovers</td><td><code>--canvas</code> · radius 12 · <code>--shadow-pop</code> · pad 6 · rows 32px · z 900 · no glass</td></tr>
     </table>
   </section>
 
   <!-- ============ 03 RAIL ============ -->
   <section class="sec" id="rail" data-od-id="sec-rail">
-    <h2><span class="num">03</span>Rail — the dock</h2>
+    <h2><span class="num">03</span>Rail (the dock)</h2>
     <p class="lead">The dock is a 60px rail on the left, under the topbar. In product copy it stays <b>the dock</b>
     (<code>aria-label="Dock"</code>, "Open an app from the dock"); "rail" only names its shape. Launchers follow the
     dock order with no dividers; the foot holds the profile switcher, the theme toggle and Settings.</p>
@@ -262,11 +262,11 @@
       <tr><th>Part</th><th>Spec</th></tr>
       <tr><td>Column</td><td><code>--width-rail</code> 60 · <code>--rail</code> · 1px <code>--line</code> right border · launchers gap 6 · py 14</td></tr>
       <tr><td>Item</td><td>40px (<code>--size-rail-item</code>), radius 12, 20px glyph, <code>--muted</code>; hover <code>--surface-2</code> + <code>--fg</code>; active <code>--selected</code> + <code>--fg</code> + <code>shadow-card</code></td></tr>
-      <tr><td>Order</td><td>Sessions · Home · Terminal · Agents · Tasks · Loops · Jobs · Triggers · Marketplace · Knowledge · Vault — no group dividers</td></tr>
+      <tr><td>Order</td><td>Sessions · Home · Terminal · Agents · Tasks · Loops · Jobs · Triggers · Marketplace · Knowledge · Vault, no group dividers</td></tr>
       <tr><td>Indicator</td><td>left edge: 4px dot when open (<code>--muted</code>, <code>--fg</code> when focused) · minimized = 5px hollow ring + glyph at 50%</td></tr>
       <tr><td>Badge</td><td>count pill top-right, <code>--attn</code>, ring cut from <code>--rail</code>; accessible name "Sessions — 1 needs you" / "— N need you"</td></tr>
-      <tr><td>Foot</td><td>Profile ("Profile: {name}") · theme toggle (tip "Light mode" / "Dark mode") · Settings — no divider</td></tr>
-      <tr><td>Magnification</td><td>removed — rail items never scale</td></tr>
+      <tr><td>Foot</td><td>Profile ("Profile: {name}") · theme toggle (tip "Light mode" / "Dark mode") · Settings, no divider</td></tr>
+      <tr><td>Magnification</td><td>removed; rail items never scale</td></tr>
     </table>
   </section>
 
@@ -275,7 +275,7 @@
     <h2><span class="num">04</span>Window frame</h2>
     <p class="lead"><b>Identity renders once</b>, in the 48px head: a root identity (26px mint well + title),
     a drill-in breadcrumb, or a document self-title with a state glyph. Quiet window controls close the head
-    after a hairline — Minimize, Zoom, Close as 28px icon buttons — or move up into the deck when the window
+    after a hairline (Minimize, Zoom, Close as 28px icon buttons), or move up into the deck when the window
     has tabs. An optional 44px toolbar carries views, filters and display mode.</p>
 
     <h3>Root window with toolbar</h3>
@@ -340,10 +340,10 @@
 
     <table class="spec" data-od-id="window-spec">
       <tr><th>Aspect</th><th>Spec</th></tr>
-      <tr><td>Tiled</td><td>flat <code>--canvas</code>: no radius, no border, no shadow — the seam is the divider</td></tr>
+      <tr><td>Tiled</td><td>flat <code>--canvas</code>: no radius, no border, no shadow; the seam is the divider</td></tr>
       <tr><td>Floating</td><td>1px <code>--line</code> hairline + <code>--shadow-elevated</code>, no radius</td></tr>
       <tr><td>Head</td><td><code>--height-window-head</code> 48 · pl 16 · pr 8 · <code>--canvas</code> · <code>border-b --line</code> · title 15/500</td></tr>
-      <tr><td>Controls</td><td>Minimize · Zoom (↔ Restore) · Close — 28px, 15px glyph, <code>--subtle</code>, hover <code>--surface-2</code>; labels "Minimize window" / "Zoom window" / "Restore window" / "Close window"; the zoom control's hover menu offers <b>Move &amp; Resize</b> and <b>Fill &amp; Arrange</b></td></tr>
+      <tr><td>Controls</td><td>Minimize · Zoom (↔ Restore) · Close: 28px, 15px glyph, <code>--subtle</code>, hover <code>--surface-2</code>; labels "Minimize window" / "Zoom window" / "Restore window" / "Close window"; the zoom control's hover menu offers <b>Move &amp; Resize</b> and <b>Fill &amp; Arrange</b></td></tr>
       <tr><td>Toolbar</td><td><code>--height-window-toolbar</code> 44 · views (30px pills) · filters · spacer · display</td></tr>
       <tr><td>Minimum pane</td><td>220 × 220</td></tr>
     </table>
@@ -351,7 +351,7 @@
 
   <!-- ============ 05 DECK ============ -->
   <section class="sec" id="deck" data-od-id="sec-deck">
-    <h2><span class="num">05</span>The deck — browser tabs</h2>
+    <h2><span class="num">05</span>The deck: browser tabs</h2>
     <p class="lead">At two or more tabs the window grows a 40px deck: a recessed <code>--sunken</code> strip with the window
     controls on the right. The active tab is a surface plate with rounded top corners and concave feet, fused with the
     head below it; inactive tabs are split by hairlines that hide next to hover and next to the active tab.</p>
@@ -375,7 +375,7 @@
           <div class="osx-fill" data-pane-body="c" hidden>terminal</div>
         </div>
       </section>
-      <p class="demo-note">Click a tab — the deck is live. Session tabs lead with a state glyph (mint spinner = in progress,
+      <p class="demo-note">Click a tab: the deck is live. Session tabs lead with a state glyph (mint spinner = in progress,
       dashed ring = queued, mint check = done, orange dot = needs you).</p>
     </div>
 
@@ -423,7 +423,7 @@
       <tr><td>Window › Move window to</td><td>sends the focused window to another desktop by name</td></tr>
       <tr><td>Zoom</td><td>the focused unit fills its desktop; others stay in the tree. Top- and bottom-center snaps zoom by default</td></tr>
       <tr><td>Minimize</td><td>the pane leaves the tree; its dock item shows a hollow ring and a dimmed glyph; clicking restores it</td></tr>
-      <tr><td>Snap preview</td><td>accent hairline + <code>--accent-tint</code> over the target — ephemeral, never persisted</td></tr>
+      <tr><td>Snap preview</td><td>accent hairline + <code>--accent-tint</code> over the target; ephemeral, never persisted</td></tr>
     </table>
   </section>
 
@@ -431,7 +431,7 @@
   <section class="sec" id="desktops" data-od-id="sec-desktops">
     <h2><span class="num">07</span>Desktops, overview &amp; wallpapers</h2>
     <p class="lead">Desktops are switched from the pager dots in the tray; the <b>All desktops</b> button opens the
-    Desktops overview, which owns create, rename, reorder, move and delete. Every desktop stays mounted — switching hides
+    Desktops overview, which owns create, rename, reorder, move and delete. Every desktop stays mounted. Switching hides
     and inerts it, so scroll, focus and streams survive.</p>
 
     <h3>Pager</h3>
@@ -475,7 +475,7 @@
     <h3>Wallpapers</h3>
     <div class="demo demo--col" data-od-id="demo-wallpapers">
       <div class="osx-wp">
-        <figure><div class="desktop" data-wallpaper="flat"></div><figcaption><b>Flat</b> · default — the <code>--desk</code> role</figcaption></figure>
+        <figure><div class="desktop" data-wallpaper="flat"></div><figcaption><b>Flat</b> · default, the <code>--desk</code> role</figcaption></figure>
         <figure><div class="desktop" data-wallpaper="ember"></div><figcaption>Ember · accent + teal</figcaption></figure>
         <figure><div class="desktop" data-wallpaper="mesh"></div><figcaption>Mesh · success + teal</figcaption></figure>
         <figure><div class="desktop" data-wallpaper="carbon"></div><figcaption>Carbon · neutral</figcaption></figure>
@@ -519,13 +519,13 @@
     The default <code>new_window_policy</code> is <code>beside_focus</code>: new windows tile next to the focused one.</p>
     <div class="demo demo--col demo--soft" data-od-id="demo-z">
       <div class="osx-zbar"><b>1</b><span><i style="width:22%"></i>tiled windows</span></div>
-      <div class="osx-zbar"><b>2+n</b><span><i style="width:32%"></i>floating windows — base 2 plus the window's own layer</span></div>
+      <div class="osx-zbar"><b>2+n</b><span><i style="width:32%"></i>floating windows: base 2 plus the window's own layer</span></div>
       <div class="osx-zbar"><b>3</b><span><i style="width:38%"></i>seams</span></div>
       <div class="osx-zbar"><b>40/60/61</b><span><i style="width:52%"></i>window-body tiers: menu · scrim · sheet</span></div>
       <div class="osx-zbar"><b>500</b><span><i style="width:62%"></i>topbar</span></div>
       <div class="osx-zbar"><b>600</b><span><i style="width:70%"></i>rail</span></div>
       <div class="osx-zbar"><b>900</b><span><i style="width:80%"></i>shell popovers</span></div>
-      <div class="osx-zbar"><b>1000</b><span><i style="width:90%"></i>overlays — palette, Desktops overview, modals</span></div>
+      <div class="osx-zbar"><b>1000</b><span><i style="width:90%"></i>overlays: palette, Desktops overview, modals</span></div>
       <div class="osx-zbar"><b>1200</b><span><i style="width:100%"></i>toasts</span></div>
       <p class="demo-note">Fixed tiers only. A bare <code>999</code> or <code>9999</code> anywhere in shell code is a defect.</p>
     </div>
@@ -533,15 +533,15 @@
 
   <!-- ============ 10 COMPACT ============ -->
   <section class="sec" id="compact" data-od-id="sec-compact">
-    <h2><span class="num">10</span>Compact mode — below 960px</h2>
+    <h2><span class="num">10</span>Compact mode below 960px</h2>
     <p class="lead">Reflow, don't block. Compact keeps full route parity while dropping what needs a pointer and a large
-    canvas — and it never writes over the desktop rects it can't display.</p>
+    canvas, and it never writes over the desktop rects it can't display.</p>
     <table class="spec" data-od-id="compact-spec">
       <tr><th>Zone</th><th>Behaviour</th></tr>
-      <tr><td>Rail</td><td>hidden — a 56px bottom tab bar takes over with 44px items and horizontal scroll; its trailing group, behind a hairline, holds profile · theme · Settings</td></tr>
-      <tr><td>Topbar</td><td>app menus drop; mark, scope, project chip and tray stay — every menu action remains in ⌘K</td></tr>
+      <tr><td>Rail</td><td>hidden; a 56px bottom tab bar takes over with 44px items and horizontal scroll; its trailing group, behind a hairline, holds profile · theme · Settings</td></tr>
+      <tr><td>Topbar</td><td>app menus drop; mark, scope, project chip and tray stay; every menu action remains in ⌘K</td></tr>
       <tr><td>Windows</td><td>full-bleed: no border, radius or shadow, no drag or resize · z-order decides which is visible · stored rects survive</td></tr>
-      <tr><td>Deck</td><td>unavailable — the tab set persists and returns at desktop width</td></tr>
+      <tr><td>Deck</td><td>unavailable; the tab set persists and returns at desktop width</td></tr>
       <tr><td>Controls</td><td>44px targets · zoom hidden</td></tr>
       <tr><td>Toolbar</td><td>wraps instead of scrolling; padding drops to 6/12</td></tr>
     </table>
@@ -551,13 +551,13 @@
   <section class="sec" id="rules" data-od-id="sec-shell-rules">
     <h2><span class="num">11</span>Shell rules</h2>
     <div class="rule-list" data-od-id="shell-rules">
-      <div class="rule"><i>S1</i><span><b>Identity renders once.</b> The 48px head owns it — root identity, breadcrumb, or document self-title, never two stacked and never a second route header inside the body.</span></div>
+      <div class="rule"><i>S1</i><span><b>Identity renders once.</b> The 48px head owns it: root identity, breadcrumb, or document self-title, never two stacked and never a second route header inside the body.</span></div>
       <div class="rule"><i>S2</i><span><b>Chrome is bounded.</b> Deck 40 + head 48 + toolbar 44 = <b>132px</b> fully loaded. Anything beyond belongs in the body.</span></div>
-      <div class="rule"><i>S3</i><span><b>Views live on the toolbar</b> as its leading pills — views · filters · spacer · display. The in-head <code>.w2-tabs</code> variant is deprecated.</span></div>
+      <div class="rule"><i>S3</i><span><b>Views live on the toolbar</b> as its leading pills: views · filters · spacer · display. The in-head <code>.w2-tabs</code> variant is deprecated.</span></div>
       <div class="rule"><i>S4</i><span><b>One owner per axis.</b> Depth is the breadcrumb, project is the topbar chip, apps are the dock, desktops are the pager. No zone borrows another's job.</span></div>
       <div class="rule"><i>S5</i><span><b>Documents self-title</b> with a state glyph and never breadcrumb.</span></div>
       <div class="rule"><i>S6</i><span><b>Flat chrome, no glass.</b> The topbar and rail sit on <code>--rail</code>; tiled panes are flat on <code>--canvas</code>. Only floating windows (<code>shadow-elevated</code>), menus and popovers (<code>shadow-pop</code>) lift.</span></div>
-      <div class="rule"><i>S7</i><span><b>Minimize folds into the dock item</b> (hollow ring + dimmed glyph). No minimize tray, no desktop widgets — approvals live in the bell.</span></div>
+      <div class="rule"><i>S7</i><span><b>Minimize folds into the dock item</b> (hollow ring + dimmed glyph). No minimize tray, no desktop widgets; approvals live in the bell.</span></div>
       <div class="rule"><i>S8</i><span><b>Settings opens from the rail foot</b> (and the mark's menu). It never takes a launcher slot and never sits in the tray.</span></div>
       <div class="rule"><i>S9</i><span><b>Orange means needs you.</b> Badges, the pager's attention dot, the seam under your hand, snap previews. The primary action is inverted, amber is only a real warning, and tab selection is neutral.</span></div>
       <div class="rule"><i>S10</i><span><b>Gutterless tiling.</b> Gaps default to 0; the 1px seam is the only divider and its 9px hit area is the only resize handle between panes.</span></div>

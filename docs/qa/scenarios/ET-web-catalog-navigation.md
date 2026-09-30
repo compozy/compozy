@@ -4,8 +4,8 @@ area: ET
 title: Navigate the desktop app registry
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The dock, Go menu, command palette, tooltips, and window titles use the canonical desktop app registry and open or focus one window per app. Agents, Tasks, Loops, Jobs, Triggers, Marketplace, Knowledge, Vault, Terminal, Sessions, and Home remain reachable. Settings opens from the menubar cog. Child routes preserve the owning app window and browser history. Removed product apps have no dock item, palette hit, app descriptor, or live route.
-entry_points: web desktop dock; command palette; settings cog; Catalog and System destinations
+expected: The dock, Go menu, command palette, tooltips, and window titles use the canonical desktop app registry and open or focus one window per app. Agents, Tasks, Loops, Jobs, Triggers, Marketplace, Knowledge, Vault, Terminal, Sessions, and Home remain reachable. Settings opens from the dock foot (and the Compozy mark menu). Child routes preserve the owning app window and browser history. Removed product apps have no dock item, palette hit, app descriptor, or live route.
+entry_points: web desktop dock; command palette; dock-foot Settings; Compozy mark menu; Catalog and System destinations
 qa_status: untested
 bug_ids: BUG-20260802-retired-marketplace-kind-alias
 fix_status: fixed
@@ -21,3 +21,5 @@ The dock, Go menu, command palette, tooltips, and window titles use the canonica
 Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+qa-impact: 2026-09-30 shell rail v2. Settings left the menubar cog for the dock foot. Already untested; expectation updated.

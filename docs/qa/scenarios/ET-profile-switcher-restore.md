@@ -1,12 +1,12 @@
 ---
 id: ET-profile-switcher-restore
 area: ET
-title: Create, switch, and restore profiles from the menubar switcher
+title: Create, switch, and restore profiles from the dock-foot switcher
 persona: Ada
 journey: J-operate-profiles
 expected: The switcher is a neutral icon button while only default exists, becomes an identity element once a second profile is created, switches through the canonical selection route, answers the boundary question in one sentence, offers the All-profiles state, and restores each project's remembered profile on return without ever force-switching an already-open client.
-entry_points: menubar profile switcher; Create profile… dialog; command palette Profiles view; profile.use; GET|PUT /api/profiles/selection; GET /api/logs/stream?component=profile
-qa_status: pass
+entry_points: dock-foot profile switcher; Create profile… dialog; command palette Profiles view; profile.use; GET|PUT /api/profiles/selection; GET /api/logs/stream?component=profile
+qa_status: untested
 bug_ids:
 fix_status: not-needed
 retest_status: pass
@@ -43,3 +43,5 @@ re-entering each project.
 QA 2026-08-26: Passed in an isolated lab. Global and workspace selections restored independently,
 the open browser resisted an external CLI switch, and All profiles returned to a real profile after
 re-entry.
+
+qa-impact: 2026-09-30 shell rail v2. The profile switcher moved from the menubar tray to the dock foot (above the theme toggle and Settings). Reset to re-walk switching, creation and restoration from its new home.

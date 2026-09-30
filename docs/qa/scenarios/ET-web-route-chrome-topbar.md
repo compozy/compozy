@@ -4,9 +4,9 @@ area: ET
 title: Unified window head absorbs PageHead
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Every open desktop window owns one 44px unified head (traffic lights · quiet glyph + title or window-local drill-in trail · peer RouteNav tabs immediately after identity when the route has siblings · status + ≤2 actions) with an optional 38px context strip for listing tools only (search/filter/sort/scope — never peer route tabs); route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); document/session windows self-title with a state mark; focusing a window makes its head and URL authoritative without creating a second shell-level title.
+expected: Every open desktop window owns one 48px unified head — identity (a 26px identity well + title for root windows, a window-local drill-in trail, or a document self-title with a state glyph), then status + ≤2 actions, then a hairline and the quiet Minimize · Zoom · Close icon controls (in the deck row instead when the window has ≥2 tabs) — with an optional 44px toolbar for peer views and listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); blurred windows dim identity and trail without a border change; focusing a window makes its head and URL authoritative without creating a second shell-level title.
 entry_points: web desktop windows; any windowed catalog or detail route
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -31,3 +31,5 @@ actions now live in each window's `TopbarSlotProvider`.
 QA impact 2026-07-20: Peer RouteNav (Tasks modes · Marketplace kinds) moved from the 38px
 tools strip into `TopbarSlotValue.nav` (after identity in the 44px head). Strip is tools-only.
 Reset to `untested` for the next QA cycle.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). Head 44 → 48px with the identity well, traffic-light squares → quiet trailing icon controls, the 38px strip → the 44px window toolbar (views lead it; peer RouteNav no longer sits in the head). Verify against `docs/design/opendesign/design-system/os-shell.html` §04 and the shell-rail prototype.

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: Runtime web and Storybook load Geist Variable on the wght axis only; the computed body `font-family` resolves to `Geist Variable`; no surface sets `font-optical-sizing` and no sans `font-feature-settings` character-variant block survives; every font-medium surface resolves to weight 510; the body baseline is 15px (0.9375rem) at line-height 1.55 and `--text-small-body` is 13.5px; the eyebrow computes Geist **sentence case** at 12px (`--text-eyebrow`) / 510 / `--tracking-eyebrow`, with uppercase reachable only through `<Eyebrow variant="caps">`, which renders the fixed `.eyebrow-caps` kicker at 11px (`--text-eyebrow-caps`) / 600 / +0.06em, and no other uppercase eyebrow source in the tree (L-022); sans pill and pill-group labels compute 12px (`--text-eyebrow`) with pill heights 18/20/24; the surface ramp and text ladder stay near-neutral warm (OKLCH chroma ≤0.006 — no sepia/brown cast) with muted-on-canvas ≥4.5:1; UI titles and rows keep the DESIGN.md tracking ladder (detail-h1 / tight / body); tabular figures still align in Metric/KpiCard numeric columns.
 entry_points: web SPA (`web/src/styles.css`); Storybook (`packages/ui/.storybook/preview.css`); site (`packages/site/app/layout.tsx` Geist loader); tokens `--font-weight-medium`, `--text-eyebrow`
-qa_status: pass
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pass
@@ -103,3 +103,5 @@ L-022 is preserved, not weakened: there is still exactly one canonical eyebrow s
 style that source emits changed, and uppercase became an explicit opt-in instead of the default.
 Re-probe the site too (`packages/site/app/global.css`): its `--text-eyebrow` moved 11→12px and its
 Fumadocs dark ramp now derives from the runtime tokens instead of a frozen hex block.
+
+retired — 2026-09-30 the shell rail replaced Geist 400/510 and the 15px body with Inter 425/500/600 at 14.5px and Geist Mono; the current typography contract is `ET-web-inter-type-ramp`. The site keeps Geist and is covered there.
