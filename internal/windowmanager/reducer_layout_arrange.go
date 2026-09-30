@@ -80,7 +80,9 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 }
 
 func (r *reducer) buildArrangement(frames []arrangeFrame, arrangement Arrangement) (LayoutNode, error) {
-	if len(frames) == 1 && arrangement != ArrangementStack {
+	// One participant is its own frame under every arrangement: a lone window
+	// stays a leaf and a deck keeps its stack identity.
+	if len(frames) == 1 {
 		return r.frameNode(frames[0])
 	}
 	switch arrangement {

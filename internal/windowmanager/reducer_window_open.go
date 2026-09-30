@@ -2,6 +2,7 @@ package windowmanager
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"strings"
 )
@@ -104,10 +105,11 @@ func (r *reducer) placeTiledOpen(snapshot *Snapshot, window Window, besideID *Wi
 	return true, nil
 }
 
-// cascadeOpenRect steps a new floating window down-right while its rect would
-// sit exactly on a visible floating window of the same desktop, so a second
-// open never hides the first one. The walk stops once the rect is free or can
-// no longer move inside the desktop.
+// cascadeOpenRect places a new floating window on the first cascade candidate
+// that no visible floating window of the same desktop already occupies, so an
+// open never lands exactly over another window. Candidates are distinct, so at
+// most len(Floating) of them can be taken: the walk stops after one more, and
+// keeps the requested rect only when the desktop has no candidate left.
 func cascadeOpenRect(desktop Desktop, windows map[WindowID]Window, rect NormalizedRect) NormalizedRect {
 	occupied := func(candidate NormalizedRect) bool {
 		for _, id := range desktop.Floating {
@@ -118,17 +120,51 @@ func cascadeOpenRect(desktop Desktop, windows map[WindowID]Window, rect Normaliz
 		}
 		return false
 	}
-	for range len(desktop.Floating) {
-		if !occupied(rect) {
-			return rect
+	remaining := len(desktop.Floating) + 1
+	for candidate := range cascadeCandidates(rect) {
+		if !occupied(candidate) {
+			return candidate
 		}
-		next := cascadeRect(rect)
-		if sameRect(next, rect) {
-			return rect
+		if remaining--; remaining == 0 {
+			break
 		}
-		rect = next
 	}
 	return rect
+}
+
+// cascadeCandidates yields the rects a floating open may take: the requested
+// rect, then cascadeStep moves down-right along its diagonal. A diagonal ends
+// before either edge would clamp it, and the walk restarts one step right of
+// the requested origin — then, once columns run out, one step below it. Each
+// diagonal starts at a different offset from the origin, so no rect repeats
+// and the sequence is finite.
+func cascadeCandidates(rect NormalizedRect) iter.Seq[NormalizedRect] {
+	return func(yield func(NormalizedRect) bool) {
+		const epsilon = 1e-9
+		fits := func(x, y float64) bool {
+			return x+rect.Width <= 1+epsilon && y+rect.Height <= 1+epsilon
+		}
+		diagonal := func(x, y float64) bool {
+			for step := 0.0; fits(x+step*cascadeStep, y+step*cascadeStep); step++ {
+				candidate := rect
+				candidate.X, candidate.Y = x+step*cascadeStep, y+step*cascadeStep
+				if !yield(candidate) {
+					return false
+				}
+			}
+			return true
+		}
+		for column := 0.0; fits(rect.X+column*cascadeStep, rect.Y); column++ {
+			if !diagonal(rect.X+column*cascadeStep, rect.Y) {
+				return
+			}
+		}
+		for row := 1.0; fits(rect.X, rect.Y+row*cascadeStep); row++ {
+			if !diagonal(rect.X, rect.Y+row*cascadeStep) {
+				return
+			}
+		}
+	}
 }
 
 func sameRect(left, right NormalizedRect) bool {

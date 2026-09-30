@@ -7,6 +7,7 @@ package windowmanager
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"testing"
@@ -27,6 +28,38 @@ func TestArrangementModes(t *testing.T) {
 		{
 			name:        "Should arrange one participant as a leaf",
 			arrangement: ArrangementHorizontal,
+			windowIDs:   []WindowID{"w1"},
+			rootKind:    NodeKindLeaf,
+			nodeCount:   1,
+			placement:   WindowPlacementTiled,
+		},
+		{
+			name:        "Should arrange one vertical participant as a leaf",
+			arrangement: ArrangementVertical,
+			windowIDs:   []WindowID{"w1"},
+			rootKind:    NodeKindLeaf,
+			nodeCount:   1,
+			placement:   WindowPlacementTiled,
+		},
+		{
+			name:        "Should arrange one grid participant as a leaf",
+			arrangement: ArrangementGrid,
+			windowIDs:   []WindowID{"w1"},
+			rootKind:    NodeKindLeaf,
+			nodeCount:   1,
+			placement:   WindowPlacementTiled,
+		},
+		{
+			name:        "Should arrange one main and stack participant as a leaf",
+			arrangement: ArrangementMainStack,
+			windowIDs:   []WindowID{"w1"},
+			rootKind:    NodeKindLeaf,
+			nodeCount:   1,
+			placement:   WindowPlacementTiled,
+		},
+		{
+			name:        "Should arrange one stack participant as a leaf",
+			arrangement: ArrangementStack,
 			windowIDs:   []WindowID{"w1"},
 			rootKind:    NodeKindLeaf,
 			nodeCount:   1,
@@ -263,6 +296,40 @@ func TestArrangeKeepsTabFramesWhole(t *testing.T) {
 			}
 			if peer := root.Children[1]; peer.Kind != NodeKindLeaf || valueOrZero(peer.WindowID) != "w3" {
 				t.Fatalf("peer = %+v, want leaf w3", peer)
+			}
+			requireValidSnapshot(t, result.Snapshot)
+		})
+	}
+}
+
+func TestArrangeLoneDeckKeepsItsStack(t *testing.T) {
+	arrangements := []Arrangement{
+		ArrangementHorizontal, ArrangementVertical, ArrangementGrid, ArrangementMainStack, ArrangementStack,
+	}
+	for _, arrangement := range arrangements {
+		t.Run("Should keep a lone deck's stack identity under "+string(arrangement), func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+			stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+			deck, found := findStackByWindow(&stacked.Snapshot, "w1")
+			if !found {
+				t.Fatalf("w1 is not in a deck: %+v", stacked.Snapshot.Desktops[0])
+			}
+			deckID, deckMembers := deck.id(), slices.Clone(deck.members())
+			deckActive := valueOrZero(deck.activeID())
+
+			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+				DesktopID: "desktop-default", WindowIDs: []WindowID{deckActive},
+				Arrangement: arrangement, Frame: fullRect(), GroupID: "group-arranged", KeepFrames: true,
+			})
+			desktop := result.Snapshot.Desktops[0]
+			if len(desktop.Groups) != 1 || len(desktop.FloatingStacks) != 0 {
+				t.Fatalf("desktop = %+v, want the deck tiled as the one arranged group", desktop)
+			}
+			root := desktop.Groups[0].Root
+			if root.Kind != NodeKindStack || root.ID != deckID || !slices.Equal(root.WindowIDs, deckMembers) ||
+				valueOrZero(root.ActiveID) != deckActive {
+				t.Fatalf("arranged root = %+v, want stack %q holding %v on %q", root, deckID, deckMembers, deckActive)
 			}
 			requireValidSnapshot(t, result.Snapshot)
 		})
@@ -1224,6 +1291,35 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 		third := opened.Snapshot.Windows["f3"].FloatingRect
 		if !sameRect(second, cascadeRect(base)) || !sameRect(third, cascadeRect(cascadeRect(base))) {
 			t.Fatalf("floating opens = %+v, %+v, %+v, want each stepped off the last", base, second, third)
+		}
+	})
+
+	t.Run("Should wrap the cascade at the desktop edge instead of landing on a window", func(t *testing.T) {
+		t.Parallel()
+		config := DefaultConfig()
+		config.NewWindowPolicy = NewWindowFloating
+		environment := newTestEnvironment(t, config, "workspace-a")
+		// The test rect (0.2, 0.2, 0.5x0.5) reaches the bottom-right edge after
+		// 15 cascade steps, so the 17th open must start the next diagonal.
+		var opened Result
+		for index := range 20 {
+			windowID := WindowID(fmt.Sprintf("f%02d", index+1))
+			opened = openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		rects := make(map[WindowID]NormalizedRect, len(opened.Snapshot.Windows))
+		for windowID, window := range opened.Snapshot.Windows {
+			if window.FloatingRect != clampRect(window.FloatingRect) {
+				t.Fatalf("window %q rect = %+v, want it inside the desktop", windowID, window.FloatingRect)
+			}
+			for otherID, other := range rects {
+				if sameRect(window.FloatingRect, other) {
+					t.Fatalf("windows %q and %q share rect %+v", windowID, otherID, other)
+				}
+			}
+			rects[windowID] = window.FloatingRect
+		}
+		if wrapped := rects["f17"]; !sameRect(wrapped, NormalizedRect{X: 0.22, Y: 0.2, Width: 0.5, Height: 0.5}) {
+			t.Fatalf("17th open = %+v, want the diagonal one step right of the origin", wrapped)
 		}
 	})
 }
