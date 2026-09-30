@@ -52,6 +52,9 @@ describe("Profile lifecycle dialogs", () => {
     );
 
     expect(screen.getByText(/2 leased runs are still active/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog").querySelector('[data-slot="confirm-dialog-icon"]')
+    ).toHaveAttribute("data-icon-tone", "warning");
     const confirm = screen.getByTestId("profile-archive-confirm");
     expect(confirm).toBeDisabled();
     await user.click(confirm);

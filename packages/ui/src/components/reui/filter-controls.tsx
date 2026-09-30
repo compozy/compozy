@@ -17,6 +17,7 @@ import {
   InputGroupText,
 } from "../input-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip";
+import { FILTER_CHIP_ICON_CLASS, FILTER_CHIP_SEGMENT_CLASS } from "./filter-layout";
 import type { FilterFieldConfig, FilterOperator } from "./filter-types";
 import { useFilterContext, type FilterI18nConfig } from "./hooks/use-filter-context";
 import { useFilterInput } from "./hooks/use-filter-input";
@@ -108,9 +109,9 @@ function FilterRemoveButton({ className, icon = <XIcon />, ...props }: FilterRem
 
   return (
     <Button
-      variant="outline"
+      variant="neutral"
       size={context.size === "sm" ? "icon-sm" : context.size === "lg" ? "icon-lg" : "icon"}
-      className={className}
+      className={cn(FILTER_CHIP_ICON_CLASS[context.size], className)}
       {...props}
     >
       {icon}
@@ -190,9 +191,9 @@ function FilterOperatorDropdown<T = unknown>({
       <DropdownMenuTrigger
         render={
           <Button
-            variant="outline"
+            variant="neutral"
             size={context.size}
-            className="text-muted-foreground hover:text-foreground"
+            className={cn("text-muted hover:text-fg", FILTER_CHIP_SEGMENT_CLASS[context.size])}
           >
             {operatorLabel}
           </Button>
@@ -203,12 +204,12 @@ function FilterOperatorDropdown<T = unknown>({
           <DropdownMenuItem
             key={candidate.value}
             onClick={() => onChange(candidate.value)}
-            className="flex items-center justify-between data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+            className="flex items-center justify-between data-highlighted:bg-surface-2 data-highlighted:text-fg"
           >
             <span>{candidate.label}</span>
             <CheckIcon
               className={cn(
-                "ms-auto text-primary",
+                "ms-auto text-fg",
                 candidate.value === operator ? "opacity-100" : "opacity-0"
               )}
             />

@@ -5,7 +5,14 @@ import type * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-export type StateGlyphState = "running" | "queued" | "done" | "attention" | "idle";
+export type StateGlyphState =
+  | "running"
+  | "queued"
+  | "done"
+  | "attention"
+  | "failed"
+  | "stopped"
+  | "idle";
 /** `md` = 14 px (list status columns); `sm` = 12 px (dense transcript tool rows). */
 export type StateGlyphSize = "sm" | "md";
 
@@ -17,6 +24,11 @@ export interface StateGlyphProps extends Omit<React.ComponentProps<"svg">, "chil
    * default, decorative case); pass it when the glyph stands alone.
    */
   label?: string;
+  /**
+   * Hold the running arc still regardless of motion preference — for views that
+   * are not applying live frames (a paused transcript window, US-018.EC-2).
+   */
+  still?: boolean;
 }
 
 const SIZE_CLASS: Record<StateGlyphSize, string> = {
@@ -29,6 +41,8 @@ const STATE_CLASS: Record<StateGlyphState, string> = {
   queued: "text-line-strong",
   done: "text-success",
   attention: "text-accent",
+  failed: "text-danger",
+  stopped: "text-subtle",
   idle: "text-subtle",
 };
 
@@ -66,6 +80,17 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
           />
         </>
       );
+    case "failed":
+      return (
+        <>
+          <circle cx="8" cy="8" r={RING_RADIUS} />
+          <path d="M6 6l4 4M10 6l-4 4" strokeLinecap="round" />
+        </>
+      );
+    case "stopped":
+      return (
+        <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor" stroke="none" />
+      );
     case "attention":
     case "idle":
       return <circle cx="8" cy="8" r="4" fill="currentColor" stroke="none" />;
@@ -75,14 +100,30 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
 /**
  * Work-state mark from the shell-rail status vocabulary: a mint spinner ring
  * (running), a dashed ring (queued), a filled mint check (done), a Compozy
- * orange dot (attention / needs you) and a subtle dot (idle). Warning amber is
- * never a state glyph — it stays reserved for real warnings. Under reduced
- * motion the running ring holds still as a quarter arc, which still reads as
- * in progress.
+ * orange dot (attention / needs you), a danger ring with × (failed), a subtle
+ * filled square (stopped) and a subtle dot (idle). Warning amber is never a
+ * state glyph — it stays reserved for real warnings. Under reduced motion the
+ * running ring holds still as a quarter arc, which still reads as in progress.
+ *
+ * Canonical domain mapping (every migration uses this table):
+ * - running/active/in-progress → `running`
+ * - queued/pending/todo/retrying → `queued`
+ * - done/completed/resolved/succeeded → `done`
+ * - needs-you/needs-input/blocked/waiting-approval → `attention`
+ * - failed/hung/error/rejected/quarantined → `failed`
+ * - stopped/canceled/cancelled/expired/skipped/paused → `stopped`
+ * - idle/unknown/quiet → `idle`
  */
-function StateGlyph({ state, size = "md", label, className, ...props }: StateGlyphProps) {
+function StateGlyph({
+  state,
+  size = "md",
+  label,
+  still = false,
+  className,
+  ...props
+}: StateGlyphProps) {
   const reduced = useReducedMotionConfig();
-  const spinning = state === "running" && !reduced;
+  const spinning = state === "running" && !reduced && !still;
   return (
     <svg
       data-slot="state-glyph"

@@ -24,6 +24,11 @@ interface KindIconProps<K extends string = string>
   kind?: K | (string & {});
   /** Explicit glyph that skips the registry (e.g. a verb icon in a dialog well). */
   icon?: KindIconExplicitGlyph;
+  /**
+   * Pre-rendered glyph node (an app mark published as a ReactNode). Wins over
+   * `icon` and `kind`; its `svg` is sized by `size`.
+   */
+  glyph?: React.ReactNode;
   registry?: KindIconRegistry<K>;
   /** Glyph size; inside the `well` tone it sizes the glyph, not the plate. */
   size?: KindIconSize;
@@ -44,6 +49,13 @@ const KIND_ICON_SIZE: Record<KindIconSize, string> = {
 };
 
 const KIND_ICON_GLYPH_CLASS = "size-full shrink-0";
+
+// A node glyph cannot take a className, so its svg is sized from the plate.
+const KIND_ICON_NODE_SIZE: Record<KindIconSize, string> = {
+  xs: "[&_svg]:size-3",
+  sm: "[&_svg]:size-4",
+  md: "[&_svg]:size-5",
+};
 
 function normalizeKind(kind: string): string {
   return kind.trim().toLowerCase();
@@ -80,6 +92,7 @@ function KindIcon<K extends string = string>({
   kind,
   registry = providerKindIconRegistry as KindIconRegistry<K>,
   icon: ExplicitIcon,
+  glyph,
   size = "sm",
   tone = "muted",
   "data-slot": dataSlot = "kind-icon",
@@ -98,11 +111,15 @@ function KindIcon<K extends string = string>({
         "inline-flex shrink-0 items-center justify-center",
         !well && KIND_ICON_SIZE[size],
         KIND_ICON_TONE[tone],
+        glyph != null && (well ? KIND_ICON_NODE_SIZE[size] : "[&_svg]:size-full"),
+        "[&_svg]:shrink-0",
         className
       )}
       {...props}
     >
-      {ExplicitIcon ? (
+      {glyph != null ? (
+        glyph
+      ) : ExplicitIcon ? (
         <ExplicitIcon aria-hidden className={glyphClass} />
       ) : (
         <KindIconGlyph

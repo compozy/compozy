@@ -24,7 +24,7 @@ const VIEW_ITEMS = [
     value: "rows" as const,
     label: (
       <span className="inline-flex items-center gap-1.5">
-        <List aria-hidden="true" className="size-3" />
+        <List aria-hidden="true" />
         Rows
       </span>
     ),
@@ -34,7 +34,7 @@ const VIEW_ITEMS = [
     value: "cards" as const,
     label: (
       <span className="inline-flex items-center gap-1.5">
-        <LayoutGrid aria-hidden="true" className="size-3" />
+        <LayoutGrid aria-hidden="true" />
         Cards
       </span>
     ),

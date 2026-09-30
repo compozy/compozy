@@ -87,4 +87,20 @@ describe("KindIcon", () => {
     expect(icon).not.toHaveAttribute("data-kind");
     expect(icon.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("Should render a glyph node inside the well plate, sized by size", () => {
+    render(
+      <KindIcon
+        tone="well"
+        size="md"
+        glyph={<Code data-testid="mark" />}
+        kind="claude"
+        data-testid="icon"
+      />
+    );
+    const well = screen.getByTestId("icon");
+    expect(well).toHaveClass("size-6.5", "[&_svg]:size-5");
+    expect(screen.getByTestId("mark")).toBeInTheDocument();
+    expect(well.querySelectorAll("svg")).toHaveLength(1);
+  });
 });

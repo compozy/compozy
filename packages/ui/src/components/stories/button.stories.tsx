@@ -10,7 +10,7 @@ const meta: Meta<typeof Button> = {
     docs: {
       description: {
         component:
-          "Pill action primitive. Variants — default (the single inverted primary), primary (semantic alias for default), neutral/secondary (`surface-2` pill, no border), outline (hairline ghost), ghost, destructive (tinted), destructive-solid (irreversible Kill), success, link. Every size is a pill. `kbd` adds a decorative trailing key hint. Sizes — default/xs/sm/lg/cta/cta-lg + icon/icon-xs/icon-sm/icon-lg.",
+          "Pill action primitive. Variants — default (the single inverted primary), primary (semantic alias for default), neutral/secondary (`surface-2` pill, no border), outline (hairline ghost), ghost, quiet (muted until hovered — toolbar Display/Filter pills), destructive (tinted), destructive-solid (irreversible Kill), success, link. Every size is a pill. `kbd` adds a decorative trailing key hint. Sizes — default/xs/sm/segment (30px, aligns with PillGroup md)/lg/cta/cta-lg + icon/icon-xs/icon-sm/icon-lg.",
       },
     },
   },
@@ -57,6 +57,7 @@ export const Variants: Story = {
       <Button variant="outline">Outline</Button>
       <Button variant="secondary">Secondary</Button>
       <Button variant="ghost">Ghost</Button>
+      <Button variant="quiet">Quiet</Button>
       <Button variant="destructive">Destructive</Button>
       <Button variant="destructive-solid">Destructive solid</Button>
       <Button variant="success">Success</Button>
@@ -71,6 +72,7 @@ export const Sizes: Story = {
     <div className="flex flex-wrap items-center gap-2 bg-background p-4 text-foreground">
       <Button size="xs">XS</Button>
       <Button size="sm">SM</Button>
+      <Button size="segment">Segment</Button>
       <Button size="default">Default</Button>
       <Button size="lg">LG</Button>
       <Button size="cta">CTA</Button>

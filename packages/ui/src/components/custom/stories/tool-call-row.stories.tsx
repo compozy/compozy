@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { FileText, Pencil, SquareTerminal } from "lucide-react";
 
 import { CodeBlock } from "../code-block";
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
@@ -245,6 +246,54 @@ export const LiveStack: Story = {
         preview="internal/store/sessiondb/session_db.go"
         status="pending"
       />
+    </div>
+  ),
+};
+
+/** The sunken tool panel: every row inside `ToolCallRow.Group` takes inset density. */
+export const Group: Story = {
+  args: { toolName: "Read", status: "success" },
+  render: () => (
+    <div className="w-176">
+      <ToolCallRow.Group>
+        <ToolCallRow
+          icon={FileText}
+          toolName="Read"
+          preview="web/src/checkout/order-summary.tsx"
+          status="success"
+        />
+        <ToolCallRow
+          icon={Pencil}
+          toolName="Edit"
+          preview="web/src/checkout/order-summary.tsx"
+          stat={
+            <>
+              <span className="text-success">+18</span>
+              <span className="text-danger">−6</span>
+            </>
+          }
+          statLabel="18 additions, 6 deletions"
+          status="success"
+        />
+        <ToolCallRow
+          icon={SquareTerminal}
+          toolName="Run"
+          preview="bun run test checkout"
+          status="running"
+        />
+      </ToolCallRow.Group>
+    </div>
+  ),
+};
+
+/** `still` holds the running ring while the window applies no live frames (US-018.EC-2). */
+export const GroupStill: Story = {
+  args: { toolName: "Run", status: "running" },
+  render: () => (
+    <div className="w-176">
+      <ToolCallRow.Group still>
+        <ToolCallRow icon={SquareTerminal} toolName="Run" preview="bun run test" status="running" />
+      </ToolCallRow.Group>
     </div>
   ),
 };

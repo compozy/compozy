@@ -36,6 +36,8 @@ export {
   type ToolCallRowSectionProps,
   type ToolCallStatus,
 } from "../components/custom/tool-call-row";
+export type { ToolCallRowGroupProps } from "../components/custom/tool-call-row-group";
+export type { ToolCallRowDensity } from "../components/custom/hooks/use-tool-call-row-group";
 export {
   ToolCallStatusIcon,
   type ToolCallStatusIconProps,

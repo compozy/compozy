@@ -16,7 +16,7 @@ const pillVariants = cva(
         xs: "h-pill-xs px-1.5 leading-none",
         sm: "h-pill-sm px-2 leading-none",
         md: "h-pill-md px-2.5 leading-none",
-        count: "h-3.5 min-w-3.5 gap-0 px-1 leading-none tabular-nums",
+        count: "h-3.75 min-w-3.75 gap-0 px-1 leading-none tabular-nums",
       },
       mono: {
         true: "font-mono",

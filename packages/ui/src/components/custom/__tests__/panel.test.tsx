@@ -38,4 +38,12 @@ describe("Panel", () => {
 
     expect(container.querySelector('[data-slot="panel-body"]')?.className).toContain("p-0");
   });
+
+  it("Should sit on the shared Surface card as a section", () => {
+    const { container } = render(<Panel title="Queue">rows</Panel>);
+    const panel = container.querySelector<HTMLElement>('[data-slot="panel"]');
+    expect(panel?.tagName).toBe("SECTION");
+    expect(panel).toHaveAttribute("data-variant", "card");
+    expect(panel).toHaveClass("bg-canvas", "shadow-card", "rounded-lg");
+  });
 });

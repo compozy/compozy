@@ -14,6 +14,7 @@ import {
 import { Input } from "../input";
 import { ScrollArea } from "../scroll-area";
 import { FilterInput } from "./filter-controls";
+import { FILTER_CHIP_SEGMENT_CLASS } from "./filter-layout";
 import type { FilterFieldConfig, FilterOption } from "./filter-types";
 import type { FilterContextValue } from "./hooks/use-filter-context";
 import { useSelectOptionsPopover } from "./hooks/use-select-options-popover";
@@ -116,7 +117,7 @@ function SelectOptionsMenuContent<T = unknown>({
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {allFilteredOptions.length === 0 ? (
-              <div className="py-2 text-center text-small-body text-muted-foreground">
+              <div className="py-2 text-center text-small-body text-muted">
                 {context.i18n.noResultsFound}
               </div>
             ) : null}
@@ -135,7 +136,7 @@ function SelectOptionsMenuContent<T = unknown>({
                       onMouseEnter={() => onHighlightOption(index)}
                       checked={true}
                       className={cn(
-                        "data-highlighted:bg-accent data-highlighted:text-accent-foreground",
+                        "data-highlighted:bg-surface-2 data-highlighted:text-fg",
                         option.className
                       )}
                       onSelect={event => {
@@ -172,7 +173,7 @@ function SelectOptionsMenuContent<T = unknown>({
                       onMouseEnter={() => onHighlightOption(overallIndex)}
                       checked={false}
                       className={cn(
-                        "data-highlighted:bg-accent data-highlighted:text-accent-foreground",
+                        "data-highlighted:bg-surface-2 data-highlighted:text-fg",
                         option.className
                       )}
                       onSelect={event => {
@@ -239,7 +240,11 @@ function SelectOptionsPopover<T = unknown>({
     <DropdownMenu open={state.open} onOpenChange={state.handleOpenChange}>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size={state.context.size}>
+          <Button
+            variant="neutral"
+            size={state.context.size}
+            className={FILTER_CHIP_SEGMENT_CLASS[state.context.size]}
+          >
             <div className="flex items-center gap-1.5">
               {field.customValueRenderer ? (
                 field.customValueRenderer(values, field.options || [])
@@ -292,7 +297,7 @@ function FilterValueSelector<T = unknown>({
 
   if (field.customRenderer) {
     return (
-      <ButtonGroupText className="bg-background text-start whitespace-nowrap outline-hidden hover:bg-accent aria-expanded:bg-accent dark:bg-input/30">
+      <ButtonGroupText className="text-start whitespace-nowrap outline-hidden hover:bg-selected aria-expanded:bg-selected">
         {field.customRenderer({ field, values, onChange, operator })}
       </ButtonGroupText>
     );

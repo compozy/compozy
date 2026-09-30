@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AtSign, Briefcase, CircleDot, ListFilter, Pin } from "lucide-react";
+import { AtSign, Bot, Briefcase, CircleDot, ListFilter, Pin } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../../button";
@@ -33,7 +33,7 @@ const TOGGLE_FIELDS: FilterFieldsConfig<boolean> = [
 ];
 
 const TRIGGER = (
-  <Button size="sm" variant="ghost" aria-label="Add filter">
+  <Button size="sm" variant="quiet" aria-label="Add filter">
     <ListFilter aria-hidden="true" className="size-3" />
     Filter
   </Button>
@@ -124,4 +124,45 @@ function SearchableFiltersDemo() {
 export const WithMenuSearch: Story = {
   name: "With menu search",
   render: () => <SearchableFiltersDemo />,
+};
+
+const AGENT_FIELDS: FilterFieldsConfig<string> = [
+  {
+    key: "agent",
+    label: "Agent",
+    icon: <Bot aria-hidden="true" />,
+    type: "select",
+    options: [
+      { value: "codex", label: "codex" },
+      { value: "claude", label: "claude" },
+    ],
+  },
+];
+
+function DefaultSizeFiltersDemo() {
+  const [filters, setFilters] = useState<Filter<string>[]>([
+    { id: "chip-agent", field: "agent", operator: "is", values: ["codex"] },
+  ]);
+
+  return (
+    <div className="w-full max-w-2xl rounded-md border border-line p-3">
+      <Filters<string>
+        fields={AGENT_FIELDS}
+        filters={filters}
+        onChange={setFilters}
+        trigger={
+          <Button variant="quiet" aria-label="Add filter">
+            <ListFilter aria-hidden="true" />
+            Filter
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
+/** Default size: a select chip (label · operator · value · remove) as one 30 px pill. */
+export const DefaultSizeSelectChip: Story = {
+  name: "Select chip — default size",
+  render: () => <DefaultSizeFiltersDemo />,
 };

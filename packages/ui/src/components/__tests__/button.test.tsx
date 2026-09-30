@@ -47,4 +47,11 @@ describe("Button", () => {
       screen.getByRole("button", { name: "Plain" }).querySelector('[data-slot="kbd"]')
     ).toBeNull();
   });
+
+  it("Should keep the quiet variant muted at rest and lift it on hover", () => {
+    render(<Button variant="quiet">Display</Button>);
+    const button = screen.getByRole("button", { name: "Display" });
+    expect(button).toHaveClass("text-muted", "hover:bg-surface-2", "hover:text-fg");
+    expect(button.className).not.toContain("bg-primary");
+  });
 });

@@ -104,7 +104,7 @@ export function ProfileArchiveDialog({
       onOpenChange={onOpenChange}
       eyebrow="Profiles"
       icon={blocked ? TriangleAlert : Archive}
-      iconTone="neutral"
+      iconTone={blocked ? "warning" : "neutral"}
       title={`Archive ${profile}`}
       description={description}
       body={body}

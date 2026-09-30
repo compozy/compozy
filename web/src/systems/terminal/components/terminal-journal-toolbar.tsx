@@ -32,7 +32,7 @@ export function TerminalJournalToolbar({ chips, onChange }: TerminalJournalToolb
               data-testid="terminal-journal-filters-add"
               size="sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
               <ListFilter aria-hidden="true" className="size-3" />
               Filter

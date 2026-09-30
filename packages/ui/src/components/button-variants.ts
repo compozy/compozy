@@ -13,6 +13,8 @@ const buttonVariants = cva(
         secondary:
           "bg-surface-2 text-fg hover:bg-selected hover:shadow-card aria-expanded:bg-selected",
         ghost: "text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 aria-expanded:text-fg",
+        quiet:
+          "text-muted hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg",
         destructive: "bg-danger-tint text-danger hover:bg-danger-tint hover:opacity-90",
         "destructive-solid":
           "bg-danger text-accent-ink hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,black)]",
@@ -26,6 +28,9 @@ const buttonVariants = cva(
           "h-button-default gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         xs: "h-button-xs gap-1 px-2 text-eyebrow has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-button-sm gap-1 px-2.5 text-eyebrow has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        /** Toolbar pill that aligns with PillGroup md segments (30 px, 13.5 px). */
+        segment:
+          "h-(--height-pill-group-segment-md) gap-1.5 px-3 text-small-body has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-button-lg gap-1.5 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         cta: "h-button-cta gap-2 px-5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         "cta-lg":

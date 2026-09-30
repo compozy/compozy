@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ListFilter } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../../button";
@@ -23,8 +24,9 @@ function ListingToolbarDemo({
           <ListingToolbar.Search onChange={setSearch} placeholder="Search skills" value={search} />
           {withFilters ? (
             <ListingToolbar.Filters>
-              <Button size="sm" type="button" variant="ghost">
-                + Filter
+              <Button size="segment" type="button" variant="quiet">
+                <ListFilter aria-hidden="true" />
+                Filter
               </Button>
             </ListingToolbar.Filters>
           ) : null}

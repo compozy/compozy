@@ -8,7 +8,7 @@ function DockHead({ children, className, ...props }: React.ComponentProps<"div">
   return (
     <div
       data-slot="dock-head"
-      className={cn("flex flex-wrap items-center gap-2", className)}
+      className={cn("flex flex-wrap items-center gap-2.5", className)}
       {...props}
     >
       {children}

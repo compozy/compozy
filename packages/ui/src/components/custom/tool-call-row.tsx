@@ -5,6 +5,8 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { ToolCallStatusIcon } from "./tool-call-status-icon";
+import { useToolCallRowGroup } from "./hooks/use-tool-call-row-group";
+import { ToolCallRowGroup } from "./tool-call-row-group";
 import { ToolCallRowSection, type ToolCallRowSectionProps } from "./tool-call-row-section";
 
 /**
@@ -83,6 +85,10 @@ function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
   return icon;
 }
 
+const DEFAULT_LINE_CLASS = "min-h-6 gap-1.5 rounded-sm px-1 text-small-body";
+// Inset density (inside `ToolCallRow.Group`): the 34 px `.tool` line of the sunken panel.
+const INSET_LINE_CLASS = "min-h-8.5 gap-2.5 px-4 text-body";
+
 function ToolCallRowInput(props: ToolCallRowSectionProps) {
   return <ToolCallRowSection slot="input" label="Input" {...props} />;
 }
@@ -115,6 +121,8 @@ function ToolCallRowInner({
   className,
   ...props
 }: ToolCallRowProps) {
+  const { density, still } = useToolCallRowGroup();
+  const inset = density === "inset";
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded);
   const toolNameId = React.useId();
   const statDescriptionId = React.useId();
@@ -144,11 +152,16 @@ function ToolCallRowInner({
       >
         {iconContent}
       </span>
-      <span className="flex min-w-0 max-w-sm flex-1 items-baseline gap-1.5">
+      <span
+        className={cn("flex min-w-0 flex-1 items-baseline", inset ? "gap-2.5" : "max-w-sm gap-1.5")}
+      >
         <span
           id={toolNameId}
           data-slot="tool-call-row-tool"
-          className="min-w-0 max-w-xs shrink truncate font-medium text-muted transition-colors group-hover/tool-row:text-fg"
+          className={cn(
+            "min-w-0 max-w-xs shrink truncate font-medium transition-colors",
+            inset ? "text-fg" : "text-muted group-hover/tool-row:text-fg"
+          )}
           title={nativeTitle(toolName)}
         >
           {toolName}
@@ -156,7 +169,10 @@ function ToolCallRowInner({
         {preview ? (
           <span
             data-slot="tool-call-row-preview"
-            className="min-w-0 flex-1 truncate font-mono text-subtle"
+            className={cn(
+              "min-w-0 flex-1 truncate font-mono",
+              inset ? "text-meta text-muted" : "text-subtle"
+            )}
             title={nativeTitle(preview)}
           >
             {preview}
@@ -168,7 +184,10 @@ function ToolCallRowInner({
       {stat ? (
         <span
           data-slot="tool-call-row-stat"
-          className="flex shrink-0 items-center gap-1 font-mono text-transcript-caption tabular-nums"
+          className={cn(
+            "flex shrink-0 items-center font-mono tabular-nums",
+            inset ? "gap-2 text-meta" : "gap-1 text-transcript-caption"
+          )}
         >
           {stat}
         </span>
@@ -196,7 +215,7 @@ function ToolCallRowInner({
             strokeWidth={1.75}
           />
         ) : null}
-        <ToolCallStatusIcon status={status} />
+        <ToolCallStatusIcon status={status} still={still} />
       </span>
     </>
   );
@@ -206,6 +225,7 @@ function ToolCallRowInner({
       data-slot="tool-call-row"
       data-status={status}
       data-expanded={expandable ? String(isExpanded) : undefined}
+      data-density={density}
       className={cn("group/tool-row min-w-0", className)}
       {...props}
     >
@@ -213,7 +233,8 @@ function ToolCallRowInner({
         <div
           data-slot="tool-call-row-header"
           className={cn(
-            "relative flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left text-small-body"
+            "relative flex w-full min-w-0 cursor-pointer items-center text-left",
+            inset ? INSET_LINE_CLASS : DEFAULT_LINE_CLASS
           )}
         >
           <button
@@ -221,7 +242,10 @@ function ToolCallRowInner({
             data-slot="tool-call-row-trigger"
             aria-expanded={isExpanded}
             aria-labelledby={`${toolNameId}${accessibleStatLabel ? ` ${statDescriptionId}` : ""} ${triggerDescriptionId}`}
-            className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset"
+            className={cn(
+              "absolute inset-0 outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset",
+              inset ? "rounded-none" : "rounded-sm"
+            )}
             onClick={toggle}
           />
           <span id={triggerDescriptionId} className="sr-only">
@@ -237,7 +261,10 @@ function ToolCallRowInner({
       ) : (
         <div
           data-slot="tool-call-row-static"
-          className="flex min-h-6 w-full min-w-0 items-center gap-1.5 rounded-sm px-1 text-small-body"
+          className={cn(
+            "flex w-full min-w-0 items-center",
+            inset ? INSET_LINE_CLASS : DEFAULT_LINE_CLASS
+          )}
         >
           {rowContent}
         </div>
@@ -245,7 +272,10 @@ function ToolCallRowInner({
       {expandable && isExpanded ? (
         <div
           data-slot="tool-call-row-body"
-          className="mt-1 ml-7 flex max-h-64 min-w-0 cursor-default flex-col gap-2 overflow-auto border-l border-line pl-3 text-small-body text-muted select-text"
+          className={cn(
+            "mt-1 flex max-h-64 min-w-0 cursor-default flex-col gap-2 overflow-auto border-l border-line pl-3 text-small-body text-muted select-text",
+            inset ? "mr-4 mb-2 ml-11.5" : "ml-7"
+          )}
           onClick={event => event.stopPropagation()}
           onPointerDown={event => event.stopPropagation()}
         >
@@ -262,6 +292,7 @@ function ToolCallRowInner({
 }
 
 const ToolCallRow = Object.assign(ToolCallRowInner, {
+  Group: ToolCallRowGroup,
   Input: ToolCallRowInput,
   Output: ToolCallRowOutput,
 });
