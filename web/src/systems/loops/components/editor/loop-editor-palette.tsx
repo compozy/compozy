@@ -132,7 +132,7 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
                     title={item.hint}
                     type="button"
                   >
-                    <span className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill transition-transform group-hover:scale-110">
+                    <span className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-2 transition-transform group-hover:scale-110">
                       <KindIcon
                         className="size-2.5"
                         fallback={loopNodeClassIcon({

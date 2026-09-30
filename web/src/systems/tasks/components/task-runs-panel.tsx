@@ -124,7 +124,7 @@ function RunRow({
         <LinkedRecordTableOpenCell>
           <Link
             aria-label={`Open attempt ${run.attempt}`}
-            className="inline-flex size-6 items-center justify-center rounded-sm text-faint hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+            className="inline-flex size-6 items-center justify-center rounded-sm text-faint hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
             params={{ id: taskId, runId: run.id }}
             to="/tasks/$id/runs/$runId"
           >

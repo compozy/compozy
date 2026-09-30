@@ -318,7 +318,7 @@ function InventoryRows({
       </div>
       {rows.map((row, index) => (
         <Link
-          className={`flex items-center gap-4 px-4 py-3 hover:bg-row-hover focus-visible:bg-row-hover ${
+          className={`flex items-center gap-4 px-4 py-3 hover:bg-surface-2 focus-visible:bg-surface-2 ${
             index > 0 ? "border-t border-line-soft" : ""
           }`}
           data-testid={`loop-node-inventory-row-${row.key}`}

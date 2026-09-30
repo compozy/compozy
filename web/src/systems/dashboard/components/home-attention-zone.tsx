@@ -85,7 +85,7 @@ function HomeAttentionRow({
   const runId = item.run_id;
   return (
     <div
-      className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-row-hover max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
+      className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-surface-2 max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
       data-slot="home-attention-row"
     >
       <StateGlyph label={attentionKindLabel(item.kind)} state={attentionGlyph(item.kind)} />

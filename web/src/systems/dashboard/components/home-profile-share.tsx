@@ -47,7 +47,7 @@ export function HomeProfileShare({ profiles, windowDays }: HomeProfileShareProps
             </div>
             <span
               aria-hidden="true"
-              className="h-1.5 overflow-hidden rounded-xs bg-badge-fill"
+              className="h-1.5 overflow-hidden rounded-xs bg-surface-2"
               data-slot="home-profile-share-meter"
             >
               <span

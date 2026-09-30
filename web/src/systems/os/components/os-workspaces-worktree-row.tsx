@@ -67,8 +67,8 @@ export function OsWorkspacesWorktreeRow({
       data-on={focused ? "true" : undefined}
       className={cn(
         ROW_CLASS,
-        inert ? "cursor-default" : "hover:bg-row-hover",
-        focused && "bg-row-selected"
+        inert ? "cursor-default" : "hover:bg-surface-2",
+        focused && "bg-selected"
       )}
     >
       <div

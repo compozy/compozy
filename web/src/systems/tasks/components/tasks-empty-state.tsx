@@ -119,7 +119,7 @@ export function TasksEmptyState({
                   description={templateDescription(template)}
                   detail={
                     <>
-                      <div className="rounded-md border border-line-soft bg-input-fill px-3 py-2.5">
+                      <div className="rounded-lg bg-sunken px-3 py-2.5">
                         <p className="text-form-label leading-relaxed text-fg">
                           {template.description}
                           {template.preview.notice ? ` ${template.preview.notice}` : ""}

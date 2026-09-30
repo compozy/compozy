@@ -79,3 +79,19 @@ export function resolveInboxLaneGroupId(lane: TaskInboxLane): InboxGroupId {
 export function backendLaneToUiLane(lane: TaskInboxLane): InboxUiLane {
   return lane;
 }
+
+/**
+ * Plain words for the daemon's closed inbox `blocking_reason` codes. An
+ * unrecognised code yields `null` so a raw wire token never reaches the row.
+ */
+const INBOX_BLOCKING_REASON_LABELS: Record<string, string> = {
+  awaiting_approval: "Waiting for your approval",
+  approval_rejected: "Approval rejected",
+  awaiting_dependencies: "Waiting on other tasks",
+  latest_run_failed: "Latest run failed",
+};
+
+export function inboxBlockingReasonLabel(code?: string | null): string | null {
+  if (!code) return null;
+  return INBOX_BLOCKING_REASON_LABELS[code] ?? null;
+}

@@ -38,7 +38,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           aria-label={`${loopStatusLabel(run.status)} run, started ${formatRelativeTime(run.created_at)}`}
           to="/loop-runs/$runId"
           params={{ runId: run.id }}
-          className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-row-hover"
+          className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-surface-2"
           data-testid="loop-recent-run-row"
           title={run.id}
         >

@@ -210,7 +210,7 @@ export function AutomationSuggestionsCard({
               description={formatPromptPreview(payload.prompt)}
               detail={
                 <>
-                  <div className="rounded-md border border-line-soft bg-input-fill px-3 py-2.5">
+                  <div className="rounded-lg bg-sunken px-3 py-2.5">
                     <p className="text-form-label leading-relaxed text-fg">{payload.prompt}</p>
                   </div>
                   <p className="font-mono text-mono-id text-subtle tabular-nums">

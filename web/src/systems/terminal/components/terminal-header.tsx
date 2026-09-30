@@ -79,20 +79,33 @@ export function TerminalHeader({
   const capCount = terminalCapCount(terminalCount, limit);
   // The raw terminal id lives in the journal detail; the head only shows the cap count.
   const identityCount = capCount ?? undefined;
+  const showViewers = !isPipe && terminal.viewers > 1;
+  const hasStatus = Boolean(recording) || isPipe || showViewers;
+  const hasTerminalActions = isPipe
+    ? Boolean(onWait || onSignal)
+    : Boolean((recording && onStopRecording) || onStop);
+  // One hairline between groups, never a leading or doubled one: the OS head
+  // already rules status off from actions, so only the in-window row needs it.
+  const chipsLeadActions = hasStatus && !hostChrome;
   const actions = (
     <>
       <TerminalHeaderActions
         isPipe={isPipe}
+        leadingRule={chipsLeadActions}
         onSignal={onSignal}
         onStop={onStop}
         onStopRecording={onStopRecording}
         onWait={onWait}
         recording={recording}
       />
-      <TerminalWindowVerbs onNewTerminal={onNewTerminal} onViewJournal={onViewJournal} />
+      <TerminalWindowVerbs
+        leadingRule={hasTerminalActions || chipsLeadActions}
+        onNewTerminal={onNewTerminal}
+        onViewJournal={onViewJournal}
+      />
     </>
   );
-  const status = (
+  const status = hasStatus ? (
     <>
       {recording ? (
         <Pill data-testid="terminal-recording-chip" size="sm" tone="neutral">
@@ -105,7 +118,7 @@ export function TerminalHeader({
           read-only log
         </Pill>
       ) : null}
-      {isPipe || terminal.viewers <= 1 ? null : (
+      {showViewers ? (
         <Pill
           aria-label={`${terminal.viewers} ${terminal.viewers === 1 ? "viewer" : "viewers"}`}
           data-testid="terminal-viewers"
@@ -116,9 +129,9 @@ export function TerminalHeader({
           <Eye aria-hidden="true" className="size-3" />
           {terminal.viewers}
         </Pill>
-      )}
+      ) : null}
     </>
-  );
+  ) : null;
   useTopbarSlot(
     hostChrome
       ? {

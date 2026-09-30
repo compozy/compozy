@@ -59,7 +59,7 @@ function LoopRosterDurationCell({ row }: { row: LoopRosterRow }) {
     <span className="flex flex-col gap-1">
       <span
         aria-hidden="true"
-        className="h-1 w-full max-w-24 overflow-hidden rounded-pill bg-badge-fill"
+        className="h-1 w-full max-w-24 overflow-hidden rounded-pill bg-surface-2"
       >
         <span
           className={cn(

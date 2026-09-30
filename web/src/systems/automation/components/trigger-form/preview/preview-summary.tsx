@@ -8,7 +8,7 @@ const TONE_CLASS: Record<SummaryTone, string> = {
   weak: "text-subtle font-medium",
   strong: "text-fg-strong font-semibold",
   accent: "text-accent-strong font-semibold",
-  event: "rounded-xs bg-badge-fill px-1.5 py-px font-mono text-fg-strong",
+  event: "rounded-xs bg-surface-2 px-1.5 py-px font-mono text-fg-strong",
 };
 
 interface PreviewSummaryProps {

@@ -492,7 +492,7 @@ describe("compozy-design-system lint plugin", () => {
       }
       // Tokens flip per theme; opaque palette colors and other hues are not glaze.
       for (const allowed of [
-        "bg-row-hover",
+        "bg-bar-fill",
         "bg-accent/10",
         "border-line",
         "text-white",
@@ -705,7 +705,7 @@ describe("compozy-design-system lint plugin", () => {
         rule,
         source: `
           export function View() {
-            return <div className="bg-(--row-hover)">x</div>;
+            return <div className="bg-(--bar-fill)">x</div>;
           }
         `,
       });
@@ -871,11 +871,11 @@ describe("compozy-design-system lint plugin", () => {
           rule,
           source: `
             export function View() {
-              return <div className="bg-(--row-hover)">x</div>;
+              return <div className="bg-(--bar-fill)">x</div>;
             }
           `,
         },
-        "bg-(--row-hover)"
+        "bg-(--bar-fill)"
       );
     });
 

@@ -80,8 +80,8 @@ function TriggerRunRow({ view, open, onOpenToggle, className, ...props }: Trigge
         aria-expanded={open}
         className={cn(
           "grid w-full grid-cols-[6rem_minmax(0,1fr)_18px] items-center gap-3 px-4 py-2.75 text-left transition-colors duration-base ease-out md:grid-cols-[6.75rem_minmax(0,1fr)_4.5rem_18px]",
-          "hover:bg-row-hover focus-visible:shadow-focus-inset focus-visible:outline-none",
-          open && "bg-row-selected"
+          "hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none",
+          open && "bg-selected"
         )}
         data-testid={`automation-run-${view.id}`}
         onClick={onOpenToggle}
@@ -114,7 +114,7 @@ function TriggerRunRow({ view, open, onOpenToggle, className, ...props }: Trigge
         />
       </button>
       <div
-        className="bg-input-fill px-4 pt-2.5 pb-3.5"
+        className="bg-sunken px-4 pt-2.5 pb-3.5"
         data-testid={drawerId}
         hidden={!open}
         id={drawerId}

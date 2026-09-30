@@ -155,8 +155,8 @@
   --color-danger: #e0635a;
   --color-danger-tint: rgba(224, 99, 90, 0.09);
   --color-popover: var(--color-canvas-soft);
-  /* The shared --hover now steps to surface-2; the site keeps its row glaze. */
-  --color-hover: var(--color-row-hover);
+  /* The shared --hover steps to surface-2; the site keeps its row glaze. */
+  --color-hover: rgba(255, 255, 255, 0.045);
   /* Roles the primitives adopted, on the warm ramp. */
   --color-desk: var(--color-rail);
   --color-surface-2: var(--color-canvas-tint);

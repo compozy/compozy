@@ -29,7 +29,7 @@ function ChoiceRow({ children, className, type, ...props }: React.ComponentProps
         "transition-colors duration-base ease-out motion-reduce:transition-none",
         "hover:border-line hover:bg-hover",
         "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-transparent disabled:hover:bg-transparent",
-        "aria-pressed:border-line-strong aria-pressed:bg-row-selected",
+        "aria-pressed:border-line-strong aria-pressed:bg-selected",
         "focus-visible:shadow-focus focus-visible:outline-none",
         className
       )}

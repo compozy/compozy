@@ -52,7 +52,7 @@ export function TasksDashboardActiveRuns({
             const attemptLabel = formatAttemptLabel(run.attempt, run.max_attempts);
             return (
               <li
-                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-row-hover"
+                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-surface-2"
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >

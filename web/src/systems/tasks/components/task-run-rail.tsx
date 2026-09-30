@@ -28,7 +28,7 @@ function LineageRow({ label, taskId, target }: { label: string; taskId: string; 
     <PropertyRow
       editor={
         <Link
-          className="inline-flex min-h-6 min-w-6 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+          className="inline-flex min-h-6 min-w-6 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
           data-testid={`tasks-run-lineage-${target.id}`}
           params={{ id: taskId, runId: target.id }}
           to="/tasks/$id/runs/$runId"
@@ -110,7 +110,7 @@ function TaskRunSessionSection({ run }: { run: TaskRunDetailView }) {
         <PropertyRow
           editor={
             <Link
-              className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+              className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
               data-testid="tasks-run-rail-session"
               params={{ id: sessionId }}
               to="/session/$id"

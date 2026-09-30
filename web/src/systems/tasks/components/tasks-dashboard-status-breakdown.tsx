@@ -73,7 +73,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                 </div>
                 <div
                   aria-hidden="true"
-                  className="ml-4 h-1 overflow-hidden rounded-xs bg-surface-glaze"
+                  className="ml-4 h-1 overflow-hidden rounded-xs bg-surface-2"
                 >
                   <div
                     className={cn("h-full rounded-xs", TONE_FILL_CLASS[tone])}

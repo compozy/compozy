@@ -28,7 +28,7 @@ export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
   const { run } = row;
   return (
     <TableRow
-      className={cn(row.needsYou && "bg-row-selected hover:bg-surface-glaze")}
+      className={cn(row.needsYou && "bg-selected hover:bg-selected")}
       data-needs-you={row.needsYou ? "true" : undefined}
       data-run-id={run.id}
       data-status={run.status}

@@ -35,7 +35,7 @@ function TriggerPromptPreview({ prompt }: { prompt: string }) {
     <>
       <div
         className={cn(
-          "mt-2 rounded-md border border-line-soft bg-input-fill px-3 py-2.5 font-mono text-form-label leading-relaxed whitespace-pre-wrap text-muted",
+          "mt-2 rounded-lg bg-sunken px-3 py-2.5 font-mono text-form-label leading-relaxed whitespace-pre-wrap text-muted",
           !open && "line-clamp-3"
         )}
         data-testid="trigger-prompt-preview"
@@ -78,10 +78,7 @@ function TriggerLoopMapping({ target, className, ...props }: TriggerLoopMappingP
   if (mapped.length === 0 && statics.length === 0) return null;
   return (
     <div
-      className={cn(
-        "mt-2 overflow-hidden rounded-md border border-line-soft bg-input-fill",
-        className
-      )}
+      className={cn("mt-2 overflow-hidden rounded-lg bg-sunken", className)}
       data-testid="trigger-loop-mapping"
       {...props}
     >

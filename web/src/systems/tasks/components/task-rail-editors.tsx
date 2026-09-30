@@ -37,7 +37,7 @@ export function TaskPriorityEditor({
             className={cn(
               "-mr-1.5 inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5",
               "text-small-body font-medium text-fg transition-colors duration-fast",
-              "hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring",
+              "hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring",
               "disabled:cursor-not-allowed disabled:opacity-50"
             )}
             type="button"

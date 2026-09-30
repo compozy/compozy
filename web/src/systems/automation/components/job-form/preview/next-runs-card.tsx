@@ -39,7 +39,7 @@ function NextRunRow({ run }: NextRunRowProps) {
       <span
         className={cn(
           "grid size-[18px] flex-none place-items-center rounded-full font-mono text-badge font-semibold",
-          run.isFirst ? "bg-accent-tint-strong text-accent-strong" : "bg-badge-fill text-subtle"
+          run.isFirst ? "bg-accent-tint-strong text-accent-strong" : "bg-surface-2 text-subtle"
         )}
       >
         {run.index}

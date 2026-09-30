@@ -139,7 +139,7 @@ function TopbarIdentity({
                   type="button"
                   data-slot="topbar-crumb"
                   onClick={crumb.onSelect}
-                  className="max-w-[150px] truncate rounded-sm px-1 py-px text-ws-name font-medium text-subtle hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+                  className="max-w-[150px] truncate rounded-sm px-1 py-px text-ws-name font-medium text-subtle hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
                 >
                   {crumb.label}
                 </button>
@@ -155,7 +155,7 @@ function TopbarIdentity({
                         render={
                           <button
                             type="button"
-                            className="rounded-sm px-1 py-px text-ws-name font-medium text-faint hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+                            className="rounded-sm px-1 py-px text-ws-name font-medium text-faint hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
                           />
                         }
                       >

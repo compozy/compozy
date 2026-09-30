@@ -15,7 +15,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import type { InboxGroupId } from "../lib/inbox-grouping";
+import { inboxBlockingReasonLabel, type InboxGroupId } from "../lib/inbox-grouping";
 import { taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskInboxItem } from "../types";
 import { TasksInboxRow } from "./tasks-inbox-row";
@@ -63,6 +63,7 @@ export function TasksInboxItem({
   const isArchived = lane === "archived" || triage.archived;
   const failedError = run?.error ?? null;
   const ownerLabel = task.owner?.ref ?? "Unassigned";
+  const blockingReason = inboxBlockingReasonLabel(item.blocking_reason);
 
   const handleSelect = onOpen ? () => onOpen(taskId) : undefined;
 
@@ -85,8 +86,8 @@ export function TasksInboxItem({
 
   const detail = (
     <>
-      {item.blocking_reason ? (
-        <p data-testid={`tasks-inbox-item-blocking-${taskId}`}>{item.blocking_reason}</p>
+      {blockingReason ? (
+        <p data-testid={`tasks-inbox-item-blocking-${taskId}`}>{blockingReason}</p>
       ) : null}
 
       {failedError ? (

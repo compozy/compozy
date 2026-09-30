@@ -97,7 +97,7 @@ export function TaskPropertiesRail({
           <PropertyRow
             editor={
               <Link
-                className="inline-flex min-h-6 min-w-0 items-center rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+                className="inline-flex min-h-6 min-w-0 items-center rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
                 data-testid="tasks-rail-parent"
                 params={{ id: record.parent_task_id }}
                 to="/tasks/$id"

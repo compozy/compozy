@@ -92,8 +92,8 @@ export function LoopReferenceInput({
             <li
               aria-selected={index === auto.activeIndex}
               className={cn(
-                "flex w-full cursor-default items-center justify-between gap-3 px-2.5 py-1 text-left hover:bg-row-hover",
-                index === auto.activeIndex && "bg-row-hover"
+                "flex w-full cursor-default items-center justify-between gap-3 px-2.5 py-1 text-left hover:bg-surface-2",
+                index === auto.activeIndex && "bg-surface-2"
               )}
               data-active={index === auto.activeIndex ? "true" : "false"}
               id={`${listboxId}-option-${index}`}

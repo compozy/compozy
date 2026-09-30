@@ -122,7 +122,7 @@ function HeatmapRow({
         const events = byCell.get(`${weekday}:${hour}`)?.events ?? 0;
         return (
           <div
-            className="h-[var(--size-home-pulse-cell)] rounded-xs bg-input-fill"
+            className="h-[var(--size-home-pulse-cell)] rounded-xs bg-surface-2"
             key={hour}
             style={{ background: cellBackground(events, max) }}
             title={`${WEEKDAY_LABELS[weekday]} ${String(hour).padStart(2, "0")}:00 · ${events} events`}

@@ -298,9 +298,9 @@ function WorktreeCreationFooter({
             className={cn(
               "group/wsov-foot grid min-h-7.5 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1",
               "text-left outline-none select-none",
-              "transition-colors duration-base ease-out hover:bg-row-hover",
-              "focus-visible:bg-row-selected focus-visible:outline-none",
-              focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-row-selected"
+              "transition-colors duration-base ease-out hover:bg-surface-2",
+              "focus-visible:bg-selected focus-visible:outline-none",
+              focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-selected"
             )}
             onClick={onCreate}
             onKeyDown={event => {

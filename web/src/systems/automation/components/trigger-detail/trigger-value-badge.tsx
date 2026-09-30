@@ -24,7 +24,7 @@ export function TriggerValueBadge({
   return (
     <span
       className={cn(
-        "rounded-xs bg-badge-fill px-1.5 py-px font-mono text-badge text-subtle",
+        "rounded-xs bg-surface-2 px-1.5 py-px font-mono text-badge text-subtle",
         fill && "block w-full truncate",
         className
       )}

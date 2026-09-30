@@ -67,7 +67,7 @@ function TasksInboxRow({
         "grid min-h-12 items-start gap-3 border-b border-line-soft px-3 py-3 text-left transition-colors duration-base ease-out",
         trailing ? "grid-cols-[14px_minmax(0,1fr)_auto]" : "grid-cols-[14px_minmax(0,1fr)]",
         clickable &&
-          "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-inset",
+          "cursor-pointer hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-inset",
         className
       )}
       {...props}

@@ -66,9 +66,19 @@ function TaskNowFailedState({
         ) : undefined
       }
       body={
-        failed?.error
-          ? `${failed.error} Retry to queue a new attempt, or open the run to see what happened.`
-          : "Retry to queue a new attempt, or open the run to see what happened."
+        // The runtime error is quoted verbatim on its own line: it carries no
+        // punctuation contract, so appending the guidance sentence to it would
+        // run the two together.
+        failed?.error ? (
+          <>
+            <span className="block" data-testid="tasks-detail-now-failed-error">
+              {failed.error}
+            </span>
+            {FAILED_GUIDANCE}
+          </>
+        ) : (
+          FAILED_GUIDANCE
+        )
       }
       data-testid="tasks-detail-now-failed"
       title={`Failed on ${attempts}`}
@@ -76,6 +86,8 @@ function TaskNowFailedState({
     />
   );
 }
+
+const FAILED_GUIDANCE = "Retry to queue a new attempt, or open the run to see what happened.";
 
 function TaskNowCompletedState({
   record,

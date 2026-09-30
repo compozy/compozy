@@ -122,7 +122,6 @@ function DiagnosticsPane({
       ) : null}
       <div className="grid grid-cols-2 gap-2.5">
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Next action"
           value={
             nextAction ? (NEXT_ACTION_COPY[nextAction] ?? nextAction.replaceAll("_", " ")) : "—"
@@ -130,7 +129,6 @@ function DiagnosticsPane({
           detail={nextAction ?? undefined}
         />
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Current run"
           value={
             run ? `Attempt ${run.attempt} · ${taskRunStatusLabel(run.status)}` : "No current run"
@@ -138,16 +136,11 @@ function DiagnosticsPane({
           detail={run ? run.run_id : undefined}
         />
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Session"
           value={session ? (session.state ?? "bound") : "No bound session"}
           detail={session ? session.session_id : undefined}
         />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Scheduler"
-          value={inspect.scheduler.paused ? "Paused" : "Active"}
-        />
+        <MetadataTile label="Scheduler" value={inspect.scheduler.paused ? "Paused" : "Active"} />
       </div>
 
       {diagnostics.length === 0 ? (
@@ -191,7 +184,6 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
     <div className="flex flex-col gap-4" data-testid="tasks-inspect-stream">
       <div className="grid grid-cols-2 gap-2.5">
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Connection"
           value={
             <span className="inline-flex items-center gap-1.5">
@@ -200,16 +192,8 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
             </span>
           }
         />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Latest event seq"
-          value={stream.latestEventSeq ?? "—"}
-        />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Resume seed"
-          value={stream.seedSequence}
-        />
+        <MetadataTile label="Latest event seq" value={stream.latestEventSeq ?? "—"} />
+        <MetadataTile label="Resume seed" value={stream.seedSequence} />
       </div>
       {stream.errorMessage ? (
         <p className="text-small-body text-danger">{stream.errorMessage}</p>

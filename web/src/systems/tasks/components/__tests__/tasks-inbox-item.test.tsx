@@ -45,6 +45,34 @@ describe("TasksInboxItem", () => {
     );
   });
 
+  it("Should state the blocking reason in plain words and never print a wire code", () => {
+    const failed = buildInboxItemFixture({
+      blocking_reason: "latest_run_failed",
+      lane: "failed_runs",
+      task: {
+        id: "task_fail",
+        identifier: "TASK-7",
+        scope: "workspace",
+        status: "failed",
+        title: "Settle batch",
+      },
+    });
+    const { rerender } = render(<TasksInboxItem group="needs_review" item={failed} />);
+    expect(screen.getByTestId("tasks-inbox-item-blocking-task_fail")).toHaveTextContent(
+      "Latest run failed"
+    );
+    expect(screen.queryByText("latest_run_failed")).toBeNull();
+
+    // An unknown code is omitted rather than leaked.
+    rerender(
+      <TasksInboxItem
+        group="needs_review"
+        item={{ ...failed, blocking_reason: "some_future_reason" }}
+      />
+    );
+    expect(screen.queryByTestId("tasks-inbox-item-blocking-task_fail")).toBeNull();
+  });
+
   it("Should lead a blocked row with the attention glyph", () => {
     const item = buildInboxItemFixture({
       lane: "blocked",

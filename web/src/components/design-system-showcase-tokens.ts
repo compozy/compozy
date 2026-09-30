@@ -134,14 +134,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     label: "Surface glaze ladder",
     caption:
       "Translucent ink over the ramp that flips per theme. Inline white or black alpha literals are forbidden.",
-    swatches: colors([
-      ["--color-row-hover", "Legacy list hover glaze (--hover now points at surface-2)"],
-      ["--color-row-selected", "List / nav selected baseline"],
-      ["--color-surface-glaze", "RadioCard / panel head selected"],
-      ["--color-bar-fill", "Priority / progress / usage bars"],
-      ["--color-input-fill", "Composer / textarea / search input"],
-      ["--color-badge-fill", "PillGroup count badge bg"],
-    ]),
+    swatches: colors([["--color-bar-fill", "Priority / progress / usage bars"]]),
   },
   {
     id: "avatars",

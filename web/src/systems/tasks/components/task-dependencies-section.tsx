@@ -62,7 +62,7 @@ export function TaskDependenciesSection({
               className={cn(
                 "flex w-full items-center gap-2 px-4 py-2.5 text-left text-small-body text-muted",
                 "border-t border-line-soft transition-colors duration-fast first:border-t-0",
-                "hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
+                "hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
               )}
               data-testid="tasks-detail-resolved-toggle"
             >

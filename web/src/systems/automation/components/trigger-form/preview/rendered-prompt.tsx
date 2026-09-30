@@ -16,7 +16,7 @@ function RenderedTokens({ tokens }: { tokens: RenderToken[] }) {
           return (
             <span
               key={token.id}
-              className="rounded-[3px] bg-badge-fill px-0.5 font-mono text-form-hint text-fg-strong ring-1 ring-line-soft ring-inset"
+              className="rounded-[3px] bg-surface-2 px-0.5 font-mono text-form-hint text-fg-strong ring-1 ring-line-soft ring-inset"
             >
               {token.value}
             </span>

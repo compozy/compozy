@@ -222,7 +222,7 @@ function LoopEditorNodeBody({
           {chips.map(chip => (
             <span
               key={chip}
-              className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
+              className="rounded-xs bg-surface-2 px-1 py-px font-mono text-pill-group-badge text-subtle"
             >
               {chip}
             </span>

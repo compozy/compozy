@@ -78,7 +78,7 @@ export function FilterConditions({
       {openPayload ? (
         <p className="text-form-hint leading-snug text-subtle">
           <span className="font-mono text-fg">{eventKind}</span> payloads are open; type any{" "}
-          <code className="rounded-xs bg-badge-fill px-1 font-mono text-mono-id text-fg">
+          <code className="rounded-xs bg-surface-2 px-1 font-mono text-mono-id text-fg">
             data.&lt;path&gt;
           </code>{" "}
           to match a custom field.

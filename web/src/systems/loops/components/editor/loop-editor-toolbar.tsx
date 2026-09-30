@@ -107,7 +107,7 @@ export function LoopEditorToolbar({
       )}
 
       <div className="ml-auto flex items-center gap-2.5">
-        <div className="flex items-center gap-0.5 rounded-md border border-line-soft bg-input-fill p-0.5">
+        <div className="flex items-center gap-0.5 rounded-md bg-sunken p-0.5">
           <ToolIcon label="Auto layout" onClick={onAutoLayout}>
             <LayoutGrid aria-hidden="true" className="size-3.5" />
           </ToolIcon>

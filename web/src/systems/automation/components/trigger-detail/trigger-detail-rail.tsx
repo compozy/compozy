@@ -50,7 +50,7 @@ function TriggerRailCard({
       <CollapsibleTrigger
         className={cn(
           "group/rail flex w-full items-center gap-2 px-3.5 py-3 text-left transition-colors duration-base ease-out",
-          "hover:bg-row-hover focus-visible:shadow-focus-inset focus-visible:outline-none"
+          "hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none"
         )}
         data-testid={testId}
       >

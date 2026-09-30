@@ -66,12 +66,7 @@ tokens:
       viz-other: "rgba(255, 255, 255, 0.26)"
       viz-grid: "rgba(255, 255, 255, 0.045)"
       viz-cell: "#ffffff"
-      row-hover: "rgba(255, 255, 255, 0.045)"
-      row-selected: "rgba(255, 255, 255, 0.06)"
-      surface-glaze: "rgba(255, 255, 255, 0.06)"
       bar-fill: "rgba(255, 255, 255, 0.085)"
-      input-fill: "rgba(255, 255, 255, 0.05)"
-      badge-fill: "rgba(255, 255, 255, 0.05)"
       chat-fill-user: "rgba(255, 255, 255, 0.045)"
       chat-fill-code: "rgba(255, 255, 255, 0.03)"
       overlay-scrim: "rgba(0, 0, 0, 0.55)"
@@ -193,12 +188,7 @@ tokens:
       viz-other: "rgba(10, 13, 18, 0.2)"
       viz-grid: "rgba(10, 13, 18, 0.06)"
       viz-cell: "#0b0d12"
-      row-hover: "rgba(10, 13, 18, 0.04)"
-      row-selected: "rgba(10, 13, 18, 0.055)"
-      surface-glaze: "rgba(10, 13, 18, 0.045)"
       bar-fill: "rgba(10, 13, 18, 0.07)"
-      input-fill: "rgba(10, 13, 18, 0.02)"
-      badge-fill: "rgba(10, 13, 18, 0.045)"
       chat-fill-user: "rgba(10, 13, 18, 0.04)"
       chat-fill-code: "rgba(10, 13, 18, 0.03)"
       overlay-scrim: "rgba(15, 17, 22, 0.28)"
@@ -772,19 +762,14 @@ needs-you (`--color-attn`), not the default action.
 Glaze tokens are named because alpha literals drift quickly (white-alpha on
 dark, black-alpha on light). Use the
 bare Tailwind utilities generated from these tokens when possible
-(for example `bg-row-hover`), and reserve arbitrary `(--token)` syntax for
+(for example `bg-bar-fill`), and reserve arbitrary `(--token)` syntax for
 runtime variables that intentionally stay outside `@theme`.
 
 <!-- BEGIN:tokens:glaze-ladder -->
 
-| Token                   | Dark                         | Light                     |
-| ----------------------- | ---------------------------- | ------------------------- |
-| `--color-row-hover`     | `rgba(255, 255, 255, 0.045)` | `rgba(10, 13, 18, 0.04)`  |
-| `--color-row-selected`  | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.055)` |
-| `--color-surface-glaze` | `rgba(255, 255, 255, 0.06)`  | `rgba(10, 13, 18, 0.045)` |
-| `--color-bar-fill`      | `rgba(255, 255, 255, 0.085)` | `rgba(10, 13, 18, 0.07)`  |
-| `--color-input-fill`    | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.02)`  |
-| `--color-badge-fill`    | `rgba(255, 255, 255, 0.05)`  | `rgba(10, 13, 18, 0.045)` |
+| Token              | Dark                         | Light                    |
+| ------------------ | ---------------------------- | ------------------------ |
+| `--color-bar-fill` | `rgba(255, 255, 255, 0.085)` | `rgba(10, 13, 18, 0.07)` |
 
 <!-- END:tokens:glaze-ladder -->
 
@@ -1306,7 +1291,7 @@ is listed.
 - Theme-blind ink. Pattern: translucent white or black painted directly —
   `bg-[rgba(255,255,255,0.0NN)]`, `border-[rgba(0,0,0,…)]`, `bg-white/5`,
   `bg-black/[0.3]` — which reads on one theme only. Replace with named glaze,
-  hairline, or overlay utilities (`bg-row-hover`, `bg-surface-glaze`,
+  hairline, or overlay utilities (`bg-surface-2`, `bg-bar-fill`,
   `border-line`, `bg-overlay-scrim`) that flip per theme. Rule:
   `compozy-design-system/no-design-glaze-rgba`. Focus variants additionally
   reject white/black ring ink and hand-rolled `shadow-[…rgba(255,255,255,…)]`

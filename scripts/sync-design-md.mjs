@@ -22,7 +22,7 @@ const colorGroups = {
   primary: "primary primary-hover primary-foreground",
   accent:
     "accent accent-hover accent-strong accent-ink accent-tint accent-tint-strong accent-dim accent-glow attn",
-  "glaze-ladder": "row-hover row-selected surface-glaze bar-fill input-fill badge-fill",
+  "glaze-ladder": "bar-fill",
 };
 const componentSizeTokenPattern =
   /^(basis|breakpoint|container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;

@@ -81,12 +81,7 @@
   --color-viz-cell: #0b0d12;
 
   /* Surface glaze ladder — black-alpha ink over white. */
-  --color-row-hover: rgba(10, 13, 18, 0.04);
-  --color-row-selected: rgba(10, 13, 18, 0.055);
-  --color-surface-glaze: rgba(10, 13, 18, 0.045);
   --color-bar-fill: rgba(10, 13, 18, 0.07);
-  --color-input-fill: rgba(10, 13, 18, 0.02);
-  --color-badge-fill: rgba(10, 13, 18, 0.045);
 
   /* Session transcript washes. */
   --color-chat-fill-user: rgba(10, 13, 18, 0.04);

@@ -59,7 +59,7 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
             <div className="flex flex-1 flex-col divide-y divide-line-soft">
               {rows.map(row => (
                 <Link
-                  className={`grid ${ROW_GRID} ${ROW_GRID_NARROW} flex-1 items-center gap-3 px-4 py-2.5 transition-colors duration-base hover:bg-row-hover focus-visible:shadow-focus-inset focus-visible:outline-none`}
+                  className={`grid ${ROW_GRID} ${ROW_GRID_NARROW} flex-1 items-center gap-3 px-4 py-2.5 transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none`}
                   data-slot="home-agent-row"
                   key={row.name}
                   params={{ name: row.name }}
@@ -77,7 +77,7 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
                     value={row.failed}
                   />
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-pill bg-input-fill">
+                    <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-2">
                       <span
                         className="block h-full rounded-pill bg-viz-bar"
                         style={{ width: `${Math.round(row.runtimeShare * 100)}%` }}

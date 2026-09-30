@@ -49,7 +49,7 @@ export function TaskLinkedRow({
     <Link
       className={cn(
         "grid grid-cols-[14px_minmax(0,1fr)_auto_14px] items-center gap-3 px-4 py-2.5",
-        "border-t border-line-soft transition-colors duration-fast first:border-t-0 hover:bg-row-hover",
+        "border-t border-line-soft transition-colors duration-fast first:border-t-0 hover:bg-surface-2",
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
         lastActivityAt ? "sm:grid-cols-[14px_minmax(0,1fr)_auto_auto_14px]" : null
       )}

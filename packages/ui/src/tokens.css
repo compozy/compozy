@@ -103,12 +103,7 @@
 
   /* Surface glaze ladder — translucent ink over the ramp (white-alpha on dark,
      black-alpha on light). */
-  --color-row-hover: rgba(255, 255, 255, 0.045);
-  --color-row-selected: rgba(255, 255, 255, 0.06);
-  --color-surface-glaze: rgba(255, 255, 255, 0.06);
   --color-bar-fill: rgba(255, 255, 255, 0.085);
-  --color-input-fill: rgba(255, 255, 255, 0.05);
-  --color-badge-fill: rgba(255, 255, 255, 0.05);
 
   /* Session transcript washes — the ONLY message surfaces in the chat column.
      `chat-fill-user` is the borderless user block; `chat-fill-code` is the
