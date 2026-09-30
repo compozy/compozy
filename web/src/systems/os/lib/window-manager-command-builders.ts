@@ -128,6 +128,9 @@ export function arrangeLayoutCommand(
       arrangement: ARRANGEMENT_BY_PRESET[preset],
       frame: normalizedRectToWire({ x: 0, y: 0, w: 1, h: 1 }),
       group_id: groupId,
+      // Participants are frames, one name per deck: the daemon keeps each
+      // named deck whole instead of pulling the named tab out of it.
+      keep_frames: true,
     },
   };
 }

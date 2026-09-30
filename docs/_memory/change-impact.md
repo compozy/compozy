@@ -11,7 +11,11 @@ Owning design: `docs/design/opendesign/shell-rail/` (`shell-rail-v2.html`, `DESI
   column; the rest stack beside it); the OpenAPI enum and generated clients carry it. The command
   palette registry gains `layout.arrange.main-stack`, `layout.arrange.columns`, and
   `window.move_to_desktop.1` … `.9`, all unbound by default and bindable through
-  `window_manager.shortcuts`. No `compozy__*` ID, route, DTO field, or verb is renamed or removed.
+  `window_manager.shortcuts`. `layout.arrange` gains an optional `keep_frames` boolean (DTO,
+  OpenAPI, generated Web types, `compozy__layout_arrange` schema, CLI `--keep-frames`): set, each
+  named window stands for its whole tab frame and a deck is arranged whole; omitted, every named
+  window is still its own participant, exactly as before. The shell's Window › Arrange sends it.
+  No `compozy__*` ID, route, DTO field, or verb is renamed or removed.
 - **Extensibility / hooks / config:** no new hook, event, or extension capability; arrange presets
   and move-to-desktop run through the existing layout/window commands and emit the existing
   window-manager events. Three public `[window_manager]` **defaults** change (SD-013 public-surface
@@ -25,7 +29,7 @@ Owning design: `docs/design/opendesign/shell-rail/` (`shell-rail-v2.html`, `DESI
   presets and moves act only on the addressed workspace's topology. The theme is per browser, never
   per workspace or per profile, and never crosses to the daemon.
 - **Official CompozyOS skill:** `skills/compozy/references/window-management.md` documents
-  `main_stack`; its configuration section states no default values, so the default changes need no
+  `main_stack` and `--keep-frames` / `keep_frames`; its configuration section states no default values, so the default changes need no
   skill edit. `references/configuration.md` points to the same section; checked, no stale values.
 - **Web / Docs impact:** the Web shell is redesigned — full-width 52px topbar with the desktop pager
   and All desktops in the tray, the dock as a 60px left rail with a profile / theme / Settings foot

@@ -40,6 +40,16 @@ func collectArrangeFrames(snapshot *Snapshot, windowIDs []WindowID) []arrangeFra
 	return frames
 }
 
+// windowArrangeFrames makes every named window its own participant, pulling a
+// named tab out of its deck — the arrange semantics without KeepFrames.
+func windowArrangeFrames(windowIDs []WindowID) []arrangeFrame {
+	frames := make([]arrangeFrame, 0, len(windowIDs))
+	for _, windowID := range windowIDs {
+		frames = append(frames, arrangeFrame{windowIDs: []WindowID{windowID}})
+	}
+	return frames
+}
+
 func arrangeFrameWindowIDs(frames []arrangeFrame) []WindowID {
 	windowIDs := make([]WindowID, 0, len(frames))
 	for _, frame := range frames {

@@ -319,6 +319,7 @@ const windowManagerLayoutArrangeInputSchema = `{
 		"frame":` + windowManagerRectSchema + `,
 		"group_id":{"type":"string","minLength":1},
 		"resource_id":{"type":"string","minLength":1},
+		"keep_frames":{"type":"boolean"},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},

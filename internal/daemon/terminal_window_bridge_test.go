@@ -8,6 +8,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -223,6 +224,82 @@ func TestOpenTerminalWindow(t *testing.T) {
 		}
 	})
 
+	t.Run("Should float the window when the bound session is a tab of a floating frame", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		manager := newBridgeTestManager(t)
+		provider := &staticWindowManagerProvider{manager: manager}
+		seedSessionWindowOnSecondDesktop(t, manager, "session-c")
+		sessionWindowID := sessionWindowIDFor(t, manager, "session-c")
+		execute := func(clientID *windowmanager.ClientID, command windowmanager.Command) {
+			t.Helper()
+			snapshot, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+			if err != nil {
+				t.Fatalf("Snapshot() error = %v", err)
+			}
+			if _, err := manager.Execute(ctx, windowmanager.CommandRequest{
+				WorkspaceID: bridgeTestWorkspace, ExpectedRevision: snapshot.Revision, ClientID: clientID,
+				Actor: windowmanager.Actor{Kind: "system", ID: "test.seed"}, Payload: command,
+			}); err != nil {
+				t.Fatalf("Execute(%s) error = %v", command.CommandID(), err)
+			}
+		}
+		// Float the session, then give it a sibling tab: its members are
+		// "stacked" but the frame floats.
+		execute(nil, windowmanager.ToggleFloatingCommand{WindowID: sessionWindowID})
+		execute(nil, windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+			ID: "notes", App: "Notes", DesktopID: "desktop-two",
+			Route:               windowmanager.RouteIntent{Pathname: "/notes", Search: windowmanager.RouteSearch{}},
+			StackTargetWindowID: &sessionWindowID,
+		}})
+		seeded, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		inFloatingFrame := false
+		for _, desktop := range seeded.Desktops {
+			for _, stack := range desktop.FloatingStacks {
+				inFloatingFrame = inFloatingFrame || slices.Contains(stack.WindowIDs, sessionWindowID)
+			}
+		}
+		if !inFloatingFrame || seeded.Windows[sessionWindowID].Placement != windowmanager.WindowPlacementStacked {
+			t.Fatalf("seeded session = %#v, want a stacked tab of a floating frame", seeded.Windows[sessionWindowID])
+		}
+		clientID := windowmanager.ClientID("client-a")
+		if _, err := manager.RegisterClient(ctx, windowmanager.ClientRegistration{
+			WorkspaceID: bridgeTestWorkspace, ClientID: clientID,
+		}); err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		focused := windowmanager.WindowID("notes")
+		execute(&clientID, windowmanager.FocusWindowCommand{WindowID: &focused})
+
+		event := agentPTYOpenedEvent("term-0000000000b2")
+		event.Info = &terminalpkg.Info{
+			BoundRun: &terminalpkg.RunRef{SessionID: "session-c", RunID: "run-c", Generation: 1},
+		}
+		if err := openTerminalWindow(ctx, provider, event); err != nil {
+			t.Fatalf("openTerminalWindow() error = %v, want the floating fallback", err)
+		}
+
+		snapshot, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		terminal := terminalWindowsIn(snapshot, "term-0000000000b2")
+		if len(terminal) != 1 || terminal[0].DesktopID != "desktop-two" ||
+			terminal[0].Placement != windowmanager.WindowPlacementFloating {
+			t.Fatalf("terminal windows = %#v, want one floating window on desktop-two", terminal)
+		}
+		clients, err := manager.Clients(ctx, bridgeTestWorkspace)
+		if err != nil {
+			t.Fatalf("Clients() error = %v", err)
+		}
+		if len(clients) != 1 || clients[0].FocusedWindowID == nil || *clients[0].FocusedWindowID != focused {
+			t.Fatalf("client focus after the bridge open = %#v, want %q kept", clients, focused)
+		}
+	})
+
 	t.Run("Should land the window on the desktop showing the bound session", func(t *testing.T) {
 		t.Parallel()
 		manager := newBridgeTestManager(t)
@@ -351,4 +428,19 @@ func windowIDsInOrder(node windowmanager.LayoutNode) []windowmanager.WindowID {
 		ids = append(ids, windowIDsInOrder(child)...)
 	}
 	return ids
+}
+
+func sessionWindowIDFor(t *testing.T, manager *windowmanager.Manager, sessionID string) windowmanager.WindowID {
+	t.Helper()
+	snapshot, err := manager.Snapshot(testutil.Context(t), bridgeTestWorkspace)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	for _, window := range snapshot.Windows {
+		if window.App == sessionWindowApp && window.InstanceKey != nil && *window.InstanceKey == sessionID {
+			return window.ID
+		}
+	}
+	t.Fatalf("no session window for %q", sessionID)
+	return ""
 }

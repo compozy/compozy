@@ -641,6 +641,15 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			},
 		},
 		{
+			name:            "Should arrange explicit windows keeping their tab frames whole",
+			commandID:       contract.WindowManagerCommandLayoutArrange,
+			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"main_stack","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":"","keep_frames":true}`,
+			args: []string{
+				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
+				"--window", "win-2", "--arrangement", "main_stack", "--keep-frames",
+			},
+		},
+		{
 			name:            "Should arrange from one declarative resource",
 			commandID:       contract.WindowManagerCommandLayoutArrange,
 			expectedPayload: `{"resource_id":"focused-work"}`,
@@ -1454,6 +1463,15 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			},
 			wantKind: windowManagerCLIValidationConflicting, wantField: windowManagerResourceFlag,
 			wantError: "--resource cannot be combined with --desktop",
+		},
+		{
+			name: "Should reject keep-frames with a declarative resource",
+			args: []string{
+				"layout", "arrange", "--workspace", "w1", "--revision", "1", "--resource", "focused-work",
+				"--keep-frames",
+			},
+			wantKind: windowManagerCLIValidationConflicting, wantField: windowManagerResourceFlag,
+			wantError: "--resource cannot be combined with --keep-frames",
 		},
 		{
 			name: "Should reject incomplete inline arrangement mode",

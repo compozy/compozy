@@ -1198,6 +1198,9 @@
           "group_id": {
             "type": "string"
           },
+          "keep_frames": {
+            "type": "boolean"
+          },
           "resource_id": {
             "type": "string"
           },

@@ -269,6 +269,11 @@ type ArrangeLayoutCommand struct {
 	Frame       NormalizedRect
 	GroupID     GroupID
 	ResourceID  string
+	// KeepFrames makes each named window stand for its whole tab frame: a deck
+	// is arranged as one participant with its members, active tab and identity
+	// kept, and later names inside an already-named frame are absorbed. Without
+	// it every named window is its own participant.
+	KeepFrames bool
 }
 
 func (ArrangeLayoutCommand) CommandID() CommandID { return CommandLayoutArrange }

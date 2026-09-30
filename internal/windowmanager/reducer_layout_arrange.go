@@ -30,9 +30,12 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 		}
 		seen[windowID] = struct{}{}
 	}
-	// Each named window brings its whole tab frame: a deck is arranged as one
-	// participant, keeping its members, active tab and stack identity.
-	frames := collectArrangeFrames(snapshot, command.WindowIDs)
+	frames := windowArrangeFrames(command.WindowIDs)
+	if command.KeepFrames {
+		// Each named window brings its whole tab frame: a deck is arranged as
+		// one participant, keeping its members, active tab and stack identity.
+		frames = collectArrangeFrames(snapshot, command.WindowIDs)
+	}
 	for _, windowID := range arrangeFrameWindowIDs(frames) {
 		removeWindow(snapshot, windowID)
 		window := snapshot.Windows[windowID]

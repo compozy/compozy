@@ -7195,6 +7195,7 @@ export interface components {
         y: number;
       };
       group_id: string;
+      keep_frames?: boolean;
       resource_id?: string;
       window_ids: string[];
     };

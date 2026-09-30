@@ -224,7 +224,11 @@ compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o j
 ```
 
 `--arrangement` accepts `horizontal`, `vertical`, `grid`, `stack`, or `main_stack`; `main_stack`
-gives the first `--window` a 60% main column and splits the rest vertically beside it.
+gives the first `--window` a 60% main column and splits the rest vertically beside it. Every
+`--window` is its own participant, so two named tabs of one deck are split into separate panes.
+`--keep-frames` (`keep_frames` on HTTP/UDS and `compozy__layout_arrange`) instead arranges each
+named window's whole tab frame as one participant, keeping the deck's tabs, active tab, and identity;
+name a deck once, by any of its tabs.
 `layout resize` moves one split boundary in weight space. `layout frame-resize` atomically rewrites
 abutting island frames: every group edge on the shared line moves together, and overlapping frames
 are rejected. `window resize` assigns a normalized frame to the unit containing the window —

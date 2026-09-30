@@ -70,6 +70,7 @@ describe("arrangeLayoutCommand", () => {
           arrangement,
           frame: { x: 0, y: 0, width: 1, height: 1 },
           group_id: "group:new",
+          keep_frames: true,
         },
       });
     }

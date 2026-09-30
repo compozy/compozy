@@ -15,7 +15,9 @@ light and dark.
 - New windows open beside the one you are working in instead of floating on top of it.
 - **Window › Arrange** offers Main and stack, Columns, Grid, and Balance sizes, and **Window › Move
   window to** sends a window to another desktop by name. `compozy layout arrange` and the
-  `compozy__layout_arrange` tool accept the new `main_stack` arrangement.
+  `compozy__layout_arrange` tool accept the new `main_stack` arrangement, and an optional
+  `--keep-frames` / `keep_frames` that arranges each named tab deck whole. Without it, every named
+  window is still its own participant.
 - Tabs look and behave like browser tabs, and window controls are quiet icons at the end of the head.
 - An empty desktop says so and offers a way to start.
 - Choose **Light**, **Dark**, or **System** in Settings › Appearance, or flip the theme from the dock.

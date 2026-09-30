@@ -122,6 +122,10 @@ type WindowManagerArrangeLayoutPayload struct {
 	Frame       windowmanager.NormalizedRect `json:"frame"`
 	GroupID     windowmanager.GroupID        `json:"group_id"`
 	ResourceID  string                       `json:"resource_id,omitempty"`
+	// KeepFrames arranges each named window's whole tab frame as one
+	// participant (deck members, active tab and identity kept); later names in
+	// an already-named frame are absorbed. Omitted, each window stands alone.
+	KeepFrames bool `json:"keep_frames,omitempty"`
 }
 
 type WindowManagerResizeLayoutPayload struct {
@@ -349,6 +353,7 @@ func decodeArrangeLayoutPayload(raw json.RawMessage) (windowmanager.Command, err
 		Frame:       payload.Frame,
 		GroupID:     payload.GroupID,
 		ResourceID:  payload.ResourceID,
+		KeepFrames:  payload.KeepFrames,
 	}, nil
 }
 

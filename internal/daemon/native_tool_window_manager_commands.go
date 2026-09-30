@@ -218,6 +218,7 @@ func (payload windowManagerLayoutArrangePayload) command() windowmanager.Command
 		Frame:       frame,
 		GroupID:     windowmanager.GroupID(strings.TrimSpace(payload.GroupID)),
 		ResourceID:  strings.TrimSpace(payload.ResourceID),
+		KeepFrames:  payload.KeepFrames,
 	}
 }
 

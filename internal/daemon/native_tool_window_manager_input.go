@@ -270,6 +270,7 @@ type windowManagerLayoutArrangePayload struct {
 	Frame       *windowmanager.NormalizedRect `json:"frame,omitempty"`
 	GroupID     string                        `json:"group_id,omitempty"`
 	ResourceID  string                        `json:"resource_id,omitempty"`
+	KeepFrames  bool                          `json:"keep_frames,omitempty"`
 }
 
 type windowManagerLayoutArrangeInput struct {

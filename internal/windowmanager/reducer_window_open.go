@@ -51,8 +51,9 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 }
 
 // placeTiledOpen tiles a new window beside its anchor: the spec's explicit
-// BesideWindowID, else the client's focused window. An anchor that floats keeps
-// the new window floating; an anchor that is missing or on another desktop is
+// BesideWindowID, else the client's focused window. An anchor that floats —
+// alone or as a tab of a floating frame — keeps the new window floating; an
+// anchor that is missing, unplaced (minimized) or on another desktop is
 // no anchor at all, so an empty desktop still gets one full-frame pane instead
 // of a stale focus pointer turning the open into a floating window. With no
 // anchor on a desktop that already has tiles, the window floats. It reports
@@ -64,8 +65,11 @@ func (r *reducer) placeTiledOpen(snapshot *Snapshot, window Window, besideID *Wi
 	}
 	if anchorID != nil {
 		anchor, exists := snapshot.Windows[*anchorID]
-		if exists && anchor.DesktopID == window.DesktopID {
-			if anchor.Placement == WindowPlacementFloating {
+		placement, placed := findWindowPlacement(snapshot, *anchorID)
+		if exists && placed && anchor.DesktopID == window.DesktopID {
+			// Classify by the containing topology, not the window's own
+			// placement: a tab of a floating frame is "stacked" but floats.
+			if placement.groupIndex < 0 {
 				return false, nil
 			}
 			if err := insertRelative(snapshot, anchor.ID, window.ID, DropAfter, r.generate); err != nil {

@@ -1891,7 +1891,11 @@ describe("WindowManagerRuntime", () => {
       await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(1));
       expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4]).toMatchObject({
         commandId: "layout.arrange",
-        payload: { window_ids: windowIds, frame: { x: 0, y: 0, width: 1, height: 1 } },
+        payload: {
+          window_ids: windowIds,
+          frame: { x: 0, y: 0, width: 1, height: 1 },
+          keep_frames: true,
+        },
       });
       runtime.stop();
     }
