@@ -28,6 +28,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  StateGlyph,
+  type StateGlyphState,
   SelectTrigger,
   SelectValue,
   Separator,
@@ -200,6 +202,17 @@ export function InputsAndSearchSection() {
   );
 }
 
+// Mint ring = in progress, dashed = queued, filled mint check = done, orange = needs you.
+const STATE_GLYPH_DEMO: ReadonlyArray<readonly [StateGlyphState, string]> = [
+  ["running", "In progress"],
+  ["queued", "Queued"],
+  ["done", "Done"],
+  ["attention", "Needs you"],
+  ["failed", "Failed"],
+  ["stopped", "Stopped"],
+  ["idle", "Idle"],
+];
+
 export function StatusAndMetricSection() {
   return (
     <Section
@@ -261,6 +274,14 @@ export function StatusAndMetricSection() {
         <Pill mono tone="info">
           INFO
         </Pill>
+      </div>
+      <div className="flex flex-wrap items-center gap-4 pt-4" data-testid="showcase-state-glyphs">
+        {STATE_GLYPH_DEMO.map(([state, label]) => (
+          <div key={state} className="inline-flex items-center gap-2">
+            <StateGlyph state={state} />
+            <span className="text-sm text-muted">{label}</span>
+          </div>
+        ))}
       </div>
       <div className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-4">

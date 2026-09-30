@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, Eyebrow, Pill, Section } from "@compozy/ui";
 
+import { useComputedToken } from "@/hooks/use-computed-token";
+
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";
 import { TOKEN_GROUPS } from "./design-system-showcase-tokens";
@@ -11,7 +13,7 @@ export function FoundationsTokenSection() {
       id="foundations"
       data-testid="section-foundations"
       label={<SectionLink section={sectionById("foundations")}>Foundations: Tokens</SectionLink>}
-      right={<Pill mono>tokens.css</Pill>}
+      right={<Pill mono>tokens.css · tokens-light.css</Pill>}
     >
       <div className="flex flex-col gap-6 pt-4">
         {TOKEN_GROUPS.map(group => (
@@ -41,6 +43,8 @@ export function FoundationsTokenSection() {
 }
 
 function TokenCard({ swatch }: { swatch: TokenSwatch }) {
+  // Read live, so the card shows what the active theme ships (light or dark).
+  const value = useComputedToken(swatch.token);
   return (
     <article
       data-testid={`token-${swatch.token}`}
@@ -48,17 +52,19 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       data-kind={swatch.kind}
       className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3"
     >
-      <TokenPreview swatch={swatch} />
+      <TokenPreview swatch={swatch} value={value} />
       <div className="flex flex-col gap-0.5">
         <Eyebrow className="text-subtle">{swatch.token}</Eyebrow>
-        <span className="font-mono text-eyebrow text-muted">{swatch.value}</span>
+        <span data-slot="token-value" className="font-mono text-eyebrow text-muted">
+          {value}
+        </span>
         {swatch.role ? <span className="text-xs text-muted">{swatch.role}</span> : null}
       </div>
     </article>
   );
 }
 
-function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
+function TokenPreview({ swatch, value }: { swatch: TokenSwatch; value: string }) {
   if (swatch.kind === "color") {
     return (
       <div
@@ -75,7 +81,7 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
         className="flex h-14 w-full items-center justify-center bg-elevated"
         style={{ borderRadius: `var(${swatch.token})` }}
       >
-        <span className="font-mono text-eyebrow text-muted">{swatch.value}</span>
+        <span className="font-mono text-eyebrow text-muted">{value}</span>
       </div>
     );
   }
@@ -84,7 +90,7 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
       aria-hidden="true"
       className="flex h-14 w-full items-center justify-center rounded-md bg-elevated"
     >
-      <Eyebrow className="text-muted">{swatch.value}</Eyebrow>
+      <Eyebrow className="text-muted">{value}</Eyebrow>
     </div>
   );
 }
@@ -95,26 +101,21 @@ export function TypographySection() {
       id="typography"
       data-testid="section-typography"
       label={<SectionLink section={sectionById("typography")}>Foundations: Typography</SectionLink>}
-      right={<Pill mono>Geist · JetBrains Mono · NuixyberNext</Pill>}
+      right={<Pill mono>Inter · Geist Mono · NuixyberNext</Pill>}
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Page title · Geist 20/510</CardTitle>
+            <CardTitle>Heading · Inter 17/500</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p
-              className="text-xl font-medium leading-7 tracking-tight"
-              style={{ fontWeight: "var(--font-weight-medium)" }}
-            >
-              Runtime sessions overview
+            <p className="text-heading font-medium tracking-tight">Runtime sessions overview</p>
+            <p className="text-body text-muted">
+              Body · Inter 14.5px at 425, −0.01em. The default reading text; quiet secondary copy
+              uses muted, never a dimmed body.
             </p>
-            <p className="text-base leading-7 text-muted">
-              Body · Geist 16px regular, the default reading text for operator UI. Line-height
-              1.5–1.7 keeps dense dashboards breathable without resorting to oversized padding.
-            </p>
-            <p className="text-small-body leading-small-body text-subtle">
-              Small body · Geist 13px, helper text, captions, meta rows.
+            <p className="text-meta text-subtle">
+              Meta · Inter 13px, helper text, captions, meta rows.
             </p>
           </CardContent>
         </Card>
@@ -123,8 +124,8 @@ export function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Eyebrow className="text-muted">Eyebrow · Geist 12/510/-0.005em</Eyebrow>
-            <p className="font-mono text-sm leading-7 text-fg">compozy · run_id_01hq8…</p>
+            <Eyebrow className="text-muted">Eyebrow · Inter 12/500/-0.005em</Eyebrow>
+            <p className="font-mono text-meta text-fg">compozy · run_id_01hq8… · Geist Mono</p>
             <div className="flex items-center gap-3">
               <span className="font-wordmark text-display-2xl leading-none tracking-tight text-fg">
                 compozy

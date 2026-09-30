@@ -1,7 +1,9 @@
 import type { ComponentProps } from "react";
 import { Layers } from "lucide-react";
 
-import { cn, identityColorsFor, SpriteIcon } from "@compozy/ui";
+import { cn, identityColorsFor, identitySurfaceFor, SpriteIcon } from "@compozy/ui";
+
+import { useThemePreference } from "@/systems/theme";
 
 import { PROFILE_SPRITE_URL, symbolOf } from "../lib/profile-identity";
 
@@ -19,7 +21,10 @@ export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "childre
   needsSetup?: boolean;
   /** The neutral layered mark: an aggregate is not an identity. */
   aggregate?: boolean;
-  /** Surface the glyph sits on, so the ink is measured against the right plate. */
+  /**
+   * Surface the glyph sits on, so the ink is measured against the right plate.
+   * Defaults to the active theme's panel surface.
+   */
   surface?: string;
   /**
    * Drops the image role and label.
@@ -60,7 +65,8 @@ export function ProfileGlyph({
   ...props
 }: ProfileGlyphProps) {
   const symbol = symbolOf({ icon: icon ?? null, emoji: emoji ?? null });
-  const identity = identityColorsFor(color, surface);
+  const { resolvedTheme } = useThemePreference();
+  const identity = identityColorsFor(color, surface ?? identitySurfaceFor(resolvedTheme));
   const label = aggregate ? "All profiles" : name;
 
   return (

@@ -14,6 +14,7 @@ export const fontSizeClasses = [
   "text-card-title",
   "text-code-block",
   "text-compact-h1",
+  "text-count",
   "text-detail-h1",
   "text-display-2xl",
   "text-empty-h1",

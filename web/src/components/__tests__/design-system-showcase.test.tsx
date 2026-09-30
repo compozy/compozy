@@ -89,6 +89,12 @@ describe("DesignSystemShowcase", () => {
       expect(within(status).getByText("Active sessions")).toBeInTheDocument();
       expect(within(status).getByText("RUNNING")).toBeInTheDocument();
       expect(status.querySelectorAll('[data-slot="connection-indicator"]').length).toBe(3);
+      const glyphs = within(status).getByTestId("showcase-state-glyphs");
+      expect(
+        Array.from(glyphs.querySelectorAll('[data-slot="state-glyph"]'), glyph =>
+          glyph.getAttribute("data-state")
+        )
+      ).toEqual(["running", "queued", "done", "attention", "failed", "stopped", "idle"]);
     });
 
     it("renders Alert + Empty feedback primitives", async () => {
@@ -133,7 +139,7 @@ describe("DesignSystemShowcase", () => {
       }
     });
 
-    it("renders every showcased swatch with its token and value", async () => {
+    it("renders every showcased swatch with its token and a live value slot", async () => {
       await renderShowcase();
       for (const group of TOKEN_GROUPS) {
         const groupElement = screen.getByTestId(`token-group-${group.id}`);
@@ -142,8 +148,28 @@ describe("DesignSystemShowcase", () => {
           expect(card).toHaveAttribute("data-token", swatch.token);
           expect(card).toHaveAttribute("data-kind", swatch.kind);
           expect(within(card).getByText(swatch.token)).toBeInTheDocument();
-          expect(within(card).getAllByText(swatch.value).length).toBeGreaterThan(0);
+          expect(card.querySelector('[data-slot="token-value"]')).toBeInTheDocument();
         }
+      }
+    });
+
+    it("shows the active theme's value and follows a theme switch", async () => {
+      const root = document.documentElement;
+      root.style.setProperty("--color-canvas", "#1a1a1a");
+      try {
+        await renderShowcase();
+        const value = () =>
+          screen.getByTestId("token---color-canvas").querySelector('[data-slot="token-value"]')
+            ?.textContent;
+        expect(value()).toBe("#1a1a1a");
+
+        // A theme switch re-declares the token on <html>; the card re-reads it.
+        root.style.setProperty("--color-canvas", "#ffffff");
+        root.setAttribute("data-theme", "light");
+        await waitFor(() => expect(value()).toBe("#ffffff"));
+      } finally {
+        root.style.removeProperty("--color-canvas");
+        root.removeAttribute("data-theme");
       }
     });
 

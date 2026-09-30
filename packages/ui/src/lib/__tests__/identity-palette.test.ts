@@ -1,37 +1,32 @@
 // Suite: identity color derivation
 // Invariant: a user-chosen identity color always yields a foreground measured to clear the
 // WCAG AA text floor against the plate it is painted on, for any input, on any surface in
-// the ramp — and the surface constant the math is anchored to never drifts from tokens.css.
+// the ramp, in both themes — and the per-theme surface constants the math is anchored to never
+// drift from tokens.css / tokens-light.css.
 // Boundary IN: identityColorsFor and the token constant it declares.
 // Boundary OUT: how a consumer applies the returned colors (component suites own that).
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
+
+import { THEMES, readToken } from "../../__tests__/token-source";
 
 import { AA_TEXT_CONTRAST, contrastRatio, parseHexColor } from "../contrast";
 import {
   IDENTITY_FALLBACK_COLOR,
   IDENTITY_SURFACE_TOKEN,
-  IDENTITY_SURFACE_VALUE,
   identityColorsFor,
   identityInkOn,
+  identitySurfaceFor,
 } from "../identity-palette";
-
-const TOKENS_CSS = readFileSync(join(__dirname, "..", "..", "tokens.css"), "utf8");
-
-function readToken(name: string): string {
-  const match = TOKENS_CSS.match(new RegExp(`--${name}\\s*:\\s*([^;]+);`));
-  if (!match) throw new Error(`token --${name} not found in tokens.css`);
-  return match[1].trim();
-}
 
 // Every surface an identity plate can land on.
 const SURFACE_TOKENS = [
+  "color-rail",
   "color-canvas",
   "color-canvas-soft",
   "color-canvas-tint",
+  "color-sunken",
+  "color-surface-2",
   "color-elevated",
 ] as const;
 
@@ -56,45 +51,51 @@ const COLORS = [
 ];
 
 describe("identityColorsFor", () => {
-  it("Should keep the declared surface constant in step with tokens.css", () => {
-    expect(readToken(IDENTITY_SURFACE_TOKEN)).toBe(IDENTITY_SURFACE_VALUE);
+  it.each(THEMES)("Should keep the %s surface constant in step with the tokens", theme => {
+    expect(readToken(IDENTITY_SURFACE_TOKEN, theme)).toBe(identitySurfaceFor(theme));
   });
 
-  it("Should clear the AA text floor for every identity color on every surface", () => {
-    for (const surface of SURFACE_TOKENS) {
-      const surfaceValue = readToken(surface);
-      for (const color of COLORS) {
-        const { bg, fg, ratio } = identityColorsFor(color, surfaceValue);
-        const plate = parseHexColor(bg);
-        const ink = parseHexColor(fg);
-        expect(plate, `${color} on --${surface} produced an unparseable plate`).not.toBeNull();
-        expect(ink, `${color} on --${surface} produced an unparseable ink`).not.toBeNull();
-        // The reported ratio must be the real one, not a claim.
-        const measured = contrastRatio(ink!, plate!);
-        expect(measured).toBeCloseTo(ratio, 5);
-        expect(ratio, `${color} on --${surface} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-          AA_TEXT_CONTRAST
-        );
+  it.each(THEMES)(
+    "Should clear the AA text floor for every identity color on every %s surface",
+    theme => {
+      for (const surface of SURFACE_TOKENS) {
+        const surfaceValue = readToken(surface, theme);
+        for (const color of COLORS) {
+          const { bg, fg, ratio } = identityColorsFor(color, surfaceValue);
+          const plate = parseHexColor(bg);
+          const ink = parseHexColor(fg);
+          expect(plate, `${color} on --${surface} produced an unparseable plate`).not.toBeNull();
+          expect(ink, `${color} on --${surface} produced an unparseable ink`).not.toBeNull();
+          // The reported ratio must be the real one, not a claim.
+          const measured = contrastRatio(ink!, plate!);
+          expect(measured).toBeCloseTo(ratio, 5);
+          expect(ratio, `${color} on --${surface} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+            AA_TEXT_CONTRAST
+          );
+        }
       }
     }
-  });
+  );
 
-  it("Should clear the AA text floor for ink painted directly on a bare surface", () => {
-    // The picker grid tints every cell on the panel surface, not on an identity
-    // plate, so that background has to be measured on its own terms.
-    for (const surface of SURFACE_TOKENS) {
-      const background = parseHexColor(readToken(surface))!;
-      for (const color of COLORS) {
-        const { fg, ratio } = identityInkOn(color, background);
-        const measured = contrastRatio(parseHexColor(fg)!, background);
-        expect(measured).toBeCloseTo(ratio, 5);
-        expect(
-          ratio,
-          `${color} ink on bare --${surface} = ${ratio.toFixed(2)}:1`
-        ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+  it.each(THEMES)(
+    "Should clear the AA text floor for ink painted directly on a bare %s surface",
+    theme => {
+      // The picker grid tints every cell on the panel surface, not on an identity
+      // plate, so that background has to be measured on its own terms.
+      for (const surface of SURFACE_TOKENS) {
+        const background = parseHexColor(readToken(surface, theme))!;
+        for (const color of COLORS) {
+          const { fg, ratio } = identityInkOn(color, background);
+          const measured = contrastRatio(parseHexColor(fg)!, background);
+          expect(measured).toBeCloseTo(ratio, 5);
+          expect(
+            ratio,
+            `${color} ink on bare --${surface} = ${ratio.toFixed(2)}:1`
+          ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+        }
       }
     }
-  });
+  );
 
   it("Should tint the ink toward the identity hue rather than returning flat white", () => {
     const violet = identityColorsFor("#c26ad6");

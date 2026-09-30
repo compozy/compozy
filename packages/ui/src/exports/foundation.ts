@@ -137,7 +137,12 @@ export {
   type SymbolSwatch,
   type SymbolValue,
 } from "../lib/symbol-palette";
-export { identityColorsFor, type IdentityColors } from "../lib/identity-palette";
+export {
+  identityColorsFor,
+  identitySurfaceFor,
+  type IdentityColors,
+  type IdentityTheme,
+} from "../lib/identity-palette";
 export {
   runViewTransition,
   viewTransitionName,

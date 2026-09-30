@@ -134,7 +134,45 @@
   --shell-plate-gradient: linear-gradient(180deg, rgba(10, 13, 18, 0.06), rgba(10, 13, 18, 0.03));
   --shell-edge-veil: rgba(10, 13, 18, 0.06);
 
-  /* Wallpaper ink — the white-alpha stacks flip to black-alpha. */
+  /* Wallpapers — the white-alpha stacks flip to black-alpha, and the teal
+     depth wash drops to a light tint (the dark strengths paint a heavy cast
+     on white). Flat needs no override: it is the `desk` role. */
+  --wallpaper-ember:
+    radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%),
+    radial-gradient(
+      1000px 640px at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 12%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-mesh:
+    radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%),
+    radial-gradient(
+      1200px 700px at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 14%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
+  --wallpaper-thumb-ember:
+    radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%),
+    radial-gradient(
+      75% 90% at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 20%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-thumb-mesh:
+    radial-gradient(
+      70% 85% at 85% 108%,
+      color-mix(in oklab, var(--color-success) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      85% 95% at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 22%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
   --wallpaper-grid: radial-gradient(
     1.5px 1.5px at 50% 50%,
     rgba(10, 13, 18, 0.06) 40%,

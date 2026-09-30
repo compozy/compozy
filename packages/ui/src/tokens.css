@@ -240,6 +240,9 @@
   --text-site-lead--line-height: 1.5;
   --text-micro: 0.6875rem; /* 11px */
   --text-micro--line-height: 0.75rem;
+  /* Count badge on pills and rail items (Pill.Count size "count"). */
+  --text-count: 0.59375rem; /* 9.5px */
+  --text-count--line-height: 0.9375rem; /* 15px */
   --text-inline-code: 0.9em; /* 14.4px */
   --text-accent-glyph: 0.85em; /* 13.6px */
   --text-ui-title-lg: 1.35rem;
@@ -524,6 +527,8 @@
 
   /* Layout ladder. */
   --container-content-max: 1320px;
+  /* Session transcript + composer reading column (max-w-transcript). */
+  --container-transcript: 760px;
   --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
   --width-wire-card-max: 520px;
@@ -604,6 +609,8 @@
   --height-menubar: 52px;
   --width-traffic-lights: 84px;
   --height-window-head: 48px;
+  /* Filter / view toolbar strip under the window head (OsWindowToolbar). */
+  --height-window-toolbar: 44px;
   --size-seam-hit: 9px;
   --size-dock-item: 46px;
   --size-dock-icon: 21px;
@@ -799,6 +806,8 @@
   --wallpaper-carbon:
     radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%),
     linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
+  /* The shell-v2 desk: the flat `desk` role behind the panes, in either theme. */
+  --wallpaper-flat: linear-gradient(var(--color-desk), var(--color-desk));
 
   /* Wallpaper thumbnails (Appearance picker previews) — the desk stacks with
      percentage radial geometry so the same composition reads at any preview
@@ -828,4 +837,5 @@
   --wallpaper-thumb-carbon:
     radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%),
     linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%);
+  --wallpaper-thumb-flat: linear-gradient(var(--color-desk), var(--color-desk));
 }
