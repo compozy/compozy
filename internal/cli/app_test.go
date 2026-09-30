@@ -1355,7 +1355,7 @@ func TestAppPlatformRegistrationOwnsInstallationTruth(t *testing.T) {
 			t.Skip("Unix executable fixture")
 		}
 		paths := appTestHome(t)
-		executable := filepath.Join(t.TempDir(), "Compozy OS.AppImage")
+		executable := filepath.Join(t.TempDir(), "CompozyOS Desktop.AppImage")
 		if err := os.WriteFile(executable, []byte("#!/bin/sh\nprintf '%s\\n' \"$1\"\n"), 0o700); err != nil {
 			t.Fatal(err)
 		}

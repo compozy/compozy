@@ -73,7 +73,6 @@ export function SessionList({
   const threads = buildSessionListThreads(sessions, remoteSearch ? "" : normalizedFilter);
   const visibleCount = countThreadSessions(threads);
   const collapsedThreads = new Set(collapsedThreadIds);
-  const allWorkspaces = view.scope === "all-workspaces";
   const bulk = useSessionListBulkSelection({
     scope: view.scope,
     archived: view.archived,
@@ -82,7 +81,6 @@ export function SessionList({
     collapsedThreads,
     sessionActions,
   });
-  const ownerOf = view.aggregate ? view.ownerOf : undefined;
 
   return (
     <div
@@ -91,21 +89,12 @@ export function SessionList({
       onKeyDown={bulk.onKeyDown}
     >
       {header?.(visibleCount)}
-      {bulk.active ? (
-        <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
-      ) : (
-        <SessionListToolbar
-          allWorkspaces={allWorkspaces}
-          archived={view.archived}
-          sort={view.sort}
-          disabled={view.saving}
-          onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
-          onArchivedChange={view.setArchived}
-          onSortChange={view.setSort}
-          onNewSession={onNewSession}
-          testIdPrefix={testIdPrefix}
-        />
-      )}
+      <SessionListControls
+        bulk={bulk}
+        view={view}
+        onNewSession={onNewSession}
+        testIdPrefix={testIdPrefix}
+      />
       <div className="px-3 pb-1.5">
         <SearchInput
           value={view.search ?? filter}
@@ -123,69 +112,141 @@ export function SessionList({
           </AlertDescription>
         </Alert>
       ) : null}
-      <div
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-        data-scope={view.scope}
-      >
-        {allWorkspaces ? (
-          <SessionListWorkspaceGroups
-            groups={view.workspaceGroups}
-            collapsedWorkspaceIds={view.collapsedWorkspaceIds}
-            currentSessionId={currentSessionId}
-            ownerOf={ownerOf}
-            scopeLabel={view.scopeLabel}
-            archived={view.archived}
-            onToggleWorkspace={view.toggleWorkspace}
-            onSelectSession={onSelectSession}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-          />
-        ) : (
-          <SessionListThreadList
-            threads={threads}
-            collapsedThreads={collapsedThreads}
-            currentSessionId={currentSessionId}
-            ownerOf={ownerOf}
-            onToggleThread={onToggleThread}
-            onSelectSession={onSelectSession}
-            selection={bulk.rowSelection}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-            emptyMessage={emptySessionListMessage(normalizedFilter !== "", view)}
-          />
-        )}
-        {!allWorkspaces && view.catalog ? (
-          <div className="flex items-center justify-between px-2 py-2">
-            {view.catalog.previous ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={view.catalog.paging}
-                onClick={view.catalog.previousPage}
-              >
-                Previous sessions
-              </Button>
-            ) : (
-              <span />
-            )}
-            {view.catalog.next ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={view.catalog.paging}
-                onClick={view.catalog.nextPage}
-              >
-                Next sessions
-              </Button>
-            ) : null}
-            {view.catalog.failed ? (
-              <Button variant="ghost" size="sm" onClick={view.catalog.retry}>
-                Retry loading sessions
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      <SessionListBody
+        view={view}
+        threads={threads}
+        collapsedThreads={collapsedThreads}
+        currentSessionId={currentSessionId}
+        normalizedFilter={normalizedFilter}
+        onToggleThread={onToggleThread}
+        onSelectSession={onSelectSession}
+        selection={bulk.rowSelection}
+        sessionActions={sessionActions}
+        testIdPrefix={testIdPrefix}
+      />
+    </div>
+  );
+}
+
+function SessionListControls({
+  bulk,
+  view,
+  onNewSession,
+  testIdPrefix,
+}: {
+  bulk: ReturnType<typeof useSessionListBulkSelection>;
+  view: SessionListViewModel;
+  onNewSession: SessionListProps["onNewSession"];
+  testIdPrefix: string;
+}) {
+  const allWorkspaces = view.scope === "all-workspaces";
+  return bulk.active ? (
+    <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
+  ) : (
+    <SessionListToolbar
+      allWorkspaces={allWorkspaces}
+      archived={view.archived}
+      sort={view.sort}
+      disabled={view.saving}
+      onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
+      onArchivedChange={view.setArchived}
+      onSortChange={view.setSort}
+      onNewSession={onNewSession}
+      testIdPrefix={testIdPrefix}
+    />
+  );
+}
+
+function SessionListBody({
+  view,
+  threads,
+  collapsedThreads,
+  currentSessionId,
+  normalizedFilter,
+  onToggleThread,
+  onSelectSession,
+  selection,
+  sessionActions,
+  testIdPrefix,
+}: Pick<
+  SessionListProps,
+  | "view"
+  | "currentSessionId"
+  | "onToggleThread"
+  | "onSelectSession"
+  | "sessionActions"
+  | "testIdPrefix"
+> & {
+  threads: ReturnType<typeof buildSessionListThreads>;
+  collapsedThreads: ReadonlySet<string>;
+  normalizedFilter: string;
+  selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
+}) {
+  const allWorkspaces = view.scope === "all-workspaces";
+  const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      data-scope={view.scope}
+    >
+      {allWorkspaces ? (
+        <SessionListWorkspaceGroups
+          groups={view.workspaceGroups}
+          collapsedWorkspaceIds={view.collapsedWorkspaceIds}
+          currentSessionId={currentSessionId}
+          ownerOf={ownerOf}
+          scopeLabel={view.scopeLabel}
+          archived={view.archived}
+          onToggleWorkspace={view.toggleWorkspace}
+          onSelectSession={onSelectSession}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
+      ) : (
+        <SessionListThreadList
+          threads={threads}
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          ownerOf={ownerOf}
+          onToggleThread={onToggleThread}
+          onSelectSession={onSelectSession}
+          selection={selection}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+          emptyMessage={emptySessionListMessage(normalizedFilter !== "", view)}
+        />
+      )}
+      {!allWorkspaces && view.catalog ? (
+        <SessionListCatalogNavigation catalog={view.catalog} />
+      ) : null}
+    </div>
+  );
+}
+
+function SessionListCatalogNavigation({
+  catalog,
+}: {
+  catalog: NonNullable<SessionListViewModel["catalog"]>;
+}) {
+  return (
+    <div className="flex items-center justify-between px-2 py-2">
+      {catalog.previous ? (
+        <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.previousPage}>
+          Previous sessions
+        </Button>
+      ) : (
+        <span />
+      )}
+      {catalog.next ? (
+        <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.nextPage}>
+          Next sessions
+        </Button>
+      ) : null}
+      {catalog.failed ? (
+        <Button variant="ghost" size="sm" onClick={catalog.retry}>
+          Retry loading sessions
+        </Button>
+      ) : null}
     </div>
   );
 }

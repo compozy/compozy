@@ -1,13 +1,21 @@
 import { useState } from "react";
 
-import { useSessionListPreferences, useSessionCatalog } from "@/systems/session";
+import {
+  useSessionListPreferences,
+  useSessionCatalog,
+  type SessionPayload,
+} from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { OsPaletteSessionChips } from "../components/os-palette-session-chips";
 import { OsPaletteSessionRow } from "../components/os-palette-session-row";
 import { OsPaletteViewNote } from "../components/os-palette-view-note";
 import { paletteSessionFilter, type PaletteSessionFilterId } from "../lib/palette-session-filters";
-import type { PaletteViewContent, PaletteViewControllerInput } from "../lib/palette-view-registry";
+import type {
+  PaletteViewContent,
+  PaletteViewControllerInput,
+  PaletteViewRow,
+} from "../lib/palette-view-registry";
 import { useAttentionJump } from "./use-attention-jump";
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -49,15 +57,7 @@ export function useOsPaletteSessionsView({
     allWorkspaces || scope === "global" || runtimeWorkspaceId !== null
   );
   const visible = catalog.sessions;
-  const counts = catalog.facets
-    ? {
-        all: catalog.facets.all,
-        "needs-you": catalog.facets.needs_you,
-        working: catalog.facets.working,
-        finished: catalog.facets.finished,
-        idle: catalog.facets.idle,
-      }
-    : undefined;
+  const counts = paletteSessionCounts(catalog.facets);
   const workspaceNames = new Map(
     registeredWorkspaces.map(workspace => [workspace.id, workspace.name])
   );
@@ -65,60 +65,14 @@ export function useOsPaletteSessionsView({
 
   return {
     rows: [
-      ...visible.map(session => ({
-        value: `session:${session.id}`,
-        testId: `os-palette-session-view-${session.id}`,
-        twoLine: true,
-        node: (
-          <OsPaletteSessionRow
-            owner={profile.aggregate ? profile.ownerOf(session) : undefined}
-            session={session}
-            workspaceLabel={
-              allWorkspaces ? workspaceNames.get(session.workspace_id ?? "") : undefined
-            }
-          />
-        ),
-        onSelect: () => {
-          onDismiss();
-          jumpToSession({
-            sessionId: session.id,
-            agentName: session.agent_name,
-            workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
-          });
-        },
-      })),
-      ...(catalog.previous
-        ? [
-            {
-              value: "sessions:previous",
-              testId: "os-palette-sessions-previous",
-              node: "Previous sessions",
-              disabled: catalog.paging,
-              onSelect: catalog.previousPage,
-            },
-          ]
-        : []),
-      ...(catalog.next
-        ? [
-            {
-              value: "sessions:next",
-              testId: "os-palette-sessions-next",
-              node: catalog.paging ? "Loading sessions…" : "Next sessions",
-              disabled: catalog.paging,
-              onSelect: catalog.nextPage,
-            },
-          ]
-        : []),
-      ...(catalog.failed
-        ? [
-            {
-              value: "sessions:retry",
-              testId: "os-palette-sessions-retry",
-              node: "Retry loading sessions",
-              onSelect: catalog.retry,
-            },
-          ]
-        : []),
+      ...projectPaletteSessionRows(visible, profile, {
+        allWorkspaces,
+        workspaceNames,
+        runtimeWorkspaceId,
+        onDismiss,
+        jumpToSession,
+      }),
+      ...paletteSessionPageRows(catalog),
     ],
     header: (
       <OsPaletteSessionChips
@@ -137,13 +91,7 @@ export function useOsPaletteSessionsView({
         {emptySessionsMessage({ loading, query, filterId, allWorkspaces, archived })}
       </OsPaletteViewNote>
     ),
-    note:
-      catalog.failed || catalog.next || catalog.previous ? (
-        <OsPaletteViewNote>
-          {catalog.failed ? "Couldn’t load sessions. " : ""}
-          {visible.length > 0 ? `${visible.length} sessions on this page.` : null}
-        </OsPaletteViewNote>
-      ) : null,
+    note: paletteSessionsNote(catalog, visible.length),
     backHint: filterId === "all" ? "back" : "clear filter",
     resetKey: `${filterId}:${allWorkspaces ? "all-workspaces" : "workspace"}:${archived}`,
     onEmptyQueryBackspace: () => {
@@ -174,4 +122,95 @@ function paletteSessionFilterParams(filter: PaletteSessionFilterId) {
   if (filter === "finished") return { badge: "done" };
   if (filter === "idle") return { badge: "idle" };
   return {};
+}
+
+type PaletteSessionCatalog = ReturnType<typeof useSessionCatalog>;
+
+function paletteSessionCounts(facets: PaletteSessionCatalog["facets"]) {
+  return facets
+    ? {
+        all: facets.all,
+        "needs-you": facets.needs_you,
+        working: facets.working,
+        finished: facets.finished,
+        idle: facets.idle,
+      }
+    : undefined;
+}
+
+function projectPaletteSessionRows(
+  sessions: readonly SessionPayload[],
+  profile: ReturnType<typeof useProfileReadScope>,
+  {
+    allWorkspaces,
+    workspaceNames,
+    runtimeWorkspaceId,
+    onDismiss,
+    jumpToSession,
+  }: {
+    allWorkspaces: boolean;
+    workspaceNames: ReadonlyMap<string, string>;
+    runtimeWorkspaceId: string | null;
+    onDismiss: PaletteViewControllerInput["onDismiss"];
+    jumpToSession: ReturnType<typeof useAttentionJump>;
+  }
+): PaletteViewRow[] {
+  return sessions.map(session => ({
+    value: `session:${session.id}`,
+    testId: `os-palette-session-view-${session.id}`,
+    twoLine: true,
+    node: (
+      <OsPaletteSessionRow
+        owner={profile.aggregate ? profile.ownerOf(session) : undefined}
+        session={session}
+        workspaceLabel={allWorkspaces ? workspaceNames.get(session.workspace_id ?? "") : undefined}
+      />
+    ),
+    onSelect: () => {
+      onDismiss();
+      jumpToSession({
+        sessionId: session.id,
+        agentName: session.agent_name,
+        workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
+      });
+    },
+  }));
+}
+
+function paletteSessionPageRows(catalog: PaletteSessionCatalog): PaletteViewRow[] {
+  const rows: PaletteViewRow[] = [];
+  if (catalog.previous)
+    rows.push({
+      value: "sessions:previous",
+      testId: "os-palette-sessions-previous",
+      node: "Previous sessions",
+      disabled: catalog.paging,
+      onSelect: catalog.previousPage,
+    });
+  if (catalog.next)
+    rows.push({
+      value: "sessions:next",
+      testId: "os-palette-sessions-next",
+      node: catalog.paging ? "Loading sessions…" : "Next sessions",
+      disabled: catalog.paging,
+      onSelect: catalog.nextPage,
+    });
+  if (catalog.failed)
+    rows.push({
+      value: "sessions:retry",
+      testId: "os-palette-sessions-retry",
+      node: "Retry loading sessions",
+      onSelect: catalog.retry,
+    });
+  return rows;
+}
+
+function paletteSessionsNote(catalog: PaletteSessionCatalog, visibleCount: number) {
+  if (!catalog.failed && !catalog.next && !catalog.previous) return null;
+  return (
+    <OsPaletteViewNote>
+      {catalog.failed ? "Couldn’t load sessions. " : ""}
+      {visibleCount > 0 ? `${visibleCount} sessions on this page.` : null}
+    </OsPaletteViewNote>
+  );
 }

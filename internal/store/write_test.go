@@ -89,7 +89,7 @@ func TestExecuteWrite(t *testing.T) {
 		started, release := make(chan struct{}), make(chan struct{})
 		done := make(chan error, 1)
 		go func() {
-			done <- ExecuteWriteOperation(ctx, db, "session reconciliation", func(ctx context.Context, tx *WriteTx) error {
+			done <- ExecuteWriteOperation(ctx, db, "session reconciliation", func(ctx context.Context, _ *WriteTx) error {
 				close(started)
 				select {
 				case <-release:
@@ -114,13 +114,12 @@ func TestExecuteWrite(t *testing.T) {
 		}()
 		ticker := time.NewTicker(time.Millisecond)
 		defer ticker.Stop()
-	waitQueued:
 		for {
 			writeAdmissions.Lock()
 			users := writeAdmissions.byDB[db].users
 			writeAdmissions.Unlock()
 			if users == 2 {
-				break waitQueued
+				break
 			}
 			select {
 			case err := <-writeDone:
