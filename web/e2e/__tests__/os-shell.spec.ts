@@ -2194,6 +2194,9 @@ test("E2E-030 (logical E2E-001): a real drag previews, cancels, then merges a fl
   await expect
     .poll(() => windowMatchesAuthority(appPage, source, runtime, workspace.id, ids[2]))
     .toBe(true);
+  // The Marketplace head gains its Refresh/Add actions once the catalog route has
+  // loaded; grip the head only after that, as a person would see it.
+  await expect(source.getByTestId("marketplace-refresh")).toBeVisible();
 
   const target = await shell
     .deck(frame.id)
@@ -3440,9 +3443,41 @@ async function windowRect(page: Page, win: ReturnType<Page["locator"]>) {
 async function windowGrip(win: ReturnType<Page["locator"]>): Promise<{ x: number; y: number }> {
   const spacer = win.locator('[data-slot="topbar-flex"]');
   await expect(spacer).toBeVisible();
-  const box = await spacer.boundingBox();
-  if (!box) throw new Error("window head drag surface must expose a visible bounding box");
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  // Route heads publish their trailing actions once the route has loaded, which
+  // shrinks the spacer. Grip only once the head has settled: the spacer's midpoint
+  // is stable across frames and across consecutive polls.
+  let grip: { x: number; y: number } | null = null;
+  let previous: { x: number; y: number } | null = null;
+  await expect
+    .poll(async () => {
+      const current = await spacer.evaluate(
+        element =>
+          new Promise<{ x: number; y: number } | null>(resolve => {
+            const midpoint = () => {
+              const rect = element.getBoundingClientRect();
+              return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            };
+            const first = midpoint();
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                const second = midpoint();
+                resolve(second.x === first.x && second.y === first.y ? second : null);
+              })
+            );
+          })
+      );
+      // Two consecutive polls must agree: a head that is still loading its route
+      // can gain actions well after two frames.
+      grip =
+        current && previous && current.x === previous.x && current.y === previous.y
+          ? current
+          : null;
+      previous = current;
+      return grip;
+    })
+    .not.toBeNull();
+  if (!grip) throw new Error("window head drag surface must expose a settled grip point");
+  return grip;
 }
 
 function rectsClose(
