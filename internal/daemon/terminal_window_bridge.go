@@ -88,6 +88,7 @@ func openTerminalWindow(
 		if terminalWindowExists(snapshot, terminalID) {
 			return nil
 		}
+		sessionWindow := boundSessionWindow(snapshot, event)
 		_, err = manager.Execute(ctx, windowmanager.CommandRequest{
 			WorkspaceID:      workspaceID,
 			ExpectedRevision: snapshot.Revision,
@@ -103,7 +104,8 @@ func openTerminalWindow(
 					Pathname: "/terminal/" + url.PathEscape(terminalID),
 					Search:   windowmanager.RouteSearch{},
 				},
-				DesktopID: terminalWindowDesktop(snapshot, event),
+				DesktopID:      sessionWindowDesktop(sessionWindow),
+				BesideWindowID: sessionWindowID(sessionWindow),
 			}},
 		})
 		if err == nil {
@@ -125,20 +127,38 @@ func terminalWindowExists(snapshot windowmanager.Snapshot, terminalID string) bo
 	return false
 }
 
-// terminalWindowDesktop lands the window on the desktop already showing the
-// bound session; the reducer default applies when none is found.
-func terminalWindowDesktop(
+// boundSessionWindow is the window already showing the terminal's bound
+// session. The terminal lands on its desktop and, under beside_focus, tiles
+// right after it — the agent's shell belongs next to the agent, and the open
+// carries no client, so nothing takes focus. Without one the reducer default
+// applies.
+func boundSessionWindow(
 	snapshot windowmanager.Snapshot,
 	event terminalpkg.Event,
-) windowmanager.DesktopID {
+) *windowmanager.Window {
 	if event.Info == nil || event.Info.BoundRun == nil {
-		return ""
+		return nil
 	}
 	sessionID := event.Info.BoundRun.SessionID
 	for _, window := range snapshot.Windows {
 		if window.App == sessionWindowApp && window.InstanceKey != nil && *window.InstanceKey == sessionID {
-			return window.DesktopID
+			return &window
 		}
 	}
-	return ""
+	return nil
+}
+
+func sessionWindowDesktop(window *windowmanager.Window) windowmanager.DesktopID {
+	if window == nil {
+		return ""
+	}
+	return window.DesktopID
+}
+
+func sessionWindowID(window *windowmanager.Window) *windowmanager.WindowID {
+	if window == nil {
+		return nil
+	}
+	id := window.ID
+	return &id
 }

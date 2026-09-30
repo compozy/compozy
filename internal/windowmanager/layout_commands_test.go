@@ -1120,6 +1120,68 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 			t.Fatal("invalid open command wrote a commit")
 		}
 	})
+
+	t.Run("Should tile full frame on an empty desktop when focus is on another desktop", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "w1", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil,
+			CreateDesktopCommand{DesktopID: "desktop-two", Name: "Two"})
+
+		// The client's focus still names w1 on the first desktop; that is no
+		// anchor for an open onto the empty second desktop.
+		opened := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-two")
+		desktopIndex, _ := desktopIndexByID(&opened.Snapshot, "desktop-two")
+		groups := opened.Snapshot.Desktops[desktopIndex].Groups
+		if opened.Snapshot.Windows["w2"].Placement != WindowPlacementTiled || len(groups) != 1 ||
+			groups[0].Frame != fullRect() || !slices.Equal(nodeWindowIDs(groups[0].Root), []WindowID{"w2"}) {
+			t.Fatalf("open onto empty desktop = %+v, want one full-frame tile", opened.Snapshot.Desktops[desktopIndex])
+		}
+	})
+
+	t.Run("Should tile after an explicit beside window without a client focus", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "a", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "b", "desktop-default")
+
+		anchor := WindowID("a")
+		opened := executeTestCommand(t, environment.manager, "workspace-a", nil, OpenWindowCommand{
+			Window: WindowSpec{
+				ID: "c", App: "Terminal", Route: testRoute("/terminal/t1"),
+				DesktopID: "desktop-default", BesideWindowID: &anchor,
+			},
+		})
+		if got := nodeWindowIDs(opened.Snapshot.Desktops[0].Groups[0].Root); opened.Snapshot.Windows["c"].Placement !=
+			WindowPlacementTiled || !slices.Equal(got, []WindowID{"a", "c", "b"}) {
+			t.Fatalf(
+				"beside-window open = %q (%q), want c tiled right after a",
+				got,
+				opened.Snapshot.Windows["c"].Placement,
+			)
+		}
+	})
+
+	t.Run("Should cascade a floating open off a window at the same rect", func(t *testing.T) {
+		t.Parallel()
+		config := DefaultConfig()
+		config.NewWindowPolicy = NewWindowFloating
+		environment := newTestEnvironment(t, config, "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "f1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "f2", "desktop-default")
+		opened := openTestWindow(t, environment.manager, "workspace-a", nil, "f3", "desktop-default")
+
+		base := opened.Snapshot.Windows["f1"].FloatingRect
+		second := opened.Snapshot.Windows["f2"].FloatingRect
+		third := opened.Snapshot.Windows["f3"].FloatingRect
+		if !sameRect(second, cascadeRect(base)) || !sameRect(third, cascadeRect(cascadeRect(base))) {
+			t.Fatalf("floating opens = %+v, %+v, %+v, want each stepped off the last", base, second, third)
+		}
+	})
 }
 
 func TestArrangeDisplacesIslands(t *testing.T) {

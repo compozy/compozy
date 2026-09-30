@@ -30,11 +30,13 @@ rem at 16px base) in **both themes**: `ds-core.css` `:root` mirrors
 | `--viz-*` | `--color-viz-*` |
 | shell (ds-shell.css): `--h-bar` 52, `--w-lights` 84, `--w-rail-dock` 60, `--rail-item` 40, `--h-deck` 40, `--h-deck-tab` 32, `--w-deck-tab` 208/136, `--h-win-head` 48, `--h-win-toolbar` 44, `--seam-hit` 9, `--dur-shell-*`, `--ease-spring`, `--teal` | `--height-menubar`, `--width-traffic-lights`, `--width-rail`, `--size-rail-item`, `--height-deck`, `--height-deck-tab`, `--width-deck-tab-max`/`--min-width-deck-tab`, `--height-window-head`, `--height-window-toolbar`, `--size-seam-hit`, `--duration-shell-*`, `--ease-spring`, `--wallpaper-teal` |
 
-Retired with the dock-era shell (still in `tokens.css` until their last consumer
-goes, then deleted): `--shell-glass*`, `--radius-window/-dock/-dock-item`,
-`--shadow-window*`, `--shadow-dock`, `--shadow-shell-*`, `--size-dock-*`,
-`--size-traffic-light*`, `--spacing-traffic-light-gap`. Prototypes must not use
-their bare mirrors.
+Deleted with the dock-era shell (no longer in `tokens.css`): the shell glass,
+blur and saturate families, `--radius-dock/-dock-item`, `--shadow-dock`,
+`--shadow-shell-*`, `--shadow-window-unfocused/-head-scrolled`, `--size-dock-*`,
+and the traffic-light sizes and gaps. Prototypes must not use their bare
+mirrors. `--radius-window` and `--shadow-window` survive only for the site hero
+and two stories; production floating windows use `--shadow-elevated`, which
+`ds-shell.css` mirrors as `--shadow-win`.
 
 ## Component map
 

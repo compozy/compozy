@@ -190,6 +190,39 @@ func TestOpenTerminalWindow(t *testing.T) {
 		}
 	})
 
+	t.Run("Should tile the window right after the bound session under beside_focus", func(t *testing.T) {
+		t.Parallel()
+		manager := newBridgeTestManager(t)
+		provider := &staticWindowManagerProvider{manager: manager}
+		seedSessionWindowOnSecondDesktop(t, manager, "session-b")
+
+		event := agentPTYOpenedEvent("term-0000000000b1")
+		event.Info = &terminalpkg.Info{
+			BoundRun: &terminalpkg.RunRef{SessionID: "session-b", RunID: "run-b", Generation: 1},
+		}
+		if err := openTerminalWindow(testutil.Context(t), provider, event); err != nil {
+			t.Fatalf("openTerminalWindow() error = %v", err)
+		}
+
+		snapshot, err := manager.Snapshot(testutil.Context(t), bridgeTestWorkspace)
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		terminal := terminalWindowsIn(snapshot, "term-0000000000b1")
+		if len(terminal) != 1 || terminal[0].Placement != windowmanager.WindowPlacementTiled {
+			t.Fatalf("terminal windows = %#v, want one tiled window (not floating over the session)", terminal)
+		}
+		var group []windowmanager.WindowID
+		for _, desktop := range snapshot.Desktops {
+			if desktop.ID == "desktop-two" && len(desktop.Groups) == 1 {
+				group = windowIDsInOrder(desktop.Groups[0].Root)
+			}
+		}
+		if len(group) != 2 || snapshot.Windows[group[0]].App != sessionWindowApp || group[1] != terminal[0].ID {
+			t.Fatalf("desktop-two tiles = %q, want the session then the terminal", group)
+		}
+	})
+
 	t.Run("Should land the window on the desktop showing the bound session", func(t *testing.T) {
 		t.Parallel()
 		manager := newBridgeTestManager(t)
@@ -306,4 +339,16 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 		})
 		notifier.Notify(testutil.Context(t), agentPTYOpenedEvent("term-0000000000b1"))
 	})
+}
+
+// windowIDsInOrder lists a layout tree's leaf windows in reading order.
+func windowIDsInOrder(node windowmanager.LayoutNode) []windowmanager.WindowID {
+	if node.WindowID != nil {
+		return []windowmanager.WindowID{*node.WindowID}
+	}
+	ids := append([]windowmanager.WindowID(nil), node.WindowIDs...)
+	for _, child := range node.Children {
+		ids = append(ids, windowIDsInOrder(child)...)
+	}
+	return ids
 }

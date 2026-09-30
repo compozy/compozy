@@ -1,11 +1,15 @@
 // Suite: desktop chrome boot
-// Invariant: useDesktopChrome owns OsShellHandle and mounts without OsShellContext.
+// Invariant: useDesktopChrome owns OsShellHandle and mounts without OsShellContext;
+// the settings read that names this client waits for its registration.
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const queryOptionsSeen = vi.hoisted(() => [] as Array<{ queryKey: unknown; enabled?: unknown }>);
+const registration = vi.hoisted(() => ({ status: "idle" as string }));
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -18,7 +22,10 @@ vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: () => ({ data: undefined }),
+    useQuery: (options: { queryKey: unknown; enabled?: unknown }) => {
+      queryOptionsSeen.push(options);
+      return { data: undefined };
+    },
   };
 });
 
@@ -39,7 +46,7 @@ vi.mock("../use-window-manager-client", () => ({
     clientId: "client:test",
     registrationEpoch: 0,
     client: null,
-    status: "idle",
+    status: registration.status,
     error: null,
     reregister: vi.fn(),
   }),
@@ -64,12 +71,36 @@ function wrapper() {
   );
 }
 
+function settingsReads() {
+  return queryOptionsSeen.filter(
+    options => Array.isArray(options.queryKey) && options.queryKey.includes("client:test")
+  );
+}
+
 describe("useDesktopChrome", () => {
+  beforeEach(() => {
+    queryOptionsSeen.length = 0;
+    registration.status = "idle";
+  });
+
   it("Should mount without an OsShellContext provider", () => {
     const { result } = renderHook(() => useDesktopChrome(null), { wrapper: wrapper() });
 
     expect(result.current.shell.manager).toBeDefined();
     expect(result.current.shell.projection).toBeDefined();
     expect(result.current.client).toBeNull();
+  });
+
+  it("Should hold the client-scoped settings read until the client is registered", () => {
+    const { rerender } = renderHook(() => useDesktopChrome("workspace:one"), {
+      wrapper: wrapper(),
+    });
+    expect(settingsReads().length).toBeGreaterThan(0);
+    expect(settingsReads().every(options => options.enabled === false)).toBe(true);
+
+    registration.status = "registered";
+    queryOptionsSeen.length = 0;
+    rerender();
+    expect(settingsReads().at(-1)?.enabled).toBe(true);
   });
 });

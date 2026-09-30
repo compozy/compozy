@@ -396,6 +396,44 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			t.Fatalf("window-manager diagnostics = %#v, want dead extension command", envelope.WindowManager)
 		}
 	})
+
+	t.Run("Should read the section without a client that is not attached yet", func(t *testing.T) {
+		t.Parallel()
+
+		// A web client's settings read can race its registration for the workspace
+		// it just switched to; the read must answer, not fail as an internal error.
+		palette := &recordingCmdPaletteCatalog{
+			attachedClient: "client:attached",
+			catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{{
+				Descriptor: cmdpalette.Descriptor{
+					ID: "session.new", Title: "New session", Section: "Sessions",
+					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				},
+				Bindings: []string{"meta+KeyN"},
+			}}},
+		}
+		workspaceService := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()}, WorkspaceID: "ws-1"},
+			}},
+			CmdPalette: palette,
+		})
+
+		envelope, err := workspaceService.GetSection(ctx, SectionRequest{
+			Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1", ClientID: "client:pending",
+		})
+		if err != nil {
+			t.Fatalf("GetSection(unattached client) error = %v, want the client-less section", err)
+		}
+		if envelope.WindowManager == nil || len(envelope.WindowManager.Commands) != 1 ||
+			envelope.WindowManager.Commands[0].ID != "session.new" {
+			t.Fatalf("window-manager section = %#v, want the catalog commands", envelope.WindowManager)
+		}
+		requests := palette.recordedRequests()
+		if len(requests) != 2 || requests[0].ClientID != "client:pending" || requests[1].ClientID != "" {
+			t.Fatalf("catalog requests = %#v, want the client read then a client-less read", requests)
+		}
+	})
 }
 
 func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
@@ -4094,6 +4132,9 @@ type recordingCmdPaletteCatalog struct {
 	catalog  cmdpalette.Catalog
 	requests []cmdpalette.CatalogRequest
 	events   []cmdpalette.Event
+	// attachedClient, when set, is the only client the catalog can resolve;
+	// any other client ID fails like the daemon's client directory does.
+	attachedClient cmdpalette.ClientID
 }
 
 func (r *recordingCmdPaletteCatalog) Catalog(
@@ -4103,6 +4144,9 @@ func (r *recordingCmdPaletteCatalog) Catalog(
 	r.mu.Lock()
 	r.requests = append(r.requests, request)
 	r.mu.Unlock()
+	if r.attachedClient != "" && request.ClientID != "" && request.ClientID != r.attachedClient {
+		return cmdpalette.Catalog{}, cmdpalette.ErrNoAttachedShell
+	}
 	return r.catalog, nil
 }
 

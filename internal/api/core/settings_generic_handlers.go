@@ -25,7 +25,11 @@ func (h *BaseHandlers) getSettingsSection(c *gin.Context, section settingspkg.Se
 
 	envelope, err := h.Settings.GetSection(c.Request.Context(), req)
 	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
+		status := StatusForSettingsError(err)
+		if status >= http.StatusInternalServerError && h.Logger != nil {
+			h.Logger.Error("settings section read failed", "section", section, "error", err)
+		}
+		h.respondError(c, status, err)
 		return
 	}
 

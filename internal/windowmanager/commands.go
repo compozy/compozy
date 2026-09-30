@@ -100,6 +100,10 @@ type WindowSpec struct {
 	FloatingRect        NormalizedRect `json:"floating_rect"`
 	InsertTiled         bool           `json:"insert_tiled,omitempty"`
 	StackTargetWindowID *WindowID      `json:"stack_target_window_id,omitempty"`
+	// BesideWindowID anchors a tiled open (beside_focus or InsertTiled) to this
+	// window instead of the client's focus. Daemon-originated opens have no
+	// client focus; they name the window the new one belongs next to.
+	BesideWindowID *WindowID `json:"beside_window_id,omitempty"`
 }
 
 type OpenWindowCommand struct {

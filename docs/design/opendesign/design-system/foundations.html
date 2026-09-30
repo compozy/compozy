@@ -140,8 +140,9 @@
       <tr><td><code>--inset-strong</code></td><td>inset 0 0 0 1px var(--line-strong)</td><td>Selected radio cards, hollow pills, selected rows.</td></tr>
       <tr><td><code>--focus-ring</code> / <code>-inset</code></td><td>0 0 0 2px rgba(255,255,255,.5)</td><td><code>:focus-visible</code> only (§08).</td></tr>
     </table>
-    <p class="fd-note">That is the complete list. The shell layer adds window and dock cast shadows
-    (<code>--shadow-win</code>, <code>--shadow-dock</code>) under the OS waiver — see chapter 02.
+    <p class="fd-note">That is the complete list. The shell casts only one shadow: floating windows
+    use <code>--shadow-elevated</code> (mirrored as <code>--shadow-win</code>) under the OS waiver — see chapter 02.
+    Tiled windows, the rail and the topbar are flat.
     <b>Content cards never cast.</b> A card that needs separation gets a ramp step or a hairline, not a shadow.</p>
   </section>
 
