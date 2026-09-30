@@ -15,9 +15,10 @@ export interface ListingToolbarSearchProps extends SearchInputProps {
   /**
    * The strip is too narrow for a usable field. The search shows as an icon
    * button that opens the field on demand and folds back once the field is
-   * empty and loses focus (or Escape is pressed); a field holding a query
-   * stays open, since a clipped field is worse than none but a hidden query
-   * is worse still.
+   * empty and loses focus (or Escape is pressed). An active field — focused,
+   * or holding a query — never folds, even when the strip narrows under it:
+   * a clipped field is worse than none, but a hidden query is worse still.
+   * A disabled search folds to a disabled toggle.
    */
   collapsed?: boolean;
 }
@@ -83,22 +84,24 @@ export function ListingToolbarSearch({
   containerClassName,
   collapsed = false,
   ref,
+  value,
+  defaultValue,
+  disabled,
   onBlur,
+  onChange,
+  onFocus,
   onKeyDown,
   ...props
 }: ListingToolbarSearchProps) {
-  const hasQuery = (props.value ?? String(props.defaultValue ?? "")) !== "";
-  const { showToggle, open, close, inputRefs, toggleRef } = useCollapsibleSearch(
-    collapsed,
-    hasQuery,
-    ref
-  );
+  const search = useCollapsibleSearch({ collapsed, disabled, value, defaultValue, ref });
+  const { showToggle, open, engage, release, close, trackValue, inputRefs, toggleRef } = search;
 
   if (showToggle) {
     return (
       <Button
         aria-label={props["aria-label"] ?? props.placeholder ?? "Search"}
         data-slot="listing-toolbar-search-toggle"
+        disabled={disabled}
         onClick={open}
         ref={toggleRef}
         size="segment"
@@ -118,9 +121,19 @@ export function ListingToolbarSearch({
         containerClassName
       )}
       ref={inputRefs}
+      {...(value === undefined ? { defaultValue: search.retainedDefault } : { value })}
+      disabled={disabled}
+      onChange={next => {
+        trackValue(next);
+        onChange?.(next);
+      }}
+      onFocus={event => {
+        onFocus?.(event);
+        engage();
+      }}
       onBlur={event => {
         onBlur?.(event);
-        if (event.currentTarget.value === "") close(false);
+        release();
       }}
       onKeyDown={event => {
         onKeyDown?.(event);

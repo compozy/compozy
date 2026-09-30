@@ -93,4 +93,65 @@ describe("ListingToolbar", () => {
     await user.tab();
     expect(screen.getByRole("searchbox")).toHaveValue("deploy");
   });
+
+  function StripSearch(props: { collapsed: boolean; disabled?: boolean; value?: string }) {
+    return (
+      <ListingToolbar>
+        <ListingToolbar.Leading>
+          <ListingToolbar.Search aria-label="Search tasks" {...props} />
+          <button type="button">Filter</button>
+        </ListingToolbar.Leading>
+      </ListingToolbar>
+    );
+  }
+
+  it("Should keep a focused empty field mounted when the strip narrows, folding only once it lets focus go", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<StripSearch collapsed={false} value="" />);
+    await user.click(screen.getByRole("searchbox", { name: "Search tasks" }));
+
+    rerender(<StripSearch collapsed value="" />);
+    expect(screen.getByRole("searchbox", { name: "Search tasks" })).toHaveFocus();
+
+    // Focus moves on: the empty field folds, and the toggle does not steal focus.
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Filter" })).toHaveFocus();
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.getByRole("button", { name: "Search tasks" })).toBeInTheDocument();
+  });
+
+  it("Should keep an uncontrolled query across strip width changes and fold once it is cleared", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<StripSearch collapsed={false} />);
+    await user.type(screen.getByRole("searchbox"), "retained-query");
+    await user.tab();
+
+    // The live value, not the initial default, decides: a query never folds.
+    rerender(<StripSearch collapsed />);
+    expect(screen.getByRole("searchbox")).toHaveValue("retained-query");
+    rerender(<StripSearch collapsed={false} />);
+    expect(screen.getByRole("searchbox")).toHaveValue("retained-query");
+
+    // Cleared and left, the narrow field folds; reopening starts from the live (empty) value.
+    rerender(<StripSearch collapsed />);
+    await user.click(screen.getByRole("button", { name: "Clear search field" }));
+    await user.tab();
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Search tasks" }));
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(screen.getByRole("searchbox")).toHaveFocus();
+  });
+
+  it("Should fold a disabled search to a disabled toggle that cannot open or take focus", async () => {
+    const user = userEvent.setup();
+    render(<StripSearch collapsed disabled value="" />);
+    const toggle = screen.getByRole("button", { name: "Search tasks" });
+    expect(toggle).toBeDisabled();
+
+    await user.click(toggle);
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    await user.tab();
+    expect(toggle).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: "Filter" })).toHaveFocus();
+  });
 });
