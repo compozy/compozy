@@ -1,6 +1,6 @@
 import { Check, RotateCcw, ShieldCheck, type LucideIcon } from "lucide-react";
 
-import { formatRelativeTime, type PillTone } from "@compozy/ui";
+import { formatRelativeTime, type PillTone, type StateGlyphState } from "@compozy/ui";
 
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../types";
 import { readQuarantineEntry } from "./loop-quarantine-entry";
@@ -26,6 +26,14 @@ export const LOOP_NODE_INVENTORY_TONES = {
   attention: "warning",
   retrying: "neutral",
 } as const satisfies Record<LoopNodeInventoryState, PillTone>;
+
+/** Canonical `StateGlyph` per inventory state (quarantine is a failure, retries wait their turn). */
+export const LOOP_NODE_INVENTORY_GLYPHS = {
+  waiting: "queued",
+  quarantined: "failed",
+  attention: "attention",
+  retrying: "queued",
+} as const satisfies Record<LoopNodeInventoryState, StateGlyphState>;
 
 const INVENTORY_EMPTY_ICONS = {
   waiting: Check,

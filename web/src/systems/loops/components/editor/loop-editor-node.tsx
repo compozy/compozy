@@ -74,7 +74,7 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
   const card = (
     <div
       className={cn(
-        "group relative flex w-47 flex-col rounded-md border bg-canvas-tint transition-colors",
+        "group relative flex w-47 flex-col rounded-md border bg-canvas shadow-card transition-colors",
         nodeFrameClassName(hasError, focused, selected)
       )}
       data-testid="loop-editor-node"
@@ -159,7 +159,7 @@ function LoopEditorNodeHeader({
     >
       <span
         className={cn(
-          "grid size-6 shrink-0 place-items-center rounded border border-line-strong bg-elevated",
+          "grid size-6 shrink-0 place-items-center rounded bg-surface-2",
           focused ? "text-accent-strong" : "text-muted"
         )}
       >

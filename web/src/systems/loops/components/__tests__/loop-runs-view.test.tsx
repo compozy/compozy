@@ -175,8 +175,8 @@ describe("LoopRunsView", () => {
     const row = screen.getByTestId("loop-run-row");
     const status = within(row).getByTestId("loop-run-status");
     expect(status).toHaveTextContent("Needs you");
-    // Warning on the page; danger stays with failure and the attention bell.
-    expect(status).toHaveAttribute("data-tone", "warning");
+    // The needs-you signal on the page; failure keeps its own mark.
+    expect(status).toHaveAttribute("data-state", "attention");
     expect(within(row).getByTestId("loop-run-summary")).toHaveTextContent(
       "an approval is waiting on “aplicar-correcoes”"
     );

@@ -33,8 +33,13 @@ export function TriggersCatalogLocation({ search }: { search: AutomationRouteSea
     glyph: <Zap />,
     count: page.total,
     actions: (
-      <Button data-testid="create-trigger-btn" onClick={page.handleCreate} size="sm" type="button">
-        <Plus aria-hidden="true" className="size-3" />
+      <Button
+        data-testid="create-trigger-btn"
+        onClick={page.handleCreate}
+        type="button"
+        variant="secondary"
+      >
+        <Plus aria-hidden="true" />
         Trigger
       </Button>
     ),

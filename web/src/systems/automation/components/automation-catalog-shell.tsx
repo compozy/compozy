@@ -199,7 +199,7 @@ function AutomationCatalogItems({
   }
   return (
     <div
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="overflow-hidden rounded-lg bg-canvas shadow-card"
       data-testid={`${noun}-list-rows`}
     >
       {children}

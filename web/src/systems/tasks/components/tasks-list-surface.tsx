@@ -1,8 +1,19 @@
 import { AlertCircle, GitBranch, ListChecks, Search } from "lucide-react";
 
-import { Button, Empty, ListingPage, Spinner } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  ListingPage,
+  Spinner,
+  Table,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@compozy/ui";
+import { cn } from "@/lib/utils";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
+import { TASKS_TABLE_COLUMN_CLASS } from "../lib/tasks-table-columns";
 import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
@@ -47,17 +58,10 @@ export function TasksListSurface({
   const hasTasks = tasks.length > 0;
   const hasFilters = filterState === "active" || searchQuery.trim() !== "";
 
-  return (
-    <ListingPage data-testid="tasks-list-surface">
-      <div className="flex flex-col gap-5" data-testid="tasks-list-surface-body">
-        {hasTasks ? (
-          <TasksListGroups
-            onOpenLoopRun={onOpenLoopRun}
-            profile={profile}
-            statusCounts={statusCounts}
-            tasks={tasks}
-          />
-        ) : (
+  if (!hasTasks) {
+    return (
+      <ListingPage data-testid="tasks-list-surface">
+        <div className="flex flex-col gap-5" data-testid="tasks-list-surface-body">
           <TasksListEmptyBody
             errorMessage={errorMessage}
             hasFilters={hasFilters}
@@ -67,10 +71,29 @@ export function TasksListSurface({
             recordsFilter={recordsFilter}
             scopeLabel={profile.scopeLabel}
           />
-        )}
-        {errorMessage && hasTasks ? (
+        </div>
+      </ListingPage>
+    );
+  }
+
+  // Rows run edge to edge on the pane surface (reference table grammar); the
+  // `@container` lets columns drop by pane width rather than viewport width.
+  return (
+    <div
+      className="@container flex min-h-0 flex-1 flex-col overflow-y-auto"
+      data-slot="tasks-list-surface"
+      data-testid="tasks-list-surface"
+    >
+      <div className="flex flex-col pb-4" data-testid="tasks-list-surface-body">
+        <TasksListTable
+          onOpenLoopRun={onOpenLoopRun}
+          profile={profile}
+          statusCounts={statusCounts}
+          tasks={tasks}
+        />
+        {errorMessage ? (
           <div
-            className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
+            className="flex items-center justify-between gap-3 px-4 pt-3 text-small-body text-danger"
             data-testid="tasks-list-surface-pagination-error"
             role="alert"
           >
@@ -82,7 +105,43 @@ export function TasksListSurface({
           <TasksListLoadMore isLoadingMore={isLoadingMore} onLoadMore={onLoadMore} />
         ) : null}
       </div>
-    </ListingPage>
+    </div>
+  );
+}
+
+function TasksListTable({
+  tasks,
+  profile,
+  statusCounts,
+  onOpenLoopRun,
+}: Pick<TasksListSurfaceProps, "tasks" | "profile" | "statusCounts" | "onOpenLoopRun">) {
+  const total = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+  return (
+    <Table className="table-fixed" data-testid="tasks-list-table" overflowX="hidden">
+      <TableHeader>
+        <TableRow>
+          <TableHead className="pl-4">
+            Task{" "}
+            <span className="font-normal text-subtle tabular-nums" data-slot="tasks-list-total">
+              ({Math.max(total, tasks.length)})
+            </span>
+          </TableHead>
+          <TableHead className={TASKS_TABLE_COLUMN_CLASS.id}>ID</TableHead>
+          <TableHead className={TASKS_TABLE_COLUMN_CLASS.status}>Status</TableHead>
+          <TableHead className={TASKS_TABLE_COLUMN_CLASS.priority}>Priority</TableHead>
+          <TableHead className={cn("pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner)}>
+            <span className="sr-only">Owner</span>
+          </TableHead>
+          <TableHead className={cn("pr-4", TASKS_TABLE_COLUMN_CLASS.updated)}>Updated</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TasksListGroups
+        onOpenLoopRun={onOpenLoopRun}
+        profile={profile}
+        statusCounts={statusCounts}
+        tasks={tasks}
+      />
+    </Table>
   );
 }
 
@@ -207,7 +266,7 @@ function TasksListLoadMore({
   onLoadMore: () => void;
 }) {
   return (
-    <div className="flex items-center justify-center border-t border-line-soft pt-3">
+    <div className="flex items-center justify-center pt-3">
       <Button
         aria-busy={isLoadingMore}
         aria-label={isLoadingMore ? "Loading more tasks" : "Load more tasks"}

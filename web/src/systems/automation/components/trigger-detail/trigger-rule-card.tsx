@@ -79,7 +79,7 @@ export function TriggerRuleCard({
 
   return (
     <div
-      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
+      className={cn("overflow-hidden rounded-lg bg-canvas shadow-card", className)}
       data-testid="trigger-rule-card"
       {...props}
     >

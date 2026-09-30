@@ -1,6 +1,4 @@
-import { Check, CircleAlert, Clock, type LucideIcon, Minus, TriangleAlert } from "lucide-react";
-
-import type { PillTone } from "@compozy/ui";
+import type { PillTone, StateGlyphState } from "@compozy/ui";
 
 export const LOOP_REQUEST_KINDS = ["ask", "review"] as const;
 export type LoopRequestKind = (typeof LOOP_REQUEST_KINDS)[number];
@@ -36,21 +34,22 @@ export function isLoopDiffChange(value: string): value is LoopDiffChange {
 
 export interface LoopSignal {
   tone: PillTone;
-  icon: LucideIcon;
+  /** Canonical `StateGlyph` state beside the word. */
+  glyph: StateGlyphState;
 
   word: string;
 }
 
 export const LOOP_REQUEST_STATE_SIGNAL: Record<LoopRequestState, LoopSignal> = {
-  pending: { tone: "warning", icon: TriangleAlert, word: "pending" },
-  answered: { tone: "info", icon: Check, word: "answered" },
-  expired: { tone: "danger", icon: CircleAlert, word: "expired" },
-  canceled: { tone: "neutral", icon: Minus, word: "canceled" },
+  pending: { tone: "warning", glyph: "attention", word: "pending" },
+  answered: { tone: "info", glyph: "done", word: "answered" },
+  expired: { tone: "danger", glyph: "stopped", word: "expired" },
+  canceled: { tone: "neutral", glyph: "stopped", word: "canceled" },
 };
 
 export const LOOP_REQUEST_NEAR_EXPIRY_SIGNAL: LoopSignal = {
   tone: "warning",
-  icon: Clock,
+  glyph: "attention",
   word: "expires soon",
 };
 

@@ -2,14 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, OwnerAvatar, Pill, PropertyRow, Time } from "@compozy/ui";
+import { Button, cn, OwnerAvatar, PropertyRow, StateGlyph, Time } from "@compozy/ui";
 
 import {
   computeElapsed,
   ownerAvatarKindFor,
   taskOwnerLabel,
   taskRunStatusLabel,
-  taskRunStatusTone,
+  taskRunStateGlyph,
 } from "../lib/task-formatters";
 import {
   taskExecutionProfileSummary,
@@ -59,7 +59,7 @@ export function TaskPropertiesRail({
   return (
     <div
       {...props}
-      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
+      className={cn("overflow-hidden rounded-lg bg-canvas shadow-card", className)}
       data-testid="tasks-detail-rail"
     >
       {/* Leads the rail: "what is this record, which run owns it" comes first. */}
@@ -186,7 +186,7 @@ function TaskRunHistorySections({
       {stuckRun ? (
         <RailSection label="Current run">
           <PropertyRow label="Status">
-            <Pill.Dot tone={taskRunStatusTone(stuckRun.status)} />
+            <StateGlyph state={taskRunStateGlyph(stuckRun.status)} />
             {taskRunStatusLabel(stuckRun.status)}
           </PropertyRow>
           {stuckRun.claimed_by?.ref ? (
@@ -206,7 +206,7 @@ function TaskRunHistorySections({
       {lastFailedRun ? (
         <RailSection label="Last run">
           <PropertyRow label="Status">
-            <Pill.Dot tone="danger" />
+            <StateGlyph state="failed" />
             Failed
           </PropertyRow>
           {lastFailedRun.ended_at ? (

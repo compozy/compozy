@@ -196,10 +196,7 @@ function RouteRow({
 }: RouteRowProps) {
   const position = index + 1;
   return (
-    <div
-      className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
-      data-testid={`loop-route-row-${index}`}
-    >
+    <div className="rounded-md bg-sunken p-2.5" data-testid={`loop-route-row-${index}`}>
       <div className="mb-2 flex items-center gap-2">
         <span className="font-mono text-mono-id text-fg-strong">#{position}</span>
         <div className="ml-auto flex items-center gap-0.5">

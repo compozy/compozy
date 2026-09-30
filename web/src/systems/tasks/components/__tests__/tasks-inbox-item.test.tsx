@@ -13,7 +13,7 @@ import { TasksInboxItem } from "../tasks-inbox-item";
 import { buildInboxItemFixture } from "../test-fixtures";
 
 describe("TasksInboxItem", () => {
-  it("Should render a 3-col grid (rail / body / meta) with the rail painted by the group tone, not a left border", () => {
+  it("Should lead an approval row with the attention glyph", () => {
     const item = buildInboxItemFixture({
       lane: "approvals",
       task: {
@@ -38,11 +38,14 @@ describe("TasksInboxItem", () => {
     const row = screen.getByTestId("tasks-inbox-item-task_apr");
     expect(row).toHaveAttribute("data-group", "needs_review");
 
-    const rail = row.querySelector("[data-slot=tasks-inbox-row-rail]");
-    expect(rail).not.toBeNull();
+    // An approval waits on a person, so the row leads with the attention glyph.
+    expect(row.querySelector("[data-slot=tasks-inbox-row-glyph]")).toHaveAttribute(
+      "data-state",
+      "attention"
+    );
   });
 
-  it("Should paint the rail with the blocked danger tone when the row belongs to the blocked group", () => {
+  it("Should lead a blocked row with the attention glyph", () => {
     const item = buildInboxItemFixture({
       lane: "blocked",
       task: {
@@ -55,10 +58,10 @@ describe("TasksInboxItem", () => {
     });
 
     render(<TasksInboxItem group="blocked" item={item} />);
-    const rail = screen
+    const glyph = screen
       .getByTestId("tasks-inbox-item-task_block")
-      .querySelector("[data-slot=tasks-inbox-row-rail]");
-    expect(rail).not.toBeNull();
+      .querySelector("[data-slot=tasks-inbox-row-glyph]");
+    expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
   it("Should render Reject as a ghost-danger button and Approve as the single accent CTA", () => {

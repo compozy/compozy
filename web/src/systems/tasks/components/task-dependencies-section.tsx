@@ -45,7 +45,7 @@ export function TaskDependenciesSection({
       data-testid="tasks-detail-dependencies"
       label="Blocked by"
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
         {open.map(dep => (
           <TaskLinkedRow
             key={dep.depends_on.id}

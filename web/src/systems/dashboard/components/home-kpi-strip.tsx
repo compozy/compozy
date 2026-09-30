@@ -43,7 +43,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
   return (
     <MetricGrid columns={4} data-slot="home-kpi-strip">
       <Link
-        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
         search={{ mode: "dashboard" }}
         to="/tasks"
       >
@@ -55,7 +55,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
         />
       </Link>
       <Link
-        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
         search={{ mode: "inbox" }}
         to="/tasks"
       >
@@ -67,7 +67,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
         />
       </Link>
       <Link
-        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
         search={{ mode: "dashboard" }}
         to="/tasks"
       >

@@ -287,7 +287,7 @@ export function LoopRunPageBody({
             />
           </main>
           <aside data-testid="loop-run-detail-rail">
-            <div className="rounded-lg border border-line bg-canvas-soft">
+            <div className="rounded-lg bg-canvas shadow-card">
               <LoopRunUsageRail rows={usageRows} note={usageNote} />
               <LoopRunAboutRail
                 run={run}

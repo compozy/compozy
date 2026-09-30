@@ -3,6 +3,7 @@ import {
   type OwnerAvatarProps,
   type PillTone,
   type RunCardStatus,
+  type StateGlyphState,
 } from "@compozy/ui";
 
 import {
@@ -26,42 +27,58 @@ import type {
   TaskStatus,
 } from "../types";
 
-export interface TaskStatusSignal {
-  tone: PillTone;
-  pulse?: boolean;
-}
-
 /**
- * Maps a task status (production vocabulary OR the `docs/design/web-inspiration/`
- * shorthand of `done | running | pending | blocked | failed`) to the DESIGN.md §4
- * `StatusDot` tone and pulse. Used by `tasks-list-row`, detail header, kanban cards,
- * inbox rows and table cells so that the visual signal stays consistent.
- *
- * Color is signal, never decoration: terminal / normal states render neutral,
- * only attention-demanding states carry a semantic tone. The `accent` + `pulse`
- * combination is reserved for genuinely running work.
+ * Maps a task status onto the canonical `StateGlyph` state (shell-rail brand
+ * rule 4): running work spins, queued work is a dashed ring, finished work is a
+ * mint check, work that needs a person is the orange attention dot, failures
+ * carry the danger mark and deliberate stops read as stopped. `blocked` and
+ * `needs_attention` both wait on someone, so both read as attention; their
+ * labels keep them distinct. Used by the list table, detail header, kanban,
+ * inbox and dashboard so the signal stays consistent.
  */
-export function taskStatusSignal(status?: TaskStatus | string | null): TaskStatusSignal {
+export function taskStateGlyph(status?: TaskStatus | string | null): StateGlyphState {
   switch (status) {
     case "in_progress":
     case "running":
-      return { tone: "accent", pulse: true };
-    case "blocked":
-      // Matches TASK_STATUS_TONE so the dot and the status pill agree, and stays
-      // distinct from the needs_attention escalation dot (warning) — no coercion.
-      return { tone: "danger" };
-    case "needs_attention":
-      return { tone: "warning" };
-    case "failed":
-    case "canceled":
-      return { tone: "danger" };
+      return "running";
+    case "draft":
+    case "pending":
+    case "ready":
+      return "queued";
     case "completed":
     case "done":
-    case "ready":
-    case "pending":
-    case "draft":
+      return "done";
+    case "blocked":
+    case "needs_attention":
+      return "attention";
+    case "failed":
+      return "failed";
+    case "canceled":
+      return "stopped";
     default:
-      return { tone: "neutral" };
+      return "idle";
+  }
+}
+
+/** Run-status counterpart of {@link taskStateGlyph} over the wire run enum. */
+export function taskRunStateGlyph(status?: TaskRunStatus | null): StateGlyphState {
+  switch (status) {
+    case "claimed":
+    case "starting":
+    case "running":
+      return "running";
+    case "queued":
+      return "queued";
+    case "completed":
+      return "done";
+    case "needs_attention":
+      return "attention";
+    case "failed":
+      return "failed";
+    case "canceled":
+      return "stopped";
+    default:
+      return "idle";
   }
 }
 
@@ -436,13 +453,3 @@ export {
   type TaskHandoffActionLabel,
   type TaskLifecyclePhase,
 } from "./task-lifecycle-formatters";
-
-/** Head-status text tone map (`.w2-status`: bare tone-colored text, never a filled pill). */
-export const HEAD_STATUS_TONE_TEXT: Record<PillTone, string> = {
-  neutral: "text-muted",
-  accent: "text-accent",
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-  info: "text-info",
-};

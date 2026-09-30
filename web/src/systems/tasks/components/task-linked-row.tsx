@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { cn, OwnerAvatar, Time } from "@compozy/ui";
+import { cn, OwnerAvatar, StateGlyph, type StateGlyphState, Time } from "@compozy/ui";
 
 import { ownerAvatarKindFor, taskOwnerLabel } from "../lib/task-formatters";
 import type { TaskChildSummary } from "../types";
@@ -17,10 +17,10 @@ export interface TaskLinkedRowProps {
   testId?: string;
 }
 
-const DOT_CLASS: Record<TaskLinkedRowState, string> = {
-  done: "bg-success",
-  active: "border border-accent bg-transparent",
-  todo: "border border-faint bg-transparent",
+const STATE_GLYPH: Record<TaskLinkedRowState, StateGlyphState> = {
+  done: "done",
+  active: "running",
+  todo: "queued",
 };
 
 const STATE_LABEL: Record<TaskLinkedRowState, string> = {
@@ -58,16 +58,11 @@ export function TaskLinkedRow({
       params={{ id: taskId }}
       to="/tasks/$id"
     >
-      <span
-        aria-label={STATE_LABEL[state]}
-        className={cn("size-2 justify-self-center rounded-full", DOT_CLASS[state])}
-        data-state={state}
-        role="img"
-      >
-        {state === "active" ? (
-          <span aria-hidden="true" className="m-auto block size-1 rounded-full bg-accent" />
-        ) : null}
-      </span>
+      <StateGlyph
+        className="justify-self-center"
+        label={STATE_LABEL[state]}
+        state={STATE_GLYPH[state]}
+      />
       <span className="truncate text-ws-name font-medium text-fg-strong">
         {state === "done" ? <s className="text-muted decoration-faint">{title}</s> : title}
       </span>

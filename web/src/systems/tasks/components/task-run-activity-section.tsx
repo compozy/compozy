@@ -34,7 +34,7 @@ export function TaskRunActivitySection({
           {errorMessage}
         </p>
       ) : (
-        <div className="rounded-lg border border-line bg-canvas-soft px-4 pt-3">
+        <div className="rounded-lg bg-canvas shadow-card px-4 pt-3">
           {items.length === 0 ? (
             <p className="px-4 py-4 text-small-body text-muted">
               No events recorded for this attempt yet.

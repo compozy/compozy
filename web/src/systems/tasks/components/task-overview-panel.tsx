@@ -130,7 +130,7 @@ export function TaskOverviewPanel({
         >
           <ul
             aria-label="Recent task activity"
-            className="flex flex-col rounded-lg border border-line bg-canvas-soft px-4 pt-3"
+            className="flex flex-col rounded-lg bg-canvas shadow-card px-4 pt-3"
           >
             {recent.map(item => (
               <TaskActivityItem

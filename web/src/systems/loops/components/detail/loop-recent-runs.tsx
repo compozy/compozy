@@ -23,7 +23,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
   if (runs.length === 0) {
     return (
       <div
-        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-small-body text-subtle"
+        className="rounded-lg bg-sunken px-4 py-6 text-center text-small-body text-subtle"
         data-testid="loop-recent-runs-empty"
       >
         This Loop has not run yet.
@@ -31,10 +31,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
     );
   }
   return (
-    <div
-      className="flex flex-col rounded-lg border border-line bg-canvas-soft"
-      data-testid="loop-recent-runs"
-    >
+    <div className="flex flex-col rounded-lg bg-canvas shadow-card" data-testid="loop-recent-runs">
       {runs.map(run => (
         <Link
           key={run.id}

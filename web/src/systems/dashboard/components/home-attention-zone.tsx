@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 
-import { Button, Panel, Section, StatusDot, Time } from "@compozy/ui";
+import { Button, Panel, Section, StateGlyph, Time } from "@compozy/ui";
 
 import type { AttentionNotificationScope } from "@/systems/notifications";
 
@@ -27,8 +27,8 @@ interface HomeAttentionRowProps {
   isMutating: boolean;
 }
 
-function attentionDotTone(kind: string): "warning" | "danger" {
-  return kind === "failure" ? "danger" : "warning";
+function attentionGlyph(kind: string): "attention" | "failed" {
+  return kind === "failure" ? "failed" : "attention";
 }
 
 function attentionKindLabel(kind: string): string {
@@ -70,7 +70,7 @@ function HomeAttentionRow({
         data-resolved={resolved}
         data-slot="home-attention-row"
       >
-        <StatusDot label="Resolved" tone="faint" />
+        <StateGlyph label="Resolved" state="done" />
         <span className="truncate text-small-body text-muted">
           {resolved === "approved" ? "Approved — " : "Rejected — "}
           <span className="font-medium text-fg-strong">{item.title}</span>
@@ -88,7 +88,7 @@ function HomeAttentionRow({
       className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-row-hover max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
       data-slot="home-attention-row"
     >
-      <StatusDot label={attentionKindLabel(item.kind)} tone={attentionDotTone(item.kind)} />
+      <StateGlyph label={attentionKindLabel(item.kind)} state={attentionGlyph(item.kind)} />
       <span className="truncate text-small-body text-muted max-[760px]:whitespace-normal">
         <span className="font-medium text-fg-strong">{item.title}</span> {attentionSentence(item)}
       </span>

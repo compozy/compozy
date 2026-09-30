@@ -71,16 +71,16 @@ const CRON_LEGEND = ["min", "hour", "day", "month", "weekday"];
 
 const CHIP_BASE =
   "inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-form-label font-medium transition-colors outline-none focus-visible:shadow-focus-ring";
-const CHIP_RESTING = "border-line-soft bg-canvas-tint text-muted hover:bg-elevated hover:text-fg";
-const CHIP_SELECTED = "border-accent-dim bg-accent-tint text-accent-strong";
+// Pill-group grammar: quiet at rest, the selected chip steps to surface-2 + shadow-card.
+const CHIP_RESTING = "border-transparent text-muted hover:bg-surface-2 hover:text-fg";
+const CHIP_SELECTED = "border-transparent bg-surface-2 text-fg shadow-card";
 
 const FREQ_BASE =
   "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-small-body font-medium transition-colors outline-none focus-visible:shadow-focus-ring";
-const FREQ_RESTING = "border-line-soft bg-canvas-tint text-muted hover:bg-elevated hover:text-fg";
-const FREQ_SELECTED = "bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset";
+const FREQ_RESTING = "border-transparent text-muted hover:bg-surface-2 hover:text-fg";
+const FREQ_SELECTED = "border-transparent bg-surface-2 text-fg shadow-card";
 
-const ROW_SHELL =
-  "mb-3 flex flex-wrap items-center gap-2.5 rounded-md border border-line-soft bg-canvas-tint px-3.5 py-3";
+const ROW_SHELL = "mb-3 flex flex-wrap items-center gap-2.5 rounded-md bg-sunken px-3.5 py-3";
 const TIME_INPUT = "h-8 w-auto min-w-[120px] font-mono tabular-nums";
 const SEL_TRIGGER = "[&_select]:h-8 [&_select]:min-w-[72px]";
 
@@ -245,8 +245,8 @@ export function CronBuilder({
                   className={cn(
                     "h-9 rounded-sm border text-small-body font-semibold transition-colors outline-none focus-visible:shadow-focus-ring",
                     pressed
-                      ? "border-accent-dim bg-accent-tint text-accent-strong"
-                      : "border-line bg-elevated text-muted hover:bg-canvas-soft hover:text-fg"
+                      ? "border-line-strong bg-selected text-fg shadow-card"
+                      : "border-line bg-canvas text-muted hover:bg-surface-2 hover:text-fg"
                   )}
                   onClick={() => onToggleWeekday(day)}
                   type="button"
@@ -328,7 +328,7 @@ export function CronBuilder({
           aria-describedby="job-cron-readout"
           aria-invalid={!valid}
           aria-label="Cron expression"
-          className={cn("font-mono", isCustom ? "" : "border-dashed bg-canvas-tint text-muted")}
+          className={cn("font-mono", isCustom ? "" : "border-dashed bg-sunken text-muted")}
           onChange={event => onExpr(event.target.value)}
           readOnly={!isCustom}
           value={expr}

@@ -191,7 +191,7 @@ export function LoopEditorSwitchField({
 }: LoopEditorFieldControlProps<SwitchFieldSpec>) {
   const checked = Boolean(getAtPath(raw, field.path));
   return (
-    <div className="flex items-center gap-3 rounded-md border border-line-soft bg-canvas-soft px-3 py-2.5">
+    <div className="flex items-center gap-3 rounded-md bg-sunken px-3 py-2.5">
       <Switch
         checked={checked}
         disabled={disabled}

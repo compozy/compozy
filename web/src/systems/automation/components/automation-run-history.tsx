@@ -1,7 +1,7 @@
 import { AlertCircle, ChevronRight, History } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { cn, Empty, Pill, Section, SkeletonRows } from "@compozy/ui";
+import { cn, Empty, Pill, Section, SkeletonRows, StateGlyph } from "@compozy/ui";
 
 import {
   automationRunSkipReason,
@@ -9,7 +9,7 @@ import {
   automationSkipReasonLabel,
   automationSkipReasonTone,
   automationRunStatusLabel,
-  automationStatusTone,
+  automationRunStateGlyph,
   formatDateTime,
   formatRunDuration,
 } from "../lib/automation-formatters";
@@ -48,8 +48,6 @@ function RunRowChevron() {
 }
 
 function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
-  const tone = automationStatusTone(run.status);
-  const pulse = run.status === "running";
   const startedAt = formatDateTime(run.started_at);
   const duration = formatRunDuration(run);
   const statusLabel = automationRunStatusLabel(run.status);
@@ -67,10 +65,13 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
     <>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={tone}>
-            <Pill.Dot pulse={pulse} tone={tone} />
+          <span
+            className="inline-flex items-center gap-1.5 text-small-body text-fg-2"
+            data-state={automationRunStateGlyph(run.status)}
+          >
+            <StateGlyph state={automationRunStateGlyph(run.status)} />
             {statusLabel}
-          </Pill>
+          </span>
           {skipReason ? (
             <Pill
               data-testid="automation-run-skip-reason"
@@ -156,7 +157,7 @@ export function AutomationRunHistory({
     <Section data-testid="automation-run-history" label={title} count={runs.length}>
       {isLoading ? (
         <SkeletonRows
-          className="gap-4 rounded-lg bg-canvas-soft px-4 py-4"
+          className="gap-4 rounded-lg bg-canvas px-4 py-4 shadow-card"
           count={3}
           data-testid="automation-run-history-loading"
         />
@@ -175,7 +176,7 @@ export function AutomationRunHistory({
         </div>
       ) : (
         <ul
-          className="overflow-hidden rounded-lg bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-canvas shadow-card"
           data-testid="automation-run-history-rows"
         >
           {runs.map(run => (

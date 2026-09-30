@@ -1,24 +1,35 @@
-import { Pill, PillDot, type PillProps, type PillSize } from "@compozy/ui";
+import type * as React from "react";
 
-import { loopStatusLabel, loopStatusPulse, loopStatusTone } from "../lib/loop-formatters";
+import { cn, StateGlyph } from "@compozy/ui";
 
-export interface LoopStatusPillProps extends Omit<PillProps, "tone" | "pulse" | "children"> {
-  /** Raw `loop_run.status` from the daemon; unknown values render a neutral, label-only pill. */
+import { loopStatusGlyph, loopStatusLabel } from "../lib/loop-formatters";
+
+export interface LoopStatusPillProps extends Omit<React.ComponentProps<"span">, "children"> {
+  /** Raw `loop_run.status` from the daemon; unknown values render an idle, label-only mark. */
   status?: string | null;
-  size?: PillSize;
+  /** `sm` (default) sits in heads and rows; `xs` in dense pickers. */
+  size?: "sm" | "xs";
 }
 
 /**
- * Renders a Loop run status as the design's `.pill--*` chip (tint bg + saturated
- * text + a state dot), pulsing only for live `running`/`watching` and gated by
- * `prefers-reduced-motion` inside `Pill`. Tone/pulse/label come from the single
- * canonical mapping in `loop-formatters` (truthful UI — never a coerced pill).
+ * A Loop run status as the canonical state glyph beside its literal label.
+ * Glyph and label come from the single mapping in `loop-formatters`, so the
+ * status stays truthful everywhere it renders (never a coerced state).
  */
-export function LoopStatusPill({ status, size = "sm", ...props }: LoopStatusPillProps) {
+export function LoopStatusPill({ status, size = "sm", className, ...props }: LoopStatusPillProps) {
   return (
-    <Pill tone={loopStatusTone(status)} pulse={loopStatusPulse(status)} size={size} {...props}>
-      <PillDot />
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-fg-2",
+        size === "xs" ? "text-eyebrow" : "text-small-body",
+        className
+      )}
+      data-slot="loop-status"
+      data-state={loopStatusGlyph(status)}
+      {...props}
+    >
+      <StateGlyph size={size === "xs" ? "sm" : "md"} state={loopStatusGlyph(status)} />
       {loopStatusLabel(status)}
-    </Pill>
+    </span>
   );
 }

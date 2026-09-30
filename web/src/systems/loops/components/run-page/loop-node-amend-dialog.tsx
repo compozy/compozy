@@ -130,7 +130,7 @@ function LoopNodeAmendDialogForm({
               </Eyebrow>
               <pre
                 aria-labelledby={ORIGINAL_LABEL_ID}
-                className="max-h-64 overflow-auto rounded-md border border-line-soft bg-canvas-tint px-3 py-2.5 font-mono text-mono-id leading-relaxed break-words whitespace-pre-wrap text-subtle focus-visible:shadow-focus-ring focus-visible:outline-none"
+                className="max-h-64 overflow-auto rounded-md bg-sunken px-3 py-2.5 font-mono text-mono-id leading-relaxed break-words whitespace-pre-wrap text-subtle focus-visible:shadow-focus-ring focus-visible:outline-none"
                 data-testid="loop-amend-original"
                 tabIndex={0}
               >

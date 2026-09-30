@@ -15,14 +15,14 @@ interface NextRunsEmptyProps {
 function NextRunsEmpty({ reason }: NextRunsEmptyProps) {
   if (reason.startsWith(WONT_REGISTER_PREFIX)) {
     return (
-      <div className="rounded-md border border-dashed border-line-soft bg-canvas-soft px-3 py-2.5 text-form-hint leading-snug text-subtle">
+      <div className="rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-hint leading-snug text-subtle">
         <span className="text-warning font-semibold">{WONT_REGISTER_PREFIX}</span>
         {reason.slice(WONT_REGISTER_PREFIX.length)}
       </div>
     );
   }
   return (
-    <div className="rounded-md border border-dashed border-line-soft bg-canvas-soft px-3 py-2.5 text-form-hint leading-snug text-subtle">
+    <div className="rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-hint leading-snug text-subtle">
       {reason}
     </div>
   );
@@ -72,7 +72,7 @@ export function NextRunsCard({ nextRuns, emptyReason }: NextRunsCardProps) {
       right={<span className="font-mono text-form-hint text-subtle">UTC</span>}
     >
       {nextRuns === null ? (
-        <div className="rounded-md border border-dashed border-line-soft bg-canvas-soft px-3 py-2.5 text-form-hint leading-snug text-subtle">
+        <div className="rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-hint leading-snug text-subtle">
           Fix the schedule above to preview fire times.
         </div>
       ) : nextRuns.length === 0 ? (

@@ -1,16 +1,4 @@
-import type { PillTone } from "@compozy/ui";
-import type { LucideIcon } from "lucide-react";
-import {
-  Ban,
-  Check,
-  CircleAlert,
-  CircleDashed,
-  GitBranch,
-  Hourglass,
-  Pause,
-  RotateCcw,
-  TriangleAlert,
-} from "lucide-react";
+import type { PillTone, StateGlyphState } from "@compozy/ui";
 
 /**
  * The roster's closed projection vocabulary and the copy every chip renders.
@@ -21,8 +9,8 @@ import {
  * in the web may spell a roster state — a raw enum reaching a component is the
  * leak UT-044 forbids.
  *
- * Colour never travels alone: every entry pairs a tone with a glyph and a
- * literal state word, which is the accessibility floor E2E-019 asserts.
+ * Colour never travels alone: every entry pairs a state glyph with a literal
+ * state word, which is the accessibility floor E2E-019 asserts.
  */
 export const LOOP_ROSTER_STATES = [
   "pending",
@@ -68,11 +56,11 @@ export interface LoopStateChip {
   state: LoopRosterState;
   /** The literal state word. Never a raw enum — no underscores reach the DOM. */
   label: string;
+  /** Severity ramp; ranks states (DAG representative worker, roster duration bar). */
   tone: PillTone;
-  icon: LucideIcon | null;
+  /** Canonical `StateGlyph` state rendered beside the word. */
+  glyph: StateGlyphState;
   form: LoopStateChipForm;
-  /** The single live accent; the renderer unmounts it under reduced motion. */
-  pulse: boolean;
 }
 
 const LOOP_ROSTER_STATE_LABELS = {
@@ -118,25 +106,29 @@ const LOOP_ROSTER_STATE_TONES = {
   quarantined: "danger",
 } as const satisfies Record<LoopRosterState, PillTone>;
 
-const LOOP_ROSTER_STATE_ICONS = {
-  pending: CircleDashed,
-  queued: CircleDashed,
-  // The live state carries a pulsing dot instead of a glyph, so the accent is
-  // the only motion on the row. Its literal word still carries the meaning.
-  running: null,
-  retrying: RotateCcw,
-  waiting: Hourglass,
-  paused: Pause,
-  awaiting_child: Hourglass,
-  control_pending: TriangleAlert,
-  awaiting_goal: Hourglass,
-  succeeded: Check,
-  partial: TriangleAlert,
-  failed: CircleAlert,
-  canceled: Ban,
-  quarantined: CircleAlert,
-  not_taken: GitBranch,
-} as const satisfies Record<LoopRosterState, LucideIcon | null>;
+/**
+ * The shell-rail state glyphs: queued and parked-on-another-node work is a
+ * dashed ring, the live state spins, a gate holding for a person is the
+ * attention dot, and the settled-but-not-cleanly states carry the failed mark.
+ * Paused and canceled read as stopped; a branch the run declined stays idle.
+ */
+const LOOP_ROSTER_STATE_GLYPHS = {
+  pending: "queued",
+  queued: "queued",
+  running: "running",
+  retrying: "queued",
+  waiting: "queued",
+  paused: "stopped",
+  awaiting_child: "queued",
+  control_pending: "attention",
+  awaiting_goal: "queued",
+  succeeded: "done",
+  partial: "failed",
+  failed: "failed",
+  canceled: "stopped",
+  quarantined: "failed",
+  not_taken: "idle",
+} as const satisfies Record<LoopRosterState, StateGlyphState>;
 
 const LOOP_ROSTER_STATE_FORMS = {
   pending: "hollow",
@@ -161,20 +153,18 @@ export function loopRosterStateChip(state: string): LoopStateChip {
       state: "pending",
       label: "unknown",
       tone: "neutral",
-      icon: CircleDashed,
+      glyph: "idle",
       form: "hollow",
-      pulse: false,
     };
   }
   return {
     state,
     label: LOOP_ROSTER_STATE_LABELS[state],
     tone: LOOP_ROSTER_STATE_TONES[state],
-    icon: LOOP_ROSTER_STATE_ICONS[state],
+    glyph: LOOP_ROSTER_STATE_GLYPHS[state],
     form:
       (LOOP_ROSTER_STATE_FORMS as Partial<Record<LoopRosterState, LoopStateChipForm>>)[state] ??
       "solid",
-    pulse: state === "running",
   };
 }
 

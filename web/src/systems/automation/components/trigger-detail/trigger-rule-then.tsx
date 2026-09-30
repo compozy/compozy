@@ -18,7 +18,7 @@ function TargetChip({ children, className, ...props }: TargetChipProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-5.5 shrink-0 items-center justify-center rounded-md border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted",
+        "flex size-5.5 shrink-0 items-center justify-center rounded-md bg-surface-2 font-mono text-badge font-semibold text-muted",
         className
       )}
       {...props}

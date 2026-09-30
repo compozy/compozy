@@ -34,7 +34,7 @@ export function TaskExternalResult({
           : "";
   return (
     <Collapsible onOpenChange={controller.onOpenChange} open={controller.open}>
-      <div className="rounded-lg border border-line bg-canvas-soft">
+      <div className="rounded-lg bg-canvas shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
           <span className="text-small-body text-muted tabular-nums">
             {formatByteCount(resultBytes)}

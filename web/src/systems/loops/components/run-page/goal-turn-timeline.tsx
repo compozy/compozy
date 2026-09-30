@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { CheckCircle2, CircleAlert, Clock3, FileWarning, ShieldAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -8,6 +8,8 @@ import {
   MonoId,
   Pill,
   PillDot,
+  StateGlyph,
+  type StateGlyphState,
   Time,
   Timeline,
   TimelineEvent,
@@ -39,19 +41,21 @@ function resultTone(turn: GoalTurn): PillTone {
   return turn.result_status === null ? "accent" : (RESULT_TONE[turn.result_status] ?? "neutral");
 }
 
-/** Distinguishes pending, completed, failed, and uncertain turn outcomes visually. */
-function ResultIcon({ turn }: { turn: GoalTurn }) {
-  if (turn.result_status === null) return <Clock3 className="size-3" aria-hidden="true" />;
-  if (turn.result_status === "completed") {
-    return <CheckCircle2 className="size-3" aria-hidden="true" />;
+/**
+ * Turn outcome → canonical state glyph: an open turn is running, a completed turn
+ * is done, an ambiguous turn waits on a person, and failed or invalid results fail.
+ */
+function resultGlyph(turn: GoalTurn): StateGlyphState {
+  switch (turn.result_status) {
+    case null:
+      return "running";
+    case "completed":
+      return "done";
+    case "ambiguous":
+      return "attention";
+    default:
+      return "failed";
   }
-  if (turn.result_status === "failed") {
-    return <CircleAlert className="size-3" aria-hidden="true" />;
-  }
-  if (turn.result_status === "ambiguous") {
-    return <ShieldAlert className="size-3" aria-hidden="true" />;
-  }
-  return <FileWarning className="size-3" aria-hidden="true" />;
 }
 
 /** Pairs a structural label with its operational value in the turn details. */
@@ -170,10 +174,13 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
       time={<Time iso={turn.ended_at ?? turn.started_at} />}
       meta={
         <>
-          <Pill tone={tone} size="xs">
-            <ResultIcon turn={turn} />
+          <span
+            className="inline-flex items-center gap-1.5 text-eyebrow text-fg-2"
+            data-testid={`goal-turn-result-${turn.seq}`}
+          >
+            <StateGlyph size="sm" state={resultGlyph(turn)} />
             {resultLabel}
-          </Pill>
+          </span>
           <span className="font-mono text-mono-id text-faint">seq {turn.seq}</span>
           <span className="font-mono text-mono-id text-faint">
             generation {turn.generation} · item {turn.item_index}

@@ -38,7 +38,7 @@ export function FilterConditions({
   if (rows.length === 0) {
     return (
       <div>
-        <div className="mb-2 rounded-md border border-dashed border-line-soft bg-canvas-tint px-3 py-2.5 text-form-label text-subtle">
+        <div className="mb-2 rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-label text-subtle">
           No conditions, fires on every{" "}
           <b className="font-mono text-form-hint font-medium text-fg">{eventKind}</b> event.
         </div>

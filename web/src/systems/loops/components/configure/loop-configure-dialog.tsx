@@ -99,7 +99,7 @@ export function LoopConfigureDialog({
           </FormSection>
 
           <FormSection title="Your approval">
-            <div className="overflow-hidden rounded-lg border border-line-soft bg-canvas-tint">
+            <div className="overflow-hidden rounded-lg bg-sunken">
               <LoopConfigureSwitchRow
                 checked={model.draft.humanGateEnabled}
                 disabled={model.busy}

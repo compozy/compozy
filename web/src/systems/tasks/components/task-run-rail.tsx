@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Search } from "lucide-react";
 import type * as React from "react";
 
-import { Button, cn, OwnerAvatar, Pill, PropertyRow, Time } from "@compozy/ui";
+import { Button, cn, OwnerAvatar, PropertyRow, StateGlyph, Time } from "@compozy/ui";
 
 import { describeCost } from "@/lib/cost-provenance";
-import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
+import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunLineage } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunDetailView } from "../types";
 import { TaskRailSection } from "./task-rail-section";
@@ -33,7 +33,7 @@ function LineageRow({ label, taskId, target }: { label: string; taskId: string; 
           params={{ id: taskId, runId: target.id }}
           to="/tasks/$id/runs/$runId"
         >
-          <Pill.Dot tone={taskRunStatusTone(target.status)} />
+          <StateGlyph state={taskRunStateGlyph(target.status)} />
           <span className="truncate">
             Attempt {target.attempt} · {taskRunStatusLabel(target.status)}
           </span>
@@ -64,7 +64,7 @@ export function TaskRunRail({
   return (
     <div
       {...props}
-      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
+      className={cn("overflow-hidden rounded-lg bg-canvas shadow-card", className)}
       data-testid="tasks-run-rail"
     >
       <TaskRunSessionSection run={run} />

@@ -84,7 +84,7 @@ export function LoopEditorEffects({
         return (
           <div
             key={rowKeys.keys[index]}
-            className="rounded-md border border-line-soft bg-canvas-soft p-2"
+            className="rounded-md bg-sunken p-2"
             data-testid={`${testId}-row`}
             data-shape={shape}
           >

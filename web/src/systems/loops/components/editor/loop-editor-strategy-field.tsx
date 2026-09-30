@@ -112,7 +112,7 @@ function StrategyRefinements({ spec, disabled, onApply }: StrategyRefinementsPro
           <FieldDescription>A share of the lanes like 66%, or a count like 3.</FieldDescription>
         </Field>
       ) : null}
-      <div className="flex items-start gap-3 rounded-md border border-line-soft bg-canvas-soft px-3 py-2.5">
+      <div className="flex items-start gap-3 rounded-md bg-sunken px-3 py-2.5">
         <Switch
           aria-label="Missing lanes are acceptable"
           checked={spec.missingAcceptable}

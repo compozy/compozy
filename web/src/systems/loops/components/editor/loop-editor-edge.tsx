@@ -62,7 +62,7 @@ export function LoopEditorEdge({
             {routeLabel === "" ? null : (
               <span
                 className={cn(
-                  "max-w-36 truncate rounded-xs border border-line bg-elevated px-1 py-px",
+                  "max-w-36 truncate rounded-xs border border-line bg-canvas px-1 py-px",
                   "font-mono text-pill-group-badge",
                   selected === true ? "text-accent-strong" : "text-subtle"
                 )}
@@ -75,7 +75,7 @@ export function LoopEditorEdge({
             {deletable ? (
               <Button
                 aria-label="Delete connection"
-                className="shrink-0 rounded-full border border-line-strong bg-elevated text-muted hover:border-transparent hover:bg-danger-tint hover:text-danger"
+                className="shrink-0 rounded-full border border-line-strong bg-canvas text-muted hover:border-transparent hover:bg-danger-tint hover:text-danger"
                 data-testid="loop-editor-edge-delete"
                 onClick={() => onDelete(id)}
                 size="icon-xs"

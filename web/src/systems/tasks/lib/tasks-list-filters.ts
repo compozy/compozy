@@ -161,3 +161,43 @@ function asTaskPriority(value: string | undefined): TaskPriority | null {
     ? (value as TaskPriority)
     : null;
 }
+
+/** Quick status shortcuts on the Tasks strip; each writes the same single `status` filter. */
+export type TaskQuickStatus = "all" | "in_progress" | "needs_attention";
+
+export interface TaskQuickStatusItem {
+  value: TaskQuickStatus;
+  label: string;
+  /** Facet count, only when it is exact for the pill (see {@link taskQuickStatusItems}). */
+  count?: number;
+}
+
+const TASK_QUICK_STATUSES: ReadonlyArray<{ value: TaskQuickStatus; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "in_progress", label: "In progress" },
+  { value: "needs_attention", label: "Needs attention" },
+];
+
+/** The active quick pill for the current status filter; `null` when the filter names another status. */
+export function taskQuickStatusFor(statusFilter: TaskStatus | null): TaskQuickStatus | null {
+  if (statusFilter === null) return "all";
+  if (statusFilter === "in_progress" || statusFilter === "needs_attention") return statusFilter;
+  return null;
+}
+
+/**
+ * Builds the quick status pills. The daemon computes status facets after the
+ * status filter, so the facet counts are only exact while no status is selected;
+ * with one selected, only that pill keeps its (exact) count.
+ */
+export function taskQuickStatusItems(
+  statusFilter: TaskStatus | null,
+  statusCounts: Record<TaskStatus, number>
+): TaskQuickStatusItem[] {
+  const total = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+  return TASK_QUICK_STATUSES.map(({ value, label }) => {
+    const count = value === "all" ? total : statusCounts[value];
+    const exact = statusFilter === null || statusFilter === value;
+    return exact ? { value, label, count } : { value, label };
+  });
+}

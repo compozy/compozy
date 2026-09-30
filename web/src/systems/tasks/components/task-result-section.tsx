@@ -36,7 +36,7 @@ export function TaskResultSection({
       {resultRef && external ? (
         <TaskExternalResult controller={external} resultBytes={resultBytes} resultRef={resultRef} />
       ) : result == null ? (
-        <p className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5 text-small-body text-muted">
+        <p className="rounded-lg bg-canvas shadow-card px-4 py-3.5 text-small-body text-muted">
           {emptyMessage}
         </p>
       ) : (

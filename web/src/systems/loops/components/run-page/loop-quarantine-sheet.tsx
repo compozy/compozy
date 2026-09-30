@@ -166,7 +166,7 @@ function QuarantineFacts({ entry }: { entry: LoopQuarantineEntry }) {
         ) : null}
       </div>
       {entry.inputRef ? (
-        <div className="mt-2 rounded bg-canvas-soft px-3 py-2.5">
+        <div className="mt-2 rounded bg-sunken px-3 py-2.5">
           <Eyebrow className="text-muted">Input</Eyebrow>
           <p className="mt-1 truncate font-mono text-mono-id text-fg">{entry.inputRef}</p>
         </div>

@@ -26,7 +26,7 @@ const LOOP_EDITOR_KIND_ICON_REGISTRY = {
 
 const PALETTE_ITEM_CLASS = [
   "group flex items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors",
-  "hover:border-line-strong hover:bg-canvas-tint",
+  "hover:border-line-strong hover:bg-surface-2",
   "disabled:cursor-not-allowed disabled:opacity-60",
 ];
 
@@ -120,8 +120,8 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
                     className={cn(
                       PALETTE_ITEM_CLASS,
                       active
-                        ? "border-line-strong bg-canvas-tint"
-                        : "border-line-soft bg-canvas-soft"
+                        ? "border-line-strong bg-selected"
+                        : "border-line bg-canvas hover:bg-surface-2"
                     )}
                     data-testid={`loop-palette-item-${item.kindLabel}`}
                     disabled={disabled}

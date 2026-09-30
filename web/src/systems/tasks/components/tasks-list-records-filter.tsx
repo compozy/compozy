@@ -20,7 +20,7 @@ const RECORDS_FILTER_ITEMS: ReadonlyArray<PillGroupItem<TaskRecordsFilter>> = [
     label: (
       <>
         <GitBranch aria-hidden="true" />
-        Include loop steps
+        <span className="sr-only @4xl/tasks-strip:not-sr-only">Include loop steps</span>
       </>
     ),
     testId: "tasks-records-filter-loop",

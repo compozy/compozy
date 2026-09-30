@@ -26,6 +26,7 @@ const { TasksListToolbar } = await import("../tasks-list-toolbar");
 type TaskListItem = import("../../types").TaskListItem;
 const { countTasksByStatus } = await import("../../lib/task-formatters");
 type TaskRecordsFilter = import("../../types").TaskRecordsFilter;
+type TaskStatus = import("../../types").TaskStatus;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -110,23 +111,27 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("task-group-done")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-failed")).toBeInTheDocument();
 
-    expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-tone", "accent");
-    expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-variant", "ring");
-    expect(screen.getByTestId("task-group-dot-blocked")).toHaveAttribute("data-tone", "danger");
-    expect(screen.getByTestId("task-group-dot-needs_attention")).toHaveAttribute(
-      "data-tone",
-      "warning"
-    );
-    expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-tone", "faint");
-    expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-variant", "ring");
-    expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-tone", "faint");
-    expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-variant", "solid");
-    expect(screen.getByTestId("task-group-dot-failed")).toHaveAttribute("data-tone", "danger");
+    const groupGlyph = (id: string) => screen.getByTestId(`task-group-dot-${id}`);
+    expect(groupGlyph("active")).toHaveAttribute("data-state", "running");
+    // Both escalation buckets wait on a person; their labels keep them distinct.
+    expect(groupGlyph("blocked")).toHaveAttribute("data-state", "attention");
+    expect(groupGlyph("needs_attention")).toHaveAttribute("data-state", "attention");
+    expect(groupGlyph("queued")).toHaveAttribute("data-state", "queued");
+    expect(groupGlyph("done")).toHaveAttribute("data-state", "done");
+    expect(groupGlyph("failed")).toHaveAttribute("data-state", "failed");
 
-    const rowDots = container.querySelectorAll(
-      '[data-slot="tasks-list-row"] [data-slot="status-dot"]'
+    // Every row carries its own exact status beside the glyph.
+    const rowStatuses = [...container.querySelectorAll('[data-slot="tasks-list-row-status"]')].map(
+      node => node.textContent
     );
-    expect(rowDots).toHaveLength(0);
+    expect(rowStatuses).toEqual([
+      "In progress",
+      "Blocked",
+      "Needs attention",
+      "Ready",
+      "Completed",
+      "Failed",
+    ]);
   });
 
   it("Should link each list row to /tasks/$id", () => {
@@ -182,6 +187,7 @@ describe("TasksListSurface", () => {
           recordsFilter="work"
           searchQuery="api"
           sortBy="recent"
+          statusCounts={countTasksByStatus([])}
           statusFilter={null}
         />
       </UIProvider>
@@ -197,6 +203,63 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("tasks-records-filter-work")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("tasks-records-filter-loop"));
     expect(handleRecordsFilterChange).toHaveBeenCalledWith("loop");
+  });
+
+  it("Should write the quick status pills through the single status filter", () => {
+    const handleStatusChange = vi.fn();
+    const statusCounts = countTasksByStatus([]);
+    statusCounts.in_progress = 1;
+    statusCounts.needs_attention = 2;
+    statusCounts.ready = 3;
+    const toolbar = (statusFilter: TaskStatus | null) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={handleStatusChange}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={statusCounts}
+          statusFilter={statusFilter}
+        />
+      </UIProvider>
+    );
+    const { rerender } = render(toolbar(null));
+
+    expect(screen.getByTestId("tasks-quick-status-all")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("tasks-quick-status-all")).toHaveTextContent("All6");
+    expect(screen.getByTestId("tasks-quick-status-needs_attention")).toHaveTextContent(
+      "Needs attention2"
+    );
+    fireEvent.click(screen.getByTestId("tasks-quick-status-in_progress"));
+    expect(handleStatusChange).toHaveBeenCalledWith("in_progress");
+
+    // Facets are counted after the status filter, so with one selected only
+    // that pill keeps a (still exact) count and All returns to the unfiltered list.
+    rerender(toolbar("in_progress"));
+    expect(screen.getByTestId("tasks-quick-status-in_progress")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByTestId("tasks-quick-status-all")).toHaveTextContent(/^All$/);
+    fireEvent.click(screen.getByTestId("tasks-quick-status-all"));
+    expect(handleStatusChange).toHaveBeenLastCalledWith(null);
+
+    // A status picked from the Filter menu leaves every quick pill unpressed.
+    rerender(toolbar("failed"));
+    for (const id of ["all", "in_progress", "needs_attention"]) {
+      expect(screen.getByTestId(`tasks-quick-status-${id}`)).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+    }
   });
 
   it("Should name the profile the list is scoped to, not the create target", () => {

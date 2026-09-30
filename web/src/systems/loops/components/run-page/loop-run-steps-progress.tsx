@@ -52,7 +52,7 @@ export function LoopRunStepsProgress({
       icon={<Gauge aria-hidden="true" />}
       title="Progress"
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
         <div className="p-4">
           <div className="flex items-start gap-1">
             <h2

@@ -44,7 +44,7 @@ function TriggerRailCard({
 }: TriggerRailCardProps) {
   return (
     <Collapsible
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="overflow-hidden rounded-lg bg-canvas shadow-card"
       defaultOpen={defaultOpen}
     >
       <CollapsibleTrigger

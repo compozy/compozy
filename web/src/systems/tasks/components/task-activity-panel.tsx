@@ -124,7 +124,7 @@ export function TaskActivityPanel({
         />
       }
     >
-      <div className="rounded-lg border border-line bg-canvas-soft px-4 pt-3">
+      <div className="rounded-lg bg-canvas shadow-card px-4 pt-3">
         {visible.length === 0 ? (
           <p
             className="px-4 py-4 text-small-body text-muted"

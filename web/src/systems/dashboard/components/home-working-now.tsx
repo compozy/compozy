@@ -1,7 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 
-import { Button, Empty, OwnerAvatar, Pill, Section, SkeletonRows, Surface } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  OwnerAvatar,
+  Pill,
+  Section,
+  SkeletonRows,
+  StateGlyph,
+  Surface,
+} from "@compozy/ui";
 
 import { useElapsedNowSeconds } from "../hooks/use-elapsed-ticker";
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
@@ -22,12 +31,12 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
 
   const body = (
     <Surface
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 transition-colors duration-base hover:bg-canvas-tint"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 transition-colors duration-base hover:bg-surface-2"
       data-slot="home-run-card"
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2 text-small-body font-medium text-fg-strong">
-          <Pill.Dot pulse tone="accent" />
+          <StateGlyph state="running" />
           <OwnerAvatar name={card.agentName} ownerId={card.agentName} ownerKind="agent" size="sm" />
           <span className="truncate">{card.title}</span>
           {card.kind === "task_run" ? (

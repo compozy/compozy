@@ -1,34 +1,29 @@
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import { LOOP_RUN_STATUSES, LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
 
 import type { LoopRun, LoopRunStatus } from "../types";
 
-export interface LoopStatusSignal {
-  tone: PillTone;
-  pulse: boolean;
-}
-
-const LOOP_STATUS_TONE = {
-  queued: "neutral",
-  running: "accent",
-  watching: "info",
-  "needs-approval": "warning",
-  paused: "neutral",
-  done: "success",
-  "no-op": "neutral",
-  blocked: "warning",
-  failed: "danger",
-  exhausted: "warning",
-  stalled: "neutral",
-  canceled: "neutral",
-} as const satisfies Record<LoopRunStatus, PillTone>;
-
-/** Live states whose pill pulses (gated by `prefers-reduced-motion` at render). */
-const LOOP_STATUS_PULSE = {
-  running: true,
-  watching: true,
-} as const satisfies Partial<Record<LoopRunStatus, true>>;
+/**
+ * Run status → canonical `StateGlyph` state: live runs (running, watching)
+ * spin, a run waiting on a person reads as attention, finished runs are done,
+ * failures (including exhausted and stalled runs) carry the failed mark, paused
+ * and canceled runs read as stopped, and a run with nothing to do stays idle.
+ */
+const LOOP_STATUS_GLYPH = {
+  queued: "queued",
+  running: "running",
+  watching: "running",
+  "needs-approval": "attention",
+  paused: "stopped",
+  done: "done",
+  "no-op": "idle",
+  blocked: "attention",
+  failed: "failed",
+  exhausted: "failed",
+  stalled: "failed",
+  canceled: "stopped",
+} as const satisfies Record<LoopRunStatus, StateGlyphState>;
 
 const LOOP_STATUS_LABELS = {
   queued: "Queued",
@@ -67,19 +62,9 @@ export function isLiveLoopRun(run?: Pick<LoopRun, "historical" | "status"> | nul
   );
 }
 
-export function loopStatusTone(status?: string | null): PillTone {
-  return isLoopRunStatus(status) ? LOOP_STATUS_TONE[status] : "neutral";
-}
-
-export function loopStatusPulse(status?: string | null): boolean {
-  return isLoopRunStatus(status)
-    ? Boolean((LOOP_STATUS_PULSE as Record<string, true>)[status])
-    : false;
-}
-
-/** Combined tone + pulse for a `StatePill` / `Pill.Dot`; unknown -> neutral, no pulse. */
-export function loopStatusSignal(status?: string | null): LoopStatusSignal {
-  return { tone: loopStatusTone(status), pulse: loopStatusPulse(status) };
+/** The run status glyph; unknown statuses stay idle. */
+export function loopStatusGlyph(status?: string | null): StateGlyphState {
+  return isLoopRunStatus(status) ? LOOP_STATUS_GLYPH[status] : "idle";
 }
 
 export function loopStatusLabel(status?: string | null): string {
@@ -90,7 +75,7 @@ export function loopStatusLabel(status?: string | null): string {
   return trimmed === "" ? "Unknown" : trimmed;
 }
 
-export { LOOP_STATUS_LABELS, LOOP_STATUS_TONE };
+export { LOOP_STATUS_GLYPH, LOOP_STATUS_LABELS };
 
 /**
  * The terminal outcome, named for a run that has stopped.

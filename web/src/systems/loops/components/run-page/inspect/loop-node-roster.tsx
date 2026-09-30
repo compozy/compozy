@@ -168,7 +168,7 @@ export function LoopNodeRoster({
         <TableBody>
           {roster.rows.map(row => (
             <TableRow
-              className={cn(selectedKey === row.key && "bg-canvas-tint")}
+              className={cn(selectedKey === row.key && "bg-selected")}
               data-generation={row.generation}
               data-item-index={row.itemIndex}
               data-node-id={row.nodeId}

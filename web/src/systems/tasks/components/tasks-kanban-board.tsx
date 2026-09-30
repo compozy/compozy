@@ -4,29 +4,9 @@ import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
 
 import { TaskKanbanCard } from "./task-kanban-card";
 import { TaskKanbanColumn } from "./task-kanban-column";
-import {
-  taskStatusFacetTotal,
-  type KanbanColumnGroup,
-  type TaskKanbanColumnId,
-} from "../lib/task-grouping";
+import { taskStatusFacetTotal, type KanbanColumnGroup } from "../lib/task-grouping";
 import type { TaskStatus } from "../types";
 import { type ProfileListingScope } from "@/systems/profiles";
-
-import type { PillTone } from "@compozy/ui";
-
-/**
- * Column header tone — `In progress` reads as `info` (live work without an
- * accent recolor), `Blocked` reads as `danger`, `Needs attention` reads as
- * `warning` (distinct escalation, no coercion), terminal `Done` and `Pending`
- * stay neutral.
- */
-const COLUMN_HEADER_TONE: Record<TaskKanbanColumnId, PillTone> = {
-  pending: "neutral",
-  in_progress: "info",
-  blocked: "danger",
-  needs_attention: "warning",
-  done: "neutral",
-};
 
 const KANBAN_SKELETON_KEYS = ["a", "b", "c"] as const;
 
@@ -102,7 +82,6 @@ export function TasksKanbanBoard({
             count={group.tasks.length}
             key={group.column.id}
             onAdd={onCreate}
-            tone={COLUMN_HEADER_TONE[group.column.id]}
             totalCount={
               isLoading ? undefined : taskStatusFacetTotal(group.column.statuses, statusCounts)
             }
@@ -163,7 +142,7 @@ function KanbanCardSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="flex w-full min-w-0 flex-col gap-2 rounded-md bg-canvas-tint p-3"
+      className="flex w-full min-w-0 shrink-0 flex-col gap-2 rounded-lg bg-canvas p-3 shadow-card"
       data-testid="tasks-kanban-card-skeleton"
     >
       <Skeleton className="h-3 w-4/5 rounded-xs" />

@@ -10,7 +10,7 @@ interface LoopRunPlanProps {
 export function LoopRunPlan({ plan }: LoopRunPlanProps) {
   const inputEntries = Object.entries(plan.resolved_inputs ?? {});
   return (
-    <div className="rounded-lg border border-line bg-canvas-soft p-4" data-testid="loop-run-plan">
+    <div className="rounded-lg bg-canvas shadow-card p-4" data-testid="loop-run-plan">
       <div className="flex items-center gap-2">
         <Eyebrow className="text-muted">Dry run · round {plan.generation} plan</Eyebrow>
       </div>

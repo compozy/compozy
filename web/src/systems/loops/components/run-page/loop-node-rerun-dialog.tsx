@@ -85,7 +85,7 @@ function LoopNodeRerunDialogForm({
             </div>
             <div
               aria-labelledby={SET_LABEL_ID}
-              className="flex max-h-52 min-w-0 flex-col overflow-y-auto rounded-md border border-line-soft bg-canvas-tint px-3 focus-visible:shadow-focus-ring focus-visible:outline-none"
+              className="flex max-h-52 min-w-0 flex-col overflow-y-auto rounded-md bg-sunken px-3 focus-visible:shadow-focus-ring focus-visible:outline-none"
               data-testid="loop-rerun-set"
               role="group"
               tabIndex={0}

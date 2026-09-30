@@ -8,7 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Pill,
+  type StateGlyphState,
   Time,
   TopbarOverflowIcon,
 } from "@compozy/ui";
@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { InboxGroupId } from "../lib/inbox-grouping";
-import { taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
+import { taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskInboxItem } from "../types";
 import { TasksInboxRow } from "./tasks-inbox-row";
 
@@ -77,9 +77,9 @@ export function TasksInboxItem({
       >
         {task.title}
       </h3>
-      <Pill size="xs" tone={taskStatusTone(task.status)}>
+      <span className="shrink-0 text-small-body text-muted" data-slot="tasks-inbox-row-status">
         {taskStatusLabel(task.status)}
-      </Pill>
+      </span>
     </>
   );
 
@@ -138,6 +138,7 @@ export function TasksInboxItem({
       data-lane={lane}
       detail={detail}
       group={group}
+      state={inboxItemState(item)}
       onSelect={handleSelect}
       taskId={taskId}
       top={top}
@@ -368,4 +369,14 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       {label}
     </Button>
   );
+}
+
+/**
+ * The inbox row's leading state: a failed run reads as failed and an approval
+ * waits on a person; everything else follows the task status.
+ */
+function inboxItemState(item: TaskInboxItem): StateGlyphState {
+  if (item.lane === "failed_runs") return "failed";
+  if (item.lane === "approvals") return "attention";
+  return taskStateGlyph(item.task.status);
 }

@@ -151,7 +151,7 @@ function TaskRunInspectSnapshot({
           value={idempotencyKey ?? "—"}
         />
       </div>
-      <p className="mt-4 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="mt-4 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
         The agent keeps this run reserved while it keeps checking in. If it stops, CompozyOS flags
         the run so it can be tried again.
       </p>

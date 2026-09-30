@@ -26,10 +26,7 @@ export function LoopRailSection({
   ...props
 }: LoopRailSectionProps) {
   return (
-    <Collapsible
-      className={cn("rounded-lg border border-line bg-canvas-soft", className)}
-      {...props}
-    >
+    <Collapsible className={cn("rounded-lg bg-canvas shadow-card", className)} {...props}>
       <CollapsibleTrigger className="group/rail-trigger flex w-full items-center gap-2 px-4 py-3 text-left">
         {icon ? <span className="shrink-0 text-muted">{icon}</span> : null}
         <span className="text-form-label font-medium text-fg-strong">{title}</span>

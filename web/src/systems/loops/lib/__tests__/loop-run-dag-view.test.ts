@@ -54,17 +54,16 @@ const CHAIN: LoopGraph = {
 describe("loopRosterStateChip", () => {
   // UT-046: colour is never the sole carrier. Every state a run can project
   // must arrive with a word, or a colour-blind operator reads nothing.
-  it("Should pair a literal word with a tone for every roster state", () => {
+  it("Should pair a literal word with a state glyph for every roster state", () => {
     for (const state of LOOP_ROSTER_STATES) {
       const chip = loopRosterStateChip(state);
       expect(chip.label.length).toBeGreaterThan(0);
       // The wire spelling never reaches the DOM.
       expect(chip.label).not.toContain("_");
       expect(chip.tone).toBeTruthy();
-      // Everything except the live accent carries a glyph too; `running` carries
-      // a pulsing dot instead, which the renderer supplies.
-      if (state === "running") expect(chip.pulse).toBe(true);
-      else expect(chip.icon).not.toBeNull();
+      expect(chip.glyph).toBeTruthy();
+      // Only the live state spins.
+      expect(chip.glyph === "running").toBe(state === "running");
     }
   });
 
@@ -79,7 +78,8 @@ describe("loopRosterStateChip", () => {
     expect(pending.tone).toBe("neutral");
     expect(notTaken.tone).toBe("neutral");
     expect(pending.form).not.toBe(notTaken.form);
-    expect(pending.icon).not.toBe(notTaken.icon);
+    expect(pending.glyph).toBe("queued");
+    expect(notTaken.glyph).toBe("idle");
   });
 
   it("Should degrade an unrecognised state without printing it", () => {

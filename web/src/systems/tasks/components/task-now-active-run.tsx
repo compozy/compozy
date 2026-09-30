@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
-import { Button, Pill, Time } from "@compozy/ui";
+import { Button, StateGlyph, Time } from "@compozy/ui";
 import type { TaskDetailView } from "../types";
 import { TaskStateBand } from "./task-state-band";
 
@@ -73,7 +73,7 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
       data-testid="tasks-detail-now-run"
       title={
         <span className="inline-flex items-center gap-2.5">
-          <Pill.Dot pulse tone="accent" />
+          <StateGlyph state="running" />
           {title}
         </span>
       }

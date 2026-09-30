@@ -37,7 +37,7 @@ export function LoopLinterDock({
 
   return (
     <div
-      className="flex max-h-48 flex-none flex-col border-t border-line bg-canvas-soft"
+      className="flex max-h-48 flex-none flex-col border-t border-line bg-sunken"
       data-testid="loop-linter-dock"
     >
       <button

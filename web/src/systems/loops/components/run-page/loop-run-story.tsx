@@ -119,7 +119,7 @@ export function LoopRunStory({ beats, paging, isReconnecting = false }: LoopRunS
       right={<LoopRunStoryStatusPill isError={isError} isReconnecting={isReconnecting} />}
       title="Activity"
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft px-4 py-2">
+      <div className="overflow-hidden rounded-lg bg-canvas shadow-card px-4 py-2">
         {beats.length === 0 ? (
           <LoopRunStoryEmpty isError={isError} isLoading={isLoading} />
         ) : (

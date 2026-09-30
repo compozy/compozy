@@ -203,7 +203,6 @@ export { projectLoopRunPageView } from "./lib/loop-run-page-view";
 export { useNowTick } from "./hooks/use-now-tick";
 
 // Formatters and helpers
-export type { LoopStatusSignal } from "./lib/loop-formatters";
 export { isLiveLoopRun, isTerminalLoopStatus } from "./lib/loop-formatters";
 
 // Read hooks

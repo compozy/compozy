@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, Empty, Pill, SkeletonRows, cn } from "@compozy/ui";
+import { Button, cn, Empty, SkeletonRows, StateGlyph } from "@compozy/ui";
 
 import { buildTriggerRunView } from "../../lib/trigger-run-model";
 import type { TriggerRunIcon, TriggerRunView } from "../../lib/trigger-run-model";
@@ -28,7 +28,7 @@ const RUN_ICONS: Record<TriggerRunIcon, LucideIcon> = {
   ban: Ban,
 };
 
-const PANEL_SHELL = "overflow-hidden rounded-lg border border-line bg-canvas-soft";
+const PANEL_SHELL = "overflow-hidden rounded-lg bg-canvas shadow-card";
 
 /**
  * The drawer's one action, and only when the daemon recorded something to open.
@@ -87,10 +87,13 @@ function TriggerRunRow({ view, open, onOpenToggle, className, ...props }: Trigge
         onClick={onOpenToggle}
         type="button"
       >
-        <Pill size="sm" tone={view.tone}>
-          <Pill.Dot pulse={view.pulse} tone={view.tone} />
-          {view.statusLabel}
-        </Pill>
+        <span
+          className="inline-flex min-w-0 items-center gap-1.5 text-small-body text-fg-2"
+          data-state={view.glyph}
+        >
+          <StateGlyph state={view.glyph} />
+          <span className="truncate">{view.statusLabel}</span>
+        </span>
         <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted">
           <MetaIcon aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
           <span className="min-w-0 truncate">{view.meta.text}</span>

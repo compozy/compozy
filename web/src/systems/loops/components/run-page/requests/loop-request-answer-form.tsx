@@ -293,7 +293,6 @@ function LoopRequestChoiceList({
     >
       {options.map(option => (
         <RadioCard
-          className={value === option.token ? undefined : "bg-canvas-tint"}
           data-testid={`loop-request-option-${name}-${option.token}`}
           disabled={disabled}
           key={option.token}

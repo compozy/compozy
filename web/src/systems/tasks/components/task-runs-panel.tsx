@@ -14,10 +14,11 @@ import {
   OwnerAvatar,
   Pill,
   Spinner,
+  StateGlyph,
   Time,
 } from "@compozy/ui";
 
-import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
+import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunReview } from "../types";
 import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
@@ -51,7 +52,6 @@ function RunRow({
   reviews: readonly TaskRunReview[];
   duration?: string;
 }) {
-  const isActive = run.status === "running" || run.status === "starting";
   const claimant = run.claimed_by?.ref;
   const resultText =
     run.status === "failed"
@@ -85,10 +85,10 @@ function RunRow({
           </LinkedRecordTableTitle>
         </LinkedRecordTableCell>
         <LinkedRecordTableCell>
-          <Pill tone={taskRunStatusTone(run.status)}>
-            <Pill.Dot pulse={isActive} tone={taskRunStatusTone(run.status)} />
+          <span className="inline-flex items-center gap-1.75 text-small-body text-fg-2">
+            <StateGlyph state={taskRunStateGlyph(run.status)} />
             {taskRunStatusLabel(run.status)}
-          </Pill>
+          </span>
         </LinkedRecordTableCell>
         <LinkedRecordTableCell>
           <span className="inline-flex min-w-0 items-center gap-1.5 text-small-body text-muted">
@@ -239,7 +239,7 @@ export function TaskRunsPanel({
       ) : null}
       <LinkedRecordTableRoot
         aria-busy={isLoading || undefined}
-        className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+        className="overflow-hidden rounded-lg bg-canvas shadow-card"
         columns={RUN_COLUMNS}
         data-testid="tasks-runs-panel"
       >

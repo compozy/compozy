@@ -57,7 +57,7 @@ export function TriggerInspectSheet({ trigger, open, onOpenChange }: TriggerInsp
         <SheetHeader className="flex-row items-start gap-3 border-b border-line p-5">
           <span
             aria-hidden="true"
-            className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-line bg-canvas-soft text-subtle"
+            className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-2 text-subtle"
           >
             <Search className="size-4" strokeWidth={1.75} />
           </span>

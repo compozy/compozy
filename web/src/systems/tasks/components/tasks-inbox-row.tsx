@@ -1,17 +1,16 @@
 import * as React from "react";
 
+import { StateGlyph, type StateGlyphState } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import type { InboxGroupId } from "../lib/inbox-grouping";
 
 export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   taskId: string;
-  /**
-   * Inbox group this row belongs to. Drives the rail tone —
-   * `needs_review` paints warning, `blocked` paints danger, and `updates`
-   * paints a faint ring.
-   */
+  /** Inbox group this row belongs to (exposed as `data-group`). */
   group: InboxGroupId;
+  /** Leading state glyph for the item (canonical StateGlyph mapping). */
+  state: StateGlyphState;
   unread?: boolean;
   onSelect?: () => void;
   /** Top row content -- title + identifier + status/lane badges. */
@@ -25,19 +24,13 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
 }
 
 /**
- * Inbox row primitive — 3-column grid `[ rail | body | meta ]`. The rail
- * carries the group tone from backend-backed signals. Unread state is
- * expressed via the body's title weight.
+ * Inbox row — 3-column grid `[ state glyph | body | meta ]`. The glyph carries
+ * the item's state; unread state is expressed via the body's title weight.
  */
-const RAIL_CLASS: Record<InboxGroupId, string> = {
-  needs_review: "bg-warning",
-  blocked: "bg-danger",
-  updates: "bg-transparent shadow-inset-strong",
-};
-
 function TasksInboxRow({
   taskId,
   group,
+  state,
   unread = false,
   onSelect,
   top,
@@ -71,21 +64,17 @@ function TasksInboxRow({
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "grid min-h-11 items-stretch gap-3 border-b border-line-soft py-2.5 pr-3.5 text-left transition-colors duration-base ease-out",
-        trailing ? "grid-cols-[3px_minmax(0,1fr)_auto]" : "grid-cols-[3px_minmax(0,1fr)]",
+        "grid min-h-12 items-start gap-3 border-b border-line-soft px-3 py-3 text-left transition-colors duration-base ease-out",
+        trailing ? "grid-cols-[14px_minmax(0,1fr)_auto]" : "grid-cols-[14px_minmax(0,1fr)]",
         clickable &&
           "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-inset",
         className
       )}
       {...props}
     >
-      <span
-        aria-hidden="true"
-        data-slot="tasks-inbox-row-rail"
-        className={cn("self-stretch rounded-r-xs", RAIL_CLASS[group])}
-      />
+      <StateGlyph className="mt-1" data-slot="tasks-inbox-row-glyph" state={state} />
 
-      <div className="flex min-w-0 flex-col gap-1 pl-2" data-slot="tasks-inbox-row-main">
+      <div className="flex min-w-0 flex-col gap-1" data-slot="tasks-inbox-row-main">
         <div className="flex min-w-0 flex-wrap items-center gap-2" data-slot="tasks-inbox-row-top">
           {top}
         </div>
@@ -101,7 +90,7 @@ function TasksInboxRow({
 
       {trailing ? (
         <div
-          className="flex shrink-0 items-center gap-1.5"
+          className="flex shrink-0 items-center gap-1.5 self-center"
           data-slot="tasks-inbox-row-meta"
           data-testid={`tasks-inbox-item-actions-${taskId}`}
           onClick={stopPropagation}

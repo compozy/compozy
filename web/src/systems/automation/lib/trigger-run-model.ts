@@ -7,9 +7,9 @@
  * a link exists only when the daemon recorded the id it points at.
  */
 
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
-import { automationStatusTone, formatRunDuration } from "./automation-formatters";
+import { automationRunStateGlyph, formatRunDuration } from "./automation-formatters";
 import { automationRunDestination } from "./automation-run-destination";
 import { projectAutomationTarget } from "./automation-target";
 import { triggerTargetName } from "./trigger-sentence";
@@ -39,8 +39,7 @@ export interface TriggerRunDrawerLine {
 export interface TriggerRunView {
   id: string;
   statusLabel: string;
-  tone: PillTone;
-  pulse: boolean;
+  glyph: StateGlyphState;
   icon: TriggerRunIcon;
   meta: TriggerRunMeta;
   /** Client-side duration; `—` until both `started_at` and `ended_at` exist. */
@@ -186,8 +185,7 @@ export function buildTriggerRunView(
   return {
     id: run.id,
     statusLabel: statusLabel(run.status),
-    tone: automationStatusTone(run.status),
-    pulse: run.status === "running",
+    glyph: automationRunStateGlyph(run.status),
     icon: runIcon(run, isLoopTarget),
     meta: runMeta(run),
     duration: hasBothTimestamps ? formatRunDuration(run) : "—",

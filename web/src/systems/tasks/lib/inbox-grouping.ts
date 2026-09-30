@@ -1,4 +1,4 @@
-import type { StatusDotTone, StatusDotVariant } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import type { TaskInboxItem, TaskInboxLane } from "../types";
 
@@ -29,24 +29,22 @@ export const INBOX_UI_LANES: InboxLaneDefinition[] = [
 ];
 
 /**
- * UI-only inbox group vocabulary — five groups with a dot tone
- * each (warning solid / danger solid / warning ring / accent solid / faint
- * ring). Group membership is derived from backend item shape via
- * `resolveInboxGroupId`.
+ * UI-only inbox group vocabulary, each with its canonical `StateGlyph` state:
+ * the two groups that wait on a person carry attention, the feed stays idle.
+ * Group membership is derived from backend item shape via `resolveInboxGroupId`.
  */
 export type InboxGroupId = "needs_review" | "blocked" | "updates";
 
 export interface InboxGroupDefinition {
   id: InboxGroupId;
   label: string;
-  dotTone: StatusDotTone;
-  dotVariant: StatusDotVariant;
+  glyph: StateGlyphState;
 }
 
 export const INBOX_GROUPS: InboxGroupDefinition[] = [
-  { id: "needs_review", label: "Needs review", dotTone: "warning", dotVariant: "solid" },
-  { id: "blocked", label: "Blocked", dotTone: "danger", dotVariant: "solid" },
-  { id: "updates", label: "Updates", dotTone: "faint", dotVariant: "ring" },
+  { id: "needs_review", label: "Needs review", glyph: "attention" },
+  { id: "blocked", label: "Blocked", glyph: "attention" },
+  { id: "updates", label: "Updates", glyph: "idle" },
 ];
 
 /**

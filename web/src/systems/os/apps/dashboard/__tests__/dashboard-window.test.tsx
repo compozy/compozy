@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TopbarSlotProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider } from "@compozy/ui";
 
 const connection = { status: "connected" as "connected" | "disconnected" };
+const sessionCreate = { hasActiveWorkspace: true };
 const desktop = {
   activeDesktopId: "desktop-1",
   focusedId: "win-1",
@@ -26,7 +27,7 @@ vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
 
 vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
-  useSessionCreateHasActiveWorkspace: () => true,
+  useSessionCreateHasActiveWorkspace: () => sessionCreate.hasActiveWorkspace,
   useSessionCreateIsCreating: () => false,
 }));
 
@@ -44,6 +45,7 @@ import { DashboardWindow } from "../dashboard-window";
 function renderWindow() {
   return render(
     <TopbarSlotProvider>
+      <Topbar title="Home" />
       <DashboardWindow windowId="win-1" />
     </TopbarSlotProvider>
   );
@@ -52,6 +54,7 @@ function renderWindow() {
 describe("DashboardWindow", () => {
   beforeEach(() => {
     homeDashboardSpy.mockClear();
+    sessionCreate.hasActiveWorkspace = true;
     desktop.activeDesktopId = "desktop-1";
     desktop.focusedId = "win-1";
     desktop.windows["win-1"] = {
@@ -66,6 +69,23 @@ describe("DashboardWindow", () => {
     renderWindow();
     expect(homeDashboardSpy).toHaveBeenCalledWith({ liveEnabled: true });
     expect(screen.queryByTestId("home-error")).toBeNull();
+  });
+
+  it("Should disable New session in Global scope and say why", () => {
+    connection.status = "connected";
+    sessionCreate.hasActiveWorkspace = false;
+    renderWindow();
+    expect(screen.getByRole("button", { name: /New session/ })).toBeDisabled();
+    expect(screen.getByTestId("home-new-session-disabled")).toHaveAccessibleName(
+      "New session — pick a project to start a session"
+    );
+  });
+
+  it("Should offer New session once a project is active", () => {
+    connection.status = "connected";
+    renderWindow();
+    expect(screen.getByRole("button", { name: /New session/ })).toBeEnabled();
+    expect(screen.queryByTestId("home-new-session-disabled")).toBeNull();
   });
 
   it("Should keep Home live while it remains visible without focus", () => {

@@ -3,11 +3,13 @@ import { ListingToolbar } from "@compozy/ui";
 import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListSortKey, TaskPriority, TaskRecordsFilter, TaskStatus } from "../types";
 import { TasksListFilters } from "./tasks-list-filters";
+import { TasksListQuickStatus } from "./tasks-list-quick-status";
 import { TasksListRecordsFilter } from "./tasks-list-records-filter";
 import { TasksListSort } from "./tasks-list-sort";
 
 export interface TasksListToolbarProps {
   statusFilter: TaskStatus | null;
+  statusCounts: Record<TaskStatus, number>;
   ownerFilter: TaskFilterOwnerOption | null;
   priorityFilter: TaskPriority | null;
   ownerOptions: TaskFilterOwnerOption[];
@@ -25,6 +27,7 @@ export interface TasksListToolbarProps {
 /** Window-local tools for the Tasks list context strip. */
 export function TasksListToolbar({
   statusFilter,
+  statusCounts,
   ownerFilter,
   priorityFilter,
   ownerOptions,
@@ -39,11 +42,21 @@ export function TasksListToolbar({
   onRecordsFilterChange,
 }: TasksListToolbarProps) {
   return (
-    <ListingToolbar className="w-full">
+    // The strip collapses by priority as the pane narrows (a size container, so
+    // it measures its own share of the strip): the quick status pills leave
+    // first — status stays under Filter — then Filter, the reveal and the sort
+    // drop to their icons, keeping their accessible names.
+    <ListingToolbar className="@container/tasks-strip w-full min-w-0">
       <ListingToolbar.Leading className="flex-nowrap">
+        <TasksListQuickStatus
+          className="hidden @2xl/tasks-strip:inline-flex"
+          onStatusChange={onStatusChange}
+          statusCounts={statusCounts}
+          statusFilter={statusFilter}
+        />
         <ListingToolbar.Search
           aria-label="Search tasks"
-          containerClassName="min-w-28 max-w-48 flex-1"
+          containerClassName="min-w-20 max-w-48 flex-1"
           data-testid="tasks-list-search-input"
           onChange={onSearchQueryChange}
           placeholder="Search tasks"

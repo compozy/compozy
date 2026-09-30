@@ -86,12 +86,11 @@ describe("TasksInboxView", () => {
 
     const group = screen.getByTestId("tasks-inbox-group-needs_review");
     expect(group).toBeInTheDocument();
-    const dot = screen.getByTestId("tasks-inbox-group-dot-needs_review");
-    expect(dot).toHaveAttribute("data-tone", "warning");
-    expect(dot).toHaveAttribute("data-variant", "solid");
+    const glyph = screen.getByTestId("tasks-inbox-group-dot-needs_review");
+    expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
-  it("Should render blocked items under the Blocked group with a danger solid dot", () => {
+  it("Should render blocked items under the Blocked group with the attention glyph", () => {
     const inbox = buildInboxFixture({
       page: { has_more: false, limit: 50, total: 1 },
       unread_total: 0,
@@ -129,9 +128,8 @@ describe("TasksInboxView", () => {
 
     const group = screen.getByTestId("tasks-inbox-group-blocked");
     expect(group).toBeInTheDocument();
-    const dot = screen.getByTestId("tasks-inbox-group-dot-blocked");
-    expect(dot).toHaveAttribute("data-tone", "danger");
-    expect(dot).toHaveAttribute("data-variant", "solid");
+    const glyph = screen.getByTestId("tasks-inbox-group-dot-blocked");
+    expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
   it("Should emit search and unread toggle changes", () => {

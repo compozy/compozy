@@ -22,7 +22,7 @@ export function LoopConfigureChecks({
   if (descriptors.length === 0) {
     return (
       <p
-        className="rounded-lg border border-line-soft bg-canvas-tint px-4 py-3 text-form-hint text-subtle"
+        className="rounded-lg bg-sunken px-4 py-3 text-form-hint text-subtle"
         data-testid="loop-configure-checks-empty"
       >
         This Loop has no checks to turn on or off.
@@ -31,7 +31,7 @@ export function LoopConfigureChecks({
   }
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-lg border border-line-soft bg-canvas-tint"
+      className="flex flex-col overflow-hidden rounded-lg bg-sunken"
       data-testid="loop-configure-checks"
     >
       {descriptors.map(descriptor => {

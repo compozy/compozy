@@ -36,8 +36,13 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
     glyph: <Clock3 />,
     count: page.total,
     actions: (
-      <Button data-testid="create-job-btn" onClick={page.handleCreate} size="sm" type="button">
-        <Plus aria-hidden="true" className="size-3" />
+      <Button
+        data-testid="create-job-btn"
+        onClick={page.handleCreate}
+        type="button"
+        variant="secondary"
+      >
+        <Plus aria-hidden="true" />
         Job
       </Button>
     ),

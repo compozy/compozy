@@ -3,38 +3,29 @@ import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
 
 import {
   Button,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Pill,
   Spinner,
+  StateGlyph,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import {
-  HEAD_STATUS_TONE_TEXT,
-  taskHandoffActionCopy,
-  taskStatusLabel,
-  taskStatusSignal,
-} from "../lib/task-formatters";
+import { taskHandoffActionCopy, taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskCommandState, TaskPrimaryCommand } from "../lib/task-command-state";
 import type { TaskStatus } from "../types";
 
 /** Single source of task status in the window head (w2-status contract). */
 export function TaskPageStatus({ status }: { status?: TaskStatus | null }) {
-  const signal = taskStatusSignal(status);
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-badge font-semibold",
-        HEAD_STATUS_TONE_TEXT[signal.tone]
-      )}
+      className="inline-flex items-center gap-1.75 text-meta font-medium text-fg-2"
+      data-state={taskStateGlyph(status)}
       data-testid="tasks-detail-status"
     >
-      <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+      <StateGlyph state={taskStateGlyph(status)} />
       {taskStatusLabel(status)}
     </span>
   );

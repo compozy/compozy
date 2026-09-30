@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { CircleSlash, GitBranch } from "lucide-react";
 
-import { ListingRow, MonoId, Pill } from "@compozy/ui";
+import { Pill } from "@compozy/ui";
 
 import {
   RUN_GONE_LABEL,
@@ -10,8 +9,9 @@ import {
   taskLoopRunLink,
   type TaskLoopProvenance,
 } from "../lib/task-loop-identity";
-import { taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
+import { formatRelativeTime, taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
+import { TasksListRow } from "./tasks-list-row";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface TaskLoopRowProps {
@@ -21,94 +21,64 @@ export interface TaskLoopRowProps {
   profileOwner?: ProfileOwner;
 }
 
-/** The runtime models a record's state, not a per-step narrative — that lives on the run page. */
-const LOOP_RECORD_DESCRIPTION = "Loop execution record — open the run to act on it.";
-
 /**
- * A revealed Loop execution record in the Tasks listing (US-002.AC-1).
+ * A revealed Loop execution record in the Tasks table (US-002.AC-1).
  *
  * Exclusion is default-filtering, never erasure (ADR-001), so a revealed record
  * keeps the work item's row geometry and earns its distinction from two separate
- * channels: structure — the `git-branch` glyph and the neutral role tag — and
- * status — the signal pill in the trail. Identity is plain words end to end; the
- * machine id only ever appears in secondary text.
+ * channels: structure — the neutral role tag after its name — and status — the
+ * state glyph column. Identity is plain words end to end; the machine run id only
+ * ever appears in the identifier column.
  */
 export function TaskLoopRow({ task, loop, onOpenRun, profileOwner }: TaskLoopRowProps) {
   const runLink = taskLoopRunLink(loop);
-  const roleLabel = taskLoopRoleLabel(loop);
   const identity = taskLoopIdentityLabel(loop);
-
-  const name = (
-    <ListingRow.Name>
-      <ListingRow.Title data-slot="task-loop-row-identity">{identity}</ListingRow.Title>
-      <Pill data-slot="task-loop-row-role" size="sm" tone="neutral">
-        {roleLabel}
-      </Pill>
-      {profileOwner ? <ProfileOwnerTag owner={profileOwner} /> : null}
-    </ListingRow.Name>
-  );
+  const meta = [
+    <Pill data-slot="task-loop-row-role" key="role" size="sm" tone="neutral">
+      {taskLoopRoleLabel(loop)}
+    </Pill>,
+    profileOwner ? <ProfileOwnerTag key="profile" owner={profileOwner} /> : null,
+  ];
 
   // Retention removed the run: the record stays and says so, with the id
   // carrying identity. A dead link would be worse than no link (US-002.EC-2).
   if (!runLink) {
     return (
-      <ListingRow
-        data-slot="task-loop-row"
+      <TasksListRow
         data-loop-role={loop.role}
+        data-slot="task-loop-row"
         data-testid={`task-loop-row-${task.id}`}
-        interactive={false}
-      >
-        <ListingRow.Icon>
-          <GitBranch aria-hidden="true" className="size-4" />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          {name}
-          <ListingRow.Meta data-slot="task-loop-row-meta">
-            <MonoId data-slot="task-loop-row-run-id" size="sm" value={loop.run_id} />
-          </ListingRow.Meta>
-        </ListingRow.Main>
-        <ListingRow.Trail data-slot="task-loop-row-trailing">
-          <Pill data-testid={`task-loop-row-run-gone-${task.id}`} size="sm" tone="neutral">
-            <CircleSlash aria-hidden="true" />
-            {RUN_GONE_LABEL}
-          </Pill>
-        </ListingRow.Trail>
-      </ListingRow>
+        id={<span data-slot="task-loop-row-run-id">{loop.run_id}</span>}
+        link={null}
+        meta={meta}
+        state="stopped"
+        statusLabel={
+          <span data-testid={`task-loop-row-run-gone-${task.id}`}>{RUN_GONE_LABEL}</span>
+        }
+        title={<span data-slot="task-loop-row-identity">{identity}</span>}
+      />
     );
   }
 
   return (
-    <ListingRow
-      data-slot="task-loop-row"
+    <TasksListRow
       data-loop-role={loop.role}
+      data-slot="task-loop-row"
       data-status={task.status}
       data-testid={`task-loop-row-${task.id}`}
-    >
-      <ListingRow.Link
-        render={
-          <Link
-            aria-label={`Open run for ${identity}`}
-            onClick={onOpenRun}
-            params={runLink.params}
-            to={runLink.to}
-          />
-        }
-      >
-        <ListingRow.Icon>
-          <GitBranch aria-hidden="true" className="size-4" />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          {name}
-          <ListingRow.Description data-slot="task-loop-row-description">
-            {LOOP_RECORD_DESCRIPTION}
-          </ListingRow.Description>
-        </ListingRow.Main>
-      </ListingRow.Link>
-      <ListingRow.Trail data-slot="task-loop-row-trailing">
-        <Pill size="sm" tone={taskStatusTone(task.status)}>
-          {taskStatusLabel(task.status)}
-        </Pill>
-      </ListingRow.Trail>
-    </ListingRow>
+      link={
+        <Link
+          aria-label={`Open run for ${identity}`}
+          onClick={onOpenRun}
+          params={runLink.params}
+          to={runLink.to}
+        />
+      }
+      meta={meta}
+      state={taskStateGlyph(task.status)}
+      statusLabel={taskStatusLabel(task.status)}
+      title={<span data-slot="task-loop-row-identity">{identity}</span>}
+      updated={formatRelativeTime(task.last_activity_at ?? task.updated_at)}
+    />
   );
 }

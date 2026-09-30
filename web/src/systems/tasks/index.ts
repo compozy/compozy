@@ -169,7 +169,7 @@ export {
   tasksListOptions,
 } from "./query-api";
 
-export type { BlockedReasonChip, TaskStatusSignal } from "./lib/task-formatters";
+export type { BlockedReasonChip } from "./lib/task-formatters";
 export {
   computeElapsed,
   countTasksByStatus,
@@ -198,7 +198,8 @@ export {
   taskRunStatusTone,
   taskShortId,
   taskStatusLabel,
-  taskStatusSignal,
+  taskStateGlyph,
+  taskRunStateGlyph,
   taskStatusTone,
   toRunCardStatus,
 } from "./lib/task-formatters";

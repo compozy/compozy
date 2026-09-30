@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
-import { Bell, Check, PenLine, ShieldAlert, TriangleAlert, X } from "lucide-react";
+import { Bell, Check, PenLine, ShieldAlert, X } from "lucide-react";
 
-import { Button, Eyebrow, cn, formatRelativeTime } from "@compozy/ui";
+import { Button, cn, Eyebrow, formatRelativeTime, StateGlyph } from "@compozy/ui";
 
 import type {
   LoopApprovalFact,
@@ -86,8 +86,8 @@ function quarantineDetail(attempts: number, runEnded: boolean): string {
 }
 
 /**
- * The "Needs you" region: a neutral panelbox whose only colour is the warning
- * glyph. Requests present as a one-at-a-time questionnaire; approval decisions
+ * The "Needs you" region: a neutral panelbox whose only colour is the state
+ * glyph (attention for a decision, failed for a quarantined step). Requests present as a one-at-a-time questionnaire; approval decisions
  * and quarantine entries share the same shell.
  */
 export function LoopRunNeedsYouCard({
@@ -114,7 +114,7 @@ export function LoopRunNeedsYouCard({
       icon={<Bell aria-hidden="true" />}
       title="Needs you"
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
         {requests.length > 0 ? (
           <LoopRequestQuestionnaire
             requestFocus={requestFocus}
@@ -144,7 +144,7 @@ export function LoopRunNeedsYouCard({
               data-testid={`loop-run-needs-quarantine-${rowKey}`}
               key={rowKey}
             >
-              <ShieldAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
+              <StateGlyph className="mt-1" state="failed" />
               <div className="min-w-0 flex-1">
                 <div className="text-ws-name font-medium text-fg-strong">
                   {node.label} was set aside
@@ -224,7 +224,7 @@ function LoopRunApprovalDecision({
       data-testid="loop-run-needs-approval"
       {...props}
     >
-      <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
+      <StateGlyph className="mt-1" state="attention" />
       <div className="min-w-0 flex-1">
         <div className="text-ws-name font-medium text-fg-strong">
           {request?.title ?? "Approve to continue this run?"}

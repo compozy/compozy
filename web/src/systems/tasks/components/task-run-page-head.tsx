@@ -2,21 +2,16 @@ import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
 
 import {
   Button,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Pill,
+  StateGlyph,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import {
-  HEAD_STATUS_TONE_TEXT,
-  taskRunStatusLabel,
-  taskRunStatusTone,
-} from "../lib/task-formatters";
+import { taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import type { TaskRunDetailView, TaskRunStatus } from "../types";
 
 const CANCELABLE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
@@ -27,17 +22,13 @@ const CANCELABLE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
 ]);
 
 export function TaskRunPageStatus({ status }: { status: TaskRunStatus }) {
-  const isActive = status === "running" || status === "starting";
-  const tone = taskRunStatusTone(status);
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-badge font-semibold",
-        HEAD_STATUS_TONE_TEXT[tone]
-      )}
+      className="inline-flex items-center gap-1.75 text-meta font-medium text-fg-2"
+      data-state={taskRunStateGlyph(status)}
       data-testid="tasks-run-status"
     >
-      <Pill.Dot pulse={isActive} tone={tone} />
+      <StateGlyph state={taskRunStateGlyph(status)} />
       {taskRunStatusLabel(status)}
     </span>
   );

@@ -83,7 +83,7 @@ export function LoopReferenceInput({
       {auto.matches.length > 0 ? (
         <ul
           aria-label="Reference suggestions"
-          className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-md border border-line-strong bg-elevated py-1 shadow-lg"
+          className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg bg-popover p-1 shadow-pop"
           data-testid="loop-reference-suggestions"
           id={listboxId}
           role="listbox"

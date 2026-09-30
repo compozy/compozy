@@ -77,12 +77,12 @@ export function LoopEditorToolbar({
   const paletteExpanded = paletteMode === "expanded";
 
   return (
-    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
+    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas px-3.5">
       {paletteMode === "menu" ? null : (
         <Button
           aria-label={paletteExpanded ? "Close step list" : "Open step list"}
           aria-pressed={paletteExpanded}
-          className={cn(paletteExpanded ? "bg-elevated text-fg" : null)}
+          className={cn(paletteExpanded ? "bg-surface-2 text-fg" : null)}
           data-state={paletteExpanded ? "open" : "closed"}
           data-testid="loop-editor-palette-toggle"
           onClick={onTogglePalette}
@@ -141,7 +141,7 @@ export function LoopEditorToolbar({
         <Button
           aria-label={inspectorOpen ? "Close inspector" : "Open inspector"}
           aria-pressed={inspectorOpen}
-          className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+          className={cn(inspectorOpen ? "bg-surface-2 text-fg" : null)}
           data-state={inspectorOpen ? "open" : "closed"}
           data-testid="loop-editor-inspector-toggle"
           onClick={onToggleInspector}
@@ -167,7 +167,7 @@ function ToolIcon({
 }) {
   return (
     <Button
-      className="size-6 text-muted hover:bg-elevated hover:text-fg-strong"
+      className="size-6 text-muted hover:bg-surface-2 hover:text-fg"
       onClick={onClick}
       size="icon-xs"
       title={label}

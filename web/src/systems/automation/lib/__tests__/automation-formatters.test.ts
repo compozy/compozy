@@ -8,7 +8,7 @@ import {
   automationSkipReasonTone,
   automationSourceLabel,
   automationSourceTone,
-  automationStatusTone,
+  automationRunStateGlyph,
   catchUpPolicyLabel,
   describeFireLimit,
   describeRetry,
@@ -137,13 +137,12 @@ describe("automation formatter helpers", () => {
     expect(
       formatPromptPreview("Review the session transcript and summarize follow-up actions.", 20)
     ).toBe("Review the session...");
-    expect(automationStatusTone("running")).toBe("info");
-    expect(automationStatusTone("completed")).toBe("success");
-    expect(automationStatusTone("enabled")).toBe("neutral");
-    expect(automationStatusTone("scheduled")).toBe("neutral");
-    expect(automationStatusTone("failed")).toBe("danger");
-    expect(automationStatusTone("canceled")).toBe("neutral");
-    expect(automationStatusTone("disabled")).toBe("neutral");
+    expect(automationRunStateGlyph("scheduled")).toBe("queued");
+    expect(automationRunStateGlyph("running")).toBe("running");
+    expect(automationRunStateGlyph("delegated")).toBe("running");
+    expect(automationRunStateGlyph("completed")).toBe("done");
+    expect(automationRunStateGlyph("failed")).toBe("failed");
+    expect(automationRunStateGlyph("canceled")).toBe("stopped");
     expect(automationScopeTone("workspace")).toBe("neutral");
     expect(automationScopeTone("global")).toBe("neutral");
     expect(automationSourceTone("dynamic")).toBe("neutral");

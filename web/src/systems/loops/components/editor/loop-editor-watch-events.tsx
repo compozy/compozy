@@ -63,10 +63,7 @@ export function LoopEditorWatchEvents({
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-watch-events">
       {subscriptions.map((subscription, index) => (
-        <div
-          key={rowKeys.keys[index]}
-          className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
-        >
+        <div key={rowKeys.keys[index]} className="rounded-md bg-sunken p-2.5">
           <div className="mb-2 flex items-center gap-2">
             <Pill size="xs" tone="neutral">
               Event

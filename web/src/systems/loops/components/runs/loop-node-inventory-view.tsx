@@ -8,7 +8,7 @@ import {
   Eyebrow,
   ListingToolbar,
   type ListingViewMode,
-  Pill,
+  StateGlyph,
   PillGroup,
   Section,
   Select,
@@ -23,11 +23,10 @@ import {
   buildInventoryRow,
   LOOP_NODE_INVENTORY_LABELS,
   LOOP_NODE_INVENTORY_STATES,
-  LOOP_NODE_INVENTORY_TONES,
+  LOOP_NODE_INVENTORY_GLYPHS,
   inventoryEmptyCopy,
   type LoopNodeInventoryRowView,
 } from "../../lib/loop-node-inventory";
-import { LOOP_STORY_ICONS } from "../../lib/loop-story-icons";
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../../types";
 
 export interface LoopNodeInventoryViewProps {
@@ -57,22 +56,6 @@ export interface LoopNodeInventoryViewProps {
 
 const ALL_LOOPS = "__all__";
 const ALL_RUNS = "__all_runs__";
-
-const STATE_ICON = {
-  waiting: LOOP_STORY_ICONS.waiting,
-  quarantined: LOOP_STORY_ICONS.quarantined,
-  attention: LOOP_STORY_ICONS.attention,
-  retrying: LOOP_STORY_ICONS.retry,
-} as const;
-
-const STATE_TONE_CLASS = {
-  info: "text-info",
-  danger: "text-danger",
-  warning: "text-warning",
-  accent: "text-accent",
-  success: "text-success",
-  neutral: "text-muted",
-} as const;
 
 /**
  * The workspace node inventory (VC-R5): one list, four state filters, the same
@@ -246,7 +229,7 @@ function InventoryResults({
       <div
         aria-busy="true"
         aria-label={`Loading ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} steps`}
-        className="rounded-lg border border-line bg-canvas-soft p-4"
+        className="rounded-lg bg-canvas shadow-card p-4"
         data-testid="loop-node-inventory-loading"
       >
         <SkeletonRows className="gap-4" count={4} />
@@ -274,12 +257,6 @@ function InventoryResults({
   }
   if (view === "cards") return <InventoryCards rows={rows} {...page} />;
   return <InventoryRows rows={rows} {...page} />;
-}
-
-function InventoryStateGlyph({ state }: { state: LoopNodeInventoryState }) {
-  const Icon = STATE_ICON[state];
-  const tone = LOOP_NODE_INVENTORY_TONES[state];
-  return <Icon aria-hidden="true" className={`size-3.5 shrink-0 ${STATE_TONE_CLASS[tone]}`} />;
 }
 
 function InventoryFoot({
@@ -331,7 +308,7 @@ function InventoryRows({
   onLoadMore: () => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+    <div className="overflow-hidden rounded-lg bg-canvas shadow-card">
       <div className="flex items-center gap-4 border-b border-line px-4 py-2">
         <Eyebrow className="min-w-0 flex-1 text-muted">Step</Eyebrow>
         <Eyebrow className="hidden min-w-0 flex-1 text-muted lg:block">Loop</Eyebrow>
@@ -350,7 +327,7 @@ function InventoryRows({
           to="/loop-runs/$runId"
         >
           <span className="flex min-w-0 flex-1 items-start gap-2">
-            <InventoryStateGlyph state={row.state} />
+            <StateGlyph className="mt-0.5" state={LOOP_NODE_INVENTORY_GLYPHS[row.state]} />
             <span className="min-w-0">
               <span
                 className="block truncate text-ws-name font-medium text-fg-strong"
@@ -413,13 +390,13 @@ function InventoryCards({
               to="/loop-runs/$runId"
             >
               <span className="flex items-center gap-2">
-                <InventoryStateGlyph state={row.state} />
+                <StateGlyph className="mt-0.5" state={LOOP_NODE_INVENTORY_GLYPHS[row.state]} />
                 <span className="min-w-0 flex-1 truncate text-ws-name font-medium text-fg-strong">
                   {row.label}
                 </span>
-                <Pill size="xs" tone={LOOP_NODE_INVENTORY_TONES[row.state]}>
+                <span className="shrink-0 text-eyebrow text-fg-2">
                   {LOOP_NODE_INVENTORY_LABELS[row.state]}
-                </Pill>
+                </span>
               </span>
               <CatalogCard.Description className="line-clamp-2">
                 {row.reason}

@@ -12,8 +12,8 @@ export interface TaskStateBandProps extends Omit<React.ComponentProps<"div">, "t
 }
 
 const TONE_SURFACE: Record<PillTone, string> = {
-  neutral: "border-line bg-canvas-soft",
-  accent: "border-accent-dim bg-canvas-soft",
+  neutral: "border-transparent bg-sunken",
+  accent: "border-accent/40 bg-accent-tint",
   info: "border-info/25 bg-info-tint",
   success: "border-success/25 bg-success-tint",
   warning: "border-warning/25 bg-warning-tint",

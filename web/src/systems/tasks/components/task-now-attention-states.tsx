@@ -80,7 +80,7 @@ function TaskBlockingState({
         }
         data-testid={`tasks-detail-now-dependency-${key}`}
         title="Waits on another task"
-        tone="warning"
+        tone="neutral"
       />
     );
   }
@@ -104,7 +104,7 @@ function TaskBlockingState({
         body={detail.task.paused_reason || "New runs stay queued until the task is resumed."}
         data-testid="tasks-detail-now-paused"
         title="Paused"
-        tone="warning"
+        tone="neutral"
       />
     );
   }
@@ -130,7 +130,8 @@ function TaskBlockingState({
       body={reason.reason || "A block is holding this task."}
       data-testid={`tasks-detail-now-block-${key}`}
       title={reason.kind === "needs_input" ? "Needs input to continue" : "Blocked"}
-      tone="warning"
+      // A block waits on a person: the needs-you accent, never the warning amber.
+      tone="accent"
     />
   );
 }

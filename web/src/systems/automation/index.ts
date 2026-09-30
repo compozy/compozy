@@ -101,7 +101,7 @@ export {
   automationScopeLabel,
   automationScopeTone,
   automationSourceTone,
-  automationStatusTone,
+  automationRunStateGlyph,
   describeFireLimit,
   describeRetry,
   describeSchedule,

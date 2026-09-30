@@ -1,15 +1,6 @@
-import { cn, formatRelativeTime, type PillTone } from "@compozy/ui";
+import { cn, formatRelativeTime, StateGlyph } from "@compozy/ui";
 
 import type { LoopRequestView } from "../../../lib/loop-request-model";
-
-const TONE_TEXT: Record<PillTone, string> = {
-  neutral: "text-muted",
-  accent: "text-accent",
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-  info: "text-info",
-};
 
 export interface LoopRequestSettledRowProps {
   view: LoopRequestView;
@@ -18,16 +9,12 @@ export interface LoopRequestSettledRowProps {
 
 /** A request that can no longer be answered: the recorded outcome, never a form. */
 export function LoopRequestSettledRow({ view, withDivider }: LoopRequestSettledRowProps) {
-  const Glyph = view.signal.icon;
   return (
     <div
       className={cn("flex items-start gap-3 px-4 py-3", withDivider && "border-t border-line-soft")}
       data-testid="loop-request-resolution"
     >
-      <Glyph
-        aria-hidden="true"
-        className={cn("mt-0.5 size-3.5 shrink-0", TONE_TEXT[view.signal.tone])}
-      />
+      <StateGlyph className="mt-1" state={view.signal.glyph} />
       <div className="min-w-0 flex-1">
         <div className="text-ws-name font-medium text-fg">
           {view.request.prompt === "" ? view.title : view.request.prompt}

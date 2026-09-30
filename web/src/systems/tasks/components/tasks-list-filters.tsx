@@ -51,12 +51,12 @@ export function TasksListFilters({
           <Button
             aria-label="Add filter"
             data-testid="tasks-list-filters-add"
-            size="sm"
+            size="segment"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
             <ListFilter aria-hidden="true" className="size-3" />
-            Filter
+            <span className="hidden @md/tasks-strip:inline">Filter</span>
           </Button>
         }
       />

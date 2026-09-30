@@ -106,7 +106,7 @@ function LoopDagCard({
       // pressed state to report at all.
       aria-pressed={selectable ? selected : undefined}
       className={cn(
-        "flex w-40 shrink-0 flex-col gap-1.5 rounded-md border bg-canvas-tint px-3 py-2.5 text-left",
+        "flex w-40 shrink-0 flex-col gap-1.5 rounded-md border bg-canvas px-3 py-2.5 text-left shadow-card",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         node.chip.state === "pending" ? "border-dashed border-line" : "border-line",
         selected && "border-accent",

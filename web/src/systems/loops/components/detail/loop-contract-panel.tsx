@@ -67,7 +67,7 @@ export function LoopContractPanel({ contract, concurrency }: LoopContractPanelPr
       icon={<ScrollText aria-hidden="true" />}
       title="Goal and finish line"
     >
-      <div className="flex flex-col rounded-lg border border-line bg-canvas-soft">
+      <div className="flex flex-col rounded-lg bg-canvas shadow-card">
         <LoopContractRows concurrency={concurrency} contract={contract} />
       </div>
     </LoopSection>

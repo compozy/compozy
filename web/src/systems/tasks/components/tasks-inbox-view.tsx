@@ -8,7 +8,7 @@ import {
   ListingPage,
   SearchInput,
   Spinner,
-  StatusDot,
+  StateGlyph,
   Switch,
 } from "@compozy/ui";
 
@@ -300,12 +300,7 @@ function GroupSection({ group, items, itemActionProps, totalCount }: GroupSectio
   return (
     <section className="flex flex-col gap-2" data-testid={`tasks-inbox-group-${group.id}`}>
       <header className="flex items-center gap-2">
-        <StatusDot
-          data-testid={`tasks-inbox-group-dot-${group.id}`}
-          label={group.label}
-          tone={group.dotTone}
-          variant={group.dotVariant}
-        />
+        <StateGlyph data-testid={`tasks-inbox-group-dot-${group.id}`} state={group.glyph} />
         <Eyebrow>{group.label}</Eyebrow>
         <span
           className="font-mono text-badge tabular-nums text-faint"

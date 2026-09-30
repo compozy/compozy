@@ -35,7 +35,7 @@ export function LoopRunInputField({
       data-input-type={field.type}
     >
       {isBoolean ? (
-        <div className="flex items-center gap-3 rounded-md border border-line-soft bg-canvas-tint px-3 py-2.5">
+        <div className="flex items-center gap-3 rounded-md bg-sunken px-3 py-2.5">
           <LoopTypedInputControl
             controlId={controlId}
             describedBy={error ? errorId : undefined}

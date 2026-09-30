@@ -151,7 +151,7 @@ function DiagnosticsPane({
       </div>
 
       {diagnostics.length === 0 ? (
-        <p className="rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
+        <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
           No diagnostics were reported in this snapshot.
         </p>
       ) : (
@@ -214,7 +214,7 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
       {stream.errorMessage ? (
         <p className="text-small-body text-danger">{stream.errorMessage}</p>
       ) : null}
-      <p className="rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
         The task stream replays durable events for this task subtree, then tails new ones. The page
         refetches on every frame.
       </p>

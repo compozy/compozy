@@ -1,4 +1,4 @@
-import type { PillTone } from "@compozy/ui";
+import type { PillTone, StateGlyphState } from "@compozy/ui";
 
 import { humanCron } from "./cron-engine-presentation";
 
@@ -232,21 +232,22 @@ export function formatPromptPreview(prompt: string, maxLength = 72): string {
   return `${normalized.slice(0, maxLength - 1).trimEnd()}...`;
 }
 
-type AutomationStatusKey = AutomationRunStatus | "enabled" | "disabled";
+/**
+ * Run status → canonical `StateGlyph` state: scheduled runs wait their turn,
+ * running and delegated runs are in flight, completed runs are done, failures
+ * fail and canceled runs (including durable skips) read as stopped.
+ */
+const AUTOMATION_RUN_GLYPH = {
+  scheduled: "queued",
+  running: "running",
+  delegated: "running",
+  completed: "done",
+  failed: "failed",
+  canceled: "stopped",
+} as const satisfies Record<AutomationRunStatus, StateGlyphState>;
 
-const AUTOMATION_STATUS_TONE = {
-  running: "info",
-  scheduled: "neutral",
-  delegated: "info",
-  completed: "success",
-  enabled: "neutral",
-  failed: "danger",
-  canceled: "neutral",
-  disabled: "neutral",
-} as const satisfies Record<AutomationStatusKey, PillTone>;
-
-export function automationStatusTone(status: AutomationStatusKey): PillTone {
-  return AUTOMATION_STATUS_TONE[status] ?? "neutral";
+export function automationRunStateGlyph(status: AutomationRunStatus): StateGlyphState {
+  return AUTOMATION_RUN_GLYPH[status] ?? "idle";
 }
 
 const CATCH_UP_POLICY_LABELS = {

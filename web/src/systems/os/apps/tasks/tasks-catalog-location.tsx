@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ListChecks, Plus } from "lucide-react";
 
-import { Button, RouteNav, useTopbarSlot } from "@compozy/ui";
+import { Button, RouteNav, Separator, useTopbarSlot } from "@compozy/ui";
 
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
@@ -66,10 +66,10 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         data-testid="tasks-open-create"
         disabled={!page.hasActiveTaskScope}
         onClick={() => openCreate()}
-        size="sm"
         type="button"
+        variant="secondary"
       >
-        <Plus className="size-3" />
+        <Plus aria-hidden="true" />
         New task
       </Button>
     ),
@@ -79,21 +79,25 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       <>
         {modeNav}
         {mode === "list" && page.hasActiveTaskScope ? (
-          <TasksListToolbar
-            onOwnerChange={page.handleOwnerChange}
-            onPriorityChange={page.handlePriorityChange}
-            onRecordsFilterChange={page.handleRecordsFilterChange}
-            onSearchQueryChange={page.setSearchQuery}
-            onSortChange={page.handleSortChange}
-            onStatusChange={page.handleStatusChange}
-            ownerFilter={page.ownerFilter}
-            ownerOptions={page.ownerOptions}
-            priorityFilter={page.priorityFilter}
-            recordsFilter={page.recordsFilter}
-            searchQuery={page.searchQuery}
-            sortBy={page.sortBy}
-            statusFilter={page.statusFilter}
-          />
+          <>
+            <Separator className="h-4 self-center" orientation="vertical" />
+            <TasksListToolbar
+              onOwnerChange={page.handleOwnerChange}
+              onPriorityChange={page.handlePriorityChange}
+              onRecordsFilterChange={page.handleRecordsFilterChange}
+              onSearchQueryChange={page.setSearchQuery}
+              onSortChange={page.handleSortChange}
+              onStatusChange={page.handleStatusChange}
+              ownerFilter={page.ownerFilter}
+              ownerOptions={page.ownerOptions}
+              priorityFilter={page.priorityFilter}
+              recordsFilter={page.recordsFilter}
+              searchQuery={page.searchQuery}
+              sortBy={page.sortBy}
+              statusCounts={page.statusCounts}
+              statusFilter={page.statusFilter}
+            />
+          </>
         ) : null}
       </>
     ),

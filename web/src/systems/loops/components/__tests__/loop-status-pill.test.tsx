@@ -18,23 +18,27 @@ describe("LoopStatusPill", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument();
   });
 
-  it("Should mark the dot as pulsing only for the live running/watching states", () => {
+  it("Should spin the glyph only for the live running/watching states", () => {
+    const glyph = (container: HTMLElement) => container.querySelector('[data-slot="state-glyph"]');
     const { container, rerender } = render(<LoopStatusPill status="running" />);
-    expect(container.querySelector('[data-slot="pill-dot"]')).toHaveAttribute("data-pulse", "true");
+    expect(glyph(container)).toHaveAttribute("data-spinning", "true");
     rerender(<LoopStatusPill status="watching" />);
-    expect(container.querySelector('[data-slot="pill-dot"]')).toHaveAttribute("data-pulse", "true");
+    expect(glyph(container)).toHaveAttribute("data-spinning", "true");
     rerender(<LoopStatusPill status="done" />);
-    expect(container.querySelector('[data-slot="pill-dot"]')).not.toHaveAttribute("data-pulse");
+    expect(glyph(container)).not.toHaveAttribute("data-spinning");
     rerender(<LoopStatusPill status="needs-approval" />);
-    expect(container.querySelector('[data-slot="pill-dot"]')).not.toHaveAttribute("data-pulse");
+    expect(glyph(container)).toHaveAttribute("data-state", "attention");
+    expect(glyph(container)).not.toHaveAttribute("data-spinning");
   });
 
-  it("Should gate the pulse under prefers-reduced-motion", () => {
+  it("Should hold the glyph still under prefers-reduced-motion", () => {
     const { container } = render(
       <MotionConfig reducedMotion="always">
         <LoopStatusPill status="running" />
       </MotionConfig>
     );
-    expect(container.querySelector('[data-slot="pill-dot"]')).not.toHaveAttribute("data-pulse");
+    expect(container.querySelector('[data-slot="state-glyph"]')).not.toHaveAttribute(
+      "data-spinning"
+    );
   });
 });
