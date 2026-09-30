@@ -17,9 +17,10 @@ import {
 import { Field, FieldContent, FieldDescription, FieldLabel } from "../field";
 import { Input } from "../input";
 import { Eyebrow } from "./eyebrow";
+import { KindIcon } from "./kind-icon";
 
 type ConfirmDialogTone = "danger" | "warning" | "accent" | "neutral";
-type ConfirmDialogIconTone = "accent" | "neutral" | "danger";
+type ConfirmDialogIconTone = "accent" | "neutral" | "warning" | "danger";
 type ConfirmDialogNoteTone = "info" | "warning" | "accent" | "neutral";
 type ConfirmDialogIcon = React.ComponentType<{ className?: string }>;
 type DataAttributes = {
@@ -42,9 +43,9 @@ interface ConfirmDialogProps {
   noteTone?: ConfirmDialogNoteTone;
   error?: React.ReactNode;
   confirmIcon?: ConfirmDialogIcon;
-  /** 36px head well before the title block. Tone chrome comes from `iconTone`. */
+  /** Identity well (26 px) before the title block. Tone chrome comes from `iconTone`. */
   icon?: ConfirmDialogIcon;
-  /** Paints the icon well only. Defaults from `tone` (`warning` → `neutral`). */
+  /** Paints the icon well only. Defaults from `tone`; `neutral` is the mint identity well. */
   iconTone?: ConfirmDialogIconTone;
   /** Header sibling above `DialogTitle` — never nested inside the accessible name. */
   eyebrow?: React.ReactNode;
@@ -76,10 +77,13 @@ const TONE_EYEBROW: Record<ConfirmDialogTone, string> = {
   neutral: "text-muted",
 };
 
-const ICON_WELL_TONE: Record<ConfirmDialogIconTone, string> = {
-  accent: "bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset",
-  neutral: "bg-canvas-tint text-muted ring-1 ring-line ring-inset",
-  danger: "bg-danger-tint text-danger ring-1 ring-danger/24 ring-inset",
+// `neutral` is the identity well as-is (mint plate); `accent`, `warning` and
+// `danger` keep their semantic tint on the same plate geometry.
+const ICON_WELL_TONE: Record<ConfirmDialogIconTone, string | undefined> = {
+  accent: "bg-accent-tint text-accent-strong",
+  neutral: undefined,
+  warning: "bg-warning-tint text-warning",
+  danger: "bg-danger-tint text-danger",
 };
 
 function resolveIconTone(
@@ -88,6 +92,7 @@ function resolveIconTone(
 ): ConfirmDialogIconTone {
   if (iconTone) return iconTone;
   if (tone === "danger") return "danger";
+  if (tone === "warning") return "warning";
   if (tone === "accent") return "accent";
   return "neutral";
 }
@@ -178,17 +183,14 @@ function ConfirmDialog({
         <DialogHeader variant="ruled">
           {Icon ? (
             <div className="flex items-start gap-3">
-              <div
+              <KindIcon
                 aria-hidden="true"
+                className={ICON_WELL_TONE[resolvedIconTone]}
                 data-icon-tone={resolvedIconTone}
                 data-slot="confirm-dialog-icon"
-                className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-icon-well",
-                  ICON_WELL_TONE[resolvedIconTone]
-                )}
-              >
-                <Icon className="size-4" />
-              </div>
+                icon={Icon}
+                tone="well"
+              />
               <div className="min-w-0 flex-1">{titleBlock}</div>
             </div>
           ) : (

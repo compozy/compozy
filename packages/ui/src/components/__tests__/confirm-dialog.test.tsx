@@ -241,7 +241,22 @@ describe("ConfirmDialog", () => {
       .getByTestId("confirm-dialog")
       .querySelector('[data-slot="confirm-dialog-icon"]');
     expect(well).toHaveAttribute("data-icon-tone", "neutral");
-    expect(well?.className).toContain("bg-canvas-tint");
+    expect(well?.className).toContain("bg-well");
+  });
+
+  it("Should keep a warning dialog on the semantic warning well by default", async () => {
+    renderDialog({
+      contentProps: { "data-testid": "confirm-dialog" },
+      icon: Trash2,
+      tone: "warning",
+    });
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const well = screen
+      .getByTestId("confirm-dialog")
+      .querySelector('[data-slot="confirm-dialog-icon"]');
+    expect(well).toHaveAttribute("data-icon-tone", "warning");
+    expect(well?.className).toContain("bg-warning-tint");
+    expect(well?.className).not.toContain("bg-well");
   });
 
   it("Should keep description muted instead of painting it with tone", async () => {

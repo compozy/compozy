@@ -72,4 +72,19 @@ describe("KindIcon", () => {
     expect(icon.className).toContain("size-5");
     expect(icon.className).toContain("text-accent");
   });
+
+  it("Should set the glyph on the identity well plate for tone well", () => {
+    render(<KindIcon kind="claude" tone="well" data-testid="icon" />);
+    const well = screen.getByTestId("icon");
+    expect(well).toHaveAttribute("data-tone", "well");
+    expect(well).toHaveClass("size-6.5", "rounded-icon-well", "bg-well", "text-success");
+    expect(well.querySelector("svg")).toHaveClass("size-4");
+  });
+
+  it("Should render an explicit icon without consulting the registry", () => {
+    render(<KindIcon icon={Code} tone="well" data-testid="icon" />);
+    const icon = screen.getByTestId("icon");
+    expect(icon).not.toHaveAttribute("data-kind");
+    expect(icon.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
 });

@@ -1,4 +1,4 @@
-import * as React from "react";
+import type * as React from "react";
 import { Bot, type LucideIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
@@ -8,17 +8,24 @@ import {
   type KindIconRegistryEntry,
 } from "./kind-icon-registry";
 
-type KindIconTone = "default" | "muted" | "accent";
+/** `well` sets the glyph on the 26 px mint identity plate (brand-spec rule 3). */
+type KindIconTone = "default" | "muted" | "accent" | "well";
 type KindIconSize = "xs" | "sm" | "md";
 type DataAttributes = {
   [key: `data-${string}`]: string | undefined;
 };
 
+type KindIconExplicitGlyph = React.ComponentType<{ className?: string; "aria-hidden"?: true }>;
+
 interface KindIconProps<K extends string = string>
   extends Omit<React.ComponentProps<"span">, "children">, DataAttributes {
   fallback?: LucideIcon;
-  kind: K | (string & {});
+  /** Glyph source: resolved through `registry`. Ignored when `icon` is set. */
+  kind?: K | (string & {});
+  /** Explicit glyph that skips the registry (e.g. a verb icon in a dialog well). */
+  icon?: KindIconExplicitGlyph;
   registry?: KindIconRegistry<K>;
+  /** Glyph size; inside the `well` tone it sizes the glyph, not the plate. */
   size?: KindIconSize;
   tone?: KindIconTone;
 }
@@ -27,6 +34,7 @@ const KIND_ICON_TONE: Record<KindIconTone, string> = {
   default: "text-fg",
   muted: "text-subtle",
   accent: "text-accent",
+  well: "size-6.5 rounded-icon-well bg-well text-success",
 };
 
 const KIND_ICON_SIZE: Record<KindIconSize, string> = {
@@ -71,26 +79,38 @@ function KindIcon<K extends string = string>({
   fallback = Bot,
   kind,
   registry = providerKindIconRegistry as KindIconRegistry<K>,
+  icon: ExplicitIcon,
   size = "sm",
   tone = "muted",
   "data-slot": dataSlot = "kind-icon",
   ...props
 }: KindIconProps<K>) {
-  const key = normalizeKind(String(kind));
-  const entry = registry[key as K];
+  const key = kind === undefined ? undefined : normalizeKind(String(kind));
+  const well = tone === "well";
+  // A well is a fixed plate; `size` then sizes the glyph inside it.
+  const glyphClass = well ? cn(KIND_ICON_SIZE[size], "shrink-0") : KIND_ICON_GLYPH_CLASS;
   return (
     <span
       data-slot={dataSlot}
       data-kind={key}
+      data-tone={tone}
       className={cn(
         "inline-flex shrink-0 items-center justify-center",
-        KIND_ICON_SIZE[size],
+        !well && KIND_ICON_SIZE[size],
         KIND_ICON_TONE[tone],
         className
       )}
       {...props}
     >
-      <KindIconGlyph className={KIND_ICON_GLYPH_CLASS} entry={entry} fallback={fallback} />
+      {ExplicitIcon ? (
+        <ExplicitIcon aria-hidden className={glyphClass} />
+      ) : (
+        <KindIconGlyph
+          className={glyphClass}
+          entry={key === undefined ? undefined : registry[key as K]}
+          fallback={fallback}
+        />
+      )}
     </span>
   );
 }
