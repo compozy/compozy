@@ -8,13 +8,20 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { applyTheme } from "../lib/apply-theme";
+import { THEME_CHROME_COLOR, applyTheme } from "../lib/apply-theme";
 import { installThemeRuntime } from "../lib/install-theme-runtime";
 import { THEME_STORAGE_KEY, readThemePreference, resolveTheme } from "../lib/theme-preference";
 import { selectResolvedTheme, themePreferenceLogic } from "../stores/theme-preference-store";
 import type { ThemePreference } from "../types";
 
 const BOOT_SCRIPT = readFileSync(join(__dirname, "../../../../public/theme-boot.js"), "utf8");
+const TOKENS_DIR = join(__dirname, "../../../../../packages/ui/src");
+
+/** The `--color-rail` declared by a token file (tokens.css = dark default, tokens-light.css = light). */
+function railToken(file: string): string | undefined {
+  const source = readFileSync(join(TOKENS_DIR, file), "utf8");
+  return /^\s*--color-rail:\s*([^;]+);/m.exec(source)?.[1]?.trim();
+}
 
 type SchemeListener = (event: { matches: boolean }) => void;
 
@@ -110,6 +117,14 @@ describe("theme runtime", () => {
       dark: true,
       colorScheme: "dark",
       themeColor: "#0a0a0a",
+    });
+  });
+
+  it("Should paint the browser chrome with each theme's --color-rail token", () => {
+    // The boot script is pinned to the runtime by the boot-paint parity cases below.
+    expect(THEME_CHROME_COLOR).toEqual({
+      dark: railToken("tokens.css"),
+      light: railToken("tokens-light.css"),
     });
   });
 

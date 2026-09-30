@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -63,6 +64,14 @@ function fakeWindow() {
   return window;
 }
 
+const TOKENS_DIR = join(__dirname, "../../../../packages/ui/src");
+
+/** A color token as declared by a token file (tokens.css = dark default, tokens-light.css = light). */
+function token(file: string, name: string): string | undefined {
+  const source = readFileSync(join(TOKENS_DIR, file), "utf8");
+  return new RegExp(`^\\s*--${name}:\\s*([^;]+);`, "m").exec(source)?.[1]?.trim();
+}
+
 const directories: string[] = [];
 
 async function themePath(content?: string): Promise<string> {
@@ -88,6 +97,19 @@ describe("WindowTheme", () => {
   afterEach(async () => {
     for (const directory of directories.splice(0))
       await rm(directory, { recursive: true, force: true });
+  });
+
+  it("Should paint window backgrounds with the surface tokens each page paints first", () => {
+    expect(WINDOW_BACKGROUNDS).toEqual({
+      chrome: {
+        dark: token("tokens.css", "color-rail"),
+        light: token("tokens-light.css", "color-rail"),
+      },
+      canvas: {
+        dark: token("tokens.css", "color-canvas"),
+        light: token("tokens-light.css", "color-canvas"),
+      },
+    });
   });
 
   it.each([undefined, "not json", '{"preference":"sepia"}'])(
