@@ -278,12 +278,22 @@ func TestLayoutDocumentContract(t *testing.T) {
 				},
 				wantSentinel: ErrInvalidCommand,
 			},
+			{
+				// keep_frames only shapes an inline arrangement; a resource
+				// replaces the topology, so the pair is a caller error on every
+				// transport instead of a silently dropped flag.
+				name:         "keep frames with a resource",
+				payload:      ArrangeLayoutCommand{ResourceID: "focus", KeepFrames: true},
+				wantSentinel: ErrInvalidCommand,
+			},
 		}
 		for _, test := range invalidCommands {
 			t.Run(test.name, func(t *testing.T) {
-				_, executeErr := manager.Execute(t.Context(), CommandRequest{
-					WorkspaceID: "workspace-a", ExpectedRevision: 1, Payload: test.payload,
-				})
+				request := CommandRequest{WorkspaceID: "workspace-a", ExpectedRevision: 1, Payload: test.payload}
+				if _, previewErr := manager.Preview(t.Context(), request); !errors.Is(previewErr, test.wantSentinel) {
+					t.Fatalf("Preview(resource) error = %v, want %v", previewErr, test.wantSentinel)
+				}
+				_, executeErr := manager.Execute(t.Context(), request)
 				if !errors.Is(executeErr, test.wantSentinel) {
 					t.Fatalf("Execute(resource) error = %v, want %v", executeErr, test.wantSentinel)
 				}
