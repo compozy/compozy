@@ -15,7 +15,7 @@ import (
 func TestZoom(t *testing.T) {
 	t.Run("Should zoom a solo window in place as the full island and float it back on unzoom", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		opened := openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 		rect := opened.Snapshot.Windows["w1"].FloatingRect
 		zoomed := executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "w1"})
@@ -139,7 +139,7 @@ func TestZoom(t *testing.T) {
 
 	t.Run("Should zoom the whole tab frame in place and float it back on unzoom", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
 		rect := stacked.Snapshot.Desktops[0].FloatingStacks[0].Rect
 		zoomed := executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "w1"})

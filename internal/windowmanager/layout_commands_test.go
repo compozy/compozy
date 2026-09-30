@@ -311,7 +311,7 @@ func TestSwapWindows(t *testing.T) {
 
 	t.Run("Should swap a tiled tab frame with a tiled window as whole units", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		for _, windowID := range []WindowID{"w1", "w2", "board"} {
 			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
 		}
@@ -350,7 +350,7 @@ func TestSwapWindows(t *testing.T) {
 
 	t.Run("Should swap a floating tab frame into a tiled slot and float the tiled window back", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		for _, windowID := range []WindowID{"w1", "w2", "board"} {
 			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
 		}

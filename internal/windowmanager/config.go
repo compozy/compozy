@@ -108,7 +108,7 @@ type WorkspaceConfig struct {
 // DefaultConfig returns production defaults from the accepted contract.
 func DefaultConfig() Config {
 	return Config{
-		NewWindowPolicy:     NewWindowFloating,
+		NewWindowPolicy:     NewWindowInsert,
 		SmallViewportPolicy: SmallViewportStack,
 		FocusPolicy:         FocusClickDirectional,
 		RaiseOnFocus:        true,
@@ -119,14 +119,14 @@ func DefaultConfig() Config {
 		NavStackLimit:       50,
 		ClosedEntryLimit:    20,
 		DesktopTransition:   DesktopTransitionSlide,
-		Gaps:                GapsConfig{Inner: 8, Top: 8, Right: 10, Bottom: 8, Left: 10},
+		Gaps:                GapsConfig{},
 		Snap: SnapConfig{
 			EdgeBand:     32,
 			CornerReach:  150,
 			ExitSlack:    16,
 			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
 		},
-		Bindings:  BindingsConfig{TopCenter: "zoom", BottomCenter: bindingReserved},
+		Bindings:  BindingsConfig{TopCenter: "zoom", BottomCenter: "zoom"},
 		Shortcuts: map[string]ShortcutBinding{},
 	}
 }

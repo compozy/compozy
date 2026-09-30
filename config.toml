@@ -14,7 +14,7 @@ fallback_targets = ["agent"]
 personalization = true
 
 [window_manager]
-new_window_policy = "floating"
+new_window_policy = "beside_focus"
 small_viewport_policy = "stack"
 focus_policy = "click_directional"
 focus_wrap = false
@@ -26,11 +26,11 @@ history_limit = 50
 desktop_transition = "slide"
 
 [window_manager.gaps]
-inner = 8
-top = 8
-right = 10
-bottom = 8
-left = 10
+inner = 0
+top = 0
+right = 0
+bottom = 0
+left = 0
 
 [window_manager.snap]
 edge_band = 32
@@ -40,7 +40,7 @@ repeat_ratios = [0.5, 0.666667, 0.333333]
 
 [window_manager.bindings]
 top_center = "zoom"
-bottom_center = "reserved"
+bottom_center = "zoom"
 
 [window_manager.global_shortcuts]
 "palette.summon.global" = "meta+shift+Space"

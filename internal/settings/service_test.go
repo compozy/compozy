@@ -897,7 +897,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
 		desired := testWindowManagerConfig()
-		desired.Gaps.Inner = 0
+		desired.Gaps.Inner = 6
 		desired.GlobalShortcuts = map[string]string{windowmanager.DefaultGlobalSummonCommandID: "meta+shift+Space"}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
@@ -4611,7 +4611,7 @@ func readFile(t *testing.T, path string) string {
 
 func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 	return compozyconfig.WindowManagerConfig{
-		NewWindowPolicy:     compozyconfig.WindowNewPolicyBesideFocus,
+		NewWindowPolicy:     compozyconfig.WindowNewPolicyFloating,
 		SmallViewportPolicy: compozyconfig.WindowSmallViewportReject,
 		FocusPolicy:         compozyconfig.WindowFocusDirectional,
 		FocusWrap:           true,

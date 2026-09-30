@@ -303,7 +303,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 func TestWindowTabLayoutDocumentV3(t *testing.T) {
 	t.Run("Should export v3 tab state without closed entries or history [UT-037]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
 		executeTestCommand(
 			t,
@@ -338,7 +338,7 @@ func TestWindowTabLayoutDocumentV3(t *testing.T) {
 
 	t.Run("Should replace a v3 document with floating stacks and live navigation [UT-038]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
 		executeTestCommand(
 			t,

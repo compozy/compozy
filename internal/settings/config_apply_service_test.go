@@ -2381,7 +2381,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 			t.Fatal(err)
 		}
 		desired := cfg.WindowManager
-		desired.Gaps.Inner = 0
+		desired.Gaps.Inner = 6
 		request := SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionWindowManager},
 			WindowManager: &desired, WindowManagerPreserveShortcuts: true}
 		failed, err := service.ApplySection(ctx, request)
@@ -2395,8 +2395,8 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if persisted.WindowManager.Gaps.Inner != 0 {
-			t.Fatal("failed runtime apply lost persisted zero")
+		if persisted.WindowManager.Gaps.Inner != 6 {
+			t.Fatal("failed runtime apply lost the persisted gap")
 		}
 		general := generalSettingsFromConfig(&persisted)
 		general.HTTP.Port++
@@ -2414,7 +2414,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 			t.Fatalf("retry skipped pending runtime apply: %#v, calls = %d", retried, applier.calls)
 		}
 		active := applier.snapshots[1]
-		if active.WindowManager.Gaps.Inner != 0 || active.HTTP.Port != cfg.HTTP.Port {
+		if active.WindowManager.Gaps.Inner != 6 || active.HTTP.Port != cfg.HTTP.Port {
 			t.Fatalf(
 				"retry applied the wrong projection: gaps=%#v port=%d",
 				active.WindowManager.Gaps,

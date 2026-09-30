@@ -47,7 +47,7 @@ func TestCommandTransaction(t *testing.T) {
 		var generated atomic.Int64
 		environment := newTestEnvironmentWithOptions(
 			t,
-			DefaultConfig(),
+			floatingConfig(),
 			[]WorkspaceID{"workspace-a"},
 			WithIDGenerator(func(kind string) (string, error) {
 				return fmt.Sprintf("%s-durable-%d", kind, generated.Add(1)), nil
