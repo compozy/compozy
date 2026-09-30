@@ -384,7 +384,7 @@
 
   /* Z-index scale — the only sanctioned stacking values (never bare 999/9999).
      Window-body tiers: menu 40 · scrim 60 · sheet 61. Shell chrome tiers are
-     higher and fixed: menubar 500 · dock 600 · popover 900 · overlay 1000 ·
+     higher and fixed: menubar 500 · rail 600 · popover 900 · overlay 1000 ·
      toasts 1200. */
   --z-menu: 40;
   --z-scrim: 60;
@@ -562,33 +562,16 @@
   --height-modal-wizard: 960px;
   --height-modal-xl: 840px;
 
-  /* OS shell chrome — the sanctioned depth carve-out (DESIGN.md §5).
-     Glass, backdrop blur, and window shadows apply to shell chrome only:
-     menubar, dock, shell popovers, and window frames.
-     Content inside window bodies stays on the flat ramp/hairline model.
-     The canonical `--shell-glass` literals live in `:root`; these `--color-*`
-     adapters reference them so production keeps resolving through `--color-*`. */
-  --color-shell-glass: var(--shell-glass);
-  --color-shell-glass-pop: var(--shell-glass-pop);
+  /* Shell chrome is flat (DESIGN.md §5): no glass, no backdrop blur. The deck
+     tab radius is the only shell-specific corner. `--radius-window` and
+     `--shadow-window` survive only for the marketing site's hero mock and two
+     session stories that stage a floating window — no product consumers. */
   --radius-window: 12px;
-  --radius-dock: 22px;
-  --radius-dock-item: 13px;
-  --radius-menubar-control: 7px;
   --radius-deck-tab: 9px;
   --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
-  --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
-  --shadow-window-head-scrolled: 0 10px 18px -14px rgba(0, 0, 0, 0.55);
-  --shadow-dock: 0 18px 50px -18px rgba(0, 0, 0, 0.6);
-  /* Workspaces overview (Command-Tab switcher) shell glass details.
-     The strip shadow is the overlay drop plus the inset top light edge; the
-     plate shadow is the frosted focus plate behind the focused tile; the halo
-     rings the current-workspace pill against the glass. */
-  --shadow-shell-strip: var(--shadow-overlay), var(--shadow-highlight);
-  --shadow-shell-plate: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18);
-  --shadow-shell-current-halo: 0 0 0 2px var(--color-shell-glass-pop);
 
   /* Shell motion tier — chrome-scale spatial transitions (window entry,
-     dock magnification, minimize travel) above the base ladder; one spring. */
+     desktop switches, minimize travel) above the base ladder; one spring. */
   --duration-shell-fast: 120ms;
   --duration-shell-base: 240ms;
   --duration-shell-slow: 320ms;
@@ -612,13 +595,6 @@
   /* Filter / view toolbar strip under the window head (OsWindowToolbar). */
   --height-window-toolbar: 44px;
   --size-seam-hit: 9px;
-  --size-dock-item: 46px;
-  --size-dock-icon: 21px;
-  --size-dock-badge: 15px;
-  --size-dock-indicator: 4px;
-  --size-dock-indicator-min: 5px;
-  --size-traffic-light: 12px;
-  --size-menubar-logo: 17px;
   /* The deck — 40px browser-tab strip above the window head; tabs shrink
      from 208px to 136px. */
   --height-deck: 40px;
@@ -629,48 +605,7 @@
   --min-width-deck-badge: 14px;
   --size-deck-add: 28px;
   --size-deck-close: 20px;
-  --size-workspace-avatar: 18px;
-  --size-dock-new-icon: 18px;
-  /* Reserved bottom band that keeps the window work area clear of the Dock:
-     dock resting strip (item + 2× pad + 2×1px border) plus a zone offset and
-     clearance. Consumers add env(safe-area-inset-bottom) at the use site. */
-  --size-dock-zone-offset: 10px;
-  --size-dock-clearance: 10px;
-  /* oxfmt-ignore */
-  --size-dock-band: calc(
-    var(--size-dock-item)
-      + (2 * var(--spacing-dock-pad))
-      + 2px
-      + var(--size-dock-zone-offset)
-      + var(--size-dock-clearance)
-  );
-  /* `--spacing-*` (not `--space-*`) so Tailwind v4 emits gap/p utilities. */
-  --spacing-dock-gap: 4px;
-  --spacing-dock-pad: 7px;
-  --spacing-menubar-workspace-gap: 7px;
-  --spacing-traffic-light-gap: 7px;
-  --spacing-traffic-light-compact-gap: 12px;
 
-  /* Shell backdrop blur tiers — consumed as backdrop-blur-shell etc. */
-  --blur-shell: 28px;
-  --blur-shell-pop: 32px;
-  --blur-shell-scrim: 8px;
-  /* Workspaces overview tiers: strip glass, worktree menu / kebab popover
-     glass, and the frosted focus plate behind the focused tile. */
-  --blur-shell-strip: 34px;
-  --blur-shell-menu: 30px;
-  --blur-shell-plate: 12px;
-  --saturate-shell-glass: 1.25;
-  --saturate-shell-plate: 1.2;
-
-  /* Compact (<960px) presentation — os-v2.css mobile block. */
-  --height-dock-tabbar: 56px;
-  --size-dock-tab-item: 44px;
-  --size-traffic-light-compact: 15px;
-  --size-traffic-light-compact-target: 44px;
-
-  /* Desktop overview cards. */
-  --height-workspace-thumb: 148px;
   /* Compact canvas faces in Settings layouts. */
   --text-workspace-avatar: 9px;
 
@@ -710,42 +645,26 @@
   --theme-shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
   --theme-shadow-focus-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
 
-  /* Canonical OS-shell glass literals — the exact `--shell-glass` names from the
-     OpenDesign contract (os-v2.css). Referenced by the `@theme` `--color-shell-glass`
-     adapters above; components never consume these directly. */
-  --shell-glass: rgba(10, 10, 10, 0.72);
-  --shell-glass-pop: rgba(26, 26, 26, 0.94);
-
-  /* Workspaces overview (Command-Tab switcher) gradient stacks — gradient
+  /* Workspaces overview (Command-Tab switcher) strip edge fades — gradient
      geometry is not a utility scale, so the family stays out of @theme.
-     Consumed via `bg-(image:--shell-…)`. The edge fades dissolve tiles into
-     the strip glass and add a dark "more to scroll" veil on the overflowing
-     side (workspaces.css contract). */
-  --shell-plate-gradient: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.09),
-    rgba(255, 255, 255, 0.035)
-  );
-  --shell-well-gradient: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--color-elevated) 90%, var(--color-fg) 5%),
-    var(--color-elevated)
-  );
-  --shell-edge-veil: rgba(0, 0, 0, 0.28);
+     Consumed via `bg-(image:--workspaces-edge-fade-…)`. The fades dissolve
+     tiles into the strip's popover surface and add a "more to scroll" veil on
+     the overflowing side. */
+  --workspaces-edge-veil: rgba(0, 0, 0, 0.28);
   /* oxfmt-ignore */
-  --shell-edge-fade-start: linear-gradient(90deg, var(--shell-edge-veil) 0%, transparent 55%),
+  --workspaces-edge-fade-start: linear-gradient(90deg, var(--workspaces-edge-veil) 0%, transparent 55%),
     linear-gradient(
       90deg,
-      var(--shell-glass-pop) 0%,
-      color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%,
+      var(--color-popover) 0%,
+      color-mix(in oklch, var(--color-popover) 62%, transparent) 42%,
       transparent 100%
     );
   /* oxfmt-ignore */
-  --shell-edge-fade-end: linear-gradient(270deg, var(--shell-edge-veil) 0%, transparent 55%),
+  --workspaces-edge-fade-end: linear-gradient(270deg, var(--workspaces-edge-veil) 0%, transparent 55%),
     linear-gradient(
       270deg,
-      var(--shell-glass-pop) 0%,
-      color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%,
+      var(--color-popover) 0%,
+      color-mix(in oklch, var(--color-popover) 62%, transparent) 42%,
       transparent 100%
     );
 

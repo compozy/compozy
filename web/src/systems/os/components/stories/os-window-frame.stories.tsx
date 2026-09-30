@@ -42,7 +42,7 @@ function AgentsBody() {
           key={agent.name}
           className="flex items-center gap-3 border-b border-line-soft px-4 py-2.5 last:border-0"
         >
-          <span className="grid size-workspace-avatar shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted">
+          <span className="grid size-4.5 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted">
             {agent.chip}
           </span>
           <span className="min-w-0 flex-1">

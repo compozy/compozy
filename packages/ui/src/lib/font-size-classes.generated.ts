@@ -86,3 +86,21 @@ export const fontSizeClasses = [
   "text-workspace-avatar",
   "text-ws-name",
 ];
+
+// tailwind-merge only knows Tailwind's default radius names. Registering the
+// project scale lets a caller's `rounded-*` replace a variant's `rounded-pill`.
+export const radiusScale = [
+  "chip",
+  "deck-tab",
+  "diagram",
+  "icon-well",
+  "lg",
+  "md",
+  "mono-badge",
+  "pill",
+  "sm",
+  "window",
+  "xl",
+  "xs",
+  "xxs",
+];

@@ -83,7 +83,6 @@ function stripFrontmatter(text) {
 function replaceGeneratedSections(text) {
   const sections = [
     ...Object.entries(colorGroups).map(([id, stems]) => [id, themedTable(colorNames(stems))]),
-    ["shell-glass", themedTable(shellGlassNames())],
     ["signal", signalTable()],
     ["owner-avatar", themedTable(prefixNames(runtimeTheme, "color-avatar-"))],
     ["terminal-ansi", themedTable(terminalRampNames())],
@@ -96,10 +95,7 @@ function replaceGeneratedSections(text) {
     [
       "shell-backdrop",
       themedTable(
-        namedRows(
-          runtimeDecls,
-          /^(blur-shell|saturate-shell|shell-(?:plate-gradient|well-gradient|edge-veil|edge-fade-(?:start|end))|wallpaper-)/
-        ).map(([name]) => name.slice(2))
+        namedRows(runtimeDecls, /^(workspaces-edge-|wallpaper-)/).map(([name]) => name.slice(2))
       ),
     ],
     ["motion", tokenTable(namedRows(runtimeTheme, /^(distance|duration|ease|scale)-/))],
@@ -126,15 +122,8 @@ function colorNames(stems) {
   return stems.split(" ").map(stem => "color-" + stem);
 }
 
-// The shell-glass family pairs each canonical `:root --shell-glass*` literal with
-// its `@theme --color-*` adapter, so DESIGN.md documents both the contract name and
-// the utility-facing token that references it (single literal, no duplication).
-function shellGlassNames() {
-  return ["shell-glass", "shell-glass-pop"].flatMap(stem => [stem, "color-" + stem]);
-}
-
-// The terminal ramp follows the shell-glass shape: canonical `:root --terminal-*`
-// literals with mechanical `@theme --color-terminal-*` adapters. The table
+// The terminal ramp pairs each canonical `:root --terminal-*` literal with a
+// mechanical `@theme --color-terminal-*` adapter. The table
 // documents the canonical names — the identity the emulator bridge resolves —
 // because the alias is `var(--terminal-X)` for every one of them and listing
 // forty rows to say that twenty times would bury the palette.

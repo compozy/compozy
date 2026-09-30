@@ -128,11 +128,8 @@
   --theme-shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
   --theme-shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);
 
-  /* Shell glass + gradients (retired with the dock; themed until removed). */
-  --shell-glass: rgba(250, 250, 250, 0.78);
-  --shell-glass-pop: rgba(255, 255, 255, 0.94);
-  --shell-plate-gradient: linear-gradient(180deg, rgba(10, 13, 18, 0.06), rgba(10, 13, 18, 0.03));
-  --shell-edge-veil: rgba(10, 13, 18, 0.06);
+  /* Workspaces strip "more to scroll" veil: a faint ink on light. */
+  --workspaces-edge-veil: rgba(10, 13, 18, 0.06);
 
   /* Wallpapers — the white-alpha stacks flip to black-alpha, and the teal
      depth wash drops to a light tint (the dark strengths paint a heavy cast
