@@ -1194,6 +1194,26 @@ describe("useWindowMergeTarget", () => {
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
   });
 
+  it("Should not advertise a group target while the layer origin is unmeasured", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
+    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+    result.current.chromeRef.current = chromeWithHead();
+
+    act(() => {
+      beginPrimarySnapGesture();
+      windowManagerStore.trigger.workAreaMeasured({ workArea: null });
+    });
+    act(() => pointerMove(200, 60));
+    frames.flush();
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+    expect(result.current.mergeTargeted).toBe(false);
+  });
+
   it("Should preserve a drop target published by a deck", () => {
     const frames = installAnimationFrameQueue();
     const shell = createShell();

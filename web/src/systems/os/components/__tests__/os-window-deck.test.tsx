@@ -317,6 +317,49 @@ describe("OsWindowDeck", () => {
     expect(within(screen.getByTestId("os-window-tab-window:session")).queryByText("1")).toBeNull();
   });
 
+  it("Should count a session's pending decisions on its tab and omit the count at zero", () => {
+    const pending = (id: string, status: string) => ({
+      interaction_id: id,
+      kind: "permission",
+      provider_request_id: `req-${id}`,
+      status,
+      created_at: "2026-07-20T12:00:00Z",
+      title: "Run bun test",
+    });
+    windows = {
+      "window:session": windowFixture("window:session", {
+        app: "session",
+        instanceKey: "session:review",
+      }),
+      "window:tasks": windowFixture("window:tasks"),
+    };
+    deck = deckModel({
+      sessionById: new Map([
+        [
+          "session:review",
+          sessionFixture({
+            pending_interactions: [
+              pending("a", "pending"),
+              pending("b", "pending"),
+              pending("c", "resolved"),
+            ],
+          }),
+        ],
+      ]),
+    });
+    renderDeck(
+      frameFixture({ members: ["window:session", "window:tasks"], activeWindowId: "window:tasks" })
+    );
+
+    const sessionTab = screen.getByTestId("os-window-tab-window:session");
+    expect(sessionTab.querySelector('[data-slot="os-window-tab-count"]')).toHaveTextContent("2");
+    expect(
+      screen
+        .getByTestId("os-window-tab-window:tasks")
+        .querySelector('[data-slot="os-window-tab-count"]')
+    ).toBeNull();
+  });
+
   it("Should render independently addressable deck rows for separate tiled panes (UT-102)", () => {
     const secondaryMembers = ["window:catalog", "window:jobs"];
     windows["window:jobs"] = windowFixture("window:jobs", {

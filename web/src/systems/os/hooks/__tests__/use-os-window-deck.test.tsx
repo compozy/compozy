@@ -219,7 +219,10 @@ function prepareDeck(frame = frameFixture()) {
 }
 
 afterEach(() => {
-  act(() => windowManagerStore.trigger.gestureCleared());
+  act(() => {
+    windowManagerStore.trigger.gestureCleared();
+    windowManagerStore.trigger.workAreaMeasured({ workArea: null });
+  });
   runtime.state = null;
   shell.manager = null;
   vi.clearAllMocks();
@@ -241,6 +244,12 @@ describe("useOsWindowDeck", () => {
 
   it("Should tear a tab out beyond the deck threshold and focus its standalone window [UT-093]", async () => {
     const { result, manager } = prepareDeck();
+    // The rail and menubar offset the layer from the viewport origin.
+    act(() => {
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 1220, h: 748 }, origin: { x: 60, y: 52 } },
+      });
+    });
 
     act(() => {
       result.current.handleTabPointerDown("window:one", {
@@ -255,12 +264,30 @@ describe("useOsWindowDeck", () => {
     await act(async () => undefined);
 
     expect(manager.toggleFloating).toHaveBeenCalledWith("window:one", {
-      x: 250,
-      y: 144,
+      x: 190,
+      y: 92,
       w: 600,
       h: 400,
     });
     expect(shell.coordinator.userActivateWindow).toHaveBeenCalledWith("window:one");
+  });
+
+  it("Should ignore a tear-out before the layer origin is measured", async () => {
+    const { result, manager } = prepareDeck();
+
+    act(() => {
+      result.current.handleTabPointerDown("window:one", {
+        clientX: 30,
+        clientY: 38,
+      } as React.PointerEvent<HTMLElement>);
+    });
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointermove", 400, 160));
+      window.dispatchEvent(pointerEvent("pointerup", 400, 160));
+    });
+    await act(async () => undefined);
+
+    expect(manager.toggleFloating).not.toHaveBeenCalled();
   });
 
   it("Should coalesce tab-drag layout reads and release browser listeners at pointer end", () => {

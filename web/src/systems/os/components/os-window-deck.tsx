@@ -113,9 +113,10 @@ export interface OsWindowDeckProps {
 }
 
 /**
- * The deck: one tab per member, the `+` button, the drag gutter, and the
- * window controls at the right end. Rendered only at ≥2 members (D1); the
- * active tab fuses with the head surface below.
+ * The deck (prototype `.deck`): a recessed 40px strip of browser tabs, the
+ * `+` button, the drag gutter, and the window controls at the right end.
+ * Rendered only at ≥2 members (D1); the active tab fuses with the head
+ * surface below.
  */
 export function OsWindowDeck({
   frame,
@@ -135,7 +136,7 @@ export function OsWindowDeck({
       data-slot="os-window-deck"
       data-testid={`os-window-deck-${frame.id}`}
       className={cn(
-        "flex h-deck shrink-0 cursor-grab items-end gap-0.5 bg-rail pr-1 pl-2.5 shadow-[inset_0_-1px_0_var(--color-line)] select-none active:cursor-grabbing",
+        "flex h-deck shrink-0 cursor-grab items-end bg-sunken pr-1 shadow-[inset_0_-1px_0_var(--color-line)] select-none active:cursor-grabbing",
         dragHandleClassName
       )}
     >
@@ -143,7 +144,7 @@ export function OsWindowDeck({
         ref={registerTabs}
         role="tablist"
         aria-label="Open tabs"
-        className="no-scrollbar flex min-w-0 items-end gap-0.5 overflow-x-auto"
+        className="no-scrollbar flex h-full min-w-0 items-end overflow-x-auto px-2.5"
       >
         {frame.members.map((member, index) => {
           const win = windows[member];
@@ -154,8 +155,14 @@ export function OsWindowDeck({
               <div
                 role="presentation"
                 ref={element => deck.registerTab(member, element)}
+                data-deck-slot=""
+                data-active={member === frame.activeWindowId ? "" : undefined}
                 className={cn(
-                  "flex",
+                  // Hairline separator on the slot's right edge; it hides at the
+                  // strip's end, on the hovered and active tabs, and before them.
+                  "relative flex after:absolute after:inset-y-2.25 after:right-0 after:w-px after:bg-line",
+                  "last-of-type:after:opacity-0 hover:after:opacity-0 data-active:after:opacity-0",
+                  "has-[+[data-deck-slot]:hover]:after:opacity-0 has-[+[data-active]]:after:opacity-0",
                   win.pinned ? "min-w-0 shrink-0" : "w-deck-tab-max min-w-deck-tab",
                   deck.tabDrag?.windowId === member && "opacity-60"
                 )}
@@ -193,12 +200,12 @@ export function OsWindowDeck({
         type="button"
         aria-label={`New tab${shortcutLabels?.newTab ? ` (${shortcutLabels.newTab})` : ""}`}
         data-slot="os-window-tab-add"
-        className="mb-[calc((var(--height-deck-tab)-var(--size-deck-add))/2)] grid size-deck-add shrink-0 place-items-center rounded-menubar-control text-subtle transition-colors duration-base hover:bg-btn-default-fill hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="mb-0.5 -ml-1 grid size-deck-add shrink-0 place-items-center rounded-pill text-muted transition-colors duration-base hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
         onClick={deck.openNewTab}
       >
-        <Plus aria-hidden="true" className="size-3" strokeWidth={1.5} />
+        <Plus aria-hidden="true" className="size-3.75" />
       </button>
-      <span aria-hidden="true" className="min-w-3 flex-1" />
+      <span aria-hidden="true" className="min-w-3 flex-1 self-stretch" />
       <OsTrafficLights
         className="self-center"
         onSelect={onTrafficLight}
