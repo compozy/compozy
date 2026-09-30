@@ -105,7 +105,12 @@ conflicts with the explicit one-line WHY comment policy. Named safety invariants
 at their owners; no review configuration or threshold was lowered. The historical sixty-minute
 catalog run remains qualified by its exact original source and assets. New blocked-sibling,
 facets and debounced-search regressions must pass the new-head CI and do not reuse that soak as
-new-byte evidence.
+new-byte evidence. The canonical packaged Electron shell suite now also adds a literal sixty-minute
+regression with 600 publicly created/stopped sessions, a running real Loop and continuous public
+lifecycle activity. Actual renderer request headers identify the client; every rolling sixty-second
+window retains the frozen 26/13/13 endpoint budgets and 52 combined limit. Native focus/visibility,
+monotonic elapsed time, current head, runtime digest and detailed rate samples are retained as a
+CI artifact on success or failure. The existing desktop lane owns this run; its result is pending.
 
 The subsequent Greptile review found that a failed directory listing was incorrectly treated as
 an absent inventory. Recovery now preserves running receipts on non-absence listing errors and
@@ -118,7 +123,8 @@ with backoff capped at thirty seconds, ending after successful recovery. Existin
 boot-worktree tests use real SQLite and filesystem failure/restoration without a second manual
 recovery call; shutdown and failed-boot paths cancel and join it. A further Greptile finding
 extends the same retry policy to wrapped SQLite BUSY/LOCKED using the existing store classifier.
-The canonical daemon suite produces a real SQLite write-lock failure at the persistence boundary,
+The canonical daemon suite locks the actual receipt database through an independent SQLite
+connection and observes the production receipt writer exhausting its bounded attempts,
 then verifies recovery of the original receipt with one terminal event after releasing the lock.
 These added regressions require current-head CI evidence. The existing managed-delivery
 real-Git suite also protects a concurrent live receipt from delayed recovery. The subsequent ACP

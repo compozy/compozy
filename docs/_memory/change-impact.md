@@ -1143,6 +1143,9 @@ are disabled, search is debounced with scope-fenced previous rows and disabled s
 request client IDs reuse the existing browser cryptography boundary. No config, hooks, capability
 IDs, SQLite shape, or permission boundary changes; journal additions preserve existing records.
 The official worktree reference and generated CLI example require the actual reviewed scope.
+The existing packaged Electron shell suite owns a real sixty-minute catalog request-rate
+regression using public session/Loop activity and unchanged fixed budgets. Desktop CI retains
+its current-head/runtime/client receipt on success or failure; no local runtime is launched.
 
 - **Native tools / CLI / HTTP / UDS / SDK:** worktree exit plans and commits add explicit reviewed
   paths and a content fingerprint; managed delivery uses validated session identity, a durable

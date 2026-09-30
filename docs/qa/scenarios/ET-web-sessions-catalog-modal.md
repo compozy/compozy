@@ -64,3 +64,11 @@ consumers do not request facets. When one observed query is failing or slow, ret
 that blocked query; healthy siblings refetch again only for a fresh wake. Existing catalog hook,
 stream reconciliation, debounce, and Loop session selector suites own these regressions in CI;
 the earlier native sixty-minute receipt remains evidence only for its recorded historical assets.
+
+PR #686 follow-up: the canonical packaged Electron shell suite adds a literal sixty-minute
+request-rate regression with at least 600 publicly created/stopped sessions, an active real Loop,
+and continuous public lifecycle activity. It records actual renderer client IDs and checks every
+rolling sixty-second window against the existing fixed budgets: 26 lists, 13 facets, 13 attention
+summaries and 52 combined. Native visibility/focus, monotonic duration, current head and runtime
+digest are retained in the CI artifact. The existing desktop CI lane owns execution; its pending
+result cannot be replaced by the historical soak.

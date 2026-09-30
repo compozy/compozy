@@ -543,8 +543,11 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 			if busy != nil {
 				select {
 				case err := <-busy.contended:
-					if !store.IsSQLiteBusy(err) {
-						t.Fatalf("expected real SQLite contention: %v", err)
+					if contention, ok := errors.AsType[*store.WriteContentionError](
+						err,
+					); !ok || !store.IsSQLiteBusy(err) ||
+						contention.Attempts < 1 {
+						t.Fatalf("expected bounded real receipt SQLite contention: %v", err)
 					}
 				case <-time.After(10 * time.Second):
 					t.Fatal("recovery never attempted the contended receipt")
@@ -597,7 +600,6 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 // The real SQLite lock supplies the persistence-boundary failure without replacing recovery.
 type managedDeliveryBusyEvents struct {
 	*globaldb.GlobalDB
-	writer    *sql.DB
 	contended chan error
 	attempted bool
 }
@@ -606,35 +608,30 @@ func (s *managedDeliveryBusyEvents) FinishExitOperationWithEvent(
 	ctx context.Context, workspaceID, worktreeID, operationID, state string,
 	finishedAt time.Time, event worktree.LifecycleEvent,
 ) (bool, error) {
+	finished, err := s.GlobalDB.FinishExitOperationWithEvent(
+		ctx, workspaceID, worktreeID, operationID, state, finishedAt, event,
+	)
 	if !s.attempted {
 		s.attempted = true
-		err := store.ExecuteWrite(ctx, s.writer, func(context.Context, *store.WriteTx) error { return nil })
 		s.contended <- err
-		if err != nil {
-			return false, fmt.Errorf("receipt repair: %w", err)
-		}
 	}
-	return s.GlobalDB.FinishExitOperationWithEvent(ctx, workspaceID, worktreeID, operationID, state, finishedAt, event)
+	return finished, err
 }
 
 func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managedDeliveryBusyEvents, func()) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "external-writer.db")
-	locker, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(1)")
+	// Keep the real receipt connection deterministic while bounding only SQLite's per-attempt wait.
+	db.DB().SetMaxOpenConns(1)
+	db.DB().SetMaxIdleConns(1)
+	if _, err := db.DB().ExecContext(t.Context(), "PRAGMA busy_timeout = 1"); err != nil {
+		t.Fatal(err)
+	}
+	locker, err := sql.Open("sqlite", db.Path()+"?_pragma=busy_timeout(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
 		if err := locker.Close(); err != nil {
-			t.Error(err)
-		}
-	})
-	writer, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(1)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := writer.Close(); err != nil {
 			t.Error(err)
 		}
 	})
@@ -656,5 +653,5 @@ func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managed
 		}
 	})
 	t.Cleanup(unlock)
-	return &managedDeliveryBusyEvents{GlobalDB: db, writer: writer, contended: make(chan error, 1)}, unlock
+	return &managedDeliveryBusyEvents{GlobalDB: db, contended: make(chan error, 1)}, unlock
 }

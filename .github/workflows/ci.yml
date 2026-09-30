@@ -804,7 +804,7 @@ jobs:
   e2e-desktop:
     name: E2E desktop
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
@@ -854,8 +854,8 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
-      - name: Upload desktop E2E artifacts on failure
-        if: failure()
+      - name: Upload desktop E2E artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-desktop-artifacts
