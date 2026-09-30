@@ -10,23 +10,33 @@ name: CompozyOS
 tokens:
   runtime:
     colors:
-      rail: "#0c0b0b"
-      canvas: "#171615"
-      canvas-soft: "#1f1e1c"
-      canvas-tint: "#232220"
-      sidebar: "#1f1e1c"
-      elevated: "#2a2927"
+      rail: "#0a0a0a"
+      desk: "#101010"
+      canvas: "#1a1a1a"
+      canvas-soft: "#1f1f1f"
+      canvas-tint: "#242424"
+      sunken: "#101010"
+      surface-2: "#242424"
+      selected: "#242424"
+      code-bg: "#171717"
+      sidebar: "#1f1f1f"
+      elevated: "#2b2b2b"
       hover: "var(--color-row-hover)"
-      disabled: "#4a4847"
-      line: "rgba(255, 255, 255, 0.055)"
-      line-soft: "rgba(255, 255, 255, 0.03)"
-      line-strong: "rgba(255, 255, 255, 0.09)"
-      line-focus: "rgba(255, 255, 255, 0.14)"
-      fg: "#eeedeb"
-      fg-strong: "#f7f6f4"
-      muted: "#a4a29e"
-      subtle: "oklch(0.663 0.004 75)"
-      faint: "oklch(0.638 0.003 75)"
+      disabled: "#4d4d4d"
+      line: "#303030"
+      line-soft: "#262626"
+      line-strong: "#424242"
+      line-focus: "#5c5c5c"
+      fg: "#f5f5f5"
+      fg-strong: "#ffffff"
+      fg-2: "#c4c4c4"
+      fg-3: "#dcdcdc"
+      muted: "#a3a3a3"
+      subtle: "#737373"
+      faint: "#6b6b6b"
+      primary: "#f5f5f5"
+      primary-hover: "#ffffff"
+      primary-foreground: "#0a0a0a"
       accent: "#e8572a"
       accent-hover: "#d14e25"
       accent-strong: "#f6874f"
@@ -35,14 +45,16 @@ tokens:
       accent-tint-strong: "rgba(232, 87, 42, 0.16)"
       accent-dim: "rgba(232, 87, 42, 0.24)"
       accent-glow: "rgba(232, 87, 42, 0.05)"
-      success: "#5fbf85"
-      success-tint: "rgba(95, 191, 133, 0.08)"
-      warning: "#d6a647"
-      warning-tint: "rgba(214, 166, 71, 0.08)"
-      danger: "#e0635a"
-      danger-tint: "rgba(224, 99, 90, 0.09)"
+      attn: "var(--color-accent)"
+      success: "#34d399"
+      success-tint: "rgba(52, 211, 153, 0.1)"
+      warning: "#f5b14c"
+      warning-tint: "rgba(245, 177, 76, 0.1)"
+      danger: "#f87171"
+      danger-tint: "rgba(248, 113, 113, 0.1)"
       info: "#8e8eb5"
       info-tint: "rgba(142, 142, 181, 0.12)"
+      well: "#1e342c"
       spectrum-blue: "#4ea7fc"
       spectrum-violet: "#c26ad6"
       neutral: "#7a7a80"
@@ -86,10 +98,8 @@ tokens:
       foreground: "var(--color-fg)"
       card: "var(--color-canvas-soft)"
       card-foreground: "var(--color-fg)"
-      popover: "var(--color-canvas-soft)"
+      popover: "var(--color-canvas)"
       popover-foreground: "var(--color-fg)"
-      primary: "var(--color-accent)"
-      primary-foreground: "var(--color-accent-ink)"
       secondary: "transparent"
       secondary-foreground: "var(--color-fg)"
       muted-foreground: "var(--color-muted)"
@@ -222,6 +232,9 @@ tokens:
         workspaces-stage-entry: "0.985"
         workspaces-tile-press: "0.96"
     shadow:
+      card: "0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d"
+      elevated: "0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006"
+      pop: "0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006"
       overlay: "0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.035)"
       focus-ring: "0 0 0 2px rgba(255, 255, 255, 0.5)"
@@ -345,7 +358,12 @@ tokens:
       height-modal-tall: "900px"
       height-modal-wizard: "960px"
       height-modal-xl: "840px"
-      height-menubar: "44px"
+      width-rail: "60px"
+      size-rail-item: "40px"
+      height-menubar: "52px"
+      width-traffic-lights: "84px"
+      height-window-head: "48px"
+      size-seam-hit: "9px"
       size-dock-item: "46px"
       size-dock-icon: "21px"
       size-dock-badge: "15px"
@@ -353,10 +371,10 @@ tokens:
       size-dock-indicator-min: "5px"
       size-traffic-light: "12px"
       size-menubar-logo: "17px"
-      height-deck: "37px"
-      height-deck-tab: "30px"
-      min-width-deck-tab: "96px"
-      width-deck-tab-max: "180px"
+      height-deck: "40px"
+      height-deck-tab: "32px"
+      min-width-deck-tab: "136px"
+      width-deck-tab-max: "208px"
       size-deck-glyph: "13px"
       min-width-deck-badge: "14px"
       size-deck-add: "24px"
@@ -595,14 +613,14 @@ token or component at the source; do not locally override one callsite.
 
 | Token                 | Value                    |
 | --------------------- | ------------------------ |
-| `--color-rail`        | `#0c0b0b`                |
-| `--color-canvas`      | `#171615`                |
-| `--color-canvas-soft` | `#1f1e1c`                |
-| `--color-canvas-tint` | `#232220`                |
-| `--color-sidebar`     | `#1f1e1c`                |
-| `--color-elevated`    | `#2a2927`                |
+| `--color-rail`        | `#0a0a0a`                |
+| `--color-canvas`      | `#1a1a1a`                |
+| `--color-canvas-soft` | `#1f1f1f`                |
+| `--color-canvas-tint` | `#242424`                |
+| `--color-sidebar`     | `#1f1f1f`                |
+| `--color-elevated`    | `#2b2b2b`                |
 | `--color-hover`       | `var(--color-row-hover)` |
-| `--color-disabled`    | `#4a4847`                |
+| `--color-disabled`    | `#4d4d4d`                |
 
 <!-- END:tokens:surface-ramp -->
 
@@ -610,12 +628,12 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:hairlines -->
 
-| Token                 | Value                        |
-| --------------------- | ---------------------------- |
-| `--color-line`        | `rgba(255, 255, 255, 0.055)` |
-| `--color-line-soft`   | `rgba(255, 255, 255, 0.03)`  |
-| `--color-line-strong` | `rgba(255, 255, 255, 0.09)`  |
-| `--color-line-focus`  | `rgba(255, 255, 255, 0.14)`  |
+| Token                 | Value     |
+| --------------------- | --------- |
+| `--color-line`        | `#303030` |
+| `--color-line-soft`   | `#262626` |
+| `--color-line-strong` | `#424242` |
+| `--color-line-focus`  | `#5c5c5c` |
 
 <!-- END:tokens:hairlines -->
 
@@ -623,13 +641,13 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:text-ladder -->
 
-| Token               | Value                   |
-| ------------------- | ----------------------- |
-| `--color-fg`        | `#eeedeb`               |
-| `--color-fg-strong` | `#f7f6f4`               |
-| `--color-muted`     | `#a4a29e`               |
-| `--color-subtle`    | `oklch(0.663 0.004 75)` |
-| `--color-faint`     | `oklch(0.638 0.003 75)` |
+| Token               | Value     |
+| ------------------- | --------- |
+| `--color-fg`        | `#f5f5f5` |
+| `--color-fg-strong` | `#ffffff` |
+| `--color-muted`     | `#a3a3a3` |
+| `--color-subtle`    | `#737373` |
+| `--color-faint`     | `#6b6b6b` |
 
 <!-- END:tokens:text-ladder -->
 
@@ -656,9 +674,9 @@ token or component at the source; do not locally override one callsite.
 
 | Role    | Token             | Value     | Tint token             | Tint value                  |
 | ------- | ----------------- | --------- | ---------------------- | --------------------------- |
-| Success | `--color-success` | `#5fbf85` | `--color-success-tint` | `rgba(95, 191, 133, 0.08)`  |
-| Warning | `--color-warning` | `#d6a647` | `--color-warning-tint` | `rgba(214, 166, 71, 0.08)`  |
-| Danger  | `--color-danger`  | `#e0635a` | `--color-danger-tint`  | `rgba(224, 99, 90, 0.09)`   |
+| Success | `--color-success` | `#34d399` | `--color-success-tint` | `rgba(52, 211, 153, 0.1)`   |
+| Warning | `--color-warning` | `#f5b14c` | `--color-warning-tint` | `rgba(245, 177, 76, 0.1)`   |
+| Danger  | `--color-danger`  | `#f87171` | `--color-danger-tint`  | `rgba(248, 113, 113, 0.1)`  |
 | Info    | `--color-info`    | `#8e8eb5` | `--color-info-tint`    | `rgba(142, 142, 181, 0.12)` |
 | Neutral | `--color-neutral` | `#7a7a80` | `--color-neutral-tint` | `rgba(150, 150, 155, 0.06)` |
 
@@ -696,9 +714,9 @@ glass in the system. Window-body content never uses them (§5).
 
 | Token                     | Value                    |
 | ------------------------- | ------------------------ |
-| `--shell-glass`           | `rgba(12, 11, 11, 0.72)` |
+| `--shell-glass`           | `rgba(10, 10, 10, 0.72)` |
 | `--color-shell-glass`     | `var(--shell-glass)`     |
-| `--shell-glass-pop`       | `rgba(19, 18, 17, 0.94)` |
+| `--shell-glass-pop`       | `rgba(26, 26, 26, 0.94)` |
 | `--color-shell-glass-pop` | `var(--shell-glass-pop)` |
 
 <!-- END:tokens:shell-glass -->
@@ -755,16 +773,16 @@ never a legal color for UI copy.
 
 | Token                | Value     | Token                  | Value                       |
 | -------------------- | --------- | ---------------------- | --------------------------- |
-| `--terminal-bg`      | `#131211` | `--terminal-fg`        | `#e3e1de`                   |
-| `--terminal-cursor`  | `#f7f6f4` | `--terminal-selection` | `rgba(255, 255, 255, 0.16)` |
-| `--terminal-ansi-0`  | `#2a2927` | `--terminal-ansi-1`    | `#e0635a`                   |
-| `--terminal-ansi-2`  | `#5fbf85` | `--terminal-ansi-3`    | `#d6a647`                   |
+| `--terminal-bg`      | `#1a1a1a` | `--terminal-fg`        | `#dcdcdc`                   |
+| `--terminal-cursor`  | `#f5f5f5` | `--terminal-selection` | `rgba(255, 255, 255, 0.16)` |
+| `--terminal-ansi-0`  | `#2b2b2b` | `--terminal-ansi-1`    | `#f87171`                   |
+| `--terminal-ansi-2`  | `#34d399` | `--terminal-ansi-3`    | `#f5b14c`                   |
 | `--terminal-ansi-4`  | `#7d9bc8` | `--terminal-ansi-5`    | `#b48ec6`                   |
-| `--terminal-ansi-6`  | `#6fb5ab` | `--terminal-ansi-7`    | `#c9c7c3`                   |
-| `--terminal-ansi-8`  | `#6f6d68` | `--terminal-ansi-9`    | `#ef837b`                   |
-| `--terminal-ansi-10` | `#7fd3a2` | `--terminal-ansi-11`   | `#e8c06a`                   |
+| `--terminal-ansi-6`  | `#6fb5ab` | `--terminal-ansi-7`    | `#c9c9c9`                   |
+| `--terminal-ansi-8`  | `#737373` | `--terminal-ansi-9`    | `#fa9494`                   |
+| `--terminal-ansi-10` | `#6ee7b7` | `--terminal-ansi-11`   | `#f8c77a`                   |
 | `--terminal-ansi-12` | `#9db9e3` | `--terminal-ansi-13`   | `#cdaade`                   |
-| `--terminal-ansi-14` | `#8fd0c6` | `--terminal-ansi-15`   | `#f7f6f4`                   |
+| `--terminal-ansi-14` | `#8fd0c6` | `--terminal-ansi-15`   | `#f5f5f5`                   |
 
 <!-- END:tokens:terminal-ansi -->
 
@@ -931,65 +949,66 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:component-sizes -->
 
-| Token                                      | Value    | Token                                 | Value                                                                                                                             | Token                                   | Value                                                       |
-| ------------------------------------------ | -------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------- |
-| `--height-button-xs`                       | `24px`   | `--height-button-sm`                  | `26px`                                                                                                                            | `--height-button-default`               | `30px`                                                      |
-| `--height-button-lg`                       | `34px`   | `--height-button-cta`                 | `36px`                                                                                                                            | `--height-button-cta-lg`                | `44px`                                                      |
-| `--size-button-icon-xs`                    | `24px`   | `--size-button-icon-sm`               | `26px`                                                                                                                            | `--size-button-icon-default`            | `30px`                                                      |
-| `--size-button-icon-lg`                    | `34px`   | `--height-transcript-row`             | `22px`                                                                                                                            | `--height-transcript-line`              | `24px`                                                      |
-| `--size-transcript-icon-well`              | `18px`   | `--spacing-transcript-inline-gap`     | `7px`                                                                                                                             | `--spacing-transcript-detail-indent`    | `25px`                                                      |
-| `--spacing-transcript-detail-gutter`       | `11px`   | `--spacing-transcript-message-y`      | `7px`                                                                                                                             | `--spacing-transcript-turn-gap`         | `18px`                                                      |
-| `--spacing-transcript-meta-gap`            | `3px`    | `--height-input`                      | `36px`                                                                                                                            | `--height-control-compact`              | `32px`                                                      |
-| `--height-search`                          | `28px`   | `--width-symbol-picker-color-input`   | `7.5rem`                                                                                                                          | `--size-symbol-picker-cell`             | `1.75rem`                                                   |
-| `--height-color-picker-area`               | `9rem`   | `--height-symbol-picker-grid`         | `14rem`                                                                                                                           | `--height-textarea-min`                 | `84px`                                                      |
-| `--height-switch-default`                  | `18px`   | `--width-switch-default`              | `32px`                                                                                                                            | `--height-switch-sm`                    | `14px`                                                      |
-| `--width-switch-sm`                        | `24px`   | `--height-pill-xs`                    | `18px`                                                                                                                            | `--height-pill-sm`                      | `20px`                                                      |
-| `--height-pill-md`                         | `24px`   | `--height-sidebar-row`                | `32px`                                                                                                                            | `--height-tabs-list`                    | `40px`                                                      |
-| `--height-tab-underline`                   | `1.5px`  | `--spacing-count-chip`                | `19px`                                                                                                                            | `--spacing-count-chip-sm`               | `17px`                                                      |
-| `--height-property-row`                    | `30px`   | `--spacing-property-row-y`            | `3px`                                                                                                                             | `--size-empty-icon`                     | `48px`                                                      |
-| `--width-menu-sub-min`                     | `96px`   | `--width-worktree-submenu`            | `320px`                                                                                                                           | `--height-worktree-submenu-max`         | `420px`                                                     |
-| `--breakpoint-shell-wide`                  | `60rem`  | `--width-workspaces-stage`            | `min(1080px, calc(100% - 32px))`                                                                                                  | `--width-workspaces-tile`               | `94px`                                                      |
-| `--width-workspaces-tile-wide`             | `86px`   | `--width-workspaces-menu`             | `340px`                                                                                                                           | `--width-workspaces-edge`               | `56px`                                                      |
-| `--width-workspaces-edge-wide`             | `72px`   | `--size-workspaces-well`              | `56px`                                                                                                                            | `--size-workspaces-well-wide`           | `52px`                                                      |
-| `--height-workspaces-caption`              | `48px`   | `--height-workspaces-caption-wide`    | `52px`                                                                                                                            | `--height-workspaces-menu-max`          | `min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px))` |
-| `--spacing-workspaces-tile-gap`            | `7px`    | `--spacing-workspaces-caption-gap`    | `3px`                                                                                                                             | `--spacing-workspaces-menu-gap`         | `5px`                                                       |
-| `--size-qr-code-sm`                        | `128px`  | `--size-qr-code-default`              | `176px`                                                                                                                           | `--size-qr-code-lg`                     | `224px`                                                     |
-| `--size-icon-well-row`                     | `34px`   | `--size-topbar-glyph`                 | `22px`                                                                                                                            | `--size-profile-glyph-sm`               | `18px`                                                      |
-| `--height-profile-row`                     | `54px`   | `--size-status-dot`                   | `7px`                                                                                                                             | `--size-status-dot-sm`                  | `6px`                                                       |
-| `--size-avatar-sm`                         | `20px`   | `--size-avatar-default`               | `24px`                                                                                                                            | `--size-avatar-lg`                      | `32px`                                                      |
-| `--height-editor-footer`                   | `52px`   | `--width-detail-inspector-inline`     | `320px`                                                                                                                           | `--width-kv-label`                      | `140px`                                                     |
-| `--width-table-cell-sm`                    | `224px`  | `--width-table-cell-md`               | `288px`                                                                                                                           | `--width-table-cell-lg`                 | `360px`                                                     |
-| `--container-content-max`                  | `1320px` | `--width-right-rail-default`          | `468px`                                                                                                                           | `--width-message-bubble-max`            | `640px`                                                     |
-| `--width-wire-card-max`                    | `520px`  | `--width-search-input-min`            | `220px`                                                                                                                           | `--width-filters-menu-default`          | `200px`                                                     |
-| `--width-filters-menu-stack`               | `220px`  | `--width-settings-nav`                | `264px`                                                                                                                           | `--container-settings-takeover`         | `56rem`                                                     |
-| `--container-task-detail-rail`             | `64rem`  | `--width-settings-sheet`              | `640px`                                                                                                                           | `--width-task-properties-rail`          | `320px`                                                     |
-| `--spacing-settings-sheet-viewport-gutter` | `24px`   | `--height-setting-row`                | `54px`                                                                                                                            | `--container-setting-description`       | `52ch`                                                      |
-| `--container-settings-page-form`           | `768px`  | `--container-settings-page-wide`      | `960px`                                                                                                                           | `--container-settings-page-canvas`      | `1040px`                                                    |
-| `--container-layout-stage-split`           | `720px`  | `--width-layout-inspector`            | `236px`                                                                                                                           | `--container-settings-page-description` | `72ch`                                                      |
-| `--spacing-settings-page-bottom`           | `96px`   | `--spacing-layout-node-indent`        | `12px`                                                                                                                            | `--container-settings-save-bar`         | `560px`                                                     |
-| `--size-settings-save-dot`                 | `7px`    | `--height-modal-md`                   | `760px`                                                                                                                           | `--height-modal-tall`                   | `900px`                                                     |
-| `--height-modal-wizard`                    | `960px`  | `--height-modal-xl`                   | `840px`                                                                                                                           | `--height-menubar`                      | `44px`                                                      |
-| `--size-dock-item`                         | `46px`   | `--size-dock-icon`                    | `21px`                                                                                                                            | `--size-dock-badge`                     | `15px`                                                      |
-| `--size-dock-indicator`                    | `4px`    | `--size-dock-indicator-min`           | `5px`                                                                                                                             | `--size-traffic-light`                  | `12px`                                                      |
-| `--size-menubar-logo`                      | `17px`   | `--height-deck`                       | `37px`                                                                                                                            | `--height-deck-tab`                     | `30px`                                                      |
-| `--min-width-deck-tab`                     | `96px`   | `--width-deck-tab-max`                | `180px`                                                                                                                           | `--size-deck-glyph`                     | `13px`                                                      |
-| `--min-width-deck-badge`                   | `14px`   | `--size-deck-add`                     | `24px`                                                                                                                            | `--size-deck-close`                     | `16px`                                                      |
-| `--size-workspace-avatar`                  | `18px`   | `--size-dock-new-icon`                | `18px`                                                                                                                            | `--size-dock-zone-offset`               | `10px`                                                      |
-| `--size-dock-clearance`                    | `10px`   | `--size-dock-band`                    | `calc( var(--size-dock-item) + (2 * var(--spacing-dock-pad)) + 2px + var(--size-dock-zone-offset) + var(--size-dock-clearance) )` | `--spacing-dock-gap`                    | `4px`                                                       |
-| `--spacing-dock-pad`                       | `7px`    | `--spacing-menubar-workspace-gap`     | `7px`                                                                                                                             | `--spacing-traffic-light-gap`           | `7px`                                                       |
-| `--spacing-traffic-light-compact-gap`      | `12px`   | `--height-dock-tabbar`                | `56px`                                                                                                                            | `--size-dock-tab-item`                  | `44px`                                                      |
-| `--size-traffic-light-compact`             | `15px`   | `--size-traffic-light-compact-target` | `44px`                                                                                                                            | `--height-workspace-thumb`              | `148px`                                                     |
-| `--height-setup-head`                      | `52px`   | `--height-setup-steps`                | `44px`                                                                                                                            | `--height-setup-footer`                 | `58px`                                                      |
-| `--height-setup-split`                     | `300px`  | `--height-setup-row`                  | `30px`                                                                                                                            | `--size-setup-step-marker`              | `18px`                                                      |
-| `--width-setup-panel`                      | `660px`  | `--width-setup-panel-wide`            | `960px`                                                                                                                           | `--overlay-blur`                        | `3px`                                                       |
-| `--width-modal-sm`                         | `560px`  | `--width-modal-md`                    | `720px`                                                                                                                           | `--width-modal-lg`                      | `880px`                                                     |
-| `--width-modal-xl`                         | `1180px` | `--size-catalog-logo`                 | `1.5rem`                                                                                                                          | `--size-provider-logo-well`             | `2.5rem`                                                    |
-| `--size-pill-group-badge`                  | `14px`   | `--height-pill-group-segment-md`      | `24px`                                                                                                                            | `--height-pill-group-segment-sm`        | `20px`                                                      |
-| `--space-pill-group-track-gap`             | `1px`    | `--space-pill-group-track-padding`    | `2px`                                                                                                                             | `--space-pill-group-segment-sm-x`       | `8px`                                                       |
-| `--space-pill-group-segment-md-x`          | `10px`   | `--space-pill-group-badge-x`          | `4px`                                                                                                                             | `--space-home-pulse-gap`                | `3px`                                                       |
-| `--size-home-pulse-label`                  | `34px`   | `--size-home-pulse-cell-min`          | `18px`                                                                                                                            | `--size-home-pulse-cell`                | `15px`                                                      |
-| `--size-home-pulse-min-w`                  | `640px`  | `--space-switch-thumb-inset`          | `2px`                                                                                                                             | `--space-chart-tooltip-y`               | `6px`                                                       |
-| `--space-chart-tooltip-x`                  | `8px`    |                                       |                                                                                                                                   |                                         |                                                             |
+| Token                                      | Value                                                                                                                             | Token                               | Value                            | Token                                   | Value                                                       |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------- | --------------------------------------- | ----------------------------------------------------------- |
+| `--height-button-xs`                       | `24px`                                                                                                                            | `--height-button-sm`                | `26px`                           | `--height-button-default`               | `30px`                                                      |
+| `--height-button-lg`                       | `34px`                                                                                                                            | `--height-button-cta`               | `36px`                           | `--height-button-cta-lg`                | `44px`                                                      |
+| `--size-button-icon-xs`                    | `24px`                                                                                                                            | `--size-button-icon-sm`             | `26px`                           | `--size-button-icon-default`            | `30px`                                                      |
+| `--size-button-icon-lg`                    | `34px`                                                                                                                            | `--height-transcript-row`           | `22px`                           | `--height-transcript-line`              | `24px`                                                      |
+| `--size-transcript-icon-well`              | `18px`                                                                                                                            | `--spacing-transcript-inline-gap`   | `7px`                            | `--spacing-transcript-detail-indent`    | `25px`                                                      |
+| `--spacing-transcript-detail-gutter`       | `11px`                                                                                                                            | `--spacing-transcript-message-y`    | `7px`                            | `--spacing-transcript-turn-gap`         | `18px`                                                      |
+| `--spacing-transcript-meta-gap`            | `3px`                                                                                                                             | `--height-input`                    | `36px`                           | `--height-control-compact`              | `32px`                                                      |
+| `--height-search`                          | `28px`                                                                                                                            | `--width-symbol-picker-color-input` | `7.5rem`                         | `--size-symbol-picker-cell`             | `1.75rem`                                                   |
+| `--height-color-picker-area`               | `9rem`                                                                                                                            | `--height-symbol-picker-grid`       | `14rem`                          | `--height-textarea-min`                 | `84px`                                                      |
+| `--height-switch-default`                  | `18px`                                                                                                                            | `--width-switch-default`            | `32px`                           | `--height-switch-sm`                    | `14px`                                                      |
+| `--width-switch-sm`                        | `24px`                                                                                                                            | `--height-pill-xs`                  | `18px`                           | `--height-pill-sm`                      | `20px`                                                      |
+| `--height-pill-md`                         | `24px`                                                                                                                            | `--height-sidebar-row`              | `32px`                           | `--height-tabs-list`                    | `40px`                                                      |
+| `--height-tab-underline`                   | `1.5px`                                                                                                                           | `--spacing-count-chip`              | `19px`                           | `--spacing-count-chip-sm`               | `17px`                                                      |
+| `--height-property-row`                    | `30px`                                                                                                                            | `--spacing-property-row-y`          | `3px`                            | `--size-empty-icon`                     | `48px`                                                      |
+| `--width-menu-sub-min`                     | `96px`                                                                                                                            | `--width-worktree-submenu`          | `320px`                          | `--height-worktree-submenu-max`         | `420px`                                                     |
+| `--breakpoint-shell-wide`                  | `60rem`                                                                                                                           | `--width-workspaces-stage`          | `min(1080px, calc(100% - 32px))` | `--width-workspaces-tile`               | `94px`                                                      |
+| `--width-workspaces-tile-wide`             | `86px`                                                                                                                            | `--width-workspaces-menu`           | `340px`                          | `--width-workspaces-edge`               | `56px`                                                      |
+| `--width-workspaces-edge-wide`             | `72px`                                                                                                                            | `--size-workspaces-well`            | `56px`                           | `--size-workspaces-well-wide`           | `52px`                                                      |
+| `--height-workspaces-caption`              | `48px`                                                                                                                            | `--height-workspaces-caption-wide`  | `52px`                           | `--height-workspaces-menu-max`          | `min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px))` |
+| `--spacing-workspaces-tile-gap`            | `7px`                                                                                                                             | `--spacing-workspaces-caption-gap`  | `3px`                            | `--spacing-workspaces-menu-gap`         | `5px`                                                       |
+| `--size-qr-code-sm`                        | `128px`                                                                                                                           | `--size-qr-code-default`            | `176px`                          | `--size-qr-code-lg`                     | `224px`                                                     |
+| `--size-icon-well-row`                     | `34px`                                                                                                                            | `--size-topbar-glyph`               | `22px`                           | `--size-profile-glyph-sm`               | `18px`                                                      |
+| `--height-profile-row`                     | `54px`                                                                                                                            | `--size-status-dot`                 | `7px`                            | `--size-status-dot-sm`                  | `6px`                                                       |
+| `--size-avatar-sm`                         | `20px`                                                                                                                            | `--size-avatar-default`             | `24px`                           | `--size-avatar-lg`                      | `32px`                                                      |
+| `--height-editor-footer`                   | `52px`                                                                                                                            | `--width-detail-inspector-inline`   | `320px`                          | `--width-kv-label`                      | `140px`                                                     |
+| `--width-table-cell-sm`                    | `224px`                                                                                                                           | `--width-table-cell-md`             | `288px`                          | `--width-table-cell-lg`                 | `360px`                                                     |
+| `--container-content-max`                  | `1320px`                                                                                                                          | `--width-right-rail-default`        | `468px`                          | `--width-message-bubble-max`            | `640px`                                                     |
+| `--width-wire-card-max`                    | `520px`                                                                                                                           | `--width-search-input-min`          | `220px`                          | `--width-filters-menu-default`          | `200px`                                                     |
+| `--width-filters-menu-stack`               | `220px`                                                                                                                           | `--width-settings-nav`              | `264px`                          | `--container-settings-takeover`         | `56rem`                                                     |
+| `--container-task-detail-rail`             | `64rem`                                                                                                                           | `--width-settings-sheet`            | `640px`                          | `--width-task-properties-rail`          | `320px`                                                     |
+| `--spacing-settings-sheet-viewport-gutter` | `24px`                                                                                                                            | `--height-setting-row`              | `54px`                           | `--container-setting-description`       | `52ch`                                                      |
+| `--container-settings-page-form`           | `768px`                                                                                                                           | `--container-settings-page-wide`    | `960px`                          | `--container-settings-page-canvas`      | `1040px`                                                    |
+| `--container-layout-stage-split`           | `720px`                                                                                                                           | `--width-layout-inspector`          | `236px`                          | `--container-settings-page-description` | `72ch`                                                      |
+| `--spacing-settings-page-bottom`           | `96px`                                                                                                                            | `--spacing-layout-node-indent`      | `12px`                           | `--container-settings-save-bar`         | `560px`                                                     |
+| `--size-settings-save-dot`                 | `7px`                                                                                                                             | `--height-modal-md`                 | `760px`                          | `--height-modal-tall`                   | `900px`                                                     |
+| `--height-modal-wizard`                    | `960px`                                                                                                                           | `--height-modal-xl`                 | `840px`                          | `--width-rail`                          | `60px`                                                      |
+| `--size-rail-item`                         | `40px`                                                                                                                            | `--height-menubar`                  | `52px`                           | `--width-traffic-lights`                | `84px`                                                      |
+| `--height-window-head`                     | `48px`                                                                                                                            | `--size-seam-hit`                   | `9px`                            | `--size-dock-item`                      | `46px`                                                      |
+| `--size-dock-icon`                         | `21px`                                                                                                                            | `--size-dock-badge`                 | `15px`                           | `--size-dock-indicator`                 | `4px`                                                       |
+| `--size-dock-indicator-min`                | `5px`                                                                                                                             | `--size-traffic-light`              | `12px`                           | `--size-menubar-logo`                   | `17px`                                                      |
+| `--height-deck`                            | `40px`                                                                                                                            | `--height-deck-tab`                 | `32px`                           | `--min-width-deck-tab`                  | `136px`                                                     |
+| `--width-deck-tab-max`                     | `208px`                                                                                                                           | `--size-deck-glyph`                 | `13px`                           | `--min-width-deck-badge`                | `14px`                                                      |
+| `--size-deck-add`                          | `24px`                                                                                                                            | `--size-deck-close`                 | `16px`                           | `--size-workspace-avatar`               | `18px`                                                      |
+| `--size-dock-new-icon`                     | `18px`                                                                                                                            | `--size-dock-zone-offset`           | `10px`                           | `--size-dock-clearance`                 | `10px`                                                      |
+| `--size-dock-band`                         | `calc( var(--size-dock-item) + (2 * var(--spacing-dock-pad)) + 2px + var(--size-dock-zone-offset) + var(--size-dock-clearance) )` | `--spacing-dock-gap`                | `4px`                            | `--spacing-dock-pad`                    | `7px`                                                       |
+| `--spacing-menubar-workspace-gap`          | `7px`                                                                                                                             | `--spacing-traffic-light-gap`       | `7px`                            | `--spacing-traffic-light-compact-gap`   | `12px`                                                      |
+| `--height-dock-tabbar`                     | `56px`                                                                                                                            | `--size-dock-tab-item`              | `44px`                           | `--size-traffic-light-compact`          | `15px`                                                      |
+| `--size-traffic-light-compact-target`      | `44px`                                                                                                                            | `--height-workspace-thumb`          | `148px`                          | `--height-setup-head`                   | `52px`                                                      |
+| `--height-setup-steps`                     | `44px`                                                                                                                            | `--height-setup-footer`             | `58px`                           | `--height-setup-split`                  | `300px`                                                     |
+| `--height-setup-row`                       | `30px`                                                                                                                            | `--size-setup-step-marker`          | `18px`                           | `--width-setup-panel`                   | `660px`                                                     |
+| `--width-setup-panel-wide`                 | `960px`                                                                                                                           | `--overlay-blur`                    | `3px`                            | `--width-modal-sm`                      | `560px`                                                     |
+| `--width-modal-md`                         | `720px`                                                                                                                           | `--width-modal-lg`                  | `880px`                          | `--width-modal-xl`                      | `1180px`                                                    |
+| `--size-catalog-logo`                      | `1.5rem`                                                                                                                          | `--size-provider-logo-well`         | `2.5rem`                         | `--size-pill-group-badge`               | `14px`                                                      |
+| `--height-pill-group-segment-md`           | `24px`                                                                                                                            | `--height-pill-group-segment-sm`    | `20px`                           | `--space-pill-group-track-gap`          | `1px`                                                       |
+| `--space-pill-group-track-padding`         | `2px`                                                                                                                             | `--space-pill-group-segment-sm-x`   | `8px`                            | `--space-pill-group-segment-md-x`       | `10px`                                                      |
+| `--space-pill-group-badge-x`               | `4px`                                                                                                                             | `--space-home-pulse-gap`            | `3px`                            | `--size-home-pulse-label`               | `34px`                                                      |
+| `--size-home-pulse-cell-min`               | `18px`                                                                                                                            | `--size-home-pulse-cell`            | `15px`                           | `--size-home-pulse-min-w`               | `640px`                                                     |
+| `--space-switch-thumb-inset`               | `2px`                                                                                                                             | `--space-chart-tooltip-y`           | `6px`                            | `--space-chart-tooltip-x`               | `8px`                                                       |
 
 <!-- END:tokens:component-sizes -->
 
@@ -1013,16 +1032,17 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                           | Value                                                                         | Token                       | Value                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
-| `--shadow-overlay`              | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                  |
-| `--shadow-focus-ring`           | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          | `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                  |
-| `--shadow-hairline`             | `0 0 0 1px var(--color-line-soft)`                                            | `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                    |
-| `--shadow-inset-strong`         | `inset 0 0 0 1px var(--color-line-strong)`                                    | `--shadow-danger-inset`     | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)` |
-| `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` | `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                     |
-| `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                       | `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                      |
-| `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                              | `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`   |
-| `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                      |                             |                                                                             |
+| Token                       | Value                                                                                                       | Token                           | Value                                                                                |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ |
+| `--shadow-card`             | `0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `--shadow-elevated`             | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` |
+| `--shadow-pop`              | `0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `--shadow-overlay`              | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)`        |
+| `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                  | `--shadow-focus-ring`           | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                 |
+| `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                  | `--shadow-hairline`             | `0 0 0 1px var(--color-line-soft)`                                                   |
+| `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                                                    | `--shadow-inset-strong`         | `inset 0 0 0 1px var(--color-line-strong)`                                           |
+| `--shadow-danger-inset`     | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                 | `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)`        |
+| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                                                     | `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                              |
+| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                                                      | `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                                     |
+| `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`                                   | `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                             |
 
 <!-- END:tokens:shadows -->
 

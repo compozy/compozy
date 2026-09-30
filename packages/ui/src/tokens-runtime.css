@@ -18,6 +18,7 @@
     U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58, U+E000-F533, U+F0001-F1AF0;
 }
 
+[data-theme="dark"],
 .dark {
   color-scheme: dark;
 }

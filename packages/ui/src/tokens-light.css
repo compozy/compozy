@@ -1,0 +1,171 @@
+/* Light theme — re-declares every theme-scoped token from tokens.css and
+   terminal-tokens.css. Dark stays the default in
+   `@theme` / `:root`; `<html data-theme="light">` switches the whole tree.
+   The theme attribute lives on <html> only: alias tokens (`--color-hover`,
+   `--color-background`, …) resolve where they are declared, on :root. The
+   `:root` qualifier outranks tokens.css's own unlayered `:root` block, which
+   the CSS @import order places after this file.
+   Values: brand-spec.md light column (aicss.dev "Approval Card" light set);
+   Compozy orange steps one shade deeper for light contrast. */
+
+[data-theme="light"]:root {
+  color-scheme: light;
+
+  /* Surface ramp. */
+  --color-rail: #fafafa;
+  --color-desk: #fafafa;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #ffffff;
+  --color-canvas-tint: #f4f5f7;
+  --color-sunken: #f7f8fa;
+  --color-surface-2: #f4f5f7;
+  --color-selected: #f0f1f3;
+  --color-code-bg: #f4f5f7;
+  --color-sidebar: #ffffff;
+  --color-elevated: #eeeff2;
+  --color-disabled: #c4c7cc;
+
+  /* Hairlines. */
+  --color-line: #e6e8ec;
+  --color-line-soft: #f1f2f5;
+  --color-line-strong: #d4d7dd;
+  --color-line-focus: #b8bcc4;
+
+  /* Text. */
+  --color-fg: #1a1a1a;
+  --color-fg-strong: #0b0d12;
+  --color-fg-2: #6b6b6b;
+  --color-fg-3: #434343;
+  --color-muted: #a1a1a1;
+  --color-subtle: #a1a1a1;
+  --color-faint: #a1a1a1;
+
+  /* Primary (inverted). */
+  --color-primary: #0b0d12;
+  --color-primary-hover: #2a2f3a;
+  --color-primary-foreground: #ffffff;
+
+  /* Accent — Compozy orange, one step deeper. */
+  --color-accent: #d14e25;
+  --color-accent-hover: #b9441f;
+  --color-accent-strong: #b9441f;
+  --color-accent-ink: #ffffff;
+  --color-accent-tint: rgba(209, 78, 37, 0.08);
+  --color-accent-tint-strong: rgba(209, 78, 37, 0.14);
+  --color-accent-dim: rgba(209, 78, 37, 0.22);
+  --color-accent-glow: rgba(209, 78, 37, 0.05);
+
+  /* Signal palette. */
+  --color-success: #15a06a;
+  --color-success-tint: rgba(21, 160, 106, 0.08);
+  --color-warning: #d98404;
+  --color-warning-tint: rgba(217, 132, 4, 0.08);
+  --color-danger: #dc2626;
+  --color-danger-tint: rgba(220, 38, 38, 0.07);
+  --color-info: #5f5f94;
+  --color-info-tint: rgba(95, 95, 148, 0.1);
+  --color-well: #def2ea;
+  --color-spectrum-blue: #1d7fd8;
+  --color-spectrum-violet: #a347b8;
+  --color-neutral: #8a8a90;
+  --color-neutral-ink: #6b6b70;
+  --color-neutral-tint: rgba(110, 110, 120, 0.07);
+  --color-destructive-foreground: #ffffff;
+
+  /* Data-viz ink — black-alpha monochrome. */
+  --color-viz-line: rgba(10, 13, 18, 0.45);
+  --color-viz-fill: rgba(10, 13, 18, 0.05);
+  --color-viz-bar: rgba(10, 13, 18, 0.28);
+  --color-viz-other: rgba(10, 13, 18, 0.2);
+  --color-viz-grid: rgba(10, 13, 18, 0.06);
+  --color-viz-cell: #0b0d12;
+
+  /* Surface glaze ladder — black-alpha ink over white. */
+  --color-row-hover: rgba(10, 13, 18, 0.04);
+  --color-row-selected: rgba(10, 13, 18, 0.055);
+  --color-surface-glaze: rgba(10, 13, 18, 0.045);
+  --color-bar-fill: rgba(10, 13, 18, 0.07);
+  --color-input-fill: rgba(10, 13, 18, 0.02);
+  --color-btn-default-fill: rgba(10, 13, 18, 0.05);
+  --color-btn-default-hover: rgba(10, 13, 18, 0.08);
+  --color-badge-fill: rgba(10, 13, 18, 0.045);
+
+  /* Session transcript washes. */
+  --color-chat-fill-user: rgba(10, 13, 18, 0.04);
+  --color-chat-fill-code: rgba(10, 13, 18, 0.03);
+
+  /* Overlays. */
+  --color-overlay-scrim: rgba(15, 17, 22, 0.28);
+  --color-overlay-ghost-hover: rgba(10, 13, 18, 0.05);
+
+  /* Owner avatar palette — same hues, inks deepened to read on white. */
+  --color-avatar-agent-0-bg: rgba(214, 110, 60, 0.14);
+  --color-avatar-agent-0-fg: #a4491f;
+  --color-avatar-agent-1-bg: rgba(110, 124, 190, 0.14);
+  --color-avatar-agent-1-fg: #4a5590;
+  --color-avatar-agent-2-bg: rgba(70, 160, 128, 0.14);
+  --color-avatar-agent-2-fg: #2a7259;
+  --color-avatar-agent-3-bg: rgba(190, 110, 150, 0.14);
+  --color-avatar-agent-3-fg: #914a70;
+  --color-avatar-human-0-bg: rgba(200, 160, 70, 0.16);
+  --color-avatar-human-0-fg: #7e5f14;
+  --color-avatar-human-1-bg: rgba(170, 140, 105, 0.16);
+  --color-avatar-human-1-fg: #6e5a3f;
+  --color-avatar-human-2-bg: rgba(170, 130, 140, 0.16);
+  --color-avatar-human-2-fg: #74525c;
+
+  /* Shadows. */
+  --shadow-card: 0 0 0 0.5px #00000014, 0 1px 2px #0000000d, 0 2px 4px #00000005;
+  --shadow-elevated:
+    0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
+  --shadow-pop:
+    0 6px 24px -8px #0d121c2e, 0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05,
+    0 1.5px 3px #0000000a;
+  --shadow-overlay: 0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px rgba(10, 13, 18, 0.06);
+  --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
+  --shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);
+
+  /* Shell glass + gradients (retired with the dock; themed until removed). */
+  --shell-glass: rgba(250, 250, 250, 0.78);
+  --shell-glass-pop: rgba(255, 255, 255, 0.94);
+  --shell-plate-gradient: linear-gradient(180deg, rgba(10, 13, 18, 0.06), rgba(10, 13, 18, 0.03));
+  --shell-edge-veil: rgba(10, 13, 18, 0.06);
+
+  /* Wallpaper ink — the white-alpha stacks flip to black-alpha. */
+  --wallpaper-grid: radial-gradient(
+    1.5px 1.5px at 50% 50%,
+    rgba(10, 13, 18, 0.06) 40%,
+    transparent 41%
+  );
+  --wallpaper-carbon:
+    radial-gradient(1000px 620px at 50% -14%, rgba(10, 13, 18, 0.03), transparent 58%),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
+  --wallpaper-thumb-carbon:
+    radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%),
+    linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%);
+
+  /* Terminal well — ink-on-white ANSI: each hue deepened so it reads on #fff,
+     and the "white" lanes become greys (a white glyph on a white well is
+     invisible). */
+  --terminal-bg: #ffffff;
+  --terminal-fg: #434343;
+  --terminal-cursor: #1a1a1a;
+  --terminal-selection: rgba(10, 13, 18, 0.12);
+  --terminal-ansi-0: #1a1a1a;
+  --terminal-ansi-1: #dc2626;
+  --terminal-ansi-2: #15a06a;
+  --terminal-ansi-3: #b86e00;
+  --terminal-ansi-4: #2f6fd0;
+  --terminal-ansi-5: #9a4fb5;
+  --terminal-ansi-6: #178a8a;
+  --terminal-ansi-7: #8a8a8a;
+  --terminal-ansi-8: #737373;
+  --terminal-ansi-9: #b91c1c;
+  --terminal-ansi-10: #0f8a5a;
+  --terminal-ansi-11: #a86200;
+  --terminal-ansi-12: #1d5bbf;
+  --terminal-ansi-13: #83399e;
+  --terminal-ansi-14: #0e7373;
+  --terminal-ansi-15: #b0b0b0;
+}

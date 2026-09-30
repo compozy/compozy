@@ -22,7 +22,7 @@ export interface IdentityColors extends IdentityInk {
 
 /** Mirrored from `--color-canvas-soft`; the token-contract suite prevents drift. */
 export const IDENTITY_SURFACE_TOKEN = "color-canvas-soft";
-export const IDENTITY_SURFACE_VALUE = "#1f1e1c";
+export const IDENTITY_SURFACE_VALUE = "#1f1f1f";
 
 /** Neutral fallback for an absent or malformed identity color. */
 export const IDENTITY_FALLBACK_COLOR = "#8a8f98";

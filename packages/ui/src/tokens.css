@@ -9,36 +9,57 @@
 @import "tw-animate-css";
 @import "./tokens-runtime.css";
 @import "./terminal-tokens.css";
+@import "./tokens-light.css";
 
-@custom-variant dark (&:is(.dark *));
+/* `data-theme` and `.dark` are toggled together on <html>; either matches. */
+@custom-variant dark (&:is([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
 
 @theme {
-  /* Surface ramp — warm-dark, layered backgrounds (depth without shadows).
-     Warmth is a whisper, never a cast: hold chroma ≤0.005 OKLCH (R−B delta
-     ≈2–3) or the ramp reads brown/sepia instead of neutral. */
-  --color-rail: #0c0b0b;
-  --color-canvas: #171615;
-  --color-canvas-soft: #1f1e1c;
-  --color-canvas-tint: #232220;
-  --color-sidebar: #1f1e1c;
-  --color-elevated: #2a2927;
+  /* Surface ramp — neutral, chroma-free greys (brand-spec.md, shell v2).
+     Dark values live here and are the default; tokens-light.css re-declares
+     every theme-scoped role under [data-theme="light"].
+     rail = chrome (rail + menubar) · desk = behind panes · canvas = surface
+     (panes, cards, popovers) · sunken = recessed inset (tab strip, tool lists)
+     · surface-2 = hover / secondary pill. */
+  --color-rail: #0a0a0a;
+  --color-desk: #101010;
+  --color-canvas: #1a1a1a;
+  --color-canvas-soft: #1f1f1f;
+  --color-canvas-tint: #242424;
+  --color-sunken: #101010;
+  --color-surface-2: #242424;
+  --color-selected: #242424;
+  --color-code-bg: #171717;
+  --color-sidebar: #1f1f1f;
+  --color-elevated: #2b2b2b;
   --color-hover: var(--color-row-hover);
-  --color-disabled: #4a4847;
+  --color-disabled: #4d4d4d;
 
-  /* Hairlines — translucent rails derived from white. */
-  --color-line: rgba(255, 255, 255, 0.055);
-  --color-line-soft: rgba(255, 255, 255, 0.03);
-  --color-line-strong: rgba(255, 255, 255, 0.09);
-  --color-line-focus: rgba(255, 255, 255, 0.14);
+  /* Hairlines — opaque greys, one ladder per theme. line-soft is
+     mix(line 55%, canvas); line-focus is the input focus border. */
+  --color-line: #303030;
+  --color-line-soft: #262626;
+  --color-line-strong: #424242;
+  --color-line-focus: #5c5c5c;
 
-  /* Text — same near-neutral warm discipline as the ramp (chroma ≤0.006). */
-  --color-fg: #eeedeb;
-  --color-fg-strong: #f7f6f4;
-  --color-muted: #a4a29e;
-  --color-subtle: oklch(0.663 0.004 75);
-  --color-faint: oklch(0.638 0.003 75);
+  /* Text. fg-2 = mix(muted 60%, fg) and fg-3 = mix(fg 70%, muted), the
+     reference's own recipes, resolved to literals. */
+  --color-fg: #f5f5f5;
+  --color-fg-strong: #ffffff;
+  --color-fg-2: #c4c4c4;
+  --color-fg-3: #dcdcdc;
+  --color-muted: #a3a3a3;
+  --color-subtle: #737373;
+  --color-faint: #6b6b6b;
 
-  /* Accent — warm operator orange (the only non-neutral hue). */
+  /* Primary — the single inverted action (near-white on dark, near-black on
+     light). Never the brand hue: highlights ride the accent below. */
+  --color-primary: #f5f5f5;
+  --color-primary-hover: #ffffff;
+  --color-primary-foreground: #0a0a0a;
+
+  /* Accent — Compozy orange: highlight and needs-you (`attn`). The only
+     non-neutral hue; amber (`warning`) is reserved for real warnings. */
   --color-accent: #e8572a;
   --color-accent-hover: #d14e25;
   --color-accent-strong: #f6874f;
@@ -47,16 +68,19 @@
   --color-accent-tint-strong: rgba(232, 87, 42, 0.16);
   --color-accent-dim: rgba(232, 87, 42, 0.24);
   --color-accent-glow: rgba(232, 87, 42, 0.05);
+  --color-attn: var(--color-accent);
 
-  /* Signal palette — desaturated; tints at 6–12% alpha. */
-  --color-success: #5fbf85;
-  --color-success-tint: rgba(95, 191, 133, 0.08);
-  --color-warning: #d6a647;
-  --color-warning-tint: rgba(214, 166, 71, 0.08);
-  --color-danger: #e0635a;
-  --color-danger-tint: rgba(224, 99, 90, 0.09);
+  /* Signal palette — mint success marks in-progress/done glyphs and identity
+     wells; tints at 8–12% alpha. `well` = mix(success 14%, canvas). */
+  --color-success: #34d399;
+  --color-success-tint: rgba(52, 211, 153, 0.1);
+  --color-warning: #f5b14c;
+  --color-warning-tint: rgba(245, 177, 76, 0.1);
+  --color-danger: #f87171;
+  --color-danger-tint: rgba(248, 113, 113, 0.1);
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
+  --color-well: #1e342c;
   /* Spectrum-only hues — identity/color data, never status signals. */
   --color-spectrum-blue: #4ea7fc;
   --color-spectrum-violet: #c26ad6;
@@ -64,7 +88,8 @@
   --color-neutral-ink: #8a8a90;
   --color-neutral-tint: rgba(150, 150, 155, 0.06);
 
-  /* Data-viz ink — neutral white-alpha monochrome (DS Foundations §02). Charts
+  /* Data-viz ink — neutral monochrome ink (white-alpha on dark, black-alpha on
+     light; DS Foundations §02). Charts
      and sparklines paint generic magnitude with these, NEVER signal colors;
      a signal hue appears only when the series itself IS that state. */
   --color-viz-line: rgba(255, 255, 255, 0.42);
@@ -74,7 +99,8 @@
   --color-viz-grid: rgba(255, 255, 255, 0.045);
   --color-viz-cell: #ffffff;
 
-  /* Surface glaze ladder — translucent white tints over the warm ramp. */
+  /* Surface glaze ladder — translucent ink over the ramp (white-alpha on dark,
+     black-alpha on light). */
   --color-row-hover: rgba(255, 255, 255, 0.045);
   --color-row-selected: rgba(255, 255, 255, 0.06);
   --color-surface-glaze: rgba(255, 255, 255, 0.06);
@@ -94,7 +120,7 @@
   --color-overlay-scrim: rgba(0, 0, 0, 0.55);
   --color-overlay-ghost-hover: rgba(255, 255, 255, 0.06);
 
-  /* Owner avatar palette.
+  /* Owner avatar palette (per theme: light inks are deepened for contrast).
      `packages/ui/src/lib/owner-palette.ts` resolves these via
      `colorsFor(ownerKind, ownerId)`. Storybook + design ref tools must
      consume the same source as the runtime. */
@@ -120,10 +146,8 @@
   --color-foreground: var(--color-fg);
   --color-card: var(--color-canvas-soft);
   --color-card-foreground: var(--color-fg);
-  --color-popover: var(--color-canvas-soft);
+  --color-popover: var(--color-canvas);
   --color-popover-foreground: var(--color-fg);
-  --color-primary: var(--color-accent);
-  --color-primary-foreground: var(--color-accent-ink);
   --color-secondary: transparent;
   --color-secondary-foreground: var(--color-fg);
   --color-muted-foreground: var(--color-muted);
@@ -315,11 +339,19 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Shadows — whitelist. Every other surface stays flat. */
+  /* Shadows — whitelist. Every other surface stays flat. card / elevated are
+     the reference's verbatim stacks (composer, cards, active rail item, floating
+     windows); pop = the md drop plus elevated (menus, popovers, tooltips). */
+  --shadow-card: 0 0 0 0.5px #ffffff1f, 0 1px 2px #0006, 0 2px 4px #0000004d;
+  --shadow-elevated:
+    0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006;
+  --shadow-pop:
+    0 6px 24px -8px #0009, 0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059,
+    0 1.5px 3px #0006;
   --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
   --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   /* Focus indicator — EXCLUSIVE :focus-visible semantics. A 2 px, 50 %-white
-     ring composites to ≈#898988 (≥5.3:1 on every surface-ramp background),
+     ring (50 %-ink on light) clears ≥3:1 on every surface-ramp background,
      meeting the ≥2 px + ≥3:1 non-text contrast floor. Used ONLY by
      :focus-visible consumers — outset by default; `-inset` for full-bleed
      rows / triggers where the ring must paint inside the element bounds. */
@@ -553,8 +585,14 @@
   --distance-workspaces-menu-entry: -3px;
   --distance-workspaces-caption-entry: 3px;
 
-  /* Shell chrome geometry. */
-  --height-menubar: 44px;
+  /* Shell chrome geometry — rail + menubar + deck (shell v2). The menubar's
+     first 84px are reserved for the frameless window's traffic lights. */
+  --width-rail: 60px;
+  --size-rail-item: 40px;
+  --height-menubar: 52px;
+  --width-traffic-lights: 84px;
+  --height-window-head: 48px;
+  --size-seam-hit: 9px;
   --size-dock-item: 46px;
   --size-dock-icon: 21px;
   --size-dock-badge: 15px;
@@ -562,11 +600,12 @@
   --size-dock-indicator-min: 5px;
   --size-traffic-light: 12px;
   --size-menubar-logo: 17px;
-  /* The deck — 37px tab row above the window head (window-tabs reference §01). */
-  --height-deck: 37px;
-  --height-deck-tab: 30px;
-  --min-width-deck-tab: 96px;
-  --width-deck-tab-max: 180px;
+  /* The deck — 40px browser-tab strip above the window head; tabs shrink
+     from 208px to 136px. */
+  --height-deck: 40px;
+  --height-deck-tab: 32px;
+  --min-width-deck-tab: 136px;
+  --width-deck-tab-max: 208px;
   --size-deck-glyph: 13px;
   --min-width-deck-badge: 14px;
   --size-deck-add: 24px;
@@ -642,8 +681,8 @@
   /* Canonical OS-shell glass literals — the exact `--shell-glass` names from the
      OpenDesign contract (os-v2.css). Referenced by the `@theme` `--color-shell-glass`
      adapters above; components never consume these directly. */
-  --shell-glass: rgba(12, 11, 11, 0.72);
-  --shell-glass-pop: rgba(19, 18, 17, 0.94);
+  --shell-glass: rgba(10, 10, 10, 0.72);
+  --shell-glass-pop: rgba(26, 26, 26, 0.94);
 
   /* Workspaces overview (Command-Tab switcher) gradient stacks — gradient
      geometry is not a utility scale, so the family stays out of @theme.
