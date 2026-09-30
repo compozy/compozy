@@ -253,6 +253,9 @@ const (
 	ArrangementVertical   Arrangement = "vertical"
 	ArrangementGrid       Arrangement = "grid"
 	ArrangementStack      Arrangement = "stack"
+	// ArrangementMainStack gives the first participant the main column and
+	// splits the remaining participants vertically in the side column.
+	ArrangementMainStack Arrangement = "main_stack"
 )
 
 type ArrangeLayoutCommand struct {

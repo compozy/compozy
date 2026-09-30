@@ -58,6 +58,7 @@ var defaultKeymap = map[string]ShortcutBinding{
 	"window.focus.down":                  {"control+ArrowDown"},
 	"layout.arrange.two-up":              {},
 	"layout.arrange.grid":                {},
+	"layout.arrange.main-stack":          {},
 	string(CommandLayoutBalance):         {"control+alt+KeyB"},
 	string(CommandLayoutUndo):            {"meta+KeyZ"},
 	"layout.redo":                        {"meta+shift+KeyZ"},

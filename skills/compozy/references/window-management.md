@@ -223,6 +223,8 @@ compozy layout watch --workspace <workspace-id> -o jsonl
 compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl
 ```
 
+`--arrangement` accepts `horizontal`, `vertical`, `grid`, `stack`, or `main_stack`; `main_stack`
+gives the first `--window` a 60% main column and splits the rest vertically beside it.
 `layout resize` moves one split boundary in weight space. `layout frame-resize` atomically rewrites
 abutting island frames: every group edge on the shared line moves together, and overlapping frames
 are rejected. `window resize` assigns a normalized frame to the unit containing the window —

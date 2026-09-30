@@ -94,6 +94,8 @@ func (r *reducer) buildArrangement(windowIDs []WindowID, arrangement Arrangement
 			WindowIDs: append([]WindowID(nil), windowIDs...),
 			ActiveID:  &active,
 		}, nil
+	case ArrangementMainStack:
+		return r.buildMainStack(windowIDs)
 	case ArrangementGrid:
 		columns := int(math.Ceil(math.Sqrt(float64(len(windowIDs)))))
 		rows := make([]LayoutNode, 0, (len(windowIDs)+columns-1)/columns)
@@ -118,6 +120,32 @@ func (r *reducer) buildArrangement(windowIDs []WindowID, arrangement Arrangement
 	default:
 		return LayoutNode{}, fmt.Errorf("arrangement %q: %w", arrangement, ErrInvalidCommand)
 	}
+}
+
+// mainStackWeight is the main column's share of a main_stack arrangement.
+const mainStackWeight = 0.6
+
+func (r *reducer) buildMainStack(windowIDs []WindowID) (LayoutNode, error) {
+	main, err := newLeaf(windowIDs[0], r.generate)
+	if err != nil {
+		return LayoutNode{}, err
+	}
+	side, err := r.buildArrangement(windowIDs[1:], ArrangementVertical)
+	if err != nil {
+		return LayoutNode{}, err
+	}
+	id, err := r.generate("node")
+	if err != nil {
+		return LayoutNode{}, fmt.Errorf("generate main stack ID: %w", err)
+	}
+	axis := AxisHorizontal
+	return LayoutNode{
+		ID:       NodeID(id),
+		Kind:     NodeKindSplit,
+		Axis:     &axis,
+		Children: []LayoutNode{main, side},
+		Weights:  []float64{mainStackWeight, 1 - mainStackWeight},
+	}, nil
 }
 
 func (r *reducer) buildSplit(windowIDs []WindowID, axis Axis) (LayoutNode, error) {

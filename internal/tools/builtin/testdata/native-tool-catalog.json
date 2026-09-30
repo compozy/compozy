@@ -1009,7 +1009,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "1bda1fad0f2e6e39fcb667cb50a0fca244ea33fde17b7d7d2c81e34a30f78df9",
+    "input_schema_digest": "843174ffec76a640ced41eefa362b7db374369a8412d5059251ee51361be7923",
     "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"

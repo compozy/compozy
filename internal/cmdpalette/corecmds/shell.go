@@ -145,6 +145,13 @@ var fixedShellCommands = []shellCommandDefinition{
 		icon:       "layout-grid",
 		needsFocus: true,
 	},
+	{
+		id:         "layout.arrange.main-stack",
+		title:      "Arrange main and stack",
+		section:    coreSectionLayout,
+		icon:       "layout-panel-left",
+		needsFocus: true,
+	},
 	{id: "layout.balance", title: "Balance layout", section: coreSectionLayout, icon: "scale", needsFocus: true},
 	{id: "layout.undo", title: "Undo layout", section: coreSectionLayout, icon: "undo-2"},
 	{id: "layout.redo", title: "Redo layout", section: coreSectionLayout, icon: "redo-2"},

@@ -59,7 +59,7 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 		&arrangement,
 		windowManagerArrangementFlag,
 		"",
-		"Arrangement: horizontal, vertical, grid, or stack",
+		"Arrangement: horizontal, vertical, grid, stack, or main_stack",
 	)
 	cmd.Flags().StringVar(
 		&frameRaw,
@@ -354,7 +354,7 @@ func newLayoutHistoryCommand(
 func isWindowManagerArrangement(arrangement windowmanager.Arrangement) bool {
 	switch arrangement {
 	case windowmanager.ArrangementHorizontal, windowmanager.ArrangementVertical,
-		windowmanager.ArrangementGrid, windowmanager.ArrangementStack:
+		windowmanager.ArrangementGrid, windowmanager.ArrangementStack, windowmanager.ArrangementMainStack:
 		return true
 	default:
 		return false

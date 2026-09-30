@@ -119,6 +119,70 @@ func TestArrangementModes(t *testing.T) {
 	}
 }
 
+func TestMainStackArrangement(t *testing.T) {
+	tests := []struct {
+		name      string
+		windowIDs []WindowID
+		sideKind  NodeKind
+		side      []WindowID
+		nodeCount int
+	}{
+		{
+			name:      "Should give the first of two participants the main column beside one leaf",
+			windowIDs: []WindowID{"w1", "w2"},
+			sideKind:  NodeKindLeaf,
+			side:      []WindowID{"w2"},
+			nodeCount: 3,
+		},
+		{
+			name:      "Should split the remaining participants vertically in the side column",
+			windowIDs: []WindowID{"w1", "w2", "w3", "w4"},
+			sideKind:  NodeKindSplit,
+			side:      []WindowID{"w2", "w3", "w4"},
+			nodeCount: 6,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+			for _, windowID := range test.windowIDs {
+				openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+			}
+			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+				DesktopID: "desktop-default", WindowIDs: test.windowIDs,
+				Arrangement: ArrangementMainStack, GroupID: "group-main",
+			})
+			root := result.Snapshot.Desktops[0].Groups[0].Root
+			if root.Kind != NodeKindSplit || valueOrZero(root.Axis) != AxisHorizontal || len(root.Children) != 2 {
+				t.Fatalf("main stack root = %+v, want a two-column horizontal split", root)
+			}
+			if !slices.Equal(root.Weights, []float64{mainStackWeight, 1 - mainStackWeight}) {
+				t.Fatalf("main stack weights = %v, want %v/%v", root.Weights, mainStackWeight, 1-mainStackWeight)
+			}
+			main, side := root.Children[0], root.Children[1]
+			if main.Kind != NodeKindLeaf || valueOrZero(main.WindowID) != test.windowIDs[0] {
+				t.Fatalf("main column = %+v, want leaf %q", main, test.windowIDs[0])
+			}
+			if side.Kind != test.sideKind || !slices.Equal(nodeWindowIDs(side), test.side) {
+				t.Fatalf("side column = %+v, want %s holding %v", side, test.sideKind, test.side)
+			}
+			if test.sideKind == NodeKindSplit && valueOrZero(side.Axis) != AxisVertical {
+				t.Fatalf("side column axis = %v, want vertical", valueOrZero(side.Axis))
+			}
+			if len(result.Changes.NodeIDs) != test.nodeCount {
+				t.Fatalf("main stack node changes = %v, want %d nodes", result.Changes.NodeIDs, test.nodeCount)
+			}
+			for _, windowID := range test.windowIDs {
+				if result.Snapshot.Windows[windowID].Placement != WindowPlacementTiled {
+					t.Fatalf("window %q placement = %q", windowID, result.Snapshot.Windows[windowID].Placement)
+				}
+			}
+			requireValidSnapshot(t, result.Snapshot)
+		})
+	}
+}
+
 func TestStructuralDropPlacements(t *testing.T) {
 	tests := []struct {
 		name      string

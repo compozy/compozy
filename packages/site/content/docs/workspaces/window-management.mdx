@@ -59,12 +59,17 @@ resumes after reload or daemon restart and converges in peer clients. Add `--cli
 
 ## Tiling behavior
 
-New windows float by default and may be opened tiled beside the focused window. Structural drops
+New windows tile beside the focused window by default (`new_window_policy = "beside_focus"`); set
+`floating` to open them as floating windows instead. Structural drops
 use `before`, `after`, `left`, `right`, `top`, `bottom`, or `center`; dropping onto an occupied target
 reflows the tree instead of overlapping it. Shared-boundary resize updates all descendants on each
 side. When a viewport cannot satisfy minimum window sizes, that client projects the affected split
 as a stack without corrupting the stored topology. Group relocation moves the source window's tiled
 group and is exclusive with `--target`, `--placement`, and `--rect`.
+
+`compozy layout arrange --arrangement` accepts `horizontal`, `vertical`, `grid`, `stack`, or
+`main_stack`. Main and stack gives the first listed window a 60% main column and splits the rest
+vertically in the column beside it.
 
 Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
 targets zoom the window: the unit holding it (the window or its whole tab frame) becomes the only
@@ -75,8 +80,8 @@ Unzooming brings the unit back to where it came from and removes the desktop the
 is empty; closing the zoomed window does the same. Grouping a window into the zoomed frame keeps the
 zoom; tiling another window to a screen edge gives the zoomed window the remaining space and ends the
 zoom, and arranging, moving, swapping, resizing, or floating ends it in place. A minimized window that
-was zoomed comes back zoomed. Bottom-center is reserved for the Dock unless remapped. Both behavior and
-thresholds are validated under `[window_manager]` in `config.toml`.
+was zoomed comes back zoomed. Bottom-center also zooms by default; set it to `reserved` or `none` to
+disable it. Both behavior and thresholds are validated under `[window_manager]` in `config.toml`.
 
 To restore an internal maximized window, click its **Restore window** control (the zoom button
 changes its icon and label while maximized). This returns the saved size and placement. You can
@@ -97,8 +102,8 @@ compozy desktop delete --workspace <workspace-id> --revision <revision> --id <de
 
 Deleting the final desktop is rejected. A non-empty desktop requires a distinct destination so the
 window transfer and deletion happen in one transaction. The Web shell exposes the same desktops as
-a minimal horizontal dot pager at the lower left, aligned with the Dock, and opens full management
-on demand.
+a minimal dot pager in the top bar, next to an **All desktops** button that opens full management on
+demand.
 
 ## Declarative layouts and recovery
 

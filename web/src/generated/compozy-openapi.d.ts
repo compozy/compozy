@@ -7182,7 +7182,7 @@ export interface components {
     };
     WindowManagerArrangeLayoutPayload: {
       /** @enum {string} */
-      arrangement: "horizontal" | "vertical" | "grid" | "stack";
+      arrangement: "horizontal" | "vertical" | "grid" | "stack" | "main_stack";
       desktop_id: string;
       frame: {
         /** Format: double */

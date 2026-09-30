@@ -315,7 +315,7 @@ const windowManagerLayoutArrangeInputSchema = `{
 		` + windowManagerRevisionSchema + `,
 		"desktop_id":{"type":"string","minLength":1},
 		"window_ids":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
-		"arrangement":{"type":"string","enum":["horizontal","vertical","grid","stack"]},
+		"arrangement":{"type":"string","enum":["horizontal","vertical","grid","stack","main_stack"]},
 		"frame":` + windowManagerRectSchema + `,
 		"group_id":{"type":"string","minLength":1},
 		"resource_id":{"type":"string","minLength":1},

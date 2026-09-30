@@ -1160,7 +1160,8 @@
               "horizontal",
               "vertical",
               "grid",
-              "stack"
+              "stack",
+              "main_stack"
             ],
             "type": "string"
           },
