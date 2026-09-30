@@ -105,7 +105,7 @@ export function PaletteArgDropdown({
       {open && options.length > 0 ? (
         <div
           aria-label={field.name}
-          className="mt-1 flex flex-col gap-0.5 rounded-md bg-canvas-soft p-1 shadow-hairline"
+          className="mt-1 flex flex-col gap-0.5 rounded-lg bg-canvas p-1.5 shadow-pop"
           data-testid={listId}
           id={listId}
           role="listbox"
@@ -114,8 +114,8 @@ export function PaletteArgDropdown({
             <button
               aria-selected={index === clampedIndex}
               className={cn(
-                "flex h-8 items-center rounded-sm px-2 text-left text-small-body text-fg",
-                index === clampedIndex && "bg-elevated text-fg-strong"
+                "flex h-8 items-center rounded-md px-2.5 text-left text-small-body text-fg",
+                index === clampedIndex && "bg-surface-2"
               )}
               id={`${listId}-option-${index}`}
               key={option.key}

@@ -61,7 +61,10 @@ export function GatewayIngressStatus({
 
 function GatewaySettingsLink() {
   return (
-    <Link className="text-accent underline-offset-4 hover:underline" to="/settings/gateway">
+    <Link
+      className="text-fg-2 underline-offset-4 hover:text-fg hover:underline"
+      to="/settings/gateway"
+    >
       Open Remote access settings to publish one.
     </Link>
   );

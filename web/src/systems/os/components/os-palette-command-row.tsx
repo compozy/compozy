@@ -1,4 +1,4 @@
-import { CommandItem, CommandShortcut, KindIcon, Pill, StatusDot, cn } from "@compozy/ui";
+import { CommandItem, CommandShortcut, KindIcon, Pill, StateGlyph, cn } from "@compozy/ui";
 import { useId } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
 } from "../lib/cmd-palette-icons";
 import type { ResolvedPaletteCommand } from "../lib/cmd-palette-types";
 import { paletteRowClass } from "../lib/palette-view-inset";
+import { OsShortcutChords } from "./os-shortcut-chords";
 import { parseExtensionName } from "../lib/palette-view-registry";
 
 export interface OsPaletteCommandRowProps {
@@ -53,15 +54,15 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-[18px] shrink-0 items-center justify-center rounded-full bg-canvas-tint",
-          command.available ? "text-subtle" : "text-faint"
+          "flex size-4 shrink-0 items-center justify-center",
+          command.available ? "text-muted" : "text-faint"
         )}
       >
         {emoji ? (
           <span className="text-badge leading-none">{command.icon}</span>
         ) : (
           <KindIcon
-            className="size-3"
+            className="size-3.5"
             fallback={CMD_PALETTE_ICON_FALLBACK}
             kind={command.icon}
             registry={cmdPaletteIconRegistry}
@@ -94,11 +95,13 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
           className="ms-auto flex shrink-0 items-center gap-1.5 text-small-body leading-none text-subtle"
           data-testid={`os-palette-pending-${command.id}`}
         >
-          <StatusDot className="motion-safe:animate-pulse" aria-hidden="true" tone="accent" />
+          <StateGlyph state="running" size="sm" />
           Running…
         </span>
       ) : command.chords.length > 0 ? (
-        <CommandShortcut>{command.chords.join(" / ")}</CommandShortcut>
+        <CommandShortcut>
+          <OsShortcutChords label={command.chords.join(" / ")} />
+        </CommandShortcut>
       ) : null}
     </CommandItem>
   );

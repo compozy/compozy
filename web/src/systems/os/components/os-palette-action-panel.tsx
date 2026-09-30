@@ -31,6 +31,7 @@ import {
   paletteInputRailClass,
   paletteRowClass,
 } from "../lib/palette-view-inset";
+import { OsShortcutChords } from "./os-shortcut-chords";
 
 interface PaletteActionPanelItemProps {
   action: PaletteRowAction;
@@ -72,7 +73,9 @@ function PaletteActionPanelItem({ action, onRun }: PaletteActionPanelItemProps) 
       {action.primary ? (
         <CommandShortcut aria-label="Runs on Enter">↩</CommandShortcut>
       ) : action.chords.length > 0 ? (
-        <CommandShortcut>{action.chords.join(" / ")}</CommandShortcut>
+        <CommandShortcut>
+          <OsShortcutChords label={action.chords.join(" / ")} />
+        </CommandShortcut>
       ) : null}
     </CommandItem>
   );
@@ -123,6 +126,7 @@ export function PaletteActionPanel({
         <Command className={paletteInputRailClass} shouldFilter={false}>
           <div className={paletteHeadClass}>
             <CommandInput
+              variant="quiet"
               aria-label="Filter actions"
               autoFocus
               data-testid="os-palette-action-filter"

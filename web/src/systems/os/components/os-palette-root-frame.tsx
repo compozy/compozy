@@ -74,6 +74,7 @@ export function OsPaletteRootFrame({
     >
       <div className={cn("relative", paletteHeadClass)}>
         <CommandInput
+          variant="quiet"
           autoFocus
           placeholder={
             model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…"
@@ -96,7 +97,7 @@ export function OsPaletteRootFrame({
         {model.ghostTail === null ? null : (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute top-1 left-11 flex h-control-compact items-center text-small-body"
+            className="pointer-events-none absolute top-0 left-10.5 flex h-10 items-center text-body"
             data-testid="os-palette-ghost"
           >
             <span className="invisible whitespace-pre">{model.query}</span>

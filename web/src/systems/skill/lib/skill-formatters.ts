@@ -1,5 +1,3 @@
-import type { PillTone } from "@compozy/ui";
-
 import type { SkillPayload } from "../types";
 
 const SOURCE_ORDER: Record<string, number> = {
@@ -8,14 +6,6 @@ const SOURCE_ORDER: Record<string, number> = {
   marketplace: 2,
   user: 3,
   additional: 4,
-};
-
-const SOURCE_TONE: Record<string, PillTone> = {
-  bundled: "success",
-  workspace: "info",
-  marketplace: "accent",
-  user: "warning",
-  additional: "neutral",
 };
 
 export const MARKETPLACE_CATEGORIES = [
@@ -32,10 +22,6 @@ export type MarketplaceCategory = (typeof MARKETPLACE_CATEGORIES)[number];
 
 export function compareSkillSource(left: string, right: string): number {
   return (SOURCE_ORDER[left] ?? 99) - (SOURCE_ORDER[right] ?? 99);
-}
-
-export function skillSourceTone(source: string): PillTone {
-  return SOURCE_TONE[source] ?? "neutral";
 }
 
 export function skillSourceLabel(source: string): string {

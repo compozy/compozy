@@ -122,7 +122,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
     <button
       type="button"
       className={cn(
-        "grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none",
+        "grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
         stale && "opacity-60"
       )}
       data-testid={`os-attention-${row.kind}-${row.id}`}

@@ -125,7 +125,7 @@ function ExposureRow({
         label={
           pending ? (pendingAction === "unexpose" ? "removing…" : "exposing…") : exposure.sentence
         }
-        tone={pending ? "accent" : exposure.tone}
+        tone={pending ? "faint" : exposure.tone}
         variant={pending || exposure.status === "foreign_conflict" ? "ring" : "solid"}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -196,7 +196,7 @@ function PendingRow({ label, action }: { label: string; action: "expose" | "unex
       className="flex min-w-0 items-center gap-2 border-b border-line py-2 last:border-b-0"
       data-testid={`${TEST_ID}-pending-${label}`}
     >
-      <StatusDot label={status} tone="accent" variant="ring" />
+      <StatusDot label={status} tone="faint" variant="ring" />
       <b className="text-small-body text-subtle">{label}</b>
       <span className="text-form-hint text-subtle">{status}</span>
     </div>

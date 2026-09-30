@@ -102,7 +102,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
                 {sourceGroup.sections.map(group => (
                   <section className="min-w-0" key={group.title}>
                     <Eyebrow className="mb-1.5 text-subtle">{group.title}</Eyebrow>
-                    <dl className="overflow-hidden rounded-md border border-line bg-canvas-soft">
+                    <dl className="overflow-hidden rounded-lg bg-sunken">
                       {group.rows.map(row => (
                         <div
                           className="flex min-h-8 items-center justify-between gap-5 border-t border-line-soft px-3 py-1.5 first:border-t-0"
@@ -135,7 +135,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
                 <LockKeyhole aria-hidden="true" className="size-3" />
                 In this surface — session window
               </Eyebrow>
-              <dl className="grid overflow-hidden rounded-md border border-line bg-canvas-soft sm:grid-cols-3">
+              <dl className="grid overflow-hidden rounded-lg bg-sunken sm:grid-cols-3">
                 {SURFACE_LOCAL_ROWS.map(row => (
                   <div
                     className="flex min-h-9 items-center justify-between gap-3 border-t border-line-soft px-3 py-1.5 first:border-t-0 sm:border-t-0 sm:border-l sm:first:border-l-0"
@@ -145,7 +145,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
                     <dt className="text-small-body text-fg">{row.label}</dt>
                     <dd className="inline-flex gap-1">
                       {row.keys.map(key => (
-                        <Kbd className="border-dashed border-line-strong bg-transparent" key={key}>
+                        <Kbd key={key}>
                           {key.includes("+") ? shortcutLabel(key, primaryModifier) : key}
                         </Kbd>
                       ))}
@@ -162,7 +162,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
             data-testid="os-shortcuts-edit"
             disabled={!canOpenApps}
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={openLayoutSettings}
           >
             Edit shortcuts in Layouts
