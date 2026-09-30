@@ -314,6 +314,7 @@ export {
 } from "./components/session-create-dialog";
 export { SessionCreateDialogHost } from "./components/session-create-dialog-host";
 export { SessionLoadOlderButton } from "./components/session-load-older-button";
+export { SessionForkMessageAction } from "./components/session-fork-message-action";
 export { SessionRewindMessageAction } from "./components/session-rewind-message-action";
 export {
   SessionResumeFailure,
@@ -472,6 +473,8 @@ export {
 
 // Environment surface — worktree binding, fork, target selection (./environment).
 export * from "./environment";
+// Derive surface — continue (and fork) plus origin display (./derive).
+export * from "./derive";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export * from "./quote";
 export type { SessionSendAction } from "./lib/session-busy-input";

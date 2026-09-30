@@ -1343,7 +1343,7 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 		}
 		meta := readMeta(t, target.MetaPath())
 		meta.State, meta.StopDetail, meta.StopReason = string(StateStarting), "", nil
-		if err := store.WriteSessionMeta(target.MetaPath(), meta); err != nil {
+		if err := store.WriteSessionMeta(target.MetaPath(), &meta); err != nil {
 			t.Fatal(err)
 		}
 		projectionErr := errors.New("catalog unavailable")
@@ -1392,7 +1392,7 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 		meta.StopDetail = ""
 		meta.ACPSessionID = stringPointer(originalACP)
 		meta.Liveness = exitedProcessLiveness(exited)
-		if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
@@ -1472,7 +1472,7 @@ func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStal
 			SubprocessStartedAt: &startedAt,
 			LastUpdateAt:        &lastUpdate,
 		}
-		if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
@@ -1527,7 +1527,7 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 		UpdatedAt:     time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
 	}
 	metaPath := store.SessionMetaFile(sessionDir)
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -1987,7 +1987,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			meta.RuntimeStatus = tc.status
 			meta.RuntimeTransition = tc.transition
 			meta.ACPSessionID = tc.acpID
-			if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+			if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 				t.Fatal(err)
 			}
 			if err := h.manager.UpgradeSessionDatabase(
@@ -2376,7 +2376,7 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	stopReason := store.StopTimeout
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
-	info := sessionInfoFromMeta(store.SessionMeta{
+	info := sessionInfoFromMeta(&store.SessionMeta{
 		ID:              "sess-1",
 		Name:            "stored",
 		AgentName:       "coder",
@@ -2422,7 +2422,7 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	}
 
 	t.Run("Should keep stop fields empty when omitted", func(t *testing.T) {
-		infoWithoutStop := sessionInfoFromMeta(store.SessionMeta{
+		infoWithoutStop := sessionInfoFromMeta(&store.SessionMeta{
 			ID:            "sess-legacy",
 			AgentName:     "coder",
 			WorkspaceID:   "ws-1",
@@ -2552,7 +2552,7 @@ func writeStoppedSessionArtifacts(t *testing.T, h *harness, id string, withDB bo
 	}
 
 	now := time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
 		ID:            id,
 		Name:          "stored",
 		AgentName:     "coder",
@@ -2585,7 +2585,7 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 	}
 
 	now := time.Now().UTC()
-	if err := store.WriteSessionMeta(store.SessionMetaFile(escapedDir), store.SessionMeta{
+	if err := store.WriteSessionMeta(store.SessionMetaFile(escapedDir), &store.SessionMeta{
 		ID:            escapedID,
 		Name:          "escaped",
 		AgentName:     "coder",

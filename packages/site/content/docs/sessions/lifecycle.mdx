@@ -87,6 +87,11 @@ Creation never accepts a prompt or runtime selector. It only creates the durable
 The agent definition supplies the defaults that the first prompt can use, but CompozyOS does not launch
 ACP or negotiate provider options until that prompt arrives.
 
+If the agent declares a `fallback_chain`, the first prompt binds the session on the first route the
+provider accepts. Routes refused before ACP acceptance are recorded as `session.fallback.used` events and
+`provider_failure` transcript markers; `runtime.effective` on `GET /api/sessions/{id}` shows the route that
+was accepted. See [provider recovery](/docs/agents/providers#recover-from-a-provider-refusal-before-acceptance).
+
 ### Creation provenance
 
 A session created from inside another session records that origin in its `lineage`:
@@ -105,6 +110,36 @@ budget, or permission narrowing — governed children come only from
 [safe spawn](/docs/autonomy/safe-spawn). Query the hierarchy with the catalog filters `parent=<id>`
 (direct children) and `root=<id>` (the whole tree, root included), exposed as
 `compozy session list --parent/--root` and on `compozy__session_list`.
+
+### Lineage kind
+
+Every session read (`GET …/sessions/{id}`, `compozy session status`, and each row of
+`compozy session list -o json`) carries `lineage.kind`, which says how the session relates to its
+parent:
+
+| Kind         | Meaning                                                            |
+| ------------ | ------------------------------------------------------------------ |
+| `""`         | A root session with no parent relation.                            |
+| `provenance` | A user session created with a parent (the default for `--parent`). |
+| `recovery`   | A user session created to recover a failed parent.                 |
+| `spawn`      | A governed spawned or spawn-role session.                          |
+| `continue`   | A session continued from another session with another agent.       |
+| `fork`       | A session forked from another session.                             |
+
+`continue` and `fork` sessions also carry `origin_agent_name`, and forks carry `origin_message_id`.
+A plain create accepts only `provenance` or `recovery`, and only together with a parent:
+
+```bash
+compozy session new --agent codex --parent sess-1234 --lineage-kind recovery
+```
+
+The HTTP/UDS equivalent is `"lineage_kind": "recovery"` next to `parent_session_id`; any other value, or
+a kind without a parent, returns `400`.
+
+Sessions created before lineage kinds existed are upgraded automatically: spawned and spawn-role sessions
+read `spawn`, other parented sessions read `provenance`, and root sessions read `""`. The upgrade applies
+both to the session catalog and to each session's metadata file. Reading an older metadata file never
+rewrites it; the kind is saved the next time the session's lifecycle state changes.
 
 ## Running an active session
 
@@ -227,6 +262,23 @@ HTTP and UDS use `PUT /api/workspaces/:workspace/sessions/:id/runtime` with the 
 and current `expected_revision`. Clear the selection with
 `DELETE /api/workspaces/:workspace/sessions/:id/runtime?expected_revision=<revision>`. A stale
 revision returns `409`; read the session again before deciding what to save.
+
+### Negotiated agent capabilities
+
+While a session has a live agent process, session reads include `runtime.acp_caps`: what the agent
+advertised during the ACP `initialize` handshake. The field is absent when no process is bound.
+
+| Field                                                     | Meaning                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| `supports_load_session`                                   | The agent can reopen a stored conversation with `session/load`. |
+| `supports_fork_session`                                   | The agent advertises the unstable `session/fork` capability.    |
+| `supports_resume_session`                                 | The agent advertises the `session/resume` capability.           |
+| `prompt_image`, `prompt_audio`, `prompt_embedded_context` | Prompt content the agent accepts.                               |
+| `supported_modes`, `config_options`                       | Session modes and ACP config options reported at setup.         |
+
+Each value is `true` only when the agent declared it. Traffic that an agent sends for any ACP session
+other than the one bound to the CompozyOS session is dropped and logged, so it never appears in that
+session's transcript.
 
 ### Workspace knowledge on live turns
 
@@ -352,6 +404,8 @@ HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/rewind
 same fences.
 An identical `idempotency_key` retry returns the original result. A stale fence, busy session, queued
 input, pending approval, or daemon-managed session returns `409` without cutting the transcript.
+Children created with `--parent` (`provenance`), `recovery` sessions, and continued or forked sessions
+rewind like any user session; only governed `spawn` sessions are refused as daemon-managed.
 
 Rewind changes the conversation only. It does not undo file changes, tool effects, network actions,
 saved memory, or external provider actions. Removed events remain archived for audit:
@@ -363,6 +417,178 @@ compozy session history sess-1234 --archive all
 
 The Web action appears on durable user messages. It requires an empty composer, confirms the same
 side-effect boundary, reloads the daemon-owned transcript, and places `draft_text` in the composer.
+
+## Continuing and forking a session
+
+Continue a user session with another agent when the current one cannot go on (most often because its
+provider account hit a limit) or when you want a second agent to pick up the same work. CompozyOS starts
+a **new** session in the same workspace, worktree, and working directory, carries the conversation over
+as historical context, and never changes the source session: no event is appended, no transcript epoch
+or generation changes, and a running turn is not interrupted.
+
+```bash
+compozy session continue sess_01J9R2K7M4T1 --agent claude-code \
+  --message "Carry on with the migration; run the tests first."
+```
+
+```
+Continued sess_01J9R2K7M4T1 (codex) into sess_01J9R2Q0W8YB (claude-code)
+  Origin        continue · from sess_01J9R2K7M4T1 · codex · through turn turn_01J9R2N9C3
+  Context       42 messages · 61.3 KiB · nothing omitted
+  Seed          replay
+  First prompt  admitted
+```
+
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/continue` with `agent_name`
+and `idempotency_key` (required), an optional `runtime` **or** `route`, `name`, `message`, and the three
+transcript fences together or none. Agents use the `compozy__session_continue` native tool. Only user
+sessions can be continued (`session_not_derivable` otherwise); archived sources return
+`session_archived`.
+
+The new session reads `lineage.kind = "continue"`, `lineage.origin_agent_name`, and a `derivation`
+object (`kind`, `source_session_id`, `seed`, `first_prompt`); `compozy session status` prints matching
+`Origin` and `Derivation` lines.
+
+### Preview before you continue
+
+`GET /api/workspaces/:workspace_id/sessions/:session_id/derive/preview` reports what a continue would
+carry right now (`message_count`, `replay_bytes`, `truncated`, `omitted_count`,
+`source_turn_in_progress`), the whole source transcript's `source_message_count`, and the transcript
+fences it was measured at. The preview never writes
+anything and never repairs a stopped source.
+
+### The carried context
+
+CompozyOS takes one read-only snapshot of the source and carries its pruned transcript through the last
+settled turn. A later turn that is still running (user or synthetic) is left out, and the carried context
+ends with a note that it was not included and that its tools may have partially executed.
+
+The carried context is stored on the new session and prepended exactly once whenever that session's
+history is rebuilt for an agent: its first prompt, a later provider replacement, a recovery without a
+native session id, or a rewind restart. The first prompt reads:
+
+```
+Context rebuilt from log.
+This session continues sess_01J9R2K7M4T1 (agent: codex). Continue this session using the persisted transcript below. It is historical context, not a new user request. Do not repeat completed tool calls solely because they appear in the log. The files and git state in the workspace are authoritative; inspect them before acting on the transcript. Attachments listed in the transcript were not copied to this session.
+<compozy_context_replay>
+[...]
+</compozy_context_replay>
+
+User request:
+
+Carry on with the migration; run the tests first.
+```
+
+Without `--message` the context waits (`first_prompt: staged`) and is composed in front of the first
+prompt you send. With a message, the message is admitted through the ordinary prompt admission
+(`first_prompt: admitted`); delivery and completion are reported by the new session's prompt events.
+If the daemon stops before that admission, the new session keeps `first_prompt: staged`; repeating the
+same request (same `idempotency_key`) admits the message and sends it once.
+Continuing a continued session carries that session's own transcript with its carried context flattened
+in front, once. Clearing the new session's conversation discards the carried context. Attachments are
+carried as metadata only.
+
+The carried context is bounded by `[session.derive]` (see
+[config.toml](/docs/configuration/config-toml#sessionderive)): `max_replay_bytes` (default 131072) is a
+hard bound and `max_message_bytes` (default 16384) caps each message body. Omissions are stated in the
+context and reported as `truncated` and `omitted_count`.
+
+### Retries
+
+One `(workspace, idempotency_key)` creates at most one session. Repeating the same request returns the
+recorded outcome with `replayed: true` (HTTP `200` instead of `201`, CLI `Replayed  yes`), even when the
+source changed since. If the new session was deleted since, the recorded outcome returns with
+`child_deleted: true` and nothing is created. The same key with a different request is
+`idempotency_conflict`. The CLI generates a key when `--idempotency-key` is omitted. A retry still
+returns its recorded outcome after the source session was deleted: the daemon looks up the key before
+it checks the source.
+
+Some failures happen after the new session already exists, for example when its first message cannot
+be admitted because the runtime is not authenticated (`422`). The error then carries
+`child_session_id`: open that session, or repeat the request with the same key to get it back. The web
+dialog keeps offering **Open new session** for the rest of that dialog, even after you edit the request
+or it is refused again, and the CLI prints the session id and the key to rerun with. When the refusal
+names a provider or model problem, its code is the error's `code` too (for example `model_unavailable`).
+Errors carry a stable `code`: `invalid_request`, `session_not_found`, `session_not_derivable`,
+`session_archived`, `agent_not_found`, `message_not_found`, `route_not_found`,
+`session_turn_in_progress`, `session_fence_conflict`, `idempotency_conflict`,
+`new_work_admission_unavailable`. The CLI prints them as `Error: <code>: <message>` and exits `1`.
+
+When you send fences (`--expected-epoch`, `--expected-generation`, `--expected-max-sequence`, all three
+or none), they must match the snapshot; otherwise the request fails with `session_fence_conflict`.
+Without fence flags the CLI reads the source's current fences first, through the same read-only
+preview the web dialog uses; looking up the source never changes it. A rerun with the same
+`--idempotency-key` still reaches the daemon when the source can no longer be read.
+
+### Continuing on a declared route
+
+`--route <n>` (API `route`) selects the 1-based route of the target agent's `fallback_chain`, that is, a
+specific account. It cannot be combined with any runtime flag. An index the agent does not declare
+returns `route_not_found`. The chosen route is saved on the new session and applied at its first bind;
+if that route was removed or its command changed by then, the bind fails with
+`route_not_found: agent "…" declares N route(s); route M does not exist`, the session stays unbound, and
+nothing runs on the default account. Send a prompt with an explicit runtime or restore the route.
+
+### Forking a session
+
+Fork a user session to try another direction with the **same** agent, runtime, and account. The whole
+conversation is carried through its last settled turn, or pass a durable user message to fork through
+that message **and its turn**: the message, the agent's reply, and its tool work are included; nothing
+after that turn is.
+
+```bash
+compozy session fork sess_01J9R2K7M4T1 --message-id msg_01J9R2N3V0QF
+```
+
+```
+Forked sess_01J9R2K7M4T1 into sess_01J9R2T5H2CD (codex)
+  Origin        fork · from sess_01J9R2K7M4T1 · through msg_01J9R2N3V0QF (turn turn_01J9R2N3V1)
+  Context       17 messages · 22.8 KiB · nothing omitted
+  Seed          replay
+  First prompt  staged
+```
+
+HTTP and UDS use `POST /api/workspaces/:workspace_id/sessions/:session_id/fork` with
+`idempotency_key` (required), an optional `message_id` and `name`, and the three transcript fences
+together or none. Agents use the `compozy__session_fork` native tool. Forks accept no agent or runtime
+fields; retries, fences, and the carried context behave as for continue. The new session reads
+`lineage.kind = "fork"` and, for a message cut, `lineage.origin_message_id`; the response reports the
+cut turn as `through_turn_id`.
+
+A cut turn must have settled: it ended with `done`, an error, or a cancellation. A message whose turn
+is still running returns `session_turn_in_progress`; wait or fork from an earlier message. A message
+that is not a durable user message in the session returns `message_not_found`. Messages remain valid
+fork points after compaction or after a rewind followed by new turns; only rewind itself refuses those.
+`GET …/derive/preview?message_id=…` reports the cut as `cut.turn_id` and `cut.turn_settled` before you
+fork; `message_count` is what the cut carries and `source_message_count` is the whole source.
+
+When the source runs on an overridden account (an accepted `fallback_chain` route), the fork is created
+on that same declared route when the agent still declares it compatibly; otherwise it binds the agent's
+default route.
+
+#### The agent's own clone
+
+Some agents can clone their own session (ACP `session/fork` together with `session/load`). A
+whole-session fork uses that clone when the source is bound on a live process, idle (no prompt in
+progress and nothing queued), and the fork resolves to the same provider identity. The preview reports
+this as `native_fork_possible` (`false` when not possible or unknown). A fork through a message, a
+running or stopped source, or an agent without both capabilities uses the carried context instead.
+
+A native fork responds with `seed: native_fork`, `native_state: pending`, and the clone's
+`acp_session_id`; the carried context is still stored as a fallback. The clone is loaded by the new
+session's own process at its first prompt, and only under the provider identity it was created with.
+The session read then reports `derivation.native_state` as:
+
+| State     | Meaning                                                                                                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pending` | The clone exists and has not been loaded yet.                                                                                                                                             |
+| `loaded`  | The first prompt loaded the clone; the carried context was not sent.                                                                                                                      |
+| `failed`  | The clone could not be loaded (`native_fork_error`, for example `session/load: resource not found`) or the route differed from the clone's; the first prompt carried the context instead. |
+
+When the clone request itself fails, the fork is created with `seed: replay` and the redacted error in
+`native_fork_error`. The source never receives the clone's traffic, and its events, fences, and runtime
+stay unchanged. A loaded native session replays its history from the agent, so its log is not empty
+before your first message; a later provider replacement still prepends the carried context.
 
 ## Stopping a session
 

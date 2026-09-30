@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,10 +17,12 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -410,6 +413,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/continue",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/fork",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/derive/preview",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/presence",
@@ -2978,5 +2984,141 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	}
 	if records[0].ID != timestamp.Format(time.RFC3339Nano)+"|00000000000000000002" {
 		t.Fatalf("record id = %q, want %q", records[0].ID, timestamp.Format(time.RFC3339Nano)+"|00000000000000000002")
+	}
+}
+
+func TestSessionDeriveRoutesOverUDS(t *testing.T) {
+	t.Parallel()
+
+	const base = "/api/workspaces/ws-workspace/sessions/"
+	derivedChild := func() session.DeriveResult {
+		child := newSessionInfo("sess-child")
+		child.WorkspaceID = "ws-workspace"
+		return session.DeriveResult{
+			Child: child, ChildSessionID: "sess-child", Kind: store.LineageKindContinue,
+			SourceSessionID: "sess-src", Seed: session.DeriveSeedReplay,
+		}
+	}
+	newEngine := func(t *testing.T, manager stubSessionManager) http.Handler {
+		t.Helper()
+		// Derive routes never read the source through the repairing Status path.
+		manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			t.Errorf("Status(%q) called by a derive route over UDS", id)
+			return nil, session.ErrSessionNotFound
+		}
+		return newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+	}
+
+	t.Run(
+		"Should carry the committed child id, model code, and diagnostic message on a post-commit continue failure",
+		func(t *testing.T) {
+			t.Parallel()
+
+			engine := newEngine(t, stubSessionManager{
+				ContinueFn: func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					modelErr := diagnostics.NewStructuredError(
+						diagnostics.NewItem(diagnostics.ItemSpec{
+							ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+							Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+							Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+							DataFreshness: contract.FreshnessLive,
+						}),
+						&acp.NegotiationError{Code: contract.CodeModelUnavailable, Stage: "model", Requested: "gone"},
+					)
+					return derivedChild(), fmt.Errorf("session: admit first message of derived session %q: %w",
+						"sess-child", &acp.AcceptedStartError{
+							Cause: fmt.Errorf("%w: stderr=2026/09/29 INFO connection closed", modelErr),
+						})
+				},
+			})
+			recorder := performRequest(t, engine, http.MethodPost, base+"sess-src/continue",
+				[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
+			var payload contract.SessionDeriveErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if recorder.Code != http.StatusUnprocessableEntity || payload.ChildSessionID != "sess-child" ||
+				payload.Code != contract.CodeModelUnavailable ||
+				payload.Error != `Provider configuration is unavailable: acp: model "gone" is unavailable` ||
+				strings.Contains(recorder.Body.String(), "stderr") {
+				t.Fatalf("status = %d payload = %#v, want 422 model_unavailable with its diagnostic message, "+
+					"child_session_id, and no agent stderr", recorder.Code, payload)
+			}
+		},
+	)
+
+	t.Run("Should replay a fork receipt for a deleted source without a source read", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newEngine(t, stubSessionManager{
+			ForkFn: func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error) {
+				result := derivedChild()
+				result.Kind, result.Child, result.Replayed, result.ChildDeleted = store.LineageKindFork, nil, true, true
+				return result, nil
+			},
+		})
+		recorder := performRequest(t, engine, http.MethodPost, base+"sess-gone/fork",
+			[]byte(`{"idempotency_key":"k"}`))
+		var response contract.SessionDeriveResponse
+		decodeJSONResponse(t, recorder, &response)
+		if recorder.Code != http.StatusOK || !response.Derived.Replayed || !response.Derived.ChildDeleted {
+			t.Fatalf("status = %d response = %#v, want 200 replayed child_deleted", recorder.Code, response)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		err    error
+		status int
+		code   string
+	}{
+		{
+			name: "Should report invalid_request for a missing agent", method: http.MethodPost,
+			path: base + "sess-src/continue", body: `{"idempotency_key":"k"}`,
+			status: http.StatusBadRequest, code: "invalid_request",
+		},
+		{
+			name: "Should report session_not_found for a missing fork source", method: http.MethodPost,
+			path: base + "sess-gone/fork", body: `{"idempotency_key":"k"}`, err: session.ErrSessionNotFound,
+			status: http.StatusNotFound, code: "session_not_found",
+		},
+		{
+			name: "Should report new_work_admission_unavailable while draining", method: http.MethodPost,
+			path: base + "sess-src/fork", body: `{"idempotency_key":"k"}`, err: admission.ErrDraining,
+			status: http.StatusServiceUnavailable, code: "new_work_admission_unavailable",
+		},
+		{
+			name: "Should report session_not_found for a missing preview source", method: http.MethodGet,
+			path: base + "sess-gone/derive/preview", err: session.ErrSessionNotFound,
+			status: http.StatusNotFound, code: "session_not_found",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			engine := newEngine(t, stubSessionManager{
+				ContinueFn: func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+					return session.DeriveResult{}, tc.err
+				},
+				ForkFn: func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error) {
+					return session.DeriveResult{}, tc.err
+				},
+				DerivePreviewFn: func(context.Context, string, string, string) (session.DerivePreview, error) {
+					return session.DerivePreview{}, tc.err
+				},
+			})
+			var body []byte
+			if tc.body != "" {
+				body = []byte(tc.body)
+			}
+			recorder := performRequest(t, engine, tc.method, tc.path, body)
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if recorder.Code != tc.status || payload.Code != tc.code {
+				t.Fatalf("status = %d code = %q, want %d %q; body=%s",
+					recorder.Code, payload.Code, tc.status, tc.code, recorder.Body.String())
+			}
+		})
 	}
 }

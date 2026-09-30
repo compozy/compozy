@@ -9,7 +9,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "47cabe30c5a49f874f1916171e0e152404b1281a504400aea4a17732093ea7d5",
+    "input_schema_digest": "1965dd0544736d98daafd81ebef0c26f0fdb875398fbd24badeb82f83ff19295",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2240,6 +2240,19 @@
     "output_schema_digest": "d3b4ee74a53350b918b881554b209da6950f9fe93c074c2d476309b225fe2214"
   },
   {
+    "tool_id": "compozy__session_continue",
+    "native_name": "session_continue",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4e43f258b312eaa51b8efbb1d7d173d87e81b5f5bd913cf54336e89334c522e3",
+    "output_schema_digest": "774452442dc7c2352e0f8bf5c586bd337831c27e8ff42c09814bb340e0a27fb2"
+  },
+  {
     "tool_id": "compozy__session_create",
     "native_name": "session_create",
     "toolsets": [
@@ -2277,6 +2290,19 @@
     "open_world": false,
     "input_schema_digest": "58dd75b44288aefd6e4f8c342239fb4909d722ca996757011d7a0b4e0f30b570",
     "output_schema_digest": "772c3e0c1875a21af024e134c5a96ecce8afce1d4634ff6fba55b3dc43a47367"
+  },
+  {
+    "tool_id": "compozy__session_fork",
+    "native_name": "session_fork",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "baccb4e9c46ae2fed01de94a18f73d2a4e59a6a3fc6a1f203d27044d1d5faf17",
+    "output_schema_digest": "774452442dc7c2352e0f8bf5c586bd337831c27e8ff42c09814bb340e0a27fb2"
   },
   {
     "tool_id": "compozy__session_health",

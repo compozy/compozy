@@ -752,6 +752,47 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should forward the lineage kind with its parent", func(t *testing.T) {
+		t.Parallel()
+
+		var got CreateSessionRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+				got = request
+				return SessionRecord{ID: "sess-recovery", State: session.StateActive}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t, deps, "session", "new", "--workspace", "ws_abc",
+			"--parent", "sess-parent", "--lineage-kind", "recovery", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session new --lineage-kind) error = %v", err)
+		}
+		if got.ParentSessionID != "sess-parent" || got.LineageKind != "recovery" {
+			t.Fatalf("CreateSession() request = %#v, want parent sess-parent with recovery kind", got)
+		}
+	})
+
+	t.Run("Should reject a lineage kind without a parent", func(t *testing.T) {
+		t.Parallel()
+
+		createCalls := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				createCalls++
+				return SessionRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "new", "--lineage-kind", "recovery")
+		if err == nil || !strings.Contains(err.Error(), "--lineage-kind requires --parent") {
+			t.Fatalf("executeRootCommand(session new --lineage-kind) error = %v, want usage error", err)
+		}
+		if createCalls != 0 {
+			t.Fatalf("CreateSession() calls = %d, want 0", createCalls)
+		}
+	})
+
 	t.Run("Should defer a registered cross workspace cwd decision to the daemon", func(t *testing.T) {
 		t.Parallel()
 
@@ -3878,6 +3919,499 @@ func TestSessionNavigationCommands(t *testing.T) {
 			if _, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...); err == nil {
 				t.Fatalf("invalid arguments accepted: %v", args)
 			}
+		}
+	})
+}
+
+func continuedRecord(replayed bool) SessionDeriveRecord {
+	count, size := 42, 62771
+	return SessionDeriveRecord{
+		Session: &contract.SessionPayload{ID: "sess-child", AgentName: "claude-code"},
+		Derived: contract.SessionDerivedPayload{
+			Kind: "continue", SourceSessionID: "sess-src", OriginAgentName: "codex",
+			ThroughTurnID: "turn-9", Seed: "replay", ReplayMessageCount: &count, ReplayBytes: &size,
+			FirstPrompt: "admitted", Replayed: replayed, ChildSessionID: "sess-child",
+		},
+	}
+}
+
+func deriveSourceSession(_ context.Context, id string) (SessionRecord, error) {
+	return SessionRecord{ID: id, WorkspaceID: "ws-src"}, nil
+}
+
+func deriveSourceOwner(_ context.Context, id string) (contract.SessionOwner, error) {
+	return contract.SessionOwner{SessionID: id, WorkspaceID: "ws-src"}, nil
+}
+
+// deriveSourcePreview answers the derive preview of sess-src in ws-src with its fences.
+func deriveSourcePreview(t *testing.T) func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+	t.Helper()
+	return func(_ context.Context, target SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+		if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
+			t.Errorf("PreviewSessionDerive() target = %#v, want sess-src in ws-src", target)
+		}
+		return SessionDerivePreviewRecord{
+			Transcript: contract.SessionTranscriptFences{Epoch: 3, Generation: 12, MaxSequence: 418},
+		}, nil
+	}
+}
+
+// repairingSourceReads fail the test when a derive reads its source through the
+// session detail or transcript routes, which repair an inactive source's metadata.
+func repairingSourceReads(t *testing.T, client *stubClient) *stubClient {
+	t.Helper()
+	client.getSessionFn = func(context.Context, string) (SessionRecord, error) {
+		t.Error("GetSession() called: a derive must not read its source through the repairing detail route")
+		return SessionRecord{}, errors.New("repairing read")
+	}
+	client.getSessionTranscriptFn = func(context.Context, string) (SessionTranscriptRecord, error) {
+		t.Error(
+			"GetSessionTranscript() called: a derive must not read its source through the repairing transcript route",
+		)
+		return SessionTranscriptRecord{}, errors.New("repairing read")
+	}
+	return client
+}
+
+func TestSessionContinueCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send the _dx request body and read fences from the transcript", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionContinueRequest
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn:      deriveSourceOwner,
+			previewSessionDeriveFn: deriveSourcePreview(t),
+			continueSessionFn: func(_ context.Context, target SessionDeriveTarget, request SessionContinueRequest) (SessionDeriveRecord, error) {
+				if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
+					t.Fatalf("ContinueSession() target = %#v, want sess-src in ws-src", target)
+				}
+				captured = request
+				return continuedRecord(false), nil
+			},
+		}))
+		stdout, _, err := executeRootCommand(t, deps,
+			"session", "continue", "sess-src", "--agent", "b", "--message", "go", "-o", "json")
+		if err != nil {
+			t.Fatalf("session continue error = %v", err)
+		}
+		if captured.AgentName != "b" || captured.Message != "go" || captured.Runtime != nil || captured.Route != 0 ||
+			!strings.HasPrefix(captured.IdempotencyKey, "idem") || captured.ExpectedEpoch == nil ||
+			*captured.ExpectedEpoch != 3 || *captured.ExpectedGeneration != 12 || *captured.ExpectedMaxSequence != 418 {
+			t.Fatalf("ContinueSession() request = %#v", captured)
+		}
+		var decoded SessionDeriveRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session continue) error = %v", err)
+		}
+		if decoded.Derived.FirstPrompt != "admitted" || decoded.Session == nil || decoded.Session.ID != "sess-child" {
+			t.Fatalf("session continue output = %#v", decoded)
+		}
+	})
+
+	t.Run("Should send a route without a runtime", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionContinueRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			continueSessionFn: func(_ context.Context, _ SessionDeriveTarget, request SessionContinueRequest) (SessionDeriveRecord, error) {
+				captured = request
+				return continuedRecord(false), nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b", "--route", "2",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3", "-o", "json")
+		if err != nil || captured.Route != 2 || captured.Runtime != nil || *captured.ExpectedMaxSequence != 3 {
+			t.Fatalf("session continue --route error = %v request = %#v", err, captured)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"Should require --agent", []string{}, "cli: --agent is required"},
+		{
+			"Should reject --route with a runtime flag", []string{"--agent", "b", "--route", "2", "--speed", "fast"},
+			"cli: --route cannot be combined with runtime flags " +
+				"(--provider, --model, --reasoning-effort, --speed, --acp-option)",
+		},
+		{
+			"Should reject partial fences", []string{"--agent", "b", "--expected-epoch", "3"},
+			"cli: set all transcript fence flags together or omit all three",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newWorkspaceTestDeps(t, &stubClient{})
+			args := append([]string{"session", "continue", "sess-src"}, tc.args...)
+			_, _, err := executeRootCommand(t, deps, args...)
+			if err == nil || err.Error() != tc.want || cliExitCodeForError(err) != 2 {
+				t.Fatalf("session continue error = %v (exit %d), want %q with exit 2",
+					err, cliExitCodeForError(err), tc.want)
+			}
+		})
+	}
+
+	t.Run("Should print the golden path block and Replayed yes on a replay", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
+				return continuedRecord(true), nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
+			"--idempotency-key", "idem-1", "--expected-epoch", "1", "--expected-generation", "2",
+			"--expected-max-sequence", "3")
+		if err != nil {
+			t.Fatalf("session continue error = %v", err)
+		}
+		for _, want := range []string{
+			"Continued sess-src (codex) into sess-child (claude-code)",
+			"Origin        continue · from sess-src · codex · through turn turn-9",
+			"Context       42 messages · 61.3 KiB · nothing omitted",
+			"Seed          replay",
+			"First prompt  admitted",
+			"Replayed      yes",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("session continue output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
+	t.Run("Should print Origin and Derivation lines in session status", func(t *testing.T) {
+		t.Parallel()
+
+		record := &SessionRecord{
+			ID: "sess-child", AgentName: "claude-code",
+			Lineage: &contract.SessionLineagePayload{
+				ParentSessionID: "sess-src", Kind: "continue", OriginAgentName: "codex",
+			},
+			Derivation: &contract.SessionDerivationPayload{
+				Kind: "continue", SourceSessionID: "sess-src", Seed: "replay", FirstPrompt: "admitted",
+			},
+		}
+		rendered, err := renderSessionHuman(record, time.Now)
+		if err != nil {
+			t.Fatalf("renderSessionHuman() error = %v", err)
+		}
+		for _, want := range []string{"continue · from sess-src · codex", "seed replay · first prompt admitted"} {
+			if !strings.Contains(rendered, want) {
+				t.Fatalf("session status output missing %q:\n%s", want, rendered)
+			}
+		}
+	})
+}
+
+func forkedRecord() SessionDeriveRecord {
+	count, size := 17, 23347
+	return SessionDeriveRecord{
+		Session: &contract.SessionPayload{ID: "sess-fork", AgentName: "codex"},
+		Derived: contract.SessionDerivedPayload{
+			Kind: "fork", SourceSessionID: "sess-src", OriginAgentName: "codex", OriginMessageID: "msg_3",
+			ThroughTurnID: "turn-3", Seed: "replay", ReplayMessageCount: &count, ReplayBytes: &size,
+			FirstPrompt: "staged", ChildSessionID: "sess-fork",
+		},
+	}
+}
+
+func TestSessionForkCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send the _dx fork body with transcript fences and print the fork block", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionForkRequest
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn:      deriveSourceOwner,
+			previewSessionDeriveFn: deriveSourcePreview(t),
+			forkSessionFn: func(_ context.Context, target SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
+				if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: "ws-src"}) {
+					t.Fatalf("ForkSession() target = %#v, want sess-src in ws-src", target)
+				}
+				captured = request
+				return forkedRecord(), nil
+			},
+		}))
+		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--message-id", "msg_3")
+		if err != nil {
+			t.Fatalf("session fork error = %v", err)
+		}
+		if captured.MessageID != "msg_3" || !strings.HasPrefix(captured.IdempotencyKey, "idem") ||
+			captured.ExpectedEpoch == nil || *captured.ExpectedEpoch != 3 || *captured.ExpectedMaxSequence != 418 {
+			t.Fatalf("ForkSession() request = %#v", captured)
+		}
+		for _, want := range []string{
+			"Forked sess-src into sess-fork (codex)",
+			"Origin        fork · from sess-src · through msg_3 (turn turn-3)",
+			"Context       17 messages · 22.8 KiB · nothing omitted",
+			"Seed          replay",
+			"First prompt  staged",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("session fork output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
+	t.Run("Should print the JSON outcome of a whole-session fork", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionForkRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			forkSessionFn: func(_ context.Context, _ SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
+				captured = request
+				record := forkedRecord()
+				record.Derived.OriginMessageID = ""
+				return record, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--idempotency-key", "idem-f",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3", "-o", "json")
+		if err != nil || captured.MessageID != "" || captured.IdempotencyKey != "idem-f" ||
+			*captured.ExpectedGeneration != 2 {
+			t.Fatalf("session fork error = %v request = %#v", err, captured)
+		}
+		var decoded SessionDeriveRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil || decoded.Derived.Kind != "fork" {
+			t.Fatalf("session fork -o json = %s (%v), want the fork outcome", stdout, err)
+		}
+	})
+
+	t.Run("Should reject partial fences with exit 2", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--expected-epoch", "3")
+		if err == nil || err.Error() != "cli: set all transcript fence flags together or omit all three" ||
+			cliExitCodeForError(err) != 2 {
+			t.Fatalf("session fork error = %v (exit %d), want the fence rule with exit 2",
+				err, cliExitCodeForError(err))
+		}
+	})
+
+	t.Run("Should print the Origin and native Derivation lines in session status", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			derivation contract.SessionDerivationPayload
+			want       string
+		}{
+			{
+				derivation: contract.SessionDerivationPayload{
+					Kind: "fork", SourceSessionID: "sess-src", Seed: "native_fork", NativeState: "loaded",
+				},
+				want: "seed native_fork · loaded",
+			},
+			{
+				derivation: contract.SessionDerivationPayload{
+					Kind: "fork", SourceSessionID: "sess-src", Seed: "native_fork", NativeState: "failed",
+					NativeForkError: "session/load: resource not found",
+				},
+				want: "seed native_fork · failed: session/load: resource not found (replayed the carried context)",
+			},
+		} {
+			derivation := tc.derivation
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				getSessionFn: deriveSourceSession,
+				getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
+					return SessionStatusRecord{
+						SessionID: "sess-fork", AgentName: "codex", Derivation: &derivation,
+						Lineage: &contract.SessionLineagePayload{
+							ParentSessionID: "sess-src", Kind: "fork", OriginAgentName: "codex",
+						},
+					}, nil
+				},
+			})
+			stdout, _, err := executeRootCommand(t, deps, "session", "status", "sess-fork")
+			if err != nil || !strings.Contains(stdout, "fork · from sess-src · codex") ||
+				!strings.Contains(stdout, tc.want) {
+				t.Fatalf("session status output = %q (%v), want Origin and %q", stdout, err, tc.want)
+			}
+		}
+	})
+}
+
+func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should print code: message with exit 1 for a daemon derive error", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
+				return SessionDeriveRecord{}, &daemonAPIError{
+					statusCode: http.StatusNotFound, status: "404 Not Found",
+					payload: contract.ErrorPayload{Error: `no agent named "nope"`, Code: "agent_not_found"},
+				}
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "nope",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
+		if err == nil || err.Error() != `agent_not_found: no agent named "nope"` || cliExitCodeForError(err) != 1 {
+			t.Fatalf("session continue error = %v (exit %d), want agent_not_found with exit 1",
+				err, cliExitCodeForError(err))
+		}
+	})
+
+	t.Run("Should name the committed child when the fork failed after creating it", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			forkSessionFn: func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error) {
+				_, err := parseSessionDeriveAPIError(http.StatusUnprocessableEntity, "422 Unprocessable Entity",
+					[]byte(`{"error":"provider not authenticated","child_session_id":"sess-child"}`))
+				return SessionDeriveRecord{}, err
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "fork", "sess-src", "--idempotency-key", "idem-f",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
+		if err == nil || !strings.Contains(err.Error(), "provider not authenticated") ||
+			!strings.Contains(err.Error(), "session sess-child was already created") ||
+			!strings.Contains(err.Error(), "--idempotency-key idem-f") || cliExitCodeForError(err) != 1 {
+			t.Fatalf("session fork error = %v (exit %d), want the committed child and retry key",
+				err, cliExitCodeForError(err))
+		}
+		payload, ok := marshalStructuredExecutionError([]string{"session", "fork", "-o", "json"}, err)
+		if !ok || !strings.Contains(string(payload), `"child_session_id":"sess-child"`) {
+			t.Fatalf("structured error = %s (%t), want child_session_id", payload, ok)
+		}
+	})
+
+	t.Run("Should reach the daemon for a replay after the source was deleted", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SessionForkRequest
+		var target SessionDeriveTarget
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn: func(context.Context, string) (contract.SessionOwner, error) {
+				return contract.SessionOwner{}, &daemonAPIError{
+					statusCode: http.StatusNotFound, status: "404 Not Found",
+					payload: contract.ErrorPayload{Error: "session sess-gone not found"},
+				}
+			},
+			previewSessionDeriveFn: func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+				t.Error("PreviewSessionDerive() called for a deleted source")
+				return SessionDerivePreviewRecord{}, errors.New("unexpected preview")
+			},
+			forkSessionFn: func(_ context.Context, got SessionDeriveTarget, request SessionForkRequest) (SessionDeriveRecord, error) {
+				target, captured = got, request
+				record := forkedRecord()
+				record.Session = nil
+				record.Derived.Replayed, record.Derived.ChildDeleted = true, true
+				return record, nil
+			},
+		}))
+		stdout, _, err := executeRootCommand(t, deps, "session", "fork", "sess-gone",
+			"--idempotency-key", "idem-f", "-o", "json")
+		if err != nil {
+			t.Fatalf("session fork replay error = %v", err)
+		}
+		if target.SessionID != "sess-gone" || target.WorkspaceRef != "/workspace/project" ||
+			captured.ExpectedEpoch != nil || captured.IdempotencyKey != "idem-f" {
+			t.Fatalf("ForkSession() target = %#v request = %#v, want cwd workspace without fences", target, captured)
+		}
+		if !strings.Contains(stdout, `"child_deleted": true`) {
+			t.Fatalf("session fork replay output = %s, want child_deleted", stdout)
+		}
+	})
+
+	t.Run("Should reach the daemon receipt lookup for a same-key retry when the source reads fail", func(t *testing.T) {
+		t.Parallel()
+
+		ownerFailure := &daemonAPIError{
+			statusCode: http.StatusInternalServerError, status: "500 Internal Server Error",
+			payload: contract.ErrorPayload{Error: "session: recover source: catalog unavailable"},
+		}
+		for _, tc := range []struct {
+			name          string
+			owner         func(context.Context, string) (contract.SessionOwner, error)
+			wantWorkspace string
+		}{
+			{
+				name: "owner read fails",
+				owner: func(context.Context, string) (contract.SessionOwner, error) {
+					return contract.SessionOwner{}, ownerFailure
+				},
+				wantWorkspace: "/workspace/project",
+			},
+			{name: "preview read fails", owner: deriveSourceOwner, wantWorkspace: "ws-src"},
+		} {
+			var target SessionDeriveTarget
+			var captured SessionContinueRequest
+			deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+				getSessionOwnerFn: tc.owner,
+				previewSessionDeriveFn: func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error) {
+					return SessionDerivePreviewRecord{}, ownerFailure
+				},
+				continueSessionFn: func(
+					_ context.Context, got SessionDeriveTarget, request SessionContinueRequest,
+				) (SessionDeriveRecord, error) {
+					target, captured = got, request
+					return continuedRecord(true), nil
+				},
+			}))
+			stdout, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
+				"--idempotency-key", "idem-retry", "-o", "json")
+			if err != nil {
+				t.Fatalf("%s: session continue retry error = %v", tc.name, err)
+			}
+			if target != (SessionDeriveTarget{SessionID: "sess-src", WorkspaceRef: tc.wantWorkspace}) ||
+				captured.IdempotencyKey != "idem-retry" || captured.ExpectedEpoch != nil {
+				t.Fatalf("%s: ContinueSession() target = %#v request = %#v, want %s without fences",
+					tc.name, target, captured, tc.wantWorkspace)
+			}
+			if !strings.Contains(stdout, `"replayed": true`) {
+				t.Fatalf("%s: session continue retry output = %s, want the replayed outcome", tc.name, stdout)
+			}
+		}
+	})
+
+	t.Run("Should report a failing source owner read when no retry key was given", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, repairingSourceReads(t, &stubClient{
+			getSessionOwnerFn: func(context.Context, string) (contract.SessionOwner, error) {
+				return contract.SessionOwner{}, errors.New("catalog unavailable")
+			},
+		}))
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b")
+		if err == nil || !strings.Contains(err.Error(), "catalog unavailable") {
+			t.Fatalf("session continue error = %v, want the owner read failure", err)
+		}
+	})
+
+	t.Run("Should print the promoted model code with the committed child", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionOwnerFn: deriveSourceOwner,
+			continueSessionFn: func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error) {
+				_, err := parseSessionDeriveAPIError(http.StatusUnprocessableEntity, "422 Unprocessable Entity",
+					[]byte(`{"error":"Provider configuration is unavailable: acp: model \"gone\" is unavailable",`+
+						`"code":"model_unavailable",`+
+						`"diagnostic":{"code":"model_unavailable"},"child_session_id":"sess-child"}`))
+				return SessionDeriveRecord{}, err
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "session", "continue", "sess-src", "--agent", "b",
+			"--message", "go", "--idempotency-key", "idem-m",
+			"--expected-epoch", "1", "--expected-generation", "2", "--expected-max-sequence", "3")
+		if err == nil || !strings.HasPrefix(err.Error(),
+			`model_unavailable: Provider configuration is unavailable: acp: model "gone" is unavailable`) ||
+			!strings.Contains(err.Error(), "session sess-child was already created") || cliExitCodeForError(err) != 1 {
+			t.Fatalf("session continue error = %v (exit %d), want model_unavailable with the committed child",
+				err, cliExitCodeForError(err))
 		}
 	})
 }

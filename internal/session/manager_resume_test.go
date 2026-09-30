@@ -9,17 +9,21 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -88,7 +92,7 @@ func TestResumeRejectsTerminalProcessFailureBeforeStartingACP(t *testing.T) {
 			Kind:    store.FailureProcess,
 			Summary: "Codex exited before the response completed",
 		}
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta(%q) error = %v", metaPath, err)
 		}
 
@@ -117,7 +121,7 @@ func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
 	meta.StopReason = nil
 	meta.StopDetail = ""
 	meta.ACPSessionID = stringPointer(originalACP)
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -162,7 +166,7 @@ func TestResumePreservesCrashStopClassificationFromRepairedMetadata(t *testing.T
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -265,7 +269,7 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -888,7 +892,7 @@ func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
 	previousIdentity := started.Add(-time.Hour)
 	meta := readMeta(t, session.MetaPath())
 	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity}
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatal(err)
 	}
 	h.manager = newManagerWithHarness(t, h)
@@ -896,4 +900,331 @@ func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
 	if err := h.manager.RecoverPendingStops(testutil.Context(t)); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// TestResumeUpgradesPreFeatureLineageMetadata owns IT-019: session directories whose
+// metadata predates lineage kinds resume with the kind the catalog backfill writes,
+// keep their history, and persist the kind only on the next lifecycle write.
+func TestResumeUpgradesPreFeatureLineageMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		lineage func(parentID string) *store.SessionLineage
+		want    store.LineageKind
+	}{
+		{
+			name:    "Should resume a parented session as provenance",
+			lineage: func(parentID string) *store.SessionLineage { return &store.SessionLineage{ParentSessionID: parentID} },
+			want:    store.LineageKindProvenance,
+		},
+		{
+			name:    "Should resume a spawn-role session as spawn",
+			lineage: func(string) *store.SessionLineage { return &store.SessionLineage{SpawnRole: "worker"} },
+			want:    store.LineageKindSpawn,
+		},
+		{
+			name:    "Should resume a root session without a kind",
+			lineage: func(string) *store.SessionLineage { return nil },
+			want:    store.LineageKindRoot,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			parent := createSession(t, h)
+			child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder", Name: "pre-feature", Workspace: h.workspaceID, Lineage: tt.lineage(parent.ID),
+			})
+			if err != nil {
+				t.Fatalf("Create(child) error = %v", err)
+			}
+			events, err := h.manager.Prompt(testutil.Context(t), child.ID, "history survives the upgrade")
+			if err != nil {
+				t.Fatalf("Prompt(child) error = %v", err)
+			}
+			collectEvents(t, events)
+			if err := h.manager.Stop(testutil.Context(t), child.ID); err != nil {
+				t.Fatalf("Stop(child) error = %v", err)
+			}
+			metaPath := child.MetaPath()
+			stripLineageKind(t, metaPath)
+
+			resumed, err := h.manager.Resume(testutil.Context(t), child.ID)
+			if err != nil {
+				t.Fatalf("Resume(pre-feature child) error = %v", err)
+			}
+			if got := resumed.Info().Lineage; got == nil || got.Kind != tt.want {
+				t.Fatalf("resumed lineage = %#v, want kind %q", got, tt.want)
+			}
+			page, err := h.manager.TranscriptPage(testutil.Context(t), child.ID, transcript.PageQuery{Limit: 20})
+			if err != nil {
+				t.Fatalf("TranscriptPage(resumed) error = %v", err)
+			}
+			if !slices.ContainsFunc(page.Entries, func(entry transcript.Entry) bool {
+				return transcript.UIMessageText(entry.Message) == "history survives the upgrade"
+			}) {
+				t.Fatalf("resumed transcript = %#v, want the pre-upgrade user message", page.Entries)
+			}
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+			if got := readRawLineageKind(t, metaPath); got != string(tt.want) {
+				t.Fatalf("persisted lineage kind after lifecycle write = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func stripLineageKind(t *testing.T, metaPath string) {
+	t.Helper()
+
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(meta) error = %v", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("json.Unmarshal(meta) error = %v", err)
+	}
+	if lineage, ok := document["lineage"].(map[string]any); ok {
+		delete(lineage, "kind")
+	}
+	stripped, err := json.MarshalIndent(document, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent(meta) error = %v", err)
+	}
+	if err := os.WriteFile(metaPath, stripped, 0o644); err != nil {
+		t.Fatalf("WriteFile(meta) error = %v", err)
+	}
+	if got := readRawLineageKind(t, metaPath); got != "" {
+		t.Fatalf("stripped lineage kind = %q, want absent", got)
+	}
+}
+
+func readRawLineageKind(t *testing.T, metaPath string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(meta) error = %v", err)
+	}
+	var document struct {
+		Lineage *struct {
+			Kind string `json:"kind"`
+		} `json:"lineage"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatalf("json.Unmarshal(meta) error = %v", err)
+	}
+	if document.Lineage == nil {
+		return ""
+	}
+	return document.Lineage.Kind
+}
+
+func setReviewerChain(t *testing.T, h *harness, chain ...compozyconfig.RoleFallback) {
+	t.Helper()
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	for index := range workspace.Agents {
+		if workspace.Agents[index].Name == "reviewer" {
+			workspace.Agents[index].FallbackChain = chain
+		}
+	}
+	h.resolver.upsert(&workspace)
+}
+
+func lastStartCall(h *harness) acp.StartOpts {
+	h.driver.mu.Lock()
+	defer h.driver.mu.Unlock()
+	return h.driver.startCalls[len(h.driver.startCalls)-1]
+}
+
+// Invariant: resume loads the native id only on a configured route that matches the
+// accepted binding record; otherwise the id is cleared and context replay runs on the
+// primary route (IT-005, UT-026, UT-027, UT-029).
+func TestResumeAcceptedRouteAffinity(t *testing.T) {
+	t.Parallel()
+
+	createOnSeatOne := func(t *testing.T, h *harness) *Session {
+		t.Helper()
+		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		if meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 || derefString(meta.ACPSessionID) != "acp-2" {
+			t.Fatalf(
+				"accepted route = %#v acp=%v, want seat one (attempt 1) with acp-2",
+				meta.AcceptedRoute,
+				meta.ACPSessionID,
+			)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		return created
+	}
+
+	t.Run("Should resume on the matching route by record even when the chain is reordered", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createOnSeatOne(t, h)
+		setReviewerChain(t, h, codexRoute(h), claudeSeatOneRoute(h))
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != fallbackSeatOne || call.ResumeSessionID != "acp-2" {
+			t.Fatalf("resume start = %q/%q, want seat one loading acp-2", call.Command, call.ResumeSessionID)
+		}
+		meta := readMeta(t, resumed.MetaPath())
+		if meta.AcceptedRoute == nil ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
+			t.Fatalf("accepted route after resume = %#v, want seat one", meta.AcceptedRoute)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		chain func(*harness) []compozyconfig.RoleFallback
+	}{
+		{name: "Should replay context on the primary route when the accepted route was removed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			return []compozyconfig.RoleFallback{codexRoute(h)}
+		}},
+		{name: "Should replay context on the primary route when the accepted route command changed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			edited := claudeSeatOneRoute(h)
+			edited.Command = "SEAT=9 claude --acp"
+			return []compozyconfig.RoleFallback{edited, codexRoute(h)}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			logs := newCaptureLogHandler()
+			h := newHarness(t, WithLogger(slog.New(logs)))
+			created := createOnSeatOne(t, h)
+			setReviewerChain(t, h, tc.chain(h)...)
+			refuseStartCommands(h, nil)
+			resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+			if err != nil {
+				t.Fatalf("Resume() error = %v", err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+			call := lastStartCall(h)
+			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
+				t.Fatalf(
+					"resume start = %q/%q, want the primary route without a native id",
+					call.Command,
+					call.ResumeSessionID,
+				)
+			}
+			record, ok := logs.FindByMessage("session.fallback.route_missing")
+			if !ok || record.Level != slog.LevelInfo {
+				t.Fatalf("route_missing log = %#v (found %t), want one info record", record, ok)
+			}
+			assertCapturedLogAttr(
+				t,
+				record,
+				"accepted_route.command_fingerprint",
+				providerCommandFingerprint(fallbackSeatOne),
+			)
+			marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
+			if got := marker.Evidence["fallback_reason"]; got != acceptedRouteMissingReason {
+				t.Fatalf("context rebuilt reason = %v, want %s", got, acceptedRouteMissingReason)
+			}
+			if _, found := logs.FindByMessage("session.resume.context_replay_fallback"); found {
+				t.Fatal("recoverFailedResumeStart ran for an affinity mismatch")
+			}
+		})
+	}
+
+	t.Run("Should reset the removed route's speed and ACP options when resuming on the primary route",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			seatOne := claudeSeatOneRoute(h)
+			seatOne.Speed = speedpkg.SpeedFast
+			seatOne.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "route_mode", ValueID: "seat_one"}}
+			installFallbackAgent(t, h, seatOne, codexRoute(h))
+			refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+			created, err := h.manager.Create(
+				testutil.Context(t),
+				CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			)
+			if err != nil {
+				t.Fatalf("Create(reviewer) error = %v", err)
+			}
+			if call := lastStartCall(h); call.Command != fallbackSeatOne || call.Speed != speedpkg.SpeedFast ||
+				!hasACPOption(call.ACPOptions, "route_mode") {
+				t.Fatalf("accepted start = %q speed=%q options=%+v, want seat one fast with its option",
+					call.Command, call.Speed, call.ACPOptions)
+			}
+			if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			setReviewerChain(t, h, codexRoute(h))
+			refuseStartCommands(h, nil)
+			resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+			if err != nil {
+				t.Fatalf("Resume() error = %v", err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+			call := lastStartCall(h)
+			if call.Command != fallbackSeatZero || call.ResumeSessionID != "" {
+				t.Fatalf("resume start = %q/%q, want the primary route without a native id",
+					call.Command, call.ResumeSessionID)
+			}
+			if call.Speed == speedpkg.SpeedFast || hasACPOption(call.ACPOptions, "route_mode") {
+				t.Fatalf("primary resume speed=%q options=%+v, want the primary runtime without the removed route's",
+					call.Speed, call.ACPOptions)
+			}
+		})
+
+	t.Run("Should resume old metadata without an accepted route unchanged", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		meta := readMeta(t, session.MetaPath())
+		meta.AcceptedRoute = nil
+		if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		raw, err := os.ReadFile(session.MetaPath())
+		if err != nil || strings.Contains(string(raw), "accepted_route") {
+			t.Fatalf("previous-release meta fixture = %s (error %v), want no accepted_route", raw, err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := lastStartCall(h).ResumeSessionID; got != originalACP || originalACP == "" {
+			t.Fatalf("resume ResumeSessionID = %q, want stored %q", got, originalACP)
+		}
+	})
+}
+
+func hasACPOption(options []acp.SessionConfigOptionSelection, id string) bool {
+	for _, option := range options {
+		if option.ID == id {
+			return true
+		}
+	}
+	return false
 }

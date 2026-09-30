@@ -12,12 +12,14 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
+import { SessionDeriveMenuItems } from "../components/session-derive-menu-items";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
 import { getSessionDisplayTitle } from "../lib/session-display-title";
+import type { SessionOriginView } from "../lib/session-origin";
 import { isSessionRunning, isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
@@ -57,6 +59,13 @@ interface UseSessionTopbarSlotInput {
   onResume: () => void;
   onUnarchive: () => void;
   onClear: () => void;
+  /** Opens the Continue dialog for this session; absent where no dialog host exists. */
+  onContinue?: () => void;
+  /** Opens the Fork dialog for the whole session; absent where no dialog host exists. */
+  onFork?: () => void;
+  /** Continued/forked origin shown as the status-line pill. */
+  origin?: SessionOriginView | null;
+  onOpenOriginSource?: (sessionId: string) => void;
 }
 
 function sessionTopbarActions({
@@ -91,6 +100,27 @@ function sessionTopbarActions({
 
 type SessionTopbarActions = ReturnType<typeof sessionTopbarActions>;
 
+/**
+ * Overflow-menu open state whose dialog-opening items wait for the menu to finish
+ * closing, so its focus return does not land on the trigger after the dialog
+ * took focus.
+ */
+function useDeferredMenuAction() {
+  const [open, setOpen] = useState(false);
+  const deferredAction = useRef<(() => void) | null>(null);
+  const deferToClose = (action: () => void) => {
+    deferredAction.current = action;
+    setOpen(false);
+  };
+  const onOpenChangeComplete = (nextOpen: boolean) => {
+    const action = deferredAction.current;
+    if (nextOpen || !action) return;
+    deferredAction.current = null;
+    action();
+  };
+  return { open, setOpen, deferToClose, onOpenChangeComplete };
+}
+
 function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: SessionTopbarActions) {
   const {
     onRename,
@@ -102,19 +132,17 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
     onClear,
     isDeleting,
     onDelete,
+    onContinue,
+    onFork,
+    session,
   } = input;
   const { lifecycleControllable, controlsBusy, isActive, canResume } = actions;
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const renameRequested = useRef(false);
+  const menu = useDeferredMenuAction();
   return lifecycleControllable ? (
     <DropdownMenu
-      open={overflowOpen}
-      onOpenChange={setOverflowOpen}
-      onOpenChangeComplete={open => {
-        if (open || !renameRequested.current) return;
-        renameRequested.current = false;
-        onRename();
-      }}
+      open={menu.open}
+      onOpenChange={menu.setOpen}
+      onOpenChangeComplete={menu.onOpenChangeComplete}
     >
       <DropdownMenuTrigger
         aria-label="More actions"
@@ -130,18 +158,26 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
       >
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-56"
+        data-testid="session-topbar-overflow-menu"
+      >
         <DropdownMenuItem
           data-testid="rename-button"
           disabled={controlsBusy}
-          onClick={() => {
-            renameRequested.current = true;
-            setOverflowOpen(false);
-          }}
+          onClick={() => menu.deferToClose(onRename)}
         >
           {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
           Rename session
         </DropdownMenuItem>
+        <SessionDeriveMenuItems
+          archived={session.archived_at !== null}
+          disabled={controlsBusy}
+          onContinue={onContinue}
+          onFork={onFork}
+          onSelect={menu.deferToClose}
+        />
         {isActive && canResume ? (
           <DropdownMenuItem
             data-testid="stop-menu-item"
@@ -201,7 +237,12 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     crumb: getSessionDisplayTitle(session),
     status: (
       <span className="flex min-w-0 items-center gap-2">
-        <SessionStatusLine session={session} showState={false} />
+        <SessionStatusLine
+          onOpenOriginSource={input.onOpenOriginSource}
+          origin={input.origin}
+          session={session}
+          showState={false}
+        />
         {/* OQ7: the binding chip mounts here; the exit control never does. */}
         {worktreeBinding ? (
           <SessionWorktreeBindingChip

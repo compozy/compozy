@@ -29,6 +29,7 @@ type StubSessionManager struct {
 	) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn          func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn                func(context.Context, string) (*session.Info, error)
+	SessionOwnerFn          func(context.Context, string) (store.SessionDBOwner, error)
 	ActivePromptRunFn       func(context.Context, string) (session.PromptRunIdentity, error)
 	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
@@ -47,6 +48,9 @@ type StubSessionManager struct {
 	SetRuntimeSelectionFn   func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
 	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
 	ClearFn                 func(context.Context, string) (*session.Session, error)
+	ContinueFn              func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error)
+	ForkFn                  func(context.Context, session.ForkSessionOpts) (session.DeriveResult, error)
+	DerivePreviewFn         func(context.Context, string, string, string) (session.DerivePreview, error)
 	RewindFn                func(
 		context.Context,
 		string,
@@ -234,6 +238,18 @@ func (s StubSessionManager) Status(ctx context.Context, id string) (*session.Inf
 	return nil, session.ErrSessionNotFound
 }
 
+// SessionOwner delegates to SessionOwnerFn, else derives the owner from Status.
+func (s StubSessionManager) SessionOwner(ctx context.Context, id string) (store.SessionDBOwner, error) {
+	if s.SessionOwnerFn != nil {
+		return s.SessionOwnerFn(ctx, id)
+	}
+	info, err := s.Status(ctx, id)
+	if err != nil {
+		return store.SessionDBOwner{}, err
+	}
+	return store.SessionDBOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
+}
+
 func (s StubSessionManager) ActivePromptRun(
 	ctx context.Context,
 	id string,
@@ -388,7 +404,44 @@ func (s StubSessionManager) RewindConversation(
 	return session.ConversationRewindResult{}, session.ErrSessionNotFound
 }
 
+// ContinueSession delegates to ContinueFn.
+func (s StubSessionManager) ContinueSession(
+	ctx context.Context,
+	opts session.ContinueSessionOpts,
+) (session.DeriveResult, error) {
+	if s.ContinueFn != nil {
+		return s.ContinueFn(ctx, opts)
+	}
+	return session.DeriveResult{}, session.ErrSessionNotFound
+}
+
+// ForkSession delegates to ForkFn.
+func (s StubSessionManager) ForkSession(
+	ctx context.Context,
+	opts session.ForkSessionOpts,
+) (session.DeriveResult, error) {
+	if s.ForkFn != nil {
+		return s.ForkFn(ctx, opts)
+	}
+	return session.DeriveResult{}, session.ErrSessionNotFound
+}
+
+// DerivePreview delegates to DerivePreviewFn.
+func (s StubSessionManager) DerivePreview(
+	ctx context.Context,
+	workspaceID string,
+	sourceSessionID string,
+	messageID string,
+) (session.DerivePreview, error) {
+	if s.DerivePreviewFn != nil {
+		return s.DerivePreviewFn(ctx, workspaceID, sourceSessionID, messageID)
+	}
+	return session.DerivePreview{}, session.ErrSessionNotFound
+}
+
 var _ core.SessionManager = (*StubSessionManager)(nil)
+var _ core.SessionDeriveManager = (*StubSessionManager)(nil)
+var _ core.SessionOwnerReader = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
 var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)

@@ -39,6 +39,7 @@ type SessionManagerDeps struct {
 	SessionStop             compozyconfig.SessionStopConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
 	SessionCompaction       compozyconfig.SessionCompactionConfig
+	SessionDerive           compozyconfig.SessionDeriveConfig
 	SessionInputQueue       store.SessionInputQueueStore
 	SessionPromptAdmission  store.SessionPromptAdmissionStore
 	SessionAttachments      session.AttachmentOpener
@@ -46,6 +47,7 @@ type SessionManagerDeps struct {
 	AttentionConfig         compozyconfig.AttentionConfig
 	AttentionWorkspaceMutes session.AttentionWorkspaceMuteReader
 	SessionCatalog          store.SessionCatalog
+	EventLedger             store.EventSummaryStore
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
@@ -98,6 +100,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionStop:             state.cfg.Session.Stop,
 		SessionBusyInput:        state.cfg.Session.BusyInput,
 		SessionCompaction:       state.cfg.Session.Compaction,
+		SessionDerive:           state.cfg.Session.Derive,
 		SessionInputQueue:       sessionInputQueueStoreDependency(state.registry),
 		SessionPromptAdmission:  sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:      state.sessionAttachments,
@@ -105,6 +108,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
 		SessionCatalog:          state.registry,
+		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
@@ -115,4 +119,14 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SoulRunChecker:          soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:      sessionHealthStoreDependency(state.registry),
 	}
+}
+
+// sessionEventLedgerDependency exposes the daemon ledger that records
+// session.fallback.used before each session-owned fallback attempt.
+func sessionEventLedgerDependency(value any) store.EventSummaryStore {
+	ledger, ok := value.(store.EventSummaryStore)
+	if !ok {
+		return nil
+	}
+	return ledger
 }

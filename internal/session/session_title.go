@@ -49,9 +49,10 @@ func (m *Manager) ApplyAutomaticSessionTitle(
 		metaPath := session.metaPath
 		meta := session.metaLocked()
 		info = session.infoLocked()
-		if err := m.persistSessionIdentitySnapshot(ctx, metaPath, meta, info); err != nil {
+		if err := m.persistSessionIdentitySnapshot(ctx, metaPath, &meta, info); err != nil {
 			session.rollbackAutomaticTitleLocked(claim)
-			if rollbackErr := store.WriteSessionMeta(metaPath, session.metaLocked()); rollbackErr != nil {
+			rollbackMeta := session.metaLocked()
+			if rollbackErr := store.WriteSessionMeta(metaPath, &rollbackMeta); rollbackErr != nil {
 				return false, errors.Join(err, fmt.Errorf("session: roll back automatic title: %w", rollbackErr))
 			}
 			return false, err

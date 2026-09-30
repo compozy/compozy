@@ -936,6 +936,49 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			t.Fatalf("config option value JSON = %#v", firstValue)
 		}
 	})
+
+	t.Run("Should project lineage kind and origin only when the session carries them", func(t *testing.T) {
+		t.Parallel()
+
+		var forked map[string]any
+		marshalJSON(t, contract.SessionPayload{
+			Lineage: contract.SessionLineagePayloadFromStore(&store.SessionLineage{
+				ParentSessionID: "sess-source", RootSessionID: "sess-source", SpawnDepth: 1,
+				Kind: store.LineageKindFork, OriginMessageID: "msg_1", OriginAgentName: "codex",
+			}),
+			Derivation: &contract.SessionDerivationPayload{
+				Kind: store.LineageKindFork, SourceSessionID: "sess-source",
+				Seed: store.SessionDerivationSeedReplay, FirstPrompt: store.SessionDerivationFirstPromptStaged,
+			},
+		}, &forked)
+		lineage, ok := forked["lineage"].(map[string]any)
+		if !ok || lineage["kind"] != "fork" || lineage["origin_message_id"] != "msg_1" ||
+			lineage["origin_agent_name"] != "codex" {
+			t.Fatalf("fork lineage JSON = %#v, want kind and origin fields", forked["lineage"])
+		}
+		derivation, ok := forked["derivation"].(map[string]any)
+		if !ok || derivation["kind"] != "fork" || derivation["source_session_id"] != "sess-source" ||
+			derivation["seed"] != "replay" || derivation["first_prompt"] != "staged" {
+			t.Fatalf("fork derivation JSON = %#v, want the derivation summary", forked["derivation"])
+		}
+
+		var root map[string]any
+		marshalJSON(t, contract.SessionPayload{
+			Lineage: contract.SessionLineagePayloadFromStore(&store.SessionLineage{RootSessionID: "sess-root"}),
+		}, &root)
+		rootLineage, ok := root["lineage"].(map[string]any)
+		if !ok {
+			t.Fatalf("root lineage type = %T, want object", root["lineage"])
+		}
+		for _, field := range []string{"kind", "origin_message_id", "origin_agent_name"} {
+			if _, exists := rootLineage[field]; exists {
+				t.Fatalf("root lineage JSON = %#v, want %q omitted", rootLineage, field)
+			}
+		}
+		if _, exists := root["derivation"]; exists {
+			t.Fatalf("root session JSON = %#v, want derivation omitted", root)
+		}
+	})
 }
 
 func TestACPCapsPayloadFromACP(t *testing.T) {
@@ -967,6 +1010,18 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 				PromptEmbeddedContext: true,
 			},
 		},
+		{
+			name:  "Should project the fork and resume session capabilities independently",
+			known: true,
+			caps:  acp.Caps{SupportsForkSession: true},
+			want:  &contract.ACPCapsPayload{SupportsForkSession: true},
+		},
+		{
+			name:  "Should project the resume session capability without fork",
+			known: true,
+			caps:  acp.Caps{SupportsResumeSession: true},
+			want:  &contract.ACPCapsPayload{SupportsResumeSession: true},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -978,6 +1033,23 @@ func TestACPCapsPayloadFromACP(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should encode the fork and resume capabilities as snake_case wire fields", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.ACPCapsPayloadFromACP(acp.Caps{SupportsForkSession: true}, true)
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if fields["supports_fork_session"] != true || fields["supports_resume_session"] != false {
+			t.Fatalf("ACPCapsPayload JSON = %s, want supports_fork_session=true supports_resume_session=false", encoded)
+		}
+	})
 }
 
 func TestRuntimeActivityJSONPreservesZeroMetrics(t *testing.T) {
@@ -1405,6 +1477,59 @@ func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
 		}
 		if len(addDirs) != 0 {
 			t.Fatalf("add_dirs length = %d, want 0", len(addDirs))
+		}
+	})
+}
+
+func TestFallbackRoutePayloadsJSONShape(t *testing.T) { // UT-018
+	t.Parallel()
+
+	t.Run("Should omit an empty role route command and its fingerprint", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.RoleFallbackStatus{Provider: "cursor", Model: "grok-4.6"}, &got)
+		for _, key := range []string{"command", "command_fingerprint"} {
+			if _, exists := got[key]; exists {
+				t.Fatalf("%s should be omitted for an inherit route: %#v", key, got)
+			}
+		}
+		got = map[string]any{}
+		marshalJSON(t, contract.RoleFallbackStatus{
+			Provider: "claude", Model: "haiku-4-5",
+			Command: "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp", CommandFingerprint: "sha256:abc",
+		}, &got)
+		if got["command"] != "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp" ||
+			got["command_fingerprint"] != "sha256:abc" {
+			t.Fatalf("role route = %#v, want command and command_fingerprint", got)
+		}
+	})
+
+	t.Run("Should always marshal the settings route command", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.SettingsRoleFallbackPayload{Provider: "claude", Model: "haiku-4-5"}, &got)
+		if command, exists := got["command"]; !exists || command != "" {
+			t.Fatalf("settings route command = %#v (present %t), want empty string", command, exists)
+		}
+	})
+
+	t.Run("Should marshal the agent fallback chain", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.AgentPayload{
+			Name: "reviewer", FallbackChain: []contract.RoleFallbackStatus{{Provider: "cursor", Model: "grok-4.6"}},
+		}, &got)
+		chain, ok := got["fallback_chain"].([]any)
+		if !ok || len(chain) != 1 {
+			t.Fatalf("agent fallback_chain = %#v, want one route", got["fallback_chain"])
+		}
+		got = map[string]any{}
+		marshalJSON(t, contract.AgentPayload{Name: "reviewer"}, &got)
+		if _, exists := got["fallback_chain"]; exists {
+			t.Fatalf("agent fallback_chain should be omitted without routes: %#v", got)
 		}
 	})
 }
@@ -2071,6 +2196,50 @@ func TestMarketplaceWireFixtures(t *testing.T) {
 		t.Run("Should preserve "+tc.name, func(t *testing.T) {
 			t.Parallel()
 			raw, err := os.ReadFile(filepath.Join("testdata", "marketplace", tc.name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoder := json.NewDecoder(bytes.NewReader(raw))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(tc.payload); err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var expected bytes.Buffer
+			if err := json.Compact(&expected, raw); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(encoded, expected.Bytes()) {
+				t.Fatalf("wire fixture changed: %s\n%s", tc.name, encoded)
+			}
+		})
+	}
+}
+
+// Invariant: the public continue/derive wire fixtures from _dx.md survive strict decoding and
+// encoding byte-for-byte. Owner: API contract; canonical contract suite (UT-042 and UT-043
+// goldens, including the native fork pending and failed shapes).
+func TestSessionDeriveWireFixtures(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payload any
+	}{
+		{"continue-runtime.json", &contract.ContinueSessionRequest{}},
+		{"continue-route.json", &contract.ContinueSessionRequest{}},
+		{"continue-replay-child-deleted.json", &contract.SessionDeriveResponse{}},
+		{"preview.json", &contract.SessionDerivePreviewResponse{}},
+		{"fork-message.json", &contract.ForkSessionRequest{}},
+		{"fork-native-pending.json", &contract.SessionDeriveResponse{}},
+		{"fork-native-attempt-failed.json", &contract.SessionDeriveResponse{}},
+		{"derivation-native-failed.json", &contract.SessionDerivationPayload{}},
+	} {
+		t.Run("Should preserve "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := os.ReadFile(filepath.Join("testdata", "session-derive", tc.name))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -2,15 +2,20 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -202,6 +207,120 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 	})
 }
 
+func TestInvokeRoleWithFallbackRouteAccounts(t *testing.T) {
+	t.Parallel()
+
+	const seatTwo = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+	const seatThree = "CODEX_HOME=/Users/ada/.codex-work codex acp"
+	accountRole := func(writer roleEventSummaryWriter) *ResolvedRole {
+		role := fallbackTestRole(writer)
+		role.Fallbacks[0].Command = seatTwo
+		role.Fallbacks[1].Command = "  " + seatThree + "  "
+		return role
+	}
+
+	t.Run("Should hand each attempt its route command verbatim", func(t *testing.T) { // UT-008
+		t.Parallel()
+
+		var commands []string
+		_, err := invokeRoleWithFallback(t.Context(), accountRole(nil), roleInvocationCorrelation{}, func(
+			_ context.Context,
+			route roleAttemptRoute,
+		) (struct{}, bool, error) {
+			commands = append(commands, route.Command)
+			return struct{}{}, false, errors.New("refused before acceptance")
+		})
+		if err == nil {
+			t.Fatal("invokeRoleWithFallback() error = nil, want exhaustion")
+		}
+		if want := []string{"", seatTwo, seatThree}; !reflect.DeepEqual(commands, want) {
+			t.Fatalf("attempt commands = %#v, want %#v", commands, want)
+		}
+	})
+
+	t.Run("Should fingerprint the route account and never write the command", func(t *testing.T) { // UT-009
+		t.Parallel()
+
+		recorder := &roleEventRecorder{}
+		_, err := invokeRoleWithFallback(t.Context(), accountRole(recorder), roleInvocationCorrelation{}, func(
+			_ context.Context,
+			route roleAttemptRoute,
+		) (struct{}, bool, error) {
+			if route.Command == seatTwo {
+				return struct{}{}, true, nil
+			}
+			return struct{}{}, false, errors.New("refused before acceptance")
+		})
+		if err != nil {
+			t.Fatalf("invokeRoleWithFallback() error = %v", err)
+		}
+		event := recorder.single(t)
+		sum := sha256.Sum256([]byte(seatTwo))
+		want := "sha256:" + hex.EncodeToString(sum[:])
+		var payload map[string]any
+		if err := json.Unmarshal(event.Content, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
+		}
+		if payload["provider_command_fingerprint"] != want {
+			t.Fatalf("provider_command_fingerprint = %v, want %q", payload["provider_command_fingerprint"], want)
+		}
+		if _, leaked := payload["command"]; leaked || strings.Contains(string(event.Content), "claude-work") ||
+			strings.Contains(event.Summary, "claude-work") {
+			t.Fatalf("fallback event leaked the raw command: %s / %q", event.Content, event.Summary)
+		}
+	})
+
+	t.Run("Should not start an attempt whose event write failed", func(t *testing.T) { // UT-009
+		t.Parallel()
+
+		writeErr := errors.New("ledger unavailable")
+		primaryErr := errors.New("primary refused")
+		attempts := 0
+		_, err := invokeRoleWithFallback(
+			t.Context(),
+			accountRole(failingRoleEventWriter{err: writeErr}),
+			roleInvocationCorrelation{},
+			func(context.Context, roleAttemptRoute) (struct{}, bool, error) {
+				attempts++
+				return struct{}{}, false, primaryErr
+			},
+		)
+		if attempts != 1 || !errors.Is(err, writeErr) || !errors.Is(err, primaryErr) {
+			t.Fatalf("attempts/error = %d/%v, want one attempt and joined write+primary errors", attempts, err)
+		}
+	})
+
+	t.Run("Should stop on an attempt accepted by ACP that then failed", func(t *testing.T) { // UT-009
+		t.Parallel()
+
+		recorder := &roleEventRecorder{}
+		acceptedErr := &acp.AcceptedStartError{SessionID: "acp_1", Cause: errors.New("configure failed")}
+		attempts := 0
+		value, err := invokeRoleWithFallback(t.Context(), accountRole(recorder), roleInvocationCorrelation{}, func(
+			context.Context,
+			roleAttemptRoute,
+		) (*struct{}, bool, error) {
+			attempts++
+			var created *struct{}
+			return created, session.StartAccepted(acceptedErr) || created != nil, acceptedErr
+		})
+		if attempts != 1 || value != nil || !errors.Is(err, acceptedErr) || recorder.count() != 0 {
+			t.Fatalf(
+				"attempts/value/error/events = %d/%v/%v/%d, want one accepted attempt and no fallback",
+				attempts, value, err, recorder.count(),
+			)
+		}
+	})
+}
+
+type failingRoleEventWriter struct {
+	err error
+}
+
+func (w failingRoleEventWriter) WriteEventSummary(context.Context, store.EventSummary) error {
+	return w.err
+}
+
 func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 	t.Parallel()
 
@@ -291,8 +410,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 	})
 }
 
-func fallbackTestRole(writer roleEventSummaryWriter) ResolvedRole {
-	return ResolvedRole{
+func fallbackTestRole(writer roleEventSummaryWriter) *ResolvedRole {
+	return &ResolvedRole{
 		Role:            compozyconfig.RoleDream,
 		AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
 		Provider:        "primary",

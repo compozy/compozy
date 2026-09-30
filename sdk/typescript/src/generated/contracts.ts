@@ -3884,6 +3884,8 @@ export interface RuntimeSelectionPayload {
 
 export interface ACPCapsPayload {
   supports_load_session: boolean;
+  supports_fork_session: boolean;
+  supports_resume_session: boolean;
   prompt_image: boolean;
   prompt_audio: boolean;
   prompt_embedded_context: boolean;
@@ -3959,6 +3961,46 @@ export interface PendingInteractionPayload {
   resolved_by?: string;
 }
 
+export type LineageKind = string;
+
+export interface SpawnBudgetPayload {
+  max_children: number;
+  max_depth: number;
+  ttl_seconds: number;
+  max_active_per_workspace?: number;
+}
+
+export interface SpawnPermissionPolicyPayload {
+  tools: string[];
+  skills: string[];
+  mcp_servers: string[];
+  workspace_paths: string[];
+}
+
+export interface SessionLineagePayload {
+  parent_session_id?: string;
+  root_session_id?: string;
+  spawn_depth: number;
+  spawn_role?: string;
+  kind?: LineageKind;
+  origin_message_id?: string;
+  origin_agent_name?: string;
+  ttl_expires_at?: ISODateTime;
+  auto_stop_on_parent: boolean;
+  notify_creator: boolean;
+  spawn_budget: SpawnBudgetPayload;
+  permission_policy: SpawnPermissionPolicyPayload;
+}
+
+export interface SessionDerivationPayload {
+  kind: LineageKind;
+  source_session_id: string;
+  seed: string;
+  native_state?: string;
+  native_fork_error?: string;
+  first_prompt: string;
+}
+
 export interface SessionStatusResponse {
   queue?: SessionQueueSummaryPayload;
   lifecycle_state?: State;
@@ -3977,6 +4019,8 @@ export interface SessionStatusResponse {
   ineligibility_reason?: SessionHealthIneligibilityReason;
   wake_state?: HeartbeatWakeStatePayload;
   pending_interactions: PendingInteractionPayload[];
+  lineage?: SessionLineagePayload;
+  derivation?: SessionDerivationPayload;
   updated_at: ISODateTime;
 }
 

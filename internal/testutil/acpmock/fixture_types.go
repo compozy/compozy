@@ -1,6 +1,9 @@
 package acpmock
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const FixtureVersion = 2
 
@@ -23,16 +26,23 @@ type Fixture struct {
 
 // AgentFixture describes one named ACP mock agent inside a fixture file.
 type AgentFixture struct {
-	Name            string                       `json:"name"`
-	Provider        string                       `json:"provider"`
-	Model           string                       `json:"model,omitempty"`
-	ReasoningEffort string                       `json:"reasoning_effort,omitempty"`
-	Permissions     string                       `json:"permissions,omitempty"`
-	Tools           []string                     `json:"tools,omitempty"`
-	Prompt          string                       `json:"prompt,omitempty"`
-	LoadSession     *bool                        `json:"load_session,omitempty"`
-	ConfigOptions   []SessionConfigOptionFixture `json:"config_options,omitempty"`
-	Turns           []TurnFixture                `json:"turns"`
+	Name            string   `json:"name"`
+	Provider        string   `json:"provider"`
+	Model           string   `json:"model,omitempty"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	Permissions     string   `json:"permissions,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
+	Prompt          string   `json:"prompt,omitempty"`
+	LoadSession     *bool    `json:"load_session,omitempty"`
+	// ForkSession advertises the unstable ACP session/fork capability; the driver answers
+	// session/fork with a clone id after sending clone-id updates first (OpenCode shape).
+	ForkSession bool `json:"fork_session,omitempty"`
+	// ForkError makes session/fork fail with this message.
+	ForkError string `json:"fork_error,omitempty"`
+	// LoadMissing makes session/load fail with ACP resource-not-found for any id.
+	LoadMissing   bool                         `json:"load_missing,omitempty"`
+	ConfigOptions []SessionConfigOptionFixture `json:"config_options,omitempty"`
+	Turns         []TurnFixture                `json:"turns"`
 }
 
 // SupportsLoadSession reports the fixture's advertised ACP session/load capability.
@@ -53,6 +63,24 @@ type SessionConfigOptionFixture struct {
 type SessionConfigOptionValueFixture struct {
 	Value string `json:"value"`
 	Label string `json:"label,omitempty"`
+	// RejectSet makes session/set_config_option to this advertised value fail, which
+	// scripts a start that ACP accepted (session/new returned) and then failed.
+	RejectSet bool `json:"reject_set,omitempty"`
+}
+
+// RejectsConfigValue reports whether the fixture scripts a set_config_option failure.
+func (a AgentFixture) RejectsConfigValue(configID string, value string) bool {
+	for _, option := range a.ConfigOptions {
+		if strings.TrimSpace(option.ID) != strings.TrimSpace(configID) {
+			continue
+		}
+		for _, candidate := range option.Values {
+			if candidate.RejectSet && strings.TrimSpace(candidate.Value) == strings.TrimSpace(value) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // TurnFixture describes one deterministic prompt turn for an agent.
@@ -152,6 +180,10 @@ type DriverControlStep struct {
 	RawJSONRPC string              `json:"raw_jsonrpc,omitempty"`
 	Async      bool                `json:"async,omitempty"`
 	DelayMS    int                 `json:"delay_ms,omitempty"`
+	// ErrorMessage is the JSON-RPC error message fail_prompt answers session/prompt with.
+	ErrorMessage string `json:"error_message,omitempty"`
+	// ErrorCode is the optional JSON-RPC error code for fail_prompt (default -32603).
+	ErrorCode int `json:"error_code,omitempty"`
 }
 
 // DriverControlAction identifies one supported driver fault injection action.
@@ -165,4 +197,8 @@ const (
 	// DriverControlHoldIgnoringCancel keeps the turn open for delay_ms while ignoring
 	// prompt cancellation, so stop ladders must escalate past the cooperative phase.
 	DriverControlHoldIgnoringCancel DriverControlAction = "hold_ignoring_cancel"
+	// DriverControlFailPrompt answers the matched session/prompt with a JSON-RPC error
+	// carrying error_message, the shape a provider rate limit or auth lapse reaches the
+	// daemon in after the session was accepted.
+	DriverControlFailPrompt DriverControlAction = "fail_prompt"
 )

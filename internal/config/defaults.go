@@ -17,6 +17,7 @@ func defaultSessionConfig() SessionConfig {
 		Supervision: DefaultSessionSupervisionConfig(),
 		BusyInput:   DefaultSessionBusyInputConfig(),
 		Compaction:  DefaultSessionCompactionConfig(),
+		Derive:      DefaultSessionDeriveConfig(),
 		Attachments: DefaultSessionAttachmentsConfig(),
 	}
 }

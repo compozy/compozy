@@ -163,6 +163,9 @@ func (c SessionConfig) Validate() error {
 	if err := c.Compaction.Validate(); err != nil {
 		return err
 	}
+	if err := c.Derive.Validate(); err != nil {
+		return err
+	}
 	return c.Attachments.Validate()
 }
 

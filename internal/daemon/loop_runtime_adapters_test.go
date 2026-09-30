@@ -1728,12 +1728,14 @@ func loopJudgeWorkSourcesForTest(
 		t.Fatal(err)
 	}
 	homePaths := testHomePaths(t)
-	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
-		store.SessionMeta{
+	if err := store.WriteSessionMeta(
+		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
+		&store.SessionMeta{
 			ID: sessionID, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-loop",
 			AgentName: "loop-judge", Provider: "mock", State: string(session.StateStopped),
 			RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	manager, err := session.NewManager(session.WithHomePaths(homePaths), session.WithLogger(discardLogger()))

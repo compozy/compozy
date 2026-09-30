@@ -256,6 +256,8 @@ type Caps struct {
 	SteerCapability       compozyconfig.SteerCapability
 	SupportsLoadSession   bool
 	SupportsCloseSession  bool
+	SupportsForkSession   bool
+	SupportsResumeSession bool
 	PromptImage           bool
 	PromptAudio           bool
 	PromptEmbeddedContext bool
@@ -270,6 +272,8 @@ func CloneCaps(caps Caps) Caps {
 		SteerCapability:       caps.SteerCapability,
 		SupportsLoadSession:   caps.SupportsLoadSession,
 		SupportsCloseSession:  caps.SupportsCloseSession,
+		SupportsForkSession:   caps.SupportsForkSession,
+		SupportsResumeSession: caps.SupportsResumeSession,
 		PromptImage:           caps.PromptImage,
 		PromptAudio:           caps.PromptAudio,
 		PromptEmbeddedContext: caps.PromptEmbeddedContext,

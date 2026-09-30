@@ -213,7 +213,7 @@ export function clearRoleRuntime(config: SettingsRolesConfig, role: RoleName): S
 }
 
 export function emptyFallbackEntry(): RoleFallbackEntry {
-  return { provider: "", model: "", reasoning_effort: "", acp_options: [] };
+  return { provider: "", model: "", reasoning_effort: "", acp_options: [], command: "" };
 }
 
 function applyRoleFallbackChain(
@@ -246,7 +246,10 @@ export function removeFallbackEntry(
   );
 }
 
-/** Replace one fallback route wholesale — the selector emits all three keys. */
+/**
+ * Replace one fallback route's runtime — the selector emits all three keys. The route's
+ * account `command` is not part of the runtime selection, so it is preserved.
+ */
 export function setFallbackRuntime(
   config: SettingsRolesConfig,
   role: RoleName,
@@ -260,6 +263,7 @@ export function setFallbackRuntime(
       model: value.model,
       reasoning_effort: value.reasoning_effort,
       acp_options: value.acp_options ?? [],
+      command: entry.command ?? "",
       ...(value.speed ? { speed: value.speed } : {}),
     };
   });

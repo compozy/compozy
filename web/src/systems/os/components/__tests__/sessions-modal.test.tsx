@@ -8,10 +8,12 @@ import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  SessionLifecycleActionHandlers,
-  SessionListViewModel,
-  SessionPayload,
+import {
+  SessionDeriveContext,
+  SessionForkContext,
+  type SessionLifecycleActionHandlers,
+  type SessionListViewModel,
+  type SessionPayload,
 } from "@/systems/session";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -467,6 +469,67 @@ describe("OsSessionsModal", () => {
     fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
     expect(screen.getByTestId("session-row-unarchive-session-archived")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-archive-session-archived")).toBeNull();
+  });
+
+  // UT-074 with US-001.EC-1/EC-2: Continue and Fork are offered on user rows only
+  // (never spawned or archived) and hand the row to the dialog host; Fork from a
+  // row is the whole session (no fork point).
+  it("Should offer Continue and Fork on user rows only and hand the row to the dialog host", () => {
+    const shell = createShell();
+    const requestContinue = vi.fn();
+    const requestFork = vi.fn();
+    const rows = [
+      session({ id: "session-user", name: "User row" }),
+      session({ id: "session-spawned", name: "Spawned row", type: "spawned" }),
+      session({
+        id: "session-archived",
+        name: "Archived row",
+        state: "stopped",
+        badge: "stopped",
+        archived_at: "2026-08-04T12:00:00Z",
+      }),
+    ];
+    render(
+      <OsShellContext.Provider value={shell}>
+        <SessionDeriveContext value={requestContinue}>
+          <SessionForkContext value={requestFork}>
+            <OsSessionsModal
+              open
+              onOpenChange={() => {}}
+              sessions={rows}
+              disconnected={false}
+              view={listView({ archived: true })}
+              onNewSession={vi.fn()}
+              sessionActions={SESSION_ACTIONS}
+            />
+          </SessionForkContext>
+        </SessionDeriveContext>
+      </OsShellContext.Provider>
+    );
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-spawned"));
+    expect(screen.queryByTestId("session-row-continue-session-spawned")).toBeNull();
+    expect(screen.queryByTestId("session-row-fork-session-spawned")).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
+    expect(screen.queryByTestId("session-row-continue-session-archived")).toBeNull();
+    expect(screen.queryByTestId("session-row-fork-session-archived")).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
+    const item = screen.getByTestId("session-row-continue-session-user");
+    expect(item).toHaveTextContent("Continue with another agent…");
+    const labels = screen.getAllByRole("menuitem").map(entry => entry.textContent);
+    expect(labels.indexOf("Fork session…")).toBe(
+      labels.indexOf("Continue with another agent…") + 1
+    );
+    fireEvent.click(item);
+    expect(requestContinue).toHaveBeenCalledExactlyOnceWith(rows[0]);
+
+    fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
+    fireEvent.click(screen.getByTestId("session-row-fork-session-user"));
+    expect(requestFork).toHaveBeenCalledExactlyOnceWith(rows[0]);
   });
 
   it("Should start a session from the toolbar instead of a footer action", async () => {

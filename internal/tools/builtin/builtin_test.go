@@ -422,6 +422,24 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				name:    "Should reject an unsupported speed",
 				payload: `{"scope":"global","name":"coder","prompt":"Code.","speed":"turbo"}`,
 			},
+			{
+				name: "Should accept an ordered fallback chain with a route command",
+				payload: `{"scope":"global","name":"reviewer","prompt":"Review.","fallback_chain":[` +
+					`{"provider":"claude","model":"opus-4-8",` +
+					`"command":"CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"},` +
+					`{"provider":"cursor","model":"grok-4.6","reasoning_effort":"high"}]}`,
+				valid: true,
+			},
+			{
+				name: "Should reject a fallback route without a model",
+				payload: `{"scope":"global","name":"reviewer","prompt":"Review.",` +
+					`"fallback_chain":[{"provider":"claude"}]}`,
+			},
+			{
+				name: "Should reject an unknown fallback route key",
+				payload: `{"scope":"global","name":"reviewer","prompt":"Review.",` +
+					`"fallback_chain":[{"provider":"claude","model":"opus-4-8","comand":"claude"}]}`,
+			},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
@@ -1585,6 +1603,10 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_continue", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_fork", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rewind", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
@@ -3031,6 +3053,8 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionContinue) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionFork) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputsList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputReplace) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputCancel) ||

@@ -21,10 +21,13 @@ func (m *Manager) clearStoppedConversation(
 	ctx context.Context,
 	target string,
 	owner store.SessionDBOwner,
-	meta store.SessionMeta,
-	sanitized store.SessionMeta,
+	meta *store.SessionMeta,
+	sanitized *store.SessionMeta,
 	spec *sessionStartSpec,
 ) (_ *Session, err error) {
+	if meta == nil || sanitized == nil {
+		return nil, errors.New("session: clear metadata is required")
+	}
 	clearDisposition := sessionDBClearRollback
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
 	familyLease, resumeQueries, err := m.acquireOwnedSessionDBFamily(
@@ -51,7 +54,7 @@ func (m *Manager) clearStoppedConversation(
 		dbPath:      dbPath,
 		metaPath:    store.SessionMetaFile(filepath.Dir(dbPath)),
 		manifest:    manifest,
-		meta:        meta,
+		meta:        *meta,
 	}
 
 	defer func() {

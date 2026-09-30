@@ -6,7 +6,7 @@
 // exists only while the daemon reports it.
 // Owning layer: the session-window recovery, stop-attention, and quiet-warning actions.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Suspense } from "react";
+import { createContext, type ReactNode, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
@@ -74,6 +74,17 @@ vi.mock("../use-session-window-controller", () => ({
   }),
 }));
 
+vi.mock("../use-session-window-derive", () => ({
+  useSessionWindowDerive: () => ({
+    deriveHost: {},
+    openInNewWindow: vi.fn(),
+    origin: null,
+    originContext: null,
+    onOpenOriginSource: vi.fn(),
+    onContinue: vi.fn(),
+  }),
+}));
+
 vi.mock("@/systems/session", async () => ({
   // The stop-attention and quiet-warning notices are under test here: the real
   // composites and the quiet-warning read model, not stand-ins.
@@ -102,6 +113,8 @@ vi.mock("@/systems/session", async () => ({
     </div>
   ),
   SessionSidebar: () => null,
+  SessionDeriveHost: ({ children }: { children: ReactNode }) => children,
+  SessionOriginContext: createContext(null),
   useCreateSession: () => mocks.forkMutation,
 }));
 
@@ -278,7 +291,7 @@ describe("SessionWindowContent", () => {
     );
     // The attention code rides on data-attention; it never reads on screen.
     expect(notice).not.toHaveTextContent("stop_verification_failed");
-    expect(screen.queryByRole("button", { name: "Continue in a new session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restart in a new session" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry stop" }));
 
@@ -430,7 +443,7 @@ describe("SessionWindowContent", () => {
     expect(screen.queryByTestId("session-quiet-warning")).toBeNull();
   });
 
-  it("Should fork a dead session into its workspace and select the child", async () => {
+  it("Should restart a dead session as a recovery child in its workspace and select it", async () => {
     render(
       <Suspense fallback={null}>
         <SessionWindowContent
@@ -445,12 +458,13 @@ describe("SessionWindowContent", () => {
       </Suspense>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Continue in a new session" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Restart in a new session" }));
 
     expect(mocks.forkMutation.mutate).toHaveBeenCalledWith(
       {
         agent_name: "codex-agent",
         parent_session_id: "sess-dead",
+        lineage_kind: "recovery",
         workspace: "ws-alpha",
       },
       expect.objectContaining({ onError: expect.any(Function), onSuccess: expect.any(Function) })
@@ -500,7 +514,7 @@ describe("SessionWindowContent", () => {
       "Reconnecting to the agent… · Attempt 2 of 3"
     );
     expect(
-      screen.queryByRole("button", { name: "Continue in a new session" })
+      screen.queryByRole("button", { name: "Restart in a new session" })
     ).not.toBeInTheDocument();
   });
 
@@ -552,7 +566,9 @@ describe("SessionWindowContent", () => {
           prompt_audio: false,
           prompt_embedded_context: false,
           prompt_image: false,
+          supports_fork_session: false,
           supports_load_session: false,
+          supports_resume_session: false,
         },
         effective: { model: "previous-model", provider: "codex" },
         selected: { model: "next-model", provider: "codex" },

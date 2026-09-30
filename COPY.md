@@ -227,6 +227,14 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `hook`: typed lifecycle dispatch. Do not call hooks a generic event bus.
 - `extension`: package that can provide resources, capabilities, and Host API actions.
 
+### Session Continue & Fork Terms
+
+- **Continue with another agent…**: the menu and marker action that starts a new session for another agent (or runtime, or declared route) with this session's conversation carried over. The source stays unchanged. The child reads "Continued from {agent}" (status pill) and "Continued from {source title}" (transcript divider).
+- `fork`: a **conversation fork** — a second session with the same agent and the conversation up to a point ("Fork session…", "Fork from here", "Forked from {title}"). Unqualified `fork` in session copy means this; always qualify the others: "fork into a worktree", "Loop fork".
+- **Restart in a new session**: the dead-runtime recovery action (an empty child in the same workspace). Never call it a fork.
+- `handoff`: reserved for Network; never a label for continue or fork. The API's `next_action: "handoff"` is a wire value — the UI says "Continue this session with another agent or route."
+- Never in this feature's copy: `branch` (git, worktrees, Loops), `chat`, "Handoff from X", a "Badge".
+
 ### Surface Aliases
 
 Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**

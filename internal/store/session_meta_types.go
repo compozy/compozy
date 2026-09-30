@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -55,16 +56,22 @@ type SessionMeta struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
 
-	SessionType            string               `json:"session_type,omitempty"`
-	Lineage                *SessionLineage      `json:"lineage,omitempty"`
-	State                  string               `json:"state"`
-	StopReason             *StopReason          `json:"stop_reason,omitempty"`
-	StopEscalated          bool                 `json:"stop_escalated,omitempty"`
-	StopVerificationFailed bool                 `json:"stop_verification_failed,omitempty"`
-	StopDetail             string               `json:"stop_detail,omitempty"`
-	Failure                *SessionFailure      `json:"failure,omitempty"`
-	ACPSessionID           *string              `json:"acp_session_id,omitempty"`
-	Liveness               *SessionLivenessMeta `json:"liveness,omitempty"`
+	SessionType            string          `json:"session_type,omitempty"`
+	Lineage                *SessionLineage `json:"lineage,omitempty"`
+	State                  string          `json:"state"`
+	StopReason             *StopReason     `json:"stop_reason,omitempty"`
+	StopEscalated          bool            `json:"stop_escalated,omitempty"`
+	StopVerificationFailed bool            `json:"stop_verification_failed,omitempty"`
+	StopDetail             string          `json:"stop_detail,omitempty"`
+	Failure                *SessionFailure `json:"failure,omitempty"`
+	ACPSessionID           *string         `json:"acp_session_id,omitempty"`
+	// AcceptedRoute is the binding ACP accepted; it is written with ACPSessionID and
+	// cleared with it, and drives resume affinity.
+	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitempty"`
+	Liveness      *SessionLivenessMeta  `json:"liveness,omitempty"`
+	// Derivation and ImportedContext are present only on continued or forked children.
+	Derivation      *SessionDerivation      `json:"derivation,omitempty"`
+	ImportedContext *SessionImportedContext `json:"imported_context,omitempty"`
 
 	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitempty"`
 	CreationOptions    *SessionCreationOptions `json:"creation_options,omitempty"`
@@ -81,8 +88,8 @@ type SessionMeta struct {
 }
 
 // WorktreeIDValue returns the optional worktree binding without exposing nil embedding details.
-func (m SessionMeta) WorktreeIDValue() string {
-	if m.SessionExecutionLocationState == nil {
+func (m *SessionMeta) WorktreeIDValue() string {
+	if m == nil || m.SessionExecutionLocationState == nil {
 		return ""
 	}
 	return m.WorktreeID
@@ -101,8 +108,8 @@ func (m *SessionMeta) SetWorktreeID(worktreeID string) {
 }
 
 // CWDValue returns the optional execution directory without exposing nil embedding details.
-func (m SessionMeta) CWDValue() string {
-	if m.SessionExecutionLocationState == nil {
+func (m *SessionMeta) CWDValue() string {
+	if m == nil || m.SessionExecutionLocationState == nil {
 		return ""
 	}
 	return m.CWD
@@ -146,8 +153,8 @@ func (m *SessionMeta) SetAdvertisedCommands(commands []SessionAdvertisedCommand)
 }
 
 // EffectiveProviderAuthModeValue returns the persisted provider authentication owner.
-func (m SessionMeta) EffectiveProviderAuthModeValue() string {
-	if m.SessionProviderExecutionState == nil {
+func (m *SessionMeta) EffectiveProviderAuthModeValue() string {
+	if m == nil || m.SessionProviderExecutionState == nil {
 		return ""
 	}
 	return m.EffectiveProviderAuthMode
@@ -166,8 +173,8 @@ func (m *SessionMeta) SetEffectiveProviderAuthMode(mode string) {
 }
 
 // EffectivePermissionsValue returns the persisted permission mode.
-func (m SessionMeta) EffectivePermissionsValue() string {
-	if m.SessionProviderExecutionState == nil {
+func (m *SessionMeta) EffectivePermissionsValue() string {
+	if m == nil || m.SessionProviderExecutionState == nil {
 		return ""
 	}
 	return m.EffectivePermissions
@@ -192,8 +199,8 @@ func (m *SessionMeta) clearEmptyProviderExecutionState() {
 }
 
 // RuntimeFailureValue returns the normalized persisted runtime diagnostic.
-func (m SessionMeta) RuntimeFailureValue() string {
-	if m.SessionRuntimeBindingState == nil {
+func (m *SessionMeta) RuntimeFailureValue() string {
+	if m == nil || m.SessionRuntimeBindingState == nil {
 		return ""
 	}
 	return SessionRuntimeFailureValue(m.RuntimeFailure)
@@ -213,8 +220,8 @@ func (m *SessionMeta) SetRuntimeFailure(failure string) {
 }
 
 // RuntimeSelectionValue returns the persisted runtime selection state without exposing nil embedding details.
-func (m SessionMeta) RuntimeSelectionValue() *SessionRuntimeSelectionState {
-	if m.SessionRuntimeBindingState == nil {
+func (m *SessionMeta) RuntimeSelectionValue() *SessionRuntimeSelectionState {
+	if m == nil || m.SessionRuntimeBindingState == nil {
 		return nil
 	}
 	return m.RuntimeSelection
@@ -239,7 +246,10 @@ func (m *SessionMeta) clearEmptyRuntimeBindingState() {
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.
-func (m SessionMeta) Validate() error {
+func (m *SessionMeta) Validate() error {
+	if m == nil {
+		return errors.New("store: session meta is required")
+	}
 	if err := requireField(m.ID, "session id"); err != nil {
 		return err
 	}
@@ -258,6 +268,9 @@ func (m SessionMeta) Validate() error {
 		}
 	}
 	if err := ValidateSessionLineage(m.ID, m.Lineage); err != nil {
+		return err
+	}
+	if err := ValidateSessionLineageForType(m.SessionType, m.Lineage); err != nil {
 		return err
 	}
 	if m.Failure != nil {
@@ -284,9 +297,19 @@ func (m SessionMeta) Validate() error {
 	if err := ValidateSessionRuntimeSelectionState(m.RuntimeSelectionValue()); err != nil {
 		return err
 	}
-	advertisedCommands := m.AdvertisedCommandsValue()
-	seenCommands := make(map[string]struct{}, len(advertisedCommands))
-	for _, command := range advertisedCommands {
+	if err := validateSessionAdvertisedCommands(m.AdvertisedCommandsValue()); err != nil {
+		return err
+	}
+	if err := validateSessionSoulProvenance(m.SoulSnapshotID, m.SoulDigest); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateSessionAdvertisedCommands rejects invalid or duplicate advertised commands.
+func validateSessionAdvertisedCommands(commands []SessionAdvertisedCommand) error {
+	seenCommands := make(map[string]struct{}, len(commands))
+	for _, command := range commands {
 		if err := command.Validate(); err != nil {
 			return err
 		}
@@ -295,9 +318,6 @@ func (m SessionMeta) Validate() error {
 			return fmt.Errorf("store: duplicate advertised command %q", name)
 		}
 		seenCommands[name] = struct{}{}
-	}
-	if err := validateSessionSoulProvenance(m.SoulSnapshotID, m.SoulDigest); err != nil {
-		return err
 	}
 	return nil
 }
@@ -327,7 +347,7 @@ func validateSessionSpeedMetadata(speed speedpkg.Speed, resolution *speedpkg.Res
 	return nil
 }
 
-func validateSessionCreationMetadata(meta SessionMeta) error {
+func validateSessionCreationMetadata(meta *SessionMeta) error {
 	if err := ValidateSessionACPOptionSelections(meta.ACPOptionsValue()); err != nil {
 		return fmt.Errorf("store: validate session ACP options: %w", err)
 	}

@@ -203,6 +203,42 @@ describe("agent-settings-draft", () => {
     expect(params?.agent.acp_options).toEqual([{ id: "thinking", bool_value: false }]);
   });
 
+  // Invariant: a Web edit replaces the whole definition, so the authored
+  // fallback chain read from the agent must reach the replacement payload
+  // unchanged (minus read-only projection fields) even without route controls.
+  it("Should carry the authored fallback chain through an unrelated settings edit", () => {
+    const agent = makeAgent({
+      fallback_chain: [
+        {
+          provider: "codex",
+          model: "gpt-5.4",
+          reasoning_effort: "high",
+          speed: "fast",
+          acp_options: [{ id: "thinking", bool_value: true }],
+          command: "SEAT=2 codex --acp",
+          command_fingerprint: "sha256:abc",
+        },
+        { provider: "claude", model: "sonnet" },
+      ],
+    });
+
+    const draft = buildSettingsDraftFromAgent(agent);
+    expect(isAgentSettingsDraftDirty(draft, agent)).toBe(false);
+
+    const params = buildUpdateAgentParams({ ...draft, prompt: "Updated." }, "ws_alpha");
+    expect(params?.agent.fallback_chain).toEqual([
+      {
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoning_effort: "high",
+        speed: "fast",
+        acp_options: [{ id: "thinking", bool_value: true }],
+        command: "SEAT=2 codex --acp",
+      },
+      { provider: "claude", model: "sonnet" },
+    ]);
+  });
+
   it("Should preserve the authored Fast default in the settings update body", () => {
     const agent = makeAgent({ speed: "fast" });
     const draft = buildSettingsDraftFromAgent(agent);

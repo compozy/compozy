@@ -214,7 +214,7 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 			Kind:    store.FailureProcess,
 			Summary: "Codex exited before the response completed",
 		}
-		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 			t.Fatalf("WriteSessionMeta(%q) error = %v", metaPath, err)
 		}
 		recorder.Append(transcriptProjectionEvent(

@@ -54,15 +54,15 @@ describe("SessionResumeFailure", () => {
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
 
-  it("renders a dead runtime as read-only history with a fork action", () => {
+  it("renders a dead runtime as read-only history with a restart action", () => {
     render(
       <SessionResumeFailure
         isRetrying={false}
-        message="This session can't continue. Start a copy to keep working — the history stays here."
+        message="This session can't continue. Start a new session to keep working — the history stays here."
         missingProvider={null}
         onDismiss={vi.fn()}
         onRetry={vi.fn()}
-        retryLabel="Continue in a new session"
+        retryLabel="Restart in a new session"
         sessionId="sess_dead"
         showDismiss={false}
         title="Session ended"
@@ -74,7 +74,7 @@ describe("SessionResumeFailure", () => {
       "the history stays here"
     );
     expect(screen.getByTestId("session-resume-failure-retry")).toHaveTextContent(
-      "Continue in a new session"
+      "Restart in a new session"
     );
     expect(screen.queryByTestId("session-resume-failure-dismiss")).not.toBeInTheDocument();
   });

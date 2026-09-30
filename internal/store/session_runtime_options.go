@@ -55,8 +55,8 @@ func CloneSessionACPOptionSelections(
 }
 
 // ACPOptionsValue returns the persisted session option selections.
-func (m SessionMeta) ACPOptionsValue() []SessionACPOptionSelection {
-	if m.SessionRuntimeDetails == nil {
+func (m *SessionMeta) ACPOptionsValue() []SessionACPOptionSelection {
+	if m == nil || m.SessionRuntimeDetails == nil {
 		return nil
 	}
 	return m.ACPOptions
@@ -81,8 +81,8 @@ func (s *SessionInfo) SetACPOptions(selections []SessionACPOptionSelection) {
 }
 
 // RuntimeRecoveryValue returns independent persisted recovery metadata.
-func (m SessionMeta) RuntimeRecoveryValue() *SessionRuntimeRecovery {
-	if m.SessionRuntimeDetails == nil {
+func (m *SessionMeta) RuntimeRecoveryValue() *SessionRuntimeRecovery {
+	if m == nil || m.SessionRuntimeDetails == nil {
 		return nil
 	}
 	return CloneSessionRuntimeRecovery(m.RuntimeRecovery)

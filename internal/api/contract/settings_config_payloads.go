@@ -188,6 +188,8 @@ type SettingsRoleFallbackPayload struct {
 	ReasoningEffort string                    `json:"reasoning_effort"`
 	Speed           *Speed                    `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
+	// Command is the route account; always present on the settings surface, empty inherits.
+	Command string `json:"command"`
 }
 
 type SettingsMemoryDreamGatesPayload struct {

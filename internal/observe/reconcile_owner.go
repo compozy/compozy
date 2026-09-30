@@ -18,8 +18,11 @@ import (
 func (o *Observer) verifyRecoveredSessionOwner(
 	ctx context.Context,
 	entryName string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 ) (bool, error) {
+	if meta == nil {
+		return false, errors.New("observe: recovered session metadata is required")
+	}
 	entryID := strings.TrimSpace(entryName)
 	owner, err := (store.SessionDBOwner{
 		SessionID:   meta.ID,

@@ -85,7 +85,7 @@ func skillListBundle(items []skillListItem) outputBundle {
 		[]string{
 			automationNameValue,
 			authoredContextSourceValue,
-			"Origin",
+			taskOriginValue,
 			skillOutputDescriptionValue,
 		},
 		"skills",

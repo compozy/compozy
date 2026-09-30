@@ -55,6 +55,10 @@ func commandDiagnosticsStep(step acpmock.Step, result commandRunResult) acpmock.
 	}
 }
 
+// failPromptDefaultCode is the JSON-RPC internal-error code fail_prompt uses when the
+// fixture names none.
+const failPromptDefaultCode = -32603
+
 func (a *mockAgent) executeDriverControl(
 	ctx context.Context,
 	step acpmock.Step,
@@ -140,6 +144,12 @@ func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.Dr
 		return ctx.Err()
 	case acpmock.DriverControlDelay, acpmock.DriverControlHoldIgnoringCancel:
 		return nil
+	case acpmock.DriverControlFailPrompt:
+		code := control.ErrorCode
+		if code == 0 {
+			code = failPromptDefaultCode
+		}
+		return &acpsdk.RequestError{Code: code, Message: strings.TrimSpace(control.ErrorMessage)}
 	default:
 		return fmt.Errorf("unsupported driver_control action %s", control.Action)
 	}

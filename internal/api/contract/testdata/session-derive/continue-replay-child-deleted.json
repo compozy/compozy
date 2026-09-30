@@ -1,0 +1,18 @@
+{
+    "derived": {
+        "kind": "continue",
+        "source_session_id": "sess_01J9R2K7M4T1",
+        "origin_agent_name": "codex",
+        "through_turn_id": "turn_01J9R2N9C3",
+        "seed": "replay",
+        "replay_message_count": 42,
+        "replay_bytes": 62771,
+        "truncated": false,
+        "omitted_count": 0,
+        "source_turn_in_progress": false,
+        "first_prompt": "admitted",
+        "replayed": true,
+        "child_deleted": true,
+        "child_session_id": "sess_01J9R2Q0W8YB"
+    }
+}

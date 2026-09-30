@@ -49,7 +49,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 	}
 	role := coordinatorInvocationRole(cfg, r.roleEvents)
 	correlation := roleInvocationCorrelationFromContext(ctx, decision.WorkspaceID)
-	created, err := invokeRoleWithFallback(ctx, role, correlation, func(
+	created, err := invokeRoleWithFallback(ctx, &role, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
@@ -60,6 +60,8 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			ReasoningEffort: route.ReasoningEffort,
 			Speed:           route.Speed,
 			ACPOptions:      session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Command:         route.Command,
+			ChainOwner:      session.ChainOwnerCaller,
 			Name:            coordinatorSessionName(decision.WorkspaceID),
 			Workspace:       decision.WorkspaceID,
 
@@ -68,7 +70,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			Lineage:             coordinator.Lineage(now, cfg, policy),
 			DiscardStartFailure: true,
 		})
-		return spawned, spawned != nil, createErr
+		return spawned, session.StartAccepted(createErr) || spawned != nil, createErr
 	})
 	if err != nil {
 		if created != nil {

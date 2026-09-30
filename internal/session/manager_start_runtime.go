@@ -22,8 +22,11 @@ func (m *Manager) resolveSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
 	agentDef := artifacts.Agent
+	if spec.startAction == sessionStartActionResume && spec.acceptedRoute != nil {
+		m.applyResumeRouteAffinity(ctx, spec, agentDef)
+	}
 	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
-		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort,
+		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort, Command: spec.command,
 	})
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
@@ -101,10 +104,20 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 	if err != nil {
 		return fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
-	if err := m.prepareSessionStartSoul(ctx, spec, artifacts, updatedAt); err != nil {
+	if err := m.prepareSessionStartSoul(ctx, spec, &artifacts, updatedAt); err != nil {
 		return fmt.Errorf("session: prepare soul for %q: %w", spec.sessionID, err)
 	}
+	return m.assembleAcceptedStartupDefinition(ctx, spec, runtime, updatedAt)
+}
 
+// assembleAcceptedStartupDefinition builds the provider-aware startup prompt for an
+// already-prepared soul; fallback attempts reuse it after re-resolving their route.
+func (m *Manager) assembleAcceptedStartupDefinition(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	runtime *sessionStartRuntime,
+	updatedAt time.Time,
+) error {
 	agentDef := compozyconfig.CloneAgentDef(runtime.agentDef)
 	startupCtx := spec.startupPromptContext(updatedAt)
 	if strings.TrimSpace(startupCtx.AgentName) == "" {

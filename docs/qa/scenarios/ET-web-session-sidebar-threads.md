@@ -11,8 +11,8 @@ bug_ids: compozy/compozy#416
 fix_status: fixed
 retest_status: pass
 fix_commits: ea021855; 49601716
-evidence: docs/qa/evidence/2026-08-17-pr-420-review/structured-walk.md; docs/qa/evidence/2026-08-17-pr-420-review/teardown.json
-last_report: docs/qa/reports/2026-08-17-pr-420-review.md
+evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b2/sidebar-threads.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl
+last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md
 overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle
 ---
 
@@ -43,3 +43,7 @@ All-workspaces groups remain navigation-only. The new
 sequential actions, confirmation, and retry; prior thread evidence above is retained.
 
 2026-09-15 quiet-context pass: the current session row dropped its accent left bar; `bg-row-selected` alone marks it, the same tint as multi-selection. Expected updated; the owning unit suite re-verified, no live re-walk.
+
+2026-09-28 session-continue-fork task_04 impact: continue children (lineage kind `continue`) nest under their source like any loaded child; their row subtitle is unchanged, and the session window status line of a continued child adds the neutral origin pill "Continued from {agent}" (fork pill lands with task_06). Reset to `untested` for a re-walk that proves a continued child nests under its source in the rail and the modal, and that selecting it in place shows the pill. Owner of the walk: session-continue-fork task_08.
+
+QA walk 2026-09-28 (task_08 part B2): continued and forked children nest under their source in the window rail (count toggle "7" on the alpha source, "1" on the fork source) and in the catalog modal. Selecting the unopened continued child `sess-3540e32ceffb49f3` switched this window in place (URL followed, window count unchanged) and showed "Continued from alpha". Selecting a child that already has its own window focused it instead. Verdict: pass. Report: `docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md`.

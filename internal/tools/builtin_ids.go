@@ -42,6 +42,10 @@ const (
 	ToolIDSessionPrompt ToolID = "compozy__session_prompt"
 	// ToolIDSessionRewind archives a conversation suffix and restarts the session context.
 	ToolIDSessionRewind ToolID = "compozy__session_rewind"
+	// ToolIDSessionContinue continues a user session with another agent, runtime, or route.
+	ToolIDSessionContinue ToolID = "compozy__session_continue"
+	// ToolIDSessionFork forks a user session with the same agent, whole or through one message.
+	ToolIDSessionFork ToolID = "compozy__session_fork"
 	// ToolIDSessionRuntimeSet selects the default runtime for future prompts.
 	ToolIDSessionRuntimeSet ToolID = "compozy__session_runtime_set"
 	// ToolIDSessionRuntimeClear clears the default runtime for future prompts.

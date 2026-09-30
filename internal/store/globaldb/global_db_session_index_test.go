@@ -404,6 +404,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			ParentSessionID: "sess-prov-root",
 			RootSessionID:   "sess-prov-root",
 			SpawnDepth:      1,
+			Kind:            store.LineageKindProvenance,
 		}
 		grandchild := sessionInfoForWorkspaceStateIndexTest(
 			"sess-prov-grandchild",
@@ -415,6 +416,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			ParentSessionID: "sess-prov-child",
 			RootSessionID:   "sess-prov-root",
 			SpawnDepth:      2,
+			Kind:            store.LineageKindProvenance,
 		}
 		foreign := sessionInfoForWorkspaceStateIndexTest(
 			"sess-prov-foreign",

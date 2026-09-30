@@ -4,7 +4,9 @@ import { cn } from "@compozy/ui";
 
 import { sessionBadgeSignal, type SessionBadgeToken } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
+import type { SessionOriginView } from "../lib/session-origin";
 import { SessionBadgeGlyph } from "./session-badge-mark";
+import { SessionOriginPill } from "./session-origin-pill";
 import type { SessionPayload, SessionState } from "../types";
 
 const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadgeToken> = {
@@ -18,6 +20,9 @@ export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span"
   session: SessionPayload;
   /** The document-head variant renders state as the leading mark instead. */
   showState?: boolean;
+  /** A continued or forked session's origin, rendered as a pill after the provider. */
+  origin?: SessionOriginView | null;
+  onOpenOriginSource?: (sessionId: string) => void;
 }
 
 /**
@@ -28,6 +33,8 @@ export function SessionStatusLine({
   className,
   session,
   showState = true,
+  origin = null,
+  onOpenOriginSource,
   ...props
 }: SessionStatusLineProps) {
   const badge = session.badge || STATE_BADGE_FALLBACK[session.state];
@@ -74,9 +81,23 @@ export function SessionStatusLine({
               ·
             </span>
           ) : null}
-          <span data-testid="session-status-provider" className="font-mono text-eyebrow text-faint">
+          <span
+            data-testid="session-status-provider"
+            // Yields width before the origin pill, which keeps its verb.
+            className="min-w-0 truncate font-mono text-eyebrow text-faint"
+          >
             {providerLabel}
           </span>
+        </>
+      ) : null}
+      {origin ? (
+        <>
+          {showState || agentLabel || providerLabel ? (
+            <span aria-hidden="true" className="text-subtle">
+              ·
+            </span>
+          ) : null}
+          <SessionOriginPill onOpenSource={onOpenOriginSource} origin={origin} />
         </>
       ) : null}
       {session.archived_at !== null ? (

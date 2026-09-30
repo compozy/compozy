@@ -1,0 +1,10 @@
+{
+    "agent_name": "claude-code",
+    "runtime": { "provider": "claude", "model": "opus", "reasoning_effort": "high" },
+    "name": "Migration cleanup (Claude)",
+    "message": "Carry on with the migration; run the tests first.",
+    "idempotency_key": "idem_01J9R2PZ4C0N",
+    "expected_epoch": 3,
+    "expected_generation": 12,
+    "expected_max_sequence": 418
+}

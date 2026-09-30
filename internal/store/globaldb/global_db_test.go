@@ -4020,6 +4020,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"creation_digest",
 				"policy_spec_digest",
 				"creation_profile_ref",
+				"lineage_kind",
+				"origin_message_id",
+				"origin_agent_name",
 			},
 		)
 	})

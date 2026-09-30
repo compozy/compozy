@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,7 +17,9 @@ func (m *Manager) resolveSpawnProviderCommand(
 	resolved compozyconfig.ResolvedAgent,
 	visited map[string]bool,
 ) (compozyconfig.ResolvedAgent, error) {
-	if normalizeSessionType(spec.sessionType) != SessionTypeSpawned || strings.TrimSpace(agent.Command) != "" ||
+	// Inheritance applies only when neither the attempt nor the agent supplied a command.
+	if normalizeSessionType(spec.sessionType) != SessionTypeSpawned || strings.TrimSpace(spec.command) != "" ||
+		strings.TrimSpace(agent.Command) != "" ||
 		spec.lineage == nil ||
 		spec.lineage.ParentSessionID == "" ||
 		resolved.AuthMode != compozyconfig.ProviderAuthModeNativeCLI ||
@@ -80,11 +81,11 @@ func (m *Manager) creatorProviderRoute(
 	if meta.Provider != provider || meta.WorkspaceID != spec.workspace.ID || meta.ProfileID != spec.profileID {
 		return compozyconfig.ResolvedAgent{}, nil
 	}
-	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	workspace, err := m.resolveResumeWorkspace(ctx, &meta)
 	if err != nil {
 		return compozyconfig.ResolvedAgent{}, err
 	}
-	parentSpec, err := sessionStartSpecFromMeta(meta, &workspace, workspace.RootDir)
+	parentSpec, err := sessionStartSpecFromMeta(&meta, &workspace, workspace.RootDir)
 	if err != nil {
 		return compozyconfig.ResolvedAgent{}, err
 	}
@@ -129,8 +130,5 @@ func (s *Session) setProviderRouting(resolved compozyconfig.ResolvedAgent) {
 
 // providerCommandFingerprint correlates routes without exposing secret-bearing command text.
 func providerCommandFingerprint(command string) string {
-	if strings.TrimSpace(command) == "" {
-		return ""
-	}
-	return fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(command)))
+	return compozyconfig.CommandFingerprint(command)
 }

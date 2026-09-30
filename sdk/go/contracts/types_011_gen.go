@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type LineageKind string
+
 type ListLogsParams struct {
 	WorkspaceID   string    `json:"workspace_id"`
 	SessionID     string    `json:"session_id,omitempty"`
@@ -365,12 +367,4 @@ type MemoryStoreParams struct {
 	Scope     MemoryScope `json:"scope,omitempty"`
 	Workspace string      `json:"workspace,omitempty"`
 	Tags      []string    `json:"tags,omitempty"`
-}
-
-type MessageDeltaPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
 }

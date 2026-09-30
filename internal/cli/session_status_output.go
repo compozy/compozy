@@ -15,7 +15,7 @@ func sessionBundle(info *SessionRecord, now func() time.Time) outputBundle {
 }
 
 func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, error) {
-	base := renderHumanSection(sessionSessionValue, []keyValue{
+	items := []keyValue{
 		{Label: "ID", Value: stringOrDash(info.ID)},
 		{Label: sessionNameValue, Value: stringOrDash(info.Name)},
 		{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
@@ -23,7 +23,9 @@ func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, erro
 		{Label: "Speed", Value: stringOrDash(sessionRuntimeSpeed(info))},
 		{Label: "Speed Outcome", Value: sessionSpeedOutcome(info)},
 		{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
-
+	}
+	items = append(items, sessionDerivationLines(info)...)
+	base := renderHumanSection(sessionSessionValue, append(items, []keyValue{
 		{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
 		{Label: sessionBadgeValue, Value: stringOrDash(string(info.Badge))},
 		{Label: "Attached To", Value: stringOrDash(info.AttachedTo)},
@@ -37,7 +39,7 @@ func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, erro
 		{Label: sessionCreatedValue, Value: stringOrDash(formatTime(info.CreatedAt))},
 		{Label: sessionUpdatedValue, Value: stringOrDash(formatTime(info.UpdatedAt))},
 		{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
-	})
+	}...))
 	blocks := []string{base}
 	blocks = appendSessionCapsBlock(blocks, info)
 	return renderHumanBlocks(blocks...), nil
@@ -59,7 +61,7 @@ func renderSessionToon(info *SessionRecord) (string, error) {
 		sessionNameKey,
 		sessionAgentNameKey,
 		sessionProviderKey,
-		"speed",
+		agentSpeedField,
 		"speed_outcome",
 		workspaceSkillSource,
 		sessionStateKey,

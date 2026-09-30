@@ -186,6 +186,7 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 		ParentSessionID: "sess-parent",
 		RootSessionID:   "sess-root",
 		SpawnDepth:      1,
+		Kind:            store.LineageKindProvenance,
 	}
 	h.observeSessionCreated(t, sess)
 
@@ -436,9 +437,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				meta := sess.Meta()
 				meta.SetEffectiveProviderAuthMode(string(compozyconfig.ProviderAuthModeNativeCLI))
 				if err := store.WriteSessionMeta(
-					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)),
-					meta,
-				); err != nil {
+					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)), &meta); err != nil {
 					t.Fatalf("WriteSessionMeta() error = %v", err)
 				}
 			},
@@ -464,9 +463,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				meta := sess.Meta()
 				meta.SetEffectiveProviderAuthMode(string(compozyconfig.ProviderAuthModeNativeCLI))
 				if err := store.WriteSessionMeta(
-					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)),
-					meta,
-				); err != nil {
+					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)), &meta); err != nil {
 					t.Fatalf("WriteSessionMeta(stopped) error = %v", err)
 				}
 			},

@@ -47,18 +47,22 @@ func (e resumeValidationError) Check() string {
 func (m *Manager) repairInactiveMeta(
 	ctx context.Context,
 	metaPath string,
-	meta store.SessionMeta,
+	source *store.SessionMeta,
 ) (_ store.SessionMeta, err error) {
 	if ctx == nil {
 		return store.SessionMeta{}, errResumeRepairContextRequired
 	}
+	if source == nil {
+		return store.SessionMeta{}, errors.New("session: resume repair metadata is required")
+	}
+	meta := *source
 	defer func() {
 		if err != nil {
 			err = fmt.Errorf("%w: %w", ErrRecoveryPersistence, err)
 		}
 	}()
 
-	classified, changed := ClassifyInactiveMetaForRecovery(m.now(), meta)
+	classified, changed := ClassifyInactiveMetaForRecovery(m.now(), &meta)
 	if !changed {
 		err := m.persistRecoveryCatalog(ctx, &meta)
 		return meta, err
@@ -71,10 +75,13 @@ func (m *Manager) repairInactiveMeta(
 
 func (m *Manager) restoreFailedResumeStart(
 	metaPath string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	clearACP bool,
 ) (store.SessionMeta, error) {
-	restored := meta
+	if meta == nil {
+		return store.SessionMeta{}, errors.New("session: failed resume metadata is required")
+	}
+	restored := *meta
 	restored.State = string(StateStopped)
 	if clearACP {
 		if sessionMetaStopReason(&restored) != store.StopAgentCrashed {
@@ -82,10 +89,11 @@ func (m *Manager) restoreFailedResumeStart(
 			restored.StopDetail = resumeStopDetailStartIncomplete
 		}
 		restored.ACPSessionID = nil
+		restored.AcceptedRoute = nil
 	}
 	restored.UpdatedAt = m.now()
 
-	if err := store.WriteSessionMeta(metaPath, restored); err != nil {
+	if err := store.WriteSessionMeta(metaPath, &restored); err != nil {
 		return store.SessionMeta{}, fmt.Errorf(
 			"session: restore stopped metadata after failed resume for %q: %w",
 			strings.TrimSpace(meta.ID),
@@ -96,7 +104,13 @@ func (m *Manager) restoreFailedResumeStart(
 	return restored, nil
 }
 
-func (m *Manager) validateInfrastructure(ctx context.Context, meta store.SessionMeta) []error {
+func (m *Manager) validateInfrastructure(ctx context.Context, meta *store.SessionMeta) []error {
+	if meta == nil {
+		return []error{resumeValidationError{
+			check: resumeValidationCheckMetaFields,
+			err:   errors.New("session: session metadata is required"),
+		}}
+	}
 	var errs []error
 
 	if err := meta.Validate(); err != nil {
@@ -205,7 +219,10 @@ func (m *Manager) validateResumeAgent(
 	return nil
 }
 
-func (m *Manager) validateEventStore(meta store.SessionMeta) error {
+func (m *Manager) validateEventStore(meta *store.SessionMeta) error {
+	if meta == nil {
+		return nil
+	}
 	sessionID := strings.TrimSpace(meta.ID)
 	if sessionID == "" {
 		return nil
@@ -227,9 +244,9 @@ func (m *Manager) persistResumeCrashClassification(
 ) (store.SessionMeta, error) {
 	classified := *meta
 	classified.UpdatedAt = m.now()
-	if err := store.WriteSessionMeta(metaPath, classified); err != nil {
-		annotated := AnnotateUnpersistedRecovery(classified, err)
-		m.resumeLogger(annotated).Warn(
+	if err := store.WriteSessionMeta(metaPath, &classified); err != nil {
+		annotated := AnnotateUnpersistedRecovery(&classified, err)
+		m.resumeLogger(&annotated).Warn(
 			"session.resume.crash_classification_persist_failed",
 			"phase", "resume",
 			"previous_state", strings.TrimSpace(meta.State),
@@ -247,7 +264,7 @@ func (m *Manager) persistResumeCrashClassification(
 	if classified.StopReason != nil {
 		reason = string(*classified.StopReason)
 	}
-	m.resumeLogger(classified).Info(
+	m.resumeLogger(&classified).Info(
 		"session.resume.crash_classified",
 		"phase", "resume",
 		"previous_state", strings.TrimSpace(meta.State),
@@ -257,7 +274,7 @@ func (m *Manager) persistResumeCrashClassification(
 	return classified, nil
 }
 
-func (m *Manager) logResumeValidationFailures(meta store.SessionMeta, errs []error) {
+func (m *Manager) logResumeValidationFailures(meta *store.SessionMeta, errs []error) {
 	logger := m.resumeLogger(meta)
 	for _, err := range errs {
 		if err == nil {
@@ -273,10 +290,13 @@ func (m *Manager) logResumeValidationFailures(meta store.SessionMeta, errs []err
 	}
 }
 
-func (m *Manager) resumeLogger(meta store.SessionMeta) *slog.Logger {
+func (m *Manager) resumeLogger(meta *store.SessionMeta) *slog.Logger {
 	logger := m.logger
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if meta == nil {
+		return logger
 	}
 
 	return logger.With(

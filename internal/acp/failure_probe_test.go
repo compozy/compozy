@@ -141,8 +141,11 @@ func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T)
 		if strings.Contains(result.Command, "super-secret") || strings.Contains(result.Error, "super-secret") {
 			t.Fatalf("result = %#v, want redacted command and error", result)
 		}
-		if !strings.Contains(result.Command, "[REDACTED]") || !strings.Contains(result.Error, "[REDACTED]") {
-			t.Fatalf("result = %#v, want redacted marker", result)
+		if !strings.Contains(result.Command, "[REDACTED]") {
+			t.Fatalf("result = %#v, want redacted command marker", result)
+		}
+		if strings.Contains(result.Error, "--api-key") {
+			t.Fatalf("result.Error = %q, want the command named by fingerprint only", result.Error)
 		}
 	})
 }

@@ -14,7 +14,7 @@ func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause Stop
 	if err != nil {
 		return err
 	}
-	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, meta))
+	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, &meta))
 	m.cancelSessionCompaction(id)
 	m.clearResumeReplay(id)
 	if m.hostedMCP != nil {
@@ -66,7 +66,7 @@ func (m *Manager) settleRecoveredStop(
 	if err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
-	info := m.sessionInfoFromMeta(settleCtx, meta)
+	info := m.sessionInfoFromMeta(settleCtx, &meta)
 	info.StopCause = outcome.Cause
 	if err := m.stopSessionGoals(settleCtx, info); err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)

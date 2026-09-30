@@ -164,11 +164,30 @@ CREATE TABLE sessions (
 				REFERENCES agent_soul_snapshots(id) ON DELETE SET NULL, soul_digest TEXT NOT NULL DEFAULT '', parent_soul_digest TEXT NOT NULL DEFAULT '', input_generation INTEGER NOT NULL DEFAULT 0, creation_digest TEXT
 				CHECK (creation_digest IS NULL OR length(trim(creation_digest)) > 0), policy_spec_digest TEXT
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
-				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0),
+				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
+				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
 		UNIQUE (workspace_id, id));
+
+CREATE TABLE session_derivations (
+		workspace_id TEXT NOT NULL,
+		idempotency_key TEXT NOT NULL,
+		profile_id TEXT NOT NULL,
+		request_fingerprint TEXT NOT NULL,
+		source_session_id TEXT NOT NULL,
+		child_session_id TEXT NOT NULL,
+		kind TEXT NOT NULL CHECK (kind IN ('continue', 'fork')),
+		outcome_json TEXT NOT NULL CHECK (json_valid(outcome_json)),
+		created_at TEXT NOT NULL,
+		child_deleted_at TEXT,
+		PRIMARY KEY (workspace_id, idempotency_key)
+	);
+
+CREATE INDEX idx_session_derivations_source ON session_derivations(source_session_id);
+
+CREATE INDEX idx_session_derivations_child ON session_derivations(child_session_id);
 
 CREATE TABLE session_pending_interactions (
 		interaction_id TEXT PRIMARY KEY CHECK (length(trim(interaction_id)) > 0),

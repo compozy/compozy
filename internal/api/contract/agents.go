@@ -3,6 +3,7 @@ package contract
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -39,6 +40,9 @@ type SessionLineagePayload struct {
 	RootSessionID    string                       `json:"root_session_id,omitempty"`
 	SpawnDepth       int                          `json:"spawn_depth"`
 	SpawnRole        string                       `json:"spawn_role,omitempty"`
+	Kind             store.LineageKind            `json:"kind,omitempty"`
+	OriginMessageID  string                       `json:"origin_message_id,omitempty"`
+	OriginAgentName  string                       `json:"origin_agent_name,omitempty"`
 	TTLExpiresAt     *time.Time                   `json:"ttl_expires_at,omitempty"`
 	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
 	NotifyCreator    bool                         `json:"notify_creator"`

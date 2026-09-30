@@ -1,6 +1,8 @@
 package core
 
 import (
+	"strings"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -84,6 +86,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		Layer:            agent.SourceLayer,
 		Shadows:          shadows,
 		Skills:           &contract.CreateAgentSkillsConfig{Disabled: disabledSkills},
+		FallbackChain:    agentFallbackChainToContract(agent.FallbackChain),
 		DefinitionDigest: digest,
 		Prompt:           agent.Prompt,
 		Diagnostics:      diagnostics,
@@ -188,4 +191,45 @@ func AgentPayloadFromDiagnostic(
 			Message:   diagnostic.Message,
 		}},
 	}
+}
+
+// agentFallbackChainToContract projects an authored chain; command_fingerprint is set
+// exactly when a route declares command.
+func agentFallbackChainToContract(chain []compozyconfig.RoleFallback) []contract.RoleFallbackStatus {
+	if len(chain) == 0 {
+		return nil
+	}
+	projected := make([]contract.RoleFallbackStatus, 0, len(chain))
+	for _, route := range chain {
+		command := strings.TrimSpace(route.Command)
+		projected = append(projected, contract.RoleFallbackStatus{
+			Provider:           strings.TrimSpace(route.Provider),
+			Model:              strings.TrimSpace(route.Model),
+			ReasoningEffort:    strings.TrimSpace(route.ReasoningEffort),
+			Speed:              route.Speed,
+			ACPOptions:         agentACPOptionsToContract(route.ACPOptions),
+			Command:            command,
+			CommandFingerprint: compozyconfig.CommandFingerprint(command),
+		})
+	}
+	return projected
+}
+
+// agentFallbackChainFromContract converts an authored request chain.
+func agentFallbackChainFromContract(chain []contract.AgentFallbackRoutePayload) []compozyconfig.RoleFallback {
+	if len(chain) == 0 {
+		return nil
+	}
+	converted := make([]compozyconfig.RoleFallback, 0, len(chain))
+	for _, route := range chain {
+		converted = append(converted, compozyconfig.RoleFallback{
+			Provider:        strings.TrimSpace(route.Provider),
+			Model:           strings.TrimSpace(route.Model),
+			ReasoningEffort: strings.TrimSpace(string(route.ReasoningEffort)),
+			Speed:           route.Speed,
+			ACPOptions:      agentACPOptionsFromContract(route.ACPOptions),
+			Command:         strings.TrimSpace(route.Command),
+		})
+	}
+	return converted
 }

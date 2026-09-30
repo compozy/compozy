@@ -84,7 +84,7 @@ func writeSessionRecords(
 	}
 	meta.SetCWD(record.RootDir)
 	meta.SetEffectivePermissions(permissions)
-	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), meta); err != nil {
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &meta); err != nil {
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}
 	if err := db.RegisterSession(ctx, store.SessionInfo{
@@ -118,10 +118,12 @@ func sessionLineage(story sessionStory) *store.SessionLineage {
 	if strings.TrimSpace(story.ParentID) == "" {
 		return nil
 	}
-	return &store.SessionLineage{
+	lineage := &store.SessionLineage{
 		ParentSessionID: story.ParentID, RootSessionID: story.ParentID,
 		SpawnDepth: 1, SpawnRole: story.SpawnRole, AutoStopOnParent: true,
 	}
+	store.UpgradeSessionLineageKind(story.SessionType, lineage)
+	return lineage
 }
 
 func sessionFailure(story sessionStory) *store.SessionFailure {

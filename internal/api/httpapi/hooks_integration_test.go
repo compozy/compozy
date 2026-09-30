@@ -552,15 +552,13 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		t.Fatalf("OpenSessionDB(%q) error = %v", sessionID, err)
 	}
 	if err := store.WriteSessionMeta(
-		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
-		store.SessionMeta{
+		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)), &store.SessionMeta{
 			ID:            sessionID,
 			AgentName:     "coder",
 			WorkspaceID:   "ws-http-hooks",
 			State:         "stopped",
 			RuntimeStatus: store.SessionRuntimeUnbound,
-		},
-	); err != nil {
+		}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)
 	}
 	return db

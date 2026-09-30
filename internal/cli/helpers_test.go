@@ -148,7 +148,11 @@ type stubClient struct {
 	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
+	getSessionOwnerFn            func(context.Context, string) (contract.SessionOwner, error)
+	previewSessionDeriveFn       func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error)
 	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
+	continueSessionFn            func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
+	forkSessionFn                func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
 	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
@@ -1415,6 +1419,45 @@ func (s *stubClient) RewindSession(
 		return s.rewindSessionFn(ctx, id, request)
 	}
 	return SessionRewindRecord{}, errors.New("unexpected RewindSession call")
+}
+
+func (s *stubClient) ContinueSession(
+	ctx context.Context,
+	target SessionDeriveTarget,
+	request SessionContinueRequest,
+) (SessionDeriveRecord, error) {
+	if s.continueSessionFn != nil {
+		return s.continueSessionFn(ctx, target, request)
+	}
+	return SessionDeriveRecord{}, errors.New("unexpected ContinueSession call")
+}
+
+func (s *stubClient) ForkSession(
+	ctx context.Context,
+	target SessionDeriveTarget,
+	request SessionForkRequest,
+) (SessionDeriveRecord, error) {
+	if s.forkSessionFn != nil {
+		return s.forkSessionFn(ctx, target, request)
+	}
+	return SessionDeriveRecord{}, errors.New("unexpected ForkSession call")
+}
+
+func (s *stubClient) GetSessionOwner(ctx context.Context, id string) (contract.SessionOwner, error) {
+	if s.getSessionOwnerFn != nil {
+		return s.getSessionOwnerFn(ctx, id)
+	}
+	return contract.SessionOwner{}, errors.New("unexpected GetSessionOwner call")
+}
+
+func (s *stubClient) PreviewSessionDerive(
+	ctx context.Context,
+	target SessionDeriveTarget,
+) (SessionDerivePreviewRecord, error) {
+	if s.previewSessionDeriveFn != nil {
+		return s.previewSessionDeriveFn(ctx, target)
+	}
+	return SessionDerivePreviewRecord{}, errors.New("unexpected PreviewSessionDerive call")
 }
 
 func (s *stubClient) GetSessionTranscript(ctx context.Context, id string) (SessionTranscriptRecord, error) {

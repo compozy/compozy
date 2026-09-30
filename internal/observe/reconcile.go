@@ -139,7 +139,7 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
-	ownerAuthoritative, err := o.verifyRecoveredSessionOwner(ctx, entryName, meta)
+	ownerAuthoritative, err := o.verifyRecoveredSessionOwner(ctx, entryName, &meta)
 	if err != nil {
 		o.logger.Warn(
 			"observe: skipping session with unverified durable owner",
@@ -149,7 +149,7 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
-	normalized := o.normalizeRecoveredMeta(metaPath, meta, ownerAuthoritative)
+	normalized := o.normalizeRecoveredMeta(metaPath, &meta, ownerAuthoritative)
 	return recoveredSessionFromMeta(&normalized), true
 }
 
@@ -211,23 +211,23 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 
 func (o *Observer) normalizeRecoveredMeta(
 	path string,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	ownerAuthoritative bool,
 ) store.SessionMeta {
 	normalized, changed := session.ClassifyInactiveMetaForRecovery(o.now(), meta)
-	if !changed || !ownerAuthoritative {
+	if meta == nil || !changed || !ownerAuthoritative {
 		return normalized
 	}
 
 	normalized.UpdatedAt = o.now()
-	if err := store.WriteSessionMeta(path, normalized); err != nil {
+	if err := store.WriteSessionMeta(path, &normalized); err != nil {
 		o.logger.Warn(
 			"observe: persist recovered session classification failed",
 			"session_id", strings.TrimSpace(meta.ID),
 			"path", path,
 			"error", err,
 		)
-		return session.AnnotateUnpersistedRecovery(normalized, err)
+		return session.AnnotateUnpersistedRecovery(&normalized, err)
 	}
 
 	return normalized

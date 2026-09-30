@@ -1,14 +1,21 @@
 import { ReadonlyThreadProvider, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import type { VirtualItem } from "@tanstack/react-virtual";
-import { type ComponentProps, useEffect } from "react";
+import { type ComponentProps, type ContextType, use, useEffect } from "react";
 
-import { SessionLoadOlderButton } from "@/systems/session";
+import {
+  SessionContinueDivider,
+  SessionContinueEmptyChild,
+  SessionLoadOlderButton,
+  SessionOriginContext,
+} from "@/systems/session";
 
 import {
   recordSessionDebugEvent,
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import { AssistantMessage } from "./session-assistant-message";
+import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
 import {
@@ -51,6 +58,7 @@ function ThreadMessageRows({
   isFetchingOlder: boolean;
   loadOlder: () => void;
 }) {
+  const origin = use(SessionOriginContext);
   const paddingTop = virtualItems[0]?.start ?? 0;
   const paddingBottom = Math.max(0, virtualTotalSize - (virtualItems.at(-1)?.end ?? 0));
 
@@ -87,6 +95,10 @@ function ThreadMessageRows({
             data-testid="thread-message-row"
             className="w-full"
           >
+            {/* The derived child's own transcript starts here; nothing older is its own. */}
+            {origin && messageIndex === 0 && leadingItemCount === 0 ? (
+              <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+            ) : null}
             <ThreadPrimitive.Unstable_MessageById
               messageId={messageId}
               components={MESSAGE_COMPONENTS}
@@ -95,6 +107,55 @@ function ThreadMessageRows({
         );
       })}
     </div>
+  );
+}
+
+// Status events (hook dispatches, usage, progress ticks) are transcript messages that
+// render nothing, so a transcript holding only those has said nothing yet.
+function hasNarrativeMessage(
+  messages: ReturnType<typeof useSessionTranscriptThreadState>["messages"]
+): boolean {
+  return messages.some(
+    message => message.role === "user" || deriveSessionRows(toTimelineParts(message)).length > 0
+  );
+}
+
+// A derived child's placeholder shows only once the transcript settled with no
+// sync, startup, or failure state that the status pane must explain instead.
+function isDerivedChildReady({
+  transcriptStatus,
+  syncFailure,
+  sessionState,
+  startupFailed,
+  failure,
+}: {
+  transcriptStatus: ReturnType<typeof useSessionTranscriptThreadState>["status"];
+  syncFailure: unknown;
+  sessionState?: SessionState;
+  startupFailed: boolean;
+  failure?: SessionFailurePayload | null;
+}): boolean {
+  return (
+    transcriptStatus === "success" &&
+    syncFailure === null &&
+    sessionState !== "starting" &&
+    !(startupFailed && failure)
+  );
+}
+
+// Before its first message a derived child shows only where it came from;
+// while that first prompt runs, the divider stands alone above the status row.
+function DerivedChildPlaceholder({
+  origin,
+  isSessionRunning,
+}: {
+  origin: NonNullable<ContextType<typeof SessionOriginContext>>;
+  isSessionRunning: boolean;
+}) {
+  return isSessionRunning ? (
+    <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+  ) : (
+    <SessionContinueEmptyChild onOpenSource={origin.onOpenSource} origin={origin.origin} />
   );
 }
 
@@ -138,6 +199,7 @@ export function ThreadMessages({
   startupFailed: boolean;
 }) {
   const transport = useSessionTransportState();
+  const origin = use(SessionOriginContext);
   const syncFailure =
     transport.phase === "failed" && transport.failure !== null
       ? { attempts: transport.failure.attempts, retry: transport.retry }
@@ -155,7 +217,19 @@ export function ThreadMessages({
     });
   }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
 
-  if (messageCount === 0) {
+  // Nothing said yet: no messages, or only status events that render no row. With
+  // older history still unloaded the window cannot claim the session is empty.
+  const saidNothing =
+    messageCount === 0 || (!showLoadOlder && !hasNarrativeMessage(transcriptMessages));
+  if (
+    origin !== null &&
+    saidNothing &&
+    isDerivedChildReady({ transcriptStatus, syncFailure, sessionState, startupFailed, failure })
+  ) {
+    return <DerivedChildPlaceholder origin={origin} isSessionRunning={isSessionRunning} />;
+  }
+
+  if (saidNothing) {
     return (
       <>
         {showLoadOlder ? (

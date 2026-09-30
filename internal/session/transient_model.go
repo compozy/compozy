@@ -33,10 +33,15 @@ type TransientModelCall struct {
 	SystemPrompt    string
 	Prompt          string
 	MaxOutputBytes  int
+	// Command is forwarded as RuntimeOverrides.Command for the transient agent (a
+	// fallback route's account). Empty keeps the provider command.
+	Command string
 }
 
-// TransientModelResult reports whether the provider accepted the prompt.
-// Once accepted, higher layers must not attempt a route fallback.
+// TransientModelResult reports whether ACP accepted the transient session.
+// Accepted is set at ACP acceptance (Driver.Start returned a process, or its error
+// carries acp.AcceptedStartError); once accepted, higher layers must not attempt a
+// route fallback even when a later step fails.
 type TransientModelResult struct {
 	Output   string
 	Accepted bool
@@ -47,20 +52,8 @@ func (m *Manager) InvokeTransientModel(
 	ctx context.Context,
 	call TransientModelCall,
 ) (result TransientModelResult, operationErr error) {
-	if ctx == nil {
-		return result, errors.New("session: transient model context is required")
-	}
-	if m == nil || m.driver == nil {
-		return result, errors.New("session: transient model driver is required")
-	}
-	if call.Config == nil {
-		return result, errors.New("session: transient model config is required")
-	}
-	if strings.TrimSpace(call.Prompt) == "" {
-		return result, errors.New("session: transient model prompt is required")
-	}
-	if call.MaxOutputBytes <= 0 {
-		return result, errors.New("session: transient model output bound must be positive")
+	if err := m.validateTransientModelCall(ctx, call); err != nil {
+		return result, err
 	}
 
 	agent := compozyconfig.AgentDef{
@@ -73,7 +66,9 @@ func (m *Manager) InvokeTransientModel(
 	}
 	agent.SetSpeed(call.Speed)
 	agent.SetACPOptions(call.ACPOptions)
-	resolved, err := call.Config.ResolveAgent(agent)
+	resolved, err := call.Config.ResolveSessionAgentWithRuntime(agent, compozyconfig.RuntimeOverrides{
+		Command: call.Command,
+	})
 	if err != nil {
 		return result, fmt.Errorf("session: resolve transient model runtime: %w", err)
 	}
@@ -104,8 +99,10 @@ func (m *Manager) InvokeTransientModel(
 
 	process, err := m.driver.Start(ctx, startOpts)
 	if err != nil {
+		result.Accepted = StartAccepted(err)
 		return result, fmt.Errorf("session: start transient model: %w", err)
 	}
+	result.Accepted = true
 	defer func() {
 		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), transientModelStopTimeout)
 		defer cancel()
@@ -118,12 +115,27 @@ func (m *Manager) InvokeTransientModel(
 	if err != nil {
 		return result, err
 	}
-	result.Accepted = true
 	result.Output, err = collectTransientModelOutput(ctx, events, call.MaxOutputBytes)
 	if err != nil {
 		return result, err
 	}
 	return result, nil
+}
+
+func (m *Manager) validateTransientModelCall(ctx context.Context, call TransientModelCall) error {
+	switch {
+	case ctx == nil:
+		return errors.New("session: transient model context is required")
+	case m == nil || m.driver == nil:
+		return errors.New("session: transient model driver is required")
+	case call.Config == nil:
+		return errors.New("session: transient model config is required")
+	case strings.TrimSpace(call.Prompt) == "":
+		return errors.New("session: transient model prompt is required")
+	case call.MaxOutputBytes <= 0:
+		return errors.New("session: transient model output bound must be positive")
+	}
+	return nil
 }
 
 func (m *Manager) promptTransientModel(

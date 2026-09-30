@@ -237,6 +237,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		return nil, err
 	}
 	m.consumeResumeReplay(session.ID, replayBlock)
+	m.recordImportedContextConsumption(session, req, replayBlock)
 
 	lifecycleCtx := m.fallbackLifecycleContext()
 	m.startPromptPersistencePump(

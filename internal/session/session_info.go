@@ -56,6 +56,7 @@ func (s *Session) infoLocked() *Info {
 		WorktreeID:               s.WorktreeID,
 		Type:                     normalizeSessionType(s.Type),
 		Lineage:                  store.NormalizeSessionLineage(s.ID, s.Lineage),
+		Derivation:               store.CloneSessionDerivation(s.derivation),
 		State:                    s.State,
 		PendingPermission:        pendingPermission,
 		StopReason:               s.stopReason,

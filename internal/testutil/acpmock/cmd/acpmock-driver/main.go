@@ -138,7 +138,8 @@ func (a *mockAgent) Initialize(
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
-			LoadSession: a.agent.SupportsLoadSession(),
+			LoadSession:         a.agent.SupportsLoadSession(),
+			SessionCapabilities: a.sessionCapabilities(),
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil
@@ -211,6 +212,9 @@ func (a *mockAgent) LoadSession(
 	_ context.Context,
 	params acpsdk.LoadSessionRequest,
 ) (acpsdk.LoadSessionResponse, error) {
+	if a.agent.LoadMissing {
+		return acpsdk.LoadSessionResponse{}, &acpsdk.RequestError{Code: -32002, Message: "Resource not found"}
+	}
 	a.mu.Lock()
 	sessionID := strings.TrimSpace(string(params.SessionId))
 	if sessionID == "" {
@@ -253,6 +257,18 @@ func (a *mockAgent) SetSessionConfigOption(
 	sessionID := string(request.ValueId.SessionId)
 	configID := string(request.ValueId.ConfigId)
 	value := string(request.ValueId.Value)
+	if a.agent.RejectsConfigValue(configID, value) {
+		diagnosticsErr := a.writeProtocolDiagnostics(
+			acpsdk.AgentMethodSessionSetConfigOption,
+			sessionID,
+			configID,
+			value,
+		)
+		return acpsdk.SetSessionConfigOptionResponse{}, errors.Join(
+			fmt.Errorf("acpmock-driver: config option %q value %q rejected by fixture", configID, value),
+			diagnosticsErr,
+		)
+	}
 	if err := a.setConfigOptionValue(sessionID, configID, value); err != nil {
 		return acpsdk.SetSessionConfigOptionResponse{}, err
 	}

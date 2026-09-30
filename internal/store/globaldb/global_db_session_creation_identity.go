@@ -40,56 +40,68 @@ func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 		Identity:  identity,
 	}
 	err := g.withImmediateTransaction(ctx, "register session creation identity", func(exec globalSQLExecutor) error {
-		storedWorkspace, storedState, storedIdentity, found, err := readSessionCreationIdentity(
-			ctx,
-			exec,
-			normalized.ID,
-		)
-		if err != nil {
-			return err
-		}
-		if found {
-			if strings.TrimSpace(storedWorkspace) != strings.TrimSpace(normalized.WorkspaceID) {
-				return sessionCreationIdentityMismatch(normalized.ID)
-			}
-			if storedIdentityComplete(storedIdentity) {
-				if storedIdentity != identity {
-					return sessionCreationIdentityMismatch(normalized.ID)
-				}
-				if err := g.registerSession(ctx, exec, normalized); err != nil {
-					return fmt.Errorf("store: refresh identity-matched session %q: %w", normalized.ID, err)
-				}
-				return nil
-			}
-			if strings.TrimSpace(storedState) != globalDBSessionStateStarting {
-				return sessionCreationIdentityMismatch(normalized.ID)
-			}
-		}
-
-		if err := g.registerSession(ctx, exec, normalized); err != nil {
-			return fmt.Errorf("store: register or bind identity-bound session %q: %w", normalized.ID, err)
-		}
-		affected, err := sqlcgen.New(exec).SetSessionCreationIdentity(
-			ctx,
-			sqlcgen.SetSessionCreationIdentityParams{
-				CreationProfileRef: nullableSessionString(identity.CreationProfileRef),
-				PolicySpecDigest:   nullableSessionString(identity.PolicySpecDigest),
-				CreationDigest:     nullableSessionString(identity.CreationDigest), ID: normalized.ID,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("store: persist session creation identity %q: %w", normalized.ID, err)
-		}
-		if affected != 1 {
-			return sessionCreationIdentityMismatch(normalized.ID)
-		}
-		registration.Created = !found
-		return nil
+		created, err := g.registerSessionCreationTx(ctx, exec, normalized, identity)
+		registration.Created = created
+		return err
 	})
 	if err != nil {
 		return store.SessionCreationRegistration{}, err
 	}
 	return registration, nil
+}
+
+// registerSessionCreationTx creates or refreshes one identity-matched session inside
+// the caller's transaction and reports whether the row was newly created.
+func (g *SessionRepo) registerSessionCreationTx(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	normalized store.SessionInfo,
+	identity store.SessionCreationIdentity,
+) (bool, error) {
+	storedWorkspace, storedState, storedIdentity, found, err := readSessionCreationIdentity(
+		ctx,
+		exec,
+		normalized.ID,
+	)
+	if err != nil {
+		return false, err
+	}
+	if found {
+		if strings.TrimSpace(storedWorkspace) != strings.TrimSpace(normalized.WorkspaceID) {
+			return false, sessionCreationIdentityMismatch(normalized.ID)
+		}
+		if storedIdentityComplete(storedIdentity) {
+			if storedIdentity != identity {
+				return false, sessionCreationIdentityMismatch(normalized.ID)
+			}
+			if err := g.registerSession(ctx, exec, normalized); err != nil {
+				return false, fmt.Errorf("store: refresh identity-matched session %q: %w", normalized.ID, err)
+			}
+			return false, nil
+		}
+		if strings.TrimSpace(storedState) != globalDBSessionStateStarting {
+			return false, sessionCreationIdentityMismatch(normalized.ID)
+		}
+	}
+
+	if err := g.registerSession(ctx, exec, normalized); err != nil {
+		return false, fmt.Errorf("store: register or bind identity-bound session %q: %w", normalized.ID, err)
+	}
+	affected, err := sqlcgen.New(exec).SetSessionCreationIdentity(
+		ctx,
+		sqlcgen.SetSessionCreationIdentityParams{
+			CreationProfileRef: nullableSessionString(identity.CreationProfileRef),
+			PolicySpecDigest:   nullableSessionString(identity.PolicySpecDigest),
+			CreationDigest:     nullableSessionString(identity.CreationDigest), ID: normalized.ID,
+		},
+	)
+	if err != nil {
+		return false, fmt.Errorf("store: persist session creation identity %q: %w", normalized.ID, err)
+	}
+	if affected != 1 {
+		return false, sessionCreationIdentityMismatch(normalized.ID)
+	}
+	return !found, nil
 }
 
 // GetSessionCreationIdentity loads one complete immutable identity witness.

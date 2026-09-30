@@ -38,7 +38,7 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
-			status := renderHumanSection("Session Status", []keyValue{
+			status := renderHumanSection("Session Status", append([]keyValue{
 				{Label: authoredContextSessionValue, Value: stringOrDash(record.SessionID)},
 				{Label: authoredContextWorkspaceValue, Value: stringOrDash(record.WorkspaceID)},
 				{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
@@ -54,7 +54,7 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				{Label: "Eligible For Wake", Value: boolString(record.EligibleForWake)},
 				{Label: "Ineligibility Reason", Value: stringOrDash(string(record.IneligibilityReason))},
 				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(record.UpdatedAt))},
-			})
+			}, derivationLines(record.Lineage, record.Derivation)...))
 			if record.WakeState == nil {
 				return status, nil
 			}

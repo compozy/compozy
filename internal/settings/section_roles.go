@@ -2,6 +2,7 @@ package settings
 
 import (
 	"reflect"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -215,13 +216,18 @@ func memoryControllerRoleTable(role compozyconfig.MemoryControllerRoleConfig) ma
 func roleFallbackTables(fallbacks []compozyconfig.RoleFallback) []map[string]any {
 	tables := make([]map[string]any, 0, len(fallbacks))
 	for _, fallback := range fallbacks {
-		tables = append(tables, map[string]any{
+		table := map[string]any{
 			sectionsProviderKey:        fallback.Provider,
 			sectionsModelKey:           fallback.Model,
 			sectionsReasoningEffortKey: fallback.ReasoningEffort,
 			sectionsSpeedKey:           string(fallback.Speed),
 			sectionsACPOptionsKey:      roleACPOptionTables(fallback.ACPOptions),
-		})
+		}
+		// An empty command inherits, so it is omitted rather than persisted as "".
+		if command := strings.TrimSpace(fallback.Command); command != "" {
+			table["command"] = command
+		}
+		tables = append(tables, table)
 	}
 	return tables
 }

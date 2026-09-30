@@ -371,6 +371,12 @@ type RuntimeConfigurator interface {
 	ConfigureRuntime(ctx context.Context, proc *AgentProcess, config acp.RuntimeConfig) error
 }
 
+// ForkDriver is the optional driver surface for ACP session/fork on a bound process.
+// The clone's traffic never reaches the process's bound session (ADR-003).
+type ForkDriver interface {
+	ForkSession(ctx context.Context, proc *AgentProcess, cwd string) (acp.ForkSessionResult, error)
+}
+
 // ErrScopedInterruptNotFound reports that no registered tool process matched a scoped interrupt.
 var ErrScopedInterruptNotFound = toolruntime.ErrProcessNotFound
 

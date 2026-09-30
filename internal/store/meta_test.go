@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
-	if err := WriteSessionMeta(path, meta); err != nil {
+	if err := WriteSessionMeta(path, &meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
@@ -81,7 +82,7 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 				filepath.Join("name", time.Date(2026, 4, 3, 18, 0, i, 0, time.UTC).Format(time.RFC3339Nano)),
 			)
 			meta.UpdatedAt = base.UpdatedAt.Add(time.Duration(i) * time.Second)
-			if err := WriteSessionMeta(path, meta); err != nil {
+			if err := WriteSessionMeta(path, &meta); err != nil {
 				t.Errorf("WriteSessionMeta() error = %v", err)
 			}
 		}(i)
@@ -190,7 +191,7 @@ func TestSessionMetaCreationWitness(t *testing.T) {
 			if !bytes.Equal(payload, after) {
 				t.Fatal("read rewrote creation metadata")
 			}
-			if err := WriteSessionMeta(path, meta); err != nil {
+			if err := WriteSessionMeta(path, &meta); err != nil {
 				t.Fatal(err)
 			}
 			reopened, err := ReadSessionMeta(path)
@@ -233,4 +234,128 @@ func sessionCreationWitnessForTest(t *testing.T) SessionMeta {
 		CreatedAt: time.Date(2026, 4, 3, 19, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 19, 1, 0, 0, time.UTC),
 	}
+}
+
+func TestUpgradeSessionLineageKind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply the catalog backfill rule to kindless lineage", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name        string
+			sessionType string
+			lineage     *SessionLineage
+			want        LineageKind
+			changed     bool
+		}{
+			{
+				name:        "Should mark a spawned session as spawn",
+				sessionType: "spawned",
+				lineage: &SessionLineage{
+					ParentSessionID: "sess-parent",
+					RootSessionID:   "sess-parent",
+					SpawnDepth:      1,
+				},
+				want:    LineageKindSpawn,
+				changed: true,
+			},
+			{
+				name:        "Should mark a spawn role as spawn",
+				sessionType: "coordinator",
+				lineage:     &SessionLineage{RootSessionID: "sess-root", SpawnRole: "worker"},
+				want:        LineageKindSpawn,
+				changed:     true,
+			},
+			{
+				name:        "Should mark a parented user session as provenance",
+				sessionType: "user",
+				lineage: &SessionLineage{
+					ParentSessionID: "sess-parent",
+					RootSessionID:   "sess-parent",
+					SpawnDepth:      1,
+				},
+				want:    LineageKindProvenance,
+				changed: true,
+			},
+			{
+				name:        "Should keep a root session unkinded",
+				sessionType: "user",
+				lineage:     &SessionLineage{RootSessionID: "sess-root"},
+				want:        LineageKindRoot,
+				changed:     false,
+			},
+			{
+				name:        "Should keep an existing kind",
+				sessionType: "user",
+				lineage: &SessionLineage{
+					ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1,
+					Kind: LineageKindRecovery,
+				},
+				want:    LineageKindRecovery,
+				changed: false,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				before := *tt.lineage
+				changed := UpgradeSessionLineageKind(tt.sessionType, tt.lineage)
+				if changed != tt.changed || tt.lineage.Kind != tt.want {
+					t.Fatalf(
+						"UpgradeSessionLineageKind(%q) = %v kind %q, want %v kind %q",
+						tt.sessionType, changed, tt.lineage.Kind, tt.changed, tt.want,
+					)
+				}
+				before.Kind = tt.lineage.Kind
+				if !reflect.DeepEqual(*tt.lineage, before) {
+					t.Fatalf("UpgradeSessionLineageKind() changed other fields: %#v, want %#v", *tt.lineage, before)
+				}
+				if UpgradeSessionLineageKind(tt.sessionType, tt.lineage) {
+					t.Fatal("UpgradeSessionLineageKind() second call changed lineage, want idempotent")
+				}
+			})
+		}
+		if UpgradeSessionLineageKind("user", nil) {
+			t.Fatal("UpgradeSessionLineageKind(nil) = true, want false")
+		}
+	})
+
+	t.Run("Should upgrade a pre-feature metadata document at read without rewriting it", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), SessionMetaName)
+		payload := []byte(`{
+  "id": "sess-child",
+  "agent_name": "coder",
+  "workspace_id": "ws-current",
+  "session_type": "user",
+  "lineage": {"parent_session_id": "sess-parent", "root_session_id": "sess-parent", "spawn_depth": 1},
+  "state": "stopped",
+  "runtime_status": "unbound",
+  "created_at": "2026-04-03T17:00:00Z",
+  "updated_at": "2026-04-03T17:01:00Z"
+}
+`)
+		if err := os.WriteFile(path, payload, 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		meta, err := ReadSessionMeta(path)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta(pre-feature) error = %v", err)
+		}
+		if meta.Lineage == nil || meta.Lineage.Kind != LineageKindProvenance ||
+			meta.Lineage.ParentSessionID != "sess-parent" {
+			t.Fatalf("ReadSessionMeta(pre-feature).Lineage = %#v, want upgraded provenance", meta.Lineage)
+		}
+		onDisk, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile() error = %v", err)
+		}
+		if !bytes.Equal(onDisk, payload) {
+			t.Fatalf("ReadSessionMeta() rewrote the document:\n%s", onDisk)
+		}
+	})
 }

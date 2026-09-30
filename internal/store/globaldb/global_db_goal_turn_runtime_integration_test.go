@@ -1545,7 +1545,11 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 					t.Fatalf("set cancellation origin identity: %v", err)
 				}
 			}
-			if _, err := db.db.ExecContext(ctx, "UPDATE loop_runs SET generation = 1 WHERE id = ?", "run-cancel"); err != nil {
+			if _, err := db.db.ExecContext(
+				ctx,
+				"UPDATE loop_runs SET generation = 1 WHERE id = ?",
+				"run-cancel",
+			); err != nil {
 				t.Fatalf("set active cancellation generation: %v", err)
 			}
 			key := goal.TurnKey{WorkspaceID: "ws-cancel", LoopRunID: "run-cancel", Generation: 1, NodeID: "goal"}

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -32,28 +33,31 @@ const (
 	sessionStartActionResume = "resume"
 )
 
-func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta) (sessionStartSpec, error) {
-	if m.hasPendingStopSettlement(meta.ID) {
+func (m *Manager) prepareResumeStart(ctx context.Context, source *store.SessionMeta) (sessionStartSpec, error) {
+	if source == nil {
+		return sessionStartSpec{}, errors.New("session: resume metadata is required")
+	}
+	if m.hasPendingStopSettlement(source.ID) {
 		return sessionStartSpec{}, fmt.Errorf(
 			"%w: recovered stop for %s has pending persistence",
 			ErrRecoveryPersistence,
-			meta.ID,
+			source.ID,
 		)
 	}
-	if State(meta.State) == StateStopping ||
-		(meta.Liveness != nil && meta.Liveness.SubprocessPID > 0 && !inactiveProcessExitVerified(&meta)) {
+	if State(source.State) == StateStopping ||
+		(source.Liveness != nil && source.Liveness.SubprocessPID > 0 && !inactiveProcessExitVerified(source)) {
 		return sessionStartSpec{}, fmt.Errorf(
 			"%w: cannot resume %s before process exit",
 			ErrStopVerificationFailed,
-			meta.ID,
+			source.ID,
 		)
 	}
-	meta, err := m.dispatchSessionPreResume(ctx, meta)
+	meta, err := m.dispatchSessionPreResume(ctx, source)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: dispatch pre-resume for %q: %w", meta.ID, err)
 	}
 
-	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
+	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, &meta)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve resume workspace for %q: %w", meta.ID, err)
 	}
@@ -65,11 +69,11 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if worktreeRoot != "" {
 		executionRoot = worktreeRoot
 	}
-	cwd, err := resumeSessionCWD(meta, executionRoot)
+	cwd, err := resumeSessionCWD(&meta, executionRoot)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
 	}
-	spec, err := sessionStartSpecFromMeta(meta, &resolvedWorkspace, cwd)
+	spec, err := sessionStartSpecFromMeta(&meta, &resolvedWorkspace, cwd)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: build resume start spec for %q: %w", meta.ID, err)
 	}
@@ -80,14 +84,20 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	spec.includePromptUpdatedAt = true
 	spec.preserveStopReason = sessionMetaStopReason(&meta) == store.StopAgentCrashed
 	spec.acpSessionID = derefString(meta.ACPSessionID)
+	if spec.acpSessionID != "" {
+		spec.acceptedRoute = store.CloneSessionAcceptedRoute(meta.AcceptedRoute)
+	}
 	spec.stopReason = sessionMetaStopReason(&meta)
 	spec.stopDetail = strings.TrimSpace(meta.StopDetail)
 	spec.failure = store.CloneSessionFailure(meta.Failure)
 	return spec, nil
 }
 
-func resumeSessionCWD(meta store.SessionMeta, executionRoot string) (string, error) {
+func resumeSessionCWD(meta *store.SessionMeta, executionRoot string) (string, error) {
 	requested := executionRoot
+	if meta == nil {
+		return ResolveSessionCWD(executionRoot, requested)
+	}
 	if meta.CreationProfile != nil {
 		requested = strings.TrimSpace(meta.CreationProfile.CWD)
 	} else if cwd := strings.TrimSpace(meta.CWDValue()); cwd != "" {
@@ -114,7 +124,7 @@ func (m *Manager) startAgentProcess(
 	startOpts acp.StartOpts,
 ) (*AgentProcess, error) {
 	logger := spec.startLogger(m).With("resolved_provider", startOpts.ProviderName)
-	logger.Info("session.provider_route.selected", "phase", spec.startAction)
+	logger.Info("session.provider_route.selected", "phase", spec.startAction, "attempt", spec.fallbackAttempt)
 	proc, err := m.driver.Start(ctx, startOpts)
 	if err != nil {
 		logger.Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)

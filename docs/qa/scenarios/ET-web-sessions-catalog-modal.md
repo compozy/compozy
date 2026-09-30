@@ -11,8 +11,8 @@ bug_ids: BUG-20260805-session-delete-dialog-disappears
 fix_status: fixed
 retest_status: pass
 fix_commits: PR-309-coderabbit-remediation
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-327-coderabbit-20260806-224025-123277-lab/qa-artifacts/qa/journey-log.jsonl; docs/qa/evidence/2026-08-06-pr-327-coderabbit/catalog-filter-ancestor-path.png; docs/qa/evidence/2026-08-06-pr-327-coderabbit/catalog-group-collapsed.png; docs/qa/evidence/2026-08-24-eng-136/session-menu-catalog.png
-last_report: docs/qa/reports/2026-08-24-eng-136.md
+evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b2/catalog-threads.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/before-row-menu-narrow.png; .compozy/tasks/session-continue-fork/evidence/visual/task_04/VC-01/; .compozy/tasks/session-continue-fork/evidence/visual/task_04/VC-02/
+last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-web-command-palette-shortcuts
 ---
 
@@ -47,3 +47,11 @@ updated catalog.
 QA impact 2026-08-24 ENG-136: the dock Sessions action is now contextual — it starts the new-session flow when no session window exists and focuses the most-recent session window otherwise. The catalog remains owned by the Session menu and palette, so this scenario is reset for a focused re-walk.
 
 QA completion 2026-08-24: the Session menu opened the shell catalog and dismissed cleanly in the dedicated ENG-136 walk; the compact E2E-020 path opened the same catalog through the command palette. Evidence: `docs/qa/evidence/2026-08-24-eng-136/session-menu-catalog.png`. Verdict: pass.
+
+QA impact 2026-09-28 (session-continue-fork task_04/task_06): each user row's menu in the catalog now
+offers "Continue with another agent…" and "Fork session…"; either opens its dialog over the catalog,
+which stays open (no dismissal) while the dialog is up, and the child opens in its own window. Reset
+for a focused re-walk; the derive flows themselves are walked in ET-web-session-continue and
+ET-web-session-fork-from-here.
+
+QA walk 2026-09-28 (task_08 part B2): Session menu → catalog. User rows offer Continue/Fork after Rename; the archived row offers Rename/Unarchive/Delete only. Continue and Fork open their dialog over the still-open catalog, Cancel returns to it, and a submitted fork opens the child in its own window. Children nest under their source. Found: the row menu popup was 128px wide with wrapped items (visual contract VC-01/02); fixed with `min-w-56`. Verdict: pass (after fix). Report: `docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md`.

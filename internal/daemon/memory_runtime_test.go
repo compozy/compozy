@@ -406,7 +406,7 @@ func TestForkedMemoryExtractor(t *testing.T) {
 		sessions := &recordingMemoryExtractorSessions{}
 		extractor := &forkedMemoryExtractor{
 			sessions: sessions,
-			roles:    resolvedRoleResolver(ResolvedRole{Enabled: false}),
+			roles:    resolvedRoleResolver(&ResolvedRole{Enabled: false}),
 		}
 		candidates, err := extractor.Extract(testutil.Context(t), memcontract.TurnRecord{WorkspaceID: "ws-test"})
 		if err != nil {
@@ -439,7 +439,7 @@ func TestForkedMemoryExtractor(t *testing.T) {
 			}
 			extractor := &forkedMemoryExtractor{
 				sessions:    sessions,
-				roles:       resolvedRoleResolver(ResolvedRole{Enabled: true}),
+				roles:       resolvedRoleResolver(&ResolvedRole{Enabled: true}),
 				deadline:    time.Second,
 				failuresDir: failuresDir,
 			}
@@ -490,7 +490,7 @@ func TestForkedMemoryExtractor(t *testing.T) {
 		sessions := &recordingMemoryExtractorSessions{}
 		extractor := &forkedMemoryExtractor{
 			sessions: sessions,
-			roles: resolvedRoleResolver(ResolvedRole{
+			roles: resolvedRoleResolver(&ResolvedRole{
 				Role:    compozyconfig.RoleMemoryExtractor,
 				Enabled: true,
 				Inherit: true,

@@ -258,6 +258,20 @@ or failed generation leaves the session unnamed.
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
 
+A fallback route may name an account with `command`, using the same grammar as
+`providers.<name>.command` and `agent.command`: shell-style quoting, no shell, and leading `NAME=value`
+tokens become private environment forwarded literally (no `~` or `$HOME` expansion — use absolute
+paths). Empty `command` inherits the agent's command on its own provider, otherwise the route
+provider's command. Parsing is the only validation (no route-count or length limit):
+
+    [[roles.auto_title.fallback_chain]]
+    provider = "claude"
+    model = "haiku-4-5"
+    command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+
+`compozy roles show auto_title` prints the `command` column; `role.fallback.used` records only
+`provider_command_fingerprint` (`sha256:`), never the raw command.
+
 ## Persona Defaults
 
 Persona defaults select the agent and provider used for new work. Read them through

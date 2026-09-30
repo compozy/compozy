@@ -72,7 +72,7 @@ Observe cross-client changes through `cmd_palette.pin.changed`,
 ## Runtime And Workspace Tools
 
 Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,
-`compozy__session_rewind`,
+`compozy__session_rewind`, `compozy__session_continue`, `compozy__session_fork`,
 `compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
@@ -139,6 +139,26 @@ CompozyOS session ID, and returns the selected text as `draft_text`. It never ro
 network effects, memory, or external provider actions. Resolve its descriptor and obtain approval
 before calling it.
 
+`compozy__session_continue` (risk `mutating`, same permission as `compozy__session_create`) starts a
+new user session for `agent` with the source conversation carried over; the source is never changed.
+Required: `session_id`, `agent`, `idempotency_key`. Optional: `workspace`, `message`, `name`, `runtime`
+`{provider, model, reasoning_effort, speed, acp_options}` **or** `route` (1-based declared route of the
+agent's `fallback_chain`), and the three transcript fences together. The result is `{session,
+derived}`; repeat the same call with the same key to read the recorded outcome (`derived.replayed`,
+`derived.child_deleted`) instead of creating a second session, even after the source was deleted. A
+source outside the resolved workspace is `session_not_found`. A failure carries the HTTP error payload
+(`code`, and `child_session_id` when the session was already created before the failure) as the tool
+error's partial result: open that session or retry with the same key.
+
+`compozy__session_fork` (risk `mutating`, same permission and result shape as
+`compozy__session_continue`) forks a user session with the **same** agent, runtime, and account.
+Required: `session_id`, `idempotency_key`. Optional: `workspace`, `message_id` (fork through that
+durable user message and its turn; the whole session when omitted), `name`, and the three transcript
+fences together. An unsettled cut turn fails with `session_turn_in_progress`; an unknown message with
+`message_not_found`. `derived.seed` is `native_fork` (with `native_state: pending` and the clone's
+`acp_session_id`) when the agent cloned its own session, otherwise `replay`; a failed clone request is
+reported in `derived.native_fork_error`.
+
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional
 `expected_revision`; when omitted, the tool reads the current `runtime.selection_revision` before
@@ -182,7 +202,12 @@ Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy_
 resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
 `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
 model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
-target project runtime defaults.
+target project runtime defaults. Optional `fallback_chain` is an ordered array of routes
+(`provider` and `model` required; `reasoning_effort`, `speed`, `acp_options`, and `command`
+optional). A route `command` selects the account with the same grammar as `providers.<name>.command`
+(leading `NAME=value` assignments are forwarded literally; use absolute paths, no `~`). An unknown
+route provider or a command without an executable is rejected as invalid input. The returned agent
+payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on routes that set `command`.
 
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
 

@@ -70,13 +70,14 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 			ACPOptions:      session.ACPOptionSelectionsFromConfig(resolved.acpOptionsValue()),
 			Fallbacks:       append([]compozyconfig.RoleFallback(nil), resolved.Fallbacks...),
 			BeforeFallback: func(fallbackCtx context.Context, attempt int, fallback compozyconfig.RoleFallback) error {
-				return recordRoleFallbackEvent(fallbackCtx, resolved, correlation, attempt, roleAttemptRoute{
+				return recordRoleFallbackEvent(fallbackCtx, &resolved, correlation, attempt, roleAttemptRoute{
 					AgentName:       resolved.AgentName,
 					Provider:        fallback.Provider,
 					Model:           fallback.Model,
 					ReasoningEffort: fallback.ReasoningEffort,
 					Speed:           fallback.Speed,
 					ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
+					Command:         strings.TrimSpace(fallback.Command),
 				})
 			},
 		}, nil

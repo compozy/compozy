@@ -30,7 +30,7 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 		if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 			b.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 		}
-		if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
+		if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &store.SessionMeta{
 			ID:            fmt.Sprintf("sess-%03d", idx),
 			Name:          fmt.Sprintf("Session %03d", idx),
 			AgentName:     "coder",

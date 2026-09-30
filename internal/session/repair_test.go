@@ -23,7 +23,7 @@ func TestManagerRepairSession(t *testing.T) {
 
 		h := newHarness(t)
 		meta := repairSessionMeta("sess-repair-dry", store.StopAgentCrashed, h.workspaceID)
-		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
+		seedRepairSession(t, h, &meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
 		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{
 			SessionID: meta.ID,
@@ -58,7 +58,7 @@ func TestManagerRepairSession(t *testing.T) {
 
 		h := newHarness(t)
 		meta := repairSessionMeta("sess-repair-append", store.StopAgentCrashed, h.workspaceID)
-		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
+		seedRepairSession(t, h, &meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
 		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
@@ -121,7 +121,7 @@ func TestManagerRepairSession(t *testing.T) {
 			}
 		})
 		meta := repairSessionMeta("sess-repair-entropy", store.StopAgentCrashed, h.workspaceID)
-		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
+		seedRepairSession(t, h, &meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
 		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if !errors.Is(err, entropyErr) {
@@ -154,7 +154,7 @@ func TestManagerRepairSession(t *testing.T) {
 
 		h := newHarness(t)
 		meta := repairSessionMeta("sess-repair-partial-text", store.StopAgentCrashed, h.workspaceID)
-		seedRepairSession(t, h, meta, interruptedTextTurnEvents(t, meta.ID, meta.AgentName)...)
+		seedRepairSession(t, h, &meta, interruptedTextTurnEvents(t, meta.ID, meta.AgentName)...)
 
 		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
@@ -195,7 +195,7 @@ func TestManagerRepairSession(t *testing.T) {
 				},
 			),
 		)
-		seedRepairSession(t, h, meta, events...)
+		seedRepairSession(t, h, &meta, events...)
 
 		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
@@ -241,7 +241,7 @@ func TestManagerRepairSession(t *testing.T) {
 
 		h := newHarness(t)
 		meta := repairSessionMeta("sess-repair-invalid-json", store.StopAgentCrashed, h.workspaceID)
-		seedRepairSession(t, h, meta, store.SessionEvent{
+		seedRepairSession(t, h, &meta, store.SessionEvent{
 			TurnID:    "turn-1",
 			Type:      acp.EventTypeAgentMessage,
 			AgentName: meta.AgentName,
@@ -271,7 +271,7 @@ func TestManagerRepairSession(t *testing.T) {
 
 		h := newHarness(t)
 		meta := repairSessionMeta("sess-repair-force", store.StopCompleted, h.workspaceID)
-		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
+		seedRepairSession(t, h, &meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
 		blocked, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
@@ -404,7 +404,7 @@ func repairStoredEvent(
 	}
 }
 
-func seedRepairSession(t *testing.T, h *harness, meta store.SessionMeta, events ...store.SessionEvent) {
+func seedRepairSession(t *testing.T, h *harness, meta *store.SessionMeta, events ...store.SessionEvent) {
 	t.Helper()
 
 	sessionDir := filepath.Join(h.homePaths.SessionsDir, meta.ID)

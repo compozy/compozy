@@ -198,7 +198,11 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 				if status != http.StatusAccepted || started.Snapshot == nil {
 					t.Fatalf("start = %d %#v", status, started)
 				}
-				path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" + url.PathEscape(target.ID)
+				path := "/api/workspaces/" + url.PathEscape(
+					harness.WorkspaceID,
+				) + "/sessions/" + url.PathEscape(
+					target.ID,
+				)
 				if tc.remove {
 					if err := harness.UDSJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
 						t.Fatal(err)
@@ -230,7 +234,9 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 						t.Fatalf("delete persisted stopped Goal session: %v", err)
 					}
 				}
-				runPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loop-runs/" + started.Snapshot.RunID
+				runPath := "/api/workspaces/" + url.PathEscape(
+					harness.WorkspaceID,
+				) + "/loop-runs/" + started.Snapshot.RunID
 				runBeforeCancel, err := getGoalLoopRun(ctx, harness, started.Snapshot.RunID)
 				if err != nil {
 					t.Fatal(err)

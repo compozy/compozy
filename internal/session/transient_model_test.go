@@ -5,8 +5,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -86,8 +88,10 @@ func TestInvokeTransientModel(t *testing.T) {
 		if !errors.Is(err, entropyErr) {
 			t.Fatalf("InvokeTransientModel() error = %v, want entropy failure", err)
 		}
-		if result.Accepted {
-			t.Fatalf("InvokeTransientModel() result = %#v, want unaccepted", result)
+		// ADR-005: acceptance is recorded when Start returns an accepted process, so a
+		// failure while preparing the prompt must not let the caller try another route.
+		if !result.Accepted {
+			t.Fatalf("InvokeTransientModel() result = %#v, want accepted after Start", result)
 		}
 		if got, want := len(h.driver.startCalls), 1; got != want {
 			t.Fatalf("driver start calls = %d, want %d", got, want)
@@ -97,6 +101,58 @@ func TestInvokeTransientModel(t *testing.T) {
 		}
 		if got, want := h.driver.stopCalls, 1; got != want {
 			t.Fatalf("driver stop calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should derive acceptance from the start error and forward the route command", func(t *testing.T) { // UT-032
+		t.Parallel()
+
+		const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		for _, testCase := range []struct {
+			name         string
+			startErr     error
+			wantAccepted bool
+		}{
+			{
+				name:         "accepted then failed",
+				startErr:     acp.WrapAcceptedStart("acp_1", errors.New("configure failed")),
+				wantAccepted: true,
+			},
+			{
+				name:     "refused before acceptance",
+				startErr: acp.WrapFailure(store.FailureStartup, "rate limited", errors.New("429")),
+			},
+		} {
+			t.Run("Should report "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+					return nil, testCase.startErr
+				}
+				provider := "claude"
+				result, err := h.manager.InvokeTransientModel(testutil.Context(t), TransientModelCall{
+					Config:         &h.cfg,
+					Provider:       provider,
+					Model:          h.cfg.Providers[provider].Models.Default,
+					CWD:            h.workspace,
+					Prompt:         "Choose the memory operation.",
+					MaxOutputBytes: 64,
+					Command:        command,
+				})
+				if !errors.Is(err, testCase.startErr) {
+					t.Fatalf("InvokeTransientModel() error = %v, want %v", err, testCase.startErr)
+				}
+				if result.Accepted != testCase.wantAccepted || StartAccepted(err) != testCase.wantAccepted {
+					t.Fatalf(
+						"accepted = (%t, StartAccepted %t), want %t",
+						result.Accepted, StartAccepted(err), testCase.wantAccepted,
+					)
+				}
+				if len(h.driver.startCalls) != 1 || h.driver.startCalls[0].Command != command {
+					t.Fatalf("driver start calls = %#v, want one start with the route command", h.driver.startCalls)
+				}
+			})
 		}
 	})
 

@@ -208,7 +208,7 @@ func (e *forkedMemoryExtractor) Extract(
 	if err != nil {
 		return nil, err
 	}
-	child, err := e.spawnExtractorSession(runCtx, role, correlation, turn)
+	child, err := e.spawnExtractorSession(runCtx, &role, correlation, turn)
 	if child != nil {
 		defer func() { e.stopChild(ctx, child.ID, resultErr) }()
 	}
@@ -236,7 +236,7 @@ func (e *forkedMemoryExtractor) Extract(
 
 func (e *forkedMemoryExtractor) spawnExtractorSession(
 	ctx context.Context,
-	role ResolvedRole,
+	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	turn memcontract.TurnRecord,
 ) (*session.Session, error) {
@@ -252,6 +252,8 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 			ReasoningEffort:     route.ReasoningEffort,
 			Speed:               route.Speed,
 			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+			Command:             route.Command,
+			ChainOwner:          session.ChainOwnerCaller,
 			Name:                "Memory extractor",
 			PromptOverlay:       memoryExtractorOverlay(),
 			SpawnRole:           session.SpawnRoleMemoryExtractor,
@@ -261,7 +263,7 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 			AllowStoppedParent:  true,
 			DiscardStartFailure: true,
 		})
-		return spawned, spawned != nil, err
+		return spawned, session.StartAccepted(err) || spawned != nil, err
 	})
 }
 

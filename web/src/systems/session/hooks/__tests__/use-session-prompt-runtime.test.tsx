@@ -334,7 +334,9 @@ describe("SessionPromptRuntimeProvider hydration", () => {
             prompt_audio: false,
             prompt_image: false,
             prompt_embedded_context: false,
+            supports_fork_session: false,
             supports_load_session: true,
+            supports_resume_session: false,
             config_options: [
               {
                 id: "deliberation",

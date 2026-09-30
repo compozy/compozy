@@ -147,6 +147,9 @@ func statusForSessionError(err error) int {
 	case errors.Is(err, admission.ErrDraining):
 		return http.StatusServiceUnavailable
 	}
+	if status, ok := statusForDeriveError(err); ok {
+		return status
+	}
 	if status, ok := statusForSessionLookupError(err); ok {
 		return status
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -85,6 +86,8 @@ func TestRolesCommands(t *testing.T) {
 			Model:          &model,
 			FallbackChain: []contract.RoleFallbackStatus{{
 				Provider: "backup", Model: "fallback-model", ReasoningEffort: "medium",
+				Command:            "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp",
+				CommandFingerprint: "sha256:abc",
 			}},
 			Provenance: map[string]string{"agent": "workspace", "provider": "global"},
 			Diagnostics: []contract.RoleDiagnostic{{
@@ -114,6 +117,39 @@ func TestRolesCommands(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, role) {
 			t.Fatalf("roles show = %#v, want %#v", got, role)
+		}
+	})
+
+	t.Run("Should print the fallback route command column in human output", func(t *testing.T) {
+		t.Parallel()
+
+		command := "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+		provider := "claude"
+		model := "haiku-4-5"
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getRoleFn: func(context.Context, string, RoleQuery) (RoleRecord, error) {
+				return RoleRecord{
+					Role:           "auto_title",
+					Enabled:        true,
+					ResolutionMode: contract.RoleResolutionModeInherit,
+					Provider:       &provider,
+					Model:          &model,
+					FallbackChain: []contract.RoleFallbackStatus{
+						{Provider: "claude", Model: "haiku-4-5", Command: command},
+						{Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high"},
+					},
+				}, nil
+			},
+		})
+
+		stdout, stderr, err := executeRootCommand(t, deps, "roles", "show", "auto_title")
+		if err != nil {
+			t.Fatalf("executeRootCommand(roles show human) error = %v; stderr=%s", err, stderr)
+		}
+		for _, want := range []string{"Fallback Chain", "Command", command, "grok-4.6"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("roles show human output missing %q:\n%s", want, stdout)
+			}
 		}
 	})
 

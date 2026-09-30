@@ -5,7 +5,7 @@ import {
   formatMessageTimestamp,
   formatMessageTimestampFull,
 } from "@/systems/session/lib/format-timestamp";
-import { SessionRewindMessageAction } from "@/systems/session";
+import { SessionForkMessageAction, SessionRewindMessageAction } from "@/systems/session";
 import { CopyIconButton } from "@compozy/ui";
 import { deriveMessageActions } from "./message-actions.logic";
 import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
@@ -63,7 +63,12 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
         <>
           {timestamp}
           {copy}
-          {readOnly ? null : <SessionRewindMessageAction />}
+          {readOnly ? null : (
+            <>
+              <SessionForkMessageAction messageText={source} />
+              <SessionRewindMessageAction />
+            </>
+          )}
         </>
       ) : (
         <>

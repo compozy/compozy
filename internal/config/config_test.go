@@ -1201,6 +1201,92 @@ func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
 	})
 }
 
+func TestSessionDeriveConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default the carried-context bounds", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{}).Session.Derive
+		if cfg.MaxReplayBytes != 131072 || cfg.MaxMessageBytes != 16384 {
+			t.Fatalf("default Session.Derive = %#v, want 131072/16384", cfg)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("default Session.Derive.Validate() error = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		replay  int
+		message int
+		wantErr string
+	}{
+		{name: "Should accept the minimum replay budget", replay: 4096, message: 1024},
+		{
+			name: "Should reject a replay budget below 4096", replay: 4095, message: 1024,
+			wantErr: "session.derive.max_replay_bytes must be at least 4096",
+		},
+		{
+			name: "Should reject a message cap below 1024", replay: 131072, message: 1023,
+			wantErr: "session.derive.max_message_bytes must be between 1024 and session.derive.max_replay_bytes",
+		},
+		{
+			name: "Should reject a message cap above the replay budget", replay: 8192, message: 8193,
+			wantErr: "session.derive.max_message_bytes must be between 1024 and session.derive.max_replay_bytes",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := SessionDeriveConfig{MaxReplayBytes: tc.replay, MaxMessageBytes: tc.message}.Validate()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("Validate() error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadSessionDeriveConfig(t *testing.T) {
+	load := func(t *testing.T, workspaceTOML string) (Config, error) {
+		t.Helper()
+		workspaceRoot := t.TempDir()
+		t.Setenv("COMPOZY_HOME", filepath.Join(t.TempDir(), "home"))
+		homePaths, err := ResolveHomePaths()
+		if err != nil {
+			t.Fatalf("ResolveHomePaths() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), workspaceTOML)
+		return Load(WithWorkspaceRoot(workspaceRoot))
+	}
+
+	t.Run("Should apply the workspace overlay for session.derive", func(t *testing.T) {
+		cfg, err := load(t, "[session.derive]\nmax_replay_bytes = 8192\nmax_message_bytes = 2048\n")
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if cfg.Session.Derive.MaxReplayBytes != 8192 || cfg.Session.Derive.MaxMessageBytes != 2048 {
+			t.Fatalf("Load() Session.Derive = %#v, want 8192/2048", cfg.Session.Derive)
+		}
+	})
+
+	t.Run("Should reject a replay budget below the minimum at load", func(t *testing.T) {
+		_, err := load(t, "[session.derive]\nmax_replay_bytes = 4095\n")
+		if err == nil || !strings.Contains(err.Error(), "session.derive.max_replay_bytes must be at least 4096") {
+			t.Fatalf("Load() error = %v, want max_replay_bytes validation", err)
+		}
+	})
+}
+
 func TestSessionCompactionConfigDefaultsAndValidation(t *testing.T) {
 	t.Parallel()
 

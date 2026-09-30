@@ -163,6 +163,14 @@ func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	}
 }
 
+// WithEventLedger injects the daemon ledger that records session.fallback.used before
+// each fallback attempt (readable through GET /api/logs).
+func WithEventLedger(ledger store.EventSummaryStore) Option {
+	return func(manager *Manager) {
+		manager.eventLedger = ledger
+	}
+}
+
 // WithWindowReconciler injects the daemon-owned window cleanup invoked
 // after a session catalog deletion succeeds.
 func WithWindowReconciler(reconciler WindowReconciler) Option {
@@ -387,5 +395,12 @@ func WithSessionCompactionConfig(config compozyconfig.SessionCompactionConfig) O
 func WithCompactionHandler(handler CompactionHandler) Option {
 	return func(manager *Manager) {
 		manager.compactionHandler = handler
+	}
+}
+
+// WithSessionDeriveConfig sets the carried-context bounds for continue and fork.
+func WithSessionDeriveConfig(cfg compozyconfig.SessionDeriveConfig) Option {
+	return func(manager *Manager) {
+		manager.deriveConfig = cfg
 	}
 }

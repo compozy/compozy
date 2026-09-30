@@ -27,6 +27,17 @@ Use the persisted session stream when you need reconnect support or a live trans
 Use `frames=raw` on that stream when you need audit-grade event rows. Use the prompt stream when
 you are driving one interactive prompt call.
 
+### Daemon log events for continued sessions
+
+A session created by `compozy session continue` records one `session.derived` event in the daemon log,
+right after the new session is committed. Read it with
+`compozy logs --session <new-session-id> --type session.derived -o json`. Its payload carries `kind`,
+`source_session_id`, `origin_message_id`, `origin_agent_name`, `through_turn_id`, `seed`,
+`native_state`, `replay_message_count`, `replay_bytes`, `truncated`, `omitted_count`,
+`native_fork_error`, `first_prompt`, and `idempotency_key`. Nothing is written to the source session.
+If the daemon stops between the commit and this write, the event is written from the recorded outcome on
+the next daemon start, still exactly once.
+
 ## Prompt identity and safe retries
 
 Every prompt and steer request requires two caller-provided values:

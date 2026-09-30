@@ -261,7 +261,7 @@ func TestStatusAndResumeRejectMetadataWithoutProvider(t *testing.T) {
 
 	meta := readMeta(t, sess.MetaPath())
 	meta.Provider = ""
-	if err := store.WriteSessionMeta(sess.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(sess.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta(clear provider) error = %v", err)
 	}
 	before, err := os.ReadFile(sess.MetaPath())
@@ -300,7 +300,7 @@ func TestResumeFailsWhenPersistedProviderUnavailable(t *testing.T) {
 
 	meta := readMeta(t, session.MetaPath())
 	meta.Provider = "missing-provider"
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
 		t.Fatalf("WriteSessionMeta(set missing provider) error = %v", err)
 	}
 

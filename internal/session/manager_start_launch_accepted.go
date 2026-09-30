@@ -88,16 +88,15 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	}
 
 	accepted.persistFailure = accepted.async || !spec.discardStartFailure
-	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime, accepted.run)
+	startOpts, err := m.launchAcceptedSessionAttempts(accepted, &runtime)
 	if err != nil {
-		return fmt.Errorf("session: prepare %s launch for %q: %w", spec.startAction, spec.sessionID, err)
+		return err
 	}
-	accepted.proc, err = m.startAgentProcess(ctx, spec, startOpts)
-	if err != nil {
-		return fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
-	}
+	accepted.runtime = runtime
+	acceptedID := accepted.proc.SessionID
+	session.commitAcceptedRoute(acceptedRouteRecord(spec.fallbackAttempt, runtime.agent, ""), spec.command)
 	if err := m.persistResumeReplayMarker(ctx, spec, session); err != nil {
-		return startupFailure("session resume marker persistence failed", err)
+		return acp.WrapAcceptedStart(acceptedID, startupFailure("session resume marker persistence failed", err))
 	}
 
 	if !accepted.async {
@@ -113,10 +112,10 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 		spec.postEvent,
 		spec.preserveStopReason,
 	); err != nil {
-		return startupFailure(
+		return acp.WrapAcceptedStart(acceptedID, startupFailure(
 			"session activation failed",
 			fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err),
-		)
+		))
 	}
 	if spec.resumeReplay {
 		m.stageResumeReplay(spec.sessionID, spec.resumeReplayBlock)
@@ -155,6 +154,14 @@ func (m *Manager) discardAcceptedSessionStart(
 	accepted *acceptedSessionStart,
 	startErr error,
 ) error {
+	if accepted.spec.deriveReceipt != nil {
+		if !accepted.session.isDeriveCommitted() {
+			return m.discardUncommittedSessionStart(accepted, startErr)
+		}
+		// A committed derived child is named by its receipt: keep its files and catalog
+		// row so a retry with the same key, or a restart, recovers it.
+		return errors.Join(startErr, m.retainAcceptedSessionAfterDiscardFailure(ctx, accepted, startErr))
+	}
 	session := accepted.session
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
@@ -195,6 +202,20 @@ func (m *Manager) discardAcceptedSessionStart(
 	}
 	session.clearProviderSecretRedactions()
 	return errors.Join(startErr, cleanupErr, directoryErr)
+}
+
+// discardUncommittedSessionStart sweeps a start whose catalog registration never
+// committed (a derived child whose registration transaction failed or lost a race):
+// only its reserved directory exists, so it is removed like a failed accept.
+func (m *Manager) discardUncommittedSessionStart(accepted *acceptedSessionStart, startErr error) error {
+	session := accepted.session
+	cleanupErr := m.cleanupFailedStart(accepted.storage.sessionDir, accepted.storage.recorder, accepted.proc)
+	m.remove(session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(session.ID)
+	}
+	session.clearProviderSecretRedactions()
+	return errors.Join(startErr, cleanupErr)
 }
 
 func (m *Manager) retainAcceptedSessionAfterDiscardFailure(

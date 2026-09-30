@@ -1103,6 +1103,7 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		childCommand     string
 		childProvider    string
 		override         string
+		attemptCommand   string
 		want             string
 		isolatedHome     bool
 		isolatedEnv      bool
@@ -1116,6 +1117,10 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		{name: "Should keep isolated child home routing", childProvider: "claude", isolatedHome: true, want: "account-a"},
 		{name: "Should keep changed child environment routing", childProvider: "claude", isolatedEnv: true, want: "account-a"},
 		{name: "Should keep an authorized foreign workspace routing", childProvider: "claude", foreignWorkspace: true, want: "account-a"},
+		// UT-034: an attempt command wins over inheritance and over the agent command.
+		{name: "Should launch an attempt command instead of inheriting", childProvider: "claude", attemptCommand: "SEAT=2 claude --acp", want: "SEAT=2 claude --acp"},
+		{name: "Should launch an attempt command over the child agent command", childProvider: "claude", childCommand: "account-c", attemptCommand: "SEAT=2 claude --acp", want: "SEAT=2 claude --acp"},
+		{name: "Should launch an attempt command on a different provider", childProvider: "claude", override: "codex", attemptCommand: "CODEX_HOME=/x codex acp", want: "CODEX_HOME=/x codex acp"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1170,6 +1175,8 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 					Provider:        tt.override,
 					Workspace:       workspace.ID,
 					TTL:             time.Minute,
+					Command:         tt.attemptCommand,
+					ChainOwner:      ChainOwnerCaller,
 				},
 			)
 			if err != nil {
@@ -1280,4 +1287,77 @@ func TestSpawnProviderRouteDiagnostics(t *testing.T) {
 			}
 		},
 	)
+}
+
+// Invariant: an agent-requested spawn (session-owned) runs the child's agent chain inside
+// one acceptance lifetime; exhaustion persists exactly one failed child start (IT-004).
+func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	spawnReviewer := func(t *testing.T, h *harness) (*Session, error) {
+		t.Helper()
+		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+		return h.manager.Spawn(t.Context(), SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "reviewer", Workspace: h.workspaceID, TTL: time.Minute,
+		})
+	}
+
+	t.Run("Should bind the child on the next route without a failed start", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		child, err := spawnReviewer(t, h)
+		if err != nil {
+			t.Fatalf("Spawn(reviewer) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if got := startCommands(h); len(got) != 3 || got[1] != fallbackSeatZero || got[2] != fallbackSeatOne {
+			t.Fatalf("start commands = %v, want parent, refused seat zero, accepted seat one", got)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Failure != nil || meta.AcceptedRoute == nil || meta.AcceptedRoute.Attempt != 1 ||
+			meta.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(fallbackSeatOne) {
+			t.Fatalf(
+				"child meta failure=%#v accepted_route=%#v, want seat one accepted",
+				meta.Failure,
+				meta.AcceptedRoute,
+			)
+		}
+		rows := ledger.fallbackRows()
+		if len(rows) != 1 || rows[0].SessionID != child.ID ||
+			decodeFallbackPayload(t, rows[0]).Phase != fallbackPhaseCreate {
+			t.Fatalf("session.fallback.used rows = %#v, want one create row for the child", rows)
+		}
+	})
+
+	t.Run("Should persist one failed child start when the chain is exhausted", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  rateLimitRefusal(),
+		})
+		_, err := spawnReviewer(t, h)
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 2 attempt(s)") {
+			t.Fatalf("Spawn(reviewer) error = %v, want exhaustion", err)
+		}
+		failed := 0
+		for _, meta := range persistedSessionMetas(t, h) {
+			if meta.AgentName == "reviewer" {
+				if meta.Failure == nil {
+					t.Fatalf("reviewer meta = %#v, want a failed start", meta)
+				}
+				failed++
+			}
+		}
+		if failed != 1 || len(ledger.fallbackRows()) != 1 {
+			t.Fatalf("failed child starts = %d rows = %d, want 1 and 1", failed, len(ledger.fallbackRows()))
+		}
+	})
 }

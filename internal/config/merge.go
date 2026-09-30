@@ -76,6 +76,7 @@ type sessionOverlay struct {
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
 	Compaction  sessionCompactionOverlay  `toml:"compaction"`
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
+	Derive      sessionDeriveOverlay      `toml:"derive"`
 }
 
 type sessionStopOverlay struct {

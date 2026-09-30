@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/subprocess"
 	shellquote "github.com/kballard/go-shellquote"
@@ -95,14 +96,27 @@ func (d *Driver) prepareLaunchIdentity(
 	next = applyProviderLaunchIdentity(next)
 	if err != nil {
 		return next, fmt.Errorf(
-			"acp: start agent %q subprocess %q in %q: %w",
+			"acp: start agent %q subprocess %s in %q: %w",
 			strings.TrimSpace(opts.AgentName),
-			strings.TrimSpace(opts.Command),
+			launchCommandIdentity(opts.Command),
 			strings.TrimSpace(opts.Cwd),
 			err,
 		)
 	}
 	return next, nil
+}
+
+// launchCommandIdentity names a launch command in errors and logs without its
+// raw text: a route command can carry private NAME=value assignments and
+// account arguments (fallback-account ADR-001/002). It keeps the executable
+// name and the shared sha256 fingerprint.
+func launchCommandIdentity(command string) string {
+	fingerprint := compozyconfig.CommandFingerprint(strings.TrimSpace(command))
+	parsed, err := compozyconfig.ParseLaunchCommand(command)
+	if err != nil || parsed.Executable == "" {
+		return fmt.Sprintf("(command %s)", fingerprint)
+	}
+	return fmt.Sprintf("%q (command %s)", parsed.Executable, fingerprint)
 }
 
 func launchSpecFromStartOpts(opts StartOpts) LaunchSpec {
@@ -159,10 +173,17 @@ func (l *localLauncher) PrepareLaunch(
 		return next, nil
 	}
 
-	command, args, err := parseCommandString(next.Command)
+	// Leading NAME=value tokens (a route's account, e.g. CLAUDE_CONFIG_DIR=… claude --acp)
+	// are private environment for this process, never the executable.
+	parsed, err := compozyconfig.ParseLaunchCommand(next.Command)
 	if err != nil {
-		return next, err
+		return next, fmt.Errorf("acp: %w", err)
 	}
+	for _, assignment := range parsed.Environment {
+		key, value, _ := strings.Cut(assignment, "=")
+		next.Env = setEnvValue(next.Env, key, value)
+	}
+	command, args := parsed.Executable, parsed.Args
 	next.Args = append([]string(nil), args...)
 	resolved, err := subprocess.ResolveExecutable(command, next.Env, next.Cwd)
 	if err != nil {

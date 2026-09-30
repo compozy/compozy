@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -854,5 +856,226 @@ func assertAgentDefinitionE2ECLIError(
 	}
 	if payload.Error != wantMessage {
 		t.Fatalf("CLI error = %q, want %q", payload.Error, wantMessage)
+	}
+}
+
+// TestDaemonE2EAgentFallbackChain walks E2E-002: an agent chain authored through the CLI
+// moves a work session to its second seat when seat one refuses before ACP acceptance.
+func TestDaemonE2EAgentFallbackChain(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	t.Run("Should bind the work session on the next seat and record the attempt", func(t *testing.T) {
+		t.Parallel()
+		runDaemonE2EAgentFallbackChain(t)
+	})
+
+	t.Run(
+		"Should expose each attempt's ledger row through compozy logs before that attempt starts",
+		func(t *testing.T) { // IT-008
+			t.Parallel()
+			runDaemonE2EAgentFallbackLedgerOrder(t)
+		},
+	)
+}
+
+// runDaemonE2EAgentFallbackLedgerOrder reads the ledger through the public logs surface
+// from inside each provider launch: every seat is a script that first runs
+// `compozy logs --type session.fallback.used -o json` against the live daemon; seats zero
+// and one then exit before ACP (refused), and seat two execs the mock agent (accepted).
+func runDaemonE2EAgentFallbackLedgerOrder(t *testing.T) {
+	t.Helper()
+
+	const seatProvider = "acpmock-ledger-seat"
+	seatsDir := t.TempDir()
+	seatPath := func(seat int) string { return filepath.Join(seatsDir, fmt.Sprintf("seat-%d.sh", seat)) }
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Roles.AutoTitle.Enabled = false
+			cfg.Roles.MemoryExtractor.Enabled = false
+			cfg.Providers[seatProvider] = acpmock.ProviderConfig(seatPath(0))
+		}},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
+			FixtureAgent: "auto-title-agent",
+			AgentName:    "auto-title-agent",
+		}},
+	})
+	registration, ok := harness.MockAgentRegistration("auto-title-agent")
+	if !ok {
+		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
+	}
+	for seat := range 3 {
+		tail := "exit 1"
+		if seat == 2 {
+			tail = "exec " + registration.Command + ` "$@"`
+		}
+		script := fmt.Sprintf("#!/bin/sh\nCOMPOZY_HOME=%s %s logs --type session.fallback.used -o json > %s 2>&1\n%s\n",
+			shellQuote(harness.HomePaths.HomeDir), shellQuote(harness.BinaryPath),
+			shellQuote(seatPath(seat)+".logs.json"), tail)
+		if err := os.WriteFile(seatPath(seat), []byte(script), 0o755); err != nil {
+			t.Fatalf("WriteFile(seat %d) error = %v", seat, err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var created compozycontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &created,
+		"agent", "create", "ledger-reviewer",
+		"--workspace", harness.WorkspaceRoot,
+		"--provider", seatProvider,
+		"--model", "fallback-title-model",
+		"--prompt", "Review code.",
+		"--fallback-route", "provider="+seatProvider+",model=fallback-title-model,command="+seatPath(1),
+		"--fallback-route", "provider="+seatProvider+",model=fallback-title-model,command="+seatPath(2),
+		"-o", "json",
+	); err != nil {
+		t.Fatalf("CLI agent create --fallback-route error = %v", err)
+	}
+	session := createFixtureBackedSession(t, ctx, harness, "ledger-reviewer", "ledger order")
+	if _, err := harness.PromptSession(ctx, session.ID, "Implement checkout retry fencing"); err != nil {
+		t.Fatalf("PromptSession(ledger order) error = %v", err)
+	}
+
+	for seat := range 3 {
+		raw, err := os.ReadFile(seatPath(seat) + ".logs.json")
+		if err != nil {
+			t.Fatalf("ReadFile(seat %d logs) error = %v", seat, err)
+		}
+		var observed []compozycontract.LogEventPayload
+		if err := json.Unmarshal(raw, &observed); err != nil {
+			t.Fatalf("json.Unmarshal(seat %d logs) error = %v\n%s", seat, err, raw)
+		}
+		attempts := make([]float64, 0, len(observed))
+		for _, event := range observed {
+			var content map[string]any
+			if err := json.Unmarshal(event.Content, &content); err != nil {
+				t.Fatalf("json.Unmarshal(seat %d event) error = %v", seat, err)
+			}
+			if event.SessionID != session.ID {
+				t.Fatalf("seat %d observed event for session %q, want %q", seat, event.SessionID, session.ID)
+			}
+			attempt, _ := content["attempt"].(float64)
+			attempts = append(attempts, attempt)
+		}
+		if len(attempts) != seat || (seat > 0 && !slices.Contains(attempts, float64(seat))) {
+			t.Fatalf("seat %d observed attempts %v, want rows 1..%d already committed", seat, attempts, seat)
+		}
+	}
+
+	var logs compozycontract.LogsListResponse
+	logsPath := "/api/logs?session_id=" + url.QueryEscape(session.ID) + "&type=session.fallback.used&limit=10"
+	if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil {
+		t.Fatalf("GET /api/logs session.fallback.used error = %v", err)
+	}
+	fingerprints := map[float64]any{}
+	for _, event := range logs.Events {
+		var content map[string]any
+		if err := json.Unmarshal(event.Content, &content); err != nil {
+			t.Fatalf("json.Unmarshal(logs event) error = %v", err)
+		}
+		fingerprints[content["attempt"].(float64)] = content["provider_command_fingerprint"]
+	}
+	if len(logs.Events) != 2 || fingerprints[1] != compozyconfig.CommandFingerprint(seatPath(1)) ||
+		fingerprints[2] != compozyconfig.CommandFingerprint(seatPath(2)) {
+		t.Fatalf(
+			"GET /api/logs session.fallback.used = %#v, want attempts 1 and 2 with their seat fingerprints",
+			logs.Events,
+		)
+	}
+	current, err := harness.GetSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("GetSession() error = %v", err)
+	}
+	if effective := current.Runtime.Effective; effective == nil || effective.Provider != seatProvider {
+		t.Fatalf("runtime.effective = %#v, want the accepted %s route", effective, seatProvider)
+	}
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
+func runDaemonE2EAgentFallbackChain(t *testing.T) {
+	t.Helper()
+
+	const seatProvider = "acpmock-seat"
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Roles.AutoTitle.Enabled = false
+			cfg.Roles.MemoryExtractor.Enabled = false
+			cfg.Providers[seatProvider] = acpmock.ProviderConfig("/missing/compozy-seat-one")
+		}},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
+			FixtureAgent: "auto-title-agent",
+			AgentName:    "auto-title-agent",
+		}},
+	})
+	registration, ok := harness.MockAgentRegistration("auto-title-agent")
+	if !ok {
+		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
+	}
+	seatTwo := registration.Command
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	var created compozycontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &created,
+		"agent", "create", "seat-reviewer",
+		"--workspace", harness.WorkspaceRoot,
+		"--provider", seatProvider,
+		"--model", "fallback-title-model",
+		"--prompt", "Review code.",
+		"--fallback-route", "provider="+seatProvider+",model=fallback-title-model,command="+seatTwo,
+		"-o", "json",
+	); err != nil {
+		t.Fatalf("CLI agent create --fallback-route error = %v", err)
+	}
+	var shown compozycontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &shown,
+		"agent", "info", "seat-reviewer", "--workspace", harness.WorkspaceRoot, "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI agent info error = %v", err)
+	}
+	if len(shown.FallbackChain) != 1 || shown.FallbackChain[0].CommandFingerprint !=
+		compozyconfig.CommandFingerprint(seatTwo) {
+		t.Fatalf("agent fallback_chain = %#v, want the seat-two route", shown.FallbackChain)
+	}
+
+	session := createFixtureBackedSession(t, ctx, harness, "seat-reviewer", "quota test")
+	if _, err := harness.PromptSession(ctx, session.ID, "Implement checkout retry fencing"); err != nil {
+		t.Fatalf("PromptSession(seat one refused) error = %v", err)
+	}
+
+	var logs compozycontract.LogsListResponse
+	logsPath := "/api/logs?session_id=" + url.QueryEscape(session.ID) + "&type=session.fallback.used&limit=10"
+	if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil {
+		t.Fatalf("UDS session.fallback.used logs error = %v", err)
+	}
+	if len(logs.Events) != 1 {
+		t.Fatalf("session.fallback.used events = %#v, want one", logs.Events)
+	}
+	var content map[string]any
+	if err := json.Unmarshal(logs.Events[0].Content, &content); err != nil {
+		t.Fatalf("json.Unmarshal(session.fallback.used) error = %v", err)
+	}
+	if content["agent"] != "seat-reviewer" || content["attempt"] != float64(1) ||
+		content["provider_command_fingerprint"] != compozyconfig.CommandFingerprint(seatTwo) {
+		t.Fatalf("session.fallback.used content = %#v, want attempt 1 on seat two", content)
+	}
+	if strings.Contains(string(logs.Events[0].Content), registration.FixturePath) {
+		t.Fatalf("session.fallback.used leaked the raw command: %s", logs.Events[0].Content)
+	}
+	current, err := harness.GetSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("GetSession() error = %v", err)
+	}
+	if effective := current.Runtime.Effective; effective == nil || effective.Provider != seatProvider {
+		t.Fatalf("runtime.effective = %#v, want the accepted %s route", effective, seatProvider)
 	}
 }

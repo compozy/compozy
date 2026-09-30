@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -216,6 +217,79 @@ func TestConversationRewindRestartsSameSessionFromRetainedPrefix(t *testing.T) {
 		})
 		if result.Session.Info().State != StateActive || result.DraftText != "replace this request" {
 			t.Fatalf("RewindConversation(stopped) = %#v", result)
+		}
+	})
+}
+
+func TestConversationRewindLineageRule(t *testing.T) {
+	t.Parallel()
+
+	promptedRewindTarget := func(
+		t *testing.T,
+		h *harness,
+		lineage *store.SessionLineage,
+	) (*Session, string, transcript.Page) {
+		t.Helper()
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Name: "lineage rewind", Workspace: h.workspaceID, Lineage: lineage,
+		})
+		if err != nil {
+			t.Fatalf("Create(lineage %#v) error = %v", lineage, err)
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), created.ID, "rewind target")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		page, err := h.manager.TranscriptPage(testutil.Context(t), created.ID, transcript.PageQuery{Limit: 20})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		for _, entry := range page.Entries {
+			if transcript.UIMessageText(entry.Message) == "rewind target" {
+				return created, entry.Message.ID, page
+			}
+		}
+		t.Fatal("rewind target user message was not materialized")
+		return nil, "", transcript.Page{}
+	}
+
+	t.Run("Should let a continued child reach the fence check", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		child, targetID, page := promptedRewindTarget(t, h, &store.SessionLineage{
+			ParentSessionID: parent.ID, Kind: store.LineageKindContinue, OriginAgentName: "codex",
+		})
+		if lineage := child.Info().Lineage; lineage == nil || lineage.Kind != store.LineageKindContinue {
+			t.Fatalf("child lineage = %#v, want continue", lineage)
+		}
+		_, err := h.manager.RewindConversation(testutil.Context(t), child.ID, ConversationRewindOptions{
+			MessageID: targetID, IdempotencyKey: "idem-continue-rewind",
+			ExpectedEpoch: child.Info().TranscriptEpoch, ExpectedGeneration: page.Generation,
+			ExpectedMaxSequence: page.MaxSequence + 1,
+		})
+		if !errors.Is(err, ErrConversationRewindFenceConflict) {
+			t.Fatalf("RewindConversation(continue child, stale fence) error = %v, want fence conflict", err)
+		}
+	})
+
+	t.Run("Should refuse a spawn-kind session as managed", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		spawnRole, targetID, page := promptedRewindTarget(t, h, &store.SessionLineage{SpawnRole: "worker"})
+		if lineage := spawnRole.Info().Lineage; lineage == nil || lineage.Kind != store.LineageKindSpawn {
+			t.Fatalf("spawn-role lineage = %#v, want spawn", lineage)
+		}
+		_, err := h.manager.RewindConversation(testutil.Context(t), spawnRole.ID, ConversationRewindOptions{
+			MessageID: targetID, IdempotencyKey: "idem-spawn-rewind",
+			ExpectedEpoch: spawnRole.Info().TranscriptEpoch, ExpectedGeneration: page.Generation,
+			ExpectedMaxSequence: page.MaxSequence,
+		})
+		if !errors.Is(err, ErrConversationRewindManaged) {
+			t.Fatalf("RewindConversation(spawn kind) error = %v, want ErrConversationRewindManaged", err)
 		}
 	})
 }

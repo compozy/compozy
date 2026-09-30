@@ -259,7 +259,11 @@ type SessionStatusResponse struct {
 	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
 	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
 	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
+	// Lineage is present for every parented session (provenance, recovery, spawn,
+	// continue, fork); Derivation only for continued or forked sessions.
+	Lineage    *SessionLineagePayload    `json:"lineage,omitempty"`
+	Derivation *SessionDerivationPayload `json:"derivation,omitempty"`
+	UpdatedAt  time.Time                 `json:"updated_at"`
 }
 
 // SessionInspectResponse returns detailed health, wake audit, and policy diagnostics.

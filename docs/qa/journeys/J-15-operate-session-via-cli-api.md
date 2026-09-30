@@ -37,6 +37,15 @@ flowchart TD
     DR --> LS[List + detail + status agree on state, incl. after daemon restart]
     STRM -.->|client killed mid-stream| AB[Abandon: reconnect with cursor + epoch/generation fences]
     AB -.-> STRM
+    LS --> DV[Preview derive: message_count, replay_bytes, source_message_count, native_fork_possible, fences]
+    DV --> DC[session continue --agent / session fork --message-id with an idempotency key]
+    DC -->|idle bound source advertising session/fork + session/load| NAT[Child seed native_fork: pending → loaded at first bind, or failed + carried context]
+    DC -->|otherwise| REPL[Child seed replay: carried context rides the first prompt]
+    DC -->|same key again| RPLY[Recorded outcome, replayed true; child_deleted after delete; no second child]
+    DC -->|stale fences, unsettled cut, key reused with another request| DREF[409 refusal, nothing created]
+    NAT --> DSRC[Source max_sequence, fences, and events unchanged; no clone traffic]
+    REPL --> DSRC
+    DSRC --> LS
     LS --> TE[True end: complete gap-free transcript, lifecycle state consistent across surfaces, HTTP/UDS parity]
 ```
 
@@ -78,6 +87,9 @@ journey:
     - step: 6
       verb: "Wait for and control another same-workspace session without polling or shell access"
       expected_observable: "Wait, stop, prompt cancel, spawn, approval, clarification answer, and notify return deterministic structured winners; self and foreign-workspace targets are denied"
+    - step: 7
+      verb: "Continue a session with another agent or fork it (whole or through a user message)"
+      expected_observable: "Exactly one child per idempotency key with lineage.kind continue|fork and a derivation read; native clone on an idle bound source whose agent advertises session/fork + session/load, carried context otherwise; retries return the recorded outcome; stale fences and unsettled cuts refuse with 409; the source never changes (session-continue-fork, 2026-09-28)"
   goal:
     observable: "The agent reads a complete, gap-free transcript and drives the session to a terminal outcome deterministically, with lifecycle state consistent across every surface"
     side_effects: [session-created, prompt-streamed, tool-update-burst-coalesced, partial-output-persisted, session-stopped]
@@ -94,6 +106,9 @@ journey:
     - at_step: 4
       how: "A read races the stop and hits a recorder-unavailable error, so the agent aborts."
       resume: "Reads during stop/finalize must degrade to the persisted transcript; the finding is any recorder error surfaced to the caller."
+    - at_step: 7
+      how: "The derive request's response is lost (network drop or daemon restart right after it returned)."
+      resume: "Repeat the same command with the same idempotency key: the recorded outcome returns with replayed true and a staged first message is dispatched exactly once."
   crosses: [CLI, HTTP, UDS, native-tool-registry, session-store, SSE-broadcaster, RT-042-parity-canary]
 
 design_reference:

@@ -84,6 +84,9 @@ func (p *AgentProcess) handleInbound(
 		}
 		return nil, nil
 	}
+	if reqErr := p.rejectNonBoundSessionCallback(method, params); reqErr != nil {
+		return nil, reqErr
+	}
 
 	switch method {
 	case acpsdk.ClientMethodFsReadTextFile:
@@ -181,7 +184,22 @@ func (p *AgentProcess) handleWriteTextFile(
 	return acpsdk.WriteTextFileResponse{}, nil
 }
 
+// handleRequestPermission serves the agent's inbound session/request_permission
+// callback. Only the bound ACP session may ask the operator; a fork clone or
+// foreign id is canceled before it reaches the active turn (ADR-003).
 func (p *AgentProcess) handleRequestPermission(
+	ctx context.Context,
+	request acpsdk.RequestPermissionRequest,
+) (acpsdk.RequestPermissionResponse, error) {
+	if !p.permissionRequestIsBound(request.SessionId) {
+		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+	}
+	return p.resolvePermissionRequest(ctx, request)
+}
+
+// resolvePermissionRequest decides one permission request through the provider
+// interceptor, the tool-host policy, or the operator prompt.
+func (p *AgentProcess) resolvePermissionRequest(
 	ctx context.Context,
 	request acpsdk.RequestPermissionRequest,
 ) (acpsdk.RequestPermissionResponse, error) {

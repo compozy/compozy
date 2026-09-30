@@ -38,6 +38,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
 		payload.Code = "session_not_promptable"
 	}
+	if code := DeriveErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
 	}
@@ -61,9 +64,17 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = string(reason.Code)
 		payload.Details = lifecycleReasonDetails(reason.Meta)
 	}
+	payload.Diagnostic = errorDiagnosticItem(message, err)
+	enrichSessionInputError(&payload, err)
+	return payload
+}
+
+// errorDiagnosticItem returns the structured diagnostic an error carries, if any.
+func errorDiagnosticItem(message string, err error) *contract.DiagnosticItem {
 	if item, ok := diagnosticspkg.ItemFromError(err); ok {
-		payload.Diagnostic = &item
-	} else if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
+		return &item
+	}
+	if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 		item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
 			ID:            "agent.name.reserved",
 			Code:          contract.CodeAgentNameReserved,
@@ -73,23 +84,26 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			Severity:      contract.SeverityError,
 			DataFreshness: contract.FreshnessLive,
 		})
-		payload.Diagnostic = &item
-	} else if code := diagnosticCodeFromError(err); code != "" {
-		if category, ok := contract.DiagnosticCodeCategory(code); ok {
-			item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
-				ID:            strings.ReplaceAll(code, "_", "."),
-				Code:          code,
-				Category:      category,
-				Title:         "Role operation failed",
-				Message:       message,
-				Severity:      contract.SeverityError,
-				DataFreshness: contract.FreshnessLive,
-			})
-			payload.Diagnostic = &item
-		}
+		return &item
 	}
-	enrichSessionInputError(&payload, err)
-	return payload
+	code := diagnosticCodeFromError(err)
+	if code == "" {
+		return nil
+	}
+	category, ok := contract.DiagnosticCodeCategory(code)
+	if !ok {
+		return nil
+	}
+	item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+		ID:            strings.ReplaceAll(code, "_", "."),
+		Code:          code,
+		Category:      category,
+		Title:         "Role operation failed",
+		Message:       message,
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	})
+	return &item
 }
 
 func lifecycleReasonDetails(meta map[string]string) map[string]string {

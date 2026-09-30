@@ -117,3 +117,20 @@ export function apiErrorQueueCap(error: unknown): number | undefined {
   const cap = Reflect.get(evidence, "queue_cap");
   return typeof cap === "number" && Number.isInteger(cap) && cap > 0 ? cap : undefined;
 }
+
+/**
+ * The human message of the structured diagnostic an error body carries
+ * (`diagnostic.title` and `diagnostic.message`), rendered as the daemon renders it.
+ */
+export function apiErrorDiagnosticMessage(error: unknown): string | undefined {
+  if (error == null || typeof error !== "object") {
+    return undefined;
+  }
+  const diagnostic = Reflect.get(error, "diagnostic");
+  const title = apiErrorStringField(diagnostic, "title");
+  const message = apiErrorStringField(diagnostic, "message");
+  if (title && message && message !== title) {
+    return `${title}: ${message}`;
+  }
+  return title ?? message;
+}

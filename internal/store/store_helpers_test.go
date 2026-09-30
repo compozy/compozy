@@ -479,7 +479,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session meta valid",
 			validate: func() error {
-				return (SessionMeta{
+				return (&SessionMeta{
 					ID:            "sess-meta",
 					AgentName:     "coder",
 					WorkspaceID:   "ws-meta",
@@ -494,7 +494,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session meta invalid",
 			validate: func() error {
-				return (SessionMeta{}).Validate()
+				return (&SessionMeta{}).Validate()
 			},
 			wantError: true,
 		},
@@ -666,10 +666,10 @@ func TestMetaReadWriteErrors(t *testing.T) {
 		t.Fatal("ReadSessionMeta(invalid JSON) error = nil, want non-nil")
 	}
 
-	if err := WriteSessionMeta("", SessionMeta{}); err == nil {
+	if err := WriteSessionMeta("", &SessionMeta{}); err == nil {
 		t.Fatal("WriteSessionMeta(\"\") error = nil, want non-nil")
 	}
-	if err := WriteSessionMeta(filepath.Join(t.TempDir(), SessionMetaName), SessionMeta{}); err == nil {
+	if err := WriteSessionMeta(filepath.Join(t.TempDir(), SessionMetaName), &SessionMeta{}); err == nil {
 		t.Fatal("WriteSessionMeta(invalid meta) error = nil, want non-nil")
 	}
 }

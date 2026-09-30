@@ -142,7 +142,8 @@ func TestSessionWorktreeBinding(t *testing.T) {
 		if got := created.Info().WorktreeID; got != "wt-ready" {
 			t.Fatalf("Info.WorktreeID = %q, want wt-ready", got)
 		}
-		if got := readMeta(t, created.MetaPath()).WorktreeIDValue(); got != "wt-ready" {
+		createdMeta := readMeta(t, created.MetaPath())
+		if got := createdMeta.WorktreeIDValue(); got != "wt-ready" {
 			t.Fatalf("meta.WorktreeID = %q, want wt-ready", got)
 		}
 		if got, want := resolver.callsSnapshot(), []sessionWorktreeResolveCall{

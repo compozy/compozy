@@ -63,6 +63,10 @@ type SpawnOpts struct {
 	AllowStoppedParent  bool
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
+	// Command is an explicit launch command for this attempt (a fallback route's account).
+	Command string
+	// ChainOwner declares who owns the fallback chain; see CreateOpts.ChainOwner.
+	ChainOwner ChainOwner
 }
 
 type permissionCategory struct {
@@ -113,6 +117,8 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		Lineage:             lineage,
 		ParentSoulDigest:    strings.TrimSpace(parent.SoulDigest),
 		DiscardStartFailure: normalized.DiscardStartFailure,
+		Command:             normalized.Command,
+		ChainOwner:          normalized.ChainOwner,
 	})
 	if err != nil {
 		return nil, err
@@ -175,6 +181,7 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
 	normalized.Model = strings.TrimSpace(normalized.Model)
+	normalized.Command = strings.TrimSpace(normalized.Command)
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
 	var err error
 	normalized.ACPOptions, err = acp.NormalizeSessionConfigOptionSelections(normalized.ACPOptions)

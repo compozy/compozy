@@ -90,6 +90,9 @@ func (m *Manager) normalizeCreateLineage(
 		return nil, err
 	}
 	normalized := store.NormalizeSessionLineage(sessionID, prepared)
+	if err := assignCreateLineageKind(normalizedType, normalized); err != nil {
+		return nil, err
+	}
 	if err := store.ValidateSessionLineage(sessionID, normalized); err != nil {
 		return nil, fmt.Errorf("session: validate session lineage: %w", err)
 	}
@@ -131,6 +134,25 @@ func (m *Manager) normalizeCreateLineage(
 	return normalized, nil
 }
 
+// assignCreateLineageKind records the relation kind a new session is created with.
+// A creator that names no kind gets the same rule the catalog backfill applies
+// (spawn for spawned or spawn-role sessions, provenance for other parented ones);
+// an explicit kind must agree with the governed spawn shape.
+func assignCreateLineageKind(sessionType Type, lineage *store.SessionLineage) error {
+	store.UpgradeSessionLineageKind(string(sessionType), lineage)
+	governed := sessionType == SessionTypeSpawned || strings.TrimSpace(lineage.SpawnRole) != ""
+	switch {
+	case governed && lineage.Kind != store.LineageKindSpawn:
+		return fmt.Errorf("%w: spawned and spawn-role sessions carry lineage kind %q, got %q",
+			ErrValidation, store.LineageKindSpawn, lineage.Kind)
+	case !governed && lineage.Kind == store.LineageKindSpawn:
+		return fmt.Errorf("%w: lineage kind %q requires a spawned or spawn-role session",
+			ErrValidation, store.LineageKindSpawn)
+	default:
+		return nil
+	}
+}
+
 func validateCreateLineageParentType(sessionType Type, hasParent, systemProvenance bool) error {
 	switch {
 	case sessionType == SessionTypeSpawned && !hasParent:
@@ -166,7 +188,9 @@ func (m *Manager) prepareProvenanceLineage(
 	if err := validateProvenanceLineageShape(lineage); err != nil {
 		return nil, err
 	}
-	parent, err := m.Status(ctx, parentID)
+	// The parent is read through the non-repairing reader: creating a child never
+	// reclassifies, repairs, or reprojects the session it names.
+	parent, err := m.readSessionMetaReadOnly(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve parent session %q: %w", parentID, err)
 	}
@@ -218,14 +242,14 @@ func (m *Manager) validateCreateLineageReferences(ctx context.Context, lineage *
 	if lineage == nil || strings.TrimSpace(lineage.ParentSessionID) == "" {
 		return nil
 	}
-	if _, err := m.Status(ctx, lineage.ParentSessionID); err != nil {
+	if _, err := m.readSessionMetaReadOnly(ctx, lineage.ParentSessionID); err != nil {
 		return fmt.Errorf("session: validate parent lineage %q: %w", lineage.ParentSessionID, err)
 	}
 	rootID := strings.TrimSpace(lineage.RootSessionID)
 	if rootID == "" || rootID == strings.TrimSpace(lineage.ParentSessionID) {
 		return nil
 	}
-	if _, err := m.Status(ctx, rootID); err != nil {
+	if _, err := m.readSessionMetaReadOnly(ctx, rootID); err != nil {
 		return fmt.Errorf("session: validate root lineage %q: %w", rootID, err)
 	}
 	return nil

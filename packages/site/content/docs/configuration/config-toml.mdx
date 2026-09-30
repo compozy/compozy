@@ -47,6 +47,7 @@ Unknown TOML keys are errors. Use the supported sections below.
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.        | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
 | `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.                 | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
+| `[session.derive]`                   | Size bounds of the context carried into a continued or forked session.                 | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.         | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
 | `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                    | `mode = "approve-all"`                                                                                |
@@ -301,6 +302,13 @@ pressure_threshold = 0.85
 max_attempts_per_turn = 1
 # Delay before a failed session compaction may be attempted again.
 failure_cooldown = "10m"
+
+[session.derive]
+# Hard upper bound, in bytes, of the transcript JSON carried into a continued or forked session.
+# Oldest messages are dropped first; the 8 most recent messages are kept while they fit.
+max_replay_bytes = 131072
+# Per-message cap on carried message bodies; longer bodies end with " [content truncated]".
+max_message_bytes = 16384
 
 [agents.soul]
 # Disabling pauses prompt injection but keeps inspect/validate/write/delete/history/rollback available.
@@ -1093,23 +1101,50 @@ duplicate, and extension agent publication. Their embedded prompts are fixed; se
 These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, and
 `auto_title`.
 
-| Field              | Type                  | Default       | Valid values                                                                 | Description                                                                                                |
-| ------------------ | --------------------- | ------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `enabled`          | boolean               | role-specific | `true` or `false`                                                            | Admits new work for the role. Disabling a role does not stop an already accepted session.                  |
-| `agent`            | string                | empty         | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters) | Selects an authored agent. Empty resolves to the builtin or invoking-context behavior in the roster above. |
-| `provider`         | string                | empty         | Empty or a configured provider key                                           | Optional provider override applied after agent resolution.                                                 |
-| `model`            | string                | empty         | Empty or an exact provider model ID                                          | Optional model override.                                                                                   |
-| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                   | Optional reasoning override.                                                                               |
-| `speed`            | string                | empty         | Empty, `normal`, or `fast`                                                   | Optional speed override; `fast` must be valid for the resolved model and provider strategy.                |
-| `acp_options`      | array of typed tables | empty         | Each entry has `id` and exactly one of `value_id` or `bool_value`            | Optional provider-advertised configuration overrides, merged by option ID.                                 |
-| `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`, `speed`, and `acp_options`.           |
+| Field              | Type                  | Default       | Valid values                                                                 | Description                                                                                                 |
+| ------------------ | --------------------- | ------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `enabled`          | boolean               | role-specific | `true` or `false`                                                            | Admits new work for the role. Disabling a role does not stop an already accepted session.                   |
+| `agent`            | string                | empty         | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters) | Selects an authored agent. Empty resolves to the builtin or invoking-context behavior in the roster above.  |
+| `provider`         | string                | empty         | Empty or a configured provider key                                           | Optional provider override applied after agent resolution.                                                  |
+| `model`            | string                | empty         | Empty or an exact provider model ID                                          | Optional model override.                                                                                    |
+| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                   | Optional reasoning override.                                                                                |
+| `speed`            | string                | empty         | Empty, `normal`, or `fast`                                                   | Optional speed override; `fast` must be valid for the resolved model and provider strategy.                 |
+| `acp_options`      | array of typed tables | empty         | Each entry has `id` and exactly one of `value_id` or `bool_value`            | Optional provider-advertised configuration overrides, merged by option ID.                                  |
+| `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`, `speed`, `acp_options`, and `command`. |
 
-Fallback chains replace as a whole when a workspace overlay declares them. A session-backed
-consumer may advance only before ACP accepts a session; CompozyOS never silently reroutes work after
-acceptance. Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the role,
-the fallback's one-based `attempt`, provider, and model. The event records an attempt, not success.
+Each route table accepts these keys:
+
+| Key                | Type                  | Default | Description                                                                                                                                                                   |
+| ------------------ | --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`         | string                | —       | Required. A configured provider key.                                                                                                                                          |
+| `model`            | string                | —       | Required. The model to run on this route.                                                                                                                                     |
+| `reasoning_effort` | string                | empty   | Optional reasoning override for this route.                                                                                                                                   |
+| `speed`            | string                | empty   | Optional speed override for this route.                                                                                                                                       |
+| `acp_options`      | array of typed tables | empty   | Optional provider-advertised configuration for this route.                                                                                                                    |
+| `command`          | string                | `""`    | Optional account for this route. Same grammar as `providers.<name>.command`. Empty inherits: the agent's command on its own provider, otherwise the route provider's command. |
+
+`command` selects which account (seat) the route launches. It is parsed without a shell:
+shell-style quoting splits the arguments, and leading `NAME=value` tokens become private environment
+for the launched process. Values are forwarded literally, so `~` and `$HOME` are **not** expanded —
+write absolute paths. Parsing is the only validation: a command made only of assignments fails with
+`roles.<role>.fallback_chain[<i>].command: command is missing an executable`, and unbalanced quotes
+fail with `…command: parse command: …`. There is no limit on the number of routes or on command
+length.
+
+Fallback chains replace as a whole when a workspace overlay declares them, including `command` on
+every route. A session-backed consumer may advance only before ACP accepts a session; CompozyOS never
+silently reroutes work after acceptance. Immediately before each fallback attempt, CompozyOS emits
+`role.fallback.used` with the role, the fallback's one-based `attempt`, provider, model, and
+`provider_command_fingerprint` (a `sha256:` fingerprint of the route's `command` when it sets one).
+The raw command never appears in events or logs. The event records an attempt, not success.
 
 ```toml
+# Second Claude seat first, then another provider as the last resort.
+[[roles.auto_title.fallback_chain]]
+provider = "claude"
+model = "haiku-4-5"
+command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
+
 [[roles.auto_title.fallback_chain]]
 provider = "cursor"
 model = "grok-4.6"
@@ -1117,6 +1152,9 @@ reasoning_effort = "high"
 speed = "fast"
 acp_options = [{ id = "thinking", bool_value = true }]
 ```
+
+`compozy roles show auto_title` prints each route with its `command`, and
+`compozy logs --type role.fallback.used` shows which route each attempt used by fingerprint.
 
 ### `[roles.coordinator]`
 
@@ -1133,8 +1171,11 @@ enqueued, the role must be enabled, and no healthy workspace coordinator may alr
 ### `[roles.memory_controller]`
 
 The memory controller is an in-process model call, so it has no `agent` field. It accepts `enabled`,
-`provider`, `model`, `reasoning_effort`, `speed`, `acp_options`, and `fallback_chain` with the same
-routing semantics above, plus these call-policy fields:
+`provider`, `model`, `reasoning_effort`, `speed`, `acp_options`, and `fallback_chain` (including route
+`command`) with the same routing semantics above. Its chain is live: unless
+`memory.controller.mode = "rules"`, the write-controller tiebreaker launches a transient ACP call on
+this route and advances through `fallback_chain` when a route is refused before acceptance. It also
+accepts these call-policy fields:
 
 | Field            | Type     | Default                    | Valid values             | Description                                        |
 | ---------------- | -------- | -------------------------- | ------------------------ | -------------------------------------------------- |
@@ -1266,6 +1307,26 @@ These paths are global or workspace desired state and are available through `com
 the `compozy__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
 `next_action="restart-daemon"`; the running daemon keeps its bound compaction policy until restart.
 Use `compozy config apply-history -o json` to inspect the blocked apply record.
+
+## `[session.derive]`
+
+`[session.derive]` bounds the carried context that `compozy session continue` (and the Web
+"Continue with another agent…" action) copies from the source session into the new session. The
+bound applies to the serialized transcript JSON and is never exceeded: CompozyOS caps each message
+body first, then drops the oldest messages, keeping the 8 most recent while they fit, and finally
+drops even those down to one. Every omission is stated in the carried context
+(`[N earlier messages omitted to fit the context budget]`) and in the response (`truncated`,
+`omitted_count`). Bounding never fails a continue.
+
+| Field               | Type    | Default  | Valid values                       | Description                                                   |
+| ------------------- | ------- | -------- | ---------------------------------- | ------------------------------------------------------------- |
+| `max_replay_bytes`  | integer | `131072` | `4096` or more.                    | Hard upper bound of the carried transcript, in bytes.         |
+| `max_message_bytes` | integer | `16384`  | `1024` through `max_replay_bytes`. | Per-message cap; a cut body ends with ` [content truncated]`. |
+
+Invalid values fail config validation with
+`session.derive.max_replay_bytes must be at least 4096` or
+`session.derive.max_message_bytes must be between 1024 and session.derive.max_replay_bytes`.
+A workspace `.compozy/config.toml` may override either key for sessions in that workspace.
 
 ## `[agents.soul]`
 

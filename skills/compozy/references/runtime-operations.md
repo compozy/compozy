@@ -56,6 +56,8 @@ object from `session status -o json` (or any session read), rather than inferrin
 the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
 `selection_revision`, `effective`, ACP session ID, and advertised ACP capabilities. `selected` is
 durable next-prompt intent; `effective` is the runtime already bound to the current process.
+`runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
+and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
@@ -187,6 +189,8 @@ cannot be validated fail closed.
     compozy session history <session-id>
     compozy session history <session-id> --last 20 --after 42
     compozy session rewind <session-id> --message-id <message-id>
+    compozy session continue <session-id> --agent <name> --message "Carry on; run the tests first." -o json
+    compozy session fork <session-id> --message-id <message-id> -o json
     compozy session prompt <session-id> "Summarize the last three tool results."
     compozy session runtime set <session-id> --provider cursor --model claude-opus-5 --reasoning-effort high --speed fast --acp-toggle thinking=true
     compozy session runtime clear <session-id>
@@ -241,10 +245,59 @@ that message as `draft_text`, and starts a fresh ACP context under the same Comp
 CLI reads the current transcript fences; pass all three `--expected-*` values only when retrying a
 previously fenced request. HTTP, UDS, and the native tool require the epoch, generation, and maximum
 sequence returned by the transcript API. Stale values return a conflict without changing the session.
-Rewind is available only for idle ordinary user sessions.
+Rewind is available only for idle ordinary user sessions; parented children (`lineage.kind`
+`provenance`, `recovery`, `continue`, `fork`) rewind too, and only `spawn` sessions are refused.
 It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
 saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
 and history to inspect the discarded suffix.
+
+`session continue` starts a **new** user session for another agent (optionally with an explicit
+runtime via `--provider/--model/--reasoning-effort/--speed/--acp-option`, or one declared route of the
+target agent's `fallback_chain` via `--route <n>`; the two are exclusive) with the source conversation
+carried over as historical context. The source is only read: no event, epoch, runtime, or running turn
+changes. The carried context is the pruned transcript through the last settled turn (a still-running
+later turn is excluded with a note), bounded by `[session.derive] max_replay_bytes` /
+`max_message_bytes`; omissions are reported as `truncated` and `omitted_count`. It is stored on the new
+session and prepended once whenever that session's history is rebuilt (first prompt, provider
+replacement, recovery without a native id, rewind restart). `--message` admits the first prompt
+(`first_prompt: admitted`); without it the context waits for the first prompt (`staged`). Preview the
+numbers first with `GET /api/workspaces/<ws>/sessions/<id>/derive/preview` (`message_count`,
+`replay_bytes`, `native_fork_possible`, and `cut.turn_id` when `message_id` is given); it never writes.
+The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_name` and a `derivation`
+object; `session status` prints `Origin` and `Derivation` lines, and the daemon log records
+`session.derived` for it. Retries are deterministic: the same `idempotency_key` with the same request
+returns the recorded outcome with `replayed: true` (and `child_deleted: true` if the new session was
+deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
+and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at
+the new session's first bind; if it was removed or its command changed, that bind fails with
+`route_not_found` and the session stays unbound. Errors carry a stable `code`: `invalid_request`,
+`session_not_found`, `session_not_derivable`, `session_archived`, `agent_not_found`,
+`message_not_found`, `route_not_found`, `session_turn_in_progress`, `session_fence_conflict`,
+`idempotency_conflict`, `new_work_admission_unavailable`. A failure after the new session was created
+(for example a `422` when its first message cannot be admitted) also carries `child_session_id`; open
+that session or retry the same key. A provider or model refusal's diagnostic code is also the error
+`code` (for example `model_unavailable`). A retry replays its recorded outcome even after the source was
+deleted or can no longer be read; the CLI resolves the source only through read-only lookups.
+
+When a user session's turn fails as `rate_limited` or `not_authenticated`, the error event's
+`provider_error.next_action` is `handoff` with guidance naming `compozy session continue <id> --agent
+<name>`. It is an offer only; nothing continues automatically. Spawned, coordinator, and system
+sessions keep `retry` / `login`.
+
+`session fork` (`POST …/sessions/<id>/fork`, `compozy__session_fork`) starts a new session with the
+**same** agent, runtime, and account (a source running on an accepted `fallback_chain` route is forked
+onto that route when the agent still declares it compatibly). Without `--message-id` it carries the
+whole conversation through the last settled turn; with it, through that durable user message **and its
+turn** (reply and tool work included). A cut turn that has not settled fails with
+`session_turn_in_progress`; a message that is not a durable user message fails with `message_not_found`;
+anchors stay valid after compaction or after a rewind followed by new turns. Retries, fences, and the
+carried context behave as for `continue`. When the source is bound, idle, and its agent advertises both
+ACP `session/fork` and `session/load`, a whole-session fork uses the agent's own clone
+(`seed: native_fork`, `native_state: pending`, preview `native_fork_possible: true`); the new session's
+first prompt loads the clone under the same provider identity and the session read then shows
+`derivation.native_state` `loaded`, or `failed` with `native_fork_error` when the clone could not load
+and the carried context was sent instead. A failed clone request yields `seed: replay` with
+`native_fork_error`. The source never receives the clone's traffic.
 
 ### Session attention and pending interactions
 
@@ -415,8 +468,26 @@ live `compozy__config_set` descriptor. Role writes are Live desired state at glo
 and affect later invocations without restarting the daemon. Use `config.toml` or the Settings Roles
 API/UI for the ordered `fallback_chain`, which is an array of route tables and replaces as a whole in
 a workspace overlay. A fallback may advance only at the owning invocation's pre-acceptance boundary;
-an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, CompozyOS
-emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
+an accepted ACP session is never silently rerouted, even when a later configuration step fails.
+Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the attempt,
+provider, model, and `provider_command_fingerprint` when the route sets `command`; the event records
+that the route was tried, not that it succeeded. The `memory_controller` chain is live through the
+write-controller tiebreaker unless `memory.controller.mode = "rules"`.
+
+Work sessions use the agent definition's `fallback_chain` instead (agent frontmatter,
+`compozy agent create|update --fallback-route`, or `compozy__agent_create`). It runs at the first
+prompt of a logical session (phase `bind`) and at session-owned eager starts such as an agent-requested
+spawn (phase `create`); role launches never run it. Before each fallback attempt CompozyOS writes the
+session-scoped `session.fallback.used` event (`agent`, `phase`, `attempt`, `provider`, `model`,
+`provider_command_fingerprint`); read it with `compozy logs --session <id> --type session.fallback.used -o json`
+or `GET /api/logs?type=session.fallback.used&session_id=<id>`. Each refused route leaves one
+`provider_failure` transcript marker attributed to that route's fingerprint; its `next_action` is
+`use_fallback` when the refusal was `rate_limited` or `not_authenticated` and another route remains.
+`use_fallback` needs no action: the runtime is already trying the next route. After ACP accepts a
+route the chain never advances. The accepted route is stored with the session; a resume loads the
+native ACP session only on a configured route with the same provider, auth mode, home policy, and
+command fingerprint, and otherwise restarts on the primary route with context replay
+(`fallback_reason: accepted_route_missing`).
 
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, `speed`,
 `acp_options`, and `fallback_chain`. ACP option entries require `id` and exactly one of `value_id` or
@@ -559,7 +630,7 @@ session ID, transcript, archive state, and lineage.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
-Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
+Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically.
 
 Governed children without an explicit agent command inherit the creator's resolved command only
 for the same native CLI provider, operator-home policy, compatible environment/runtime policies,
@@ -843,7 +914,8 @@ For a recoverable provider error, inspect the event's `provider_error`: `provide
 means follow `next_action`: native `login` then the daemon probe, `bind_secret` to update a bound
 credential, or `inspect` to check a no-auth provider configuration. `provider_rate_limited` means retry after the
 provider recovers. The failed turn ends but the session remains usable; do not stop or recreate it
-solely for these codes. `occurrence_count` and first/last-seen timestamps are scoped to that provider
+solely for these codes. A turn failure never runs the agent `fallback_chain` and never carries
+`use_fallback`, which appears only on refusals before ACP acceptance. `occurrence_count` and first/last-seen timestamps are scoped to that provider
 process, and old events can omit this additive object. No retry-after seconds are implied.
 
 ## Silence supervision and scheduling pressure

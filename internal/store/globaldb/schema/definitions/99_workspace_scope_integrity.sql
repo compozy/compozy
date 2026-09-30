@@ -163,6 +163,7 @@ BEGIN
 	DELETE FROM agent_soul_revisions WHERE workspace_id = OLD.id;
 	DELETE FROM agent_soul_snapshots WHERE workspace_id = OLD.id;
 	DELETE FROM session_health WHERE workspace_id = OLD.id;
+	DELETE FROM session_derivations WHERE workspace_id = OLD.id;
 	DELETE FROM sessions WHERE workspace_id = OLD.id;
 	DELETE FROM token_usage_daily WHERE workspace_id = OLD.id;
 	DELETE FROM event_summaries WHERE workspace_id = OLD.id;

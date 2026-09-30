@@ -104,6 +104,16 @@ WHERE message_id = sqlc.arg(message_id)
       AND events.archived = 0
   );
 
+-- name: GetTranscriptUserAnchor :one
+SELECT kind, message_id, turn_id, start_sequence, complete
+FROM transcript_entries
+WHERE message_id = sqlc.arg(message_id)
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.sequence = transcript_entries.start_sequence
+      AND events.archived = 0
+  );
+
 -- name: CountArchivedTranscriptEventsBeforeSequence :one
 SELECT COUNT(*)
 FROM events

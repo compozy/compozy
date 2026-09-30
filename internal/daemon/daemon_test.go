@@ -7485,6 +7485,22 @@ func (m *databaseUpgradeManager) UpgradeSessionDatabase(_ context.Context, id st
 	return m.upgradeErr
 }
 
+type derivedEventReconcileManager struct {
+	*fakeSessionManager
+	reconciled []string
+	err        error
+}
+
+func (m *derivedEventReconcileManager) ReconcileDerivedSessionEvents(
+	_ context.Context,
+	infos []*session.Info,
+) (int, error) {
+	for _, info := range infos {
+		m.reconciled = append(m.reconciled, info.ID)
+	}
+	return 0, m.err
+}
+
 func TestBootSessionRepair(t *testing.T) {
 	t.Parallel()
 
@@ -7511,6 +7527,24 @@ func TestBootSessionRepair(t *testing.T) {
 		); !errors.Is(err, store.ErrSchemaAhead) ||
 			len(manager.pendingRecoveryCalls) != 0 {
 			t.Fatalf("migration refusal=%v, recovery=%v", err, manager.pendingRecoveryCalls)
+		}
+	})
+
+	t.Run("Should reconcile derived session events over the boot inventory without failing boot", func(t *testing.T) {
+		t.Parallel()
+		manager := &derivedEventReconcileManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+				{ID: "sess-source", State: session.StateStopped, StopReason: store.StopCompleted},
+				{ID: "sess-child", State: session.StateStopped, StopReason: store.StopCompleted},
+			}},
+			err: errors.New("ledger unavailable"),
+		}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		if err := (&Daemon{}).bootSessionRepair(testutil.Context(t), state); err != nil {
+			t.Fatalf("bootSessionRepair() error = %v, want a reconciliation failure logged only", err)
+		}
+		if !slices.Equal(manager.reconciled, []string{"sess-source", "sess-child"}) {
+			t.Fatalf("reconciled inventory = %v, want the boot inventory", manager.reconciled)
 		}
 	})
 

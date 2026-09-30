@@ -1,0 +1,60 @@
+---
+title: "compozy session continue"
+description: "Continue a session with another agent, runtime, or declared route"
+---
+
+## compozy session continue
+
+Continue a session with another agent, runtime, or declared route
+
+### Synopsis
+
+Start a new session for another agent with the source conversation carried over as historical context. The source session is never changed. Re-running with the same --idempotency-key and arguments prints the recorded result instead of creating a second session.
+
+```
+compozy session continue <session-id> [flags]
+```
+
+### Options
+
+```
+      --acp-option stringArray      ACP config option as id=value (repeatable)
+      --agent string                Agent that continues the session (required)
+      --expected-epoch int          Transcript epoch the source must still have
+      --expected-generation int     Transcript generation the source must still have
+      --expected-max-sequence int   Maximum event sequence the source must still have
+  -h, --help                        help for continue
+      --idempotency-key string      Stable retry key (generated when omitted)
+      --message string              First message for the new session
+      --model string                Model for the new session's runtime
+      --name string                 Name of the new session (defaults to the source title)
+      --provider string             Provider for the new session's runtime
+      --reasoning-effort string     Reasoning effort for the new session
+      --route int                   1-based declared route of the agent's fallback_chain (excludes every runtime flag)
+      --speed string                Speed for the new session (normal|fast)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session continue <session-id> -o json
+```

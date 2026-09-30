@@ -67,13 +67,13 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 		return nil, fmt.Errorf("%w: recovered stop for %s has pending persistence", ErrRecoveryPersistence, target)
 	}
 
-	sanitized := clearedConversationMeta(meta, m.now())
-	spec, err := m.prepareResumeStart(ctx, sanitized)
+	sanitized := clearedConversationMeta(&meta, m.now())
+	spec, err := m.prepareResumeStart(ctx, &sanitized)
 	if err != nil {
 		return nil, err
 	}
 	spec.clearEventStoreOnOpen = true
-	return m.clearStoppedConversation(ctx, target, owner, meta, sanitized, &spec)
+	return m.clearStoppedConversation(ctx, target, owner, &meta, &sanitized, &spec)
 }
 
 func (m *Manager) restartClearedConversation(
@@ -181,12 +181,20 @@ func (m *Manager) clearLogger() *slog.Logger {
 	return slog.Default()
 }
 
-func clearedConversationMeta(meta store.SessionMeta, now time.Time) store.SessionMeta {
-	cleared := meta
+func clearedConversationMeta(meta *store.SessionMeta, now time.Time) store.SessionMeta {
+	if meta == nil {
+		return store.SessionMeta{}
+	}
+	cleared := *meta
 	cleared.State = string(StateStopped)
 	cleared.StopReason = nil
 	cleared.StopDetail = ""
 	cleared.ACPSessionID = nil
+	cleared.AcceptedRoute = nil
+	// A cleared conversation is a fresh context: the carried context and its derive
+	// record go with the transcript (lineage is kept).
+	cleared.Derivation = nil
+	cleared.ImportedContext = nil
 	cleared.UpdatedAt = now
 	return cleared
 }

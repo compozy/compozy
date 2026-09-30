@@ -45,6 +45,16 @@ import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/sessio
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 
+import {
+  SessionOriginContext,
+  type SessionOriginContextValue,
+} from "@/systems/session/contexts/session-origin-context-value";
+import {
+  SessionForkContext,
+  type SessionForkRequest,
+} from "@/systems/session/contexts/session-fork-context-value";
+import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
+import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { SessionThinkingRow } from "@/systems/session/components/session-thinking-row";
@@ -310,7 +320,8 @@ function createFetchMock(options?: {
       pathname ===
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`
     ) {
-      return jsonResponse({ session: primarySessionFixture });
+      // The harness session is idle unless a test serves a running detail itself.
+      return jsonResponse({ session: { ...primarySessionFixture, badge: "idle" } });
     }
 
     if (
@@ -418,6 +429,9 @@ interface ThreadStateOptions {
   transport?: SessionTransportState;
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
+  origin?: SessionOriginContextValue | null;
+  /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
+  forkRequest?: SessionForkRequest | null;
 }
 
 function threadStateElement(
@@ -440,6 +454,8 @@ function threadStateElement(
     transport,
     liveDataEnabled = true,
     contextControl,
+    origin = null,
+    forkRequest = null,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -483,31 +499,37 @@ function threadStateElement(
           retry={retry}
           transport={transport}
         >
-          <SessionThread
-            sessionId={primarySessionFixture.id}
-            agentName={primarySessionFixture.agent_name}
-            canPrompt
-            onCancelPrompt={() => {}}
-            isSessionRunning={isSessionRunning}
-            statusSession={statusSession}
-            stopCompletionNote={stopCompletionNote}
-            stopPhase={stopPhase}
-            quietWarning={quietWarning}
-            acpSessionId={acpSessionId}
-            sessionState={sessionState}
-            failure={failure}
-            readOnly={readOnly}
-            liveDataEnabled={liveDataEnabled}
-            contextControl={contextControl}
-          />
+          <SessionOriginContext value={origin}>
+            <SessionForkContext value={forkRequest}>
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={() => {}}
+                isSessionRunning={isSessionRunning}
+                statusSession={statusSession}
+                stopCompletionNote={stopCompletionNote}
+                stopPhase={stopPhase}
+                quietWarning={quietWarning}
+                acpSessionId={acpSessionId}
+                sessionState={sessionState}
+                failure={failure}
+                readOnly={readOnly}
+                liveDataEnabled={liveDataEnabled}
+                contextControl={contextControl}
+              />
+            </SessionForkContext>
+          </SessionOriginContext>
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
   );
 }
 
-function renderThreadState(options: ThreadStateOptions) {
-  const queryClient = createQueryClient();
+function renderThreadState(
+  options: ThreadStateOptions,
+  queryClient: QueryClient = createQueryClient()
+) {
   const result = render(threadStateElement(queryClient, options));
   return {
     ...result,
@@ -738,6 +760,102 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText(/to get started/i)).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
+  });
+
+  // Invariant: a transcript that has said nothing yet reads as empty. Hook dispatches and
+  // other status-only events render no row, so a fresh session holding only those keeps
+  // the generic empty state instead of a blank viewport.
+  it("Should keep ThreadEmpty for a fresh session whose transcript holds only status events", async () => {
+    const transcript = [
+      {
+        id: "hook-start",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ] as SessionMessage[];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByText(/to get started/i)).toBeInTheDocument();
+  });
+
+  // Invariant (UT-071): a derived child marks where its own transcript starts — one divider
+  // before its first message, or the divider alone above a compact empty state before any.
+  // Owning layer: the thread message list. Canonical suite: this file.
+  it("Should render the origin divider once, before the derived child's first message", async () => {
+    const user = userEvent.setup();
+    const onOpenSource = vi.fn();
+    const child = continuedSessionFixture();
+    const transcript = [
+      { id: "child-first", role: "user", parts: [{ type: "text", text: "Pick up the tests." }] },
+      { id: "child-reply", role: "assistant", parts: [{ type: "text", text: "On it." }] },
+    ] as SessionMessage[];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      origin: {
+        origin: sessionOriginView(child, { title: "Refactor flaky manager tests" })!,
+        onOpenSource,
+      },
+    });
+
+    const divider = await screen.findByTestId("session-origin-divider");
+    expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
+    expect(divider).toHaveAccessibleName("Continued from Refactor flaky manager tests");
+    const firstRow = document.querySelector('[data-message-id="child-first"]');
+    expect(firstRow).toContainElement(divider);
+    expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("session-origin-divider-link"));
+    expect(onOpenSource).toHaveBeenCalledExactlyOnceWith(child.lineage?.parent_session_id);
+  });
+
+  it("Should show the divider alone above the empty state of an unprompted derived child", async () => {
+    const child = continuedSessionFixture();
+    renderThreadState({
+      status: "success",
+      origin: { origin: sessionOriginView(child, null)! },
+    });
+
+    const empty = await screen.findByTestId("session-thread-empty");
+    expect(empty).toHaveTextContent("Nothing said here yet");
+    expect(empty).toHaveTextContent(
+      "The conversation carried over is sent with your first message."
+    );
+    const divider = screen.getByTestId("session-origin-divider");
+    expect(divider).toHaveAttribute("data-link", "false");
+    expect(divider).toHaveTextContent("Continued from claude");
+    expect(screen.queryByTestId("session-origin-divider-link")).not.toBeInTheDocument();
+    expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
+  });
+
+  it("Should keep the empty state of a derived child whose transcript holds only status events", async () => {
+    const child = continuedSessionFixture();
+    const transcript = [
+      {
+        id: "hook-start",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ] as SessionMessage[];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      origin: { origin: sessionOriginView(child, null)! },
+    });
+
+    const empty = await screen.findByTestId("session-thread-empty");
+    expect(empty).toHaveTextContent("Nothing said here yet");
+    expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
   });
 
   // Invariant: a dead live stream never poses as an empty session (US-018.AC-2).
@@ -1702,6 +1820,118 @@ describe("SessionThread transcript states", () => {
     const rewind = await screen.findByRole("button", { name: "Rewind to here" });
     await waitFor(() => expect(rewind).toBeEnabled());
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
+  });
+
+  // UT-068 (S3, US-007.EC-2/EC-5): "Fork from here" is rewind's twin — present
+  // only on a durable user message under a Fork host, mounted before "Rewind to
+  // here", and it hands that message (id + text) to the host.
+  it("Should offer Fork from here beside Rewind only for a durable user message", async () => {
+    const forkRequest = vi.fn<SessionForkRequest>();
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest,
+    });
+
+    const fork = await screen.findByRole("button", { name: "Fork from here" });
+    await waitFor(() => expect(fork).toBeEnabled());
+    expect(screen.getAllByTestId("user-message-fork")).toHaveLength(1);
+    const rewind = screen.getByTestId("user-message-rewind");
+    expect(fork.compareDocumentPosition(rewind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(fork);
+    expect(forkRequest).toHaveBeenCalledExactlyOnceWith(undefined, {
+      messageId: "transcript_user_001",
+      messageText: "Summarize the launch blockers before the 18:30 UTC cutover.",
+    });
+  });
+
+  it("Should not offer Fork from here for an optimistic tail, without a host, or read-only", async () => {
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    const view = renderThreadState({ status: "success", messages, forkRequest: vi.fn() });
+
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+    view.unmount();
+
+    const noHost = renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+    });
+    expect(await screen.findByTestId("user-message-rewind")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+    noHost.unmount();
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn(),
+      readOnly: true,
+    });
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+  });
+
+  // A pending rewind anywhere in the workspace moves the transcript under every
+  // row: both actions disable together (the shared gate; VC-05 busy).
+  it("Should disable Fork from here together with Rewind while a rewind is pending", async () => {
+    const forkRequest = vi.fn<SessionForkRequest>();
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    const queryClient = createQueryClient();
+    void queryClient
+      .getMutationCache()
+      .build(queryClient, {
+        mutationKey: sessionKeys.rewindConversation(fixtureWorkspaceId()),
+        mutationFn: () => new Promise<never>(() => undefined),
+      })
+      .execute(undefined);
+
+    renderThreadState(
+      {
+        status: "success",
+        messages,
+        durableMessageIds: ["transcript_user_001"],
+        forkRequest,
+      },
+      queryClient
+    );
+
+    const fork = await screen.findByTestId("user-message-fork");
+    expect(fork).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    fireEvent.click(fork);
+    expect(forkRequest).not.toHaveBeenCalled();
+  });
+
+  // A turn started outside this page (CLI, another window, before a reload) leaves the
+  // local thread idle; the daemon's running detail still disables both actions.
+  it("Should disable Fork from here together with Rewind while the daemon reports a running turn", async () => {
+    const baseFetch = createFetchMock();
+    const detailPath = `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+        getPathname(input) === detailPath
+          ? jsonResponse({ session: runningStatusSession() })
+          : baseFetch(input, init)
+      )
+    );
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: vi.fn<SessionForkRequest>(),
+    });
+
+    await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
   });
 
   it("Should hide transcript actions and goal prefill controls in read-only mode", async () => {

@@ -22,6 +22,9 @@ compozy session new [flags]
 
   # Auto-register an absolute workspace path before creating the session
   compozy session new --cwd "$PWD" --agent reviewer
+
+  # Start a recovery session for a failed parent session
+  compozy session new --agent codex --parent sess_01J9R2K7M4T1 --lineage-kind recovery
 ```
 
 ### Options
@@ -30,6 +33,7 @@ compozy session new [flags]
       --agent string                               Agent definition name (defaults to config default)
       --cwd string                                 Absolute workspace directory to auto-register
   -h, --help                                       help for new
+      --lineage-kind string                        Relation to --parent: provenance (default) or recovery
       --name string                                Optional session label
       --new-worktree string[="__compozy_auto__"]   Create a worktree before starting; optionally provide its name
       --parent string                              Record a same-workspace parent session as creation provenance

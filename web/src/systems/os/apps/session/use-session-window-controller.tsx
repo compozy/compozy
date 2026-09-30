@@ -11,6 +11,7 @@ import {
   type InspectorUsage,
   isSessionTransportDisconnected,
   SessionGoalHeadAction,
+  type SessionOriginView,
   type SessionPayload,
   SessionTransportChip,
   useSessionCommands,
@@ -54,6 +55,11 @@ export function useSessionWindowController(input: {
   liveDataEnabled: boolean;
   onOpenWorktreeContext?: (workspaceId: string, worktree: WorktreePayload) => void;
   onResolveMissingWorktree?: (workspaceId: string, worktree: WorktreePayload) => void;
+  /** Continue/Fork/origin chrome published into the window topbar. */
+  onContinue?: () => void;
+  onFork?: () => void;
+  origin?: SessionOriginView | null;
+  onOpenOriginSource?: (sessionId: string) => void;
 }) {
   const {
     windowId,
@@ -64,6 +70,10 @@ export function useSessionWindowController(input: {
     liveDataEnabled,
     onOpenWorktreeContext,
     onResolveMissingWorktree,
+    onContinue,
+    onFork,
+    origin,
+    onOpenOriginSource,
   } = input;
   const promptRuntime = useSessionPromptRuntimeContext();
   const promptRuntimeSnapshot = useSelector(
@@ -156,6 +166,10 @@ export function useSessionWindowController(input: {
     onResume: controls.handleResume,
     onUnarchive: controls.handleUnarchive,
     onClear: clearDialog.openDialog,
+    onContinue,
+    onFork,
+    origin,
+    onOpenOriginSource,
   });
 
   return {

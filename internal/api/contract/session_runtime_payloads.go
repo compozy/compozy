@@ -27,6 +27,9 @@ type CreateSessionRequest struct {
 	// ParentSessionID records creation provenance; the parent must live in the
 	// target workspace and the link never narrows the child's lifecycle.
 	ParentSessionID string `json:"parent_session_id,omitempty"`
+	// LineageKind names the relation to ParentSessionID: "provenance" (default)
+	// or "recovery". It is accepted only together with parent_session_id.
+	LineageKind string `json:"lineage_kind,omitempty"`
 }
 
 // RenameSessionRequest changes the durable display name of one user session.
@@ -94,6 +97,7 @@ type SessionPayload struct {
 	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands"`
 	Activity          *RuntimeActivityPayload      `json:"activity,omitempty"`
 	Lineage           *SessionLineagePayload       `json:"lineage,omitempty"`
+	Derivation        *SessionDerivationPayload    `json:"derivation,omitempty"`
 	Health            *SessionHealthPayload        `json:"health,omitempty"`
 	CreatedAt         time.Time                    `json:"created_at"`
 	UpdatedAt         time.Time                    `json:"updated_at"`

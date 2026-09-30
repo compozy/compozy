@@ -262,11 +262,63 @@ probe (`POST /api/providers/:provider_id/auth/probe` over HTTP/UDS). An `authent
 creation immediately without waiting for the 30-second cache expiry. The next startup checks the
 credentials for its own workspace and profile.
 
+### Recover from a provider refusal before acceptance
+
+When an agent declares a `fallback_chain` (see [agent definitions](/docs/agents/definitions)), a work
+session moves to the next route if the provider refuses before ACP accepts the session: the CLI is
+missing, login is required, or the account is rate limited while `session/new` runs. This applies to the
+first prompt that binds a logical session and to sessions started eagerly on your behalf (an
+agent-requested spawn, for example). Background roles run their own `roles.<role>.fallback_chain` instead
+of the agent chain, so one launch never runs two chains.
+
+For every route it tries after the first, CompozyOS writes a `session.fallback.used` event to the daemon
+log before starting it. The event carries the agent, the phase (`bind` or `create`), the attempt number,
+the provider and model, and `provider_command_fingerprint`, a `sha256:` fingerprint of the route's
+command. The command itself never appears in events, logs, or transcript markers.
+
+```bash
+compozy logs --session <session-id> --type session.fallback.used -o json
+```
+
+Each refused route leaves one `provider_failure` transcript marker attributed to that route's
+fingerprint. When the refusal is `rate_limited` or `not_authenticated` and another route remains, the
+marker's `next_action` is `use_fallback` with guidance naming the next route; nothing is required from
+you. Other refusals keep their usual action, such as `install_cli`. When every route refuses, the error
+lists each attempt in order.
+
+Once ACP accepts a route, CompozyOS never switches to another route, even when a later step of that same
+start fails. The accepted route is saved with the session, so a restarted session resumes on the same
+account. If that route is no longer configured, CompozyOS starts a fresh ACP session on the primary route
+and rebuilds context from the transcript (reason `accepted_route_missing`).
+
 ### Recover from a provider error during a turn
 
-Authentication and rate-limit failures end the affected turn while keeping the session available.
+The fallback chain does not run once a turn is under way. Authentication and rate-limit failures end the
+affected turn while keeping the session available.
 After restoring authentication or waiting for the provider to recover, send another prompt in the
 same session. CompozyOS does not automatically retry the failed prompt.
+
+On a user session, a `session/prompt` failure classified `rate_limited` or `not_authenticated` prescribes
+`handoff`: the error event's `provider_error.next_action` is `handoff` and its guidance names the continue
+command.
+
+```json
+{
+  "provider_error": {
+    "code": "provider_rate_limited",
+    "provider": "claude",
+    "next_action": "handoff",
+    "guidance": "continue this session with another agent or route: compozy session continue <id> --agent <name>"
+  }
+}
+```
+
+`handoff` is an offer, never automatic: CompozyOS does not create a session on its own. Continue the
+session with another agent or declared route (see
+[Continuing and forking a session](/docs/sessions/lifecycle#continuing-and-forking-a-session)); the source
+session stays as it was. Spawned, coordinator, and system sessions keep `retry` or `login`, and start or
+bind failures keep the pre-acceptance vocabulary above (`use_fallback`). Clients that do not know
+`handoff` treat it like `inspect`.
 
 Error events include `provider_error` with `code` (`provider_auth_required` or
 `provider_rate_limited`), `provider`, `next_action`, and `guidance`. Authentication errors suggest `login` for native CLI auth,

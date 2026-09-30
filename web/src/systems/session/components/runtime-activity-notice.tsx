@@ -1,18 +1,13 @@
 import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "lucide-react";
-import type { ReactNode } from "react";
 
-import {
-  formatDuration as formatCanonicalDuration,
-  HelpTip,
-  Marker,
-  MarkerMeta,
-} from "@compozy/ui";
+import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@compozy/ui";
 
-import { formatMessageTimestamp } from "../lib/format-timestamp";
 import { getToolLabel, resolveRegisteredToolName } from "../lib/tool-labels";
 import { steerMarkerView } from "../lib/steer-marker";
 import { SteerMarkerRow } from "./steer-marker-notice";
-import { type ProviderErrorView, providerErrorView } from "../lib/provider-error";
+import { providerErrorView } from "../lib/provider-error";
+import { ClusterCount } from "./marker-cluster-count";
+import { ProviderErrorNotice } from "./provider-error-notice";
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 import {
   hasText,
@@ -98,92 +93,6 @@ function sessionErrorDescription(event: AgentEventPayload): string {
     normalizeErrorText(event.failure?.summary) ||
     normalizeErrorText(event.text) ||
     "The session stopped before completing this turn."
-  );
-}
-
-/** Faint ×N tabular count appended when consecutive same-kind events clustered. */
-function ClusterCount({ count }: { count: number }) {
-  if (count <= 1) return null;
-  return <MarkerMeta data-testid="marker-cluster-count"> ×{count}</MarkerMeta>;
-}
-
-const PROVIDER_ERROR_CAUSE: Record<ProviderErrorView["code"], string> = {
-  provider_auth_required:
-    "This turn stopped because the provider rejected the request as not authenticated.",
-  provider_rate_limited: "This turn stopped because the provider is limiting requests right now.",
-};
-
-// Public CLI invocation shown to the operator as the next step; it carries no credential.
-const PROVIDER_STATUS_CLI_HINT = "compozy provider auth status <provider> --remote";
-
-// One next step per daemon next_action; `inspect` doubles as the fallback for unknown values.
-const PROVIDER_ERROR_NEXT_STEP: Record<ProviderErrorView["nextAction"], ReactNode> = {
-  login: (
-    <>
-      Sign in to the provider again, then send your message again.{" "}
-      <HelpTip label="How to check sign-in" className="align-middle">
-        To check from a terminal, run{" "}
-        <code className="font-mono" data-testid="provider-error-command">
-          {PROVIDER_STATUS_CLI_HINT}
-        </code>
-        .
-      </HelpTip>
-    </>
-  ),
-  bind_secret:
-    "Update the provider's bound credential in Settings → Providers, then send your message again.",
-  inspect:
-    "Check the provider's configuration in Settings → Providers, then send your message again.",
-  retry: "Wait for the provider to recover, then send your message again.",
-};
-
-function providerErrorSubject(view: ProviderErrorView): string {
-  if (view.code === "provider_rate_limited") {
-    return `${view.provider} is rate limited`;
-  }
-  switch (view.nextAction) {
-    case "login":
-      return `${view.provider} needs sign-in`;
-    case "bind_secret":
-      return `${view.provider} credential needs updating`;
-    default:
-      return `${view.provider} authentication failed`;
-  }
-}
-
-function providerErrorOccurrence(view: ProviderErrorView): string | null {
-  if (view.occurrenceCount <= 1) {
-    return null;
-  }
-  const since = view.firstSeenAt ? formatMessageTimestamp(Date.parse(view.firstSeenAt)) : "";
-  return since ? `${view.occurrenceCount} times since ${since}` : `${view.occurrenceCount} times`;
-}
-
-// Turn-level provider failure the session survives: same danger marker anatomy as a
-// session failure, but the sentence names the provider and the daemon's next action.
-function ProviderErrorNotice({ view, count }: { view: ProviderErrorView; count: number }) {
-  const occurrence = providerErrorOccurrence(view);
-  return (
-    <Marker
-      role="alert"
-      data-testid="session-error-notice"
-      data-provider-error={view.code}
-      data-provider-next-action={view.nextAction}
-      tone="danger"
-      icon={<AlertCircle strokeWidth={1.8} />}
-    >
-      <b data-testid="provider-error-subject">{providerErrorSubject(view)}</b> —{" "}
-      <span data-testid="session-error-detail">
-        {PROVIDER_ERROR_CAUSE[view.code]} {PROVIDER_ERROR_NEXT_STEP[view.nextAction]}
-      </span>
-      {occurrence ? (
-        <>
-          {" "}
-          <MarkerMeta data-testid="provider-error-occurrence">{occurrence}</MarkerMeta>
-        </>
-      ) : null}
-      <ClusterCount count={count} />
-    </Marker>
   );
 }
 

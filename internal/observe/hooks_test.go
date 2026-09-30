@@ -203,7 +203,7 @@ func TestObserverHookOptionsUseCustomSourcesAndStores(t *testing.T) {
 		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
 	}
 	now := time.Date(2026, 4, 9, 19, 9, 0, 0, time.UTC)
-	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Dir(path)), store.SessionMeta{
+	if err := store.WriteSessionMeta(store.SessionMetaFile(filepath.Dir(path)), &store.SessionMeta{
 		ID:            sessionID,
 		AgentName:     "coder",
 		WorkspaceID:   observerWorkspaceID,
@@ -267,7 +267,7 @@ func TestObserverHookOptionsUseCustomSourcesAndStores(t *testing.T) {
 		t.Fatalf("ReadSessionMeta(before owner substitution) error = %v", err)
 	}
 	meta.WorkspaceID = "ws-substituted-hook-owner"
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+	if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
 		t.Fatalf("WriteSessionMeta(substituted owner) error = %v", err)
 	}
 	beforeRejectedOpen := openCalls
@@ -330,7 +330,7 @@ func openObserverHookSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, 
 	}
 	now := time.Date(2026, 4, 9, 18, 55, 0, 0, time.UTC)
 	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID))
-	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
+	if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
 		ID:            sessionID,
 		AgentName:     "coder",
 		WorkspaceID:   owner.WorkspaceID,

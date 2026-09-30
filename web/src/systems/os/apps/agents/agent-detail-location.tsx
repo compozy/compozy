@@ -28,6 +28,7 @@ import {
   useAgentInstructionsTab,
 } from "@/systems/agent";
 import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
+import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 interface AgentInstructionsSectionProps {
@@ -151,34 +152,47 @@ function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
   );
 }
 
-function AgentSessionsPanel({ page, name }: { page: UseAgentDetailResult; name: string }) {
+interface AgentSessionsPanelProps {
+  page: UseAgentDetailResult;
+  name: string;
+  workspaceId: string | null;
+}
+
+function AgentSessionsPanel({ page, name, workspaceId }: AgentSessionsPanelProps) {
   return (
     <>
-      <AgentSessionsTab
-        agentName={name}
-        sessions={page.sessions}
-        archivedSessions={page.archivedSessions}
-        archivedTotal={page.archivedSessionsTotal}
-        total={page.sessionsTotal}
-        active={page.activeSessionsTotal}
-        failed={page.failedSessionsTotal}
-        metricsUnavailable={page.metricsUnavailable}
-        metricsLoading={page.metricsLoading}
-        status={agentSessionsStatus(page)}
-        paginationStatus={listPaginationStatus(page.isLoadingMoreSessions, page.hasMoreSessions)}
-        onLoadMore={page.onLoadMoreSessions}
-        archivedPaginationStatus={listPaginationStatus(
-          page.isLoadingMoreArchivedSessions,
-          page.hasMoreArchivedSessions
+      <OsSessionsDeriveHost workspaceId={workspaceId}>
+        {() => (
+          <AgentSessionsTab
+            agentName={name}
+            sessions={page.sessions}
+            archivedSessions={page.archivedSessions}
+            archivedTotal={page.archivedSessionsTotal}
+            total={page.sessionsTotal}
+            active={page.activeSessionsTotal}
+            failed={page.failedSessionsTotal}
+            metricsUnavailable={page.metricsUnavailable}
+            metricsLoading={page.metricsLoading}
+            status={agentSessionsStatus(page)}
+            paginationStatus={listPaginationStatus(
+              page.isLoadingMoreSessions,
+              page.hasMoreSessions
+            )}
+            onLoadMore={page.onLoadMoreSessions}
+            archivedPaginationStatus={listPaginationStatus(
+              page.isLoadingMoreArchivedSessions,
+              page.hasMoreArchivedSessions
+            )}
+            onLoadMoreArchived={page.onLoadMoreArchivedSessions}
+            sessionActions={page.sessionActions}
+            filter={page.search.filter}
+            onFilterChange={page.setFilter}
+            onNewSession={page.onNewSession}
+            onClearFilter={() => page.setFilter("all")}
+            onRetry={page.onRetrySessions}
+          />
         )}
-        onLoadMoreArchived={page.onLoadMoreArchivedSessions}
-        sessionActions={page.sessionActions}
-        filter={page.search.filter}
-        onFilterChange={page.setFilter}
-        onNewSession={page.onNewSession}
-        onClearFilter={() => page.setFilter("all")}
-        onRetry={page.onRetrySessions}
-      />
+      </OsSessionsDeriveHost>
       <AgentSessionDialogs page={page} />
     </>
   );
@@ -259,7 +273,7 @@ function AgentDetailBody({ agent, name, page, workspaceId }: AgentDetailBodyProp
             </TabsContent>
 
             <TabsContent value="sessions" className="flex flex-col gap-6">
-              <AgentSessionsPanel page={page} name={name} />
+              <AgentSessionsPanel page={page} name={name} workspaceId={workspaceId} />
             </TabsContent>
           </div>
         </LaneTabs>

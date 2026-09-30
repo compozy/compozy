@@ -477,7 +477,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				extractor := &forkedMemoryExtractor{sessions: manager, deadline: time.Minute}
 				child, err := extractor.spawnExtractorSession(
 					t.Context(),
-					ResolvedRole{Enabled: true, AgentName: agentName},
+					&ResolvedRole{Enabled: true, AgentName: agentName},
 					roleInvocationCorrelation{},
 					memcontract.TurnRecord{SessionID: parent.ID},
 				)
@@ -510,7 +510,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				}
 				summarizer := newDaemonCheckpointSummarizer(
 					manager,
-					resolvedRoleResolver(ResolvedRole{Enabled: true, AgentName: agentName}),
+					resolvedRoleResolver(&ResolvedRole{Enabled: true, AgentName: agentName}),
 				)
 				request := checkpointSummaryRequestFixture()
 				request.WorkspaceID, request.WorkspaceRoot, request.SessionID = workspace.ID, workspace.RootDir, parent.ID

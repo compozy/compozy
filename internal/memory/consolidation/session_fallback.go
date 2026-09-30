@@ -24,7 +24,9 @@ func createDreamSessionWithFallback(
 		reasoningEffort string,
 		speed speedpkg.Speed,
 		options []acp.SessionConfigOptionSelection,
+		command string,
 	) (*session.Session, error) {
+		// The dream role owns its chain; the session layer performs exactly this route.
 		return sessions.Create(ctx, session.CreateOpts{
 			AgentName:       strings.TrimSpace(route.AgentName),
 			Provider:        strings.TrimSpace(provider),
@@ -35,11 +37,13 @@ func createDreamSessionWithFallback(
 			Name:            strings.TrimSpace(goal),
 			Workspace:       strings.TrimSpace(workspace),
 			Type:            session.SessionTypeDream,
+			Command:         strings.TrimSpace(command),
+			ChainOwner:      session.ChainOwnerCaller,
 		})
 	}
 
-	created, err := create(route.Provider, route.Model, route.ReasoningEffort, route.Speed, route.ACPOptions)
-	if created != nil {
+	created, err := create(route.Provider, route.Model, route.ReasoningEffort, route.Speed, route.ACPOptions, "")
+	if created != nil || session.StartAccepted(err) {
 		return created, err
 	}
 	attemptErrors := []error{dreamAttemptError(0, err)}
@@ -56,8 +60,9 @@ func createDreamSessionWithFallback(
 			fallback.ReasoningEffort,
 			fallback.Speed,
 			session.ACPOptionSelectionsFromConfig(fallback.ACPOptions),
+			fallback.Command,
 		)
-		if created != nil {
+		if created != nil || session.StartAccepted(err) {
 			return created, err
 		}
 		attemptErrors = append(attemptErrors, dreamAttemptError(attempt, err))

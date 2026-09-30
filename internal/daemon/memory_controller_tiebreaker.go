@@ -82,7 +82,7 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 	}
 	invocation, invokeErr := invokeRoleWithFallback(
 		callCtx,
-		prepared.options.resolvedRole,
+		&prepared.options.resolvedRole,
 		memoryControllerCorrelation(request.Candidate),
 		func(attemptCtx context.Context, route roleAttemptRoute) (memoryControllerInvocation, bool, error) {
 			lastRoute = route
@@ -96,8 +96,10 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 				CWD:             prepared.cwd,
 				Prompt:          prepared.prompt,
 				MaxOutputBytes:  prepared.maxOutputBytes,
+				Command:         route.Command,
 			})
-			return memoryControllerInvocation{route: route, result: result}, result.Accepted, callErr
+			accepted := result.Accepted || session.StartAccepted(callErr)
+			return memoryControllerInvocation{route: route, result: result}, accepted, callErr
 		},
 	)
 	return memoryControllerResult(

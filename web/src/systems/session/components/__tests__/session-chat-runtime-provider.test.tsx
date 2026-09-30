@@ -754,6 +754,7 @@ describe("SessionChatRuntimeProvider", () => {
   let transcriptFetchShouldFail = false;
   let transcriptResponsePromise: Promise<Response> | null = null;
   let clearResponsePromise: Promise<Response> | null = null;
+  let rewindResponseGate: Promise<void> | null = null;
   let promptResponsePromise: Promise<Response> | null = null;
   let attachmentUploadResponse: (() => Promise<Response>) | null = null;
   let olderTranscriptResponsePromise: Promise<Response> | null = null;
@@ -779,6 +780,7 @@ describe("SessionChatRuntimeProvider", () => {
     transcriptFetchShouldFail = false;
     transcriptResponsePromise = null;
     clearResponsePromise = null;
+    rewindResponseGate = null;
     promptResponsePromise = null;
     attachmentUploadResponse = null;
     olderTranscriptResponsePromise = null;
@@ -889,6 +891,24 @@ describe("SessionChatRuntimeProvider", () => {
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/goal`
       ) {
         return jsonResponse({ goal: null });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/rewind`
+      ) {
+        // The daemon keeps the prefix before the chosen message and hands its text back.
+        const body = input instanceof Request ? await input.clone().text() : String(init?.body);
+        const { message_id: messageId } = JSON.parse(body) as { message_id: string };
+        const cut = transcriptMessages.findIndex(message => message.id === messageId);
+        const rewound = transcriptMessages[cut];
+        transcriptMessages = transcriptMessages.slice(0, cut);
+        transcriptEpoch += 1;
+        const draftText = rewound?.parts.find(part => part.type === "text")?.text ?? "";
+        const response = (rewindResponseGate ?? Promise.resolve()).then(() =>
+          jsonResponse({ session: sessionDetailResponse, rewind: { draft_text: draftText } })
+        );
+        return abortableResponse(response, input instanceof Request ? input.signal : init?.signal);
       }
 
       if (
@@ -1798,7 +1818,8 @@ describe("SessionChatRuntimeProvider", () => {
     try {
       const composer = await screen.findByTestId("composer-input");
       await waitFor(() => {
-        expect(screen.getAllByTestId("thread-message-row")).toHaveLength(2);
+        // Hook dispatches render no row: the loaded transcript reads as a fresh session.
+        expect(screen.getByText(/to get started/i)).toBeInTheDocument();
         // The Lexical composer opts out of interaction via `inert`, not `disabled`.
         expect(composer).not.toHaveAttribute("inert");
         expect(sources).toHaveLength(2);
@@ -2208,6 +2229,50 @@ describe("SessionChatRuntimeProvider", () => {
     expect(merged.map(message => message.id)).toEqual(["client_user_001", "server_assistant_001"]);
   });
 
+  // Invariant: one provider failure renders one notice. The live stream's failure message
+  // has its own id, so the durable-only dedup (error vs provider_failure marker) cannot see it;
+  // the merge must not append a runtime failure the durable transcript already records for
+  // that turn, while a failure for a turn the transcript lacks stays visible.
+  it("Should not append a live provider failure the durable transcript already records", () => {
+    const rateLimited = (turnID: string) => ({
+      type: "data-compozy-event",
+      data: {
+        type: "error",
+        turn_id: turnID,
+        error: "acpmock is rate limited",
+        provider_error: {
+          code: "provider_rate_limited",
+          provider: "acpmock",
+          next_action: "handoff",
+          occurrence_count: 1,
+        },
+      },
+    });
+    const transcriptMessages = toReadonlyThreadMessages([
+      {
+        id: "evt_010",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_001")],
+      } as unknown as TranscriptMessage,
+    ]);
+    const runtimeMessages = toReadonlyThreadMessages([
+      {
+        id: "stream_assistant_001",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_001")],
+      } as unknown as TranscriptMessage,
+      {
+        id: "stream_assistant_002",
+        role: "assistant",
+        parts: [rateLimited("turn_rate_002")],
+      } as unknown as TranscriptMessage,
+    ]);
+
+    const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
+
+    expect(merged.map(message => message.id)).toEqual(["evt_010", "stream_assistant_002"]);
+  });
+
   it("Should let an empty authoritative transcript replace a stale runtime tail", () => {
     const runtimeMessages = toReadonlyThreadMessages([
       {
@@ -2489,6 +2554,8 @@ describe("SessionChatRuntimeProvider", () => {
 
   it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
     vi.useFakeTimers();
+    // No turn in flight: the daemon's running detail would itself hold rewind.
+    sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
     settledInteractions = [restartExpiredRow("turn_001:perm_expired")];
     transcriptMessages = pendingPermissionTranscript("turn_001:perm_expired");
 
@@ -2520,6 +2587,46 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   }, 10_000);
+
+  // Invariant: a rewind the daemon accepted restores the rewound prompt as the composer draft,
+  // even when the live transcript drops that message (and the action confirming it) before the
+  // rewind response arrives.
+  it("Should restore the rewound prompt as the draft after its message leaves the transcript", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    const gate = createDeferred<void>();
+    rewindResponseGate = gate.promise;
+    sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
+    transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+
+    const view = renderSessionThread({ queryClient });
+
+    await waitFor(() => expect(screen.getByTestId("user-message-rewind")).toBeEnabled());
+    await user.click(screen.getByTestId("user-message-rewind"));
+    await user.click(await screen.findByTestId("session-rewind-confirm"));
+
+    // The daemon cut the transcript; the live read drops the row before the POST answers.
+    await waitFor(() => expect(transcriptMessages).toHaveLength(0));
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+      });
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument()
+    );
+    // The draft lands from the rewind response, outside any user event: wait inside act until
+    // the composer the operator sees renders it, not only until its store holds it.
+    const draft = "Summarize the launch blockers before the 18:30 UTC cutover.";
+    await act(async () => {
+      gate.resolve();
+      await vi.waitFor(() => expect(screen.getByTestId("composer-input")).toHaveTextContent(draft));
+    });
+    expect(composerText()).toBe(draft);
+    // The editor tears down asynchronously and updates its placeholder and cursor; let it
+    // settle inside act so no update lands after the test.
+    await act(async () => view.unmount());
+  });
 
   function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {
     const [user, ask] = pendingPermissionTranscript(requestId);

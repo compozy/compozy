@@ -1,23 +1,17 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useSessionComposerPrefill } from "@/components/assistant-ui/hooks/use-session-composer-prefill";
 import { createClientId } from "@/lib/client-id";
+import { useSessionMessageActionGate } from "./use-session-message-action-gate";
 import { useSessionRewind } from "./use-session-rewind";
-import { useSessionRuntimeRenderContext } from "./use-session-runtime-render-context";
-
-interface CurrentMessageState {
-  id?: string;
-  role?: string;
-}
 
 export function useSessionRewindMessageAction() {
-  const context = useSessionRuntimeRenderContext();
+  const gate = useSessionMessageActionGate();
+  const { context, messageId } = gate;
   const composerPrefill = useSessionComposerPrefill();
-  const currentMessage = useAuiState(state => state.message as CurrentMessageState);
   const composerText = useAuiState(state => state.composer.text);
-  const isThreadRunning = useAuiState(state => state.thread.isRunning);
   const [open, updateOpen] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -25,20 +19,8 @@ export function useSessionRewindMessageAction() {
   const workspaceId = context?.workspaceId ?? "";
   const sessionId = context?.sessionId ?? "";
   const rewind = useSessionRewind(workspaceId);
-  const messageId = typeof currentMessage.id === "string" ? currentMessage.id : "";
-  const busy = isThreadRunning || rewind.isPending || (context?.rewindBlocked ?? true);
-  const available =
-    Boolean(context && resetRuntime && composerPrefill) &&
-    currentMessage.role === "user" &&
-    messageId.length > 0 &&
-    (context?.durableMessageIds.has(messageId) ?? false);
-
-  useEffect(
-    () => () => {
-      abortControllerRef.current?.abort();
-    },
-    []
-  );
+  const busy = gate.busy || rewind.isPending;
+  const available = Boolean(resetRuntime && composerPrefill) && gate.durable;
 
   const setOpen = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -69,6 +51,9 @@ export function useSessionRewindMessageAction() {
       toast.warning("Clear the draft before rewinding.");
       return;
     }
+    // Only dismissing the dialog aborts the request. The row that owns this action can unmount
+    // mid-request (the live transcript drops the rewound message first); the daemon's rewind
+    // still lands, so its draft and runtime reset must still apply.
     const idempotencyKey = idempotencyKeyRef.current ?? createClientId();
     idempotencyKeyRef.current = idempotencyKey;
     abortControllerRef.current?.abort();

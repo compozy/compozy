@@ -1,4 +1,5 @@
-import { Archive, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Archive, ArrowRightLeft, GitFork, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
+import { use } from "react";
 
 import {
   Button,
@@ -10,6 +11,8 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import { SessionDeriveContext } from "../contexts/session-derive-context-value";
+import { SessionForkContext } from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isUserControllableSession } from "../lib/session-running";
@@ -30,6 +33,9 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
   const isArchived = session.archived_at !== null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
+  const requestContinue = use(SessionDeriveContext);
+  const requestFork = use(SessionForkContext);
+  const userSession = isUserControllableSession(session);
 
   return (
     <DropdownMenu>
@@ -40,8 +46,8 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
       >
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {isUserControllableSession(session) ? (
+      <DropdownMenuContent align="end" className="min-w-56">
+        {userSession ? (
           <DropdownMenuItem
             data-testid={`session-row-rename-${session.id}`}
             disabled={disabled}
@@ -49,6 +55,26 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
           >
             <Pencil aria-hidden="true" className="size-3" />
             Rename session
+          </DropdownMenuItem>
+        ) : null}
+        {userSession && !isArchived && requestContinue ? (
+          <DropdownMenuItem
+            data-testid={`session-row-continue-${session.id}`}
+            disabled={disabled}
+            onClick={() => requestContinue(session)}
+          >
+            <ArrowRightLeft aria-hidden="true" className="size-3" />
+            Continue with another agent…
+          </DropdownMenuItem>
+        ) : null}
+        {userSession && !isArchived && requestFork ? (
+          <DropdownMenuItem
+            data-testid={`session-row-fork-${session.id}`}
+            disabled={disabled}
+            onClick={() => requestFork(session)}
+          >
+            <GitFork aria-hidden="true" className="size-3" />
+            Fork session…
           </DropdownMenuItem>
         ) : null}
         {!isArchived && isStopEligible(session) ? (

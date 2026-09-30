@@ -744,7 +744,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 
 		failedMeta := readMeta(t, store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, "sess-1")))
-		assertStartupFailureMeta(t, failedMeta)
+		assertStartupFailureMeta(t, &failedMeta)
 		failedCatalog, ok := catalog.get("sess-1")
 		if !ok {
 			t.Fatal("catalog missing failed create session sess-1")
@@ -780,7 +780,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if !ok {
 			t.Fatalf("catalog missing session %q after failed resume", session.ID)
 		}
-		assertRestoredResumeMeta(t, afterMeta, beforeMeta)
+		assertRestoredResumeMeta(t, &afterMeta, &beforeMeta)
 		assertRestoredResumeCatalog(t, afterCatalog, beforeCatalog)
 	})
 
@@ -1602,7 +1602,7 @@ func (c *recordingSessionCatalog) requireExistingUpdates() {
 	c.strictUpdates = true
 }
 
-func assertStartupFailureMeta(t *testing.T, meta store.SessionMeta) {
+func assertStartupFailureMeta(t *testing.T, meta *store.SessionMeta) {
 	t.Helper()
 
 	if meta.State != string(StateStopped) {
@@ -1630,7 +1630,7 @@ func assertStartupFailureCatalog(t *testing.T, info store.SessionInfo) {
 	}
 }
 
-func assertRestoredResumeMeta(t *testing.T, after store.SessionMeta, before store.SessionMeta) {
+func assertRestoredResumeMeta(t *testing.T, after, before *store.SessionMeta) {
 	t.Helper()
 
 	if after.State != before.State {
@@ -1643,11 +1643,11 @@ func assertRestoredResumeMeta(t *testing.T, after store.SessionMeta, before stor
 			derefString(before.ACPSessionID),
 		)
 	}
-	if sessionMetaStopReason(&after) != sessionMetaStopReason(&before) {
+	if sessionMetaStopReason(after) != sessionMetaStopReason(before) {
 		t.Fatalf(
 			"restored meta stop reason = %q, want %q",
-			sessionMetaStopReason(&after),
-			sessionMetaStopReason(&before),
+			sessionMetaStopReason(after),
+			sessionMetaStopReason(before),
 		)
 	}
 	assertSameSessionFailure(t, after.Failure, before.Failure, "restored meta")

@@ -49,6 +49,7 @@ describe("fallback chain operations", () => {
       model: "",
       reasoning_effort: "",
       acp_options: [],
+      command: "",
     });
     expect(settingsRolesConfigFixture.dream.fallback_chain).toHaveLength(0);
   });
@@ -73,8 +74,29 @@ describe("fallback chain operations", () => {
       reasoning_effort: "high",
       speed: "fast",
       acp_options: [{ id: "thinking", bool_value: true }],
+      command: "",
     });
     expect(settingsRolesConfigWithFallbackFixture.dream.fallback_chain[1].provider).toBe("openai");
+  });
+
+  it("Should keep the route account command when its runtime changes", () => {
+    const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp";
+    const withCommand = {
+      ...settingsRolesConfigWithFallbackFixture,
+      dream: {
+        ...settingsRolesConfigWithFallbackFixture.dream,
+        fallback_chain: settingsRolesConfigWithFallbackFixture.dream.fallback_chain.map(
+          (entry, index) => (index === 0 ? { ...entry, command } : entry)
+        ),
+      },
+    };
+    const next = setFallbackRuntime(withCommand, "dream", 0, {
+      provider: "anthropic",
+      model: "claude-opus-4-8",
+      reasoning_effort: "high",
+      speed: "",
+    });
+    expect(next.dream.fallback_chain[0]?.command).toBe(command);
   });
 });
 

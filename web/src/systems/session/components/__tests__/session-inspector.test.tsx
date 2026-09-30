@@ -7,6 +7,11 @@ import { deriveSessionContext } from "../../lib/session-context";
 import { useSessionInspectorState } from "../../hooks/use-session-inspector-state";
 import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
 import type { SessionContextPayload } from "../../types";
+import {
+  continuedSessionFixture,
+  deriveSourceSessionFixture,
+  forkedSessionFixture,
+} from "../../mocks/derive-fixtures";
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -538,5 +543,89 @@ describe("Fable context surface corrections", () => {
     expect(screen.getByTestId("session-context-activity")).toHaveTextContent(
       "38 tools · 12 thoughts"
     );
+  });
+});
+
+// Invariant (UT-100): a derived session's inspector states its origin, the seed the daemon used
+// (a failed native clone says the carried context was used, with the redacted error on hover),
+// and a bind-time `route_not_found` in the daemon's own words; roots show no Origin section.
+// Owning layer: the inspector Origin section. Canonical suite: this file.
+describe("SessionInspector — origin", () => {
+  it("Should state a failed native clone and the carried context it fell back to", () => {
+    const child = continuedSessionFixture();
+    render(
+      <SessionInspector
+        session={{
+          ...child,
+          derivation: {
+            ...child.derivation!,
+            seed: "native_fork",
+            native_state: "failed",
+            native_fork_error: "session/load rejected: <redacted>",
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("ledger-origin")).toHaveTextContent("continue · from claude");
+    const seed = screen.getByTestId("ledger-seed");
+    expect(seed).toHaveTextContent("native clone · failed — carried context used");
+    expect(within(seed).getByTitle("session/load rejected: <redacted>")).toBeInTheDocument();
+  });
+
+  it("Should show the replay seed and a fork's anchor", () => {
+    const child = continuedSessionFixture();
+    render(
+      <SessionInspector
+        session={{
+          ...child,
+          lineage: { ...child.lineage!, kind: "fork", origin_message_id: "msg_01J9R3ZQ8PVX" },
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("ledger-origin")).toHaveTextContent(
+      "fork · through msg_01J9R3ZQ8PVX"
+    );
+    expect(screen.getByTestId("ledger-seed")).toHaveTextContent("replay");
+  });
+
+  it("Should state a clone refused at fork time as failed, with the carried context", () => {
+    const child = forkedSessionFixture();
+    render(
+      <SessionInspector
+        session={{
+          ...child,
+          derivation: {
+            ...child.derivation!,
+            seed: "replay",
+            native_fork_error: "session/fork: method not found",
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("ledger-origin")).toHaveTextContent("fork");
+    const seed = screen.getByTestId("ledger-seed");
+    expect(seed).toHaveTextContent("native clone · failed — carried context used");
+    expect(within(seed).getByTitle("session/fork: method not found")).toBeInTheDocument();
+  });
+
+  it("Should render a bind-time route_not_found with the daemon message", () => {
+    const child = continuedSessionFixture();
+    const failure = 'route_not_found: agent "claude" route 2 changed since it was chosen';
+    render(
+      <SessionInspector
+        session={{ ...child, runtime: { ...child.runtime, status: "unbound", failure } }}
+      />
+    );
+
+    expect(screen.getByTestId("ledger-route-failure")).toHaveTextContent(failure);
+  });
+
+  it("Should show no Origin section for a root session", () => {
+    render(<SessionInspector session={deriveSourceSessionFixture} />);
+
+    expect(screen.queryByTestId("session-inspector-origin")).not.toBeInTheDocument();
   });
 });

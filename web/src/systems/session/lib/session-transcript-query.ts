@@ -1,7 +1,7 @@
 import type { InfiniteData } from "@tanstack/react-query";
 
 import { isAgentEventPayload } from "./message-parts";
-import { isProviderErrorEvent } from "./provider-error";
+import { isProviderErrorEvent, isProviderFailureMarker } from "./provider-error";
 
 import type {
   NormalizedSessionTranscriptEntry,
@@ -75,8 +75,6 @@ export function flattenTranscriptMessages(
   return projectTranscriptMessages(flattenTranscriptEntries(data).map(entry => entry.message));
 }
 
-const PROVIDER_FAILURE_MARKER = "transcript_marker.provider_failure";
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -94,13 +92,6 @@ function eventTurnID(part: unknown, event: ReturnType<typeof compozyEventFromPar
     return part.turnId;
   }
   return event.turn_id?.trim() || null;
-}
-
-function isProviderFailureMarker(event: NonNullable<ReturnType<typeof compozyEventFromPart>>) {
-  return (
-    event.type === "transcript_marker.created" &&
-    (event.marker?.kind ?? event.title) === PROVIDER_FAILURE_MARKER
-  );
 }
 
 /**

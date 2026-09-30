@@ -55,6 +55,17 @@ type CreateOpts struct {
 	// DiscardStartFailure prevents internal retry attempts from leaving durable
 	// session artifacts when provider startup fails before Create returns.
 	DiscardStartFailure bool
+	// Command is an explicit launch command for this attempt (a fallback route's
+	// account). Empty keeps the provider-aware resolution and spawn inheritance.
+	Command string
+	// ChainOwner declares who owns the fallback chain for this launch; role-owned
+	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
+	ChainOwner ChainOwner
+	// Derivation and ImportedContext are set only by the continue/fork derive path.
+	Derivation      *store.SessionDerivation
+	ImportedContext *store.SessionImportedContext
+	// deriveReceipt commits the child together with its derive receipt.
+	deriveReceipt *store.SessionDerivationReceipt
 }
 
 // CreateAcceptedOpts carries one logical user-session creation request.
@@ -205,6 +216,7 @@ type Manager struct {
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
 	sessionCatalog               store.SessionCatalog
+	eventLedger                  store.EventSummaryStore
 	attentionStore               store.SessionAttentionStore
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
@@ -224,6 +236,7 @@ type Manager struct {
 	busyInput                    compozyconfig.SessionBusyInputConfig
 	busyInputMu                  sync.RWMutex
 	compaction                   compozyconfig.SessionCompactionConfig
+	deriveConfig                 compozyconfig.SessionDeriveConfig
 	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context

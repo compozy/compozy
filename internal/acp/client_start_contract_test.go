@@ -125,6 +125,51 @@ func TestStartCapturesPromptCapabilities(t *testing.T) {
 	}
 }
 
+func TestStartCapturesSessionLifecycleCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		scenario   string
+		wantFork   bool
+		wantResume bool
+	}{
+		{
+			name:       "Should capture advertised session fork and resume capabilities",
+			scenario:   "fork_session",
+			wantFork:   true,
+			wantResume: true,
+		},
+		{
+			name:     "Should leave fork and resume false when the agent omits them",
+			scenario: "prompt_capabilities_image",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			proc := startHelperProcess(t, driver, tt.scenario, "", StartOpts{})
+			t.Cleanup(func() {
+				stopProcess(t, driver, proc)
+			})
+
+			caps := proc.CapsSnapshot()
+			if got := caps.SupportsForkSession; got != tt.wantFork {
+				t.Fatalf("Start() SupportsForkSession = %t, want %t", got, tt.wantFork)
+			}
+			if got := caps.SupportsResumeSession; got != tt.wantResume {
+				t.Fatalf("Start() SupportsResumeSession = %t, want %t", got, tt.wantResume)
+			}
+			cloned := CloneCaps(caps)
+			if cloned.SupportsForkSession != tt.wantFork || cloned.SupportsResumeSession != tt.wantResume {
+				t.Fatalf("CloneCaps() = %+v, want fork=%t resume=%t", cloned, tt.wantFork, tt.wantResume)
+			}
+		})
+	}
+}
+
 func TestStartActivatesMCPAfterInitializeBeforeSessionNegotiation(t *testing.T) {
 	t.Parallel()
 
@@ -534,6 +579,25 @@ func TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession(t *testing.T) 
 			t.Fatal("session/close was sent without an advertised close capability")
 		}
 	})
+
+	t.Run("Should keep the inspected options when session/close outlasts its budget", func(t *testing.T) {
+		t.Parallel()
+
+		captureFile := filepath.Join(t.TempDir(), "session-inspection-slow-close.jsonl")
+		options, err := InspectSessionConfigOptions(testutil.Context(t), SessionInspectionRequest{
+			AgentName: "helper",
+			Command:   helperCommand(t),
+			Cwd:       t.TempDir(),
+			Env:       helperEnvWithCapture("config_options_slow_close", "", captureFile),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionConfigOptions(slow close) error = %v", err)
+		}
+		assertConfigOption(t, options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionClose) {
+			t.Fatal("session/close was not sent for an agent that advertises it")
+		}
+	})
 }
 
 // Invariant: discovery retains each model's acknowledged options without prompting.
@@ -799,6 +863,76 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 			negotiationErr.Stage != "speed" ||
 			negotiationErr.Requested != "fast" {
 			t.Fatalf("Start() error = %v, want speed_rejected NegotiationError", err)
+		}
+	})
+}
+
+func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
+	t.Parallel()
+
+	t.Run("Should carry the accepted session id through failed-start cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:   "helper",
+			Command:     helperCommand(t),
+			Cwd:         t.TempDir(),
+			Env:         helperEnv("config_options_reject_speed", ""),
+			Permissions: compozyconfig.PermissionModeApproveAll,
+			Speed:       speedpkg.SpeedFast,
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want failed setup cleanup")
+		}
+		accepted, ok := errors.AsType[*AcceptedStartError](err)
+		if !ok || accepted.SessionID != "sess-new" {
+			t.Fatalf("Start() error = %v, want AcceptedStartError for sess-new", err)
+		}
+		if _, negotiationMatched := errors.AsType[*NegotiationError](err); !negotiationMatched {
+			t.Fatalf("Start() error = %v, want the negotiation cause preserved", err)
+		}
+		if !strings.HasPrefix(err.Error(), "acp: start failed after session acceptance: ") {
+			t.Fatalf("Start() error text = %q, want the acceptance prefix", err.Error())
+		}
+	})
+
+	t.Run("Should report no acceptance when session negotiation fails", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnv("load_session_error", ""),
+			ResumeSessionID: "sess-missing",
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want failed load cleanup")
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want session/load failure")
+		}
+		if id, accepted := AcceptedSessionID(err); accepted || id != "" {
+			t.Fatalf("AcceptedSessionID() = (%q, %t), want (\"\", false)", id, accepted)
+		}
+	})
+
+	t.Run("Should find the acceptance fact through joined and wrapped errors", func(t *testing.T) {
+		t.Parallel()
+
+		base := WrapAcceptedStart("acp_1", errors.New("configure failed"))
+		for _, wrapped := range []error{
+			fmt.Errorf("session: start: %w", base),
+			errors.Join(errors.New("cleanup failed"), base),
+		} {
+			if id, ok := AcceptedSessionID(wrapped); !ok || id != "acp_1" {
+				t.Fatalf("AcceptedSessionID(%v) = (%q, %t), want (acp_1, true)", wrapped, id, ok)
+			}
+		}
+		if WrapAcceptedStart("acp_2", base) != base {
+			t.Fatal("WrapAcceptedStart() rewrapped an error that already carries acceptance")
 		}
 	})
 }

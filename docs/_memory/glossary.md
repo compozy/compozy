@@ -34,6 +34,13 @@ A durable managed agent run: saved history, resumable state, and the same view f
 
 **UI label:** "session" — already everyday English. Gloss it on first use rather than aliasing it.
 
+**Derived sessions** (lineage `kind`; copy rules in `COPY.md` §6 "Session Continue & Fork Terms"):
+
+- **continue** — a new session for another agent, runtime, or declared route with a session's conversation carried over; the source stays unchanged. UI: "Continue with another agent…", pill/divider "Continued from …".
+- **fork** — a conversation fork: a second session with the same agent and the conversation up to a point. UI: "Fork session…", "Fork from here", "Forked from …". Unqualified `fork` means this; worktree and Loop forks are always qualified.
+- **recovery** — an empty restart of a session whose runtime cannot be resumed. UI: "Restart in a new session" — never "fork".
+- `handoff` stays the Network term; it never labels continue or fork in UI copy (the `provider_error.next_action` value `handoff` is a wire value, not a label).
+
 ---
 
 ### Profile

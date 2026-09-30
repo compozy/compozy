@@ -76,6 +76,9 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	}](err); ok {
 		return marshalTerminalExecutionError(args, terminalErr.TerminalErrorEnvelope())
 	}
+	if deriveErr, ok := errors.AsType[*sessionDeriveAPIError](err); ok {
+		return marshalSessionDeriveExecutionError(args, deriveErr.sessionDeriveErrorPayload())
+	}
 	if apiErr, ok := errors.AsType[interface {
 		error
 		errorPayload() contract.ErrorPayload

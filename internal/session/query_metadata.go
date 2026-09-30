@@ -56,14 +56,17 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 	if restored, err := m.restoreRecoveredStopReceipt(&meta); err != nil || restored {
 		return meta, err
 	}
-	repaired, err := m.repairInactiveMeta(ctx, metaPath, meta)
+	repaired, err := m.repairInactiveMeta(ctx, metaPath, &meta)
 	if err != nil {
 		return store.SessionMeta{}, err
 	}
 	return repaired, nil
 }
 
-func requirePersistedProvider(meta store.SessionMeta) error {
+func requirePersistedProvider(meta *store.SessionMeta) error {
+	if meta == nil {
+		return errors.New("session: metadata is required")
+	}
 	if strings.TrimSpace(meta.Provider) == "" {
 		return fmt.Errorf("session: metadata provider for %q is required", strings.TrimSpace(meta.ID))
 	}
@@ -104,8 +107,11 @@ func hasWindowsDriveRelativePrefix(value string) bool {
 	return value[2] != '/' && value[2] != '\\'
 }
 
-func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *Info {
+func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta *store.SessionMeta) *Info {
 	info := sessionInfoFromMeta(meta)
+	if info == nil {
+		return nil
+	}
 	if m != nil && m.transcriptEpochStore != nil {
 		epoch, err := m.transcriptEpochStore.SessionTranscriptEpoch(ctx, meta.ID)
 		if err != nil {
@@ -137,7 +143,10 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMet
 	return info
 }
 
-func sessionInfoFromMeta(meta store.SessionMeta) *Info {
+func sessionInfoFromMeta(meta *store.SessionMeta) *Info {
+	if meta == nil {
+		return nil
+	}
 	requestedSpeed := meta.Speed
 	if requestedSpeed == "" {
 		requestedSpeed = speedpkg.SpeedNormal
@@ -166,8 +175,9 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		WorktreeID:               meta.WorktreeIDValue(),
 		Type:                     normalizeSessionType(Type(meta.SessionType)),
 		Lineage:                  store.NormalizeSessionLineage(meta.ID, meta.Lineage),
+		Derivation:               store.CloneSessionDerivation(meta.Derivation),
 		State:                    State(meta.State),
-		StopReason:               sessionMetaStopReason(&meta),
+		StopReason:               sessionMetaStopReason(meta),
 		StopEscalated:            meta.StopEscalated,
 		StopVerificationFailed:   meta.StopVerificationFailed,
 		StopDetail:               meta.StopDetail,

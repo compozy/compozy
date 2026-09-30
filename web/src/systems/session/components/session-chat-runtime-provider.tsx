@@ -95,14 +95,20 @@ function SessionRuntimeExtensions({
   liveTailEnabled: boolean;
   children: ReactNode;
 }) {
-  const { expiredInteractions, resolvedInteractions, resetRuntime, rewindBlocked, transcript } =
-    useSessionRuntimeExtensions({
-      eventSourceFactory,
-      liveTailEnabled,
-      promptDispatch,
-      sessionId,
-      workspaceId,
-    });
+  const {
+    expiredInteractions,
+    resolvedInteractions,
+    resetRuntime,
+    rewindBlocked,
+    sessionRunning,
+    transcript,
+  } = useSessionRuntimeExtensions({
+    eventSourceFactory,
+    liveTailEnabled,
+    promptDispatch,
+    sessionId,
+    workspaceId,
+  });
 
   return (
     <SessionRuntimeRenderProvider
@@ -111,6 +117,7 @@ function SessionRuntimeExtensions({
       resolvedInteractions={resolvedInteractions}
       resetRuntime={resetRuntime}
       rewindBlocked={rewindBlocked}
+      sessionRunning={sessionRunning}
       sessionId={sessionId}
       workspaceId={workspaceId}
     >

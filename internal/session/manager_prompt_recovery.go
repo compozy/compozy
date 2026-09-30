@@ -243,7 +243,8 @@ func (m *Manager) recoverPromptRuntime(
 	session *Session,
 ) (*AgentProcess, string, error) {
 	snapshot := session.runtimeBindingSnapshot()
-	plan, err := m.preparePromptRuntimePlan(ctx, session, snapshot.selection)
+	// Recovery keeps the accepted seat: the accepted route's explicit command, if any.
+	plan, err := m.preparePromptRuntimePlanForRoute(ctx, session, snapshot.selection, snapshot.acceptedCommand)
 	if err != nil {
 		return nil, "", err
 	}
@@ -269,6 +270,11 @@ func (m *Manager) recoverPromptRuntime(
 	if err != nil {
 		return nil, "", errors.Join(err, m.stopReplacedRuntime(session, candidate, false))
 	}
+	attempt := 0
+	if snapshot.acceptedRoute != nil {
+		attempt = snapshot.acceptedRoute.Attempt
+	}
+	session.commitAcceptedRoute(acceptedRouteRecord(attempt, runtime.agent, plan.selection.Model), plan.spec.command)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRecoveryBinding(candidate, &snapshot, err.Error(), m.now())
 		stopErr := m.stopReplacedRuntime(session, candidate, false)

@@ -66,7 +66,7 @@ func (m *Manager) GetSessionHealth(ctx context.Context, id string) (heartbeat.Se
 	if err != nil {
 		return heartbeat.SessionHealth{}, err
 	}
-	health := m.sessionHealthFromInfo(sessionInfoFromMeta(meta), existing, m.now(), sessionHealthInput{})
+	health := m.sessionHealthFromInfo(sessionInfoFromMeta(&meta), existing, m.now(), sessionHealthInput{})
 	return m.storeSessionHealth(ctx, health)
 }
 
@@ -148,7 +148,7 @@ func (m *Manager) RecoverSessionHealth(ctx context.Context) (HealthRecoveryResul
 				readErr,
 			)
 		}
-		next := m.sessionHealthFromInfo(sessionInfoFromMeta(meta), row, now, sessionHealthInput{})
+		next := m.sessionHealthFromInfo(sessionInfoFromMeta(&meta), row, now, sessionHealthInput{})
 		if sessionHealthEqual(row, next) {
 			continue
 		}

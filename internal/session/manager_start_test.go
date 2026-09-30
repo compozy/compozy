@@ -2,13 +2,21 @@ package session
 
 import (
 	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -502,4 +510,278 @@ func TestCreatePreallocatedSessionIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func persistedSessionMetas(t *testing.T, h *harness) []store.SessionMeta {
+	t.Helper()
+	entries, err := os.ReadDir(h.homePaths.SessionsDir)
+	if err != nil {
+		t.Fatalf("ReadDir(sessions) error = %v", err)
+	}
+	metas := make([]store.SessionMeta, 0, len(entries))
+	for _, entry := range entries {
+		path := store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, entry.Name()))
+		if _, statErr := os.Stat(path); statErr != nil {
+			continue
+		}
+		metas = append(metas, readMeta(t, path))
+	}
+	return metas
+}
+
+// Invariant: a session-owned create runs the agent chain inside one acceptance
+// lifetime — the ledger row exists before each fallback Start, refused attempts leave
+// attempt-attributed markers and no failed start, and exhaustion persists exactly one
+// failed start (IT-008, UT-030).
+func TestCreateFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	newLedgerHarness := func(t *testing.T, extraOpts ...Option) (*harness, *globaldb.GlobalDB) {
+		t.Helper()
+		h := newHarness(t)
+		installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
+		db := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, db, h)
+		opts := append([]Option{WithSessionCatalog(db), WithEventLedger(db)}, extraOpts...)
+		h.manager = newManagerWithHarness(t, h, opts...)
+		cleanupTestManager(t, h.manager)
+		return h, db
+	}
+	ledgerRows := func(t *testing.T, db *globaldb.GlobalDB) int {
+		t.Helper()
+		rows, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Type: eventspkg.SessionFallbackUsed, Limit: 50,
+		})
+		if err != nil {
+			t.Errorf("ListEventSummaries() error = %v", err)
+		}
+		return len(rows)
+	}
+
+	t.Run("Should commit each ledger row before its attempt and bind on the accepting route", func(t *testing.T) {
+		t.Parallel()
+		h, db := newLedgerHarness(t)
+		var observed []int
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			observed = append(observed, ledgerRows(t, db))
+			switch opts.Command {
+			case fallbackSeatZero:
+				return nil, rateLimitRefusal()
+			case fallbackSeatOne:
+				return nil, rateLimitRefusal()
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence)), nil
+		}
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		cleanupSessionStop(t, h, created.ID)
+		if !slices.Equal(observed, []int{0, 1, 2}) {
+			t.Fatalf("ledger rows observed inside each Start = %v, want [0 1 2]", observed)
+		}
+		codexCommand := h.cfg.Providers["codex"].Command
+		info := created.Info()
+		if info.Provider != "codex" || info.ACPSessionID != "acp-3" || info.State != StateActive {
+			t.Fatalf(
+				"created = %s on %s acp=%q, want active on codex with acp-3",
+				info.State,
+				info.Provider,
+				info.ACPSessionID,
+			)
+		}
+		metas := persistedSessionMetas(t, h)
+		if len(metas) != 1 || metas[0].Failure != nil || metas[0].ID != created.ID {
+			t.Fatalf("persisted sessions = %#v, want the one accepted session without a failed start", metas)
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, created.ID, transcript.MarkerProviderFailure)
+		if len(markers) != 2 {
+			t.Fatalf("provider_failure markers = %d, want 2", len(markers))
+		}
+		for index, command := range []string{fallbackSeatZero, fallbackSeatOne} {
+			if markers[index].Evidence["attempt"] != float64(index) ||
+				markers[index].Evidence["provider_command_fingerprint"] != providerCommandFingerprint(command) ||
+				markers[index].Evidence["next_action"] != string(acp.ProviderFailureActionUseFallback) {
+				t.Fatalf(
+					"marker %d evidence = %#v, want attempt %d attributed to %q",
+					index,
+					markers[index].Evidence,
+					index,
+					command,
+				)
+			}
+		}
+		if got := providerCommandFingerprint(
+			created.providerRoutingSnapshot().Command,
+		); got != providerCommandFingerprint(
+			codexCommand,
+		) {
+			t.Fatalf("routing snapshot fingerprint = %s, want the accepted codex route", got)
+		}
+		rows, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Type: eventspkg.SessionFallbackUsed,
+			SessionID: created.ID, Limit: 10,
+		})
+		if err != nil || len(rows) != 2 {
+			t.Fatalf("session-scoped ledger rows = %d, error = %v, want 2", len(rows), err)
+		}
+		for _, row := range rows {
+			payload := decodeFallbackPayload(t, row)
+			if payload.Attempt == 2 && payload.ProviderCommandFingerprint != providerCommandFingerprint(codexCommand) {
+				t.Fatalf("attempt 2 payload = %#v, want the codex route fingerprint", payload)
+			}
+			if payload.Phase != fallbackPhaseCreate {
+				t.Fatalf("payload phase = %q, want create", payload.Phase)
+			}
+		}
+	})
+
+	t.Run("Should persist exactly one failed start when every route refuses", func(t *testing.T) {
+		t.Parallel()
+		h, db := newLedgerHarness(t)
+		codexCommand := h.cfg.Providers["codex"].Command
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  rateLimitRefusal(),
+			codexCommand:     rateLimitRefusal(),
+		})
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
+			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
+		}
+		if got := ledgerRows(t, db); got != 2 {
+			t.Fatalf("ledger rows = %d, want one per fallback attempt", got)
+		}
+		metas := persistedSessionMetas(t, h)
+		if len(metas) != 1 || metas[0].Failure == nil {
+			t.Fatalf("persisted sessions = %#v, want exactly one failed start", metas)
+		}
+		live, ok := h.manager.Get(metas[0].ID)
+		if ok {
+			t.Fatalf("failed start stayed registered: %#v", live.Info())
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, metas[0].ID, transcript.MarkerProviderFailure)
+		if len(markers) != 3 {
+			t.Fatalf("provider_failure markers = %d, want two advancing refusals plus the failed start", len(markers))
+		}
+		if got := markers[2].Evidence["provider_command_fingerprint"]; got != providerCommandFingerprint(codexCommand) {
+			t.Fatalf("failed-start marker fingerprint = %v, want the last refused route", got)
+		}
+	})
+
+	// refuseWithProcess makes the fake driver return a live process together with a
+	// pre-acceptance refusal for the given commands; stopping such a process fails.
+	refuseWithProcess := func(h *harness, commands map[string]bool, stopErr error) {
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			sessionID := fmt.Sprintf("acp-%d", sequence)
+			if commands[opts.Command] {
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "refused-"+sessionID),
+					rateLimitRefusal()
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, sessionID), nil
+		}
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			if strings.HasPrefix(proc.handle.SessionID, "refused-") {
+				return stopErr
+			}
+			proc.exit()
+			return nil
+		}
+	}
+	cleanupFailures := func(logs *captureLogHandler) []capturedLogRecord {
+		var failures []capturedLogRecord
+		for _, record := range logs.Records() {
+			if record.Message == "session.fallback.cleanup_failed" {
+				failures = append(failures, record)
+			}
+		}
+		return failures
+	}
+
+	t.Run("Should log a failed refused-process cleanup and continue to the next route", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, db := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		stopErr := errors.New("refused seat process would not stop")
+		refuseWithProcess(h, map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true}, stopErr)
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v, want the chain to continue past the cleanup failure", err)
+		}
+		cleanupSessionStop(t, h, created.ID)
+		if info := created.Info(); info.Provider != "codex" || info.State != StateActive {
+			t.Fatalf("created = %s on %s, want active on the codex route", info.State, info.Provider)
+		}
+		failures := cleanupFailures(logs)
+		if len(failures) != 2 {
+			t.Fatalf("cleanup_failed records = %#v, want one per refused attempt", failures)
+		}
+		for index, record := range failures {
+			if record.Level != slog.LevelWarn || record.Attrs["attempt"] != fmt.Sprint(index) ||
+				record.Attrs["phase"] != fallbackPhaseCreate ||
+				!strings.Contains(record.Attrs["error"], stopErr.Error()) {
+				t.Fatalf(
+					"cleanup_failed record %d = %#v, want warn attempt %d with the stop error",
+					index,
+					record,
+					index,
+				)
+			}
+		}
+		if got := ledgerRows(t, db); got != 2 {
+			t.Fatalf("ledger rows = %d, want one per fallback attempt", got)
+		}
+	})
+
+	t.Run("Should join the refused-process cleanup failure into the exhausted error", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, _ := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		stopErr := errors.New("refused seat process would not stop")
+		codexCommand := h.cfg.Providers["codex"].Command
+		refuseWithProcess(
+			h,
+			map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true, codexCommand: true},
+			stopErr,
+		)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
+			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
+		}
+		if !errors.Is(err, stopErr) {
+			t.Fatalf("Create() error = %v, want the last attempt's cleanup failure joined", err)
+		}
+		if got := strings.Count(err.Error(), stopErr.Error()); got != 3 {
+			t.Fatalf("Create() error names the cleanup failure %d time(s), want once per attempt: %v", got, err)
+		}
+		if got := len(cleanupFailures(logs)); got != 3 {
+			t.Fatalf("cleanup_failed records = %d, want one per refused attempt", got)
+		}
+		metas := persistedSessionMetas(t, h)
+		if len(metas) != 1 || metas[0].Failure == nil {
+			t.Fatalf("persisted sessions = %#v, want exactly one failed start", metas)
+		}
+	})
+
+	t.Run("Should never run the agent chain for a caller-owned launch", func(t *testing.T) {
+		t.Parallel()
+		h, db := newLedgerHarness(t)
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "reviewer", Workspace: h.workspaceID, ChainOwner: ChainOwnerCaller,
+		})
+		if err == nil || StartAccepted(err) {
+			t.Fatalf("Create(ChainOwnerCaller) error = %v, want the refused primary", err)
+		}
+		if got := startCommands(h); len(got) != 1 || ledgerRows(t, db) != 0 {
+			t.Fatalf("caller-owned starts = %v rows = %d, want exactly the requested route and no event",
+				got, ledgerRows(t, db))
+		}
+	})
 }

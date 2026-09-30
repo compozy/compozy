@@ -4,6 +4,29 @@ package contracts
 
 import "time"
 
+type SessionAttentionChangedPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	From           string    `json:"from"`
+	To             string    `json:"to"`
+	Class          string    `json:"class"`
+	At             time.Time `json:"at"`
+}
+
 type SessionAttentionObservationPatch struct{}
 
 type SessionConfigOptionPayload struct {
@@ -54,6 +77,15 @@ type SessionCreatePatch struct {
 
 type SessionCreateResult struct {
 	SessionID string `json:"session_id"`
+}
+
+type SessionDerivationPayload struct {
+	Kind            LineageKind `json:"kind"`
+	SourceSessionID string      `json:"source_session_id"`
+	Seed            string      `json:"seed"`
+	NativeState     string      `json:"native_state,omitempty"`
+	NativeForkError string      `json:"native_fork_error,omitempty"`
+	FirstPrompt     string      `json:"first_prompt"`
 }
 
 type SessionEvent struct {
@@ -194,19 +226,4 @@ type SessionInputTargetParams struct {
 	WorkspaceID  string `json:"workspace_id"`
 	SessionID    string `json:"session_id"`
 	QueueEntryID string `json:"queue_entry_id"`
-}
-
-type SessionInputsListParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 }

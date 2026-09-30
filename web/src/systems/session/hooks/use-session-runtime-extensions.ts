@@ -9,6 +9,7 @@ import {
   derivePendingPermissions,
 } from "../lib/pending-permissions";
 import { sessionDetailOptions } from "../lib/query-options";
+import { isSessionRunning } from "../lib/session-running";
 import { sessionStore } from "../stores/session-store";
 import { useMergedSessionRuntimeTranscript } from "./use-merged-session-runtime-transcript";
 import { useSessionClarifications } from "./use-session-clarifications";
@@ -95,6 +96,7 @@ export function useSessionRuntimeExtensions({
       aui.thread.reset();
     },
     rewindBlocked,
+    sessionRunning: session.data ? isSessionRunning(session.data) : false,
     transcript,
   };
 }

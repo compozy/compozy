@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { SessionDeriveContext } from "../../contexts/session-derive-context-value";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import { RuntimeActivityNotice } from "../runtime-activity-notice";
@@ -284,6 +286,45 @@ describe("RuntimeActivityNotice", () => {
     const occurrence = screen.getByTestId("provider-error-occurrence");
     expect(occurrence).toHaveTextContent(/^3 times since \d{1,2}:\d{2}/);
     expect(occurrence.className).toContain("tabular-nums");
+  });
+
+  it.each([
+    { code: "provider_rate_limited", subject: "claude-code is rate limited" },
+    { code: "provider_auth_required", subject: "claude-code authentication failed" },
+  ])("offers Continue for a $code turn failure whose next step is handoff", ({ code, subject }) => {
+    const requestContinue = vi.fn();
+    render(
+      <SessionDeriveContext value={requestContinue}>
+        <RuntimeActivityNotice event={providerErrorEvent({ code, next_action: "handoff" })} />
+      </SessionDeriveContext>
+    );
+
+    const notice = screen.getByTestId("session-error-notice");
+    expect(notice).toHaveAttribute("data-provider-next-action", "handoff");
+    expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(subject);
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "Continue this session with another agent or route."
+    );
+    const offer = screen.getByTestId("provider-error-continue");
+    expect(offer).toHaveTextContent("Continue with another agent…");
+    expect(requestContinue).not.toHaveBeenCalled();
+
+    fireEvent.click(offer);
+    // No source: the host that mounted this transcript continues its own session.
+    expect(requestContinue).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it("keeps the handoff sentence but offers no button where no dialog can open", () => {
+    render(
+      <RuntimeActivityNotice
+        event={providerErrorEvent({ code: "provider_rate_limited", next_action: "handoff" })}
+      />
+    );
+
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "Continue this session with another agent or route."
+    );
+    expect(screen.queryByTestId("provider-error-continue")).not.toBeInTheDocument();
   });
 
   it.each([

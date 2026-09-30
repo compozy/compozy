@@ -28,6 +28,9 @@ type agentDefinitionFlags struct {
 	permissions     string
 	categoryPath    []string
 	disabledSkills  []string
+	// fallbackRoutes are ordered --fallback-route values; clearFallbackChain empties the chain.
+	fallbackRoutes     []string
+	clearFallbackChain bool
 }
 
 type agentDefinitionReadClient interface {
@@ -39,7 +42,7 @@ func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
 	cmd.Flags().StringVar(&flags.reasoningEffort, agentReasoningEffortKey, "", "Optional default reasoning effort")
-	cmd.Flags().StringVar(&flags.speed, "speed", "", "Optional default runtime speed (normal or fast)")
+	cmd.Flags().StringVar(&flags.speed, agentSpeedField, "", "Optional default runtime speed (normal or fast)")
 	bindACPOptionFlags(
 		cmd,
 		&flags.acpOptions,
@@ -101,7 +104,7 @@ func createAgentRequestFromFlags(
 	if len(disabledSkills) > 0 {
 		skills = &contract.CreateAgentSkillsConfig{Disabled: disabledSkills}
 	}
-	return contract.CreateAgentRequest{
+	request := contract.CreateAgentRequest{
 		Scope:     scope,
 		Workspace: workspace,
 		Agent: contract.CreateAgentPayload{
@@ -120,7 +123,11 @@ func createAgentRequestFromFlags(
 			Skills:          skills,
 			Prompt:          prompt,
 		},
-	}, nil
+	}
+	if err := applyAgentFallbackChainFlags(cmd, &request.Agent, flags); err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
+	return request, nil
 }
 
 func updateAgentRequestFromFlags(
@@ -148,6 +155,9 @@ func updateAgentRequestFromFlags(
 		return contract.UpdateAgentRequest{}, err
 	}
 	payload.Name = name
+	if err := applyAgentFallbackChainFlags(cmd, &payload, flags); err != nil {
+		return contract.UpdateAgentRequest{}, err
+	}
 	return contract.UpdateAgentRequest{
 		Workspace:      workspace,
 		Agent:          payload,
@@ -207,6 +217,7 @@ func createAgentPayloadFromRecord(agent AgentRecord) contract.CreateAgentPayload
 		Permissions:     contract.SettingsPermissionMode(agent.Permissions),
 		CategoryPath:    cloneStrings(agent.CategoryPath),
 		Skills:          cloneAgentSkills(agent.Skills),
+		FallbackChain:   agentFallbackChainFromRecord(agent.FallbackChain),
 		Prompt:          agent.Prompt,
 	}
 }
@@ -250,7 +261,7 @@ func applyAgentDefinitionOverrides(
 		}
 		payload.ReasoningEffort = contract.ReasoningEffort(strings.TrimSpace(flags.reasoningEffort))
 	}
-	if cmd.Flags().Changed("speed") {
+	if cmd.Flags().Changed(agentSpeedField) {
 		speed, err := parseAgentSpeedFlag(flags.speed)
 		if err != nil {
 			return err
@@ -305,7 +316,7 @@ func duplicateAgentOverridesFromFlags(
 	changed := false
 	for _, name := range []string{
 		cliProviderKey, agentCommandKey, agentModelKey, agentReasoningEffortKey,
-		"speed", runtimeACPOptionFlag, runtimeACPToggleFlag,
+		agentSpeedField, runtimeACPOptionFlag, runtimeACPToggleFlag,
 		clientToolsPromptKey, "prompt-file", toolToolKey, "toolset", "deny-tool", configPermissionsKey, agentCategoryKey,
 		agentDisableSkillFlag,
 	} {

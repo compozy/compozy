@@ -6,6 +6,8 @@ import "time"
 
 type ACPCapsPayload struct {
 	SupportsLoadSession   bool                         `json:"supports_load_session"`
+	SupportsForkSession   bool                         `json:"supports_fork_session"`
+	SupportsResumeSession bool                         `json:"supports_resume_session"`
 	PromptImage           bool                         `json:"prompt_image"`
 	PromptAudio           bool                         `json:"prompt_audio"`
 	PromptEmbeddedContext bool                         `json:"prompt_embedded_context"`

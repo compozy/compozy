@@ -1,0 +1,8 @@
+{
+    "kind": "fork",
+    "source_session_id": "sess_01J9R2K7M4T1",
+    "seed": "native_fork",
+    "native_state": "failed",
+    "native_fork_error": "session/load: resource not found",
+    "first_prompt": "staged"
+}
