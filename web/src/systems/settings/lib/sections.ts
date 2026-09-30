@@ -61,7 +61,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Appearance",
     icon: Palette,
     group: "workspace",
-    keywords: "wallpaper theme desktop dock icons",
+    keywords: "theme dark mode light mode wallpaper motion desktop",
   },
   {
     slug: "layouts",

@@ -81,7 +81,7 @@ const FREQ_SELECTED = "bg-accent-tint text-accent-strong ring-1 ring-accent-dim 
 
 const ROW_SHELL =
   "mb-3 flex flex-wrap items-center gap-2.5 rounded-md border border-line-soft bg-canvas-tint px-3.5 py-3";
-const TIME_INPUT = "h-8 w-auto min-w-[120px] font-mono tabular-nums [color-scheme:dark]";
+const TIME_INPUT = "h-8 w-auto min-w-[120px] font-mono tabular-nums";
 const SEL_TRIGGER = "[&_select]:h-8 [&_select]:min-w-[72px]";
 
 /** Split an `HH:MM` value into `{ hour, minute }`, or `null` for malformed input. */

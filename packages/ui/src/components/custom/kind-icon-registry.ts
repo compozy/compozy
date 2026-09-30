@@ -38,8 +38,9 @@ type KindIconRegistryEntry =
 
 type KindIconRegistry<K extends string = string> = Record<K, KindIconRegistryEntry>;
 
+/** No fixed brand ink: the mark follows the icon's text color, so it reads in either theme. */
 function renderOpenAIKindLogo(props: KindIconGlyphProps) {
-  return createElement(OpenAILogo, { ...props, mode: "dark" });
+  return createElement(OpenAILogo, { ...props, mode: undefined });
 }
 
 const providerKindIconRegistry = {

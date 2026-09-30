@@ -11,5 +11,8 @@ export {
 } from "./lib/theme-preference";
 export { themePreferenceStore } from "./stores/theme-preference-store";
 
+// Components
+export { ThemeToaster } from "./components/theme-toaster";
+
 // Hooks
 export { useThemePreference, type ThemePreferenceHandle } from "./hooks/use-theme-preference";

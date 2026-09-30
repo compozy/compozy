@@ -88,9 +88,9 @@ export function terminalThemesEqual(
 /**
  * Re-reads the palette whenever the document's theme carriers change.
  *
- * A theme switch lands as a class or inline custom-property change on the root
- * element; observing both is what makes the emulator follow a switch instead of
- * keeping the palette it booted with.
+ * A theme switch lands as a `data-theme`, class, or inline custom-property
+ * change on the root element; observing all three is what makes the emulator
+ * follow a switch instead of keeping the palette it booted with.
  */
 export function observeTerminalTheme(element: HTMLElement, onChange: () => void): () => void {
   const view = element.ownerDocument?.defaultView;
@@ -99,6 +99,6 @@ export function observeTerminalTheme(element: HTMLElement, onChange: () => void)
     return () => undefined;
   }
   const observer = new view.MutationObserver(() => onChange());
-  observer.observe(root, { attributes: true, attributeFilter: ["class", "style"] });
+  observer.observe(root, { attributes: true, attributeFilter: ["class", "data-theme", "style"] });
   return () => observer.disconnect();
 }

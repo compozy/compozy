@@ -1,8 +1,8 @@
 // Suite: Theme runtime
 // Invariant: one theme preference per browser (localStorage `compozy.theme`, default dark) resolves
 // to a painted theme; <html> data-theme, `.dark`, color-scheme and theme-color always move together,
-// follow the OS live under `system`, sync across tabs, and the pre-paint boot script paints exactly
-// what the runtime would (no flash, no mismatch).
+// follow the OS live under `system`, sync across tabs, reach the desktop shell (native chrome), and
+// the pre-paint boot script paints exactly what the runtime would (no flash, no mismatch).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -142,6 +142,21 @@ describe("theme runtime", () => {
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
 
     teardown();
+  });
+
+  it("Should report the preference to the desktop shell now and on every change", () => {
+    stubSystemScheme(false);
+    const set = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("compozyShell", { theme: { set } });
+    const store = createStore("light");
+    const teardown = installThemeRuntime(store);
+
+    store.trigger.preferenceSet({ preference: "system" });
+    expect(set.mock.calls).toEqual([["light"], ["system"]]);
+
+    teardown();
+    store.trigger.preferenceSet({ preference: "dark" });
+    expect(set).toHaveBeenCalledTimes(2);
   });
 
   it.each([

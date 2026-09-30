@@ -2,9 +2,9 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 
-import { Toaster, TooltipProvider, UIProvider } from "@compozy/ui";
+import { TooltipProvider, UIProvider } from "@compozy/ui";
 
-import { installThemeRuntime } from "@/systems/theme";
+import { ThemeToaster, installThemeRuntime } from "@/systems/theme";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { routeTree } from "./routeTree.gen";
 
@@ -58,7 +58,7 @@ if (rootElement && !rootElement.innerHTML) {
           </TanStackQueryProvider>
           {/* Top-right, clear of the menubar: the shell's floating-chrome
               region, and the one corner the dock never occupies. */}
-          <Toaster
+          <ThemeToaster
             expand
             position="top-right"
             visibleToasts={5}

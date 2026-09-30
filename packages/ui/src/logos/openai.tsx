@@ -7,16 +7,12 @@ const COLORS = {
 
 type OpenAILogoProps = SVGProps<SVGSVGElement> & {
   variant?: "icon" | "wordmark";
+  /** Fixed brand ink for a known backdrop; omitted, the mark follows `currentColor` (theme-aware). */
   mode?: "dark" | "light";
 };
 
-export function OpenAILogo({
-  className,
-  variant = "icon",
-  mode = "dark",
-  ...props
-}: OpenAILogoProps) {
-  const color = COLORS[mode];
+export function OpenAILogo({ className, variant = "icon", mode, ...props }: OpenAILogoProps) {
+  const color = mode ? COLORS[mode] : "currentColor";
 
   if (variant === "wordmark") {
     return (

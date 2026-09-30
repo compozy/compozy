@@ -6,7 +6,11 @@ import {
 
 export const PRODUCT_IPC_CHANNEL = "product:control";
 
-export const PRODUCT_METHOD_VALUES = ["global_shortcuts.sync", "global_shortcuts.status"] as const;
+export const PRODUCT_METHOD_VALUES = [
+  "global_shortcuts.sync",
+  "global_shortcuts.status",
+  "theme.set",
+] as const;
 export type ProductMethod = (typeof PRODUCT_METHOD_VALUES)[number];
 export const PRODUCT_METHODS = new Set<string>(PRODUCT_METHOD_VALUES);
 
@@ -20,6 +24,15 @@ export function isProductMethod(value: string): value is ProductMethod {
 
 export function isProductEvent(value: string): value is ProductEvent {
   return PRODUCT_EVENTS.has(value);
+}
+
+/** The renderer's theme preference, reported so native chrome and window backgrounds follow it. */
+export const THEME_PREFERENCE_VALUES = ["light", "dark", "system"] as const;
+export type ThemePreference = (typeof THEME_PREFERENCE_VALUES)[number];
+const THEME_PREFERENCES = new Set<string>(THEME_PREFERENCE_VALUES);
+
+export function isThemePreference(value: unknown): value is ThemePreference {
+  return typeof value === "string" && THEME_PREFERENCES.has(value);
 }
 
 const STATUSES = new Set<string>(GLOBAL_SHORTCUT_STATUS_VALUES);
@@ -66,6 +79,9 @@ function validRegistration(value: unknown): value is GlobalShortcutRegistration 
 export function validProductParams(method: ProductMethod, value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (method === "global_shortcuts.status") return Object.keys(value).length === 0;
+  if (method === "theme.set") {
+    return Object.keys(value).length === 1 && isThemePreference(value.preference);
+  }
   return (
     Object.keys(value).length === 1 &&
     Array.isArray(value.bindings) &&
@@ -73,10 +89,21 @@ export function validProductParams(method: ProductMethod, value: unknown): boole
   );
 }
 
-export function validProductResponse(
-  _method: ProductMethod,
+export interface ProductResponses {
+  "global_shortcuts.sync": GlobalShortcutRegistration[];
+  "global_shortcuts.status": GlobalShortcutRegistration[];
+  "theme.set": { preference: ThemePreference };
+}
+
+export function validProductResponse<M extends ProductMethod>(
+  method: M,
   value: unknown
-): value is GlobalShortcutRegistration[] {
+): value is ProductResponses[M] {
+  if (method === "theme.set") {
+    return (
+      isRecord(value) && Object.keys(value).length === 1 && isThemePreference(value.preference)
+    );
+  }
   return Array.isArray(value) && value.every(validRegistration);
 }
 

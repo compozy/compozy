@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 
 import type { ShellSnapshot } from "../state/app-state";
 import { presentWindow, type WindowPresentation } from "./window-presentation";
+import type { WindowTheme } from "./window-theme";
 
 export class BootWindow {
   readonly #window: BrowserWindow;
@@ -12,6 +13,7 @@ export class BootWindow {
     pagePath: string;
     preloadPath: string;
     presentation: WindowPresentation;
+    theme: Pick<WindowTheme, "backgroundColor" | "track">;
     onError: (error: Error) => void;
   }) {
     this.#presentation = options.presentation;
@@ -22,7 +24,7 @@ export class BootWindow {
       minHeight: 360,
       show: false,
       title: "CompozyOS",
-      backgroundColor: "#131211",
+      backgroundColor: options.theme.backgroundColor("canvas"),
       autoHideMenuBar: true,
       webPreferences: {
         contextIsolation: true,
@@ -33,6 +35,7 @@ export class BootWindow {
         preload: options.preloadPath,
       },
     });
+    options.theme.track(this.#window, "canvas");
     this.#window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     this.#window.webContents.on("will-navigate", event => event.preventDefault());
     this.#window.webContents.on("did-finish-load", () => {
