@@ -1,13 +1,18 @@
 // Suite: desktops overview
 // Invariant: overview entry focuses the nearest requested hidden desktop (else the current one), each
 // management action emits one semantic callback, the card grid is keyboard-navigable, and async states
-// stay recoverable.
-// Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, and callback payloads.
+// stay recoverable; each card's thumbnail draws every visible frame once (tiled stacks and floating decks
+// as their active tab +N).
+// Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, callback payloads, and
+// DesktopLayoutThumbnail tiles.
 // Boundary OUT: TanStack Query snapshots, window-manager coordination, mutations, revisions, and persistence.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type { OsWindow } from "../../lib/os-types";
+import type { LayoutProjection } from "../../lib/window-manager-types";
+import { DesktopLayoutThumbnail } from "../desktop-layout-thumbnail";
 import {
   DesktopsOverview,
   type DesktopOverviewItem,
@@ -206,5 +211,135 @@ describe("DesktopsOverview", () => {
     expect(screen.getByText("No desktops")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "New desktop" }));
     expect(callbacks.onCreateDesktop).toHaveBeenCalledTimes(1);
+  });
+});
+
+function thumbnailWindow(
+  id: string,
+  app: OsWindow["app"],
+  extra: Partial<OsWindow> = {}
+): OsWindow {
+  return {
+    id,
+    app,
+    instanceKey: null,
+    route: { pathname: `/${app}`, search: {} },
+    navStack: [],
+    pinned: false,
+    desktopId: "control",
+    placement: "tiled",
+    rect: { x: 0, y: 0, w: 500, h: 500 },
+    layer: 1,
+    minimized: false,
+    zoomed: false,
+    groupId: null,
+    nodeId: null,
+    stackId: null,
+    stackActive: true,
+    parentAxis: null,
+    ...extra,
+  };
+}
+
+describe("DesktopLayoutThumbnail", () => {
+  it("Should draw a floating tab deck as one floating tile titled by its active tab +N", () => {
+    const zone = { x: 0, y: 0, w: 1, h: 1 };
+    const rect = { x: 0, y: 0, w: 500, h: 1000 };
+    const projection: LayoutProjection = {
+      revision: 1,
+      desktopId: "control",
+      workArea: { x: 0, y: 0, w: 1000, h: 1000 },
+      windows: [
+        {
+          windowId: "tasks",
+          nodeId: "n-tasks",
+          groupId: "g",
+          rect,
+          zone,
+          stackId: null,
+          active: true,
+          adapted: false,
+          parentAxis: null,
+        },
+        {
+          windowId: "s1",
+          nodeId: "n-s1",
+          groupId: "g",
+          rect,
+          zone,
+          stackId: "tiled-stack",
+          active: true,
+          adapted: false,
+          parentAxis: null,
+        },
+        {
+          windowId: "s2",
+          nodeId: "n-s2",
+          groupId: "g",
+          rect,
+          zone,
+          stackId: "tiled-stack",
+          active: false,
+          adapted: false,
+          parentAxis: null,
+        },
+      ],
+      stacks: [
+        {
+          nodeId: "tiled-stack",
+          groupId: "g",
+          kind: "explicit",
+          windowIds: ["s1", "s2"],
+          activeWindowId: "s1",
+          rect,
+          zone,
+        },
+      ],
+      seams: [],
+      frameSeams: [],
+      diagnostics: [],
+    };
+    const deckRect = { x: 600, y: 100, w: 200, h: 400 };
+    const deckMember = (id: string, active: boolean) =>
+      thumbnailWindow(id, "terminal", {
+        placement: "stacked",
+        rect: deckRect,
+        stackId: "floating-deck",
+        stackActive: active,
+      });
+    const windows = [
+      thumbnailWindow("tasks", "tasks"),
+      thumbnailWindow("s1", "session", { placement: "stacked", stackId: "tiled-stack" }),
+      thumbnailWindow("s2", "session", {
+        placement: "stacked",
+        stackId: "tiled-stack",
+        stackActive: false,
+      }),
+      deckMember("t1", false),
+      deckMember("t2", true),
+      deckMember("t3", false),
+      thumbnailWindow("settings", "settings", { placement: "floating" }),
+      thumbnailWindow("vault", "vault", {
+        placement: "stacked",
+        stackId: "hidden-deck",
+        minimized: true,
+      }),
+    ];
+
+    const { container } = render(
+      <DesktopLayoutThumbnail projection={projection} windows={windows} />
+    );
+
+    const tiles = [
+      ...container.querySelectorAll<HTMLElement>('[data-slot="desktop-thumbnail-window"]'),
+    ];
+    expect(tiles.map(tile => tile.textContent)).toEqual([
+      "Session +1",
+      "Tasks",
+      "Terminal +2",
+      "Settings",
+    ]);
+    expect(tiles[2]).toHaveClass("shadow-card");
+    expect(tiles[2]).toHaveStyle({ left: "60%", top: "10%", width: "20%", height: "40%" });
   });
 });

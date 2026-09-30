@@ -54,6 +54,10 @@ export class WindowTheme {
   readonly #windows = new Map<ThemedWindow, WindowSurface>();
   readonly #repaint = () => this.#paintWindows();
   #preference: ThemePreference = DEFAULT_THEME_PREFERENCE;
+  /** The preference the file holds; null when absent, invalid, or unknown. */
+  #persisted: ThemePreference | null = null;
+  /** Serializes file writes so the last one to land carries the latest report. */
+  #publication: Promise<void> = Promise.resolve();
 
   constructor(options: { nativeTheme: ThemeSource; path: string; platform?: NodeJS.Platform }) {
     this.#nativeTheme = options.nativeTheme;
@@ -63,7 +67,8 @@ export class WindowTheme {
 
   /** Applies the persisted preference; call before creating any window. */
   async load(): Promise<void> {
-    this.#preference = await readThemePreference(this.#path);
+    this.#persisted = await readThemePreference(this.#path);
+    this.#preference = this.#persisted ?? DEFAULT_THEME_PREFERENCE;
     this.#nativeTheme.themeSource = this.#preference;
     this.#nativeTheme.on("updated", this.#repaint);
   }
@@ -87,13 +92,30 @@ export class WindowTheme {
     window.once("closed", () => this.#windows.delete(window));
   }
 
-  /** Adopts the renderer's preference: native theme now, persisted for the next launch. */
+  /**
+   * Adopts the renderer's preference: native theme now, persisted for the next
+   * launch. Rapid reports queue one write at a time, each writing the latest
+   * preference, so the file converges on the last report; a report matching an
+   * unpersisted preference (an earlier write failed) writes it again.
+   */
   async set(preference: ThemePreference): Promise<void> {
-    if (preference === this.#preference) return;
-    this.#preference = preference;
-    this.#nativeTheme.themeSource = preference;
-    this.#paintWindows();
-    await writeFileAtomic(this.#path, `${JSON.stringify({ preference })}\n`, 0o600);
+    if (preference !== this.#preference) {
+      this.#preference = preference;
+      this.#nativeTheme.themeSource = preference;
+      this.#paintWindows();
+    }
+    const write = this.#publication.then(async () => {
+      const latest = this.#preference;
+      if (latest === this.#persisted) return;
+      await writeFileAtomic(this.#path, `${JSON.stringify({ preference: latest })}\n`, 0o600);
+      this.#persisted = latest;
+    });
+    // Keep the chain usable after a failure; this caller still receives it below.
+    this.#publication = write.then(
+      () => undefined,
+      () => undefined
+    );
+    await write;
   }
 
   #paintWindows(): void {
@@ -106,13 +128,13 @@ export class WindowTheme {
   }
 }
 
-async function readThemePreference(path: string): Promise<ThemePreference> {
+async function readThemePreference(path: string): Promise<ThemePreference | null> {
   try {
     const value: unknown = JSON.parse(await readFile(path, "utf8"));
     const preference =
       value && typeof value === "object" ? (value as Record<string, unknown>).preference : null;
-    return isThemePreference(preference) ? preference : DEFAULT_THEME_PREFERENCE;
+    return isThemePreference(preference) ? preference : null;
   } catch {
-    return DEFAULT_THEME_PREFERENCE;
+    return null;
   }
 }

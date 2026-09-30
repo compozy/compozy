@@ -43,13 +43,45 @@ function storyWindow(
   } as OsWindow;
 }
 
-function thumbnail(windows: OsWindow[]) {
-  return (
-    <DesktopLayoutThumbnail
-      projection={{ workArea: WORK_AREA } as LayoutProjection}
-      windows={windows}
-    />
-  );
+/**
+ * A thumbnail over a real-shaped projection: windows sharing a `stackId` tile
+ * as one stack; `floating` windows (single or decked) stay out of the tiling.
+ */
+function thumbnail(tiled: OsWindow[], floating: OsWindow[] = []) {
+  const stacks = new Map<string, OsWindow[]>();
+  for (const window of tiled) {
+    if (window.stackId) stacks.set(window.stackId, [...(stacks.get(window.stackId) ?? []), window]);
+  }
+  const zone = { x: 0, y: 0, w: 1, h: 1 };
+  const projection: LayoutProjection = {
+    revision: 1,
+    desktopId: "story",
+    workArea: WORK_AREA,
+    windows: tiled.map(window => ({
+      windowId: window.id,
+      nodeId: window.id,
+      groupId: "story",
+      rect: window.rect,
+      zone,
+      stackId: window.stackId,
+      active: window.stackActive,
+      adapted: false,
+      parentAxis: null,
+    })),
+    stacks: [...stacks].map(([nodeId, members]) => ({
+      nodeId,
+      groupId: "story",
+      kind: "explicit" as const,
+      windowIds: members.map(window => window.id),
+      activeWindowId: members.find(window => window.stackActive)?.id ?? members[0].id,
+      rect: members[0].rect,
+      zone,
+    })),
+    seams: [],
+    frameSeams: [],
+    diagnostics: [],
+  };
+  return <DesktopLayoutThumbnail projection={projection} windows={[...tiled, ...floating]} />;
 }
 
 const DESKTOPS: DesktopOverviewItem[] = [
@@ -87,13 +119,27 @@ const DESKTOPS: DesktopOverviewItem[] = [
     aspectRatio: WORK_AREA.w / WORK_AREA.h,
     switchShortcut: "⌃2",
     needsYou: true,
-    thumbnail: thumbnail([
-      storyWindow("agents", "agents", { x: 0, y: 0, w: 860, h: 848 }),
-      storyWindow("loops", "loops", { x: 860, y: 0, w: 520, h: 848 }),
-    ]),
+    thumbnail: thumbnail(
+      [
+        storyWindow("agents", "agents", { x: 0, y: 0, w: 860, h: 848 }),
+        storyWindow("loops", "loops", { x: 860, y: 0, w: 520, h: 848 }),
+      ],
+      // A floating tab deck: one tile, its active tab +N.
+      ["t1", "t2", "t3"].map((id, index) =>
+        storyWindow(
+          id,
+          "terminal",
+          { x: 620, y: 420, w: 560, h: 340 },
+          { placement: "stacked", stackId: "deck", stackActive: index === 0, layer: 2 }
+        )
+      )
+    ),
     windows: [
       { id: "agents", title: "Agents" },
       { id: "loops", title: "Loops" },
+      { id: "t1", title: "Terminal" },
+      { id: "t2", title: "Terminal" },
+      { id: "t3", title: "Terminal" },
     ],
   },
   {

@@ -26,8 +26,9 @@ interface ThumbnailTile {
 
 /**
  * Tiles from the authoritative projection: one per stack (its active tab, +N
- * for the rest) and one per unstacked tiled window, then floating windows on
- * top. Minimized windows leave no tile.
+ * for the rest) and one per unstacked tiled window, then floating frames on
+ * top — a floating window, or a floating deck as its active tab +N. Minimized
+ * windows leave no tile.
  */
 function thumbnailTiles(
   projection: LayoutProjection | undefined,
@@ -35,14 +36,31 @@ function thumbnailTiles(
 ): ThumbnailTile[] {
   const tiled: ThumbnailTile[] = [];
   const floating: ThumbnailTile[] = [];
+  // A stack the projection does not tile is a floating deck.
+  const tiledStackIds = new Set(projection?.stacks.map(stack => stack.nodeId));
+  const floatingDeckId = (window: OsWindow) =>
+    window.stackId !== null && !tiledStackIds.has(window.stackId) ? window.stackId : null;
+  const deckSizes = new Map<string, number>();
+  for (const window of windows) {
+    const deckId = floatingDeckId(window);
+    if (deckId !== null) deckSizes.set(deckId, (deckSizes.get(deckId) ?? 0) + 1);
+  }
   for (const window of windows) {
     if (window.minimized) continue;
     const tile = { key: window.id, rect: window.rect, windowId: window.id, others: 0 };
-    if (window.placement === "floating") floating.push({ ...tile, floating: true });
-    // Without a projection, fall back to each stack's active member.
-    else if (!projection && (!window.stackId || window.stackActive)) {
-      tiled.push({ ...tile, floating: false });
-    }
+    const deckId = floatingDeckId(window);
+    if (deckId !== null) {
+      if (window.stackActive) {
+        floating.push({
+          ...tile,
+          key: deckId,
+          others: (deckSizes.get(deckId) ?? 1) - 1,
+          floating: true,
+        });
+      }
+    } else if (window.placement === "floating") floating.push({ ...tile, floating: true });
+    // Without a projection there are no tiled frames: each window tiles alone.
+    else if (!projection) tiled.push({ ...tile, floating: false });
   }
   if (projection) {
     for (const stack of projection.stacks) {

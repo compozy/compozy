@@ -4,13 +4,49 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { TitleBarOverlay } from "electron";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { writeFileAtomic } from "../../files/atomic-write";
 import { productTitleBarOverlay } from "../product-window-chrome";
 
 import { WINDOW_BACKGROUNDS, WindowTheme } from "../window-theme";
 
+vi.mock(import("../../files/atomic-write"), { spy: true });
+
 type Source = "light" | "dark" | "system";
+
+/**
+ * A disk whose writes land only when the test settles them, newest first — the
+ * order that lets an earlier write finish last. `failNext` rejects the next write.
+ */
+function controlledDisk() {
+  const pending: Array<{ data: string; land: () => void }> = [];
+  const disk = { stored: null as string | null, writes: 0, failNext: false };
+  vi.mocked(writeFileAtomic).mockImplementation((_path, data) => {
+    disk.writes += 1;
+    if (disk.failNext) {
+      disk.failNext = false;
+      return Promise.reject(new Error("disk full"));
+    }
+    return new Promise(resolve =>
+      pending.push({
+        data: String(data),
+        land: () => {
+          disk.stored = String(data);
+          resolve();
+        },
+      })
+    );
+  });
+  const settle = async () => {
+    for (;;) {
+      await new Promise(resolve => setImmediate(resolve));
+      if (pending.length === 0) return;
+      for (const write of pending.splice(0).reverse()) write.land();
+    }
+  };
+  return Object.assign(disk, { settle });
+}
 
 /** Electron's nativeTheme semantics: the source wins unless it is `system`, which follows the OS. */
 function fakeNativeTheme(osDark: boolean) {
@@ -92,9 +128,10 @@ function createTheme(
 
 // Invariant: windows open and stay painted in the renderer's last reported theme (default dark),
 // the native theme source carries the preference so `system` follows the OS, Linux window controls
-// on chrome windows recolor with it, and the report persists.
+// on chrome windows recolor with it, and the persisted file converges on the last report.
 describe("WindowTheme", () => {
   afterEach(async () => {
+    vi.mocked(writeFileAtomic).mockReset();
     for (const directory of directories.splice(0))
       await rm(directory, { recursive: true, force: true });
   });
@@ -158,6 +195,38 @@ describe("WindowTheme", () => {
     const relaunched = fakeNativeTheme(true);
     await createTheme(relaunched, path).load();
     expect(relaunched.shouldUseDarkColors).toBe(false);
+  });
+
+  it("Should persist the last report when rapid reports' writes land out of order", async () => {
+    const disk = controlledDisk();
+    const nativeTheme = fakeNativeTheme(true);
+    const theme = createTheme(nativeTheme, await themePath());
+    await theme.load();
+
+    const reports = [theme.set("light"), theme.set("system")];
+    await disk.settle();
+    await Promise.all(reports);
+
+    expect(nativeTheme.themeSource).toBe("system");
+    expect(JSON.parse(disk.stored ?? "")).toEqual({ preference: "system" });
+  });
+
+  it("Should rewrite an unchanged report whose earlier write failed", async () => {
+    const disk = controlledDisk();
+    const theme = createTheme(fakeNativeTheme(true), await themePath());
+    await theme.load();
+
+    disk.failNext = true;
+    await expect(theme.set("light")).rejects.toThrow("disk full");
+    const retry = theme.set("light");
+    await disk.settle();
+    await retry;
+    const repeat = theme.set("light");
+    await disk.settle();
+    await repeat;
+
+    expect(JSON.parse(disk.stored ?? "")).toEqual({ preference: "light" });
+    expect(disk.writes).toBe(2);
   });
 
   it("Should recolor the Linux window controls of chrome windows only", async () => {
