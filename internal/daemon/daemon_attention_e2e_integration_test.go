@@ -362,7 +362,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 			store.PendingInteractionKindClarify,
 			clarify,
 		)
-		wake := waitForSessionSpawnWakePrompt(
+		wake := waitForSessionSpawnAttentionWakePrompt(
 			t,
 			harness,
 			"attention-agent",
@@ -638,7 +638,7 @@ func cancelAttentionPrompt(
 	}
 }
 
-func waitForSessionSpawnWakePrompt(
+func waitForSessionSpawnAttentionWakePrompt(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	agentName string,
@@ -664,8 +664,10 @@ func waitForSessionSpawnWakePrompt(
 			parentRecords := acpmock.DiagnosticsForCompozySession(records, parentSessionID)
 			for _, record := range acpmock.PromptDiagnostics(parentRecords) {
 				meta := record.PromptMeta.Normalize()
+				// The initial binding prompt can already have emitted a completed wake.
 				if meta.Synthetic != nil &&
 					meta.Synthetic.ChildSessionID == strings.TrimSpace(childSessionID) &&
+					meta.Synthetic.Reason == string(session.SpawnWakeReasonNeedsAttention) &&
 					strings.TrimSpace(meta.Synthetic.WakeEventID) != "" {
 					return record
 				}
