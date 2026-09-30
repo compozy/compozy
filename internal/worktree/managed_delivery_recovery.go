@@ -11,7 +11,10 @@ import (
 
 // RecoverManagedDeliveries repairs receipts without replaying unknown or terminal intents.
 func (s *Service) RecoverManagedDeliveries(ctx context.Context) error {
-	journals := s.readManagedDeliveryJournals(ctx)
+	journals, complete := s.readManagedDeliveryJournals(ctx)
+	if !complete {
+		return nil
+	}
 	running, err := s.store.ListRunningExitOperations(ctx)
 	if err != nil {
 		return err
@@ -53,16 +56,18 @@ func (s *Service) RecoverManagedDeliveries(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) readManagedDeliveryJournals(ctx context.Context) []*managedDeliveryJournal {
+// Failed inventory cannot establish that an operation has no journal.
+func (s *Service) readManagedDeliveryJournals(ctx context.Context) ([]*managedDeliveryJournal, bool) {
 	if s.root == "" {
-		return nil
+		return nil, true
 	}
 	entries, err := os.ReadDir(filepath.Join(s.root, ".delivery"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, true
+	}
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			s.logger.ErrorContext(ctx, "managed delivery journals unavailable", "error", err)
-		}
-		return nil
+		s.logger.ErrorContext(ctx, "managed delivery journals unavailable", "error", err)
+		return nil, false
 	}
 	journals := make([]*managedDeliveryJournal, 0, len(entries))
 	for _, entry := range entries {
@@ -78,7 +83,7 @@ func (s *Service) readManagedDeliveryJournals(ctx context.Context) []*managedDel
 			journals = append(journals, journal)
 		}
 	}
-	return journals
+	return journals, true
 }
 
 func matchingDeliveryJournal(journals []*managedDeliveryJournal, operation ExitOperation) *managedDeliveryJournal {

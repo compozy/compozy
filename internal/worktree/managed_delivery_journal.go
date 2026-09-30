@@ -61,8 +61,14 @@ func readDeliveryJournal(path string) (*managedDeliveryJournal, error) {
 		return nil, refusal(ErrSafetyCheckFailed, "Unknown delivery journal version.")
 	}
 	switch journal.Phase {
-	case deliveryPhasePrepared, deliveryPhaseCommitting, deliveryPhaseCommitted, deliveryPhasePushing, string(ExitPhasePR),
-		exitStepCompleted, exitOperationCanceled, exitStepFailed:
+	case deliveryPhasePrepared,
+		deliveryPhaseCommitting,
+		deliveryPhaseCommitted,
+		deliveryPhasePushing,
+		string(ExitPhasePR),
+		exitStepCompleted,
+		exitOperationCanceled,
+		exitStepFailed:
 		return &journal, nil
 	default:
 		return nil, refusal(ErrSafetyCheckFailed, "Unknown delivery journal phase.")

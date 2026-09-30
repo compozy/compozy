@@ -80,7 +80,7 @@ Historical failed attempts remain failures:
 
 #682 bounded startup stall/retry and child-process reaping were exercised by the canonical real ACP subprocess suite. Actual installed Cursor answered READY and public Stop completed; no upstream vendor stall was observed. #665 unexpected packaged app exit was also not observed; its accepted public cancellation/deadline transitions were real. These boundaries are explicit rather than inferred from unit mocks.
 
-## Final status and delivery evidence
+## Historical delivery checkpoint before CI closeout
 
 Runtime journeys are complete with the exact build/platform/provider qualifications above. Publication #676 is Pass; [PR686](https://github.com/compozy/compozy/pull/686) remains a draft until the controller verifies the final head. The user explicitly directed delivery gates to CI; no additional broad local gate/test/typecheck was used as a substitute.
 
@@ -106,3 +106,9 @@ at their owners; no review configuration or threshold was lowered. The historica
 catalog run remains qualified by its exact original source and assets. New blocked-sibling,
 facets and debounced-search regressions must pass the new-head CI and do not reuse that soak as
 new-byte evidence.
+
+The subsequent Greptile review found that a failed directory listing was incorrectly treated as
+an absent inventory. Recovery now preserves running receipts on non-absence listing errors and
+logs the failure without execution effects. The existing exit-action suite uses a real filesystem
+listing failure, verifies preserved state and bytes, and restores a matching journal to recover
+the same receipt. The targeted real-Git integration suites now run in the existing PR CI lane.

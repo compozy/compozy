@@ -14,9 +14,11 @@ func newWorktreeDeliverCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deliver <ref>",
 		Short: "Submit a reviewed draft delivery from the bound managed session",
-		Example: "# Output example\ncompozy worktree deliver <ref> --delivery-id reviewed-delivery --expected-head <reviewed-sha> " +
+		Example: "# Output example\ncompozy worktree deliver <ref> --delivery-id reviewed-delivery " +
+			"--expected-head <reviewed-sha> " +
 			"--include src/change.go --expected-scope <commit_scope.fingerprint> " +
-			"--message \"fix: deliver reviewed changes\" --base main --title \"Reviewed changes\" --body \"Review and QA complete\"",
+			"--message \"fix: deliver reviewed changes\" --base main " +
+			"--title \"Reviewed changes\" --body \"Review and QA complete\"",
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := worktreeCommandContext(cmd, deps, workspaceRef)

@@ -1369,44 +1369,49 @@ func TestAppPlatformRegistrationOwnsInstallationTruth(t *testing.T) {
 				if canonicalErr != nil {
 					t.Fatal(canonicalErr)
 				}
-				if err != nil || !installation.Installed || installation.Version != tc.want || installation.Executable != canonical {
+				if err != nil || !installation.Installed || installation.Version != tc.want ||
+					installation.Executable != canonical {
 					t.Fatalf("installation = %#v, %v; expected %s at %s", installation, err, tc.want, canonical)
 				}
 			})
 		}
 	})
-	t.Run("Should retain unversioned executable AppImages only until a verifiable version is found", func(t *testing.T) {
-		t.Parallel()
-		home := t.TempDir()
-		directory := filepath.Join(home, "Applications")
-		if err := os.MkdirAll(directory, 0o700); err != nil {
-			t.Fatal(err)
-		}
-		unversioned := filepath.Join(directory, "CompozyOS-foo-linux-x64.AppImage")
-		if err := os.WriteFile(unversioned, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		installation, err := resolveLinuxAppInstallationAt(home)
-		expected, canonicalErr := filepath.EvalSymlinks(unversioned)
-		if canonicalErr != nil {
-			t.Fatal(canonicalErr)
-		}
-		if err != nil || !installation.Installed || installation.Version != "" || installation.Executable != expected {
-			t.Fatalf("unversioned fallback = %#v, %v", installation, err)
-		}
-		versioned := filepath.Join(directory, "CompozyOS-0.3.0-beta.27-linux-x64.AppImage")
-		if err := os.WriteFile(versioned, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		installation, err = resolveLinuxAppInstallationAt(home)
-		expected, canonicalErr = filepath.EvalSymlinks(versioned)
-		if canonicalErr != nil {
-			t.Fatal(canonicalErr)
-		}
-		if err != nil || installation.Version != "0.3.0-beta.27" || installation.Executable != expected {
-			t.Fatalf("versioned candidate = %#v, %v", installation, err)
-		}
-	})
+	t.Run(
+		"Should retain unversioned executable AppImages only until a verifiable version is found",
+		func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			directory := filepath.Join(home, "Applications")
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			unversioned := filepath.Join(directory, "CompozyOS-foo-linux-x64.AppImage")
+			if err := os.WriteFile(unversioned, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			installation, err := resolveLinuxAppInstallationAt(home)
+			expected, canonicalErr := filepath.EvalSymlinks(unversioned)
+			if canonicalErr != nil {
+				t.Fatal(canonicalErr)
+			}
+			if err != nil || !installation.Installed || installation.Version != "" ||
+				installation.Executable != expected {
+				t.Fatalf("unversioned fallback = %#v, %v", installation, err)
+			}
+			versioned := filepath.Join(directory, "CompozyOS-0.3.0-beta.27-linux-x64.AppImage")
+			if err := os.WriteFile(versioned, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			installation, err = resolveLinuxAppInstallationAt(home)
+			expected, canonicalErr = filepath.EvalSymlinks(versioned)
+			if canonicalErr != nil {
+				t.Fatal(canonicalErr)
+			}
+			if err != nil || installation.Version != "0.3.0-beta.27" || installation.Executable != expected {
+				t.Fatalf("versioned candidate = %#v, %v", installation, err)
+			}
+		},
+	)
 	t.Run("Should preserve symlinked AppImage discovery through canonical executable metadata", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {

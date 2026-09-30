@@ -18,6 +18,66 @@ import (
 func TestExitActions(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: failed inventory preserves running receipts until readable journals can recover them.
+	// Owner: worktree recovery; canonical exit sequencing suite with real filesystem failure.
+	t.Run(
+		"Should preserve delivery receipt when journal inventory fails and recover after restoration",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newExitActionFixture(t, false)
+			f.service.root = t.TempDir()
+			caller := &managedFailureSessionBoundary{cause: ErrExitActionInvalid}
+			WithManagedDeliverySessions(caller)(f.service)
+			operation := ExitOperation{ID: "inventory-unavailable", WorkspaceID: f.item.WorkspaceID,
+				WorktreeID: f.item.ID, Action: string(ExitActionDeliver), State: exitOperationRunning,
+				StartedAt: statusTestClock()}
+			if err := f.store.InsertExitOperation(t.Context(), operation); err != nil {
+				t.Fatal(err)
+			}
+			directory := filepath.Join(f.service.root, ".delivery")
+			const original = "journal inventory is not a directory"
+			if err := os.WriteFile(directory, []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.ReadDir(directory); err == nil || errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("fixture must fail inventory without implying absence: %v", err)
+			}
+			if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			running, err := f.store.ListRunningExitOperations(t.Context())
+			if err != nil || len(running) != 1 || running[0].ID != operation.ID || running[0].FinishedAt != nil {
+				t.Fatalf("failed inventory changed receipt: %#v error=%v", running, err)
+			}
+			f.events.mu.Lock()
+			eventCount := len(f.events.events)
+			f.events.mu.Unlock()
+			if eventCount != 0 || caller.stops.Load() != 0 || len(f.runner.commands()) != 0 {
+				t.Fatal("failed inventory caused recovery effects")
+			}
+			data, err := os.ReadFile(directory)
+			if err != nil || string(data) != original {
+				t.Fatalf("failed inventory changed filesystem: %q error=%v", data, err)
+			}
+			if err := os.Remove(directory); err != nil {
+				t.Fatal(err)
+			}
+			journal := &managedDeliveryJournal{
+				Version: 1, OperationID: operation.ID, Item: f.item, Phase: exitStepCompleted,
+			}
+			if err := saveDeliveryJournal(filepath.Join(directory, "restored.json"), journal); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.service.RecoverManagedDeliveries(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			waitForExitOperation(t, f.store, operation.ID, exitStepCompleted)
+			if caller.stops.Load() != 0 || len(f.runner.commands()) != 0 {
+				t.Fatal("restored terminal receipt replayed execution effects")
+			}
+		},
+	)
+
 	// Invariant: unknown journals preserve bytes and never prevent independent receipt recovery.
 	// Owner: worktree recovery; canonical exit sequencing suite at journal/store I/O boundaries.
 	for _, contents := range []string{"{broken", `{"version":2,"phase":"prepared"}`, `{"version":1,"phase":"future"}`} {
@@ -76,7 +136,11 @@ func TestExitActions(t *testing.T) {
 				if err := os.MkdirAll(directory, 0o700); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(directory, "unreadable.json"), []byte("{broken"), 0o600); err != nil {
+				if err := os.WriteFile(
+					filepath.Join(directory, "unreadable.json"),
+					[]byte("{broken"),
+					0o600,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -90,7 +154,10 @@ func TestExitActions(t *testing.T) {
 				journal := &managedDeliveryJournal{
 					Version: 1, OperationID: operation.ID, Item: f.item, Phase: deliveryPhasePrepared,
 				}
-				if err := saveDeliveryJournal(filepath.Join(f.service.root, ".delivery", "valid.json"), journal); err != nil {
+				if err := saveDeliveryJournal(
+					filepath.Join(f.service.root, ".delivery", "valid.json"),
+					journal,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -133,9 +200,22 @@ func TestExitActions(t *testing.T) {
 		releasing, unblock := make(chan struct{}), make(chan struct{})
 		release := sync.OnceFunc(func() { close(unblock) })
 		t.Cleanup(release)
-		journal := &managedDeliveryJournal{Version: 1, OperationID: operation.ID, Item: f.item, Phase: deliveryPhasePrepared}
-		go f.service.runManagedDelivery(ctx, cancel, control,
-			func() { close(releasing); <-unblock }, "caller", filepath.Join(f.service.root, "cleanup.json"), journal, operation)
+		journal := &managedDeliveryJournal{
+			Version:     1,
+			OperationID: operation.ID,
+			Item:        f.item,
+			Phase:       deliveryPhasePrepared,
+		}
+		go f.service.runManagedDelivery(
+			ctx,
+			cancel,
+			control,
+			func() { close(releasing); <-unblock },
+			"caller",
+			filepath.Join(f.service.root, "cleanup.json"),
+			journal,
+			operation,
+		)
 		select {
 		case <-releasing:
 		case <-time.After(5 * time.Second):

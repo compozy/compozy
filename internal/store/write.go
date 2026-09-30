@@ -109,7 +109,10 @@ func executeWrite(
 	if fn == nil {
 		return errors.New("store: execute write callback is required")
 	}
-	parent, _ := ctx.Value(writeContextKey{}).(*writeContextOwner)
+	parent, ok := ctx.Value(writeContextKey{}).(*writeContextOwner)
+	if !ok {
+		parent = nil
+	}
 	for owner := parent; owner != nil; owner = owner.parent {
 		if owner.db == db && owner.active.Load() {
 			return errWriteReentry

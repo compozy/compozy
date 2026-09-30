@@ -203,7 +203,11 @@ func TestForcedStopProcessIdentity(t *testing.T) {
 		if err := driver.forceStoppedProcess(stale); err != nil {
 			t.Fatal(err)
 		}
-		events, err := driver.Prompt(t.Context(), unrelated, PromptRequest{TurnID: "unrelated-turn", Message: "still alive"})
+		events, err := driver.Prompt(
+			t.Context(),
+			unrelated,
+			PromptRequest{TurnID: "unrelated-turn", Message: "still alive"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

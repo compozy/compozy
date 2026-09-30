@@ -42,3 +42,7 @@ journals remain unchanged, sibling recovery continues, and an interrupted delive
 a readable journal fails without stopping a session or performing Git/forge effects. Existing
 `TestWorktreeManagedDeliveryIntegration` and `TestExitActions` own these regressions in CI;
 historical native delivery receipts do not certify the new remediation bytes.
+
+If the journal directory exists but cannot be listed, preserve running receipts and journal
+bytes without execution effects. Once the inventory becomes readable, recover the same receipt.
+This differs from an absent directory, which establishes missing journals for orphan handling.

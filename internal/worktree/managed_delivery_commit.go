@@ -238,7 +238,9 @@ func (s *Service) stageManagedDeliveryCommit(ctx context.Context, path string, j
 	if err != nil {
 		return err
 	}
-	args := append([]string{gitLiteralPathspecs, "diff", "--cached", "--quiet", j.Tree, "--"}, j.Request.IncludePaths...)
+	args := append(
+		[]string{gitLiteralPathspecs, "diff", "--cached", "--quiet", j.Tree, "--"},
+		j.Request.IncludePaths...)
 	if _, _, err := s.runner.Run(ctx, j.Item.Path, args...); err != nil {
 		return refusal(ErrSafetyCheckFailed, "Selected staged index does not match the delivery candidate.")
 	}

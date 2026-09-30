@@ -131,60 +131,68 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 }
 
 func TestOperationDormancyAndArchive(t *testing.T) {
-	t.Run("Should retain a live applying installer past its deadline until its process identity is gone", func(t *testing.T) {
-		t.Parallel()
-		store, _, _ := newOperationTestStore(t)
-		store.holderLive = holderProcessIsLive
-		request := operationTestRequest(testOperationNow)
-		request.Targets = []Target{TargetApp}
-		request.Runtime = nil
-		started, err := procutil.StartedAt(os.Getpid())
-		if err != nil {
-			t.Fatal(err)
-		}
-		request.Holder.PID = os.Getpid()
-		request.Holder.PIDStartTime = started
-		request.Holder.LeaseExpiresAt = request.Deadline.Add(time.Minute)
-		operation, err := store.Acquire(t.Context(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		operation.App.Phase = PhaseApplying
-		if err := store.replaceUnlocked(operation); err != nil {
-			t.Fatal(err)
-		}
-		store.now = func() time.Time { return request.Deadline }
-		live, err := store.Read(t.Context())
-		if err != nil || live == nil || live.ID != operation.ID || live.App.Phase != PhaseApplying {
-			t.Fatalf("live installer = %#v, %v", live, err)
-		}
-		if err := store.Fence(t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision); err != nil {
-			t.Fatalf("live installer fence = %v", err)
-		}
-		competing := request
-		competing.Holder.ExecutorGeneration = "competing-installer"
-		if _, err := store.Acquire(t.Context(), competing); !errors.Is(err, ErrOperationBlocked) {
-			t.Fatalf("competing acquisition = %v", err)
-		}
-		operation.Holder.LeaseExpiresAt = request.Deadline.Add(-time.Second)
-		if err := store.replaceUnlocked(operation); err != nil {
-			t.Fatal(err)
-		}
-		if live, err := store.Read(t.Context()); err != nil || live == nil {
-			t.Fatalf("live process with expired lease = %#v, %v", live, err)
-		}
-		operation.Holder.PIDStartTime = started.Add(-time.Hour)
-		if err := store.replaceUnlocked(operation); err != nil {
-			t.Fatal(err)
-		}
-		if live, err := store.Read(t.Context()); err != nil || live != nil {
-			t.Fatalf("replaced holder = %#v, %v", live, err)
-		}
-		archived, err := store.ReadArchived(t.Context(), operation.ID)
-		if err != nil || archived == nil || archived.App.Phase != PhaseFailed || archived.Holder != nil {
-			t.Fatalf("settled installer = %#v, %v", archived, err)
-		}
-	})
+	t.Run(
+		"Should retain a live applying installer past its deadline until its process identity is gone",
+		func(t *testing.T) {
+			t.Parallel()
+			store, _, _ := newOperationTestStore(t)
+			store.holderLive = holderProcessIsLive
+			request := operationTestRequest(testOperationNow)
+			request.Targets = []Target{TargetApp}
+			request.Runtime = nil
+			started, err := procutil.StartedAt(os.Getpid())
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Holder.PID = os.Getpid()
+			request.Holder.PIDStartTime = started
+			request.Holder.LeaseExpiresAt = request.Deadline.Add(time.Minute)
+			operation, err := store.Acquire(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operation.App.Phase = PhaseApplying
+			if err := store.replaceUnlocked(operation); err != nil {
+				t.Fatal(err)
+			}
+			store.now = func() time.Time { return request.Deadline }
+			live, err := store.Read(t.Context())
+			if err != nil || live == nil || live.ID != operation.ID || live.App.Phase != PhaseApplying {
+				t.Fatalf("live installer = %#v, %v", live, err)
+			}
+			if err := store.Fence(
+				t.Context(),
+				operation.ID,
+				operation.Holder.ExecutorGeneration,
+				operation.Revision,
+			); err != nil {
+				t.Fatalf("live installer fence = %v", err)
+			}
+			competing := request
+			competing.Holder.ExecutorGeneration = "competing-installer"
+			if _, err := store.Acquire(t.Context(), competing); !errors.Is(err, ErrOperationBlocked) {
+				t.Fatalf("competing acquisition = %v", err)
+			}
+			operation.Holder.LeaseExpiresAt = request.Deadline.Add(-time.Second)
+			if err := store.replaceUnlocked(operation); err != nil {
+				t.Fatal(err)
+			}
+			if live, err := store.Read(t.Context()); err != nil || live == nil {
+				t.Fatalf("live process with expired lease = %#v, %v", live, err)
+			}
+			operation.Holder.PIDStartTime = started.Add(-time.Hour)
+			if err := store.replaceUnlocked(operation); err != nil {
+				t.Fatal(err)
+			}
+			if live, err := store.Read(t.Context()); err != nil || live != nil {
+				t.Fatalf("replaced holder = %#v, %v", live, err)
+			}
+			archived, err := store.ReadArchived(t.Context(), operation.ID)
+			if err != nil || archived == nil || archived.App.Phase != PhaseFailed || archived.Holder != nil {
+				t.Fatalf("settled installer = %#v, %v", archived, err)
+			}
+		},
+	)
 	t.Run("Should archive expired app phases without a new executor", func(t *testing.T) {
 		t.Parallel()
 		for _, phase := range []OperationPhase{PhasePending, PhaseStaged, PhaseApplying} {
