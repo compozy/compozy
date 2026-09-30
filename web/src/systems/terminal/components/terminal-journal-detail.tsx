@@ -125,12 +125,12 @@ export function TerminalJournalDetail({
             }}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             Copy command
           </Button>
           {onOpenTerminal ? (
-            <Button onClick={onOpenTerminal} size="sm" type="button" variant="outline">
+            <Button onClick={onOpenTerminal} size="sm" type="button" variant="secondary">
               Open terminal
             </Button>
           ) : null}

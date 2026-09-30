@@ -50,7 +50,7 @@ export function TerminalJournalEmpty({
       action={
         <>
           {hasMore ? (
-            <Button onClick={onLoadMore} size="sm" type="button" variant="outline">
+            <Button onClick={onLoadMore} size="sm" type="button" variant="secondary">
               Load older rows
             </Button>
           ) : null}

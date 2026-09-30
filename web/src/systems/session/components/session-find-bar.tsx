@@ -383,7 +383,7 @@ function SessionFindMatchRow({
               data-testid="session-find-mark"
               className={cn(
                 "rounded-xxs px-px text-inherit",
-                active ? "bg-accent-tint-strong ring-1 ring-accent-dim" : "bg-badge-fill"
+                active ? "bg-accent-tint-strong ring-1 ring-accent-dim" : "bg-surface-2"
               )}
             >
               {segment.text}
@@ -394,7 +394,7 @@ function SessionFindMatchRow({
         )}
         {folded ? (
           <span
-            className="ml-1.5 rounded-xxs bg-badge-fill px-1 font-mono text-mono-id text-faint"
+            className="ml-1.5 rounded-xxs bg-surface-2 px-1 font-mono text-mono-id text-faint"
             data-testid="session-find-folded"
           >
             folded

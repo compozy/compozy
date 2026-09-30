@@ -71,7 +71,7 @@ function SessionQueuedPreview({ text }: { text: string }) {
       title={text}
     >
       {preview.kind === "code" ? (
-        <span className="mr-1.5 rounded-xxs bg-badge-fill px-1 font-mono text-mono-id text-subtle">
+        <span className="mr-1.5 rounded-xxs bg-surface-2 px-1 font-mono text-mono-id text-subtle">
           code
         </span>
       ) : null}
@@ -187,7 +187,7 @@ export function SessionQueueEntryRow({
                 ? "Queued messages with files can't be steered on this agent"
                 : undefined
             }
-            className="text-muted hover:text-fg-strong"
+            className="text-muted hover:text-fg"
           >
             <CornerDownRight aria-hidden="true" className="size-3" />
             Steer

@@ -124,7 +124,7 @@ function SessionListRowDetails({
         className={cn(
           "block truncate text-small-body",
           // A needs-you row keeps its pull even when the window is not focused.
-          signal.attention === "needs-you" ? "font-medium text-fg-strong" : "text-fg-strong",
+          signal.attention === "needs-you" ? "font-medium text-fg" : "text-fg",
           current && "font-medium"
         )}
       >

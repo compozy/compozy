@@ -127,7 +127,7 @@ function ThreadStartupFailure({
               />
             }
             size="sm"
-            variant="outline"
+            variant="secondary"
           >
             Check agent settings
           </Button>
@@ -156,7 +156,7 @@ function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => v
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="secondary"
           onClick={onRetry}
           data-testid="thread-transcript-error-retry"
         >
@@ -188,7 +188,7 @@ function ThreadSyncFailed({ attempts, onRetry }: { attempts: number; onRetry: ()
           type="button"
           size="sm"
           onClick={onRetry}
-          variant="outline"
+          variant="secondary"
           data-testid="thread-transcript-sync-failed-retry"
         >
           Try again

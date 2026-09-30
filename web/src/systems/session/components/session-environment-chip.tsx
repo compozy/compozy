@@ -2,7 +2,7 @@ import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "lucide-react";
 
 import { Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
-const ACTION_CLASS = "text-muted hover:bg-row-hover hover:text-fg-strong";
+const ACTION_CLASS = "text-muted hover:bg-surface-2 hover:text-fg";
 
 export type SessionEnvironmentChipState = "root" | "worktree" | "new" | "pending" | "failed";
 

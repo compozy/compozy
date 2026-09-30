@@ -90,14 +90,14 @@ export function TerminalStreamNotice({
             onClick={onViewJournal}
             size="xs"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             View journal
           </Button>
         </AlertActions>
       ) : retryable && onReconnect ? (
         <AlertActions>
-          <Button onClick={onReconnect} size="xs" type="button" variant="outline">
+          <Button onClick={onReconnect} size="xs" type="button" variant="secondary">
             Reconnect
           </Button>
         </AlertActions>

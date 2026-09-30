@@ -36,7 +36,7 @@ export const Default: Story = {
     sessionId: "session_launch_coordination",
     workspaceId: "workspace_hq",
     children: (
-      <div className="rounded-lg border border-line bg-canvas-soft p-4 text-sm text-fg">
+      <div className="rounded-lg bg-canvas shadow-card p-4 text-sm text-fg">
         Session runtime children render here.
       </div>
     ),

@@ -36,7 +36,7 @@ export function ToolApprovalGrantsSection() {
           onClick={set.open}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           <Plus aria-hidden="true" className="size-3" />
           Add rule
@@ -50,7 +50,7 @@ export function ToolApprovalGrantsSection() {
         />
         <DataSurface.Error
           action={
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
+            <Button onClick={onRetry} size="sm" type="button" variant="secondary">
               Retry
             </Button>
           }

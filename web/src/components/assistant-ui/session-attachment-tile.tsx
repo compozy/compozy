@@ -58,7 +58,7 @@ export function SessionAttachmentTile({
       className={cn(
         "flex max-w-60 min-h-9 shrink-0 items-center gap-2 rounded-md",
         "transition-colors duration-base ease-out",
-        "hover:bg-row-hover focus-within:bg-row-hover",
+        "hover:bg-surface-2 focus-within:bg-surface-2",
         className
       )}
     >

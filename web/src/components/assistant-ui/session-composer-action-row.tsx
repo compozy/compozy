@@ -5,7 +5,15 @@ import { cn } from "@/lib/utils";
 import { primaryShortcutModifier } from "@/systems/os";
 import type { SessionSteerDelivery } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
-import { Button, Kbd, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import {
+  Button,
+  InputGroupButton,
+  Kbd,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import { SessionAttachButton } from "./session-attach-button";
 import { SessionComposerSendButton } from "./session-composer-send-button";
@@ -67,14 +75,14 @@ function SessionComposerStopControl({
     return (
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         size="sm"
         aria-busy="true"
         aria-disabled="true"
         aria-live="polite"
         data-state="stopping"
         data-testid="composer-stop-button"
-        className="h-7 cursor-default rounded-full border-line-soft bg-input-fill text-subtle hover:bg-input-fill"
+        className="h-7 cursor-default text-subtle hover:bg-surface-2 hover:shadow-none"
       >
         <Spinner aria-hidden="true" className="size-3" />
         Stopping…
@@ -89,15 +97,14 @@ function SessionComposerStopControl({
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
+          <InputGroupButton
+            variant="secondary"
+            size="send"
             onClick={handleClick}
             aria-label="Stop generation"
             data-state="stop"
             data-testid="composer-stop-button"
-            className="size-7 rounded-full text-muted hover:border-transparent hover:bg-danger-tint hover:text-danger"
+            className="text-muted hover:bg-danger-tint hover:text-danger hover:shadow-none"
           />
         }
       >

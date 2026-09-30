@@ -75,7 +75,7 @@ function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
     {
       id: "free",
       label: <TierLabel>Free</TierLabel>,
-      swatch: <TierSwatch className="bg-canvas-tint shadow-hairline-inset" />,
+      swatch: <TierSwatch className="bg-surface-2 shadow-hairline-inset" />,
       value: tiers.free,
       formattedValue: formatContextTokens(tiers.free),
       tone: "neutral",
@@ -126,7 +126,7 @@ function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
       <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
         <span
           className={cn(
-            "text-kpi-compact leading-none tracking-tight text-fg-strong",
+            "text-kpi-compact leading-none tracking-tight text-fg",
             view.warning && "text-warning"
           )}
           style={{ fontWeight: "var(--font-weight-display)" }}

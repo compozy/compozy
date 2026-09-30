@@ -83,10 +83,7 @@ function SessionContextTooltipLine({
   switch (row.kind) {
     case "numbers":
       return (
-        <p
-          className={cn("flex items-baseline gap-1 text-fg-strong tabular-nums", className)}
-          {...props}
-        >
+        <p className={cn("flex items-baseline gap-1 text-fg tabular-nums", className)} {...props}>
           {row.percent ? (
             <>
               <b
@@ -161,9 +158,9 @@ export function SessionContextControl({
             data-testid="composer-context-button"
             data-state={view.state}
             className={cn(
-              "shrink-0 text-muted hover:text-fg data-[popup-open]:bg-btn-default-hover data-[popup-open]:text-fg",
+              "shrink-0 text-muted hover:text-fg data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
               view.state === "warning" && "text-warning hover:text-warning",
-              open && "bg-btn-default-hover text-fg-strong"
+              open && "bg-surface-2 text-fg"
             )}
           />
         }

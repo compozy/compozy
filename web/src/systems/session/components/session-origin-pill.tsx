@@ -30,7 +30,7 @@ export function SessionOriginPill({ origin, onOpenSource }: SessionOriginPillPro
     "data-link": linked ? "true" : "false",
     "data-testid": "session-origin-pill",
     size: "xs" as const,
-    className: cn("min-w-0 shrink", linked && "cursor-pointer hover:text-fg-strong"),
+    className: cn("min-w-0 shrink", linked && "cursor-pointer hover:text-fg"),
   };
 
   if (!linked) {

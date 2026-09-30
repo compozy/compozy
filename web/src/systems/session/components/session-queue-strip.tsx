@@ -88,7 +88,7 @@ function SessionQueueHeader({
           size="xs"
           onClick={onClearRequested}
           data-testid="composer-queue-clear"
-          className="text-muted hover:text-fg-strong"
+          className="text-muted hover:text-fg"
         >
           Clear all
         </Button>

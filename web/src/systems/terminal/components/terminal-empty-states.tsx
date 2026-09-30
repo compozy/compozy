@@ -65,7 +65,7 @@ function terminalHistoryActions({
   return (
     <>
       {onViewJournal ? (
-        <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
+        <Button onClick={onViewJournal} size="sm" type="button" variant="secondary">
           View journal
         </Button>
       ) : null}

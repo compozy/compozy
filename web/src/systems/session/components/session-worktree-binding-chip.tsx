@@ -57,7 +57,7 @@ export function SessionWorktreeBindingChip({
         onClick={missing ? onResolve : onOpenContext}
         size="sm"
         type="button"
-        variant="outline"
+        variant="secondary"
       >
         {missing ? <FolderXIcon aria-hidden="true" /> : <FolderGit2Icon aria-hidden="true" />}
         {name}
@@ -69,7 +69,7 @@ export function SessionWorktreeBindingChip({
       </Button>
       {!missing && state !== "ready" ? <WorktreeStateChip state={state} /> : null}
       {missing && onResolve ? (
-        <Button onClick={onResolve} size="sm" type="button" variant="outline">
+        <Button onClick={onResolve} size="sm" type="button" variant="secondary">
           Resolve…
         </Button>
       ) : null}

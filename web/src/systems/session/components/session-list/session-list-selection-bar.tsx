@@ -75,7 +75,7 @@ export function SessionListSelectionBar({
         <TooltipContent>{allLabel}</TooltipContent>
       </Tooltip>
       <span
-        className="ml-1.5 whitespace-nowrap text-small-body font-medium text-fg-strong tabular-nums"
+        className="ml-1.5 whitespace-nowrap text-small-body font-medium text-fg tabular-nums"
         data-testid={`${testIdPrefix}-selection-count`}
       >
         {count} selected

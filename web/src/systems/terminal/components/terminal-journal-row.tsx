@@ -111,9 +111,7 @@ export function TerminalJournalRow({
         </span>
       </TableCell>
       <TableCell className="min-w-0 whitespace-normal">
-        <span className="block truncate font-mono text-code-block text-fg-strong">
-          {entry.command}
-        </span>
+        <span className="block truncate font-mono text-code-block text-fg">{entry.command}</span>
         <span className="mt-0.75 block truncate font-mono text-micro text-faint">
           {entry.cwd}
           {entry.terminal_id ? ` · ${entry.terminal_id}` : null}

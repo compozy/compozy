@@ -61,7 +61,7 @@ const meta: Meta<typeof SessionThread> = {
     docs: {
       description: {
         component:
-          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The composer input box is raised onto `--elevated` with a `--line-strong` ring so it reads distinctly against the `--canvas-soft` shell; focus-within shifts the ring to `--accent`. The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows an `--accent` send disc (`--accent-ink` glyph, never raw white); while a turn runs the primary disc becomes a `--danger` Stop, Enter queues the draft (with a visible hint), and queued prompts fuse onto the composer top as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
+          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The transcript sits in a centered `max-w-transcript` column; the composer is the InputGroup `composer` card (`--canvas` + `shadow-card`, lifting to `shadow-elevated` on focus). The native slash trigger inserts canonical tokens without sending: leading prompts offer the catalog sections and inline prompts offer skills. Idle shows the round inverted send (`--primary`); while a turn runs the primary disc becomes a Stop, Enter queues the draft (with a visible hint), and queued prompts sit in a sunken panel above the composer as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
       },
     },
   },
@@ -387,7 +387,7 @@ export const OnboardingInset: Story = {
 /**
  * Scroll-to-bottom pill — the live-follow affordance revealed when the reader
  * scrolls away from the live edge. Neutral `size-8 rounded-full` disc
- * (`bg-canvas-soft` + `border-line`, no glass/backdrop-blur), floating over the
+ * (`bg-canvas` + `border-line` + `shadow-elevated`, no glass/backdrop-blur), floating over the
  * transcript above the composer. Interaction-gated in production; rendered here
  * in its visible state over a transcript-like backdrop.
  */

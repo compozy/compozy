@@ -29,7 +29,7 @@ export function SessionTransportFailureNotice() {
         type="button"
         variant="link"
         size="xs"
-        className="h-auto px-0 text-muted underline underline-offset-2 hover:text-fg-strong"
+        className="h-auto px-0 text-muted underline underline-offset-2 hover:text-fg"
         onClick={transport.retry}
         data-testid="session-transport-failure-retry"
       >

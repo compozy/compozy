@@ -88,7 +88,7 @@ function CommandMenuItemRow({
       <span
         className={cn(
           "flex size-4 shrink-0 items-center justify-center text-muted",
-          "group-data-[highlighted]/command-row:text-fg-strong"
+          "group-data-[highlighted]/command-row:text-fg"
         )}
       >
         {createElement(CommandIcon, { className: "size-3.5", "aria-hidden": "true" })}
