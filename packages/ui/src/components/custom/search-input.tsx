@@ -38,7 +38,7 @@ function SearchInput({
       data-slot="search-input"
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex h-search min-h-0 min-w-search-input-min shrink-0 items-center gap-1.5 rounded-md border border-line bg-canvas-soft px-2 text-eyebrow leading-none text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring",
+        "flex h-search min-h-0 min-w-search-input-min shrink-0 items-center gap-1.5 rounded-md border border-line bg-canvas px-2 text-eyebrow leading-none text-fg transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:shadow-focus-ring",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:border-line-soft data-[disabled=true]:bg-canvas data-[disabled=true]:text-disabled data-[disabled=true]:opacity-100",
         containerClassName
       )}
@@ -61,7 +61,7 @@ function SearchInput({
         <span
           data-slot="search-input-kbd"
           aria-hidden="true"
-          className="eyebrow hidden items-center rounded-xs border border-line bg-canvas-soft px-1 py-px leading-none text-subtle sm:inline-flex"
+          className="eyebrow hidden items-center rounded-xs bg-surface-2 px-1 py-px leading-none text-fg-2 inset-ring inset-ring-line sm:inline-flex"
         >
           {kbd}
         </span>

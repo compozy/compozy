@@ -9,7 +9,7 @@ describe("EntityDialogToolbar", () => {
     const { container } = render(<EntityDialogToolbar trailing={<span>status</span>} />);
 
     expect(container.querySelector('[data-slot="entity-dialog-toolbar"]')).not.toHaveClass(
-      "bg-canvas-tint"
+      "bg-sunken"
     );
   });
 

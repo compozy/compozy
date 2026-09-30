@@ -7,7 +7,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="skeleton"
       className={cn(
-        "animate-shimmer rounded-md bg-canvas-soft bg-[linear-gradient(90deg,transparent_0%,var(--color-surface-glaze)_50%,transparent_100%)] bg-size-[200%_100%]",
+        "animate-shimmer rounded-md bg-surface-2 bg-[linear-gradient(90deg,transparent_0%,var(--color-surface-glaze)_50%,transparent_100%)] bg-size-[200%_100%]",
         className
       )}
       {...props}

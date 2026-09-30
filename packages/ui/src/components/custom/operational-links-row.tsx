@@ -32,7 +32,7 @@ function OperationalLinksRow({
       data-slot="operational-links-row"
       aria-label={ariaLabel}
       className={cn(
-        "flex flex-wrap items-center gap-1 rounded border border-line bg-canvas-soft px-2 py-1.5",
+        "flex flex-wrap items-center gap-1 rounded-lg bg-sunken px-2 py-1.5",
         className
       )}
       {...props}

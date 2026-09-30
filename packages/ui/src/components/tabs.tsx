@@ -54,7 +54,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       {count !== undefined ? (
         <span
           data-slot="tabs-trigger-count"
-          className="inline-flex h-pill-xs min-w-count-chip-sm items-center justify-center rounded-mono-badge bg-canvas-soft px-1 text-badge font-medium tabular-nums text-muted"
+          className="inline-flex items-center font-normal tabular-nums text-subtle"
         >
           {count}
         </span>
@@ -63,9 +63,9 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
         <span
           aria-live="polite"
           data-slot="tabs-trigger-live"
-          className="eyebrow inline-flex h-4 items-center gap-1 rounded-sm bg-accent-tint px-1.5 text-accent"
+          className="eyebrow inline-flex h-4 items-center gap-1 rounded-pill bg-success-tint px-1.5 text-success"
         >
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
           {liveLabel}
         </span>
       ) : null}

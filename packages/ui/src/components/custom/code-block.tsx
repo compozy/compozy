@@ -108,7 +108,7 @@ function CodeBlock({
       data-theme={resolvedThemeName}
       className={cn(
         "relative overflow-hidden border border-line",
-        density === "compact" ? "rounded-sm bg-canvas" : "rounded-lg bg-rail",
+        density === "compact" ? "rounded-sm bg-code-bg" : "rounded-lg bg-code-bg",
         className
       )}
       {...props}
@@ -131,7 +131,7 @@ function CodeBlock({
           copiedLabel={copiedLabel}
           copyFailedLabel={copyFailedLabel}
           className={cn(
-            "absolute text-subtle hover:text-accent data-[copied=true]:text-success data-[copy-state=failed]:text-danger data-[copy-state=failed]:hover:text-danger",
+            "absolute text-subtle hover:text-fg data-[copied=true]:text-success data-[copy-state=failed]:text-danger data-[copy-state=failed]:hover:text-danger",
             density === "compact" ? "top-1.5 right-1.5" : "top-2 right-2"
           )}
         />
@@ -174,7 +174,7 @@ function CodeBlock({
                 className={cn(
                   "block min-h-[1.5em]",
                   showLineNumbers ? "grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3" : null,
-                  isHighlightedLine ? "-mx-2 rounded-xs bg-surface-glaze px-2" : null
+                  isHighlightedLine ? "-mx-2 rounded-xs bg-selected px-2" : null
                 )}
               >
                 {showLineNumbers ? (
@@ -191,7 +191,7 @@ function CodeBlock({
                     <span
                       data-slot="code-block-prompt"
                       aria-hidden="true"
-                      className="text-accent select-none"
+                      className="text-success select-none"
                     >
                       {"$ "}
                     </span>

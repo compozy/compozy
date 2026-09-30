@@ -74,7 +74,7 @@ export function SymbolPickerEmojiPane({
             CategoryHeader: ({ category, ...props }) => (
               <div
                 {...props}
-                className="bg-canvas-soft px-1 pt-2 pb-1 text-micro font-medium text-subtle"
+                className="bg-canvas px-1 pt-2 pb-1 text-micro font-medium text-subtle"
               >
                 {category.label}
               </div>

@@ -25,7 +25,7 @@ function MetadataTile({
   return (
     <div
       data-slot="metadata-tile"
-      className={cn("flex min-w-0 flex-col gap-1 rounded bg-canvas-soft px-3 py-2.5", className)}
+      className={cn("flex min-w-0 flex-col gap-1 rounded-lg bg-sunken px-3 py-2.5", className)}
       {...props}
     >
       <div data-slot="metadata-tile-head" className="flex min-w-0 items-center gap-1.5">

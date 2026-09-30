@@ -63,7 +63,7 @@ function RailContent({ active = "A" }: { active?: string }) {
           type="button"
           title={ws.name}
           data-active={ws.id === active}
-          className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-canvas-soft font-mono text-eyebrow text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-accent data-[active=true]:bg-elevated data-[active=true]:text-foreground"
+          className="inline-flex size-7 items-center justify-center rounded-full border border-line bg-canvas font-mono text-eyebrow text-muted transition-colors hover:bg-surface-2 hover:text-fg data-[active=true]:border-transparent data-[active=true]:bg-selected data-[active=true]:text-fg data-[active=true]:shadow-card"
         >
           {ws.id}
         </button>

@@ -98,7 +98,7 @@ function DetailInspector({
         data-mode="inline"
         aria-label={labelledBy}
         className={cn(
-          "flex h-full min-h-0 shrink-0 flex-col border-l border-line bg-canvas-soft",
+          "flex h-full min-h-0 shrink-0 flex-col border-l border-line bg-canvas",
           className
         )}
         style={{ width: DETAIL_INSPECTOR_INLINE_WIDTH }}

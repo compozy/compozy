@@ -13,7 +13,7 @@ const meta: Meta<typeof EntityModeToolbar> = {
     docs: {
       description: {
         component:
-          "Full-width Simple/Advanced chrome strip for entity editors. Recessed `--color-canvas-tint` against the dialog's `--color-canvas-soft` so the switcher reads as chrome, not as the first form row. Advanced is the only disclosure tier and never hides a required field. The trailing slot is compact status — workspace scope belongs in the footer hint.",
+          "Full-width Simple/Advanced chrome strip for entity editors. Recessed `--color-sunken` against the dialog's `--color-canvas` so the switcher reads as chrome, not as the first form row. Advanced is the only disclosure tier and never hides a required field. The trailing slot is compact status — workspace scope belongs in the footer hint.",
       },
     },
   },
@@ -25,7 +25,7 @@ type Story = StoryObj<typeof meta>;
 function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="p-6">
-      <div className="w-(--width-modal-md) max-w-full overflow-hidden rounded-lg bg-canvas-soft">
+      <div className="w-(--width-modal-md) max-w-full overflow-hidden rounded-lg bg-canvas">
         {children}
       </div>
     </div>

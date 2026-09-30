@@ -147,12 +147,12 @@ export const RoleAlignmentInteraction: Story = {
       await expect(node?.getAttribute("data-align")).toBe(ROLE_ALIGN[role]);
       if (role === "user") {
         const body = node?.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
-        await expect(body?.className).toContain("bg-elevated");
+        await expect(body?.className).toContain("bg-surface-2");
         await expect(node?.className).toContain("justify-end");
       }
       if (role === "agent") {
         const body = node?.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
-        await expect(body?.className).not.toContain("bg-elevated");
+        await expect(body?.className).not.toContain("bg-surface-2");
         await expect(body?.className).toContain("text-muted");
       }
       if (role === "system") {

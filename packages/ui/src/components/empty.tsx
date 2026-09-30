@@ -66,14 +66,14 @@ interface EmptyScale {
 const EMPTY_SCALES: Record<EmptySize, EmptyScale> = {
   default: {
     gap: "gap-3",
-    well: "size-empty-icon rounded-lg bg-canvas-soft",
+    well: "size-empty-icon rounded-lg bg-surface-2",
     glyph: "size-5",
     title: "text-empty-h1 tracking-empty-h1",
     description: "text-small-body leading-relaxed",
   },
   compact: {
     gap: "gap-2",
-    well: "size-8 rounded-md bg-canvas-tint",
+    well: "size-8 rounded-md bg-surface-2",
     glyph: "size-3.75",
     title: "text-form-label",
     description: "text-micro leading-4",
@@ -142,7 +142,7 @@ function Empty({
         titleTag,
         {
           "data-slot": "empty-title",
-          className: cn("font-medium leading-snug text-fg-strong", scale.title),
+          className: cn("font-medium leading-snug text-fg", scale.title),
         },
         title
       )}

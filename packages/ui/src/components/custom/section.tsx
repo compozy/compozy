@@ -79,7 +79,7 @@ function Section({
                   <span
                     aria-hidden="true"
                     data-slot="section-icon"
-                    className="inline-flex size-5 shrink-0 items-center justify-center text-accent"
+                    className="inline-flex size-5 shrink-0 items-center justify-center text-fg-2"
                   >
                     <Icon className="size-3" />
                   </span>
@@ -93,7 +93,7 @@ function Section({
                 {hasCount ? (
                   <span
                     data-slot="section-count"
-                    className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 text-eyebrow font-medium tabular-nums text-muted"
+                    className="inline-flex items-center text-eyebrow font-normal tabular-nums text-subtle"
                   >
                     {count}
                   </span>

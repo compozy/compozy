@@ -60,7 +60,7 @@ function CommandSelectTrigger({
       data-slot="command-select-trigger"
       type={type}
       className={cn(
-        "flex h-input w-full items-center justify-between gap-2 rounded-md border border-line bg-elevated px-3 py-2 text-small-body text-fg transition-colors outline-none hover:bg-btn-default-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-focus-ring",
+        "flex h-input w-full items-center justify-between gap-2 rounded-md border border-line bg-canvas px-3 py-2 text-small-body text-fg transition-colors outline-none hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-focus-ring",
         className
       )}
       {...props}
@@ -122,7 +122,7 @@ function CommandSelectChip({
       data-slot="command-select-chip"
       type={type}
       className={cn(
-        "eyebrow inline-flex max-w-full items-center gap-1 rounded-sm border border-line bg-canvas-soft px-1.5 py-0.5 text-muted",
+        "eyebrow inline-flex max-w-full items-center gap-1 rounded-pill bg-surface-2 px-2 py-0.5 text-muted",
         className
       )}
       onClick={event => {

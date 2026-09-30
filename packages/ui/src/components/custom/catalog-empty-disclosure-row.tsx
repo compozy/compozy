@@ -12,7 +12,7 @@ const TONE_CLASS: Record<CatalogEmptyTone, string> = {
   accent: "bg-accent-tint text-accent",
   info: "bg-info-tint text-info",
   warning: "bg-warning-tint text-warning",
-  neutral: "bg-canvas-tint text-muted",
+  neutral: "bg-surface-2 text-muted",
 };
 
 export interface CatalogEmptyDisclosureRowProps extends Omit<

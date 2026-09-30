@@ -150,6 +150,7 @@ export {
   CommandEmpty,
   CommandGroup,
   CommandInput,
+  type CommandInputVariant,
   CommandItem,
   CommandList,
   CommandSeparator,

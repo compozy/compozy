@@ -116,10 +116,10 @@ const SIDE_VARIANTS: Record<SheetSide, Variants> = {
 };
 
 const SIDE_CLASSES: Record<SheetSide, string> = {
-  top: "inset-x-0 top-0 h-auto rounded-b-xl",
-  bottom: "inset-x-0 bottom-0 h-auto rounded-t-xl",
-  left: "inset-y-0 left-0 h-full w-3/4 rounded-r-xl sm:max-w-sm",
-  right: "inset-y-0 right-0 h-full w-3/4 rounded-l-xl sm:max-w-sm",
+  top: "inset-x-0 top-0 h-auto rounded-b-lg",
+  bottom: "inset-x-0 bottom-0 h-auto rounded-t-lg",
+  left: "inset-y-0 left-0 h-full w-3/4 rounded-r-lg sm:max-w-sm",
+  right: "inset-y-0 right-0 h-full w-3/4 rounded-l-lg sm:max-w-sm",
 };
 
 interface SheetContentProps extends SheetPrimitive.Popup.Props {
@@ -158,7 +158,7 @@ function SheetContent({
               />
             }
             className={cn(
-              "fixed z-50 flex flex-col gap-4 bg-canvas-soft bg-clip-padding text-small-body text-fg shadow-overlay outline-none",
+              "fixed z-50 flex flex-col gap-4 bg-canvas bg-clip-padding text-small-body text-fg shadow-overlay outline-none",
               SIDE_CLASSES[side],
               className
             )}

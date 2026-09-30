@@ -81,7 +81,7 @@ function ChatMessageBubble({
           ) : null}
           <div
             data-slot="chat-message-body"
-            className="rounded-lg bg-elevated px-5 py-4 text-card-title leading-relaxed text-fg"
+            className="rounded-lg bg-surface-2 px-5 py-4 text-card-title leading-relaxed text-fg"
           >
             {children}
           </div>

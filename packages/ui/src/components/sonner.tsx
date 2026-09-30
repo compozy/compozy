@@ -36,9 +36,9 @@ function Toaster({
       }}
       style={
         {
-          "--normal-bg": "var(--color-canvas-soft)",
+          "--normal-bg": "var(--color-canvas)",
           "--normal-text": "var(--color-fg)",
-          "--normal-border": "var(--color-line-soft)",
+          "--normal-border": "var(--color-line)",
           "--border-radius": "var(--radius-lg)",
           ...style,
         } as React.CSSProperties

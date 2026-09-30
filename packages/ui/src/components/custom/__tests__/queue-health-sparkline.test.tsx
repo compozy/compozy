@@ -39,7 +39,7 @@ describe("QueueHealthSparkline", () => {
     expect(root?.getAttribute("aria-label")).toBe("Queue depth last 24 hours");
   });
 
-  it("Should paint default cells with --bar-fill and stuck cells with --accent-tint-strong", async () => {
+  it("Should paint default cells with --viz-bar and stuck cells with --accent-tint-strong", async () => {
     const { container } = render(<QueueHealthSparkline data={SAMPLE} />);
     const queryCells = () =>
       Array.from(
@@ -55,9 +55,9 @@ describe("QueueHealthSparkline", () => {
 
     const cells = queryCells();
     expect(cells).toHaveLength(SAMPLE.length);
-    expect(cells[0]?.getAttribute("fill")).toBe("var(--color-bar-fill)");
-    expect(cells[1]?.getAttribute("fill")).toBe("var(--color-bar-fill)");
-    expect(cells[2]?.getAttribute("fill")).toBe("var(--color-bar-fill)");
+    expect(cells[0]?.getAttribute("fill")).toBe("var(--color-viz-bar)");
+    expect(cells[1]?.getAttribute("fill")).toBe("var(--color-viz-bar)");
+    expect(cells[2]?.getAttribute("fill")).toBe("var(--color-viz-bar)");
     expect(cells[3]?.getAttribute("fill")).toBe("var(--color-accent-tint-strong)");
     expect(cells[3]?.getAttribute("data-stuck")).toBe("true");
     expect(cells[0]?.getAttribute("data-stuck")).toBeNull();

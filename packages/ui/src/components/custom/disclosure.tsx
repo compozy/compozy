@@ -56,7 +56,7 @@ function Disclosure({
       data-variant={variant}
       className={cn(
         "flex min-w-0 flex-col",
-        framed && "overflow-hidden rounded-lg border border-line bg-canvas-soft",
+        framed && "overflow-hidden rounded-lg bg-sunken",
         className
       )}
       {...rootProps}

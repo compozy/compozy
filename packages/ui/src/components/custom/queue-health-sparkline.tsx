@@ -9,7 +9,7 @@ export interface QueueHealthSparklineBucket {
   label: string;
   /** Bar height value. */
   value: number;
-  /** When true, the bar paints with `--accent-tint-strong` instead of `--bar-fill`. */
+  /** When true, the bar paints with `--accent-tint-strong` instead of `--viz-bar`. */
   stuck?: boolean;
 }
 
@@ -25,11 +25,11 @@ export interface QueueHealthSparklineProps extends Omit<React.ComponentProps<"di
 }
 
 const DEFAULT_HEIGHT = 96;
-const BAR_FILL = "var(--color-bar-fill)";
+const BAR_FILL = "var(--color-viz-bar)";
 const STUCK_FILL = "var(--color-accent-tint-strong)";
 
 const TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
-  background: "var(--color-canvas-soft)",
+  background: "var(--color-canvas)",
   border: "1px solid var(--color-line)",
   borderRadius: "var(--radius-sm)",
   color: "var(--color-fg)",
@@ -58,7 +58,7 @@ const QueueHealthSparklineChart = React.lazy(async () => {
                 cursor={false}
                 contentStyle={TOOLTIP_CONTENT_STYLE}
                 labelStyle={{ color: "var(--color-muted)" }}
-                itemStyle={{ color: "var(--color-fg-strong)" }}
+                itemStyle={{ color: "var(--color-fg)" }}
               />
             ) : null}
             <Bar dataKey="value" isAnimationActive={false} radius={[1, 1, 0, 0]} minPointSize={2}>

@@ -67,7 +67,7 @@ function TimelineEvent({
           {Icon ? (
             <span
               className={cn(
-                "inline-flex size-3 items-center justify-center rounded-full bg-canvas-soft",
+                "inline-flex size-3 items-center justify-center rounded-full bg-canvas",
                 TONE_ICON[tone]
               )}
             >

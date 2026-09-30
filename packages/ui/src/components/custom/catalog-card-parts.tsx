@@ -36,7 +36,7 @@ export function CatalogCardLogo({
       data-tone={tone}
       data-size={size}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded bg-surface-glaze",
+        "inline-flex shrink-0 items-center justify-center rounded-sm bg-surface-2",
         LOGO_SIZE_CLASS[size],
         toneText(tone),
         className

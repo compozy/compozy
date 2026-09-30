@@ -10,7 +10,7 @@ const meta: Meta<typeof QueueHealthSparkline> = {
     docs: {
       description: {
         component:
-          "Thin `recharts` `<BarChart>` adapter. Applies Compozy tokens: default bar `var(--color-bar-fill)`; `stuck` buckets render with `var(--color-accent-tint-strong)`. Consumed by the Tasks dashboard queue-health panel.",
+          "Thin `recharts` `<BarChart>` adapter. Applies Compozy tokens: default bar `var(--color-viz-bar)` (data ink that holds in both themes); `stuck` buckets render with `var(--color-accent-tint-strong)`. Consumed by the Tasks dashboard queue-health panel.",
       },
     },
   },

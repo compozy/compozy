@@ -54,7 +54,7 @@ function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
       aria-hidden="true"
       data-slot="listing-row-icon"
       className={cn(
-        "grid size-icon-well-row shrink-0 place-items-center rounded-md bg-elevated text-muted",
+        "grid size-icon-well-row shrink-0 place-items-center rounded-md bg-surface-2 text-muted",
         className
       )}
       {...props}

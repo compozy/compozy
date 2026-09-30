@@ -27,7 +27,7 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
       <dl
         data-slot="context-box"
         className={cn(
-          "grid grid-cols-[minmax(0,var(--width-kv-label))_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-md border border-line bg-canvas-soft px-3 py-2.5"
+          "grid grid-cols-[minmax(0,var(--width-kv-label))_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg bg-sunken px-3 py-2.5"
         )}
         {...props}
       >
