@@ -96,7 +96,7 @@ function DegradedNotice({
             onClick={onRetry}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             <RotateCcw aria-hidden="true" />
             Retry now

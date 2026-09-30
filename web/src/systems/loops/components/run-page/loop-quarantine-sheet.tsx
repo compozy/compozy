@@ -225,7 +225,7 @@ function QuarantineSheetFooter({
               onClick={() => onVerb("cancel", node)}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <CancelIcon className="size-3.5" />
               {LOOP_NODE_VERB_PRESENTATION.cancel.label}

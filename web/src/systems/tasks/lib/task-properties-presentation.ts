@@ -5,11 +5,12 @@ import type { TaskDetailView, TaskExecutionProfile, TaskPriority, TaskRun } from
 
 type TaskActiveRun = NonNullable<NonNullable<TaskDetailView["summary"]>["active_run"]>;
 
+/** Priority dots are a neutral lightness ramp: hierarchy by weight, never a signal hue. */
 const PRIORITY_DOT_CLASS: Record<TaskPriority, string> = {
-  urgent: "bg-danger",
-  high: "bg-warning",
-  medium: "bg-muted",
-  low: "bg-faint",
+  urgent: "bg-fg",
+  high: "bg-fg-2",
+  medium: "bg-subtle",
+  low: "bg-line-strong",
 };
 
 export function taskPriorityPresentation(priority: TaskPriority): {

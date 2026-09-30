@@ -74,7 +74,7 @@ const RECURRING_TEMPLATE: TaskTemplate = {
   simpleLabel: "Recurring",
   simpleDescription: "",
   defaults: { draft: true, priority: "medium" },
-  badges: [{ label: "Automation", tone: "info" }],
+  badges: [{ label: "Automation", tone: "neutral" }],
   preview: {
     enqueueOnSubmit: false,
     facts: ["schedule attached in Automation"],
@@ -91,7 +91,7 @@ const EPIC_TEMPLATE: TaskTemplate = {
   simpleLabel: "Break into steps",
   simpleDescription: "A big goal — add sub-tasks under it afterward.",
   defaults: { draft: false, priority: "high" },
-  badges: [{ label: "Epic", tone: "warning" }],
+  badges: [{ label: "Epic", tone: "neutral" }],
   preview: { enqueueOnSubmit: true },
 };
 
@@ -103,7 +103,7 @@ const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {
   simpleLabel: "Needs approval",
   simpleDescription: "The agent waits for your sign-off before acting.",
   defaults: { draft: false, priority: "high", approval_policy: "manual" },
-  badges: [{ label: "Approvals", tone: "warning" }],
+  badges: [{ label: "Approvals", tone: "neutral" }],
   preview: {
     enqueueOnSubmit: true,
     notice: "First run will wait for approval in the Inbox before claiming.",

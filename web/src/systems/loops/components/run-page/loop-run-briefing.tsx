@@ -148,7 +148,7 @@ export function LoopRunBriefing({
               onClick={handleAction}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               {action.target === "needs-you" ? (
                 <ArrowDown aria-hidden="true" />

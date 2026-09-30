@@ -11,7 +11,7 @@ import {
   type PillGroupItem,
 } from "@compozy/ui";
 
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 
 type LoopDiffMode = "generation" | "run";
 
@@ -78,7 +78,7 @@ function GenerationSelect({
             ))}
           </SelectContent>
         </Select>
-        {status ? <LoopStatusPill size="xs" status={status} /> : null}
+        {status ? <LoopStatusMark size="xs" status={status} /> : null}
       </div>
     </div>
   );
@@ -169,7 +169,7 @@ export function LoopRunDiffPickers({
                 ))}
               </SelectContent>
             </Select>
-            {againstStatus ? <LoopStatusPill size="xs" status={againstStatus} /> : null}
+            {againstStatus ? <LoopStatusMark size="xs" status={againstStatus} /> : null}
           </div>
         </div>
       )}

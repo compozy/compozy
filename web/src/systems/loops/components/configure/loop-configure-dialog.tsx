@@ -139,7 +139,7 @@ export function LoopConfigureDialog({
                 onClick={() => void worktrees.refetch()}
                 size="sm"
                 type="button"
-                variant="outline"
+                variant="secondary"
               >
                 Retry
               </Button>

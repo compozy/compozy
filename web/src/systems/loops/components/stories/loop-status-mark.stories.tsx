@@ -3,12 +3,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LOOP_RUN_LIVE_STATUSES, LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
 import { CenteredSurface } from "@/storybook/story-layout";
 
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 import type { LoopRunStatus } from "../../types";
 
-const meta: Meta<typeof LoopStatusPill> = {
-  title: "systems/loops/components/LoopStatusPill",
-  component: LoopStatusPill,
+const meta: Meta<typeof LoopStatusMark> = {
+  title: "systems/loops/components/LoopStatusMark",
+  component: LoopStatusMark,
   parameters: {
     layout: "fullscreen",
   },
@@ -29,7 +29,7 @@ export const AllStatuses: Story = {
           <span className="eyebrow text-muted">Live</span>
           <div className="flex flex-wrap items-center gap-2">
             {LIVE_STATUSES.map(status => (
-              <LoopStatusPill key={status} status={status} />
+              <LoopStatusMark key={status} status={status} />
             ))}
           </div>
         </div>
@@ -37,7 +37,7 @@ export const AllStatuses: Story = {
           <span className="eyebrow text-muted">Terminal</span>
           <div className="flex flex-wrap items-center gap-2">
             {TERMINAL_STATUSES.map(status => (
-              <LoopStatusPill key={status} status={status} />
+              <LoopStatusMark key={status} status={status} />
             ))}
           </div>
         </div>
@@ -49,7 +49,7 @@ export const AllStatuses: Story = {
 export const Running: Story = {
   render: () => (
     <CenteredSurface>
-      <LoopStatusPill status="running" />
+      <LoopStatusMark status="running" />
     </CenteredSurface>
   ),
 };
@@ -57,7 +57,7 @@ export const Running: Story = {
 export const Unknown: Story = {
   render: () => (
     <CenteredSurface>
-      <LoopStatusPill status="something-else" />
+      <LoopStatusMark status="something-else" />
     </CenteredSurface>
   ),
 };

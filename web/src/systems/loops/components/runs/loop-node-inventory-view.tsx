@@ -242,7 +242,7 @@ function InventoryResults({
       <Empty
         action={
           filtered ? (
-            <Button onClick={onClearFilters} size="sm" type="button" variant="outline">
+            <Button onClick={onClearFilters} size="sm" type="button" variant="secondary">
               Clear filters
             </Button>
           ) : undefined
@@ -285,7 +285,7 @@ function InventoryFoot({
           onClick={onLoadMore}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           {isFetchingNextPage ? "Loading…" : "Load more"}
         </Button>
@@ -313,7 +313,7 @@ function InventoryRows({
         <Eyebrow className="min-w-0 flex-1 text-muted">Step</Eyebrow>
         <Eyebrow className="hidden min-w-0 flex-1 text-muted lg:block">Loop</Eyebrow>
         <Eyebrow className="hidden min-w-0 flex-1 text-muted md:block">Reason</Eyebrow>
-        <Eyebrow className="shrink-0 text-right text-muted">Time in state</Eyebrow>
+        <Eyebrow className="w-24 shrink-0 text-right text-muted">Time in state</Eyebrow>
         <span aria-hidden="true" className="size-3.5 shrink-0" />
       </div>
       {rows.map((row, index) => (
@@ -347,7 +347,7 @@ function InventoryRows({
           <span className="hidden min-w-0 flex-1 truncate text-small-body text-muted md:block">
             {row.reason}
           </span>
-          <span className="shrink-0 text-right">
+          <span className="w-24 shrink-0 text-right">
             <span className="block font-mono text-mono-id tabular-nums text-subtle">{row.age}</span>
           </span>
           <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-faint" />

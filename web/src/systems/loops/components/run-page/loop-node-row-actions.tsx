@@ -54,7 +54,7 @@ export function LoopNodeRowActions({
           onClick={() => onVerb(primary, node)}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           {primary === "requeue" ? (
             <Redo2 aria-hidden="true" className="size-3" />

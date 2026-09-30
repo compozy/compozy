@@ -4,7 +4,7 @@ import { cn, StateGlyph } from "@compozy/ui";
 
 import { loopStatusGlyph, loopStatusLabel } from "../lib/loop-formatters";
 
-export interface LoopStatusPillProps extends Omit<React.ComponentProps<"span">, "children"> {
+export interface LoopStatusMarkProps extends Omit<React.ComponentProps<"span">, "children"> {
   /** Raw `loop_run.status` from the daemon; unknown values render an idle, label-only mark. */
   status?: string | null;
   /** `sm` (default) sits in heads and rows; `xs` in dense pickers. */
@@ -16,7 +16,7 @@ export interface LoopStatusPillProps extends Omit<React.ComponentProps<"span">, 
  * Glyph and label come from the single mapping in `loop-formatters`, so the
  * status stays truthful everywhere it renders (never a coerced state).
  */
-export function LoopStatusPill({ status, size = "sm", className, ...props }: LoopStatusPillProps) {
+export function LoopStatusMark({ status, size = "sm", className, ...props }: LoopStatusMarkProps) {
   return (
     <span
       className={cn(

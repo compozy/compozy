@@ -7,7 +7,7 @@ import { useNowTick } from "../../hooks/use-now-tick";
 import { loopStatusLabel } from "../../lib/loop-formatters";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRun } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 
 interface LoopRecentRunsProps {
   runs: readonly LoopRun[];
@@ -42,7 +42,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           data-testid="loop-recent-run-row"
           title={run.id}
         >
-          <LoopStatusPill status={run.status} />
+          <LoopStatusMark status={run.status} />
           <span className="min-w-0 truncate text-form-hint text-subtle">
             <Time iso={run.created_at} />
           </span>

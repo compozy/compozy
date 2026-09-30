@@ -287,6 +287,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     setSearchQuery: listSearch.setDraftValue,
     sortBy,
     statusCounts,
+    hasListFilters,
     statusFilter,
     hasActiveTaskScope,
     scopeError,

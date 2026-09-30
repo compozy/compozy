@@ -134,7 +134,6 @@ export function LoopEditorRoute({
             />
           ))}
           <Button
-            className="border-dashed"
             data-focus-key="add"
             data-testid="loop-route-add"
             disabled={disabled}
@@ -144,7 +143,7 @@ export function LoopEditorRoute({
             }}
             size="sm"
             type="button"
-            variant="outline"
+            variant="quiet"
           >
             <Plus aria-hidden="true" className="size-3" />
             Add route

@@ -167,7 +167,7 @@ function IssueRow({
       {issue.node_id ? (
         <Button
           type="button"
-          variant="outline"
+          variant="quiet"
           size="xs"
           onClick={() => onReveal(issue.node_id!)}
           className="shrink-0"

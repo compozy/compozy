@@ -7,7 +7,7 @@ import {
   Eyebrow,
   MonoId,
   Pill,
-  PillDot,
+  LiveBadge,
   StateGlyph,
   type StateGlyphState,
   Time,
@@ -273,10 +273,13 @@ export function GoalTurnTimeline({
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Eyebrow className="text-faint">Goal turns</Eyebrow>
-        <Pill tone={live ? "accent" : "neutral"} size="xs" pulse={live}>
-          <PillDot />
-          {live ? "live" : "audit"}
-        </Pill>
+        {live ? (
+          <LiveBadge label="live" />
+        ) : (
+          <Pill tone="neutral" size="xs">
+            audit
+          </Pill>
+        )}
         <span className="font-mono text-mono-id tabular-nums text-subtle">
           {turns.length} {turns.length === 1 ? "turn" : "turns"}
         </span>

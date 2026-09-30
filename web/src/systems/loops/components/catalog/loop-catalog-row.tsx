@@ -5,7 +5,7 @@ import { ListingRow } from "@compozy/ui";
 
 import { successRateLabel } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 import { LoopCatalogFacts } from "./loop-catalog-facts";
 import { LoopRunButton } from "./loop-run-button";
 
@@ -43,7 +43,7 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="col-span-2 justify-between gap-3 sm:col-auto sm:justify-self-auto">
-        {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
+        {entry.last_run ? <LoopStatusMark status={entry.last_run.status} /> : null}
         <ListingRow.Stat className="hidden w-20 xl:flex">
           <ListingRow.Stat.Value>{successRateLabel(entry.success_rate_30d)}</ListingRow.Stat.Value>
           <ListingRow.Stat.Label>{entry.aggregate_30d.runs} runs this month</ListingRow.Stat.Label>

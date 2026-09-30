@@ -77,7 +77,7 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
           {title}
         </span>
       }
-      tone="accent"
+      tone="neutral"
     />
   );
 }

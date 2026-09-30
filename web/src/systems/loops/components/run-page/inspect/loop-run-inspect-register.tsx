@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { PlugZap, Search } from "lucide-react";
 
-import { LaneTabs, Pill, PillDot, viewTransitionName } from "@compozy/ui";
+import { LaneTabs, LiveBadge, Pill, viewTransitionName } from "@compozy/ui";
 
 import type { LoopRosterReach } from "../../../lib/loop-run-registers-view";
 import { LoopSection } from "../../loop-section";
@@ -94,10 +94,7 @@ export function LoopRunInspectRegister({
             Reconnecting
           </Pill>
         ) : isLive ? (
-          <Pill data-testid="loop-run-inspect-live" tone="accent">
-            <PillDot pulse tone="accent" />
-            Live
-          </Pill>
+          <LiveBadge data-testid="loop-run-inspect-live" />
         ) : null
       }
       title="Inspect"

@@ -60,7 +60,11 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
 
   useTopbarSlot({
     glyph: <ListChecks />,
-    count: mode === "list" && !page.listLoading ? page.tasksCount : undefined,
+    // The head count names the whole list; under a filter the table header
+    // carries the (filtered) count instead, so the head never implies a total
+    // it is not showing.
+    count:
+      mode === "list" && !page.listLoading && !page.hasListFilters ? page.tasksCount : undefined,
     actions: (
       <Button
         data-testid="tasks-open-create"

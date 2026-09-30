@@ -51,10 +51,11 @@ interface LoopRunStoryProps {
  * immediately, and older history loads backward on demand, fenced to a snapshot
  * so appends never shift the ground under a reader.
  */
-// Colour at rest is noise: only beats that warn or fail keep their signal ring.
+// Colour at rest is noise: only beats that need a person (accent), warn or fail
+// keep their signal ring. Parked beats (retry, pause, wait) stay calm.
 const TONE_RING = {
   neutral: "ring-line text-muted",
-  accent: "ring-line text-muted",
+  accent: "ring-accent text-accent",
   success: "ring-line text-muted",
   warning: "ring-warning text-warning",
   danger: "ring-danger text-danger",

@@ -52,7 +52,7 @@ const GATE_DECISIONS = [
   {
     decision: "request_changes",
     testId: "loop-approval-request-changes",
-    variant: "outline",
+    variant: "secondary",
     className: undefined,
     icon: PenLine,
     label: "Request changes",
@@ -169,7 +169,7 @@ export function LoopRunNeedsYouCard({
                     onClick={() => onOpenQuarantine(node.nodeId)}
                     size="sm"
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                   >
                     <ShieldAlert aria-hidden="true" className="size-3.5" />
                     View details

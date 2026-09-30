@@ -19,7 +19,7 @@ export function LoopRunButton({ loopName, onRun, className, ...props }: LoopRunB
       onClick={onRun}
       size="sm"
       type="button"
-      variant="outline"
+      variant="secondary"
       {...props}
     >
       <Play aria-hidden="true" className="size-3" />

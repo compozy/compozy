@@ -133,11 +133,10 @@ export function LoopEditorCriteria({
       ))}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled || !defaultType}
         onClick={add}
-        className="border-dashed"
         data-testid="loop-editor-criteria-add"
       >
         <Plus aria-hidden="true" className="size-3" />

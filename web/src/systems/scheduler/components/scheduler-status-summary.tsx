@@ -52,7 +52,7 @@ function SchedulerStateLabel({
       className="inline-flex items-center gap-1.5 text-form-label text-muted"
       data-testid="scheduler-controls-state"
     >
-      {isInitialLoading ? null : <Pill.Dot tone={paused ? "warning" : "success"} />}
+      {isInitialLoading ? null : <Pill.Dot tone={paused ? "neutral" : "success"} />}
       {isInitialLoading ? "Loading" : paused ? "Paused" : "Running"}
     </span>
   );
@@ -95,7 +95,7 @@ function SchedulerStatusMeta({ status }: { status: SchedulerStatus | null }) {
       </span>
       <MetaDot />
       <span
-        className={counts.needsAttention > 0 ? "text-warning" : undefined}
+        className={counts.needsAttention > 0 ? "text-accent" : undefined}
         data-testid="scheduler-controls-needs-attention-count"
       >
         {counts.needsAttention} need attention

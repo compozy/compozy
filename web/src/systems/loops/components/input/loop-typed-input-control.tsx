@@ -295,7 +295,7 @@ export function LoopEntityListValueControl({
         }}
         size="sm"
         type="button"
-        variant="outline"
+        variant="secondary"
       >
         <Plus aria-hidden="true" />
         Add {kind}

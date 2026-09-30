@@ -177,11 +177,10 @@ export function LoopEditorEffects({
       })}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled}
         onClick={add}
-        className="border-dashed"
         data-testid={`${testId}-add`}
       >
         <Plus aria-hidden="true" className="size-3" />

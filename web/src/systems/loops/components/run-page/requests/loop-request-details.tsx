@@ -122,7 +122,7 @@ function FullContextFetch({
         onClick={onRequestFull}
         size="sm"
         type="button"
-        variant="outline"
+        variant="secondary"
       >
         {isLoading ? <Spinner /> : <ScrollText aria-hidden="true" />}
         {error ? "Try again" : "Show full context"}

@@ -74,7 +74,7 @@ function AutomationJobRow({
           onClick={() => onRun(job.id)}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           <Play aria-hidden="true" className="size-3" />
           {isRunPending ? "Starting…" : "Run now"}

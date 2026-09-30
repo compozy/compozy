@@ -4,7 +4,7 @@ import { Repeat2 } from "lucide-react";
 import { CatalogCard } from "@compozy/ui";
 
 import type { LoopCatalogEntry } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 import { LoopCatalogFacts } from "./loop-catalog-facts";
 import { LoopRunButton } from "./loop-run-button";
 
@@ -43,7 +43,7 @@ export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
         </p>
       </Link>
       <CatalogCard.Actions className={entry.last_run ? "justify-between gap-3" : "justify-end"}>
-        {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
+        {entry.last_run ? <LoopStatusMark status={entry.last_run.status} /> : null}
         <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
       </CatalogCard.Actions>
     </CatalogCard>

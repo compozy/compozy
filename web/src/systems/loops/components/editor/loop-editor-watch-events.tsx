@@ -120,11 +120,10 @@ export function LoopEditorWatchEvents({
       ))}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled}
         onClick={add}
-        className="border-dashed"
         data-testid="loop-editor-watch-events-add"
       >
         <Plus aria-hidden="true" className="size-3" />

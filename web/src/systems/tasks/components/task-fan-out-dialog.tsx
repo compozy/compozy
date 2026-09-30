@@ -118,7 +118,7 @@ export function TaskFanOutDialog({
           </div>
 
           <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">
-            <Button onClick={() => state.handleOpenChange(false)} type="button" variant="outline">
+            <Button onClick={() => state.handleOpenChange(false)} type="button" variant="secondary">
               {state.result ? "Done" : "Cancel"}
             </Button>
             {state.result ? null : (

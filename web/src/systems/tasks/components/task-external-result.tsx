@@ -42,7 +42,7 @@ export function TaskExternalResult({
           <CollapsibleTrigger
             className="group/result-trigger"
             render={
-              <Button size="sm" type="button" variant="outline">
+              <Button size="sm" type="button" variant="secondary">
                 {controller.open ? "Hide result" : "View result"}
                 <ChevronDown
                   aria-hidden="true"
@@ -61,7 +61,7 @@ export function TaskExternalResult({
           ) : controller.errorMessage ? (
             <div className="flex flex-wrap items-center justify-between gap-3" role="alert">
               <p className="text-small-body text-danger">{controller.errorMessage}</p>
-              <Button onClick={controller.onRetry} size="sm" type="button" variant="outline">
+              <Button onClick={controller.onRetry} size="sm" type="button" variant="secondary">
                 Retry
               </Button>
             </div>
@@ -77,7 +77,7 @@ export function TaskExternalResult({
                     onClick={() => void controller.onCopy()}
                     size="sm"
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                   >
                     {controller.copyState === "copying"
                       ? "Copying result"

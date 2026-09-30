@@ -216,7 +216,7 @@ function LoopBindingsAddActions({
       {canAddTrigger ? (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid="loop-add-trigger"
           onClick={onAddTrigger}
@@ -228,7 +228,7 @@ function LoopBindingsAddActions({
       {canAddSchedule ? (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid="loop-add-schedule"
           onClick={onAddSchedule}

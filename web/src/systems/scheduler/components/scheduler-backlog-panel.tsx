@@ -26,7 +26,7 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
             role="status"
           />
         ) : (
-          <Pill data-testid="scheduler-backlog-total" tone={backlog?.total ? "warning" : "neutral"}>
+          <Pill data-testid="scheduler-backlog-total" tone="neutral">
             {backlog?.total ?? 0}
           </Pill>
         )}
@@ -63,7 +63,7 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
                 </div>
               </div>
               {item.task.effective_paused ? (
-                <Pill tone="warning">Paused</Pill>
+                <Pill tone="neutral">Paused</Pill>
               ) : (
                 <Pill tone="neutral">Queued</Pill>
               )}

@@ -47,7 +47,7 @@ describe("TasksInboxView", () => {
     expect(screen.getByTestId("tasks-inbox-unread-toggle")).toBeInTheDocument();
   });
 
-  it("Should render approval items under the Needs review group with a warning solid dot", () => {
+  it("Should render approval items under the Needs review group with the attention glyph", () => {
     const inbox = buildInboxFixture({
       page: { has_more: false, limit: 50, total: 1 },
       unread_total: 1,

@@ -116,7 +116,7 @@ export function TaskFanOutRunResults({
                   onClick={() => onRetry(run.id)}
                   size="sm"
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                 >
                   Retry run
                 </Button>
