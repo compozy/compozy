@@ -23,7 +23,12 @@ import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
-  manager: { getState: vi.fn(), createDesktop: vi.fn(), switchDesktop: vi.fn() },
+  manager: {
+    getState: vi.fn(),
+    createDesktop: vi.fn(),
+    switchDesktop: vi.fn(),
+    deleteDesktop: vi.fn(),
+  },
   coordinator: {
     userActivateWindow: vi.fn(),
     userMinimize: vi.fn(),
@@ -62,7 +67,10 @@ vi.mock("@/systems/session", async importOriginal => ({
     catalogInputs.catalog.filters.push(filters);
     return {
       queryKey: ["launch-catalog", JSON.stringify(filters)],
-      queryFn: async () => ({ sessions: catalogInputs.catalog.sessions, page: { has_more: false } }),
+      queryFn: async () => ({
+        sessions: catalogInputs.catalog.sessions,
+        page: { has_more: false },
+      }),
       initialPageParam: null,
       getNextPageParam: () => undefined,
     };
@@ -801,6 +809,29 @@ describe("OsDock", () => {
     );
     expect(dockShell.manager.switchDesktop).not.toHaveBeenCalled();
     expect(dockShell.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should return to the previous desktop and drop the new one when its open fails", async () => {
+    setDockState(desktopState());
+    const previousDesktopId = dockShell.manager.getState().activeDesktopId;
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(true),
+    });
+    dockShell.coordinator.userOpen.mockResolvedValue(null);
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleLaunch("tasks", "desktop"));
+
+    await waitFor(() =>
+      expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
+        message: "Couldn't open it on a new desktop. Try again.",
+        tone: "error",
+      })
+    );
+    const desktopId = dockShell.manager.createDesktop.mock.calls[0]?.[0];
+    expect(dockShell.manager.switchDesktop.mock.calls).toEqual([[desktopId], [previousDesktopId]]);
+    expect(dockShell.manager.deleteDesktop).toHaveBeenCalledExactlyOnceWith(desktopId, null);
   });
 
   it("Should split on ⌥-click and open a new desktop on ⇧-click, including Sessions", async () => {

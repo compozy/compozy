@@ -2520,6 +2520,40 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByText(/\/tmp\/file-1\.ts/)).not.toBeInTheDocument();
   });
 
+  it("Should announce several calls in flight as one running count", async () => {
+    const transcript = [
+      {
+        id: "assistant-parallel",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-Read",
+            toolCallId: "tool-read-a",
+            state: "input-available",
+            turn_id: "turn-parallel",
+            timestamp: "2026-07-07T12:00:00Z",
+            input: { file_path: "/tmp/a.ts" },
+          },
+          {
+            type: "tool-Read",
+            toolCallId: "tool-read-b",
+            state: "input-available",
+            turn_id: "turn-parallel",
+            timestamp: "2026-07-07T12:00:01Z",
+            input: { file_path: "/tmp/b.ts" },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const row = await screen.findByTestId("live-tool");
+    expect(row).toHaveAttribute("data-parallel", "2");
+    // The count sits inside the disclosure button, so a sibling status speaks it.
+    expect(within(row).getByRole("status")).toHaveTextContent("Running 2 tools…");
+  });
+
   it("Should render an empty-args tool mid-stream as the pending row state (not a bordered box)", async () => {
     const transcript = [
       {
@@ -2545,6 +2579,8 @@ describe("SessionThread transcript states", () => {
     // input" box and never a stacked card.
     const row = await screen.findByTestId("live-tool");
     expect(within(row).getByTestId("live-tool-label")).toHaveTextContent("Reading");
+    // The running state is announced, not only shown by the shimmer.
+    expect(within(row).getByRole("status")).toHaveTextContent("Reading");
     expect(row.querySelector('[data-slot="tool-call-row-status"]')).toBeNull();
     expect(screen.queryByTestId("tool-call-row")).not.toBeInTheDocument();
     expect(screen.queryByText(/preparing input/i)).not.toBeInTheDocument();

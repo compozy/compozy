@@ -54,6 +54,10 @@ vi.mock("@/systems/session/hooks/use-session-actions", async importOriginal => (
   useCreateSession: () => ({ mutateAsync: createSessionAsync }),
 }));
 vi.mock("../../hooks/use-attention-jump", () => ({ useAttentionJump: () => jumpToSession }));
+const shellState = vi.hoisted(() => ({ activeDesktopId: "desktop-origin" as string | null }));
+vi.mock("../../hooks/use-os-shell", () => ({
+  useOsShell: () => ({ manager: { getState: () => shellState } }),
+}));
 vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
 // The composer runtime has no transcript to type into from outside; the test
 // drives it through the same runtime the composer renders.
@@ -124,6 +128,7 @@ describe("OsEmptyDesktop", () => {
     createSessionAsync.mockReset();
     jumpToSession.mockReset();
     notifyUser.mockReset();
+    shellState.activeDesktopId = "desktop-origin";
     runtimes.latest = null;
     for (const slot of ["ws_alpha", "ws_beta"]) {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: `desktop:new-session:${slot}` });
@@ -158,6 +163,8 @@ describe("OsEmptyDesktop", () => {
     expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
     expect(composer().getState().text).toBe("Fix the flaky login test");
 
+    // The operator moves to another desktop while the session is created.
+    shellState.activeDesktopId = "desktop-other";
     await act(async () =>
       resolveCreate?.({ id: "session-desk-1", workspace_id: "ws_alpha", agent_name: "general" })
     );
@@ -165,10 +172,12 @@ describe("OsEmptyDesktop", () => {
     expect(sessionStore.getSnapshot().context.firstPrompts["session-desk-1"]?.text).toBe(
       "Fix the flaky login test"
     );
+    // It still lands on the desktop the prompt was sent from.
     expect(jumpToSession).toHaveBeenCalledWith({
       sessionId: "session-desk-1",
       agentName: "general",
       workspaceId: "ws_alpha",
+      desktopId: "desktop-origin",
     });
     await waitFor(() => expect(composer().getState().text).toBe(""));
     expect(

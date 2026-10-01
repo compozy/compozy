@@ -134,4 +134,29 @@ describe("useAttentionJump", () => {
       });
     });
   });
+
+  it("Should open a new session on the desktop it was started from", async () => {
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({
+        sessionId: "sess-alpha",
+        agentName: "claude",
+        workspaceId: "ws-alpha",
+        desktopId: "desktop-origin",
+      });
+    });
+
+    await waitFor(() => {
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-alpha",
+        route: {
+          pathname: "/agents/claude/sessions/sess-alpha",
+          search: {},
+        },
+        desktopId: "desktop-origin",
+      });
+    });
+  });
 });

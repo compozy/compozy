@@ -46,6 +46,9 @@ function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: b
           still ? "text-subtle" : "session-shimmer"
         )}
         data-testid="live-tool-label"
+        // A polite status: assistive tech hears "Running …" when the call
+        // starts, the cue the shimmer gives sighted readers.
+        role="status"
         title={part.toolTitle ?? label.text}
       >
         {label.text}
@@ -124,6 +127,11 @@ export function SessionLiveToolRowView({
         }
         onToggle={onToggle}
       />
+      {/* The disclosure label lives inside its button, so the running count is
+          announced from a sibling status instead. */}
+      <span className="sr-only" role="status">
+        {parallelToolLabel(row.entries.length)}
+      </span>
       <div
         id={detailsId}
         data-testid="live-tool-entries"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { notifyUser } from "@/lib/user-feedback";
@@ -7,6 +7,7 @@ import { useSessionCreateStore, useSessionPromptFallback } from "@/systems/sessi
 import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
 
 import { useAttentionJump } from "./use-attention-jump";
+import { useOsShell } from "./use-os-shell";
 
 /** Clears a sent prompt from the composer once a session owns it. */
 export type ReleasePrompt = () => void;
@@ -47,6 +48,10 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
   const agents = useAgents(runtimeWorkspaceId ?? "", { enabled: runtimeWorkspaceId !== null });
   const createStore = useSessionCreateStore();
   const jumpToSession = useAttentionJump();
+  const { manager } = useOsShell();
+  // The desktop the prompt was sent from: the session lands there even if the
+  // operator switches desktops while it is being created.
+  const originDesktopRef = useRef<string | null>(null);
   // A pick belongs to the project it was made in; another project starts from its own default.
   const [choice, setChoice] = useState<{ workspaceId: string | null; agentName: string } | null>(
     null
@@ -60,6 +65,7 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
         sessionId: session.id,
         agentName: session.agent_name,
         workspaceId: session.workspace_id,
+        desktopId: originDesktopRef.current ?? undefined,
       }),
     onPickerOpened: () => undefined,
   });
@@ -95,6 +101,7 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
         notifyUser({ message: "Worktrees are not available yet. Try again.", tone: "error" });
         return;
       }
+      originDesktopRef.current = manager.getState().activeDesktopId;
       const outcome = await fallback.run(prompt, {
         agentName: chosen ?? undefined,
         worktreeId: scopedWorktree.worktreeId,

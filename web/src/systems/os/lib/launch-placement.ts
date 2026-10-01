@@ -24,9 +24,10 @@ export function launchPlacementForModifiers(modifiers?: LaunchModifiers): Launch
 
 export interface LaunchPorts {
   manager: {
-    getState(): { focusedId: string | null };
+    getState(): { focusedId: string | null; activeDesktopId: string | null };
     createDesktop(desktopId: string): WindowManagerCommandOutcome;
     switchDesktop(desktopId: string): void;
+    deleteDesktop(desktopId: string, destinationId: string | null): void;
   };
   coordinator: { userOpen(target: OsOpenTarget): Promise<string | null> };
 }
@@ -61,13 +62,26 @@ export async function launchInPlacement(
     case "desktop": {
       // Commands run in order, so the open lands after the switch: the empty
       // desktop gives the window the whole panel and the client its focus.
+      const previousDesktopId = ports.manager.getState().activeDesktopId;
       const desktopId = randomOsDesktopId();
       if (!(await ports.manager.createDesktop(desktopId).completion)) {
         notifyUser({ message: "Couldn't create a new desktop. Try again.", tone: "error" });
         return null;
       }
       ports.manager.switchDesktop(desktopId);
-      return ports.coordinator.userOpen({ ...fresh, desktopId });
+      let windowId: string | null;
+      try {
+        windowId = await ports.coordinator.userOpen({ ...fresh, desktopId });
+      } catch {
+        windowId = null;
+      }
+      if (windowId !== null) return windowId;
+      // The open failed: return the operator to where they were and drop the
+      // desktop it would have filled, so a failed launch leaves nothing behind.
+      if (previousDesktopId !== null) ports.manager.switchDesktop(previousDesktopId);
+      ports.manager.deleteDesktop(desktopId, null);
+      notifyUser({ message: "Couldn't open it on a new desktop. Try again.", tone: "error" });
+      return null;
     }
   }
 }
