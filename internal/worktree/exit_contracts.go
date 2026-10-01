@@ -3,6 +3,7 @@ package worktree
 type ExitAction string
 
 const (
+	ExitActionDeliver    ExitAction = "deliver"
 	ExitActionCommit     ExitAction = "commit"
 	ExitActionCommitPush ExitAction = "commit_push"
 	ExitActionPush       ExitAction = "push"
@@ -21,6 +22,9 @@ type ExitActionPlan struct {
 }
 
 type ExitCommitScope struct {
+	IncludePaths       []string `json:"include_paths,omitempty"`
+	Fingerprint        string   `json:"fingerprint,omitempty"`
+	Complete           bool     `json:"complete,omitempty"`
 	ChangedFiles       int      `json:"changed_files"`
 	Insertions         int      `json:"insertions"`
 	Deletions          int      `json:"deletions"`

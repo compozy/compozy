@@ -134,6 +134,48 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 	})
 }
 
+func TestHTTPStoppedSystemSessionWorkspaceLifecycle(t *testing.T) {
+	t.Run("Should read and remove persisted stopped system sessions in their owning workspace", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		created, err := runtime.manager.Create(t.Context(), session.CreateOpts{
+			AgentName: "coder", Workspace: "ws-workspace", Type: session.SessionTypeSystem,
+		})
+		if err != nil {
+			t.Fatalf("Create(system) error = %v", err)
+		}
+		if err := runtime.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatalf("Stop(system) error = %v", err)
+		}
+		info, err := runtime.manager.Status(t.Context(), created.ID)
+		if err != nil || info.State != session.StateStopped || info.Type != session.SessionTypeSystem {
+			t.Fatalf("Status(system) = %#v, %v", info, err)
+		}
+		path := "/api/workspaces/" + info.WorkspaceID + "/sessions/" + created.ID
+		for _, readPath := range []string{"/api/sessions/" + created.ID, path + "?all_profiles=true"} {
+			resp := mustHTTPRequest(t, runtime.client, http.MethodGet,
+				mustURL(runtime.host, runtime.port, readPath), nil, nil)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s status = %d; body=%s", readPath, resp.StatusCode, readAndCloseHTTPBody(t, resp))
+			}
+			var payload contract.SessionResponse
+			decodeHTTPJSON(t, resp, &payload)
+			if payload.Session.ID != created.ID || payload.Session.State != "stopped" {
+				t.Fatalf("GET %s session = %#v", readPath, payload.Session)
+			}
+		}
+		resp := mustHTTPRequest(t, runtime.client, http.MethodDelete,
+			mustURL(runtime.host, runtime.port, path+"?profile=default"), nil, nil)
+		body := readAndCloseHTTPBody(t, resp)
+		if resp.StatusCode != http.StatusNoContent || len(body) != 0 {
+			t.Fatalf("DELETE system status = %d; body=%s", resp.StatusCode, body)
+		}
+		if _, err := runtime.manager.Status(t.Context(), created.ID); !errors.Is(err, session.ErrSessionNotFound) {
+			t.Fatalf("Status(deleted system) error = %v, want session not found", err)
+		}
+	})
+}
+
 func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 

@@ -201,6 +201,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/resources/:kind/:id",
 			"GET /api/sessions",
 			"GET /api/sessions/attention-summary",
+			"GET /api/sessions/facets",
 			"GET /api/sessions/catalog-stream",
 			"GET /api/sessions/:session_id",
 			"GET /api/sessions/:session_id/owner",

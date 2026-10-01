@@ -37,7 +37,7 @@ Individual task files own task metadata only. They do not own graph topology.
 ### Required Fields
 
 - `status`: Task lifecycle state.
-- `title`: Human-readable task title. It must match the first H1 in the task body.
+- `title`: Human-readable task title. Always serialize it as a double-quoted YAML string; escape embedded double quotes as `\"` and backslashes as `\\`. This preserves colons, hash signs, and YAML indicators as title text. The decoded string must match the first H1 text in the task body, including any `Task N: ` prefix. For example, `title: "Task 1: Log summary: core and CLI"` pairs with `# Task 1: Log summary: core and CLI`.
 - `type`: Work-type slug. Prefer `feature` (the default for shippable slices), `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`, `qa-report`, or `qa-execution`; use an approved lowercase hyphenated project slug when the specification needs a distinct category. Type-based runtime routing lives in ordered `loops.defaults.delivery.runtime_rules[].match.type` entries.
 - `complexity`: Risk rating. Must be one of: `low`, `medium`, `high`, `critical`. Complexity rates implementation risk (regression surface, concurrency, cross-task coordination), not size — a large but well-specified task can be `low`, and a high rating is never a reason to split the task.
 

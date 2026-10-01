@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"encoding/json"
 	"maps"
 	"strings"
 
@@ -46,6 +47,16 @@ func (c *lintContext) lintRunLoopNode(node dsl.Node) {
 	if err := node.Params.Decode(&params); err != nil {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params are invalid: %v", err)
 		return
+	}
+	if raw, exists := params.Inputs[dsl.ReviewedWorktreeInput]; exists && raw != nil {
+		data, err := json.Marshal(raw)
+		if err != nil {
+			c.add(node.ID, refs.CodeUnresolvablePath, "run-loop reviewed_worktree is invalid: %v", err)
+		} else if !strings.Contains(string(data), "{{") {
+			if _, err := dsl.DecodeReviewedWorktree(params.Inputs); err != nil {
+				c.add(node.ID, refs.CodeUnresolvablePath, "run-loop reviewed_worktree is invalid: %v", err)
+			}
+		}
 	}
 	if strings.TrimSpace(params.Loop) == "" {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params.loop is required")

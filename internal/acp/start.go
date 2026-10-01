@@ -83,28 +83,69 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 		return nil, WrapFailure(store.FailureProtocol, "ACP reasoning strategy validation failed", err)
 	}
 
-	stageStartedAt = time.Now()
-	process, err = d.launchAgentProcess(ctx, normalized)
+	attempts := max(1, d.startAttempts)
+	for attempt := range attempts {
+		process, err = d.startSessionAttempt(ctx, normalized)
+		if err == nil {
+			return process, nil
+		}
+		startErr = d.cleanupFailedStart(process, err)
+		if !errors.Is(err, errSessionNewTimeout) || ctx.Err() != nil || attempt+1 == attempts ||
+			!d.failedStartProcessExited(process) {
+			return nil, startErr
+		}
+		d.logger.Warn(
+			"acp: retry session/new on a fresh process",
+			"provider",
+			normalized.ProviderName,
+			"agent",
+			normalized.AgentName,
+			"attempt",
+			attempt+2,
+		)
+	}
+	return nil, startErr
+}
+
+func (d *Driver) failedStartProcessExited(process *AgentProcess) bool {
+	if process == nil {
+		return false
+	}
+	select {
+	case <-process.Done():
+		return process.Wait() == nil && d.verifyStoppedProcess(process) == nil
+	default:
+		return false
+	}
+}
+
+func (d *Driver) startSessionAttempt(ctx context.Context, normalized StartOpts) (*AgentProcess, error) {
+	stageStartedAt := time.Now()
+	process, err := d.launchAgentProcess(ctx, normalized)
 	d.logStartStage(normalized, process, "process_launch", stageOutcome(err, false), stageStartedAt)
 	if err != nil {
-		return nil, WrapFailure(store.FailureStartup, "agent subprocess startup failed", err)
+		return process, WrapFailure(store.FailureStartup, "agent subprocess startup failed", err)
 	}
-
 	stageStartedAt = time.Now()
 	err = d.initializeConnection(ctx, process, normalized.AgentName)
 	d.logStartStage(normalized, process, "initialize", stageOutcome(err, false), stageStartedAt)
 	if err != nil {
-		return nil, d.cleanupFailedStart(process, err)
+		return process, err
 	}
 	stageStartedAt = time.Now()
 	err = activateMCPServers(ctx, normalized)
-	mcpActivationOutcome := stageOutcome(err, normalized.ActivateMCPServers == nil)
-	d.logStartStage(normalized, process, "mcp_activation", mcpActivationOutcome, stageStartedAt)
+	d.logStartStage(
+		normalized,
+		process,
+		"mcp_activation",
+		stageOutcome(err, normalized.ActivateMCPServers == nil),
+		stageStartedAt,
+	)
 	if err != nil {
-		return nil, d.cleanupFailedStart(process, err)
+		return process, err
 	}
 	if err := d.negotiateSession(ctx, process, normalized); err != nil {
-		return nil, d.cleanupFailedStart(process, err)
+		return process, err
 	}
 	return process, nil
 }

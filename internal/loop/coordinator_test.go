@@ -5907,3 +5907,149 @@ func (s *coordinatorRunnerLoopStore) GetLoopConfig(
 ) (*LoopConfig, error) {
 	return nil, ErrConfigNotFound
 }
+
+func TestCoordinatorRunnerRecoveredChild(t *testing.T) {
+	t.Parallel()
+	// Invariant: the settled failure wire releases only its exact recovered parent-linked child
+	// with unchanged inputs and immutable candidate proof, even when diagnostic target is absent.
+	// Owning layer and canonical suite: Loop coordinator awaiting-child reconciliation.
+	for _, tc := range []struct {
+		name      string
+		inputs    map[string]any
+		workspace WorkspaceID
+		parent    RunID
+		status    Status
+		want      string
+		mutate    func(*dsl.Graph, *task.Run, *GenerationOutput)
+	}{
+		{"Should adopt recovered exact child", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputSucceeded, nil},
+		{"Should adopt recovered exact child with an explicit matching failure target", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputSucceeded, func(_ *dsl.Graph, _ *task.Run, output *GenerationOutput) {
+			output.OutputRef = childLoopFailureRef(Run{ID: "child", Status: StatusFailed})
+		}},
+		{"Should reject a contradictory failure target", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, func(_ *dsl.Graph, _ *task.Run, output *GenerationOutput) {
+			output.OutputRef = childLoopFailureRef(Run{ID: "other", Status: StatusFailed})
+		}},
+		{"Should rerun when authoritative candidate verifier detects changes", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, nil},
+		{"Should rerun without the authoritative candidate verifier", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, nil},
+		{"Should rerun an exact child without immutable candidate proof", map[string]any{}, "ws-1", "parent", StatusDone, generationOutputFailed, func(graph *dsl.Graph, _ *task.Run, _ *GenerationOutput) { delete(graph.Nodes[0].Params, "inputs") }},
+		{"Should repeat review for a changed candidate", map[string]any{"candidate": "changed"}, "ws-1", "parent", StatusDone, generationOutputFailed, nil},
+		{"Should reject another workspace", map[string]any{"candidate": "same"}, "ws-other", "parent", StatusDone, generationOutputFailed, nil},
+		{"Should reject another parent", map[string]any{"candidate": "same"}, "ws-1", "other", StatusDone, generationOutputFailed, nil},
+		{"Should preserve a still failed child", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusFailed, generationOutputFailed, nil},
+
+		{"Should preserve a live child", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusRunning, generationOutputFailed, nil},
+		{"Should reject a sibling node receipt", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, func(_ *dsl.Graph, worker *task.Run, _ *GenerationOutput) { worker.TaskID = "sibling" }},
+		{"Should reject a different child receipt", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, func(_ *dsl.Graph, worker *task.Run, _ *GenerationOutput) {
+			worker.SetResult(json.RawMessage(`{"loop_run_id":"other","status":"awaiting_child"}`))
+		}},
+		{"Should preserve a timeout failure", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, func(_ *dsl.Graph, _ *task.Run, output *GenerationOutput) { output.OutputRef = childLoopTimeoutReason }},
+		{"Should repeat review while the candidate producer reruns", map[string]any{"candidate": "same"}, "ws-1", "parent", StatusDone, generationOutputFailed, func(graph *dsl.Graph, _ *task.Run, _ *GenerationOutput) {
+			graph.Nodes = append(graph.Nodes, dsl.Node{ID: "produce", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)})
+			graph.Edges = append(graph.Edges, dsl.Edge{From: "produce", To: "review"})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parent := controlLoopRun("parent", map[string]any{"candidate": "same"})
+			child := Run{
+				ID:              "child",
+				WorkspaceID:     tc.workspace,
+				ParentLoopRunID: tc.parent,
+				LoopName:        "review",
+				Status:          tc.status,
+				Inputs:          tc.inputs,
+			}
+			graph := dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID:    "review",
+						Class: dsl.NodeClassAction,
+						Kind:  string(dsl.ActionRunLoop),
+						Params: dsl.NodeParams{
+							"loop":   "review",
+							"inputs": map[string]any{"candidate": "{{ .inputs.candidate }}"},
+						},
+					},
+				},
+			}
+			proof := `{"worktree_id":"wt-reviewed","include_paths":["reviewed.go"],"fingerprint":"` + strings.Repeat(
+				"a",
+				64,
+			) + `"}`
+			if len(tc.inputs) > 0 {
+				child.Inputs[dsl.ReviewedWorktreeInput] = proof
+				graph.Nodes[0].Params["inputs"].(map[string]any)[dsl.ReviewedWorktreeInput] = proof
+			}
+			coordinator := controlCoordinatorRun(parent, 1)
+			worker := controlWorkerRun(parent, "review", 0, task.TaskRunStatusCompleted)
+			worker.SetResult(json.RawMessage(`{"loop_run_id":"child","status":"awaiting_child"}`))
+
+			output := GenerationOutput{
+				Generation:     1,
+				NodeID:         "review",
+				Status:         generationOutputFailed,
+				ChildLoopRunID: "child",
+				TaskRunID:      worker.ID,
+				OutputRef: `{
+					"kind":"action_failure",
+					"code":"child_loop_status:failed",
+					"cause":"child loop closed with status failed",
+					"recovery":"Inspect the child Loop run before choosing a route or retry."
+				}`,
+			}
+			if tc.mutate != nil {
+				tc.mutate(&graph, &worker, &output)
+			}
+			runner := newCoordinatorRunnerForTestWithGraph(
+				t,
+				parent,
+				coordinator,
+				map[string]task.Run{coordinator.ID: coordinator, worker.ID: worker},
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+				graph,
+			)
+			if tc.name != "Should rerun without the authoritative candidate verifier" {
+				WithCoordinatorWorktreeCandidateVerifier(
+					recoveredCandidateVerifier{
+						matches: tc.name != "Should rerun when authoritative candidate verifier detects changes",
+					},
+				)(
+					runner,
+				)
+			}
+			setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
+			outputs, err := runner.refreshRecoveredChildOutputs(
+				t.Context(),
+				parent,
+				1,
+				graph,
+				newControlTopology(graph),
+				[]GenerationOutput{output},
+			)
+			if err != nil {
+				t.Fatalf("refresh recovered child: %v", err)
+			}
+			if outputs[0].Status != tc.want {
+				t.Fatalf("status = %q, want %q", outputs[0].Status, tc.want)
+			}
+			if tc.want == generationOutputSucceeded && outputs[0].ChildLoopRunID != "child" {
+				t.Fatalf("child = %q", outputs[0].ChildLoopRunID)
+			}
+		})
+	}
+}
+
+type recoveredCandidateVerifier struct{ matches bool }
+
+func (v recoveredCandidateVerifier) VerifyReviewCandidate(
+	_ context.Context,
+	workspaceID, worktreeID string,
+	paths []string,
+	fingerprint string,
+) (bool, error) {
+	return v.matches && workspaceID == "ws-1" && worktreeID == "wt-reviewed" &&
+		slices.Equal(paths, []string{"reviewed.go"}) &&
+		fingerprint == strings.Repeat("a", 64), nil
+}
+
+var _ WorktreeCandidateVerifier = recoveredCandidateVerifier{}

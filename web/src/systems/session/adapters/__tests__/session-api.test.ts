@@ -349,7 +349,7 @@ describe("fetchSession", () => {
 
     expect(result).toEqual(mockSession);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_alpha/sessions/sess-001?include_health=true",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001?include_health=true&all_profiles=true",
     });
   });
 
@@ -367,7 +367,7 @@ describe("fetchSession", () => {
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
     await expectFetchRequest({
-      path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces?include_health=true",
+      path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces?include_health=true&all_profiles=true",
     });
   });
 });

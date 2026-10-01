@@ -27,6 +27,88 @@ import (
 )
 
 func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
+	// Invariant: an exact bound caller can hand off delivery while competing
+	// starts/resumes remain fenced. Owner: session lifecycle; canonical suite.
+	t.Run("Should fence only the bound managed delivery checkout", func(t *testing.T) {
+		h := newHarness(t)
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithWorktreeResolver(
+				&fakeSessionWorktreeResolver{
+					resolve: func(_ context.Context, _ string, ref string) (string, string, error) { return ref, h.workspace, nil },
+				},
+			),
+		)
+		caller, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, caller.ID) })
+		competitor, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, competitor.ID) })
+		if release, err := h.manager.AcquireWorktreeDeliveryFence(
+			testutil.Context(t),
+			h.workspaceID,
+			"wt-delivery",
+			caller.ID,
+		); err == nil {
+			release()
+			t.Fatal("delivery admitted another active bound session")
+		}
+		if err := h.manager.Stop(testutil.Context(t), competitor.ID); err != nil {
+			t.Fatal(err)
+		}
+		release, err := h.manager.AcquireWorktreeDeliveryFence(
+			testutil.Context(t),
+			h.workspaceID,
+			"wt-delivery",
+			caller.ID,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer release()
+		if _, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+		); !errors.Is(
+			err,
+			ErrValidation,
+		) {
+			t.Fatalf("competing start error=%v", err)
+		}
+		unrelated, err := h.manager.Create(
+			testutil.Context(t),
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-other"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, unrelated.ID) })
+		if err := h.manager.Stop(testutil.Context(t), caller.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Resume(testutil.Context(t), caller.ID); !errors.Is(err, ErrValidation) {
+			t.Fatalf("resume under delivery fence=%v", err)
+		}
+		release()
+		resumed, err := h.manager.Resume(testutil.Context(t), caller.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, resumed.ID) })
+	})
+
 	t.Run("Should bind lifecycle operations to the selected worktree", func(t *testing.T) {
 		h := newHarness(t)
 		initializeSessionIntegrationGitRepository(t, h.workspace)

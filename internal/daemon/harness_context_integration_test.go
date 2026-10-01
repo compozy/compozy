@@ -30,6 +30,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
@@ -524,6 +525,121 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 }
 
 func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
+	t.Run(
+		"Should load a managed skill resource while session health writes recover from contention",
+		func(t *testing.T) {
+			// integrationHomePaths sets COMPOZY_HOME for the subprocess fixture.
+			driverPath := acpmock.RequireDriver(t)
+			homePaths := integrationHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			workspace := newHarnessIntegrationWorkspace(
+				t,
+				homePaths,
+				cfg,
+				filepath.Join(homePaths.HomeDir, "workspace"),
+			)
+			workspace.Agents[0].Model = ""
+			workspace.Config.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(acpmock.BuildCommand(
+				driverPath, mockFixturePath(t, "browser_skills_context_fixture.json"),
+				"skills-context-agent", filepath.Join(t.TempDir(), "driver.jsonl")))
+			workspace.Agents[0].Provider = acpmock.ProviderName
+			globalDB := openDaemonTestGlobalDB(t)
+			globalDB.DB().SetMaxOpenConns(2)
+			if err := globalDB.InsertWorkspace(t.Context(), workspace.Workspace); err != nil {
+				t.Fatal(err)
+			}
+			daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+			t.Cleanup(func() {
+				if err := daemonInstance.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			manager := newHarnessIntegrationManager(
+				t,
+				homePaths,
+				deps,
+				workspace,
+				session.NewACPDriverAdapter(
+					acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter)),
+				),
+				session.WithSessionCatalog(globalDB),
+				session.WithSessionHealthStore(globalDB),
+			)
+			t.Cleanup(func() {
+				if err := manager.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			created, err := manager.Create(t.Context(), session.CreateOpts{
+				AgentName: workspace.Agents[0].Name, Workspace: workspace.ID, ProfileID: store.DefaultProfileID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			skills := newLoadedNativeSkillRegistry(t)
+			registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t,
+				&daemonNativeToolsDeps{Skills: skills, Sessions: manager, HomePaths: homePaths,
+					WorkspaceResolver: &harnessIntegrationWorkspaceResolver{resolved: workspace}},
+				toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), nil,
+				toolspkg.WithToolEventSink(&daemonToolEventSink{writer: globalDB}))
+			ctx := t.Context()
+			locked, release := make(chan struct{}), make(chan struct{})
+			writerDone := make(chan error, 1)
+			go func() {
+				writerDone <- store.ExecuteWriteOperation(ctx, globalDB.DB(), "contention reproduction owner", func(ctx context.Context, tx *store.WriteTx) error {
+					close(locked)
+					select {
+					case <-release:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				})
+			}()
+			<-locked
+			healthDone := make(chan error, 1)
+			go func() {
+				err := manager.Supervise(ctx, time.Now().UTC())
+				if err == nil {
+					_, err = manager.TouchSessionPresence(ctx, created.ID)
+				}
+				healthDone <- err
+			}()
+			type skillResponse struct {
+				result toolspkg.ToolResult
+				err    error
+			}
+			skillDone := make(chan skillResponse, 1)
+			go func() {
+				result, err := registry.Call(ctx, toolspkg.Scope{SessionID: created.ID,
+					AgentName: workspace.Agents[0].Name, ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSkillView,
+					Input:  json.RawMessage(`{"name":"compozy","file":"references/terminal.md"}`),
+				})
+				skillDone <- skillResponse{result, err}
+			}()
+			// The fixture owner deliberately outlives one retry interval, then releases
+			// its lock; neither waiting operation should reserve the remaining pool slot.
+			releaseTimer := time.NewTimer(200 * time.Millisecond)
+			select {
+			case <-releaseTimer.C:
+			case <-ctx.Done():
+			}
+			releaseTimer.Stop()
+			close(release)
+			ownerErr, healthErr, response := <-writerDone, <-healthDone, <-skillDone
+			if ownerErr != nil || healthErr != nil || response.err != nil {
+				t.Fatalf("concurrent owner=%v health=%v skill=%v", ownerErr, healthErr, response.err)
+			}
+			if len(response.result.Content) == 0 || response.result.Content[0].Text == "" {
+				t.Fatal("skill resource returned no content")
+			}
+			if _, err := globalDB.GetSessionHealth(ctx, created.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+	)
+
 	t.Run("Should deliver current catalogs once and omit input-only context", func(t *testing.T) {
 		driverPath := acpmock.RequireDriver(t)
 		homePaths := integrationHomePaths(t)

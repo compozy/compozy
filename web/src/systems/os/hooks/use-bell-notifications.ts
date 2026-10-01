@@ -16,9 +16,11 @@ export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
   const queryClient = useQueryClient();
   const query = useQuery({
     ...attentionNotificationsOptions(destination),
-    // The tab title must stay current even when the shell is in the background.
-    refetchInterval: 5_000,
+    // The notification count also owns the tab title while the document is hidden.
+    refetchInterval: query => (query.state.status === "error" ? 30_000 : 5_000),
     refetchIntervalInBackground: true,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const mutation = useMutation({
     mutationFn: ({ snapshot, id, profile }: { snapshot: string; id?: string; profile: string }) =>

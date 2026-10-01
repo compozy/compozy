@@ -9,11 +9,9 @@ import { useAttentionJump } from "../../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
   type SessionPayload,
-  sessionListSortParam,
   useSessionCreateActions,
   useSessionLifecycleActions,
   useSessionListView,
-  useSessions,
   useSessionSidebarState,
   type SessionListViewModel,
 } from "@/systems/session";
@@ -56,26 +54,13 @@ export function useSessionWindowSidebar({
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionLifecycleActions({ workspaceId });
-  const view = useSessionListView();
-  // Scoped to this window: two session windows can hold different worktrees and
-  // must list different sessions.
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
   });
-  const sessionsQuery = useSessions(workspaceId || null, {
+  const view = useSessionListView({
+    workspaceId,
+    worktreeId: worktree.worktreeId,
     enabled: sidebar.open && worktree.resolved && workspaceId !== "",
-    // The narrow breadth lists this workspace's complete catalog, so the rail
-    // and the shell modal never disagree about what exists.
-    loadAll: view.scope === "workspace",
-    filters: {
-      include_health: true,
-      limit: 100,
-      // Ordering is served, not re-sorted client-side: the daemon owns the
-      // attention band and its tie-breaks.
-      sort: sessionListSortParam(view.sort),
-      worktree: worktree.worktreeId,
-      ...(view.archived ? { archive: "only" as const } : {}),
-    },
   });
 
   const reducedMotion = useOsReducedMotion();
@@ -110,9 +95,9 @@ export function useSessionWindowSidebar({
   return {
     open: sidebar.open,
     toggle: sidebar.toggle,
-    sessions: sessionsQuery.data ?? [],
+    sessions: view.catalog?.sessions ?? [],
     disconnected:
-      sidebar.open && worktree.resolved && (sessionsQuery.isError || transportDisconnected),
+      sidebar.open && worktree.resolved && (view.catalog?.failed || transportDisconnected),
     collapsedThreadIds: sidebar.collapsedThreadIds,
     view,
     onToggleThread: sidebar.toggleThread,

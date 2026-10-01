@@ -19,7 +19,11 @@ const (
 	// MaxListLimit is the largest public session catalog page.
 	MaxListLimit = 100
 
+	sessionCatalogSearchTitleAgent = "title_agent"
+
 	ListSortRecent       = "recent"
+	ListSortCreated      = "created"
+	ListSortNavigator    = "navigator"
 	ListSortLastActivity = "last_activity"
 	ListSortAttention    = "attention"
 
@@ -49,6 +53,7 @@ type ListQuery struct {
 	AgentName       string
 	ParentSessionID string
 	RootSessionID   string
+	SearchFields    string
 	Search          string
 	Resumable       bool
 	AttentionOnly   bool
@@ -57,6 +62,7 @@ type ListQuery struct {
 	Sort            string
 	Cursor          string
 	Limit           int
+	SkipTotal       bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -79,6 +85,7 @@ type sessionListFingerprint struct {
 	AgentName       string                     `json:"agent"`
 	ParentSessionID string                     `json:"parent"`
 	RootSessionID   string                     `json:"root"`
+	SearchFields    string                     `json:"search_fields,omitempty"`
 	Search          string                     `json:"q"`
 	Resumable       bool                       `json:"resumable"`
 	AttentionOnly   bool                       `json:"attention"`
@@ -109,8 +116,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if err != nil {
 		return ListPage{}, err
 	}
-	if normalized.AttentionOnly || len(normalized.Badges) > 0 {
-		return m.listAttentionPage(ctx, normalized, pager, fingerprint, after)
+
+	if normalized.Sort == ListSortNavigator && after != nil && after.NavigatorBand == nil {
+		return ListPage{}, fmt.Errorf("%w: navigator cursor band is required", ErrListCursorInvalid)
 	}
 
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
@@ -162,6 +170,7 @@ func sessionCatalogPageQuery(
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
 	return store.SessionCatalogPageQuery{
+		SkipTotal:           normalized.SkipTotal,
 		ReadScope:           normalized.ReadScope,
 		WorkspaceID:         normalized.WorkspaceID,
 		WorktreeID:          normalized.WorktreeID,
@@ -170,7 +179,10 @@ func sessionCatalogPageQuery(
 		AgentName:           normalized.AgentName,
 		ParentSessionID:     normalized.ParentSessionID,
 		RootSessionID:       normalized.RootSessionID,
+		SearchFields:        normalized.SearchFields,
 		Search:              normalized.Search,
+		AttentionOnly:       normalized.AttentionOnly,
+		Badges:              badgeStrings(normalized.Badges),
 		Resumable:           normalized.Resumable,
 		Archive:             normalized.Archive,
 		Sort:                normalized.Sort,
@@ -222,7 +234,16 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.AgentName = strings.TrimSpace(query.AgentName)
 	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
 	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
-	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
+	query.SearchFields = strings.TrimSpace(query.SearchFields)
+	if query.SearchFields != "" && query.SearchFields != sessionCatalogSearchTitleAgent {
+		return ListQuery{}, fmt.Errorf("%w: unsupported search_fields %q", ErrListQueryInvalid, query.SearchFields)
+	}
+	query.Search = strings.TrimSpace(query.Search)
+	if query.SearchFields == sessionCatalogSearchTitleAgent {
+		query.Search = store.LowerSessionCatalogSearchText(query.Search)
+	} else {
+		query.Search = strings.ToLower(query.Search)
+	}
 	badges, err := ParseBadgeFilters(badgeStrings(query.Badges))
 	if err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
@@ -249,7 +270,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrListQueryInvalid, MaxListLimit)
 	}
 	switch query.Sort {
-	case ListSortRecent, ListSortLastActivity, ListSortAttention:
+	case ListSortRecent, ListSortCreated, ListSortNavigator, ListSortLastActivity, ListSortAttention:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}
@@ -278,10 +299,16 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if len(query.Badges) > 0 && !badgeFilterContains(query.Badges, badge) {
 		return false
 	}
-	search := strings.ToLower(strings.TrimSpace(query.Search))
+	search := strings.TrimSpace(query.Search)
 	if search == "" {
 		return true
 	}
+	if query.SearchFields == sessionCatalogSearchTitleAgent {
+		search = store.LowerSessionCatalogSearchText(search)
+		return strings.Contains(store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(info)), search) ||
+			strings.Contains(store.LowerSessionCatalogSearchText(strings.TrimSpace(info.AgentName)), search)
+	}
+	search = strings.ToLower(search)
 	for _, value := range []string{
 		info.ID,
 		info.Name,
@@ -353,6 +380,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		AgentName:       query.AgentName,
 		ParentSessionID: query.ParentSessionID,
 		RootSessionID:   query.RootSessionID,
+		SearchFields:    query.SearchFields,
 		Search:          query.Search,
 		Resumable:       query.Resumable,
 		AttentionOnly:   query.AttentionOnly,

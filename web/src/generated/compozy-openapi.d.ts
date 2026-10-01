@@ -2962,6 +2962,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/facets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Count session catalog facets */
+    get: operations["listSessionFacets"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -49185,6 +49202,8 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Include metadata-only health for returned sessions */
         include_health?: boolean;
+        /** @description Omit the exact catalog count for a bounded cursor read */
+        skip_total?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -49197,8 +49216,10 @@ export interface operations {
         root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
-        /** @description Search session id, name, agent, provider, or channel */
+        /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
         q?: string;
+        /** @description Select visible title/agent search instead of the default catalog fields */
+        search_fields?: "title_agent";
         /** @description Only list sessions eligible for explicit attach */
         resumable?: boolean;
         /** @description Only list sessions in the needs-you attention class */
@@ -49208,7 +49229,7 @@ export interface operations {
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "last_activity" | "attention";
+        sort?: "recent" | "created" | "last_activity" | "attention" | "navigator";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -49235,7 +49256,7 @@ export interface operations {
               has_more: boolean;
               limit: number;
               next_cursor?: string;
-              total: number;
+              total?: number | null;
             };
             sessions: {
               activity?: {
@@ -50398,6 +50419,221 @@ export interface operations {
         };
       };
       /** @description Session catalog stream is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listSessionFacets: {
+    parameters: {
+      query?: {
+        /** @description Workspace id or path */
+        workspace_id?: string;
+        /** @description Use the explicit all-workspaces aggregate */
+        all_workspaces?: boolean;
+        /** @description Filter by bound worktree id */
+        worktree?: string;
+        /** @description Filter by exact agent name */
+        agent?: string;
+        /** @description Filter by exact parent session id */
+        parent?: string;
+        /** @description Filter by exact root session id (includes the root itself) */
+        root?: string;
+        /** @description Only count sessions eligible for explicit attach */
+        resumable?: boolean;
+        /** @description Filter by exact session state */
+        state?: "starting" | "active" | "stopping" | "stopped";
+        /** @description Filter by exact session type */
+        type?: "user" | "system" | "coordinator" | "spawned";
+        /** @description Archived session visibility */
+        archive?: "exclude" | "only" | "include";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Exact scope counts, independent of text query and selected badge */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            by_workspace: {
+              facets: {
+                all: number;
+                finished: number;
+                idle: number;
+                needs_you: number;
+                terminal_approvals: number;
+                working: number;
+              };
+              workspace_id: string;
+            }[];
+            facets: {
+              all: number;
+              finished: number;
+              idle: number;
+              needs_you: number;
+              terminal_approvals: number;
+              working: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid catalog scope or filters */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root is missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session catalog facets are unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -133557,7 +133793,10 @@ export interface operations {
   };
   getWorktreeExitPlan: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Exact worktree-relative reviewed file paths; scoped plans return a complete include set and fingerprint. */
+        include?: string[];
+      };
       header?: never;
       path: {
         /** @description Workspace id or path */
@@ -133598,7 +133837,10 @@ export interface operations {
             };
             commit_scope: {
               changed_files: number;
+              complete?: boolean;
               deletions: number;
+              fingerprint?: string;
+              include_paths?: string[];
               insertions: number;
               untracked_files: string[];
               untracked_total: number;
@@ -133775,7 +134017,11 @@ export interface operations {
           action: string;
           base?: string;
           body?: string;
+          delivery_id?: string;
           draft?: boolean;
+          expected_head?: string;
+          expected_scope?: string;
+          include_paths?: string[];
           message?: string;
           title?: string;
         };

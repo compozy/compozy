@@ -2,7 +2,7 @@ import { shallowEqual } from "@xstate/store";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
-import { pickLastCreatedSession } from "../lib/last-created-session";
+import { notifyUser } from "@/lib/user-feedback";
 import { dockBadgeFor, dockIconForApp, type OsDockEntry } from "../lib/os-dock-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
@@ -96,18 +96,24 @@ export function useDesktopDock(
     const state = manager.getState();
     if (appId === "session") {
       if (!launchCatalog.ready) return;
-      const latest = pickLastCreatedSession(launchCatalog.sessions);
-      if (latest === null) {
-        onNewSession();
-        return;
-      }
-      const workspaceId = latest.workspace_id?.trim() || launchCatalog.workspaceId;
-      if (!workspaceId) return;
-      jumpToSession({
-        sessionId: latest.id,
-        agentName: latest.agent_name,
-        workspaceId,
-      });
+      // A catalog wake may still be coalesced when another client creates a
+      // session. Resolve this explicit action before deciding to create one.
+      void launchCatalog
+        .resolveLatest()
+        .then(latest => {
+          if (latest === null) {
+            onNewSession();
+            return;
+          }
+          const workspaceId = latest.workspace_id?.trim() || launchCatalog.workspaceId;
+          if (!workspaceId) return;
+          jumpToSession({
+            sessionId: latest.id,
+            agentName: latest.agent_name,
+            workspaceId,
+          });
+        })
+        .catch(() => notifyUser({ message: "Couldn't load sessions. Try again.", tone: "error" }));
       return;
     }
     // Repeat activation cycles the app's instances (ADR-002); minimizing the

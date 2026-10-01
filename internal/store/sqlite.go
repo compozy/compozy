@@ -94,6 +94,9 @@ func openSQLiteDatabaseOnce(
 }
 
 func openSQLiteHandle(ctx context.Context, path string, dsn string) (*sql.DB, error) {
+	if err := registerSQLiteUnicodeSearch(); err != nil {
+		return nil, fmt.Errorf("store: register SQLite Unicode search: %w", err)
+	}
 	db, err := sql.Open(sqliteDriverName, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)

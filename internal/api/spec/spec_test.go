@@ -578,7 +578,26 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listSessions := operationFor(t, doc, "/api/sessions", "GET")
 				listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
 				assertRequired(t, listSessionsSchema, "sessions", "page")
-				assertRequired(t, propertySchema(t, listSessionsSchema, "page"), "has_more", "total", "limit")
+				assertRequired(t, propertySchema(t, listSessionsSchema, "page"), "has_more", "limit")
+				assertNotRequired(t, propertySchema(t, listSessionsSchema, "page"), "total")
+				assertParameter(t, listSessions, "skip_total", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "search_fields", openapi3.ParameterInQuery, false)
+				facetsOperation := operationFor(t, doc, "/api/sessions/facets", "GET")
+				assertParameter(t, facetsOperation, "parent", openapi3.ParameterInQuery, false)
+				assertParameter(t, facetsOperation, "root", openapi3.ParameterInQuery, false)
+				assertParameter(t, facetsOperation, "resumable", openapi3.ParameterInQuery, false)
+				facetsResponse := jsonResponseSchema(t, facetsOperation, 200)
+				assertRequired(t, facetsResponse, "facets", "by_workspace")
+				assertRequired(
+					t,
+					propertySchema(t, facetsResponse, "facets"),
+					"all",
+					"needs_you",
+					"working",
+					"finished",
+					"idle",
+					"terminal_approvals",
+				)
 
 				sessionsSchema := propertySchema(t, listSessionsSchema, "sessions")
 				if sessionsSchema.Items == nil || sessionsSchema.Items.Value == nil {

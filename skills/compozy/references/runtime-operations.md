@@ -1025,3 +1025,33 @@ has one System prompt owner. Treat `stale` as possible summarization after a rep
 a replay-compaction marker alone does not establish that. Use session events to inspect receipt
 send times and exact per-turn spans. These receipts cover CompozyOS-owned content, not the agent's
 private context, and a failed transport dispatch produces no receipt.
+
+### Bounded session catalog reads
+
+`GET /api/sessions` preserves exact filtered `page.total` by default. HTTP/UDS consumers that only
+need cursor continuation may use `skip_total=true`; that response omits `page.total`, never substitutes
+a loaded count, and retains `has_more`, `next_cursor`, and `limit`. Attention/badge filtering happens
+before the SQL page cut. Paged reads do not sweep expired attach leases or acquire the writer.
+
+`GET /api/sessions/facets` returns exact `all`, `needs_you`, `working`, `finished`, and `idle`
+population counts plus `by_workspace` counts. `terminal_approvals` counts pending permission
+interactions whose tool ID starts with `compozy__terminal_`, including active sessions exactly once,
+within the same eligible profile/workspace/archive scope. It uses the same profile/workspace/archive scope and
+canonical badge authority as session rows, excluding the selected badge and text search so chips
+remain population counts. Durable counts aggregate metadata; active sessions replace their durable
+rows before merging. Attention summaries reuse that aggregation without hydrating historical rows.
+`sort=created` orders by creation time descending, then ID descending; it selects the latest-created
+session even after older sessions receive activity. `sort=navigator` preserves desktop ordering:
+needs-you, finished, working, then the remaining population; within each band, attention change
+time (or update time) descends and ID ascends. Existing `recent`, `last_activity`, and `attention`
+ordering remain unchanged.
+Desktop lists request count-free bounded pages and expose Load more. A catalog wake resets loaded
+cursor chains to the first page instead of automatically traversing history. Use
+`search_fields=title_agent` with `q` to search the visible title (including `New session` fallback) and
+agent with the same full Unicode lowercase semantics as the desktop (including final sigma and
+dotted capital I); the default public search fields remain unchanged. Exact metadata counts still scale with
+the eligible population; the bounded guarantee applies to rich row hydration and automatic pages.
+
+Desktop catalog wakes coalesce over five seconds, pause while hidden/unfocused, and defer failed
+reads for thirty seconds. Request logs include a validated opaque `client_id` from
+`X-Compozy-Client-ID` so request rates can be grouped by browser instance without inspecting payloads.

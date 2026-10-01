@@ -94,6 +94,11 @@ type AgentSessionMetricsReader interface {
 	) (map[string]session.AgentSessionMetrics, error)
 }
 
+// SessionCatalogFacetManager counts scope metadata without rich history hydration.
+type SessionCatalogFacetManager interface {
+	CatalogFacets(context.Context, session.ListQuery) (store.SessionCatalogFacetResult, error)
+}
+
 // SessionAttachManager owns durable attach CAS and live-session synchronization.
 type SessionAttachManager interface {
 	AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error)

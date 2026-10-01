@@ -13,6 +13,9 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 		CreatedAt:   info.CreatedAt.UTC(),
 		ID:          strings.TrimSpace(info.ID),
 	}
+	if sortKey == ListSortCreated {
+		position.PrimaryAt = info.CreatedAt.UTC()
+	}
 	if sortKey == ListSortLastActivity {
 		position.SecondaryAt = info.UpdatedAt.UTC()
 		if info.Liveness != nil && info.Liveness.LastUpdateAt != nil && !info.Liveness.LastUpdateAt.IsZero() {
@@ -26,6 +29,25 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 			position.PrimaryAt = attention.AttentionChangedAt.UTC()
 		}
 		position.SecondaryAt = info.UpdatedAt.UTC()
+	}
+	if sortKey == ListSortNavigator {
+		band := 3
+		badge := BadgeForInfo(sessionInfoFromCatalog(info))
+		switch ClassForBadge(badge) {
+		case AttentionNeedsYou:
+			band = 0
+		case AttentionFinished:
+			band = 1
+		default:
+			if badge == BadgeRunning {
+				band = 2
+			}
+		}
+		position.NavigatorBand = &band
+		attention := info.AttentionSnapshot()
+		if attention.AttentionChangedAt != nil {
+			position.PrimaryAt = attention.AttentionChangedAt.UTC()
+		}
 	}
 	return position
 }
@@ -42,6 +64,18 @@ func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAt
 }
 
 func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if left.NavigatorBand != nil && right.NavigatorBand != nil {
+		if *left.NavigatorBand != *right.NavigatorBand {
+			return *left.NavigatorBand - *right.NavigatorBand
+		}
+		if !left.PrimaryAt.Equal(right.PrimaryAt) {
+			if left.PrimaryAt.After(right.PrimaryAt) {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(left.ID, right.ID)
+	}
 	if left.AttentionRank != right.AttentionRank {
 		return int(left.AttentionRank - right.AttentionRank)
 	}

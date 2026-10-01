@@ -2,16 +2,24 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -428,4 +436,230 @@ func TestDaemonTerminalExecutionRoot(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Canonical boot-worktree suite owns deferred journal recovery and cancellation with real SQLite/filesystem.
+func TestDaemonManagedDeliveryRecovery(t *testing.T) {
+	t.Parallel()
+	// Invariant: restored inventory survives SQLite contention without duplicate receipts; shutdown joins retry.
+	// Owner: daemon managed-delivery boot lifecycle; existing boot-worktree suite.
+	for _, mode := range []string{"restore", "sqlite-busy", "initial-sqlite-busy", "shutdown", "boot-failure"} {
+		t.Run("Should own deferred inventory recovery through "+mode, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.WithoutCancel(t.Context())); err != nil {
+					t.Errorf("close recovery fixture: %v", err)
+				}
+			})
+			now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+			const workspaceID = "ws-inventory-retry"
+			if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+				ID: workspaceID, Name: "Inventory retry", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			item := worktree.Worktree{ID: "wt-inventory-retry", ProfileID: store.DefaultProfileID,
+				WorkspaceID: workspaceID, Name: "inventory-retry", Path: t.TempDir(), State: worktree.StateReady,
+				Origin: worktree.OriginManual, SetupState: worktree.SetupNone, CreatedAt: now, UpdatedAt: now}
+			if err := db.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			operation := worktree.ExitOperation{ID: "op-inventory-retry", ProfileID: item.ProfileID,
+				WorkspaceID: workspaceID, WorktreeID: item.ID, Action: string(worktree.ExitActionDeliver),
+				State: "running", StartedAt: now}
+			if err := db.Worktrees.InsertExitOperation(ctx, operation); err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			directory := filepath.Join(root, ".delivery")
+			if err := os.WriteFile(directory, []byte("not a directory"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			restoreInventory := func() {
+				if err := os.Remove(directory); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(directory, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				data, err := json.Marshal(struct {
+					Version     int               `json:"version"`
+					OperationID string            `json:"operation_id"`
+					Item        worktree.Worktree `json:"worktree"`
+					Phase       string            `json:"phase"`
+				}{Version: 1, OperationID: operation.ID, Item: item, Phase: "completed"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(directory, "restored.json"), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "initial-sqlite-busy" {
+				restoreInventory()
+			}
+			var events worktree.EventSink = db
+			var busy *managedDeliveryBusyEvents
+			var unlock func()
+			if mode == "sqlite-busy" || mode == "initial-sqlite-busy" {
+				busy, unlock = newManagedDeliveryBusyEvents(t, db)
+				events = busy
+			}
+			service := worktree.NewService(db.Worktrees, nil,
+				worktree.WithConfig(config.WorktreesConfig{}, root), worktree.WithEvents(events))
+			state := &bootState{worktrees: service, logger: slog.Default()}
+			cleanup := &bootCleanup{}
+			if err := new(Daemon).bootManagedDeliveries(ctx, state, cleanup); err != nil {
+				t.Fatalf("transient recovery failure must not abort boot: %v", err)
+			}
+			worker := state.runtimeWorkers.managedDeliveries
+			if worker == nil {
+				t.Fatal("deferred recovery lacks boot/shutdown ownership")
+			}
+			t.Cleanup(func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+				defer cancel()
+				if err := stopManagedDeliveryRecovery(stopCtx, worker); err != nil {
+					t.Errorf("stop recovery fixture: %v", err)
+				}
+			})
+			if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 ||
+				running[0].ID != operation.ID {
+				t.Fatalf("transient recovery altered original receipt: %#v error=%v", running, err)
+			}
+			switch mode {
+			case "shutdown":
+				stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				var errs []error
+				state.runtimeWorkers.shutdown(stopCtx, &errs)
+				if err := errors.Join(errs...); err != nil {
+					t.Fatal(err)
+				}
+			case "boot-failure":
+				bootErr := errors.New("later boot step failed")
+				cleanup.run(ctx, &bootErr)
+			}
+			if mode != "initial-sqlite-busy" {
+				restoreInventory()
+			}
+			if busy != nil {
+				select {
+				case err := <-busy.contended:
+					if contention, ok := errors.AsType[*store.WriteContentionError](
+						err,
+					); !ok || !store.IsSQLiteBusy(err) ||
+						contention.Attempts < 1 {
+						t.Fatalf("expected bounded real receipt SQLite contention: %v", err)
+					}
+				case <-time.After(10 * time.Second):
+					t.Fatal("recovery never attempted the contended receipt")
+				}
+				if running, err := db.Worktrees.ListRunningExitOperations(
+					ctx,
+				); err != nil || len(running) != 1 ||
+					running[0].ID != operation.ID {
+					t.Fatalf("contention changed receipt: %#v error=%v", running, err)
+				}
+				unlock()
+			}
+			if mode != "restore" && mode != "sqlite-busy" && mode != "initial-sqlite-busy" {
+				select {
+				case <-worker.Stop():
+				default:
+					t.Fatal("shutdown returned before retry worker joined")
+				}
+				if running, err := db.Worktrees.ListRunningExitOperations(ctx); err != nil || len(running) != 1 {
+					t.Fatalf("stopped worker recovered after cancellation: %#v error=%v", running, err)
+				}
+				return
+			}
+			waitForConditionWithin(t, "same receipt recovery after restored inventory", 5*time.Second, func() bool {
+				running, err := db.Worktrees.ListRunningExitOperations(ctx)
+				if err != nil {
+					t.Error(err)
+					return false
+				}
+				return len(running) == 0
+			})
+			summaries, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID,
+				WorktreeID: item.ID, Type: worktree.EventExitActionCompleted,
+			})
+			if err != nil || len(summaries) != 1 {
+				t.Fatalf("restored receipt terminal event=%#v error=%v", summaries, err)
+			}
+			var payload worktree.ExitEventPayload
+			if err := json.Unmarshal(summaries[0].Content, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.OperationID != operation.ID || payload.State != "completed" {
+				t.Fatalf("recovery changed receipt identity: %#v", payload)
+			}
+		})
+	}
+}
+
+// The real SQLite lock supplies the persistence-boundary failure without replacing recovery.
+type managedDeliveryBusyEvents struct {
+	*globaldb.GlobalDB
+	contended chan error
+	attempted bool
+}
+
+func (s *managedDeliveryBusyEvents) FinishExitOperationWithEvent(
+	ctx context.Context, workspaceID, worktreeID, operationID, state string,
+	finishedAt time.Time, event worktree.LifecycleEvent,
+) (bool, error) {
+	finished, err := s.GlobalDB.FinishExitOperationWithEvent(
+		ctx, workspaceID, worktreeID, operationID, state, finishedAt, event,
+	)
+	if !s.attempted {
+		s.attempted = true
+		s.contended <- err
+	}
+	return finished, err
+}
+
+func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managedDeliveryBusyEvents, func()) {
+	t.Helper()
+	// Keep the real receipt connection deterministic while bounding only SQLite's per-attempt wait.
+	db.DB().SetMaxOpenConns(1)
+	db.DB().SetMaxIdleConns(1)
+	if _, err := db.DB().ExecContext(t.Context(), "PRAGMA busy_timeout = 1"); err != nil {
+		t.Fatal(err)
+	}
+	locker, err := sql.Open("sqlite", db.Path()+"?_pragma=busy_timeout(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := locker.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	conn, err := locker.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := conn.ExecContext(t.Context(), "BEGIN IMMEDIATE"); err != nil {
+		t.Fatal(err)
+	}
+	unlock := sync.OnceFunc(func() {
+		if _, err := conn.ExecContext(context.WithoutCancel(t.Context()), "ROLLBACK"); err != nil {
+			t.Error(err)
+		}
+	})
+	t.Cleanup(unlock)
+	return &managedDeliveryBusyEvents{GlobalDB: db, contended: make(chan error, 1)}, unlock
 }

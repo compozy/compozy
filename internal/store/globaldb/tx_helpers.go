@@ -56,7 +56,7 @@ func (r *repoBase) withImmediateTransaction(
 	if r == nil || r.db == nil {
 		return errors.New("store: repository is required")
 	}
-	if err := store.ExecuteWrite(ctx, r.db, func(_ context.Context, tx *store.WriteTx) error {
+	if err := store.ExecuteWriteOperation(ctx, r.db, action, func(_ context.Context, tx *store.WriteTx) error {
 		return run(tx)
 	}); err != nil {
 		return fmt.Errorf("store: %s transaction: %w", action, err)

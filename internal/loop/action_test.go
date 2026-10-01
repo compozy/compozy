@@ -1119,6 +1119,10 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 	t.Run("Should start child loop in await and detach modes", func(t *testing.T) {
 		t.Parallel()
 
+		proof := `{"worktree_id":"wt-reviewed","include_paths":["src/change.go"],"fingerprint":"` + strings.Repeat(
+			"a",
+			64,
+		) + `"}`
 		starter := &fakeActionLoopStarter{returnRun: &loop.Run{ID: "child-1"}}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionLoopStarter(starter))
 		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunLoop))
@@ -1130,15 +1134,18 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			Class: dsl.NodeClassAction,
 			Kind:  string(dsl.ActionRunLoop),
 			Params: dsl.NodeParams{
-				"loop":   "qa-child",
-				"inputs": map[string]any{"ticket": "{{ .inputs.ticket }}"},
+				"loop": "qa-child",
+				"inputs": map[string]any{
+					"ticket":                  "{{ .inputs.ticket }}",
+					dsl.ReviewedWorktreeInput: "{{ .inputs.reviewed_worktree }}",
+				},
 			},
 		}
 		raw, err := executor.Execute(context.Background(), awaitNode, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			ToolScope:   tools.Scope{ProfileID: "profile-marketing"},
-			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-1"}},
+			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-1", dsl.ReviewedWorktreeInput: proof}},
 			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
 			RuntimeSelection: &loop.ActionRuntimeSelection{
 				RunRules: []loop.RuntimeRule{{
@@ -1154,6 +1161,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("await raw = %#v, want child awaiting status", raw)
 		}
 		start := starter.mustLastStart(t)
+		if !reflect.DeepEqual(start.inputs.Values[dsl.ReviewedWorktreeInput], proof) {
+			t.Fatalf("original proof lost: %#v", start.inputs.Values)
+		}
 		if start.inputs.ProfileID != "profile-marketing" ||
 			start.inputs.ParentLoopRunID != "parent-1" || start.inputs.Values["ticket"] != "T-1" {
 			t.Fatalf("start inputs = %#v, want parent + rendered inputs", start.inputs)
@@ -1174,7 +1184,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			ToolScope:   tools.Scope{ProfileID: "profile-marketing"},
-			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-2"}},
+			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-2", dsl.ReviewedWorktreeInput: proof}},
 		})
 		if err != nil {
 			t.Fatalf("Execute(detach) error = %v", err)

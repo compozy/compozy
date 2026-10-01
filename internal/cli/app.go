@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/spf13/cobra"
 )
 
@@ -85,16 +86,16 @@ func newAppOpenCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("app open: resolve platform registration: %w", err)
 			}
-			if !installation.Installed {
+			running, err := appRecordRunning(cmd.Context(), homePaths, deps)
+			if err != nil {
+				return err
+			}
+			if !installation.Installed && !running {
 				return newAppCommandError(
 					appNotInstalledCode,
 					"the CompozyOS desktop app is not installed",
 					nil,
 				)
-			}
-			running, err := appRecordRunning(cmd.Context(), homePaths, deps)
-			if err != nil {
-				return err
 			}
 			if running {
 				result, callErr := deps.callAppControl(
@@ -108,7 +109,7 @@ func newAppOpenCommand(deps commandDeps) *cobra.Command {
 				}
 				return writeCommandOutput(cmd, appControlBundle("open", result))
 			}
-			if err := deps.openBrowser(cmd.Context(), schemeURL); err != nil {
+			if err := launchInstalledApp(cmd.Context(), homePaths, installation, schemeURL, deps); err != nil {
 				return newAppCommandError(
 					appLaunchFailedCode,
 					"the CompozyOS desktop app could not be launched",
@@ -235,4 +236,25 @@ func appControlBundle(action string, result any) outputBundle {
 			return renderToonObject("app", []string{authoredContextActionKey}, []string{action}), nil
 		},
 	}
+}
+
+func launchInstalledApp(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	installation appInstallation,
+	uri string,
+	deps commandDeps,
+) error {
+	if installation.Executable == "" {
+		return deps.openBrowser(ctx, uri)
+	}
+	_, err := procutil.SpawnDetachedLoggedProcess(
+		ctx,
+		procutil.DetachedLaunchRequest{
+			Binary:  installation.Executable,
+			Args:    []string{uri},
+			LogPath: filepath.Join(filepath.Join(homePaths.HomeDir, "logs"), "app-launch.log"),
+		},
+	)
+	return err
 }

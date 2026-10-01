@@ -1,0 +1,59 @@
+---
+title: "compozy worktree deliver"
+description: "Submit a reviewed draft delivery from the bound managed session"
+---
+
+## compozy worktree deliver
+
+Submit a reviewed draft delivery from the bound managed session
+
+```
+compozy worktree deliver <ref> [flags]
+```
+
+### Examples
+
+```
+# Output example
+compozy worktree deliver <ref> --delivery-id reviewed-delivery --expected-head <reviewed-sha> --include src/change.go --expected-scope <commit_scope.fingerprint> --message "fix: deliver reviewed changes" --base main --title "Reviewed changes" --body "Review and QA complete"
+```
+
+### Options
+
+```
+      --base string             Pull request base branch
+      --body string             Draft pull request body
+      --delivery-id string      Stable delivery identifier reused for retries
+      --expected-head string    Reviewed branch HEAD
+      --expected-scope string   Fingerprint from the scoped exit plan
+  -h, --help                    help for deliver
+      --include stringArray     Exact reviewed worktree-relative file (repeatable)
+  -m, --message string          Commit message
+      --title string            Draft pull request title
+      --workspace string        Override workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy worktree deliver <ref> --delivery-id reviewed-delivery --expected-head <reviewed-sha> --include src/change.go --expected-scope <commit_scope.fingerprint> --message "fix: deliver reviewed changes" --base main --title "Reviewed changes" --body "Review and QA complete" -o json
+```

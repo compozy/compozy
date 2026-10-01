@@ -32,15 +32,26 @@ type SessionListQuery struct {
 	Cursor        string
 }
 
-// SessionListPage is the shared bounded session catalog response.
-type SessionListPage = contract.SessionCatalogResponse
+// SessionListPage is the counted catalog required by CLI list output.
+type SessionListPage struct {
+	Sessions []SessionRecord                   `json:"sessions"`
+	Page     contract.CountedCursorPagePayload `json:"page"`
+}
 
 func (c *daemonClient) ListSessions(ctx context.Context, query SessionListQuery) (SessionListPage, error) {
-	var response SessionListPage
+	var response contract.SessionCatalogResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/sessions", sessionListValues(query), nil, &response); err != nil {
 		return SessionListPage{}, err
 	}
-	return response, nil
+	if response.Page.Total == nil {
+		return SessionListPage{}, fmt.Errorf("cli: counted session catalog omitted total")
+	}
+	return SessionListPage{Sessions: response.Sessions, Page: contract.CountedCursorPagePayload{
+		NextCursor: response.Page.NextCursor,
+		HasMore:    response.Page.HasMore,
+		Total:      *response.Page.Total,
+		Limit:      response.Page.Limit,
+	}}, nil
 }
 
 func (c *daemonClient) GetSession(ctx context.Context, id string) (SessionRecord, error) {

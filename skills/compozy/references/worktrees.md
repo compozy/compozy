@@ -44,7 +44,20 @@ Run one action from the current plan:
     compozy worktree push <ref> -o json
     compozy worktree pr <ref> --title "Title" --body "Body" --base main --draft -o json
 
-Commit stages the plan's complete named scope with `git add -A`; Git ignore rules remain authoritative.
+The default commit stages the whole worktree with `git add -A`; Git ignore rules remain authoritative.
+The untracked preview can be truncated and is informational, never a reviewed allowlist.
+For selective delivery, read and review an explicit scope first:
+
+    compozy worktree exit <ref> --include src/change.go --include docs/change.md -o json
+    compozy worktree commit <ref> --include src/change.go --include docs/change.md --expected-scope <commit_scope.fingerprint> -m "Reviewed change" --push -o json
+
+A scoped plan returns the complete `commit_scope.include_paths` and fingerprint even when the
+whole-worktree untracked preview exceeds 200 names. The fingerprint binds the branch HEAD, exact
+selected file bytes and modes, and selected staged state. Reuse it only for the reviewed include set.
+The daemon validates it at acceptance and again under the repository lock immediately before staging.
+Exact relative file paths use literal Git pathspecs; directories, traversal, Git metadata and symlink
+paths are refused. Selective commit preserves unrelated staged versions and untracked local task files.
+Accepted and terminal step events record the selected paths. A changed scope requires fresh review.
 An empty message becomes `Update N files`. Push sets `origin/<branch>` as upstream when needed. PR
 creation uses the serving `forge.provider` extension and returns an existing open PR instead of
 duplicating it. Without a serving credentialed provider, the plan can still expose a browser compare
@@ -57,8 +70,11 @@ only the intended running operation with `compozy worktree exit-cancel <ref> --o
 finished id is a no-op and cannot cancel a later action.
 
 HTTP and UDS expose the same exit contract at `GET .../exit`, `POST .../exit/actions`, and
-`POST .../exit/cancel`. Action input is `{action, message?, title?, body?, draft?, base?}` and accepted
-execution returns `{op_id}`.
+`POST .../exit/cancel`. Repeat `include` query parameters on `GET .../exit` for a scoped plan. Action input is
+`{action, message?, title?, body?, draft?, base?, include_paths?, expected_scope?, delivery_id?, expected_head?}`
+and accepted execution returns `{op_id}`. For `action: "deliver"`, `delivery_id`, `expected_head`,
+`message`, `base`, a nonempty `include_paths`, and `expected_scope` are required; the validated
+native session owns caller identity.
 
 ## Cleanup
 
@@ -95,3 +111,25 @@ Branch on the deterministic API/CLI code before free-form text. The worktree voc
 `worktree_safety_check_failed`, `worktree_removal_failed`, `per_run_materialization_failed`,
 `worktree_config_invalid`, `worktree_denied_by_hook`, `worktree_not_pending`, `forge_unavailable`,
 `forge_error`, and `worktree_exit_action_invalid`.
+
+### Managed delivery handoff
+
+A bound managed session first reviews a scoped exit plan, then submits that exact scope:
+
+    compozy worktree exit <ref> --include src/change.go --include docs/change.md -o json
+    compozy worktree deliver <ref> --delivery-id <stable-intent-id> --expected-head <reviewed-sha> --include src/change.go --include docs/change.md --expected-scope <commit_scope.fingerprint> -m <message> --title <title> --body <body> --base <branch>
+
+Both the repeatable `--include` paths and the scoped plan's `--expected-scope` fingerprint are
+required for managed delivery. Whole-worktree `commit` remains a separate action. The local UDS
+validates `COMPOZY_SESSION_ID` and `COMPOZY_AGENT`; a request body cannot select another caller.
+This action always creates or reuses a draft PR through the native forge provider.
+
+The command returns an operation ID after durably admitting the delivery intent. CompozyOS then stops that exact bound caller and completes delivery autonomously. A session admission fence prevents new or resumed sessions on that checkout; another active bound session refuses the handoff. Unrelated sessions remain running. Repository and worktree usage locks serialize the Git effects. Selected delivery preserves unrelated working files and staged entries; the actual commit tree must match the authorized candidate before any push.
+
+Use a stable delivery ID when retrying an identical intent. The daemon retains its journal under the configured worktrees root and reconciles worktree path, branch, base SHA, remote destination, original HEAD, expected commit tree and exact draft PR before repeating effects after restart or an ambiguous provider response. Reusing an ID for another intent is refused. Managed delivery requires a single identical fetch/push destination and publishes one explicit branch refspec. A changed identity or competing session fails explicitly instead of broadening the authorization.
+
+The selected index is checked again before staging. Recovery accepts only the original reviewed
+scope or the recorded proof of the daemon's own authorized staging. A safety refusal is terminal
+and requires a new reviewed intent; it cannot repeatedly stop a resumed caller after restart.
+Unreadable journals remain available for diagnosis while unmatched interrupted operation receipts
+settle as explicit failures without session, Git, or forge effects.

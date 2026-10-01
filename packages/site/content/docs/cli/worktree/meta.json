@@ -6,6 +6,7 @@
         "cancel",
         "commit",
         "create",
+        "deliver",
         "dismiss",
         "exit",
         "exit-cancel",

@@ -12,6 +12,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -141,7 +142,7 @@ func (n *daemonNativeTools) skillView(
 	}
 	skill, err := n.resolveSkillViewTarget(ctx, scope, input)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, skillViewBackendError(ctx, req.ToolID, "skill_catalog_resolve", err)
 	}
 	file := strings.TrimSpace(input.File)
 	var content string
@@ -152,7 +153,7 @@ func (n *daemonNativeTools) skillView(
 	}
 	if err != nil {
 		if file != "" {
-			return toolspkg.ToolResult{}, skillViewResourceError(req.ToolID, file, err)
+			return toolspkg.ToolResult{}, skillViewResourceError(ctx, req.ToolID, file, err)
 		}
 		if errors.Is(err, skillspkg.ErrInvalidDefinition) {
 			return toolspkg.ToolResult{}, skillViewDefinitionError(req.ToolID, err)
@@ -167,7 +168,7 @@ func (n *daemonNativeTools) skillView(
 	if resourceScope.Kind == resourceScopeUserKind || resourceScope.Kind == resourceScopeWorkspaceKind {
 		skillPayload, exposureErr := n.skillViewPayload(ctx, scope, input, skill)
 		if exposureErr != nil {
-			return toolspkg.ToolResult{}, exposureErr
+			return toolspkg.ToolResult{}, skillViewBackendError(ctx, req.ToolID, "skill_exposure_read", exposureErr)
 		}
 		payload["skill"] = skillPayload
 	}
@@ -190,7 +191,7 @@ func (n *daemonNativeTools) skillView(
 	return result, nil
 }
 
-func skillViewResourceError(id toolspkg.ToolID, file string, err error) error {
+func skillViewResourceError(ctx context.Context, id toolspkg.ToolID, file string, err error) error {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		message := fmt.Sprintf("skill resource %q not found", file)
@@ -206,7 +207,7 @@ func skillViewResourceError(id toolspkg.ToolID, file string, err error) error {
 		errors.Is(err, skillspkg.ErrResourcePathOutside):
 		return nativeCommandInvalidInputError(id, fmt.Sprintf("skill resource path %q is invalid", file))
 	default:
-		return fmt.Errorf("daemon: load skill resource %q: %w", file, err)
+		return skillViewBackendError(ctx, id, "skill_resource_load", err)
 	}
 }
 
@@ -373,4 +374,22 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 		)
 	}
 	return candidate.Skill, nil
+}
+
+func skillViewBackendError(ctx context.Context, id toolspkg.ToolID, phase string, err error) error {
+	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok && toolErr != nil {
+		return err
+	}
+	kind := "skill_backend_failure"
+	contention, hasContention := errors.AsType[*store.WriteContentionError](err)
+	if store.IsSQLiteBusy(err) || (hasContention && contention != nil) {
+		kind = "sqlite_contention"
+	}
+	slog.WarnContext(ctx, "skill view backend operation failed", "tool_id", id,
+		"phase", phase, "failure_kind", kind)
+	return toolspkg.NewOperatorToolError(toolspkg.ErrorCodeBackendFailed, id,
+		"Skill backend operation failed.", fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, err),
+		"Failure phase: "+phase+"; category: "+kind+".",
+		"Retry skill_view. If the failure persists, inspect the daemon diagnostics for this phase.",
+		toolspkg.ReasonBackendUnhealthy)
 }

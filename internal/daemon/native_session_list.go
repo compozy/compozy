@@ -94,10 +94,10 @@ func (n *daemonNativeTools) sessionList(
 	}
 	response := contract.SessionCatalogResponse{
 		Sessions: payload,
-		Page: contract.CountedCursorPagePayload{
+		Page: contract.SessionCatalogPagePayload{
 			NextCursor: page.NextCursor,
 			HasMore:    page.HasMore,
-			Total:      page.Total,
+			Total:      &page.Total,
 			Limit:      page.Limit,
 		},
 	}

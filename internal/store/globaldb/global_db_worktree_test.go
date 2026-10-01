@@ -17,6 +17,113 @@ import (
 func TestGlobalDBWorktreeStore(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: expanding exit actions preserves released receipts and admits durable delivery.
+	// Owner: GlobalDB SQLite migration/persistence; canonical worktree store suite.
+	t.Run("Should preserve exit receipts and persist managed delivery across migration reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00125_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const workspaceID = "ws-delivery-migration"
+		const worktreeID = "wt-delivery-migration"
+		const timestamp = "2026-09-29T12:00:00Z"
+		if _, err := prior.ExecContext(ctx, `INSERT INTO workspaces
+			(id, root_dir, add_dirs, name, created_at, updated_at) VALUES (?, ?, '[]', ?, ?, ?)`,
+			workspaceID, t.TempDir(), workspaceID, timestamp, timestamp); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prior.ExecContext(ctx, `INSERT INTO worktrees
+			(id, profile_id, workspace_id, name, path, state, origin, setup_state, created_at, updated_at)
+			VALUES (?, ?, ?, 'delivery-migration', ?, 'ready', 'manual', 'none', ?, ?)`,
+			worktreeID, store.DefaultProfileID, workspaceID, t.TempDir(), timestamp, timestamp); err != nil {
+			t.Fatal(err)
+		}
+		legacyActions := []string{"commit", "commit_push", "push", "open_pr"}
+		for _, action := range legacyActions {
+			if _, err := prior.ExecContext(ctx, `INSERT INTO worktree_exit_ops
+				(op_id, workspace_id, worktree_id, action, state, started_at, finished_at)
+				VALUES (?, ?, ?, ?, 'completed', ?, ?)`,
+				"old-"+action, workspaceID, worktreeID, action, timestamp, timestamp); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if !upgradedClosed {
+				if err := upgraded.Close(testutil.Context(t)); err != nil {
+					t.Errorf("close upgraded database: %v", err)
+				}
+			}
+		})
+		for _, action := range legacyActions {
+			var storedAction, state, started, finished string
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT action, state, started_at, finished_at
+				FROM worktree_exit_ops WHERE op_id = ? AND workspace_id = ? AND worktree_id = ?`,
+				"old-"+action, workspaceID, worktreeID).Scan(&storedAction, &state, &started, &finished); err != nil {
+				t.Fatal(err)
+			}
+			if storedAction != action || state != "completed" || started != timestamp || finished != timestamp {
+				t.Fatalf("legacy receipt changed: %s %s %s %s", storedAction, state, started, finished)
+			}
+		}
+		now := time.Date(2026, 9, 29, 12, 1, 0, 0, time.UTC)
+		operation := worktreepkg.ExitOperation{ID: "managed-delivery", WorkspaceID: workspaceID,
+			WorktreeID: worktreeID, Action: string(worktreepkg.ExitActionDeliver), State: "running", StartedAt: now}
+		if err := upgraded.Worktrees.InsertExitOperation(ctx, operation); err != nil {
+			t.Fatal(err)
+		}
+		conflict := operation
+		conflict.ID = "competing-exit"
+		conflict.Action = "push"
+		if err := upgraded.Worktrees.InsertExitOperation(
+			ctx,
+			conflict,
+		); !errors.Is(
+			err,
+			worktreepkg.ErrOperationInProgress,
+		) {
+			t.Fatalf("active exit uniqueness lost: %v", err)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		upgradedClosed = true
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("close reopened database: %v", err)
+			}
+		})
+		running, err := reopened.Worktrees.ListRunningExitOperations(ctx)
+		if err != nil || len(running) != 1 || running[0].ID != operation.ID ||
+			running[0].Action != string(worktreepkg.ExitActionDeliver) || running[0].WorkspaceID != workspaceID ||
+			running[0].WorktreeID != worktreeID || !running[0].StartedAt.Equal(now) {
+			t.Fatalf("reopened delivery receipt=%#v error=%v", running, err)
+		}
+		if finished, err := reopened.Worktrees.FinishExitOperation(ctx, workspaceID, worktreeID,
+			operation.ID, "completed", now.Add(time.Second)); err != nil || !finished {
+			t.Fatalf("finish migrated delivery=%t error=%v", finished, err)
+		}
+	})
+
 	t.Run("Should keep worktrees visible across profiles with immutable owner tags", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

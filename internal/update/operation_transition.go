@@ -175,6 +175,10 @@ func (s *OperationStore) Fence(
 		if err != nil {
 			return err
 		}
+		operation, err = s.reconcileUnlocked(ctx, operation)
+		if err != nil {
+			return err
+		}
 		if operation == nil || operation.ID != operationID {
 			return ErrOperationNotFound
 		}
@@ -230,7 +234,7 @@ func cancelAllowedForPhase(operation *Operation) bool {
 		)
 	case TargetApp:
 		return operation.App != nil && slices.Contains(
-			[]OperationPhase{PhasePending, PhaseStaged},
+			[]OperationPhase{PhasePending, PhaseStaged, PhaseApplying},
 			operation.App.Phase,
 		)
 	case "":

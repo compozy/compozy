@@ -1,7 +1,8 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
-import { getSessionDisplayTitle, useSessions, useWorkspaceSessionGroups } from "@/systems/session";
+import { useDebouncedValue } from "@/hooks/use-debounced-input";
+import { getSessionDisplayTitle, useSessionCatalog, type SessionPayload } from "@/systems/session";
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   sortWorktreeNestEntries,
@@ -15,13 +16,14 @@ import {
 
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import { isNeedsYouSession } from "../lib/attention-model";
-import type { OsAppId, OsWindowRoute } from "../lib/os-types";
+import type { OsAppId, OsWindowRoute, OsDesktopRuntimeStore } from "../lib/os-types";
 import {
   pruneWindowSlotStores,
   subscribeWindowSlotRegistry,
   windowSlotRegistryVersion,
   windowSlotSnapshot,
 } from "../lib/window-slot-registry";
+import { composePaletteSessionPage } from "../lib/palette-session-filters";
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
@@ -40,6 +42,7 @@ export interface OsPaletteTabResult {
 
 export interface OsPaletteSessionResult {
   sessionId: string;
+  busy?: boolean;
   title: string;
   agentName: string;
   workspaceId: string;
@@ -147,13 +150,10 @@ export function useOsPaletteEntities({
   signals,
   workspaces,
 }: UseOsPaletteEntitiesOptions): OsPaletteEntities {
-  const normalizedLength = query.trim().normalize("NFKD").length;
+  const remoteQuery = useDebouncedValue(query.trim());
+  const searchPending = remoteQuery !== query.trim();
   const profile = useProfileReadScope();
-  const queryEnabled =
-    destination ||
-    (signals !== null &&
-      normalizedLength >= signals.weights.min_entity_query_length &&
-      normalizedLength <= signals.weights.max_query_length);
+  const queryEnabled = paletteEntityQueryEnabled(destination, query, signals);
   const worktreeScopeId = useFocusedWorktreeScopeId();
   const worktreesQuery = useWorktrees(activeWorkspaceId, {
     enabled: open && queryEnabled && scope === "workspace" && activeWorkspaceId !== null,
@@ -166,103 +166,32 @@ export function useOsPaletteEntities({
   const worktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
     enabled: open && scope === "workspace",
   });
-  const sessions = useSessions(runtimeWorkspaceId, {
-    enabled: open && queryEnabled && runtimeWorkspaceId !== null && worktreeFilter.resolved,
-    filters: scope === "workspace" ? { worktree: worktreeFilter.worktreeId } : undefined,
-  });
-  const workspaceSessionGroups = useWorkspaceSessionGroups({
+  const sessions = useSessionCatalog(
+    scope === "global" ? null : runtimeWorkspaceId,
+    {
+      limit: 100,
+      q: remoteQuery,
+      search_fields: "title_agent",
+      ...(scope === "workspace" ? { worktree: worktreeFilter.worktreeId } : {}),
+    },
+    open &&
+      paletteEntityQueryEnabled(destination, remoteQuery, signals) &&
+      (scope === "global" || runtimeWorkspaceId !== null) &&
+      worktreeFilter.resolved
+  );
+  const sessionRows = projectPaletteSessions(sessions.sessions, profile, {
+    runtimeWorkspaceId,
+    scope,
     workspaces,
-    sort: "last_activity",
-    archived: false,
-    enabled: open && queryEnabled && scope === "global",
   });
-  const desktopData = useDesktop(
-    state => ({ desktops: state.desktops, windows: state.windows }),
-    shallowEqual
+  const tabs = usePaletteTabs(open, destinationWindowId, sessions.sessions);
+
+  const worktrees = projectPaletteWorktrees(
+    scope,
+    workspaces,
+    worktreeListings,
+    worktreesQuery.data
   );
-  useSyncExternalStore(
-    subscribeWindowSlotRegistry,
-    windowSlotRegistryVersion,
-    windowSlotRegistryVersion
-  );
-  const liveWindowIds = Object.keys(desktopData.windows).join("\0");
-  useEffect(() => {
-    if (open) pruneWindowSlotStores(new Set(liveWindowIds.split("\0")));
-  }, [open, liveWindowIds]);
-
-  const scopedSessions =
-    scope === "global"
-      ? workspaceSessionGroups.flatMap(group =>
-          group.sessions.map(session => ({ session, workspaceId: group.workspaceId }))
-        )
-      : (sessions.data ?? []).map(session => ({
-          session,
-          workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
-        }));
-  const sessionRows: OsPaletteSessionResult[] = [];
-  const workspaceNameById = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
-  for (const { session, workspaceId } of scopedSessions) {
-    const agentName = session.agent_name?.trim() ?? "";
-    if (agentName === "") continue;
-    sessionRows.push({
-      sessionId: session.id,
-      title: getSessionDisplayTitle(session),
-      agentName,
-      workspaceId,
-      workspaceLabel:
-        scope === "global" ? (workspaceNameById.get(workspaceId) ?? workspaceId) : undefined,
-      owner: profile.aggregate ? profile.ownerOf(session) : undefined,
-      route: {
-        pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}`,
-        search: {},
-      },
-    });
-  }
-
-  const tabs: OsPaletteTabResult[] = [];
-  if (open) {
-    const desktopNames = new Map(desktopData.desktops.map(desktop => [desktop.id, desktop.name]));
-    const sessionsById = new Map(scopedSessions.map(({ session }) => [session.id, session]));
-    for (const win of Object.values(desktopData.windows)) {
-      if (win.app === "new-tab" && win.id === destinationWindowId) continue;
-      const session = win.instanceKey !== null ? sessionsById.get(win.instanceKey) : undefined;
-      const slot = windowSlotSnapshot(win.id);
-      const label =
-        win.app === "session" && session
-          ? getSessionDisplayTitle(session)
-          : typeof slot?.crumb === "string"
-            ? slot.crumb
-            : getOsAppDescriptor(win.app).title;
-      tabs.push({
-        windowId: win.id,
-        app: win.app,
-        label,
-        desktopName: desktopNames.get(win.desktopId) ?? "",
-        needsInput: session !== undefined && isNeedsYouSession(session),
-        minimized: win.minimized,
-      });
-    }
-    tabs.sort((left, right) => left.label.localeCompare(right.label));
-  }
-
-  const worktrees: OsPaletteWorktreeResult[] = [];
-  if (scope === "global") {
-    for (const workspace of workspaces) {
-      const entries = sortWorktreeNestEntries(
-        toWorktreeNestEntries(worktreeListings[workspace.id])
-      );
-      for (const entry of entries) {
-        if (entry.kind !== "worktree" || entry.displayState !== "ready") continue;
-        worktrees.push({ ...entry, workspaceId: workspace.id, workspaceLabel: workspace.name });
-      }
-    }
-  } else {
-    worktrees.push(
-      ...sortWorktreeNestEntries(toWorktreeNestEntries(worktreesQuery.data)).filter(
-        entry => entry.kind === "worktree" && entry.displayState === "ready"
-      )
-    );
-  }
   const rankedSessions = rankEntityRows(
     sessionRows,
     row => ({
@@ -271,7 +200,7 @@ export function useOsPaletteEntities({
       keywords: [row.agentName, ...(row.owner === undefined ? [] : [row.owner.name])],
     }),
     "Sessions",
-    query,
+    remoteQuery,
     signals,
     destination
   );
@@ -292,8 +221,7 @@ export function useOsPaletteEntities({
     false
   );
   return {
-    sessions: rankedSessions.rows,
-    sessionTotal: rankedSessions.total,
+    ...composePaletteSessionPage(sessionRows, rankedSessions, searchPending, sessions.paging),
     tabs: rankedTabs.rows,
     tabTotal: rankedTabs.total,
     worktrees: rankedWorktrees.rows,
@@ -306,4 +234,142 @@ export function useOsPaletteEntities({
         entry,
       }),
   };
+}
+
+function paletteEntityQueryEnabled(
+  destination: boolean,
+  query: string,
+  signals: CmdPaletteRankSignals | null
+): boolean {
+  const normalizedLength = query.trim().normalize("NFKD").length;
+  return (
+    destination ||
+    (signals !== null &&
+      normalizedLength >= signals.weights.min_entity_query_length &&
+      normalizedLength <= signals.weights.max_query_length)
+  );
+}
+
+function projectPaletteSessions(
+  sessions: readonly SessionPayload[],
+  profile: ReturnType<typeof useProfileReadScope>,
+  {
+    runtimeWorkspaceId,
+    scope,
+    workspaces,
+  }: Pick<UseOsPaletteEntitiesOptions, "runtimeWorkspaceId" | "scope" | "workspaces">
+): OsPaletteSessionResult[] {
+  const scopedSessions = sessions.map(session => ({
+    session,
+    workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
+  }));
+  const sessionRows: OsPaletteSessionResult[] = [];
+  const workspaceNameById = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  for (const { session, workspaceId } of scopedSessions) {
+    const agentName = session.agent_name?.trim() ?? "";
+    if (agentName === "") continue;
+    sessionRows.push({
+      sessionId: session.id,
+      title: getSessionDisplayTitle(session),
+      agentName,
+      workspaceId,
+      workspaceLabel:
+        scope === "global" ? (workspaceNameById.get(workspaceId) ?? workspaceId) : undefined,
+      owner: profile.aggregate ? profile.ownerOf(session) : undefined,
+      route: {
+        pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}`,
+        search: {},
+      },
+    });
+  }
+
+  return sessionRows;
+}
+
+function usePaletteTabs(
+  open: boolean,
+  destinationWindowId: string | null,
+  sessions: readonly SessionPayload[]
+) {
+  const desktopData = useDesktop(
+    state => ({ desktops: state.desktops, windows: state.windows }),
+    shallowEqual
+  );
+  useSyncExternalStore(
+    subscribeWindowSlotRegistry,
+    windowSlotRegistryVersion,
+    windowSlotRegistryVersion
+  );
+  const liveWindowIds = Object.keys(desktopData.windows).join("\0");
+  useEffect(() => {
+    if (open) pruneWindowSlotStores(new Set(liveWindowIds.split("\0")));
+  }, [open, liveWindowIds]);
+
+  const slots = open
+    ? new Map(Object.values(desktopData.windows).map(win => [win.id, windowSlotSnapshot(win.id)]))
+    : new Map<string, ReturnType<typeof windowSlotSnapshot>>();
+  return projectPaletteTabs(open, destinationWindowId, sessions, desktopData, slots);
+}
+
+function projectPaletteTabs(
+  open: boolean,
+  destinationWindowId: string | null,
+  sessions: readonly SessionPayload[],
+  desktopData: Pick<OsDesktopRuntimeStore, "desktops" | "windows">,
+  slots: ReadonlyMap<string, ReturnType<typeof windowSlotSnapshot>>
+): OsPaletteTabResult[] {
+  const tabs: OsPaletteTabResult[] = [];
+  if (open) {
+    const desktopNames = new Map(desktopData.desktops.map(desktop => [desktop.id, desktop.name]));
+    const sessionsById = new Map(sessions.map(session => [session.id, session]));
+    for (const win of Object.values(desktopData.windows)) {
+      if (win.app === "new-tab" && win.id === destinationWindowId) continue;
+      const session = win.instanceKey !== null ? sessionsById.get(win.instanceKey) : undefined;
+      const slot = slots.get(win.id);
+      const label =
+        win.app === "session" && session
+          ? getSessionDisplayTitle(session)
+          : typeof slot?.crumb === "string"
+            ? slot.crumb
+            : getOsAppDescriptor(win.app).title;
+      tabs.push({
+        windowId: win.id,
+        app: win.app,
+        label,
+        desktopName: desktopNames.get(win.desktopId) ?? "",
+        needsInput: session !== undefined && isNeedsYouSession(session),
+        minimized: win.minimized,
+      });
+    }
+    tabs.sort((left, right) => left.label.localeCompare(right.label));
+  }
+
+  return tabs;
+}
+
+function projectPaletteWorktrees(
+  scope: WorkspaceScopeMode,
+  workspaces: UseOsPaletteEntitiesOptions["workspaces"],
+  worktreeListings: ReturnType<typeof useWorktreeListings>,
+  workspaceWorktrees: ReturnType<typeof useWorktrees>["data"]
+): OsPaletteWorktreeResult[] {
+  const worktrees: OsPaletteWorktreeResult[] = [];
+  if (scope === "global") {
+    for (const workspace of workspaces) {
+      const entries = sortWorktreeNestEntries(
+        toWorktreeNestEntries(worktreeListings[workspace.id])
+      );
+      for (const entry of entries) {
+        if (entry.kind !== "worktree" || entry.displayState !== "ready") continue;
+        worktrees.push({ ...entry, workspaceId: workspace.id, workspaceLabel: workspace.name });
+      }
+    }
+  } else {
+    worktrees.push(
+      ...sortWorktreeNestEntries(toWorktreeNestEntries(workspaceWorktrees)).filter(
+        entry => entry.kind === "worktree" && entry.displayState === "ready"
+      )
+    );
+  }
+  return worktrees;
 }

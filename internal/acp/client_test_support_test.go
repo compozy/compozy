@@ -495,7 +495,14 @@ func (a *helperACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
-func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
+func (a *helperACPAgent) Initialize(
+	ctx context.Context,
+	_ acpsdk.InitializeRequest,
+) (acpsdk.InitializeResponse, error) {
+	if a.scenario == "stall_initialize" {
+		<-ctx.Done()
+		return acpsdk.InitializeResponse{}, ctx.Err()
+	}
 	var meta map[string]any
 	if strings.HasPrefix(a.scenario, "steering_") {
 		meta = map[string]any{"steering": map[string]any{"supported": true}}
@@ -514,7 +521,7 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
 				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" ||
-				a.scenario == "fork_session",
+				a.scenario == "fork_session" || a.scenario == "stall_load",
 			SessionCapabilities: sessionCaps,
 			PromptCapabilities: acpsdk.PromptCapabilities{
 				Image: a.scenario == "prompt_capabilities_image" ||
@@ -594,8 +601,15 @@ func (a *helperACPAgent) ResumeSession(
 }
 
 // NewSession advertises the scenario capabilities without contacting a live provider.
-func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
-	if a.scenario == "mode_mapping" {
+func (a *helperACPAgent) NewSession(
+	ctx context.Context,
+	_ acpsdk.NewSessionRequest,
+) (acpsdk.NewSessionResponse, error) {
+	if a.scenario == "stall_new" {
+		<-ctx.Done()
+		return acpsdk.NewSessionResponse{}, ctx.Err()
+	}
+	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
@@ -616,7 +630,7 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 			ConfigOptions: configOptions,
 		}, nil
 	}
-	if a.scenario == "config_options" ||
+	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
 		a.scenario == "config_options_reject_speed" ||
@@ -671,7 +685,14 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 	}, nil
 }
 
-func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+func (a *helperACPAgent) LoadSession(
+	ctx context.Context,
+	_ acpsdk.LoadSessionRequest,
+) (acpsdk.LoadSessionResponse, error) {
+	if a.scenario == "stall_load" {
+		<-ctx.Done()
+		return acpsdk.LoadSessionResponse{}, ctx.Err()
+	}
 	if a.scenario == "load_session_error" {
 		return acpsdk.LoadSessionResponse{}, errors.New("load failed")
 	}
@@ -958,17 +979,25 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 }
 
 func (a *helperACPAgent) SetSessionMode(
-	context.Context,
-	acpsdk.SetSessionModeRequest,
+	ctx context.Context,
+	_ acpsdk.SetSessionModeRequest,
 ) (acpsdk.SetSessionModeResponse, error) {
+	if a.scenario == "stall_mode" {
+		<-ctx.Done()
+		return acpsdk.SetSessionModeResponse{}, ctx.Err()
+	}
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
 // SetSessionConfigOption emulates provider-specific negotiation and model-dependent option changes.
 func (a *helperACPAgent) SetSessionConfigOption(
-	_ context.Context,
+	ctx context.Context,
 	request acpsdk.SetSessionConfigOptionRequest,
 ) (acpsdk.SetSessionConfigOptionResponse, error) {
+	if a.scenario == "stall_config" {
+		<-ctx.Done()
+		return acpsdk.SetSessionConfigOptionResponse{}, ctx.Err()
+	}
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
 	if a.scenario == "config_options_unconfirmed" {

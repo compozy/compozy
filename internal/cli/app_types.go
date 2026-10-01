@@ -75,8 +75,9 @@ type appStateRecord struct {
 const appVersionKey = "app_version"
 
 type appInstallation struct {
-	Installed bool
-	Version   string
+	Installed  bool
+	Version    string
+	Executable string
 }
 
 var (
@@ -138,9 +139,16 @@ func resolveAppStatus(
 			report.Update.RuntimeState = appIdleState
 		}
 	}
-	report.Running, err = appControlRunning(ctx, homePaths, deps)
+	var liveVersion string
+	report.Running, liveVersion, err = appControlPresence(ctx, homePaths, deps)
 	if err != nil {
 		return AppStatusReport{}, err
+	}
+	if report.Running {
+		report.Installed = true
+		if liveVersion != "" {
+			report.AppVersion = liveVersion
+		}
 	}
 	if !report.Running {
 		report.PID = 0

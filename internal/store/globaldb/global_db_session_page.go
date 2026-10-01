@@ -14,6 +14,8 @@ const (
 	sessionCatalogSessionTypeColumn = "session_type"
 	sessionCatalogSpawnRoleColumn   = "spawn_role"
 	sessionCatalogSortRecent        = "recent"
+	sessionCatalogSortCreated       = "created"
+	sessionCatalogSortNavigator     = "navigator"
 	sessionCatalogSortAttention     = "attention"
 )
 
@@ -48,9 +50,6 @@ func (g *SessionRepo) PageSessions(
 		return store.SessionCatalogPage{}, err
 	}
 	now := g.now()
-	if _, err := g.SweepExpiredSessionAttachLocks(ctx, now); err != nil {
-		return store.SessionCatalogPage{}, err
-	}
 
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(now))
 	if err != nil {
@@ -64,14 +63,25 @@ func (g *SessionRepo) PageSessions(
 		joinCleanupError(&err, rollbackTx(tx, "session catalog page"))
 	}()
 
-	countQuery := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
-	// dynamic-sql: page filters and exclusion slices alter the count query structure.
-	if err := tx.QueryRowContext(ctx, countQuery, args...).Scan(&page.Total); err != nil {
-		return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
+	if !query.SkipTotal {
+		countQuery := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
+		// dynamic-sql: page filters and exclusion slices alter the count query structure.
+		if err := tx.QueryRowContext(ctx, countQuery, args...).Scan(&page.Total); err != nil {
+			return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
+		}
 	}
 	page.Sessions, err = querySessionCatalogRows(ctx, tx, query, where, args)
 	if err != nil {
 		return store.SessionCatalogPage{}, err
+	}
+	// Reading a page must not acquire the writer or sweep unrelated history.
+	// Expired leases are absent in the read projection; attach mutations still
+	// own durable lease reclamation.
+	for index := range page.Sessions {
+		info := &page.Sessions[index]
+		if expiry := info.AttachExpiresAtValue(); expiry != nil && !expiry.After(now) {
+			info.SetAttach("", nil)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return store.SessionCatalogPage{}, fmt.Errorf("store: commit session catalog page transaction: %w", err)
@@ -142,13 +152,37 @@ func sessionCatalogPageFilters(
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
-		where = append(where, `(instr(lower(id), ?) > 0 OR
+		if query.SearchFields == "title_agent" {
+			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
+			where = append(
+				where,
+				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
+					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
+			)
+			args = append(args, search, search)
+		} else {
+			where = append(where, `(instr(lower(id), ?) > 0 OR
 			instr(lower(COALESCE(name, '')), ?) > 0 OR
 			instr(lower(agent_name), ?) > 0 OR
 			instr(lower(provider), ?) > 0)`)
-		for range 4 {
-			args = append(args, search)
+			for range 4 {
+				args = append(args, search)
+			}
 		}
+	}
+	if query.AttentionOnly {
+		where = append(
+			where,
+			sessionCatalogBadgeExpression+" IN ('needs-attention', 'waiting-for-auth', 'waiting-for-input', 'failed')",
+		)
+	}
+	if len(query.Badges) > 0 {
+		placeholders := make([]string, len(query.Badges))
+		for index, badge := range query.Badges {
+			placeholders[index] = "?"
+			args = append(args, badge)
+		}
+		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
 	if query.Resumable {
 		where = append(where, sessionListResumableWhere)
@@ -249,6 +283,10 @@ func sessionCatalogExclusionExpression(column string) (string, bool, error) {
 
 func sessionCatalogOrderClause(sortKey string) (string, error) {
 	switch strings.TrimSpace(sortKey) {
+	case sessionCatalogSortNavigator:
+		return sessionCatalogNavigatorOrderClause, nil
+	case sessionCatalogSortCreated:
+		return heartbeatOrderByCreatedDesc, nil
 	case sessionCatalogSortRecent:
 		return " ORDER BY updated_at DESC, created_at DESC, id DESC", nil
 	case sessionListSortActivity:
@@ -267,6 +305,16 @@ func sessionCatalogCursorClause(
 	primary := store.FormatTimestamp(position.PrimaryAt)
 	secondary := store.FormatTimestamp(position.SecondaryAt)
 	created := store.FormatTimestamp(position.CreatedAt)
+	if strings.TrimSpace(sortKey) == sessionCatalogSortNavigator {
+		return sessionCatalogNavigatorCursorClause(position, primary)
+	}
+	if strings.TrimSpace(sortKey) == sessionCatalogSortCreated {
+		return `(created_at < ? OR (created_at = ? AND id < ?))`, []any{
+			created,
+			created,
+			strings.TrimSpace(position.ID),
+		}
+	}
 	if strings.TrimSpace(sortKey) == sessionListSortActivity {
 		clause := `(COALESCE(last_update_at, updated_at) < ? OR
 			(COALESCE(last_update_at, updated_at) = ? AND updated_at < ?) OR

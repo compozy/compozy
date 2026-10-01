@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
@@ -935,6 +936,153 @@ func TestCoordinatorParkedDependencyShouldSurfaceNeedsAttention(t *testing.T) {
 		if !parked || !updated.Yield || !updated.GenerationInFlight || updated.Terminal != nil ||
 			len(updated.NodeRuns) != 0 {
 			t.Fatalf("all-paused plan = %#v, want live paused-dominant yield without work", updated)
+		}
+	})
+}
+
+func TestCoordinatorInvalidInputFailure(t *testing.T) {
+	t.Parallel()
+	// Invariant: invalid authored tool input requires correction; explicit error routes still run.
+	// Owning layer and canonical suite: Loop coordinator node lifecycle and generation succession.
+	for _, tc := range []struct {
+		name     string
+		policy   *dsl.ErrorPolicy
+		terminal bool
+	}{
+		{"Should fail invalid input under the default retry policy", nil, true},
+		{"Should preserve an authored correction route", &dsl.ErrorPolicy{Route: "next"}, false},
+		{"Should preserve an explicit allow-fail policy", &dsl.ErrorPolicy{AllowFail: true}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			now := time.Date(2026, time.September, 29, 12, 0, 0, 0, time.UTC)
+			parent := controlLoopRun("looprun-invalid-input", nil)
+			coordinator := controlCoordinatorRun(parent, 1)
+			worker := lifecycleWorkerRun(parent, "work", task.TaskRunStatusFailed, now)
+			node := lifecycleNode("work")
+			node.NodeLifecycleState = &dsl.NodeLifecycleState{OnError: tc.policy}
+			node.Retry = &dsl.RetrySpec{MaxAttempts: 0}
+			def := lifecycleDefinition(node, lifecycleNode("next"))
+			def.Graph.Edges = []dsl.Edge{{From: "work", To: "next"}}
+			firstScheduledAt := now.Add(-time.Second)
+			output := GenerationOutput{
+				FirstScheduledAt: &firstScheduledAt,
+				Generation:       1,
+				NodeID:           "work",
+				Status:           generationOutputFailed,
+				TaskRunID:        worker.ID,
+				Attempt:          1,
+				OutputRef: lifecycleFailureRef(
+					t,
+					string(tools.ErrorCodeInvalidInput),
+					"Correct the task manifest.",
+				),
+			}
+			outputs := &lifecycleCoordinatorStore{
+				coordinatorRunnerOutputs: coordinatorRunnerOutputs{
+					outputs: map[int][]GenerationOutput{
+						1: {output, {Generation: 1, NodeID: "next", Status: generationOutputPending, Attempt: 1}},
+					},
+				},
+			}
+			runner := newCoordinatorRunnerForLifecycleTest(
+				t,
+				parent,
+				coordinator,
+				worker,
+				outputs,
+				def,
+				LifecycleConfig{},
+				WithCoordinatorNodeAttemptReader(outputs),
+			)
+			runner.now = func() time.Time { return now }
+			plan, err := runner.Run(t.Context(), task.RunID(coordinator.ID))
+			if err != nil {
+				t.Fatalf("run invalid input: %v", err)
+			}
+			if tc.terminal {
+				if plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) ||
+					plan.Terminal.ReasonCode != "node_failed" ||
+					plan.NextCoordinator != nil {
+					t.Fatalf("invalid input plan = %#v", plan)
+				}
+			} else if plan.Terminal != nil || len(plan.NodeRuns) != 1 || plan.NextCoordinator != nil {
+				t.Fatalf("authored correction plan = %#v", plan)
+			}
+		})
+	}
+}
+
+func TestCoordinatorParallelInvalidInputFailure(t *testing.T) {
+	t.Parallel()
+	// Invariant: parallel transient failure cannot hide unhandled invalid input from the run boundary.
+	// Owning layer and canonical suite: Loop coordinator lifecycle failure precedence.
+	for _, order := range []struct {
+		name         string
+		invalidFirst bool
+	}{
+		{"Should fail when invalid input sorts after a transient failure", false},
+		{"Should fail when invalid input sorts before a transient failure", true},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			t.Parallel()
+			parent := controlLoopRun("parallel-invalid-input", nil)
+			coordinator := controlCoordinatorRun(parent, 1)
+			graph := dsl.Graph{Nodes: []dsl.Node{lifecycleNode("a_failed"), lifecycleNode("z_failed")}}
+			codes := []tools.ErrorCode{tools.ErrorCodeUnavailable, tools.ErrorCodeInvalidInput}
+			if order.invalidFirst {
+				codes[0], codes[1] = codes[1], codes[0]
+			}
+			outputs := []GenerationOutput{
+				{
+					Generation: 1,
+					NodeID:     "a_failed",
+					Status:     generationOutputFailed,
+					Attempt:    1,
+					OutputRef:  lifecycleFailureRef(t, string(codes[0]), "failed input or transport"),
+				},
+				{
+					Generation: 1,
+					NodeID:     "z_failed",
+					Status:     generationOutputFailed,
+					Attempt:    1,
+					OutputRef:  lifecycleFailureRef(t, string(codes[1]), "failed input or transport"),
+				},
+			}
+			runner := newCoordinatorRunnerForTestWithGraph(
+				t,
+				parent,
+				coordinator,
+				map[string]task.Run{coordinator.ID: coordinator},
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: outputs}},
+				graph,
+			)
+			plan, err := runner.Run(t.Context(), task.RunID(coordinator.ID))
+			if err != nil {
+				t.Fatalf("parallel failure: %v", err)
+			}
+			if plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) || plan.NextCoordinator != nil {
+				t.Fatalf("invalid input hidden: terminal=%#v next=%#v", plan.Terminal, plan.NextCoordinator)
+			}
+		})
+	}
+	t.Run("Should preserve target-unavailable ownership over invalid input", func(t *testing.T) {
+		t.Parallel()
+		outputs := []GenerationOutput{
+			{
+				NodeID:    "a_invalid",
+				Status:    generationOutputFailed,
+				OutputRef: lifecycleFailureRef(t, string(tools.ErrorCodeInvalidInput), "correct input"),
+			},
+			{
+				NodeID:    "z_unavailable",
+				Status:    generationOutputFailed,
+				OutputRef: lifecycleFailureRef(t, targetUnavailableReasonCode, "target breaker open"),
+			},
+		}
+		selected := selectFailedOutput(outputs)
+		if selected == nil || selected.NodeID != "z_unavailable" {
+			t.Fatalf("selected failure = %#v, want target owner", selected)
 		}
 	})
 }

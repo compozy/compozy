@@ -2669,6 +2669,25 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report skill backend phase without exposing private backend errors", func(t *testing.T) {
+		t.Parallel()
+		privateCause := errors.New("private credential and skill contents")
+		err := skillViewResourceError(t.Context(), toolspkg.ToolIDSkillView, "private/path.md", privateCause)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeBackendFailed || toolErr.Operator == nil ||
+			!errors.Is(err, privateCause) {
+			t.Fatalf("skill backend error = %#v", err)
+		}
+		public, marshalErr := json.Marshal(toolErr)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		if !strings.Contains(toolErr.Operator.Cause, "skill_resource_load") || toolErr.Operator.Recovery == "" ||
+			strings.Contains(string(public), "private") {
+			t.Fatalf("operator-safe skill diagnostics = %s", public)
+		}
+	})
+
 	t.Run("Should classify skill resource lookup failures", func(t *testing.T) {
 		t.Parallel()
 
@@ -8358,7 +8377,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("json.Unmarshal(session_list result) error = %v", err)
 		}
 		if len(listResponse.Sessions) != 1 || listResponse.Page.NextCursor != "cursor-next" ||
-			!listResponse.Page.HasMore || listResponse.Page.Total != 3 || listResponse.Page.Limit != 2 {
+			!listResponse.Page.HasMore || listResponse.Page.Total == nil || *listResponse.Page.Total != 3 || listResponse.Page.Limit != 2 {
 			t.Fatalf("session_list response = %#v, want truthful page", listResponse)
 		}
 		if manager.healthCalls != 1 || len(manager.healthInfos) != 1 || manager.healthInfos[0] != info {

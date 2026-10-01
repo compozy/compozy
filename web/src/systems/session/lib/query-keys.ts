@@ -27,15 +27,6 @@ export const sessionKeys = {
   /** Exact cross-workspace attention counts — operator scope, no workspace segment. */
   attentionSummary: () => [...sessionKeys.all, "attention-summary"] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
-  /** A complete filtered catalog, isolated from the infinite-list cache. */
-  completeList: (filters: SessionListFilters = {}) => {
-    const normalized = normalizeSessionListFilters(filters);
-    return [
-      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
-      "complete",
-      normalized,
-    ] as const;
-  },
   workspaceActivity: (workspace: string) =>
     [...sessionKeys.workspaceLists(workspace), "activity"] as const,
   list: (filters: SessionListFilters = {}) => {

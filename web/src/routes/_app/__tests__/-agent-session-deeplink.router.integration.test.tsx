@@ -182,6 +182,13 @@ function stubSiblingProfileSessionBackend(): void {
       );
     }
     if (
+      url.pathname ===
+        `/api/workspaces/${BENCH_WORKSPACE_ID}/sessions/${SIBLING_PROFILE_SESSION_ID}` &&
+      url.searchParams.get("all_profiles") === "true"
+    ) {
+      return Promise.resolve(Response.json({ session: siblingProfileSession }));
+    }
+    if (
       url.pathname === `/api/sessions/${SIBLING_PROFILE_SESSION_ID}` &&
       url.searchParams.get("all_profiles") === "true"
     ) {

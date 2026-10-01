@@ -1122,3 +1122,83 @@ job alongside Gateway recovery; no safety check or test assertion was removed.
 - **Web / docs / official skill:** no new Web control or skill command. Site configuration and
   permissions guides document the option and its limits. `RT-provider-full-access-mode` owns the
   live Codex/Claude walk; the previous Codex-only probe and focused Go suites are recorded there.
+
+## Reported issue batch — 657, 659, 663, 665, 666, 675, 676, 677, 678, 679, 682
+
+Owning delivery: branch `fix/reported-issues-657-682`; real-runtime evidence and remaining
+verification are tracked in `docs/qa/reports/2026-09-29-reported-issues.md`.
+
+PR #686 review remediation keeps the same audit owner. Managed delivery rechecks selected index
+state before staging and records its own staged proof for recovery; deterministic safety refusals
+are terminal, completion releases the session fence first, and unreadable journals remain intact
+while unmatched interrupted SQL receipts fail without effects. The daemon preserves running
+receipts on failed directory inventory and retries inventory failures or temporary SQLite
+BUSY/LOCKED under its owned shutdown lifecycle; successful recovery stops polling and concurrent active controls remain intact.
+Live applying installer identity survives its deadline, Linux discovery compares all versioned installations and retains an
+unversioned fallback, and MIME registration has bounded subprocess cleanup. ACP forced stop
+verifies PID/start identity; SQLite callbacks reject active same-database reentry and preserve
+request diagnostic context. Facets documents its existing parent/root/resumable filters through
+generated OpenAPI consumers. Web blocked-query retries retain only blocked hashes, unused facets
+are disabled, search is debounced with scope-fenced previous rows and disabled stale actions, and
+request client IDs reuse the existing browser cryptography boundary. No config, hooks, capability
+IDs, SQLite shape, or permission boundary changes; journal additions preserve existing records.
+The official worktree reference and generated CLI example require the actual reviewed scope.
+The existing packaged Electron shell suite owns a real sixty-minute catalog request-rate
+regression using public session/Loop activity and unchanged fixed budgets. Desktop CI retains
+its current-head/runtime/client receipt on success or failure; no local runtime is launched.
+CI exposed duplicate shell terminal-facet polling alongside live stream reconciliation. The
+shell now uses the shared live clock for healthy reads, retains visible disconnected polling
+fallback and retries failed facets reads at the existing thirty-second error interval even with a
+live stream. Native public surfaces, configuration, persisted state and official skill contracts
+remain unchanged.
+
+- **Native tools / CLI / HTTP / UDS / SDK:** worktree exit plans and commits add explicit reviewed
+  paths and a content fingerprint; managed delivery uses validated session identity, a durable
+  intent, checkout fencing and exact draft-PR reconciliation. Existing whole-worktree commit
+  behavior remains available. Session catalog reads add an opt-in count-free continuation while
+  ordinary clients retain exact totals. A separate scoped metadata facets read owns exact chip
+  and group counts, including pending terminal approvals. Web catalog rows use bounded count-free
+  pages with explicit continuation, Unicode-aware title/agent search and preserved navigator ordering.
+  Dock selection uses the existing creation order through a bounded one-row page; an explicit click
+  resolves current server truth before selecting create or open and allows retry after a read failure.
+  Deliberate new window opens use the serialized command's current revision; ordinary semantic
+  identity lookups retain their revision fence against duplicate windows.
+  The separate unread-notification title channel retains bounded background polling and error
+  backoff while automatic session catalog and summary reads pause when hidden.
+  Workspace detail reads explicitly request the operator's
+  aggregate profile view; server workspace and agent authorization remain authoritative.
+  Aborted presence requests retain the shared cancellation status. Forge contracts add optional
+  branch, base, commit and draft evidence; old extensions remain usable for ordinary exit actions,
+  while managed delivery requires proven identity. Generators co-ship the affected consumers.
+- **Extensibility / hooks / config:** ACP control stages have bounded deadlines and session/new
+  gets a bounded fresh-process retry after verified cleanup. Prompt and clarification lifetimes
+  retain their existing owners. Task authoring emits escaped YAML title scalars, keeps H1 aligned,
+  and validates through the existing importer. An unhandled permanent invalid-input action failure
+  closes the Loop before automatic generation succession; authored correction routes and allow-fail
+  retain their existing precedence. Skill and native-tool failures carry safe phase
+  diagnostics that distinguish resource/registry failure from SQLite event-write contention.
+  No credential, authored resource content or raw claim token is added to diagnostics.
+  Local SQLite writer admission waits with context cancellation before reserving a pooled connection
+  and before the unchanged external-BUSY retry budget. Durable delivery terminal receipts use the
+  same owner; internal waiting cannot exhaust SQLite attempts before acquiring admission.
+- **Workspace data isolation / compatibility:** session and worktree identities remain scoped to
+  their registered owner; a delivery fence applies only to the exact checkout. Existing SQLite,
+  config and session history are preserved. Appended catalog indexes upgrade the global database
+  (migrations 00123 and 00124) without changing or deleting rows. Migration 00125 widens the
+  persisted worktree exit-operation action constraint to include managed `deliver`, preserving
+  existing operations and the active-operation uniqueness rule. Recovered child adoption requires the exact parent, workspace,
+  node receipt and current authored child inputs, including the original optional typed
+  `inputs.reviewed_worktree` JSON-string proof using the existing DSL input type.
+  The registered worktree owner independently verifies its
+  scoped HEAD, branch, content and index fingerprint; absent or changed proof still reruns.
+  Expired updater operations settle through the journal owner; live executor and irreversible handoff protections
+  remain. Linux installation detection follows the executable/running authenticated shell;
+  desktop scheme registration launches that executable directly with URL arguments.
+- **Web / docs / official skill:** catalog event wakes coalesce, preserve dirty work after in-flight
+  reads, back off errors and defer hidden-window refetches. Global-null scope enables the canonical
+  all-workspaces read while an unresolved project stays disabled. Requests carry a bounded client ID in
+  daemon logs. Session navigation retains abort cleanup and authoritative scoped lookup. Official
+  worktree guidance and affected site/CLI references explain selective scope and managed delivery;
+  authoring references agree with the strict importer. Existing scenarios gain the changed public
+  acceptance walks. Test, live-runtime, platform and current-head CI receipts remain separate
+  claims in the owning report and PR; implementation alone is not delivery evidence.

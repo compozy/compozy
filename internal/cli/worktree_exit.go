@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 )
 
 func newWorktreeExitCommand(deps commandDeps) *cobra.Command {
+	var includePaths []string
 	var workspaceRef string
 	cmd := &cobra.Command{
 		Use: "exit <ref>", Short: "Read the worktree exit plan", Args: exactOneNonBlankArg(),
@@ -17,7 +19,18 @@ func newWorktreeExitCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan, err := client.GetWorktreeExitPlan(cmd.Context(), workspaceID, args[0])
+			var plan WorktreeExitPlanRecord
+			if len(includePaths) > 0 {
+				scoped, ok := client.(interface {
+					GetWorktreeExitPlanForPaths(context.Context, string, string, []string) (WorktreeExitPlanRecord, error)
+				})
+				if !ok {
+					return errors.New("cli: scoped exit plans unavailable")
+				}
+				plan, err = scoped.GetWorktreeExitPlanForPaths(cmd.Context(), workspaceID, args[0], includePaths)
+			} else {
+				plan, err = client.GetWorktreeExitPlan(cmd.Context(), workspaceID, args[0])
+			}
 			if err != nil {
 				return err
 			}
@@ -25,11 +38,13 @@ func newWorktreeExitCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
+	cmd.Flags().StringArrayVar(&includePaths, "include", nil, "Exact reviewed worktree-relative file (repeatable)")
 	return cmd
 }
 
 func newWorktreeCommitCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef, message string
+	var workspaceRef, message, expectedScope string
+	var includePaths []string
 	var push bool
 	cmd := &cobra.Command{
 		Use: "commit <ref>", Short: "Commit worktree changes", Args: exactOneNonBlankArg(),
@@ -39,13 +54,16 @@ func newWorktreeCommitCommand(deps commandDeps) *cobra.Command {
 				action = worktreeCommitPushAction
 			}
 			return runWorktreeExitCommand(cmd, deps, workspaceRef, args[0], WorktreeExitActionRequest{
-				Action: action, Message: message,
+				Action: action, Message: message, IncludePaths: includePaths, ExpectedScope: expectedScope,
 			})
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Commit message")
 	cmd.Flags().BoolVar(&push, "push", false, "Push after committing")
+	cmd.Flags().StringArrayVar(&includePaths, "include", nil, "Exact reviewed worktree-relative file (repeatable)")
+	cmd.Flags().StringVar(&expectedScope, "expected-scope", "", "Fingerprint from the scoped exit plan")
+	cmd.MarkFlagsRequiredTogether("include", "expected-scope")
 	return cmd
 }
 

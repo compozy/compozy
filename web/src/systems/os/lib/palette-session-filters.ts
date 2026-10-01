@@ -12,6 +12,8 @@
  */
 import { getSessionDisplayTitle, toSessionBadge, type SessionPayload } from "@/systems/session";
 
+import type { OsPaletteSessionResult } from "../hooks/use-os-palette-entities";
+
 import { attentionBand } from "./attention-order";
 
 export const PALETTE_SESSION_FILTER_IDS = [
@@ -110,4 +112,19 @@ export function filterPaletteSessions(
   return sessions.filter(
     session => filter.matches(session) && matchesPaletteSessionQuery(session, query)
   );
+}
+
+/** Retain the previous session page while its replacement query is pending. */
+export function composePaletteSessionPage(
+  previousRows: readonly OsPaletteSessionResult[],
+  ranked: { rows: readonly OsPaletteSessionResult[]; total: number },
+  searchPending: boolean,
+  paging: boolean
+) {
+  const busy = searchPending || paging;
+  const rows = busy ? previousRows : ranked.rows;
+  return {
+    sessions: rows.map(session => ({ ...session, busy })),
+    sessionTotal: busy ? previousRows.length : ranked.total,
+  };
 }

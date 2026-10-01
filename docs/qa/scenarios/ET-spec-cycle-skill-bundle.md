@@ -29,3 +29,14 @@ published bundle from eight skills to nine. Reset to untested — the next walk 
 cy-create-spec, cy-create-tasks, cy-execute-task, cy-final-verify, cy-fix-reviews,
 cy-orchestrate-tasks, cy-review-round, cy-workflow-memory, git-rebase. Planning flag only; execution
 belongs to the QA phase of the owning workstream.
+
+QA impact 2026-09-29 (#663): `cy-create-tasks` writes double-quoted, escaped YAML
+titles matching the complete first H1 and validates generated task sets through
+`ext__spec_cycle__import_tasks` before delivery. Check a title containing `: `,
+embedded double quotes, backslashes, `#`, and YAML indicators: import must preserve
+the title text. The original unquoted colon title must still fail with the task
+filename in the validation error. Walked 2026-09-29: a task instantiated from the corrected bundled template, with
+the metacharacter title above, imported through the actual `RunProvider` subprocess
+RPC path and preserved its decoded title/H1. Focused importer/RPC evidence is recorded in
+`/tmp/compozy-issues-20260929/task-title-report.md`; provider-driven skill authoring
+remains a separate QA walk.

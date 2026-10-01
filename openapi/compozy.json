@@ -118115,6 +118115,14 @@
             }
           },
           {
+            "description": "Omit the exact catalog count for a bounded cursor read",
+            "in": "query",
+            "name": "skip_total",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Filter by exact session state",
             "in": "query",
             "name": "state",
@@ -118175,10 +118183,21 @@
             }
           },
           {
-            "description": "Search session id, name, agent, provider, or channel",
+            "description": "Search session id, name, agent, or provider; title_agent searches visible title and agent",
             "in": "query",
             "name": "q",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select visible title/agent search instead of the default catalog fields",
+            "in": "query",
+            "name": "search_fields",
+            "schema": {
+              "enum": [
+                "title_agent"
+              ],
               "type": "string"
             }
           },
@@ -118226,8 +118245,10 @@
             "schema": {
               "enum": [
                 "recent",
+                "created",
                 "last_activity",
-                "attention"
+                "attention",
+                "navigator"
               ],
               "type": "string"
             }
@@ -118284,13 +118305,13 @@
                           "type": "string"
                         },
                         "total": {
+                          "nullable": true,
                           "type": "integer"
                         }
                       },
                       "required": [
                         "has_more",
-                        "limit",
-                        "total"
+                        "limit"
                       ],
                       "type": "object"
                     },
@@ -121795,6 +121816,609 @@
           }
         },
         "summary": "Stream session catalog changes across workspaces",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/sessions/facets": {
+      "get": {
+        "operationId": "listSessionFacets",
+        "parameters": [
+          {
+            "description": "Workspace id or path",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use the explicit all-workspaces aggregate",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by bound worktree id",
+            "in": "query",
+            "name": "worktree",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact agent name",
+            "in": "query",
+            "name": "agent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact parent session id",
+            "in": "query",
+            "name": "parent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact root session id (includes the root itself)",
+            "in": "query",
+            "name": "root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only count sessions eligible for explicit attach",
+            "in": "query",
+            "name": "resumable",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by exact session state",
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "enum": [
+                "starting",
+                "active",
+                "stopping",
+                "stopped"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact session type",
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "enum": [
+                "user",
+                "system",
+                "coordinator",
+                "spawned"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Archived session visibility",
+            "in": "query",
+            "name": "archive",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "by_workspace": {
+                      "items": {
+                        "properties": {
+                          "facets": {
+                            "properties": {
+                              "all": {
+                                "type": "integer"
+                              },
+                              "finished": {
+                                "type": "integer"
+                              },
+                              "idle": {
+                                "type": "integer"
+                              },
+                              "needs_you": {
+                                "type": "integer"
+                              },
+                              "terminal_approvals": {
+                                "type": "integer"
+                              },
+                              "working": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "all",
+                              "finished",
+                              "idle",
+                              "needs_you",
+                              "terminal_approvals",
+                              "working"
+                            ],
+                            "type": "object"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "facets",
+                          "workspace_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "facets": {
+                      "properties": {
+                        "all": {
+                          "type": "integer"
+                        },
+                        "finished": {
+                          "type": "integer"
+                        },
+                        "idle": {
+                          "type": "integer"
+                        },
+                        "needs_you": {
+                          "type": "integer"
+                        },
+                        "terminal_approvals": {
+                          "type": "integer"
+                        },
+                        "working": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "all",
+                        "finished",
+                        "idle",
+                        "needs_you",
+                        "terminal_approvals",
+                        "working"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "by_workspace",
+                    "facets"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Exact scope counts, independent of text query and selected badge"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid catalog scope or filters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace root is missing"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session catalog facets are unavailable"
+          }
+        },
+        "summary": "Count session catalog facets",
         "tags": [
           "sessions"
         ],
@@ -336327,6 +336951,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Exact worktree-relative reviewed file paths; scoped plans return a complete include set and fingerprint.",
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
           }
         ],
         "responses": {
@@ -336409,8 +337044,20 @@
                         "changed_files": {
                           "type": "integer"
                         },
+                        "complete": {
+                          "type": "boolean"
+                        },
                         "deletions": {
                           "type": "integer"
+                        },
+                        "fingerprint": {
+                          "type": "string"
+                        },
+                        "include_paths": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "insertions": {
                           "type": "integer"
@@ -336902,8 +337549,23 @@
                   "body": {
                     "type": "string"
                   },
+                  "delivery_id": {
+                    "type": "string"
+                  },
                   "draft": {
                     "type": "boolean"
+                  },
+                  "expected_head": {
+                    "type": "string"
+                  },
+                  "expected_scope": {
+                    "type": "string"
+                  },
+                  "include_paths": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
                   },
                   "message": {
                     "type": "string"

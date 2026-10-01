@@ -74,7 +74,7 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	configureMachineProfileFlag(cmd, false)
-	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check without changing files")
+	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check without applying updates")
 	cmd.Flags().BoolVar(&cancel, "cancel", false, "Cancel a dormant update operation")
 	return cmd
 }
@@ -208,7 +208,7 @@ func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
 	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
 		record := updateCancelRecord{
 			Status: compozyupdate.StatusBlocked, OperationID: operation.ID, Holder: operation.Holder,
-			Message: liveExecutorCancelMessage(operation),
+			Message: updateCancelDeclinedMessage(operation, manager.OperationStore().HolderLive(operation.Holder)),
 		}
 		return writeUpdateCancelFailure(cmd, record, err)
 	}
@@ -221,7 +221,10 @@ func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
 	}))
 }
 
-func liveExecutorCancelMessage(operation *compozyupdate.Operation) string {
+func updateCancelDeclinedMessage(operation *compozyupdate.Operation, holderLive bool) string {
+	if !holderLive {
+		return "The update operation has reached an irreversible installation phase and was not canceled."
+	}
 	if operation == nil || operation.Holder == nil {
 		return "The update operation has a live executor and was not canceled."
 	}

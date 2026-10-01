@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -157,7 +158,20 @@ func (h *BaseHandlers) GetWorktreeExitPlan(c *gin.Context) {
 	if !ok {
 		return
 	}
-	plan, err := h.Worktrees.ExitPlan(c.Request.Context(), scope.RegistryID, id)
+	var plan *worktree.ExitPlan
+	var err error
+	if paths := c.QueryArray("include"); len(paths) > 0 {
+		scoped, supports := h.Worktrees.(interface {
+			ExitPlanForPaths(context.Context, string, string, []string) (*worktree.ExitPlan, error)
+		})
+		if !supports {
+			h.respondError(c, http.StatusBadRequest, errors.New("api: scoped exit plan unavailable"))
+			return
+		}
+		plan, err = scoped.ExitPlanForPaths(c.Request.Context(), scope.RegistryID, id, paths)
+	} else {
+		plan, err = h.Worktrees.ExitPlan(c.Request.Context(), scope.RegistryID, id)
+	}
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
@@ -179,10 +193,45 @@ func (h *BaseHandlers) RunWorktreeExitAction(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: invalid worktree exit action"))
 		return
 	}
-	opID, err := h.Worktrees.RunExitAction(c.Request.Context(), scope.RegistryID, id, worktree.ExitActionRequest{
-		Action: worktree.ExitAction(request.Action), Message: request.Message, Title: request.Title,
-		Body: request.Body, Draft: request.Draft, Base: request.Base,
-	})
+	exitRequest := worktree.ExitActionRequest{
+		Action:        worktree.ExitAction(request.Action),
+		Message:       request.Message,
+		Title:         request.Title,
+		Body:          request.Body,
+		Draft:         request.Draft,
+		Base:          request.Base,
+		IncludePaths:  request.IncludePaths,
+		ExpectedScope: request.ExpectedScope,
+	}
+	exitRequest.DeliveryID, exitRequest.ExpectedHead = request.DeliveryID, request.ExpectedHead
+	var opID string
+	var err error
+	if request.Action == "deliver" {
+		caller, ok := h.requireAgentCaller(c, "worktree.deliver")
+		if !ok {
+			return
+		}
+		managed, ok := h.Worktrees.(interface {
+			SubmitManagedDelivery(context.Context, string, string, string, worktree.ExitActionRequest) (string, error)
+		})
+		if !ok {
+			h.respondError(c, http.StatusServiceUnavailable, worktree.ErrForgeUnavailable)
+			return
+		}
+		if caller.Session.WorkspaceID != scope.RegistryID {
+			h.respondError(c, http.StatusForbidden, errors.New("api: delivery caller belongs to another workspace"))
+			return
+		}
+		opID, err = managed.SubmitManagedDelivery(
+			c.Request.Context(),
+			scope.RegistryID,
+			id,
+			caller.Session.ID,
+			exitRequest,
+		)
+	} else {
+		opID, err = h.Worktrees.RunExitAction(c.Request.Context(), scope.RegistryID, id, exitRequest)
+	}
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
@@ -214,7 +263,11 @@ func (h *BaseHandlers) CancelWorktreeExitAction(c *gin.Context) {
 
 func validWorktreeExitAction(action contract.WorktreeExitAction) bool {
 	switch worktree.ExitAction(action) {
-	case worktree.ExitActionCommit, worktree.ExitActionCommitPush, worktree.ExitActionPush, worktree.ExitActionOpenPR:
+	case worktree.ExitActionDeliver,
+		worktree.ExitActionCommit,
+		worktree.ExitActionCommitPush,
+		worktree.ExitActionPush,
+		worktree.ExitActionOpenPR:
 		return true
 	default:
 		return false

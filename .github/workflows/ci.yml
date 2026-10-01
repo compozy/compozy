@@ -398,6 +398,15 @@ jobs:
             ./internal/store/globaldb ./internal/daemon \
             -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
 
+      - name: Verify managed delivery recovery with real Git and forge HTTP
+        if: matrix.shard_index == '2'
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          go test -race -tags=integration -count=1 -timeout=5m -v
+          ./internal/worktree
+          -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
+
       - name: Upload gotestsum timing data
         uses: actions/upload-artifact@v7
         with:
@@ -795,7 +804,7 @@ jobs:
   e2e-desktop:
     name: E2E desktop
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
@@ -845,8 +854,8 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
-      - name: Upload desktop E2E artifacts on failure
-        if: failure()
+      - name: Upload desktop E2E artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-desktop-artifacts

@@ -25,6 +25,30 @@ import (
 func TestAppStatusReportsCanonicalState(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should report an authenticated shell as installed without its desktop entry", func(t *testing.T) {
+		t.Parallel()
+		paths := appTestHome(t)
+		writeAppTestRecord(
+			t,
+			paths,
+			map[string]any{
+				"schema_version":    2,
+				"pid":               4242,
+				"started_at":        "2026-08-10T03:00:00Z",
+				"app_version":       "9.9.9-stale",
+				"state":             "product",
+				"origin":            "http://localhost:2123/",
+				"owned":             true,
+				"diagnostic_report": appDiagnosticReportFixture(),
+			},
+		)
+		deps := appTestDeps(paths)
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) { return appDiagnosticReportFixture(), nil }
+		report, err := resolveAppStatus(t.Context(), deps, paths)
+		if err != nil || !report.Installed || !report.Running || report.AppVersion != "0.3.0" {
+			t.Fatalf("status = %#v, %v", report, err)
+		}
+	})
 	t.Run("Should read the shared Rust-written state fixtures", func(t *testing.T) {
 		t.Parallel()
 		for _, fixture := range []struct {
@@ -1296,6 +1320,188 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 func TestAppPlatformRegistrationOwnsInstallationTruth(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should compare AppImage and every registered installation before selecting a version", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct{ name, imageVersion, firstVersion, secondVersion, want string }{
+			{"Should select a newer registered Debian installation", "0.3.0-beta.25", "0.3.0-beta.27", "0.3.0-beta.26", "0.3.0-beta.27"},
+			{"Should inspect later registrations for a newer version", "0.3.0-beta.25", "0.3.0-beta.26", "0.3.0-beta.27", "0.3.0-beta.27"},
+			{"Should keep a newer AppImage over older registrations", "0.3.0-beta.28", "0.3.0-beta.27", "0.3.0-beta.26", "0.3.0-beta.28"},
+			{"Should prefer a versioned registration over an unversioned AppImage", "foo", "0.3.0-beta.27", "invalid", "0.3.0-beta.27"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				home := t.TempDir()
+				applications := filepath.Join(home, "Applications")
+				registrations := filepath.Join(home, ".local", "share", "applications")
+				for _, directory := range []string{applications, registrations} {
+					if err := os.MkdirAll(directory, 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				image := filepath.Join(applications, "CompozyOS-"+tc.imageVersion+"-linux-x64.AppImage")
+				if err := os.WriteFile(image, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				expected := image
+				for index, version := range []string{tc.firstVersion, tc.secondVersion} {
+					directory := filepath.Join(home, fmt.Sprintf("registered-%d", index))
+					if err := os.MkdirAll(directory, 0o700); err != nil {
+						t.Fatal(err)
+					}
+					executable := filepath.Join(directory, "compozyos")
+					if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+						t.Fatal(err)
+					}
+					name := appBundleIdentifier + ".desktop"
+					if index == 1 {
+						name = "compozyos.desktop"
+					}
+					contents := "[Desktop Entry]\nName=CompozyOS\nX-Compozy-Version=" + version + "\nExec=\"" + executable + "\" %u\n"
+					if err := os.WriteFile(filepath.Join(registrations, name), []byte(contents), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					if version == tc.want {
+						expected = executable
+					}
+				}
+				installation, err := resolveLinuxAppInstallationAt(home)
+				canonical, canonicalErr := filepath.EvalSymlinks(expected)
+				if canonicalErr != nil {
+					t.Fatal(canonicalErr)
+				}
+				if err != nil || !installation.Installed || installation.Version != tc.want ||
+					installation.Executable != canonical {
+					t.Fatalf("installation = %#v, %v; expected %s at %s", installation, err, tc.want, canonical)
+				}
+			})
+		}
+	})
+	t.Run(
+		"Should retain unversioned executable AppImages only until a verifiable version is found",
+		func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			directory := filepath.Join(home, "Applications")
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			unversioned := filepath.Join(directory, "CompozyOS-foo-linux-x64.AppImage")
+			if err := os.WriteFile(unversioned, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			installation, err := resolveLinuxAppInstallationAt(home)
+			expected, canonicalErr := filepath.EvalSymlinks(unversioned)
+			if canonicalErr != nil {
+				t.Fatal(canonicalErr)
+			}
+			if err != nil || !installation.Installed || installation.Version != "" ||
+				installation.Executable != expected {
+				t.Fatalf("unversioned fallback = %#v, %v", installation, err)
+			}
+			versioned := filepath.Join(directory, "CompozyOS-0.3.0-beta.27-linux-x64.AppImage")
+			if err := os.WriteFile(versioned, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			installation, err = resolveLinuxAppInstallationAt(home)
+			expected, canonicalErr = filepath.EvalSymlinks(versioned)
+			if canonicalErr != nil {
+				t.Fatal(canonicalErr)
+			}
+			if err != nil || installation.Version != "0.3.0-beta.27" || installation.Executable != expected {
+				t.Fatalf("versioned candidate = %#v, %v", installation, err)
+			}
+		},
+	)
+	t.Run("Should preserve symlinked AppImage discovery through canonical executable metadata", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix symlink fixture")
+		}
+		directory := t.TempDir()
+		executable := filepath.Join(directory, "payload")
+		if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(t.TempDir(), "CompozyOS.AppImage")
+		if err := os.Symlink(executable, link); err != nil {
+			t.Fatal(err)
+		}
+		canonical, found, err := inspectLinuxAppExecutable(link)
+		expected, resolveErr := filepath.EvalSymlinks(executable)
+		if resolveErr != nil {
+			t.Fatal(resolveErr)
+		}
+		if err != nil || !found || canonical != expected {
+			t.Fatalf("linked executable=%q found=%t err=%v", canonical, found, err)
+		}
+		if err := os.Chmod(executable, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if canonical, found, err := inspectLinuxAppExecutable(link); err != nil || found || canonical != "" {
+			t.Fatalf("non-executable=%q found=%t err=%v", canonical, found, err)
+		}
+	})
+	t.Run("Should launch a discovered AppImage with the original URI argument", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix executable fixture")
+		}
+		paths := appTestHome(t)
+		executable := filepath.Join(t.TempDir(), "CompozyOS Desktop.AppImage")
+		if err := os.WriteFile(executable, []byte("#!/bin/sh\nprintf '%s\\n' \"$1\"\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		uri := "compozyos://open/workspaces?search=hello%20world"
+		if err := launchInstalledApp(
+			t.Context(),
+			paths,
+			appInstallation{Installed: true, Executable: executable},
+			uri,
+			appTestDeps(paths),
+		); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.NewTimer(5 * time.Second)
+		defer deadline.Stop()
+		poll := time.NewTicker(10 * time.Millisecond)
+		defer poll.Stop()
+		for {
+			output, err := os.ReadFile(filepath.Join(paths.HomeDir, "logs", "app-launch.log"))
+			if err == nil && strings.TrimSpace(string(output)) == uri {
+				return
+			}
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal(err)
+			}
+			select {
+			case <-deadline.C:
+				t.Fatalf("launch output=%q, %v", output, err)
+			case <-poll.C:
+			}
+		}
+	})
+	t.Run("Should discover the latest executable AppImage without desktop registration", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		directory := filepath.Join(home, "Applications")
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, version := range []string{"0.3.0-beta.9", "0.3.0-beta.27"} {
+			if err := os.WriteFile(
+				filepath.Join(directory, "CompozyOS-"+version+"-linux-x64.AppImage"),
+				[]byte("#!/bin/sh\nexit 0\n"),
+				0o700,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		installation, err := resolveLinuxAppInstallationAt(home)
+		if err != nil || !installation.Installed || installation.Version != "0.3.0-beta.27" ||
+			installation.Executable == "" {
+			t.Fatalf("installation = %#v, %v", installation, err)
+		}
+	})
 	t.Run("Should derive macOS installation and version from bundle registration", func(t *testing.T) {
 		t.Parallel()
 		installation, err := resolveDarwinAppInstallation(t.Context(), func(
@@ -1365,10 +1571,14 @@ func TestAppPlatformRegistrationOwnsInstallationTruth(t *testing.T) {
 		}
 	})
 
-	t.Run("Should derive Linux installation from the desktop entry", func(t *testing.T) {
+	t.Run("Should verify the Linux desktop entry executable", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), "compozyos.desktop")
-		contents := []byte("[Desktop Entry]\nName=CompozyOS\nX-Compozy-Version=0.3.0\n")
+		executable := filepath.Join(filepath.Dir(path), "compozyos")
+		if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		contents := []byte("[Desktop Entry]\nName=CompozyOS\nX-Compozy-Version=0.3.0\nExec=\"" + executable + "\" %u\n")
 		if err := os.WriteFile(path, contents, 0o600); err != nil {
 			t.Fatalf("WriteFile(desktop entry) error = %v", err)
 		}

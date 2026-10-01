@@ -376,11 +376,11 @@ A forge provider translates Git remote state into pull-request capabilities for 
 `ForgeProvider` in Go or `registerForgeProvider` in TypeScript; registration adds
 `forge.provider` and reserves its service names atomically.
 
-| Method               | Request                                            | Response contract                                                                                                                         |
-| -------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `forge/capabilities` | `remote_urls`                                      | Served remote, availability, provider vocabulary, draft support, compare template, template paths, default branch, and credential source. |
-| `forge/status`       | `remote_urls`, `branch`                            | Provider, pull-request number/state/URL, merged evidence, and fetch time.                                                                 |
-| `forge/pr_create`    | `remote_urls`, `head`, `base`, `title`, body/draft | `created` or `opened_existing`, plus a positive number and absolute URL.                                                                  |
+| Method               | Request                                                                 | Response contract                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `forge/capabilities` | `remote_urls`                                                           | Served remote, availability, provider vocabulary, draft support, compare template, template paths, default branch, and credential source. |
+| `forge/status`       | `remote_urls`, `branch`, optional `base`/`head_sha`                     | Provider, pull-request number/state/URL, merged evidence, fetch time, and optional exact head/base/SHA/draft evidence.                    |
+| `forge/pr_create`    | `remote_urls`, `head`, `base`, `title`, body/draft, optional `head_sha` | `created` or `opened_existing`, plus a positive number and absolute URL.                                                                  |
 
 When `served` is true, capabilities must name `provider`, `served_remote`, `request_noun`,
 `open_action_label`, and `view_action_label`. `compare_url_template` uses `{base}` and `{head}`;
@@ -391,6 +391,12 @@ An available provider reports `credential_source` as `binding` or `gh`. An unava
 only `credential_absent`, `credential_expired`, `rate_limited`, or `unsupported_remote`. Never return
 credential values in a result or error. Pull-request creation must be idempotent by open head branch:
 return `opened_existing` instead of creating a duplicate.
+
+Managed delivery supplies `base` and `head_sha` to reconcile the exact reviewed candidate.
+For that request, return the observed `head`, `base`, `head_sha`, and `draft`; missing evidence
+prevents reuse. A `forge/pr_create` request with `head_sha` must reuse only an open request
+matching the head branch, base, commit and requested draft state, or reject the conflict.
+Ordinary requests without that field retain the existing branch-based contract.
 
 The bundled `forge-github` provider serves `github.com`, supports drafts, and resolves a bound
 `GITHUB_TOKEN` before the operator's `gh auth token`. See the assisted-exit guide for secret binding

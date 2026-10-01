@@ -4,7 +4,11 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 import type { SessionBusyInputAction } from "./lib/session-busy-input";
 import type { SessionSendOutcome } from "./lib/session-send-outcome";
 
-export type SessionsResponse = OperationResponse<"listSessions", 200>;
+export type SessionCatalogPageResponse = OperationResponse<"listSessions", 200>;
+/** Counted consumers require a total; count-free cursor reads use the wire envelope. */
+export type SessionsResponse = Omit<SessionCatalogPageResponse, "page"> & {
+  page: SessionCatalogPageResponse["page"] & { total: number };
+};
 type SessionCatalogStreamPayload = OperationResponse<"streamSessionCatalog", 200>;
 export type SessionCatalogEventPayload = Extract<SessionCatalogStreamPayload, { kind: string }>;
 export type SessionAttentionEventPayload = Extract<SessionCatalogStreamPayload, { from: string }>;

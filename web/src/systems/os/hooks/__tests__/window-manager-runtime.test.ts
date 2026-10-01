@@ -447,6 +447,112 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should open a forced-new terminal at the accepted revision of its queued adoption", async () => {
+    const queryClient = new QueryClient();
+    const sourceId = "app:agents";
+    const stacked = snapshotWithFloatingStack();
+    const initial: WindowManagerSnapshot = {
+      ...stacked,
+      windows: {
+        ...stacked.windows,
+        [sourceId]: {
+          ...stacked.windows[sourceId]!,
+          app: "terminal",
+          route: { pathname: "/terminal", search: {} },
+        },
+      },
+    };
+    const route = { pathname: "/terminal/term-adopted", search: {} };
+    const adopted: WindowManagerSnapshot = {
+      ...initial,
+      revision: initial.revision + 1,
+      windows: {
+        ...initial.windows,
+        [sourceId]: { ...initial.windows[sourceId]!, instanceKey: "term-adopted", route },
+      },
+    };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), initial);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    let completeAdoption!: (
+      result: Awaited<ReturnType<typeof executeWindowManagerCommand>>
+    ) => void;
+    vi.mocked(executeWindowManagerCommand)
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            completeAdoption = resolve;
+          })
+      )
+      .mockResolvedValueOnce({
+        snapshot: { ...adopted, revision: adopted.revision + 1 },
+        applied: true,
+        changes: EMPTY_CHANGES,
+        diagnostics: [],
+        client: null,
+        rebasedFrom: null,
+      });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: sourceId,
+      focusOrder: [sourceId],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const adoption = runtime.retargetWindow(sourceId, "term-adopted", route);
+    await flushCommandQueue();
+    const fresh = runtime.openOrFocus({
+      app: "terminal",
+      forceNewInstance: true,
+      stackTargetWindowId: sourceId,
+      route: { pathname: "/terminal", search: { new: "1" } },
+    });
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    completeAdoption({
+      snapshot: adopted,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    await expect(Promise.all([adoption.completion, fresh.completion])).resolves.toEqual([
+      true,
+      true,
+    ]);
+    expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
+      1,
+      "workspace:test",
+      "marketing",
+      "client:web",
+      initial.revision,
+      expect.objectContaining({ commandId: "window.navigate" })
+    );
+    expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
+      2,
+      "workspace:test",
+      "marketing",
+      "client:web",
+      adopted.revision,
+      expect.objectContaining({
+        commandId: "window.open",
+        payload: expect.objectContaining({
+          window: expect.objectContaining({
+            app: "terminal",
+            stack_target_window_id: sourceId,
+            route: { pathname: "/terminal", search: { new: "1" } },
+          }),
+        }),
+      })
+    );
+    runtime.stop();
+  });
+
   it("Should share one in-flight semantic open instead of creating a duplicate window", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);

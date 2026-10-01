@@ -132,6 +132,6 @@ func statusForPresenceError(err error) int {
 	case errors.Is(err, session.ErrSessionPresenceLeaseMismatch):
 		return http.StatusConflict
 	default:
-		return http.StatusInternalServerError
+		return StatusForSessionError(err)
 	}
 }

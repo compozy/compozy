@@ -77,6 +77,9 @@ func stubSessionListTime(info *session.Info, sortKey string) time.Time {
 	if info == nil {
 		return time.Time{}
 	}
+	if strings.TrimSpace(sortKey) == session.ListSortCreated {
+		return info.CreatedAt.UTC()
+	}
 	if strings.TrimSpace(sortKey) == session.ListSortLastActivity &&
 		info.Liveness != nil && info.Liveness.LastUpdateAt != nil {
 		return info.Liveness.LastUpdateAt.UTC()

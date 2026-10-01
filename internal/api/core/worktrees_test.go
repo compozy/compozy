@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -30,6 +32,7 @@ type worktreeServiceStub struct {
 	remove         func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	inspect        func(context.Context, string, string) (*worktree.Inspection, error)
 	exitPlan       func(context.Context, string, string) (*worktree.ExitPlan, error)
+	exitPlanPaths  func(context.Context, string, string, []string) (*worktree.ExitPlan, error)
 	runExit        func(context.Context, string, string, worktree.ExitActionRequest) (string, error)
 	cancelExit     func(context.Context, string, string, string) error
 	catalogEvents  <-chan worktree.CatalogEvent
@@ -415,6 +418,17 @@ func (s worktreeServiceStub) ExitPlan(
 		return s.exitPlan(ctx, workspaceID, worktreeID)
 	}
 	return nil, fmt.Errorf("unexpected ExitPlan call")
+}
+
+func (s worktreeServiceStub) ExitPlanForPaths(
+	ctx context.Context,
+	workspaceID, worktreeID string,
+	paths []string,
+) (*worktree.ExitPlan, error) {
+	if s.exitPlanPaths != nil {
+		return s.exitPlanPaths(ctx, workspaceID, worktreeID, paths)
+	}
+	return nil, fmt.Errorf("unexpected ExitPlanForPaths call")
 }
 
 func (s worktreeServiceStub) RunExitAction(
@@ -902,6 +916,17 @@ func TestWorktreeExitHandlers(t *testing.T) {
 			}, nil
 		}},
 		Worktrees: worktreeServiceStub{
+			exitPlanPaths: func(_ context.Context, workspaceID, worktreeID string, paths []string) (*worktree.ExitPlan, error) {
+				if workspaceID != "registry-a" || worktreeID != "wt-a" ||
+					!reflect.DeepEqual(paths, []string{"src/change.go", "docs/change.md"}) {
+					t.Fatalf("scoped plan inputs=%q/%q/%#v", workspaceID, worktreeID, paths)
+				}
+				return &worktree.ExitPlan{
+					WorktreeID:  worktreeID,
+					CommitScope: worktree.ExitCommitScope{IncludePaths: paths, Fingerprint: "reviewed", Complete: true},
+				}, nil
+			},
+
 			exitPlan: func(_ context.Context, workspaceID, worktreeID string) (*worktree.ExitPlan, error) {
 				if workspaceID != "registry-a" || worktreeID != "wt-a" {
 					t.Fatalf("ExitPlan() args = %q, %q", workspaceID, worktreeID)
@@ -981,6 +1006,26 @@ func TestWorktreeExitHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return the effective complete scope for repeated include parameters", func(t *testing.T) {
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/workspaces/workspace-a/worktrees/wt-a/exit?include=src%2Fchange.go&include=docs%2Fchange.md",
+			http.NoBody,
+		)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		var payload contract.WorktreeExitPlanResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || !payload.CommitScope.Complete ||
+			payload.CommitScope.Fingerprint != "reviewed" ||
+			len(payload.CommitScope.IncludePaths) != 2 {
+			t.Fatalf("scoped plan status/body=%d/%s", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should accept an action with snake-case options", func(t *testing.T) {
 		body := `{"action":"open_pr","message":"Commit","title":"Exit","body":"Ready","draft":true,"base":"trunk"}`
 		request := httptest.NewRequestWithContext(
@@ -997,6 +1042,23 @@ func TestWorktreeExitHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain the reviewed selective scope at the action boundary", func(t *testing.T) {
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/workspaces/workspace-a/worktrees/wt-a/exit/actions",
+			strings.NewReader(`{"action":"commit_push","include_paths":["src/change.go"],"expected_scope":"reviewed"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusAccepted || response.Body.String() != `{"op_id":"op-exit"}` ||
+			!reflect.DeepEqual(runRequest.IncludePaths, []string{"src/change.go"}) ||
+			runRequest.ExpectedScope != "reviewed" {
+			t.Fatalf("scope status/body/request=%d/%s/%#v", response.Code, response.Body.String(), runRequest)
+		}
+	})
+
 	t.Run("Should reject an unknown action before mutation", func(t *testing.T) {
 		before := runRequest
 		request := httptest.NewRequestWithContext(
@@ -1007,7 +1069,7 @@ func TestWorktreeExitHandlers(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
-		if response.Code != http.StatusBadRequest || runRequest != before {
+		if response.Code != http.StatusBadRequest || !reflect.DeepEqual(runRequest, before) {
 			t.Fatalf("invalid action status/request = %d/%#v", response.Code, runRequest)
 		}
 	})
@@ -1342,4 +1404,111 @@ func TestWorktreeStreams(t *testing.T) {
 			t.Fatalf("catalog stream status/body = %d/%s", response.Code, body)
 		}
 	})
+}
+
+// Invariant: delivery actor identity comes exclusively from daemon-validated
+// transport credentials, never a caller-selected JSON session. Owner: API boundary.
+func TestWorktreeManagedDeliveryCallerIdentity(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, headerSession, headerAgent, workspace string
+		state                                       session.State
+		want                                        int
+	}{
+		{"Should use validated caller despite a spoofed body", "managed-caller", "coder", "registry-a", session.StateActive, http.StatusAccepted},
+		{"Should reject body-only caller impersonation", "", "", "registry-a", session.StateActive, http.StatusUnauthorized},
+		{"Should reject mismatched agent credentials", "managed-caller", "other-agent", "registry-a", session.StateActive, http.StatusUnauthorized},
+		{"Should reject a caller from another workspace", "managed-caller", "coder", "registry-other", session.StateActive, http.StatusForbidden},
+		{"Should reject a stopped caller", "managed-caller", "coder", "registry-a", session.StateStopped, http.StatusUnauthorized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			handlers := &BaseHandlers{
+				TransportName: "uds",
+				Sessions: worktreeDeliveryIdentitySessions{
+					info: &session.Info{
+						ID:          "managed-caller",
+						ProfileID:   testWorktreeProfileIDForAPI,
+						AgentName:   "coder",
+						WorkspaceID: test.workspace,
+						WorktreeID:  "wt-a",
+						State:       test.state,
+					},
+				},
+				Workspaces: workspaceServiceStub{
+					resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{
+							Workspace:   workspacepkg.Workspace{ID: "registry-a"},
+							WorkspaceID: "workspace-a",
+						}, nil
+					},
+				},
+				Worktrees: worktreeManagedDeliveryStub{
+					submit: func(_ context.Context, workspace, ref, caller string, request worktree.ExitActionRequest) (string, error) {
+						calls++
+						if caller != "managed-caller" || workspace != "registry-a" || ref != "wt-a" ||
+							request.DeliveryID != "intent" ||
+							request.ExpectedHead != "reviewed-head" {
+							t.Fatalf("delivery admission=%q/%q/%q/%#v", workspace, ref, caller, request)
+						}
+						return "managed-op", nil
+					},
+				},
+			}
+			router := gin.New()
+			router.POST("/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions", handlers.RunWorktreeExitAction)
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/workspaces/workspace-a/worktrees/wt-a/exit/actions",
+				strings.NewReader(
+					`{"action":"deliver","delivery_id":"intent","expected_head":"reviewed-head","session_id":"spoofed-caller"}`,
+				),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set(agentidentity.HeaderSessionID, test.headerSession)
+			request.Header.Set(agentidentity.HeaderAgent, test.headerAgent)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != test.want {
+				t.Fatalf("delivery status=%d body=%s want=%d", recorder.Code, recorder.Body.String(), test.want)
+			}
+			if test.want == http.StatusAccepted {
+				var payload contract.WorktreeExitOperationResponse
+				if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.OperationID != "managed-op" || calls != 1 {
+					t.Fatalf("payload=%#v calls=%d", payload, calls)
+				}
+			} else if calls != 0 {
+				t.Fatal("unauthorized caller reached delivery service")
+			}
+		})
+	}
+}
+
+const testWorktreeProfileIDForAPI = "00000000000000000000000000"
+
+type worktreeDeliveryIdentitySessions struct {
+	SessionManager
+	info *session.Info
+}
+
+func (s worktreeDeliveryIdentitySessions) Status(context.Context, string) (*session.Info, error) {
+	return s.info, nil
+}
+
+type worktreeManagedDeliveryStub struct {
+	worktreeServiceStub
+	submit func(context.Context, string, string, string, worktree.ExitActionRequest) (string, error)
+}
+
+func (s worktreeManagedDeliveryStub) SubmitManagedDelivery(
+	ctx context.Context,
+	workspace, ref, caller string,
+	request worktree.ExitActionRequest,
+) (string, error) {
+	return s.submit(ctx, workspace, ref, caller, request)
 }

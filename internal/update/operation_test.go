@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -129,6 +131,193 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 }
 
 func TestOperationDormancyAndArchive(t *testing.T) {
+	t.Run(
+		"Should retain a live applying installer past its deadline until its process identity is gone",
+		func(t *testing.T) {
+			t.Parallel()
+			store, _, _ := newOperationTestStore(t)
+			store.holderLive = holderProcessIsLive
+			request := operationTestRequest(testOperationNow)
+			request.Targets = []Target{TargetApp}
+			request.Runtime = nil
+			started, err := procutil.StartedAt(os.Getpid())
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Holder.PID = os.Getpid()
+			request.Holder.PIDStartTime = started
+			request.Holder.LeaseExpiresAt = request.Deadline.Add(time.Minute)
+			operation, err := store.Acquire(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operation.App.Phase = PhaseApplying
+			if err := store.replaceUnlocked(operation); err != nil {
+				t.Fatal(err)
+			}
+			store.now = func() time.Time { return request.Deadline }
+			live, err := store.Read(t.Context())
+			if err != nil || live == nil || live.ID != operation.ID || live.App.Phase != PhaseApplying {
+				t.Fatalf("live installer = %#v, %v", live, err)
+			}
+			if err := store.Fence(
+				t.Context(),
+				operation.ID,
+				operation.Holder.ExecutorGeneration,
+				operation.Revision,
+			); err != nil {
+				t.Fatalf("live installer fence = %v", err)
+			}
+			competing := request
+			competing.Holder.ExecutorGeneration = "competing-installer"
+			if _, err := store.Acquire(t.Context(), competing); !errors.Is(err, ErrOperationBlocked) {
+				t.Fatalf("competing acquisition = %v", err)
+			}
+			operation.Holder.LeaseExpiresAt = request.Deadline.Add(-time.Second)
+			if err := store.replaceUnlocked(operation); err != nil {
+				t.Fatal(err)
+			}
+			if live, err := store.Read(t.Context()); err != nil || live == nil {
+				t.Fatalf("live process with expired lease = %#v, %v", live, err)
+			}
+			operation.Holder.PIDStartTime = started.Add(-time.Hour)
+			if err := store.replaceUnlocked(operation); err != nil {
+				t.Fatal(err)
+			}
+			if live, err := store.Read(t.Context()); err != nil || live != nil {
+				t.Fatalf("replaced holder = %#v, %v", live, err)
+			}
+			archived, err := store.ReadArchived(t.Context(), operation.ID)
+			if err != nil || archived == nil || archived.App.Phase != PhaseFailed || archived.Holder != nil {
+				t.Fatalf("settled installer = %#v, %v", archived, err)
+			}
+		},
+	)
+	t.Run("Should archive expired app phases without a new executor", func(t *testing.T) {
+		t.Parallel()
+		for _, phase := range []OperationPhase{PhasePending, PhaseStaged, PhaseApplying} {
+			t.Run("Should settle "+string(phase), func(t *testing.T) {
+				t.Parallel()
+				store, _, _ := newOperationTestStore(t)
+				request := operationTestRequest(testOperationNow)
+				request.Targets = []Target{TargetApp}
+				request.Runtime = nil
+				operation, err := store.Acquire(t.Context(), request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				operation.App.Phase = phase
+				if phase == PhaseStaged {
+					operation.ActiveTarget = ""
+					operation.Waiting = WaitingForApp
+					operation.Holder = nil
+				}
+				if err := store.replaceUnlocked(operation); err != nil {
+					t.Fatal(err)
+				}
+				store.now = func() time.Time { return request.Deadline }
+				for range 2 {
+					live, err := store.Read(t.Context())
+					if err != nil || live != nil {
+						t.Fatalf("Read() = %#v, %v", live, err)
+					}
+				}
+				archived, err := store.ReadArchived(t.Context(), operation.ID)
+				if err != nil || archived == nil || archived.App.Phase != PhaseFailed || archived.Holder != nil ||
+					archived.Outcome != "failed" ||
+					!archived.UpdatedAt.Equal(request.Deadline) {
+					t.Fatalf("archived = %#v, %v", archived, err)
+				}
+			})
+		}
+	})
+	t.Run("Should cancel applying after the recorded child process exits", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix process fixture")
+		}
+		command := exec.CommandContext(t.Context(), "sleep", "30")
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		started, startErr := procutil.StartedAt(command.Process.Pid)
+		killErr := command.Process.Kill()
+		waitErr := command.Wait()
+		if startErr != nil || killErr != nil {
+			t.Fatalf("process identity=%v kill=%v wait=%v", startErr, killErr, waitErr)
+		}
+		if waitErr == nil {
+			t.Fatal("killed process unexpectedly succeeded")
+		}
+		store, _, _ := newOperationTestStore(t)
+		store.holderLive = holderProcessIsLive
+		request := operationTestRequest(testOperationNow)
+		request.Targets = []Target{TargetApp}
+		request.Runtime = nil
+		request.Holder.PID = command.Process.Pid
+		request.Holder.PIDStartTime = started
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		operation.App.Phase = PhaseApplying
+		if err := store.replaceUnlocked(operation); err != nil {
+			t.Fatal(err)
+		}
+		canceled, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			"",
+			operation.Revision,
+			Transition{Kind: TransitionCancel, Actor: ActorCLI, Target: TargetApp, Percent: -1},
+		)
+		if err != nil || canceled == nil || canceled.Outcome != operationOutcomeCanceled {
+			t.Fatalf("dead process cancel=%#v, %v", canceled, err)
+		}
+	})
+	t.Run("Should cancel applying only when the actual holder identity is gone", func(t *testing.T) {
+		t.Parallel()
+		store, _, _ := newOperationTestStore(t)
+		store.holderLive = holderProcessIsLive
+		request := operationTestRequest(testOperationNow)
+		request.Targets = []Target{TargetApp}
+		request.Runtime = nil
+		started, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Holder.PID = os.Getpid()
+		request.Holder.PIDStartTime = started
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		operation.App.Phase = PhaseApplying
+		if err := store.replaceUnlocked(operation); err != nil {
+			t.Fatal(err)
+		}
+		transition := Transition{Kind: TransitionCancel, Actor: ActorCLI, Target: TargetApp, Percent: -1}
+		if _, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			"",
+			operation.Revision,
+			transition,
+		); !errors.Is(
+			err,
+			ErrOperationNotCancelable,
+		) {
+			t.Fatalf("live cancel = %v", err)
+		}
+		operation.Holder.PIDStartTime = started.Add(-time.Hour)
+		if err := store.replaceUnlocked(operation); err != nil {
+			t.Fatal(err)
+		}
+		canceled, err := store.Transition(t.Context(), operation.ID, "", operation.Revision, transition)
+		if err != nil || canceled == nil || canceled.Outcome != operationOutcomeCanceled {
+			t.Fatalf("stale cancel = %#v, %v", canceled, err)
+		}
+	})
 	t.Run("Should treat dead and reused process identities as expired holders", func(t *testing.T) {
 		t.Parallel()
 

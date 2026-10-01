@@ -28,7 +28,7 @@ func (g *HeartbeatRepo) UpsertSessionHealth(
 		return heartbeat.SessionHealth{}, err
 	}
 
-	err := g.queries.UpsertSessionHealth(ctx, sqlcgen.UpsertSessionHealthParams{
+	params := sqlcgen.UpsertSessionHealthParams{
 		SessionID:           normalized.SessionID,
 		WorkspaceID:         normalized.WorkspaceID,
 		AgentName:           normalized.AgentName,
@@ -44,7 +44,15 @@ func (g *HeartbeatRepo) UpsertSessionHealth(
 			normalized.LastError,
 		),
 		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
-	})
+	}
+	err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"upsert session health",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			return sqlcgen.New(tx).UpsertSessionHealth(ctx, params)
+		},
+	)
 	if err != nil {
 		return heartbeat.SessionHealth{}, fmt.Errorf("store: upsert session health %q: %w", normalized.SessionID, err)
 	}

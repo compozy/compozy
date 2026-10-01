@@ -135,6 +135,24 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept pre-upgrade public cursors and fence visible search mode", func(t *testing.T) {
+		t.Parallel()
+		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		query := ListQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			AllWorkspaces: true,
+			Cursor:        "eyJ2IjoyLCJrIjoic2Vzc2lvbnMiLCJmIjoiWmxPVEdkRkIzaXEzckNZbzhOQTBZeHd2SGZJc3R5Yzd0NWVWTW5sOVdQdyIsInAiOnsiYXR0ZW50aW9uX3JhbmsiOjAsInByaW1hcnlfYXQiOiIyMDI2LTA5LTI5VDEyOjAwOjAwWiIsInNlY29uZGFyeV9hdCI6IjIwMjYtMDktMjlUMTI6MDA6MDBaIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDktMjlUMTI6MDA6MDBaIiwiaWQiOiJsZWdhY3ktc2Vzc2lvbiJ9fQ",
+		}
+		if _, err := h.manager.ListPage(testutil.Context(t), query); err != nil {
+			t.Fatalf("legacy public cursor error=%v", err)
+		}
+		query.SearchFields = "title_agent"
+		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("changed search mode error=%v, want invalid cursor", err)
+		}
+	})
+
 	t.Run("Should archive only stopped sessions and keep archived sessions directly readable", func(t *testing.T) {
 		t.Parallel()
 
@@ -621,6 +639,34 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	}
 	now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
 
+	t.Run("Should match visible Unicode casing for active catalog rows", func(t *testing.T) {
+		t.Parallel()
+		for _, match := range []struct{ title, agent, query string }{
+			{title: "ΟΣ", agent: "coder", query: "ος"},
+			{title: "Visible", agent: "İ", query: "i̇"},
+			{title: "ος", agent: "coder", query: "ΟΣ"},
+			{title: "Visible", agent: "i̇", query: "İ"},
+		} {
+			info := *base
+			info.Name = match.title
+			info.AgentName = match.agent
+			query, err := normalizeListQuery(
+				ListQuery{
+					ReadScope:     store.ReadScope{AllProfiles: true},
+					AllWorkspaces: true,
+					SearchFields:  "title_agent",
+					Search:        match.query,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !sessionMatchesListQuery(&info, query, now) {
+				t.Fatalf("visible title=%q agent=%q query=%q did not match", match.title, match.agent, match.query)
+			}
+		}
+	})
+
 	t.Run("Should apply exact workspace state agent and literal search filters", func(t *testing.T) {
 		t.Parallel()
 
@@ -810,8 +856,12 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 		if got, want := len(summary.ByWorkspace), 3; got != want {
 			t.Fatalf("AttentionSummary().ByWorkspace length = %d, want %d", got, want)
 		}
-		if catalog.calls < 2 {
-			t.Fatalf("PageSessions() calls = %d, want at least 2", catalog.calls)
+		if catalog.calls != 0 || catalog.facetCalls != 1 {
+			t.Fatalf(
+				"row calls=%d metadata calls=%d, want zero rows and one metadata query",
+				catalog.calls,
+				catalog.facetCalls,
+			)
 		}
 		if got := []string{
 			summary.ByWorkspace[0].WorkspaceID,
@@ -1036,8 +1086,43 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 
 type multiPagedRecordingSessionCatalog struct {
 	*recordingSessionCatalog
-	durable []store.SessionInfo
-	calls   int
+	durable    []store.SessionInfo
+	calls      int
+	facetCalls int
+}
+
+func (c *multiPagedRecordingSessionCatalog) SessionCatalogFacets(
+	_ context.Context,
+	query store.SessionCatalogPageQuery,
+) (store.SessionCatalogFacetResult, error) {
+	c.facetCalls++
+	result := store.SessionCatalogFacetResult{}
+	workspaces := map[string]store.SessionCatalogFacets{}
+	for index := range c.durable {
+		info := &c.durable[index]
+		if slices.Contains(query.ExcludeIDs, info.ID) {
+			continue
+		}
+		if query.Archive == store.SessionArchiveExclude && info.ArchivedAt != nil ||
+			query.Archive == store.SessionArchiveOnly && info.ArchivedAt == nil {
+			continue
+		}
+		if query.WorkspaceID != "" && info.WorkspaceID != query.WorkspaceID {
+			continue
+		}
+		badge := BadgeForInfo(sessionInfoFromCatalog(info))
+		addSessionFacet(&result.Facets, badge)
+		counts := workspaces[info.WorkspaceID]
+		addSessionFacet(&counts, badge)
+		workspaces[info.WorkspaceID] = counts
+	}
+	for id, counts := range workspaces {
+		result.ByWorkspace = append(
+			result.ByWorkspace,
+			store.WorkspaceSessionCatalogFacets{WorkspaceID: id, Facets: counts},
+		)
+	}
+	return result, nil
 }
 
 func (c *multiPagedRecordingSessionCatalog) PageSessions(
@@ -1060,6 +1145,13 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 			query.Archive == store.SessionArchiveOnly && !archived {
 			continue
 		}
+		badge := BadgeForInfo(sessionInfoFromCatalog(info))
+		if query.AttentionOnly && ClassForBadge(badge) != AttentionNeedsYou {
+			continue
+		}
+		if len(query.Badges) > 0 && !slices.Contains(query.Badges, string(badge)) {
+			continue
+		}
 		candidates = append(candidates, *info)
 	}
 	sort.Slice(candidates, func(i, j int) bool {
@@ -1068,6 +1160,7 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 			sessionCatalogPosition(&candidates[j], query.Sort),
 		) < 0
 	})
+	total := len(candidates)
 	if query.After != nil {
 		filtered := candidates[:0]
 		for index := range candidates {
@@ -1078,7 +1171,6 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 		}
 		candidates = filtered
 	}
-	total := len(candidates)
 	if len(candidates) > query.Limit {
 		candidates = candidates[:query.Limit]
 	}

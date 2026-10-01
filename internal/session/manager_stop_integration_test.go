@@ -42,11 +42,17 @@ const (
 	testSessionStopWrapperPIDFile = "COMPOZY_TEST_SESSION_STOP_WRAPPER_PID_FILE"
 )
 
-func TestSessionStopACPHelperProcess(t *testing.T) {
+func TestSessionStopACPHelperProcess(_ *testing.T) {
 	if os.Getenv(testSessionStopHelperEnvKey) != "1" {
 		return
 	}
 
+	if path := os.Getenv("COMPOZY_TEST_STALLED_SESSION_NEW"); path != "" {
+		signal.Ignore(syscall.SIGTERM)
+		conn := acpsdk.NewAgentSideConnection(stalledSessionACPAgent{path: path}, os.Stdout, os.Stdin)
+		<-conn.Done()
+		select {}
+	}
 	if path := os.Getenv("COMPOZY_TEST_STUBBORN_PROMPTS"); path != "" {
 		signal.Ignore(syscall.SIGTERM)
 		conn := acpsdk.NewAgentSideConnection(stubbornSessionACPAgent{path: path}, os.Stdout, os.Stdin)
@@ -58,7 +64,7 @@ func TestSessionStopACPHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func TestSessionStopACPWrapperProcess(t *testing.T) {
+func TestSessionStopACPWrapperProcess(_ *testing.T) {
 	if os.Getenv(testSessionStopWrapperEnvKey) != "1" {
 		return
 	}
@@ -68,7 +74,7 @@ func TestSessionStopACPWrapperProcess(t *testing.T) {
 		os.Exit(1)
 	}
 
-	cmd := exec.Command(bin, "-test.run=TestSessionStopACPHelperProcess")
+	cmd := exec.CommandContext(context.Background(), bin, "-test.run=TestSessionStopACPHelperProcess")
 	cmd.Env = append([]string(nil), os.Environ()...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -1256,4 +1262,158 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 			t.Fatalf("resumed command = %q, want persisted creator route resolution", got)
 		}
 	})
+}
+
+// Invariant: silent startup settles durably and stopping it reaps the owned process tree.
+// Owner: session manager; canonical suite: manager_stop_integration_test.go.
+func TestManagerIntegrationStalledACPStartup(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"timeout", "stop", "recover"} {
+		stop := mode == "stop"
+		name := "Should fail silent session creation within the control deadline"
+		if stop {
+			name = "Should stop a silent session creation and reap its process tree"
+		}
+		if mode == "recover" {
+			name = "Should retry a silent session creation on a fresh process"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			requestFile, childFile := filepath.Join(root, "request.pid"), filepath.Join(root, "child.pid")
+			command := "env " + shellquote.Join(
+				"COMPOZY_TEST_STALLED_SESSION_NEW="+requestFile,
+				"COMPOZY_TEST_STALLED_SESSION_NEW_ONCE="+strconv.FormatBool(mode == "recover"),
+			) + " " + sessionStopWrapperCommand(
+				t,
+				childFile,
+			)
+			h := newRealACPIntegrationHarness(t, command)
+			budget := 2 * time.Second
+			if stop {
+				budget = time.Minute
+			}
+			driver := newIntegrationACPDriver(
+				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+				acp.WithControlTimeout(budget),
+				acp.WithStopTimeout(100*time.Millisecond),
+			)
+			h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
+			created := make(chan error, 1)
+			go func() {
+				_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				created <- err
+			}()
+			childPID := waitForSessionStopWrapperChildPID(t, requestFile)
+			wrapperChildPID := waitForSessionStopWrapperChildPID(t, childFile)
+			wrapperPID, err := syscall.Getpgid(childPID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if childPID != wrapperChildPID {
+				t.Fatalf("request PID = %d, wrapper child = %d", childPID, wrapperChildPID)
+			}
+			active, ok := h.manager.Get("sess-1")
+			if !ok {
+				t.Fatal("starting session is missing")
+			}
+			if stop {
+				if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+			}
+			select {
+			case err := <-created:
+				if stop || mode == "recover" {
+					// A requested stop settles the accepted creation successfully.
+					if err != nil {
+						t.Fatalf("Create() after requested stop: %v", err)
+					}
+				} else {
+					if !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatalf("Create() error = %v, want deadline exceeded", err)
+					}
+					if !strings.Contains(err.Error(), "session/new") ||
+						!strings.Contains(err.Error(), acpmock.ProviderName) {
+						t.Fatalf("Create() error missing ACP stage/provider: %v", err)
+					}
+				}
+			case <-time.After(8 * time.Second):
+				t.Fatal("startup did not settle")
+			}
+			waitForSessionStopProcessExit(t, childPID, time.Second)
+			waitForSessionStopProcessExit(t, wrapperPID, time.Second)
+
+			records, err := os.ReadFile(requestFile + ".attempts")
+			if err != nil {
+				t.Fatal(err)
+			}
+			attempts := strings.Fields(string(records))
+			wantAttempts := 2
+			if stop {
+				wantAttempts = 1
+			}
+			if len(attempts) != wantAttempts {
+				t.Fatalf("startup attempts = %d, want %d", len(attempts), wantAttempts)
+			}
+			if mode == "recover" {
+				if active.processHandle() == nil {
+					t.Fatal("recovered session has no process")
+				}
+				if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, record := range attempts {
+				for id := range strings.SplitSeq(record, ",") {
+					pid, err := strconv.Atoi(id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					waitForSessionStopProcessExit(t, pid, time.Second)
+				}
+			}
+			if state := readMeta(t, active.MetaPath()).State; state != string(StateStopped) {
+				t.Fatalf("persisted state = %q, want stopped", state)
+			}
+		})
+	}
+}
+
+type stalledSessionACPAgent struct {
+	sessionStopACPAgent
+	path string
+}
+
+func (a stalledSessionACPAgent) NewSession(
+	context.Context,
+	acpsdk.NewSessionRequest,
+) (acpsdk.NewSessionResponse, error) {
+	pgid, err := syscall.Getpgid(os.Getpid())
+	if err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	f, err := os.OpenFile(a.path+".attempts", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	_, writeErr := fmt.Fprintf(f, "%d,%d\n", os.Getpid(), pgid)
+	if err := errors.Join(writeErr, f.Close()); err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	marker, err := os.OpenFile(a.path+".first", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if errors.Is(err, os.ErrExist) && os.Getenv("COMPOZY_TEST_STALLED_SESSION_NEW_ONCE") == "true" {
+		return acpsdk.NewSessionResponse{SessionId: "recovered-session"}, nil
+	}
+	if err == nil {
+		if err := marker.Close(); err != nil {
+			return acpsdk.NewSessionResponse{}, err
+		}
+	} else if !errors.Is(err, os.ErrExist) {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	if err := os.WriteFile(a.path, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
+	select {}
 }

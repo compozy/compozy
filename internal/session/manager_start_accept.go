@@ -39,6 +39,10 @@ func (m *Manager) acceptSessionStart(
 		return nil, fmt.Errorf("session: reserve %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
 	defer releaseLifecycle()
+	if spec.worktreeID != "" && m.worktreeDeliveryFences[spec.workspace.ID+"\x00"+spec.worktreeID] {
+		m.releaseReservation(spec.sessionID)
+		return nil, fmt.Errorf("%w: worktree delivery is in progress", ErrValidation)
+	}
 	defer func() {
 		if err != nil {
 			m.releaseReservation(spec.sessionID)

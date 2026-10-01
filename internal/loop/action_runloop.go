@@ -42,6 +42,9 @@ func (e *RunLoopActionExecutor) Execute(
 	if err := dsl.NodeParams(params).Decode(&spec); err != nil {
 		return ActionRawResult{}, fmt.Errorf("decode run-loop params: %w", err)
 	}
+	if _, err := dsl.DecodeReviewedWorktree(spec.Inputs); err != nil {
+		return ActionRawResult{}, fmt.Errorf("decode run-loop reviewed candidate: %w", err)
+	}
 	if spec.Mode == "" {
 		spec.Mode = dsl.RunLoopAwait
 	}

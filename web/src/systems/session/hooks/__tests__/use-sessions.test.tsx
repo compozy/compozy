@@ -3,6 +3,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionPayload } from "../../types";
+import { useSessionCatalog } from "../use-session-catalog";
+import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
+import { sessionCatalogOptions } from "../../lib/session-catalog-options";
 import { sessionKeys } from "../../lib/query-keys";
 import { useSession, useSessionById, useSessionLedger, useSessions } from "../use-sessions";
 import {
@@ -49,6 +52,11 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
       this.name = "SessionNotFoundError";
     }
   },
+}));
+
+vi.mock("../../adapters/session-catalog-api", () => ({
+  fetchSessionCatalogPage: vi.fn(),
+  fetchSessionFacets: vi.fn(),
 }));
 
 vi.mock("../../adapters/session-owner-api", () => ({
@@ -196,33 +204,6 @@ describe("useSessions", () => {
         workspace_id: "ws_alpha",
       })
     );
-  });
-
-  it("loads every cursor page when the consumer requests the complete catalog", async () => {
-    vi.mocked(fetchSessions)
-      .mockResolvedValueOnce({
-        sessions: [makeSession({ id: "sess-002" })],
-        page: { has_more: true, limit: 1, next_cursor: "cursor-1", total: 2 },
-      })
-      .mockResolvedValueOnce({
-        sessions: [makeSession({ id: "sess-001" })],
-        page: { has_more: false, limit: 1, total: 2 },
-      });
-
-    const { result } = renderHook(
-      () =>
-        useSessions("ws_alpha", {
-          loadAll: true,
-          filters: { limit: 1, sort: "attention" },
-        }),
-      { wrapper: createWrapper() }
-    );
-
-    await waitFor(() =>
-      expect(result.current.data?.map(session => session.id)).toEqual(["sess-002", "sess-001"])
-    );
-    expect(fetchSessions).toHaveBeenCalledTimes(2);
-    expect(result.current.hasNextPage).toBe(false);
   });
 
   it("does not periodically refetch every loaded catalog page", async () => {
@@ -530,6 +511,142 @@ describe("Session context query projection", () => {
     expect(result.current.context.context.used).toBeUndefined();
     expect(sessionUsageOptions("ws", "session", "stopped").refetchInterval).toBe(false);
     expect(sessionUsageTurnsOptions("ws", "session", "stopped").refetchInterval).toBe(false);
+    unmount();
+    client.clear();
+  });
+});
+
+describe("bounded session catalog", () => {
+  beforeEach(() => {
+    vi.mocked(fetchSessionCatalogPage).mockReset();
+    vi.mocked(fetchSessionFacets).mockReset();
+  });
+  it("Should share exact population facets across differently filtered visible pages", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { terminal_approvals: 0, all: 201, needs_you: 1, working: 0, finished: 0, idle: 200 },
+      by_workspace: [],
+    });
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 100 },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result } = renderHook(
+      () => ({
+        search: useSessionCatalog(
+          "ws_alpha",
+          {
+            q: "older",
+            search_fields: "title_agent",
+            sort: "last_activity",
+            limit: 100,
+            parent: " parent-session ",
+            root: "root-session",
+          },
+          true,
+          { facets: true }
+        ),
+        attention: useSessionCatalog(
+          "ws_alpha",
+          {
+            attention: true,
+            sort: "attention",
+            include_health: true,
+            limit: 50,
+            parent: "parent-session",
+            root: "root-session",
+          },
+          true,
+          { facets: true }
+        ),
+        picker: useSessionCatalog("ws_alpha", { q: "picker", limit: 100 }, true, { facets: false }),
+      }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.search.total).toBe(201));
+    expect(result.current.attention.total).toBe(201);
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      {
+        workspace_id: "ws_alpha",
+        profile: "default",
+        parent: "parent-session",
+        root: "root-session",
+      },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("Should keep one visible page on invalidation and navigate older history explicitly", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { terminal_approvals: 0, all: 201, needs_you: 0, working: 0, finished: 0, idle: 201 },
+      by_workspace: [],
+    });
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
+      sessions: [makeSession({ id: query?.cursor ? "sess-old" : "sess-new" })],
+      page: {
+        has_more: !query?.cursor,
+        next_cursor: query?.cursor ? undefined : "older",
+        limit: 100,
+      },
+    }));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result } = renderHook(
+      () => useSessionCatalog("ws_alpha", { limit: 100 }, true, { facets: true }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
+    expect(result.current.total).toBe(201);
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1);
+    act(() => result.current.nextPage());
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-old"));
+    vi.mocked(fetchSessionCatalogPage).mockClear();
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: sessionKeys.workspaceLists("ws_alpha") });
+    });
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1);
+    expect(fetchSessionCatalogPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: "older", skip_total: true }),
+      expect.any(AbortSignal)
+    );
+    expect(
+      client.getQueryData<{ pages: unknown[] }>(
+        sessionCatalogOptions({ workspace_id: "ws_alpha", limit: 100, profile: "default" }).queryKey
+      )?.pages
+    ).toHaveLength(1);
+    act(() => result.current.previousPage());
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
+  });
+  it("Should retain search rows without reusing another workspace or fetching unused facets", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValueOnce({
+      sessions: [makeSession({ id: "sess-original" })],
+      page: { has_more: true, next_cursor: "old-cursor", limit: 100 },
+    });
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(() => new Promise(() => {}));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result, rerender, unmount } = renderHook(
+      ({ workspace, search }) => useSessionCatalog(workspace, { q: search, limit: 100 }),
+      { wrapper, initialProps: { workspace: "ws_alpha", search: "original" } }
+    );
+    await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-original"));
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
+    rerender({ workspace: "ws_alpha", search: "changed" });
+    expect(result.current.sessions[0]?.id).toBe("sess-original");
+    expect(result.current.paging).toBe(true);
+    expect(result.current.next).toBe(false);
+    expect(result.current.previous).toBe(false);
+    act(() => result.current.nextPage());
+    expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(2);
+    rerender({ workspace: "ws_beta", search: "changed" });
+    expect(result.current.sessions).toEqual([]);
+    expect(result.current.loading).toBe(true);
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });

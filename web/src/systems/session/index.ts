@@ -278,7 +278,6 @@ export {
   sessionAcrossProfilesOptions,
   sessionScopedDetailOptions,
   sessionsListOptions,
-  sessionsCompleteListOptions,
 } from "./lib/query-options";
 export {
   canPromptSession,
@@ -489,3 +488,7 @@ export {
   useSessionContextActivity,
   type SessionContextActivitySource,
 } from "./hooks/use-session-context-activity";
+
+export { useSessionCatalog } from "./hooks/use-session-catalog";
+export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
+export { fetchSessionFacets } from "./adapters/session-catalog-api";

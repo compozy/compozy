@@ -9,10 +9,10 @@ entry_points: web dock Sessions
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/screenshots/dock-last-created.png; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-rebase-20260828-201516-678087-lab/qa-artifacts/qa/screenshots/session-delete-empty-tab.png; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
-last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+evidence: /Users/pedronauck/Dev/qa-labs/compozy-reported-issues-20260929-20260930-025651-581547-lab/qa-artifacts/qa/final-dock-restored.json; docs/qa/reports/2026-09-29-reported-issues.md
+last_report: docs/qa/reports/2026-09-29-reported-issues.md
 overlaps: ET-web-sessions-catalog-modal; ET-web-desktop-shell-lifecycle
 ---
 
@@ -30,3 +30,5 @@ QA execution 2026-08-27: with a catalog row and no window for it, Sessions opene
 instead of the create modal and instead of leftover empty /sessions windows. After the catalog went
 empty, Sessions opened create with general selected. Detached Plus still opened create while a
 session was focused. Verdict: pass.
+
+QA re-walk 2026-09-30: PASS on actual isolated Electron final Web index71ea3236e585a54471d994843a07ea687a1797a34badc28b6af7086f13d18b57. A newly registered empty project opened the real Start session form from Sessions; Cancel preserved the empty catalog. Public CLI then created Dock external newest session, and the next actual dock click opened that exact session instead of another create form. Actual window Minimize followed by dock click restored the same session, visible and focused. The cache was empty before external creation; its value at click was not independently observed. Unchanged remote E2E-136 covers the precise stale-cache regression. Evidence: final-dock-cold-workspace.json, final-dock-external-new.json and final-dock-restored.json in the canonical report lab.

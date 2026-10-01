@@ -66,7 +66,17 @@ func (g *SessionRepo) UpdateSessionState(ctx context.Context, update store.Sessi
 		return fmt.Errorf("store: build update session state %q: %w", update.ID, err)
 	}
 	// dynamic-sql: the mutable session-state field set is explicitly partial and alters assignments.
-	result, err := g.db.ExecContext(ctx, query, args...)
+	var result sql.Result
+	err = store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"update session state",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			var execErr error
+			result, execErr = tx.ExecContext(ctx, query, args...)
+			return execErr
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: update session state %q: %w",

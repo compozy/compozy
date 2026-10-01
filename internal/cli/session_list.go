@@ -75,7 +75,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
-	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent, last_activity, or attention")
+	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent, created, last_activity, attention, or navigator")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	configureProfileReadCommand(cmd, deps)
 	return cmd

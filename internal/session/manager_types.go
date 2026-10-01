@@ -136,6 +136,7 @@ type Manager struct {
 	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
 	lifecycleMu                sync.Mutex
+	worktreeDeliveryFences     map[string]bool
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization

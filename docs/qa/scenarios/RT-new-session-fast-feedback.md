@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-17
 expected: Clicking New session opens launch details without a first-message composer; Create gives visible feedback within 100 ms, creates one durable session and activates its owner workspace before navigation within 250 ms, then the destination composer accepts the separate first prompt and its runtime selection without duplicate creation.
 entry_points: web agent detail New session; web Agents Start session
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race; BUG-20260730-session-create-window-intent; BUG-20260827-session-create-first-message-regression; BUG-20260827-unbound-session-fast-inheritance; BUG-20260828-unbound-session-start-latency
 fix_status: fixed-pending-commit
-retest_status: pass
+retest_status: untested
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-live-create.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-default-unset.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-create.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-fast-feedback.json;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-fast-feedback-pass.png
 last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
@@ -65,3 +65,17 @@ feedback and 250 ms navigation budgets.
 QA 2026-08-28: pass. A click-listener capture measured feedback at 14.8 ms, navigation at 207.4 ms,
 and the separate composer ready at 392 ms. Exactly one `POST /api/sessions` returned 201; the
 destination retained Cursor Grok 4.5, High, and Fast before its first bind.
+
+QA impact 2026-09-29: each non-prompt ACP control request has a 30-second default
+budget. A timed-out `session/new` gets at most one fresh-process retry after the
+previous owned process tree has exited. Caller cancellation and other startup
+failures do not retry. Exhaustion reports the ACP method and provider and settles
+the session in `stopped`; stopping during startup also reaps the wrapper and child.
+Prompt execution and interactive clarification retain their existing lifetimes.
+
+Verification: the existing `internal/session/manager_stop_integration_test.go`
+subprocess suite verifies two silent attempts, first-attempt stall followed by
+successful recovery, and explicit stop during a silent `session/new`, including
+persisted terminal state and OS process exit. Live Cursor timing and Web recovery
+presentation require a fresh provider/browser walk; this evidence covers the
+runtime boundary only.

@@ -1190,6 +1190,82 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 		SpawnRole:       "worker",
 	}
 
+	t.Run("Should expose metadata facets with operator scope and explicit search semantics", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{
+			CatalogFacetsFn: func(_ context.Context, query session.ListQuery) (store.SessionCatalogFacetResult, error) {
+				if !query.AllWorkspaces || query.Archive != store.SessionArchiveOnly {
+					t.Fatalf("facet query=%#v", query)
+				}
+				return store.SessionCatalogFacetResult{
+					Facets: store.SessionCatalogFacets{
+						All:               200,
+						NeedsYou:          2,
+						Working:           1,
+						Finished:          3,
+						Idle:              4,
+						TerminalApprovals: 7,
+					},
+					ByWorkspace: []store.WorkspaceSessionCatalogFacets{
+						{WorkspaceID: "ws_alpha", Facets: store.SessionCatalogFacets{All: 200}},
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Engine.GET("/sessions/facets", fixture.Handlers.ListSessionFacets)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions/facets?all_workspaces=true&archive=only",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("facets status=%d body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.SessionCatalogFacetsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Facets.All != 200 || payload.Facets.NeedsYou != 2 || payload.Facets.TerminalApprovals != 7 ||
+			len(payload.ByWorkspace) != 1 {
+			t.Fatalf("facets payload=%#v", payload)
+		}
+	})
+
+	t.Run("Should omit total only for an explicit count-free cursor read", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				if !query.SkipTotal {
+					t.Fatal("skip_total did not reach the catalog owner")
+				}
+				return session.ListPage{
+					Sessions:   []*session.Info{},
+					Total:      999,
+					Limit:      1,
+					HasMore:    true,
+					NextCursor: "next",
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions?all_workspaces=true&skip_total=true&limit=1",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.SessionCatalogResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Page.Total != nil || payload.Page.NextCursor != "next" || !payload.Page.HasMore {
+			t.Fatalf("count-free page=%#v", payload.Page)
+		}
+	})
+
 	t.Run("Should return the bounded visible session page", func(t *testing.T) {
 		t.Parallel()
 
@@ -1241,7 +1317,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 		if got, want := strings.Join(ids, ","), "sess-user,sess-worker"; got != want {
 			t.Fatalf("session ids = %q, want %q", got, want)
 		}
-		if payload.Page.Total != 2 || payload.Page.Limit != session.DefaultListLimit {
+		if payload.Page.Total == nil || *payload.Page.Total != 2 || payload.Page.Limit != session.DefaultListLimit {
 			t.Fatalf("session page = %#v, want truthful total/default limit", payload.Page)
 		}
 	})

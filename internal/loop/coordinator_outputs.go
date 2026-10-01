@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func (r *CoordinatorRunner) refreshGenerationOutputs(
@@ -87,6 +88,10 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 		}
 		return ordered[i].NodeID < ordered[j].NodeID
 	})
+	ordered, err := r.refreshRecoveredChildOutputs(ctx, run, generation, graph, topology, ordered)
+	if err != nil {
+		return nil, nil, nil, false, nil, err
+	}
 	failed := selectFailedOutput(ordered)
 	return ordered, failed, selectGoalControlTerminal(controlTerminals), live, loopStops, nil
 }
@@ -109,19 +114,28 @@ func keepDeferredGoalTerminalsPending(
 
 func selectFailedOutput(outputs []GenerationOutput) *GenerationOutput {
 	var first *GenerationOutput
+	var invalidInput *GenerationOutput
 	for idx := range outputs {
 		output := outputs[idx]
 		if output.Status != generationOutputFailed {
 			continue
 		}
-		if classifyGenerationOutputFailure(output, task.Run{}).Class == FailureTargetUnavailable {
+		failure := classifyGenerationOutputFailure(output, task.Run{})
+		if failure.Class == FailureTargetUnavailable {
 			selected := output
 			return &selected
+		}
+		if failure.Code == string(tools.ErrorCodeInvalidInput) && invalidInput == nil {
+			selected := output
+			invalidInput = &selected
 		}
 		if first == nil {
 			selected := output
 			first = &selected
 		}
+	}
+	if invalidInput != nil {
+		return invalidInput
 	}
 	return first
 }

@@ -98,7 +98,7 @@ export async function fetchSession(
     {
       params: {
         path: { workspace_id: workspaceId, session_id: id },
-        query: { include_health: true },
+        query: { include_health: true, all_profiles: true },
       },
       signal,
     }

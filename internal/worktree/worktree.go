@@ -104,6 +104,10 @@ type ForgeStatus struct {
 	PRNumber   *int
 	PRState    *string
 	PRURL      string
+	Head       string
+	Base       string
+	HeadSHA    string
+	Draft      *bool
 	Merged     *bool
 	FetchedAt  *time.Time
 }

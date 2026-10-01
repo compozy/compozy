@@ -16,6 +16,7 @@ import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
 import { isOsDockSeparator } from "../../lib/os-dock-model";
+import { pickLastCreatedSession } from "../../lib/last-created-session";
 import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ const launchCatalog = vi.hoisted(() => ({
   ready: true,
   sessions: [] as SessionPayload[],
   workspaceId: "workspace:test" as string | null,
+  resolveLatest: vi.fn<() => Promise<SessionPayload | null>>(),
 }));
 
 const jumpToSession = vi.hoisted(() => vi.fn());
@@ -189,6 +191,9 @@ describe("OsDock", () => {
     launchCatalog.ready = true;
     launchCatalog.sessions = [];
     launchCatalog.workspaceId = "workspace:test";
+    launchCatalog.resolveLatest.mockImplementation(async () =>
+      pickLastCreatedSession(launchCatalog.sessions)
+    );
     setDockState(desktopState());
   });
 
@@ -426,31 +431,31 @@ describe("OsDock", () => {
     ]);
   });
 
-  it("Should launch a new session from the dock when the catalog is empty", () => {
+  it("Should launch a new session from the dock when the catalog is empty", async () => {
     const onNewSession = vi.fn();
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
     setDockState(desktopState());
 
-    act(() => result.current.handleSelect("session"));
+    await act(async () => result.current.handleSelect("session"));
 
     expect(onNewSession).toHaveBeenCalledOnce();
     expect(jumpToSession).not.toHaveBeenCalled();
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
   });
 
-  it("Should ignore a Sessions dock click while the catalog is still unknown", () => {
+  it("Should ignore a Sessions dock click while the catalog is still unknown", async () => {
     launchCatalog.ready = false;
     const onNewSession = vi.fn();
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
     setDockState(desktopState());
 
-    act(() => result.current.handleSelect("session"));
+    await act(async () => result.current.handleSelect("session"));
 
     expect(onNewSession).not.toHaveBeenCalled();
     expect(jumpToSession).not.toHaveBeenCalled();
   });
 
-  it("Should open the last created session when the catalog has rows and no window is open", () => {
+  it("Should open the last created session when the catalog has rows and no window is open", async () => {
     launchCatalog.sessions = [
       catalogSession("sess-older", "2026-08-01T00:00:00Z"),
       catalogSession("sess-newer", "2026-08-02T00:00:00Z"),
@@ -459,7 +464,7 @@ describe("OsDock", () => {
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
     setDockState(desktopState());
 
-    act(() => result.current.handleSelect("session"));
+    await act(async () => result.current.handleSelect("session"));
 
     expect(onNewSession).not.toHaveBeenCalled();
     expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
@@ -470,7 +475,7 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
   });
 
-  it("Should open the last created session instead of the most recently used window", () => {
+  it("Should open the last created session instead of the most recently used window", async () => {
     launchCatalog.sessions = [
       catalogSession("sess-older", "2026-08-01T00:00:00Z"),
       catalogSession("sess-newer", "2026-08-02T00:00:00Z"),
@@ -485,7 +490,7 @@ describe("OsDock", () => {
     setDockState(desktopState({ [older.id]: older }, older.id, [older.id]));
     rerender();
 
-    act(() => result.current.handleSelect("session"));
+    await act(async () => result.current.handleSelect("session"));
 
     expect(onNewSession).not.toHaveBeenCalled();
     expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
@@ -514,7 +519,7 @@ describe("OsDock", () => {
     },
   ])(
     "Should jump to the last created session when its window is $label",
-    ({ overrides, projection }) => {
+    async ({ overrides, projection }) => {
       launchCatalog.sessions = [catalogSession("sess-target", "2026-08-02T00:00:00Z")];
       const target = windowFixture("window:session-target", "session", {
         instanceKey: "sess-target",
@@ -524,7 +529,7 @@ describe("OsDock", () => {
       setDockState(desktopState({ [target.id]: target }, null, [target.id]));
       rerender();
 
-      act(() => result.current.handleSelect("session"));
+      await act(async () => result.current.handleSelect("session"));
 
       expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
         sessionId: "sess-target",

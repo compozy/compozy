@@ -72,6 +72,7 @@ type AgentProcess struct {
 	pendingPermissions   map[string]*pendingPermission
 	permissionRequestSeq uint64
 	permissionTimeout    time.Duration
+	controlTimeout       time.Duration
 
 	systemPromptMu       sync.Mutex
 	systemPrompt         string

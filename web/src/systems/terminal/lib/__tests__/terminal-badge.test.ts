@@ -1,3 +1,5 @@
+// Invariant: exact scoped approval metadata combines with owner-filtered input requests.
+// Owner: terminal badge projection; canonical suite: this file.
 import { describe, expect, it } from "vitest";
 
 import { projectTerminalBadge } from "../terminal-badge";
@@ -19,13 +21,17 @@ function inputRequest(overrides: Partial<TerminalInputRequest> = {}): TerminalIn
 }
 
 describe("projectTerminalBadge", () => {
-  it("Should count only input and approval rows owned by the profile", () => {
+  it("Should combine scoped exact approvals with only input requests owned by the profile", () => {
     expect(
       projectTerminalBadge({
         scopeKey: "work-scope",
         profileId: "profile-work",
-        inputRequests: [inputRequest(), inputRequest({ id: "req-9c11" })],
-        pendingApprovals: [{ profileId: "profile-work" }, { profileId: "profile-personal" }],
+        inputRequests: [
+          inputRequest(),
+          inputRequest({ id: "req-9c11" }),
+          inputRequest({ id: "foreign", profile_id: "profile-personal" }),
+        ],
+        pendingApprovalCount: 1,
       })
     ).toEqual({ scopeKey: "work-scope", count: 3 });
   });

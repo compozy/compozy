@@ -22,3 +22,10 @@ reattempt admission window, then start one explicit rerun and confirm it is oper
 QA 2026-08-26 retest: generation 1 halted on `load_tasks`; the explicit operator rerun admitted
 generation 2 across the graph's unmaterialized downstream nodes. The deterministic failure settled
 again, and no automatic generation 3 appeared after the admission window.
+
+Task import extension: give implement-tasks a task title with an unquoted colon-space and run once with
+`reattempt_strategy: halt` and again with the default retry policy. Verify `load_tasks` fails, the owning run reaches `failed`, and a second
+start is admitted under `concurrency: forbid`. An unhandled importer input-validation failure must stop without an automatic second generation.
+An importer or definition load error must not leave
+a running Loop after its action or coordinator lease has settled. This extension is covered by the
+real-daemon implement-tasks integration journey and still requires the public QA replay receipt.

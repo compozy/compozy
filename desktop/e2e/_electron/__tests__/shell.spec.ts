@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { extract } from "tar";
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Request } from "@playwright/test";
 
 import {
   availableLoopbackPort,
@@ -1854,5 +1854,320 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   } finally {
     await browser.close();
+  }
+});
+
+// Invariant: real desktop uptime and catalog activity keep per-client requests within a fixed budget.
+// Owner: packaged renderer and real daemon; canonical Electron shell E2E suite.
+test("Should bound catalog requests during sixty minutes of native desktop uptime", async ({
+  launchDesktop,
+}, testInfo) => {
+  test.setTimeout(90 * 60_000);
+  let ownedDesktop: DesktopInstance | undefined;
+  let ownedProduct: Page | undefined;
+  let receiptWorkspaceID: string | undefined;
+  let receiptRunID: string | undefined;
+  let sourceHead: string | undefined;
+  let runtimePath: string | undefined;
+  let stage = "source-head";
+  let seeded = 0;
+  let failed = false;
+  let failure: unknown;
+  const cleanupErrors: unknown[] = [];
+  const budget: Record<string, number> = {
+    "/api/sessions": 26,
+    "/api/sessions/facets": 13,
+    "/api/sessions/attention-summary": 13,
+  };
+  const requests: Array<{ elapsed_ms: number; path: string; client_id: string }> = [];
+  const windows: Record<string, number[]> = {};
+  const maxima: Record<string, number> = {};
+  const clientIDs = new Set<string>();
+  const lifecycle: Array<{
+    elapsed_ms: number;
+    visible: boolean;
+    focused: boolean;
+    loop_status: string;
+    churn: number;
+  }> = [];
+  const violations: string[] = [];
+  let began = 0;
+  let measured = false;
+  let completed = false;
+  let churn = 0;
+  const onRequest = (request: Request) => {
+    if (!measured || request.method() !== "GET") return;
+    const path = new URL(request.url()).pathname;
+    const pathLimit = budget[path];
+    if (pathLimit === undefined) return;
+    const clientID = request.headers()["x-compozy-client-id"] ?? "";
+    if (!/^web-[A-Za-z0-9_-]{1,76}$/u.test(clientID)) {
+      violations.push(`Missing renderer client identity: ${path}`);
+      return;
+    }
+    clientIDs.add(clientID);
+    const elapsed = performance.now() - began;
+    requests.push({ elapsed_ms: elapsed, path, client_id: clientID });
+    for (const [key, limit] of [
+      [path, pathLimit],
+      ["all", 52],
+    ] as const) {
+      const window = windows[key] ?? (windows[key] = []);
+      window.push(elapsed);
+      while (window[0] !== undefined && window[0] < elapsed - 60_000) window.shift();
+      maxima[key] = Math.max(maxima[key] ?? 0, window.length);
+      if (window.length > limit)
+        violations.push(`${key}: ${window.length} > ${limit} in rolling 60s`);
+    }
+  };
+  try {
+    const head = await runCommand("git", ["rev-parse", "HEAD"], {
+      cwd: repositoryRoot,
+      env: process.env,
+    });
+    sourceHead = head.stdout.trim();
+    expect(head.exitCode).toBe(0);
+    stage = "desktop-launch";
+    const desktop = await launchDesktop({
+      prepare: async context => {
+        runtimePath = context.bundleRuntimePath;
+        await prepareLoginPathProvider(context);
+      },
+      environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+    });
+    ownedDesktop = desktop;
+    stage = "renderer-boot";
+    const product = await desktop.product();
+    ownedProduct = product;
+    stage = "onboarding";
+    await completeOnboarding(product);
+    stage = "workspace";
+    const workspaceID = await ensureProjectWorkspaceID(desktop, product);
+    receiptWorkspaceID = workspaceID;
+    const createStoppedSession = async (name: string) => {
+      const created = await jsonCommand(desktop, [
+        "session",
+        "new",
+        "--workspace",
+        workspaceID,
+        "--agent",
+        loginPathAgent,
+        "--name",
+        name,
+        "-o",
+        "json",
+      ]);
+      expect(typeof created.id).toBe("string");
+      const stopped = await jsonCommand(desktop, [
+        "session",
+        "stop",
+        String(created.id),
+        "--wait",
+        "-o",
+        "json",
+      ]);
+      expect(stopped).toMatchObject({ session_id: created.id, state: "stopped", verified: true });
+    };
+    stage = "seed-history";
+    for (let index = 0; index < 600; index++) {
+      await createStoppedSession(`catalog-history-${index}`);
+      seeded++;
+    }
+    stage = "verify-history";
+    const history = await product.request.get(
+      new URL(
+        `/api/sessions?workspace_id=${encodeURIComponent(workspaceID)}&state=stopped&limit=1`,
+        product.url()
+      ).toString()
+    );
+    expect(history.ok()).toBe(true);
+    expect((await history.json()).page.total).toBeGreaterThanOrEqual(600);
+
+    stage = "create-loop";
+    const definition = {
+      apiVersion: "compozy.loop/v1",
+      kind: "Loop",
+      meta: { name: "catalog-uptime", version: 1 },
+      contract: {
+        goal: "Keep a real Loop active during the catalog regression",
+        definition_of_done: "The wait completes",
+        stop_when: "nodes.wait.status == 'succeeded'",
+        iteration_cap: 1,
+        no_progress: { window: 1 },
+        budget: { on_exceeded: "halt" },
+      },
+      graph: {
+        nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "90m" } }],
+        edges: [],
+      },
+      start: [{ kind: "uds" }],
+    };
+    const definitionPath = join(desktop.home, "catalog-uptime.json");
+    await writeFile(definitionPath, JSON.stringify(definition));
+    await desktop.cli([
+      "loop",
+      "create",
+      "--workspace",
+      workspaceID,
+      "--file",
+      definitionPath,
+      "-o",
+      "json",
+    ]);
+    stage = "start-loop";
+    const started = await jsonCommand(desktop, [
+      "loop",
+      "run",
+      "--workspace",
+      workspaceID,
+      "--name",
+      "catalog-uptime",
+      "--no-prompt",
+      "-o",
+      "json",
+    ]);
+    const runID = (started.run as { id: string }).id;
+    expect(typeof runID).toBe("string");
+    expect(runID).not.toBe("");
+    receiptRunID = runID;
+    const runURL = new URL(
+      `/api/workspaces/${encodeURIComponent(workspaceID)}/loop-runs/${encodeURIComponent(runID)}`,
+      product.url()
+    ).toString();
+    stage = "open-catalog";
+    await product.getByRole("menuitem", { name: "Session", exact: true }).click();
+    await product.getByTestId("os-menubar-command-shell.sessions.toggle").click();
+    await expect(product.getByTestId("os-sessions-modal")).toBeVisible();
+    const window = await desktop.app.browserWindow(product);
+    await window.evaluate(nativeWindow => {
+      nativeWindow.show();
+      nativeWindow.focus();
+    });
+    await expect.poll(() => product.evaluate(() => document.hasFocus())).toBe(true);
+    // Initial navigation/seed reconciliation is outside the steady-state budget.
+    await product.waitForTimeout(10_000);
+    product.on("request", onRequest);
+    began = performance.now();
+    measured = true;
+    stage = "measurement";
+    while (performance.now() - began < 3_600_000) {
+      const native = await window.evaluate(nativeWindow => ({
+        visible: nativeWindow.isVisible(),
+        focused: nativeWindow.isFocused(),
+      }));
+      const run = await product.request.get(runURL);
+      expect(run.ok()).toBe(true);
+      const status = (await run.json()).run.status as string;
+      lifecycle.push({
+        elapsed_ms: performance.now() - began,
+        ...native,
+        loop_status: status,
+        churn,
+      });
+      expect(native).toEqual({ visible: true, focused: true });
+      expect(await product.evaluate(() => document.visibilityState)).toBe("visible");
+      expect(status).toBe("running");
+      expect(violations).toEqual([]);
+      // Public lifecycle changes keep delivering real catalog wakes throughout.
+      await createStoppedSession(`catalog-churn-${churn++}`);
+      await product.waitForTimeout(
+        Math.min(10_000, Math.max(0, 3_600_000 - (performance.now() - began)))
+      );
+    }
+    expect(performance.now() - began).toBeGreaterThanOrEqual(3_600_000);
+    expect(churn).toBeGreaterThan(100);
+    expect(clientIDs.size).toBe(1);
+    expect(requests.some(request => request.path === "/api/sessions")).toBe(true);
+    expect(violations).toEqual([]);
+    completed = true;
+    stage = "completed";
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
+  } finally {
+    measured = false;
+    const elapsedMS = began === 0 ? 0 : performance.now() - began;
+    ownedProduct?.off("request", onRequest);
+    let runtimeDigest: string | undefined;
+    if (runtimePath) {
+      try {
+        runtimeDigest = (await executableSha256File(runtimePath)).toString("hex");
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    if (ownedDesktop) {
+      if (receiptWorkspaceID && receiptRunID) {
+        try {
+          await ownedDesktop.cli([
+            "loop",
+            "cancel",
+            "--workspace",
+            receiptWorkspaceID,
+            "--run-id",
+            receiptRunID,
+            "-o",
+            "json",
+          ]);
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+    }
+    try {
+      const receiptPath = testInfo.outputPath("catalog-sixty-minute-rate.json");
+      await writeFile(
+        receiptPath,
+        JSON.stringify(
+          {
+            head: sourceHead,
+            runtime_sha256: runtimeDigest,
+            setup_stage: stage,
+            error: failed
+              ? failure instanceof Error
+                ? { message: failure.message, stack: failure.stack }
+                : String(failure)
+              : undefined,
+            cleanup_errors: cleanupErrors.map(String),
+            completed,
+            elapsed_ms: elapsedMS,
+            seed_stopped_sessions: seeded,
+            workspace_id: receiptWorkspaceID,
+            run_id: receiptRunID,
+            budget,
+            combined_budget: 52,
+            minute_buckets: requests.reduce<Record<string, Record<string, number>>>(
+              (buckets, request) => {
+                const minute = String(Math.floor(request.elapsed_ms / 60_000));
+                const bucket = buckets[minute] ?? (buckets[minute] = {});
+                bucket[request.path] = (bucket[request.path] ?? 0) + 1;
+                return buckets;
+              },
+              {}
+            ),
+            client_ids: [...clientIDs],
+            maxima,
+            churn,
+            lifecycle,
+            requests,
+            violations,
+          },
+          null,
+          2
+        )
+      );
+      await testInfo.attach("catalog-sixty-minute-rate", {
+        path: receiptPath,
+        contentType: "application/json",
+      });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    // launchDesktop's existing finalizer closes only this shell and its daemon,
+    // including any active session left by a failed public churn command.
+  }
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, "Catalog regression artifact or cleanup failed.");
   }
 });

@@ -1,11 +1,10 @@
 // Suite: OS attention data readiness
-// Invariant: attention rows read cross-workspace and unscoped so no workspace or
-// worktree can hide a blocked session, while the sessions modal follows the
-// focused window's worktree scope; session counts come from the daemon summary
-// and vanish when it is stale rather than reporting a page total.
+// Invariant: ledger notifications remain independent of the scoped modal page;
+// exact session/terminal counters come from authoritative projections rather
+// than hydrated history or page lengths, and keep their workspace/profile scope.
 // Owning layer: OS attention query adapter. Canonical suite: this hook test.
-import { renderHook as renderReactHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook as renderReactHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -13,17 +12,26 @@ vi.mock("@tanstack/react-query", async importOriginal => {
   return {
     ...actual,
     useQuery: Object.assign(
-      (options: { queryKey: readonly unknown[] }) => {
+      vi.fn((options: { queryKey: readonly unknown[] }) => {
+        if (options.queryKey.includes("facets")) {
+          if (realFacetQueries) return actual.useQuery(options);
+          return { data: terminalMetadata, isError: terminalMetadataError, isLoading: false };
+        }
         if (options.queryKey[0] === "notifications")
           return { data: notificationResponse, isError: notificationStale, isLoading: false };
         return queryMock(options);
-      },
+      }),
       { mockReturnValue: queryMock.mockReturnValue.bind(queryMock) }
     ),
   };
 });
+vi.mock("@/systems/session/adapters/session-catalog-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-catalog-api")>()),
+  fetchSessionFacets: vi.fn(),
+}));
+
 vi.mock("@/systems/profiles", () => ({ useProfileReadScope: vi.fn() }));
-vi.mock("@/systems/session/hooks/use-sessions", () => ({ useSessions: vi.fn() }));
+vi.mock("@/systems/session/hooks/use-session-catalog", () => ({ useSessionCatalog: vi.fn() }));
 // The list preference decides the order the modal query asks for; its own
 // round-trip is covered where it lives.
 vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
@@ -79,8 +87,10 @@ import type { AttentionNotifications } from "@/systems/notifications";
 
 let notificationResponse: AttentionNotifications;
 let notificationStale = false;
-function renderHook<T>(callback: () => T) {
-  const client = new QueryClient();
+let terminalMetadata: { facets: { terminal_approvals: number } } | undefined;
+let terminalMetadataError = false;
+let realFacetQueries = false;
+function renderHook<T>(callback: () => T, client = new QueryClient()) {
   return renderReactHook(callback, {
     wrapper: ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children),
@@ -91,7 +101,13 @@ import { useProfileReadScope } from "@/systems/profiles";
 import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 import { useAttentionSummary } from "../use-attention-summary";
 import { useOsAttention } from "../use-os-attention";
-import { useSessions, type SessionPayload } from "@/systems/session";
+import {
+  fetchSessionFacets,
+  sessionFacetsOptions,
+  useSessionCatalog,
+  type SessionCatalogStreamStatus,
+  type SessionPayload,
+} from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
 import {
   useActiveWorkspace,
@@ -117,7 +133,19 @@ function sessionsQuery({
   isError?: boolean;
   isLoading?: boolean;
 }) {
-  return { data, isError, isLoading, total: data?.length ?? 0 } as ReturnType<typeof useSessions>;
+  return {
+    facets: undefined,
+    total: undefined,
+    sessions: data ?? [],
+    failed: isError || data === undefined,
+    loading: isLoading,
+    next: false,
+    previous: false,
+    paging: false,
+    nextPage: vi.fn(),
+    previousPage: vi.fn(),
+    retry: vi.fn(),
+  } as ReturnType<typeof useSessionCatalog>;
 }
 
 /** `badge` is what puts a session in the needs-you class (see session-badge.ts). */
@@ -148,24 +176,29 @@ function waitingSession(id: string): SessionPayload {
 }
 
 /** Call order in the hook: needs-you rows, finished rows, modal (scoped). */
-const NEEDS_YOU_CALL = 0;
-const FINISHED_CALL = 1;
-const MODAL_CALL = 2;
+const MODAL_CALL = 0;
 
 function filtersForCall(call: number): Record<string, unknown> {
-  const options = vi.mocked(useSessions).mock.calls[call]?.[1];
-  return (options?.filters ?? {}) as Record<string, unknown>;
+  const options = vi.mocked(useSessionCatalog).mock.calls[call]?.[1];
+  return (options ?? {}) as Record<string, unknown>;
 }
 
 function workspaceForCall(call: number): string | null | undefined {
-  return vi.mocked(useSessions).mock.calls[call]?.[0];
+  return vi.mocked(useSessionCatalog).mock.calls[call]?.[0];
 }
 
 describe("useOsAttention", () => {
+  afterEach(() => {
+    realFacetQueries = false;
+    vi.useRealTimers();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     notificationResponse = { snapshot: "snapshot", total: 0, needs_you: 0, finished: 0, items: [] };
     notificationStale = false;
+    terminalMetadata = { facets: { terminal_approvals: 0 } };
+    terminalMetadataError = false;
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
     vi.mocked(useActiveWorkspace).mockReturnValue({
       scope: "workspace",
       activeWorkspaceId: "ws_alpha",
@@ -203,18 +236,17 @@ describe("useOsAttention", () => {
   });
 
   it("Should read the archive only through the modal catalog leg", () => {
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
 
     renderHook(() => useOsAttention(workspace, "live", true));
 
     expect(filtersForCall(MODAL_CALL).archive).toBe("only");
     // The archive is a window's content, never an attention signal.
-    expect(filtersForCall(NEEDS_YOU_CALL).archive).toBeUndefined();
-    expect(filtersForCall(FINISHED_CALL).archive).toBeUndefined();
+    expect(vi.mocked(useSessionCatalog)).toHaveBeenCalledTimes(1);
   });
 
   it("Should leave the modal catalog on active sessions when the archive is off", () => {
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
 
     renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -223,11 +255,7 @@ describe("useOsAttention", () => {
 
   it("Should isolate notification failures from the sessions modal catalog", () => {
     notificationStale = true;
-    vi.mocked(useSessions)
-      .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }))
-      .mockReturnValueOnce(sessionsQuery({}))
-      .mockReturnValueOnce(sessionsQuery({}))
-      .mockReturnValueOnce(sessionsQuery({}));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -235,35 +263,45 @@ describe("useOsAttention", () => {
     expect(result.current.sessionsDisconnected).toBe(false);
   });
 
-  it("Should read attention rows cross-workspace and unscoped while the modal follows the worktree", () => {
+  it("Should keep ledger attention independent while modal follows the selected worktree", () => {
     vi.mocked(useScopedWorktreeFilter).mockReturnValue({
       worktreeId: "wt_payments",
       resolved: true,
     });
-    vi.mocked(useSessions)
-      .mockReturnValueOnce(sessionsQuery({ data: [waitingSession("sess_other_worktree")] }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }));
-
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
-
-    // Attention rows must carry neither a workspace nor a worktree, or a blocked
-    // session elsewhere would stop raising a row.
-    expect(workspaceForCall(NEEDS_YOU_CALL)).toBeNull();
-    expect(workspaceForCall(FINISHED_CALL)).toBeNull();
-    expect(filtersForCall(NEEDS_YOU_CALL).worktree).toBeUndefined();
-    expect(filtersForCall(NEEDS_YOU_CALL).attention).toBe(true);
-    expect(filtersForCall(FINISHED_CALL).badge).toBe("done");
     expect(workspaceForCall(MODAL_CALL)).toBe(workspace.id);
     expect(filtersForCall(MODAL_CALL).worktree).toBe("wt_payments");
-    expect(result.current.badges.sessions).toBeUndefined();
-    expect(result.current.sessions).toEqual([]);
+    expect(vi.mocked(useSessionCatalog)).toHaveBeenCalledTimes(1);
+    expect(result.current.sections.needsYou).toEqual([]);
+  });
+
+  it("Should enable Global session and attention catalogs without a project workspace", () => {
+    vi.mocked(useActiveWorkspace).mockReturnValue({
+      scope: "global",
+      activeWorkspaceId: null,
+      workspaces: [workspace],
+    } as never);
+    vi.mocked(useSessionCatalog).mockReturnValue(
+      sessionsQuery({ data: [waitingSession("sess_global")] })
+    );
+
+    terminalMetadata = { facets: { terminal_approvals: 237 } };
+    const { result } = renderHook(() => useOsAttention(null, "live", false));
+
+    for (const call of [MODAL_CALL]) {
+      expect(workspaceForCall(call)).toBeNull();
+      expect(vi.mocked(useSessionCatalog).mock.calls[call]?.[2]).toBe(true);
+      expect(filtersForCall(call).worktree).toBeUndefined();
+    }
+    expect(result.current.sessions).toHaveLength(1);
+    expect(result.current.sessionsDisconnected).toBe(false);
+    expect(result.current.badges.terminal).toBeUndefined();
   });
 
   it("Should drop the worktree filter entirely when the scope falls back to the workspace", () => {
     vi.mocked(useScopedWorktreeFilter).mockReturnValue({ worktreeId: undefined, resolved: true });
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
 
     renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -279,7 +317,7 @@ describe("useOsAttention", () => {
       stale: false,
       loading: false,
     });
-    vi.mocked(useSessions).mockReturnValue(
+    vi.mocked(useSessionCatalog).mockReturnValue(
       sessionsQuery({ data: [waitingSession("sess_page_1")] })
     );
 
@@ -294,7 +332,9 @@ describe("useOsAttention", () => {
       stale: true,
       loading: false,
     });
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [waitingSession("sess_stale")] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(
+      sessionsQuery({ data: [waitingSession("sess_stale")] })
+    );
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -303,7 +343,7 @@ describe("useOsAttention", () => {
 
   it("Should use unread notification counts independently of source attention", () => {
     vi.mocked(useLoopNodeExists).mockImplementation(() => true);
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
     notificationResponse = {
       snapshot: "snapshot",
       total: 230,
@@ -357,7 +397,7 @@ describe("useOsAttention", () => {
       disconnected: true,
       loading: false,
     });
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -367,47 +407,144 @@ describe("useOsAttention", () => {
     expect(result.current.sections.needsYou).toEqual([]);
   });
 
-  it("Should count only terminal approvals owned by the current workspace and profile", () => {
-    const current = waitingSession("sess-current");
-    current.profile_id = "profile-work";
-    current.pending_interactions = [
-      {
-        interaction_id: "interaction-terminal",
-        kind: "permission",
-        provider_request_id: "request-terminal",
-        title: "Terminal Exec",
-        tool_id: "compozy__terminal_exec",
-        status: "pending",
-        created_at: "2026-08-25T12:00:00Z",
-      },
-      {
-        interaction_id: "interaction-other",
-        kind: "permission",
-        provider_request_id: "request-other",
-        title: "Workspace Update",
-        tool_id: "compozy__workspace_update",
-        status: "pending",
-        created_at: "2026-08-25T12:00:00Z",
-      },
-    ];
-    const foreign = waitingSession("sess-foreign");
-    foreign.workspace_id = "workspace-foreign";
-    foreign.profile_id = "profile-personal";
-    foreign.pending_interactions = [
-      { ...current.pending_interactions[0]!, interaction_id: "foreign" },
-    ];
-    vi.mocked(useSessions)
-      .mockReturnValueOnce(sessionsQuery({ data: [current, foreign] }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }));
-
+  it("Should preserve an exact terminal approval total beyond any rich session page", () => {
+    terminalMetadata = { facets: { terminal_approvals: 237 } };
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+    expect(result.current.badges.terminal).toBe(237);
+    expect(vi.mocked(useSessionCatalog)).toHaveBeenCalledTimes(1);
+    expect(filtersForCall(MODAL_CALL).attention).toBeUndefined();
+    expect(filtersForCall(MODAL_CALL).badge).toBeUndefined();
+  });
 
+  // Invariant: live catalog wakes are the sole terminal-facets refresh owner;
+  // disconnected polling still refreshes the exact projection and backs off errors.
+  // Layer: OS attention/query integration. Canonical suite: this existing hook suite.
+  it("Should refresh terminal facets on live wakes without a second poll and retain fallback", async () => {
+    vi.useFakeTimers();
+    realFacetQueries = true;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 1 },
+      by_workspace: [],
+    });
+    let status: SessionCatalogStreamStatus = "live";
+    const { result, rerender, unmount } = renderHook(
+      () => useOsAttention(workspace, status, false),
+      client
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
     expect(result.current.badges.terminal).toBe(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 2 },
+      by_workspace: [],
+    });
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: sessionFacetsOptions({ workspace_id: workspace.id, profile: "work" }).queryKey,
+        exact: true,
+      });
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    expect(result.current.badges.terminal).toBe(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    status = "stale";
+    rerender();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(3);
+    vi.mocked(fetchSessionFacets).mockRejectedValue(new Error("facets unavailable"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(5);
+    unmount();
+    client.clear();
+  });
+
+  // Invariant: a failed scoped facet read recovers in a quiet live workspace
+  // without polling healthy siblings or requiring another lifecycle event.
+  // Layer: OS attention/query integration; canonical suite: this hook suite.
+  it("Should recover a failed terminal facet read after quiet live-stream backoff", async () => {
+    vi.useFakeTimers();
+    realFacetQueries = true;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionFacets).mockRejectedValue(new Error("facets unavailable"));
+    const { result, unmount } = renderHook(() => useOsAttention(workspace, "live", false), client);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    expect(result.current.badges.terminal).toBeUndefined();
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 3 },
+      by_workspace: [],
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    expect(result.current.badges.terminal).toBe(3);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(2);
+    unmount();
+    client.clear();
+  });
+
+  it("Should scope terminal approval metadata to the destination profile even in aggregate view", () => {
+    vi.mocked(useProfileReadScope).mockReturnValue({
+      destination: "work",
+      destinationOwner: { id: "profile-work" },
+      aggregate: true,
+      params: { all_profiles: true },
+    } as never);
+    renderHook(() => useOsAttention(workspace, "live", false));
+    const facetsCall = vi
+      .mocked(useQuery)
+      .mock.calls.find(([options]) => options.queryKey?.includes("facets"));
+    expect(facetsCall?.[0].queryKey?.at(-1)).toEqual(
+      expect.objectContaining({ workspace_id: workspace.id, profile: "work" })
+    );
+    expect(facetsCall?.[0].queryKey?.at(-1)).not.toHaveProperty("all_profiles", true);
+  });
+
+  it("Should hide a stale terminal projection without borrowing a rich page count", () => {
+    terminalMetadata = undefined;
+    terminalMetadataError = true;
+    vi.mocked(useSessionCatalog).mockReturnValue(
+      sessionsQuery({ data: [waitingSession("unrelated")] })
+    );
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+    expect(result.current.badges.terminal).toBeUndefined();
   });
 
   it("Should preserve terminal source badges after all notifications are acknowledged", () => {
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
     vi.mocked(useQuery).mockReturnValue({
       data: {
         pending: [
@@ -442,7 +579,7 @@ describe("useOsAttention", () => {
       stale: true,
       loading: false,
     });
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
     vi.mocked(useQuery).mockReturnValue({
       data: {
         pending: [

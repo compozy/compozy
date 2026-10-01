@@ -93,10 +93,94 @@ export interface SessionCatalogStreamHandlers {
   onOperatorNotification?: (notification: OperatorNotificationEventPayload) => void;
 }
 
-function invalidateGlobalSessionViews(queryClient: QueryClient): void {
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
-  void queryClient.invalidateQueries({ queryKey: notificationKeys.attentionRoot() });
+// One wake window per stream, independent of the number of lifecycle/attention frames.
+// An in-flight read is allowed to finish; cancelling it on every frame amplified
+// one background transition into repeated full-catalog walks.
+function createCatalogReconciler(queryClient: QueryClient) {
+  const workspaces = new Set<string>();
+  const pending = new Set<string>();
+  let lastRead = -Infinity;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let focused = true;
+  const visible = () =>
+    focused && (typeof document === "undefined" || document.visibilityState !== "hidden");
+  const flush = () => {
+    timer = undefined;
+    if ((workspaces.size === 0 && pending.size === 0) || !visible()) return;
+    lastRead = Date.now();
+    const hashes = new Set(pending);
+    pending.clear();
+    const prefixes = [
+      ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
+      ...(workspaces.size > 0
+        ? [sessionKeys.attentionSummary(), notificationKeys.attentionRoot()]
+        : []),
+    ];
+    workspaces.clear();
+    for (const queryKey of prefixes) {
+      for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+        hashes.delete(query.queryHash);
+      }
+    }
+    // A retry retains only blocked identities. Healthy siblings require a new wake.
+    const predicate = (query: {
+      queryHash: string;
+      state: { status: string; errorUpdatedAt: number; fetchStatus: string };
+      getObserversCount: () => number;
+    }) => {
+      const blocked =
+        query.getObserversCount() > 0 &&
+        (query.state.fetchStatus === "fetching" ||
+          (query.state.status === "error" && Date.now() - query.state.errorUpdatedAt < 30_000));
+      if (blocked) pending.add(query.queryHash);
+      return !blocked;
+    };
+    for (const queryKey of prefixes) {
+      void queryClient.invalidateQueries({ queryKey, predicate }, { cancelRefetch: false });
+    }
+    if (hashes.size > 0) {
+      void queryClient.invalidateQueries(
+        { predicate: query => hashes.has(query.queryHash) && predicate(query) },
+        { cancelRefetch: false }
+      );
+    }
+    schedule();
+  };
+  const schedule = () => {
+    if (timer !== undefined || !visible() || (workspaces.size === 0 && pending.size === 0)) return;
+    const delay = Math.max(0, 5_000 - (Date.now() - lastRead));
+    if (delay === 0) flush();
+    else timer = setTimeout(flush, delay);
+  };
+  const onVisibility = () => schedule();
+  const onFocus = () => {
+    focused = true;
+    schedule();
+  };
+  const onBlur = () => {
+    focused = false;
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+  }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+  return {
+    wake(workspace?: string) {
+      workspaces.add("");
+      if (workspace !== undefined) workspaces.add(workspace);
+      schedule();
+    },
+    close() {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+        window.removeEventListener("blur", onBlur);
+      }
+      if (timer !== undefined) clearTimeout(timer);
+      if (typeof document !== "undefined")
+        document.removeEventListener("visibilitychange", onVisibility);
+    },
+  };
 }
 
 /**
@@ -133,21 +217,19 @@ function openSessionCatalogStream(
   handlers: SessionCatalogStreamHandlers,
   url: string
 ): () => void {
+  const reconciler = createCatalogReconciler(queryClient);
   const reconcileWorkspaces: EventListener = () => {
     onStatusChange("live");
-    invalidateGlobalSessionViews(queryClient);
+    reconciler.wake();
   };
   const handleStreamError: EventListener = () => onStatusChange("stale");
   const handleCatalogChange: EventListener = event => {
     const payload = parseSessionCatalogEvent(event);
     if (!payload) return;
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.workspaceLists(payload.workspace_id),
-    });
+    reconciler.wake(payload.workspace_id);
     void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
-    invalidateGlobalSessionViews(queryClient);
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [
@@ -159,11 +241,8 @@ function openSessionCatalogStream(
       "at",
     ]);
     if (!payload) return;
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.workspaceLists(payload.workspace_id),
-    });
+    reconciler.wake(payload.workspace_id);
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
-    invalidateGlobalSessionViews(queryClient);
     handlers.onAttentionEdge?.(payload);
   };
   const handleOperatorNotification: EventListener = event => {
@@ -186,6 +265,7 @@ function openSessionCatalogStream(
   ];
   const source = eventSourceFactory(url);
   const detach = () => {
+    reconciler.close();
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
   try {
