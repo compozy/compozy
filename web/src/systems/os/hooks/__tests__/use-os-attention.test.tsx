@@ -379,7 +379,7 @@ describe("useOsAttention", () => {
   });
 
   it("Should title an untitled session occurrence as its window does, never by its raw id", () => {
-    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
     notificationResponse = {
       snapshot: "snapshot",
       total: 1,
