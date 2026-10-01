@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-09-25
+## 0.3.0 - 2026-10-01
 
 ### ♻️ Refactoring
 
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
 - Quiet the Context rail and sessions row for everyday use (#649)
+- Retire Network, managed Sandbox, and Bridges (#681)
 
 ### ⚡ Performance Improvements
 
@@ -86,6 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Give rendered Markdown a readable visual hierarchy (#660)
 - Add safe bulk worktree cleanup to workspace lists (#656)
 - Add provider-neutral ACP full-access preference (#674)
+- Calmer, plain-language web UI for everyday users (#683)
+- Continue and fork sessions across agents, with fallback account routes (#684)
+- Shell rail v2 with light and dark themes (#687)
 
 ### 🐛 Bug Fixes
 
@@ -275,6 +279,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixing clarify tool call timeout with keep-alive pings (#661)
 - Preserve declared awaited run-loop terminal output (#672)
 - Preserve whitespace in session transcripts (#670)
+- Wake creator on child turn completion (#685)
+- Resolve reported runtime, catalog and delivery failures (#686)
+- Restore release nightly coverage and package extension runtimes
 
 ### 🔧 Miscellaneous Tasks
 
