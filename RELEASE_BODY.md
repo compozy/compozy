@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-25
+## 0.3.0 - 2026-10-01
 
 ### ♻️ Refactoring
 
@@ -10,6 +10,7 @@
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
 - Quiet the Context rail and sessions row for everyday use (#649)
+- Retire Network, managed Sandbox, and Bridges (#681)
 
 ### ⚡ Performance Improvements
 
@@ -79,6 +80,9 @@
 - Give rendered Markdown a readable visual hierarchy (#660)
 - Add safe bulk worktree cleanup to workspace lists (#656)
 - Add provider-neutral ACP full-access preference (#674)
+- Calmer, plain-language web UI for everyday users (#683)
+- Continue and fork sessions across agents, with fallback account routes (#684)
+- Shell rail v2 with light and dark themes (#687)
 
 ### 🐛 Bug Fixes
 
@@ -268,6 +272,9 @@
 - Fixing clarify tool call timeout with keep-alive pings (#661)
 - Preserve declared awaited run-loop terminal output (#672)
 - Preserve whitespace in session transcripts (#670)
+- Wake creator on child turn completion (#685)
+- Resolve reported runtime, catalog and delivery failures (#686)
+- Restore release nightly coverage and package extension runtimes
 
 ### 🔧 Miscellaneous Tasks
 
@@ -353,6 +360,34 @@ auto_commit = false
 - `compozy spawn` now accepts provider, model, reasoning-effort, and speed overrides, so orchestrated workers preserve the complete runtime choice.
 - Goal output contracts now require the runtime's `complete|blocked` vocabulary, and Goal prompts receive the authored output schema.
 - The standalone `orchestrate-tasks` Loop and its docs/catalog entry are removed. Operator-side `[loops.inputs.orchestrate-tasks]` config blocks are now inert and should be deleted; move any desired values under `[loops.inputs.implement-tasks]` and set `mode = "orchestrated"`.
+
+##### Remove Network, Bridges, and managed Sandbox products
+
+CompozyOS now centers on local agent sessions, Tasks, Loops, memory, and explicit Gateway access.
+Network, Bridges, and managed Sandbox capabilities are removed from all product surfaces with no
+compatibility aliases. HEARTBEAT, SOUL, Task autonomy, Goal nodes, session supervision, attention
+notifications, task status cursors, and provider-native execution policies remain supported.
+
+### Migration
+
+Back up the daemon state and workspace `.compozy/` directories before upgrading. Export any retired
+product history using the previous release first. Migration `00121_retire_network_bridges_sandbox.sql`
+permanently drops Network state and wake runs, Bridge instances/routes/deliveries and task subscriptions,
+notification presets/delivery permits, Network-actor triage state, and retired fields on retained records. It clears retained Task
+references to removed Network wake runs and removes Loop channel-message events. Retained local sessions,
+Tasks, ordinary runs, workspaces, memory, SOUL, and HEARTBEAT state are preserved.
+
+Remove Network, Bridges, and managed Sandbox configuration and request fields. Port scripts and extensions
+to the current CLI, routes, tools, and SDK; no replacement messaging or remote Sandbox feature is provided.
+Gateway requirements move to `[gateway]` with `gateway.private` / `gateway.public` permission atoms,
+`gateway_requirement_digest`, and `--confirm-gateway-requirement` / `confirm_gateway_digest` confirmation.
+The previous Gateway consent tuple remains recorded. Legacy `network_participation` manifests must
+be rebuilt with `[gateway]` and their new requirement digest confirmed; no legacy manifest conversion
+or implicit Gateway authorization is provided.
+
+There is no in-place downgrade. Restore a complete pre-upgrade backup before running an older binary.
+See the [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal) for the
+state disposition and integration changes.
 
 ##### The desktop app is now Electron
 
@@ -502,6 +537,11 @@ Cursor used to look curated in CompozyOS but was not truthful to the account tha
 Migration notes: the curated Cursor allowlist and its session preflight are deleted with no compatibility bridge. If a provider rejects an id, that provider's error is now the authority.
 
 ##### Every domain opens inside the palette
+
+> Historical note for #441: Network and Bridges were subsequently removed. Their views and
+> command IDs below are no longer available. See the
+> [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal)
+> for the current product boundaries and upgrade steps.
 
 The palette is not only a launcher — it browses. Sessions, Tasks, Loops, Jobs, Agents, Triggers, Marketplace, Bridges, Knowledge, Vault, Worktrees, Network channels, and Extensions each open as a view without leaving the overlay, and views stack so one selection can push the next. (#441)
 
@@ -859,6 +899,11 @@ compozy cmd-palette clients -o json                  # the targeting source of t
 ```
 
 ##### The interface speaks plain words at a legible size
+
+> Historical note for #440: Bridges and managed Sandbox were subsequently removed, including
+> the Connections and Permissions dock entries and `compozy bridge list` example below. These
+> are no longer current commands or UI labels. See the
+> [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal).
 
 Every end-user surface moved one step up the legibility ramp and one step toward ordinary language. Body text goes from 13.5px to 15px, item titles from 15 to 16, buttons and rows get real height, the radius ladder rebases on 8, and the canvas warms up — so the interface stops asking for a magnifying glass. (#440)
 
@@ -1255,6 +1300,71 @@ Moving one window no longer forces unchanged windows to render again, reducing w
 PR: [#525](https://github.com/compozy/compozy/pull/525).
 
 #### Highlights
+
+##### A calmer desktop shell with light and dark themes
+
+The CompozyOS desktop is redesigned around flat chrome and edge-to-edge windows, and it now comes in
+light and dark.
+
+- The dock moves to a slim rail on the left. Its foot holds your profile, the theme toggle, and
+  Settings. Below 960px it becomes a bottom tab bar with the same controls.
+- The top bar runs the full width. Desktop dots and an **All desktops** button sit in its tray, next
+  to the bell and the command palette.
+- Windows tile edge to edge with no gaps. A single hairline separates them: drag it, or focus it and
+  use the arrow keys (hold Shift for bigger steps), to resize the panes on both sides.
+- New windows open as a tab in the window you are working in instead of floating on top of it; on
+  an empty desktop they fill it. Option-click a rail icon to open it split beside your window,
+  Shift-click to open it on a new desktop, or right-click it for every destination, including a
+  floating window. `compozy window open --floating` and the `floating` input of
+  `compozy__window_open` ask for a floating window explicitly.
+- **Window › Arrange** offers Main and stack, Columns, Grid, and Balance sizes, and **Window › Move
+  window to** sends a window to another desktop by name. `compozy layout arrange` and the
+  `compozy__layout_arrange` tool accept the new `main_stack` arrangement, and an optional
+  `--keep-frames` / `keep_frames` that arranges each named tab deck whole. Without it, every named
+  window is still its own participant.
+- Tabs look and behave like browser tabs, and window controls are quiet icons at the end of the head.
+- An empty desktop asks "What should we work on?" above the session composer. Type a prompt and press
+  Enter to start a session right there, with your project's default agent already picked.
+- Sessions use the full width of their window again, tool calls read as quiet rows, and the list of
+  sessions is open by default.
+- Choose **Light**, **Dark**, or **System** in Settings › Appearance, or flip the theme from the dock.
+  Dark stays the default. The choice is saved in this browser and applied before the first frame,
+  and the terminal follows it.
+- The interface uses Inter for text and Geist Mono for code, with higher-contrast secondary text in
+  both themes.
+
+### Migration
+
+Three `[window_manager]` defaults change. Your saved layouts, profiles, and any value you set
+explicitly in `config.toml` are kept as they are; only unset values pick up the new defaults.
+
+| Setting                                            | Old default                   | New default |
+| -------------------------------------------------- | ----------------------------- | ----------- |
+| `gaps.inner` / `top` / `right` / `bottom` / `left` | `8` / `8` / `10` / `8` / `10` | `0`         |
+| `new_window_policy`                                | `floating`                    | `tab`       |
+| `bindings.bottom_center`                           | `reserved`                    | `zoom`      |
+
+`new_window_policy` now accepts `tab` (the new default) and `beside_focus` (tile new windows beside
+the focused one) alongside `floating`. To keep the previous behavior, set the old values explicitly:
+
+```toml
+[window_manager]
+new_window_policy = "floating"
+
+[window_manager.gaps]
+inner = 8
+top = 8
+right = 10
+bottom = 8
+left = 10
+
+[window_manager.bindings]
+bottom_center = "reserved"
+```
+
+Or apply them from the CLI, for example
+`compozy config set window_manager.new_window_policy floating`. Changes apply live. The theme is a
+per-browser preference, not a `config.toml` key, so there is nothing to migrate for it.
 
 ##### Gateway docs: zero to GitHub webhooks
 
