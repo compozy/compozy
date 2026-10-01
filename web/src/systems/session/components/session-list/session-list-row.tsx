@@ -49,13 +49,15 @@ export function SessionListRow({
       <button
         type="button"
         className={cn(
-          "relative grid min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none",
-          (selected || current) && "bg-row-selected"
+          "relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
+          (selected || current) && "bg-selected"
         )}
         data-status={session.badge}
         data-testid={`${testIdPrefix}-session-${session.id}`}
         aria-current={current ? "true" : undefined}
-        aria-selected={selection ? selected : undefined}
+        // While a selection is open, activating the row toggles its membership,
+        // so the row reads as a toggle button; otherwise it only navigates.
+        aria-pressed={selection?.mode ? selected : undefined}
         data-selected={selected || undefined}
         onClick={event => {
           if (selection && event.shiftKey) selection.toggleRange(session.id);
@@ -67,7 +69,7 @@ export function SessionListRow({
         <SessionBadgeMark
           badge={session.badge}
           className={cn(
-            "mt-1.5",
+            "mt-1",
             selection &&
               "transition-opacity duration-fast motion-reduce:transition-none group-hover/session-row:opacity-0 group-focus-within/session-row:opacity-0",
             selection?.mode && "opacity-0"
@@ -76,7 +78,7 @@ export function SessionListRow({
         <SessionListRowDetails session={session} current={current} />
         <span className="mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
-          <Time iso={session.updated_at} className="font-mono text-micro text-subtle" />
+          <Time iso={session.updated_at} className="text-eyebrow text-subtle" />
         </span>
       </button>
       {selection ? (
@@ -122,18 +124,18 @@ function SessionListRowDetails({
     <span className={cn("min-w-0", className)} {...props}>
       <span
         className={cn(
-          "block truncate text-small-body",
+          "block truncate text-body",
           // A needs-you row keeps its pull even when the window is not focused.
-          signal.attention === "needs-you" ? "font-medium text-fg-strong" : "text-fg-strong",
+          signal.attention === "needs-you" ? "font-medium text-fg" : "text-fg",
           current && "font-medium"
         )}
       >
         {getSessionDisplayTitle(session)}
       </span>
-      <span className="block truncate text-micro text-subtle">
+      <span className="block truncate text-eyebrow text-subtle">
         <span className="font-medium text-muted">{session.agent_name}</span>
-        {/* The mark carries every state; the word only speaks up when the row needs you. */}
-        {signal.attention === "needs-you" ? (
+        {/* The mark carries the state; the word speaks up whenever the glyph is shared. */}
+        {signal.speaks ? (
           <>
             <span aria-hidden="true"> · </span>
             <span className={sessionBadgeWordClass(session.badge)}>{signal.displayLabel}</span>

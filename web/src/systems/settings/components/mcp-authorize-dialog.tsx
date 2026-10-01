@@ -105,7 +105,6 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
           <Button
             data-testid="settings-page-mcp-scope-cancel"
             onClick={authorize.cancel}
-            size="sm"
             type="button"
             variant="ghost"
           >
@@ -115,7 +114,6 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
             data-testid="settings-page-mcp-scope-confirm"
             disabled={scopes.length === 0}
             onClick={authorize.confirmScopeEscalation}
-            size="sm"
             type="button"
           >
             Approve scopes
@@ -173,7 +171,6 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             onClick={authorize.cancel}
             data-testid="settings-page-mcp-authorize-cancel"
           >
@@ -308,7 +305,7 @@ function AuthorizePrimaryAction({
         onClick={() => authorize.submitManual(manualValue)}
         data-testid="settings-page-mcp-authorize-exchange"
       >
-        {exchanging ? <Spinner className="size-3" /> : null}
+        {exchanging ? <Spinner className="size-3.5" /> : null}
         Complete authorization
       </Button>
     );
@@ -369,7 +366,7 @@ function AuthorizationUrlBlock({ url }: { url: string }) {
     }
   };
   return (
-    <div className="my-3.5 rounded-md bg-canvas p-3" data-testid="settings-page-mcp-authorize-url">
+    <div className="my-3.5 rounded-md bg-sunken p-3" data-testid="settings-page-mcp-authorize-url">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Eyebrow className="flex-1 text-muted">Live URL from auth/begin</Eyebrow>
         <Button
@@ -413,14 +410,20 @@ function AuthSnapshot({
   const prior = authorize.prior;
   return (
     <dl
-      className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line bg-line"
+      className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-md bg-sunken p-3"
       data-testid="settings-page-mcp-authorize-snapshot"
     >
       <SnapshotCell term="Sign-in">
-        <Pill tone={authTone(status, tokenPresent)}>{formatStatusLabel(status)}</Pill>
+        <Pill form="plain" tone={authTone(status, tokenPresent)}>
+          <Pill.Dot />
+          {formatStatusLabel(status)}
+        </Pill>
       </SnapshotCell>
       <SnapshotCell term="Signed in">
-        <Pill tone={tokenPresent ? "success" : "neutral"}>{tokenPresent ? "Yes" : "No"}</Pill>
+        <Pill form="plain" tone={tokenPresent ? "success" : "neutral"}>
+          <Pill.Dot />
+          {tokenPresent ? "Yes" : "No"}
+        </Pill>
       </SnapshotCell>
       <SnapshotCell term="Before" mono>
         {prior ? `${prior.status} · ${prior.tokenPresent ? "token present" : "token absent"}` : "-"}
@@ -442,7 +445,7 @@ function SnapshotCell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-w-0 bg-canvas p-2.5">
+    <div className="min-w-0">
       <dt className="eyebrow text-subtle">{term}</dt>
       <dd className={mono ? "mt-1 font-mono text-mono-id text-fg" : "mt-1 text-form-label text-fg"}>
         {children}

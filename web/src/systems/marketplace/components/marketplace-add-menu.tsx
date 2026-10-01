@@ -33,11 +33,11 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
             data-testid="marketplace-add"
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           />
         }
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add
         <ChevronDown aria-hidden="true" className="size-3 text-subtle" data-icon="inline-end" />
       </DropdownMenuTrigger>

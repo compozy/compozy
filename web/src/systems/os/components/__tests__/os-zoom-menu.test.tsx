@@ -18,15 +18,12 @@ const ZOOM_REGISTRY = paletteRegistryFixture([
   }),
   resolvedPaletteCommand({ id: "window.zoom", title: "Fill window", section: "Window" }),
   resolvedPaletteCommand({
-    id: "layout.arrange.two-up",
-    title: "Arrange left and right",
+    id: "layout.arrange.main-stack",
+    title: "Main and stack",
     section: "Layout",
   }),
-  resolvedPaletteCommand({
-    id: "layout.arrange.grid",
-    title: "Arrange in grid",
-    section: "Layout",
-  }),
+  resolvedPaletteCommand({ id: "layout.arrange.columns", title: "Columns", section: "Layout" }),
+  resolvedPaletteCommand({ id: "layout.arrange.grid", title: "Grid", section: "Layout" }),
 ]);
 
 vi.mock("../../hooks/use-os-zoom-menu", () => ({ useOsZoomMenu: vi.fn() }));
@@ -69,7 +66,7 @@ describe("OsZoomMenu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Tile left half" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Make window floating" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Fill window" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Arrange left and right" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Main and stack" }));
 
     expect(useOsZoomMenu).toHaveBeenCalledWith("window:tasks");
     expect(model.dispatchPlacement).toHaveBeenCalledWith({
@@ -77,7 +74,7 @@ describe("OsZoomMenu", () => {
     });
     expect(model.dispatchMakeFloating).toHaveBeenCalledOnce();
     expect(model.dispatchFill).toHaveBeenCalledOnce();
-    expect(model.dispatchArrange).toHaveBeenCalledWith("two-up");
+    expect(model.dispatchArrange).toHaveBeenCalledWith("main-stack");
   });
 
   it("Should disable placement and arrangement controls when their actions are unavailable", () => {
@@ -96,9 +93,7 @@ describe("OsZoomMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Tile left half" })).toHaveAttribute(
       "data-disabled"
     );
-    expect(screen.getByRole("menuitem", { name: "Arrange left and right" })).toHaveAttribute(
-      "data-disabled"
-    );
+    expect(screen.getByRole("menuitem", { name: "Columns" })).toHaveAttribute("data-disabled");
   });
 
   it("Should omit zoom actions whose registry rows are missing", () => {
@@ -123,8 +118,6 @@ describe("OsZoomMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Tile left half" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Tile right half" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Fill window" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("menuitem", { name: "Arrange left and right" })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Columns" })).not.toBeInTheDocument();
   });
 });

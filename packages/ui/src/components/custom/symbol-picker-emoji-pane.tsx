@@ -4,6 +4,7 @@ import { IDENTITY_SURFACE_VALUE, identityColorsFor } from "../../lib/identity-pa
 import type { SymbolPickerLabels } from "../../lib/symbol-palette";
 import { cn } from "../../lib/utils";
 import { Spinner } from "../spinner";
+import { useSymbolPickerEmojiColumns } from "./hooks/use-symbol-picker-emoji-columns";
 
 export interface SymbolPickerEmojiPaneProps {
   /** Base URL serving Emojibase JSON as `{emojibaseUrl}/{locale}/data.json`. */
@@ -28,15 +29,22 @@ export function SymbolPickerEmojiPane({
   labels,
 }: SymbolPickerEmojiPaneProps) {
   const plate = identityColorsFor(color, surface).bg;
+  const { columns, cellProbe, viewport } = useSymbolPickerEmojiColumns();
 
   return (
     <EmojiPicker.Root
+      {...(columns === undefined ? {} : { columns })}
       emojibaseUrl={emojibaseUrl}
       locale={locale}
       onEmojiSelect={picked => onSelect(picked.emoji)}
       data-slot="symbol-picker-emoji-pane"
-      className="flex flex-col gap-3"
+      className="relative flex flex-col gap-3"
     >
+      <span
+        ref={cellProbe}
+        aria-hidden="true"
+        className="pointer-events-none invisible absolute size-symbol-picker-cell"
+      />
       <div className="flex items-center gap-2">
         <EmojiPicker.Search
           aria-label={labels.searchEmojis}
@@ -54,11 +62,11 @@ export function SymbolPickerEmojiPane({
           data-slot="symbol-picker-skin-tone"
           className={cn(
             "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md",
-            "text-small-body outline-none hover:bg-row-hover focus-visible:shadow-focus-ring"
+            "text-small-body outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
           )}
         />
       </div>
-      <EmojiPicker.Viewport className="h-symbol-picker-grid rounded-md outline-none">
+      <EmojiPicker.Viewport ref={viewport} className="h-symbol-picker-grid rounded-md outline-none">
         <EmojiPicker.Loading
           aria-label={labels.loadingEmojis}
           className="grid h-full place-items-center"
@@ -74,7 +82,9 @@ export function SymbolPickerEmojiPane({
             CategoryHeader: ({ category, ...props }) => (
               <div
                 {...props}
-                className="bg-canvas-soft px-1 pt-2 pb-1 text-micro font-medium text-subtle"
+                // Sticky over the scrolling rows, so it paints its host's fill:
+                // the picker only lives in dialogs and popovers (`popover`).
+                className="bg-popover px-1 pt-2 pb-1 text-micro font-medium text-subtle"
               >
                 {category.label}
               </div>
@@ -92,7 +102,7 @@ export function SymbolPickerEmojiPane({
                 style={emoji.emoji === selected ? { backgroundColor: plate } : undefined}
                 className={cn(
                   "grid size-symbol-picker-cell cursor-pointer place-items-center rounded-xs",
-                  "text-small-body transition-colors data-[active]:bg-row-selected hover:bg-row-hover"
+                  "text-small-body transition-colors data-[active]:bg-selected hover:bg-surface-2"
                 )}
               >
                 {emoji.emoji}

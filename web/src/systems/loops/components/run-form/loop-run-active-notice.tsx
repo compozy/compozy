@@ -6,7 +6,7 @@ import { buttonVariants, cn, formatRelativeTime } from "@compozy/ui";
 import { loopRunOriginLine } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopRailSection } from "../loop-rail-section";
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 
 interface LoopRunActiveNoticeProps {
   run: LoopRun;
@@ -45,7 +45,7 @@ export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticePro
       title="Already running"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-        <LoopStatusPill status={run.status} />
+        <LoopStatusMark status={run.status} />
         <span
           className="min-w-0 truncate text-form-hint text-subtle"
           data-testid="loop-run-active-id"

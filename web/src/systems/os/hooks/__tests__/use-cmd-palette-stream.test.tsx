@@ -224,6 +224,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
       })
     ).toBe(false);
     expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "connected" })).toBe(true);
+    expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "idle" })).toBe(true);
     expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "disconnected" })).toBe(
       true
     );

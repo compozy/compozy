@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@compozy/ui";
+import { CatalogCard, KindIcon, Pill, StateGlyph, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
@@ -52,12 +52,8 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
       <CatalogCard.Actions className="justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {sessionsAvailable && signals ? (
-            <Pill
-              size="sm"
-              tone={signals.status === "active" ? "success" : "neutral"}
-              data-testid={`agent-fleet-status-${agent.name}`}
-            >
-              <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
+            <Pill form="plain" data-testid={`agent-fleet-status-${agent.name}`}>
+              <StateGlyph state={signals.status === "active" ? "running" : "idle"} size="sm" />
               {signals.status === "active" ? "Active" : "Idle"}
             </Pill>
           ) : null}

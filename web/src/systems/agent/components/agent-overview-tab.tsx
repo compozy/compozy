@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, MessageSquare } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, MetadataList, Panel, Pill, Skeleton } from "@compozy/ui";
+import { Button, Empty, MetadataList, Panel, Pill, Skeleton, StateGlyph } from "@compozy/ui";
 
 import { permissionLabel } from "../lib/agent-permissions";
 import type { AgentPayload } from "../types";
@@ -73,11 +73,13 @@ export function AgentOverviewTab({
         data-testid="agent-overview-runtime"
         right={
           <Button
+            // Optical: the trailing chevron lands on the card's content edge.
+            className="-mr-2"
             data-testid="agent-overview-edit-runtime"
             onClick={onEditRuntime}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="link"
           >
             Edit
             <ChevronRight aria-hidden="true" data-icon="inline-end" />
@@ -104,11 +106,13 @@ export function AgentOverviewTab({
         data-testid="agent-overview-live-sessions"
         right={
           <Button
+            // Optical: the trailing chevron lands on the card's content edge.
+            className="-mr-2"
             data-testid="agent-overview-view-all-sessions"
             onClick={onViewAllSessions}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="link"
           >
             View all
             <ChevronRight aria-hidden="true" data-icon="inline-end" />
@@ -135,7 +139,8 @@ export function AgentOverviewTab({
             description="Start a session to see live work here."
             data-testid="agent-overview-no-live"
             fill={false}
-            className="px-4 py-8"
+            size="compact"
+            className="px-4 py-6"
           />
         ) : (
           <ul>
@@ -153,15 +158,15 @@ export function AgentOverviewTab({
                     data-testid={`agent-overview-live-${session.id}`}
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-body font-medium text-fg-strong">
+                      <span className="block truncate text-body font-medium text-fg">
                         {getSessionDisplayTitle(session)}
                       </span>
                       {elapsed ? (
                         <span className="mt-1 block text-small-body text-muted">{elapsed}</span>
                       ) : null}
                     </span>
-                    <Pill size="sm" tone="success">
-                      <Pill.Dot size="sm" tone="success" />
+                    <Pill form="plain">
+                      <StateGlyph state="running" size="sm" />
                       Active
                     </Pill>
                   </Link>

@@ -1,26 +1,26 @@
 import type * as React from "react";
-import { Kbd } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 import { fn } from "storybook/test";
 
-import { OsDockZone, type OsDockEntry } from "../os-dock";
+import { OsDock, type OsDockItemData } from "../os-dock";
+import { OsRailFoot } from "../os-dock-rail-foot";
+import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
+import { EmptyDesktopPreview } from "./_empty-desktop-preview";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 
 const DOCK_DEFS = [
   { id: "sessions", name: "Sessions", icon: "sessions" },
   { id: "dashboard", name: "Dashboard", icon: "dashboard" },
   { id: "terminal", name: "Terminal", icon: "terminal" },
-  { id: "sep-1", sep: true as const },
   { id: "agents", name: "Agents", icon: "agents" },
   { id: "tasks", name: "Tasks", icon: "tasks" },
   { id: "loops", name: "Loops", icon: "loops" },
   { id: "jobs", name: "Jobs", icon: "jobs" },
   { id: "triggers", name: "Triggers", icon: "triggers" },
-  { id: "sep-2", sep: true as const },
   { id: "marketplace", name: "Marketplace", icon: "marketplace" },
   { id: "knowledge", name: "Knowledge", icon: "knowledge" },
-  { id: "sep-3", sep: true as const },
   { id: "vault", name: "Vault", icon: "vault" },
 ] as const;
 
@@ -28,32 +28,31 @@ const DOCK_DEFS = [
 const DEFAULT_BADGES: Record<string, number> = { sessions: 1, tasks: 1 };
 
 /**
- * Build the full OpenDesign `DOCK_ORDER` strip with separators, applying
- * running/minimized/badge fixtures for the story's open-window set.
+ * Build the full rail order, applying running/active/minimized/badge fixtures
+ * for the story's open-window set. `active` names the focused window's app.
  */
 export function buildDeskItems(opts?: {
   open?: string[];
+  active?: string;
   minimized?: string[];
   badges?: Record<string, number>;
-}): OsDockEntry[] {
+}): OsDockItemData[] {
   const open = new Set(opts?.open ?? []);
   const minimized = new Set(opts?.minimized ?? []);
   const badges = opts?.badges ?? DEFAULT_BADGES;
-  return DOCK_DEFS.map(def => {
-    if ("sep" in def) return { id: def.id, sep: true as const };
-    return {
-      id: def.id,
-      name: def.name,
-      icon: def.icon,
-      running: open.has(def.id),
-      minimized: minimized.has(def.id),
-      badge: badges[def.id],
-    };
-  });
+  return DOCK_DEFS.map(def => ({
+    id: def.id,
+    name: def.name,
+    icon: def.icon,
+    running: open.has(def.id) || opts?.active === def.id,
+    active: opts?.active === def.id,
+    minimized: minimized.has(def.id),
+    badge: badges[def.id],
+  }));
 }
 
 /** Default resting fixture used by wallpaper/menubar shells (no windows open). */
-export const DESK_ITEMS: OsDockEntry[] = buildDeskItems();
+export const DESK_ITEMS: OsDockItemData[] = buildDeskItems();
 
 export interface DesktopShellProps {
   children?: React.ReactNode;
@@ -61,8 +60,8 @@ export interface DesktopShellProps {
   menubar?: boolean;
   dock?: boolean;
   /** Override dock entries (defaults to full DESK_ITEMS). */
-  dockItems?: OsDockEntry[];
-  /** Extra classes on the dock zone (first-run dormancy). */
+  dockItems?: OsDockItemData[];
+  /** Extra classes on the rail (first-run dormancy). */
   dockClassName?: string;
   /** Extra classes on the menubar (first-run dimming). */
   menubarClassName?: string;
@@ -70,18 +69,25 @@ export interface DesktopShellProps {
   workspace?: { name: string; monogram: string };
   /** Menubar approvals count; 0 renders no badge. */
   notifications?: number;
-  /** Show the empty-desktop ⌘K hint (OpenDesign `desk-hint`). */
+  /** Show the empty desktop — question and composer (VC-10). */
   deskHint?: boolean;
+  /** Compact (<960px) presentation: the bottom tab bar replaces the rail. */
+  compact?: boolean;
+  /** Topbar desktop pager slot. */
+  pager?: React.ReactNode;
+  /** Replaces the default topbar (wired `DesktopMenubar` fixtures). */
+  topbar?: React.ReactNode;
 }
 
 /**
- * Story-only full desktop shell: wallpaper + menubar + dock zone (strip +
- * detached New Session), matching the OpenDesign prototype frame so Visual
- * Contract rows compare the same composition.
+ * Story-only full desktop shell: topbar across the full width, the rail and the
+ * wallpapered desk panel inset below it — the production `DesktopShellScopedBody`
+ * grid, so Visual Contract rows compare the same composition. `dock={false}` drops the
+ * rail and gives the desk the full width.
  */
 export function DesktopShell({
   children,
-  wallpaper = "ember",
+  wallpaper = "flat",
   menubar = true,
   dock = true,
   dockItems = DESK_ITEMS,
@@ -90,41 +96,55 @@ export function DesktopShell({
   workspace = { name: "compozy", monogram: "CO" },
   notifications = 2,
   deskHint = false,
+  compact = false,
+  pager,
+  topbar,
 }: DesktopShellProps) {
+  // The desk is inset into the chrome only where chrome surrounds it.
+  const hasTopbar = menubar || topbar != null;
+  const hasRail = dock && !compact;
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-rail">
-      {menubar ? (
+    <div className="relative grid h-screen w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail">
+      {topbar ? <div className="col-span-full">{topbar}</div> : null}
+      {menubar && !topbar ? (
         <OsMenuBar
-          className={menubarClassName}
+          className={cn("col-span-full", menubarClassName)}
           workspace={workspace}
           notifications={notifications}
           onCommandClick={fn()}
-          onSettingsClick={fn()}
+          onDesktopsClick={fn()}
           commandShortcutLabel={shortcutLabel("meta+KeyK")}
+          pager={pager}
         />
       ) : null}
-      <div className="relative min-h-0 flex-1">
+      {dock && compact ? (
+        <OsDockTabBar
+          className={cn("col-span-full row-start-3", dockClassName)}
+          items={dockItems}
+          onSelect={fn()}
+          trailing={<OsRailFoot onOpenSettings={fn()} tipSide="top" />}
+        />
+      ) : null}
+      {dock && !compact ? (
+        <OsDock
+          className={cn("col-start-1 row-start-2", dockClassName)}
+          items={dockItems}
+          onSelect={fn()}
+          foot={<OsRailFoot onOpenSettings={fn()} />}
+        />
+      ) : null}
+      <div
+        data-slot="os-desk"
+        className={cn(
+          "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-line",
+          hasTopbar && "border-t",
+          hasRail && "border-l",
+          hasTopbar && hasRail && "rounded-tl-lg"
+        )}
+      >
         <OsWallpaper wallpaper={wallpaper} />
-        {deskHint ? (
-          <p
-            data-slot="os-desk-hint"
-            className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center text-small-body text-muted"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Kbd>⌘K</Kbd>
-              to open anything — or pick a surface from the dock
-            </span>
-          </p>
-        ) : null}
+        {deskHint ? <EmptyDesktopPreview /> : null}
         {children}
-        {dock ? (
-          <OsDockZone
-            className={dockClassName}
-            items={dockItems}
-            onSelect={fn()}
-            onNewSession={fn()}
-          />
-        ) : null}
       </div>
     </div>
   );

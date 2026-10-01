@@ -21,6 +21,8 @@ import {
   Input,
   MonoId,
   Spinner,
+  StateGlyph,
+  Surface,
 } from "@compozy/ui";
 
 import type { WorktreeCreateDialogModel } from "../hooks/use-worktree-create-dialog";
@@ -117,13 +119,15 @@ export function WorktreeCreateDialog({
             </Collapsible>
 
             {model.pendingWorktree ? (
-              <div
+              <Surface
+                variant="sunken"
+                size="compact"
                 data-testid="worktree-create-pending"
-                className="mt-4 flex items-center gap-3 rounded-md border border-line bg-canvas-soft p-3"
+                className="mt-4 flex items-center gap-3"
               >
-                <Spinner className="size-3.5 shrink-0 text-warning" />
+                <StateGlyph state="running" />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-small-body text-fg-strong">
+                  <span className="truncate text-small-body text-fg">
                     {model.pendingWorktree.name}
                   </span>
                   <span className="font-mono text-micro text-faint">
@@ -144,7 +148,7 @@ export function WorktreeCreateDialog({
                 >
                   Cancel creation
                 </Button>
-              </div>
+              </Surface>
             ) : null}
 
             {model.cancelError ? (
@@ -165,7 +169,7 @@ export function WorktreeCreateDialog({
             {heldByWorktree && onSelectHoldingWorktree ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="mt-4"
                 data-testid="worktree-create-select-holder"

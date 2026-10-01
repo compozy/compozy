@@ -4,7 +4,7 @@
 // Boundary IN: OnboardingSetupFrame and its step strip/footer composition.
 // Boundary OUT: wizard orchestration, provider/workspace transports, the desktop shell.
 import { TooltipProvider, UIProvider } from "@compozy/ui";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -103,6 +103,17 @@ describe("OnboardingSetupFrame", () => {
     expect(previousStep).toBeDisabled();
     await user.click(previousStep);
     expect(goToStep).not.toHaveBeenCalled();
+  });
+
+  it("Should open with focus on the step title, not the progress strip", async () => {
+    render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Choose the model your agents run on" })
+      ).toHaveFocus()
+    );
+    expect(screen.getByTestId("onboarding-step-1")).not.toHaveFocus();
   });
 
   it("Should not close on Escape or an outside press", async () => {

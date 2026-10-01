@@ -52,6 +52,20 @@ describe("Pill", () => {
     expect(pill).toHaveAttribute("data-tone", "neutral");
   });
 
+  it("Should render form=plain as a plateless status indicator with the tone on its dot", () => {
+    render(
+      <Pill form="plain" tone="success">
+        <Pill.Dot />
+        Running
+      </Pill>
+    );
+    const pill = screen.getByText("Running");
+    expect(pill).toHaveAttribute("data-form", "plain");
+    expect(pill).toHaveClass("bg-transparent", "text-muted", "px-0");
+    expect(pill.className).not.toMatch(/\bbg-success-tint\b|\btext-success\b/);
+    expect(pill.querySelector('[data-slot="pill-dot"]')).toHaveAttribute("data-tone", "success");
+  });
+
   it("Should expose data-solid when solid is true", () => {
     render(
       <Pill tone="accent" solid>

@@ -1,0 +1,161 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  AA_NON_TEXT_CONTRAST,
+  AA_TEXT_CONTRAST,
+  contrastRatio,
+  parseHexColor,
+  type Rgb,
+} from "../lib/contrast";
+import { THEMES, TOKENS_CSS, TOKENS_LIGHT_CSS, readToken, type Theme } from "./token-source";
+
+/**
+ * Theme-switch reach contract.
+ *
+ * The light theme re-declares tokens under `[data-theme="light"]`, which only
+ * works for utilities that read the variable at runtime. Tailwind v4 inlines the
+ * literal value of some `@theme` namespaces into the generated utility (it parses
+ * shadows to thread `--tw-shadow-color` through them), so a light override of such
+ * a name never reaches `shadow-*` classes. Those tokens are `@theme` adapters over
+ * `--theme-shadow-*` literals, and the light theme overrides the literals instead.
+ */
+
+// @theme namespaces whose values Tailwind copies into utilities instead of var().
+const INLINED_NAMESPACES = /^(shadow|inset-shadow|drop-shadow|text-shadow)-/;
+
+function declaredNames(css: string): string[] {
+  return Array.from(css.matchAll(/--([a-zA-Z0-9-]+)\s*:/g), match => match[1]);
+}
+
+function themeBlock(css: string): string {
+  const match = css.match(/@theme\s*\{([\s\S]*?)\n\}/);
+  if (!match) throw new Error("no @theme block in tokens.css");
+  return match[1];
+}
+
+const lightNames = declaredNames(TOKENS_LIGHT_CSS);
+const themeAdapters = Array.from(
+  themeBlock(TOKENS_CSS).matchAll(/--([a-zA-Z0-9-]+)\s*:\s*var\(--(theme-[a-zA-Z0-9-]+)\)\s*;/g),
+  match => ({ name: match[1], target: match[2] })
+);
+
+describe("theme-switch reach contract", () => {
+  it("Should never re-declare a Tailwind-inlined @theme name in the light theme", () => {
+    expect(lightNames.filter(name => INLINED_NAMESPACES.test(name))).toEqual([]);
+  });
+
+  it("Should back every light --theme-* override with an @theme adapter", () => {
+    const adapted = new Set(themeAdapters.map(adapter => adapter.target));
+    const orphans = lightNames.filter(name => name.startsWith("theme-") && !adapted.has(name));
+    expect(orphans).toEqual([]);
+  });
+
+  it("Should give every --theme-* adapter a light value", () => {
+    const light = new Set(lightNames);
+    const missing = themeAdapters.filter(adapter => !light.has(adapter.target));
+    expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * Readable-grey floor, per theme. Secondary copy rides `muted`, `subtle`, `faint`, and
+ * `fg-2`, so each must clear WCAG AA text contrast on every surface that carries text
+ * in both themes: panes, cards, sunken insets, chrome, hover steps, selected rows, and
+ * popovers. The reference palette's dimmer greys (#a1a1a1 on white) fail this; the
+ * production override does not.
+ */
+const TEXT_TOKENS = ["color-fg-2", "color-muted", "color-subtle", "color-faint"] as const;
+const TEXT_SURFACES = [
+  "color-canvas",
+  "color-canvas-soft",
+  "color-sunken",
+  "color-rail",
+  "color-surface-2",
+  "color-selected",
+  "color-elevated",
+] as const;
+
+function readHex(name: string, theme: Theme): Rgb {
+  const parsed = parseHexColor(readToken(name, theme));
+  if (!parsed) throw new Error(`expected a hex color for --${name} (${theme})`);
+  return parsed;
+}
+
+/**
+ * Chrome-plate ink floor, per theme. A hovered or selected rail / topbar / deck
+ * plate steps its label to `fg-2` or `fg`; `muted` is not a chrome-plate ink (in
+ * light it falls below AA on the darker plates), so only the plate inks are held
+ * to AA there.
+ */
+const CHROME_PLATE_INKS = ["color-fg", "color-fg-2"] as const;
+const CHROME_PLATES = ["color-rail-hover", "color-rail-selected"] as const;
+
+describe.each(THEMES)("chrome plate ink contrast floor (%s theme)", theme => {
+  for (const ink of CHROME_PLATE_INKS) {
+    it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for --${ink} on every chrome plate`, () => {
+      for (const plate of CHROME_PLATES) {
+        const ratio = contrastRatio(readHex(ink, theme), readHex(plate, theme));
+        expect(ratio, `--${ink} on --${plate} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+          AA_TEXT_CONTRAST
+        );
+      }
+    });
+  }
+});
+
+describe.each(THEMES)("text ladder contrast floor (%s theme)", theme => {
+  for (const text of TEXT_TOKENS) {
+    it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for --${text} on every text surface`, () => {
+      for (const surface of TEXT_SURFACES) {
+        const ratio = contrastRatio(readHex(text, theme), readHex(surface, theme));
+        expect(ratio, `--${text} on --${surface} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+          AA_TEXT_CONTRAST
+        );
+      }
+    });
+  }
+});
+
+/**
+ * Non-text indicator floor, per theme (DESIGN.md accessibility floor). A resting
+ * dot, ring or mark that alone carries state rides `--color-indicator`, so it must
+ * clear 3:1 on every surface it can rest on; hairlines stay decorative and are not
+ * held to it. The identity well's glyph and the accent count pill are paired inks:
+ * the glyph clears 3:1 on its well, and the count's text clears AA on its fill.
+ */
+const INDICATOR_SURFACES = [
+  "color-rail",
+  "color-desk",
+  "color-canvas",
+  "color-sunken",
+  "color-surface-2",
+  "color-selected",
+] as const;
+
+describe.each(THEMES)("non-text indicator contrast floor (%s theme)", theme => {
+  it(`Should hold ≥${AA_NON_TEXT_CONTRAST}:1 for --color-indicator on every resting surface`, () => {
+    for (const surface of INDICATOR_SURFACES) {
+      const ratio = contrastRatio(readHex("color-indicator", theme), readHex(surface, theme));
+      expect(
+        ratio,
+        `--color-indicator on --${surface} = ${ratio.toFixed(2)}:1`
+      ).toBeGreaterThanOrEqual(AA_NON_TEXT_CONTRAST);
+    }
+  });
+
+  it(`Should hold ≥${AA_NON_TEXT_CONTRAST}:1 for the identity-well glyph on its well`, () => {
+    const ratio = contrastRatio(readHex("color-well-ink", theme), readHex("color-well", theme));
+    expect(
+      ratio,
+      `--color-well-ink on --color-well = ${ratio.toFixed(2)}:1`
+    ).toBeGreaterThanOrEqual(AA_NON_TEXT_CONTRAST);
+  });
+
+  it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for count ink on the accent fill`, () => {
+    const ratio = contrastRatio(readHex("color-accent-ink", theme), readHex("color-accent", theme));
+    expect(
+      ratio,
+      `--color-accent-ink on --color-accent = ${ratio.toFixed(2)}:1`
+    ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+  });
+});

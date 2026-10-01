@@ -27,7 +27,7 @@ function renderHeader(props: Partial<React.ComponentProps<typeof EntityDialogHea
 }
 
 describe("EntityDialogHeader", () => {
-  it("Should render the accent icon well, eyebrow, and title on ruled chrome", async () => {
+  it("Should render the identity well, muted eyebrow, and title on ruled chrome", async () => {
     renderHeader();
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
@@ -41,9 +41,26 @@ describe("EntityDialogHeader", () => {
     expect(screen.getByText("Autonomy · Task")).toBeInTheDocument();
     expect(screen.getByText("Create task")).toBeInTheDocument();
 
+    // An entity editor is identity, not attention: the mint KindIcon well and a
+    // muted eyebrow — never the accent tint.
     const well = header?.querySelector('[data-slot="entity-dialog-header-icon"]');
-    expect(well?.className).toContain("bg-accent-tint");
+    expect(well).toHaveAttribute("data-tone", "well");
+    expect(well).toHaveAttribute("data-icon-tone", "neutral");
+    expect(well?.className).not.toContain("accent");
     expect(well?.querySelector("svg")).not.toBeNull();
+    expect(screen.getByText("Autonomy · Task")).toHaveClass("text-muted");
+  });
+
+  it("Should keep semantic wells for danger and warning dialogs", async () => {
+    renderHeader({ tone: "danger" });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const well = screen
+      .getByTestId("host")
+      .querySelector('[data-slot="entity-dialog-header-icon"]');
+    expect(well).toHaveAttribute("data-icon-tone", "danger");
+    expect(well).toHaveClass("bg-danger-tint", "text-danger");
+    expect(screen.getByText("Autonomy · Task")).toHaveClass("text-danger");
   });
 
   it("Should omit the description and close button unless supplied", async () => {

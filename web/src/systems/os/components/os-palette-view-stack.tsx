@@ -119,7 +119,7 @@ function DeclarativePaletteViewFrame({
           empty: (
             <div className="space-y-3 px-3 py-6 text-center text-small-body text-muted">
               <p>{source ? `${source} view unavailable.` : "View unavailable."}</p>
-              <Button size="sm" variant="outline" onClick={model.retry}>
+              <Button size="sm" variant="secondary" onClick={model.retry}>
                 Retry
               </Button>
             </div>

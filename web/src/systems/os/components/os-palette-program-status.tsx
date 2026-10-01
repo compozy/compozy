@@ -31,7 +31,7 @@ export function OsPaletteProgramBand({
     >
       <TriangleAlert aria-hidden="true" className="size-3.5" />
       <span>Some results may be out of date</span>
-      <Button className="ml-auto" size="sm" variant="outline" onClick={onRetry}>
+      <Button className="ml-auto" size="sm" variant="secondary" onClick={onRetry}>
         Retry
       </Button>
     </div>

@@ -7,7 +7,7 @@ import { useNowTick } from "../../hooks/use-now-tick";
 import { loopStatusLabel } from "../../lib/loop-formatters";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRun } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 
 interface LoopRecentRunsProps {
   runs: readonly LoopRun[];
@@ -23,7 +23,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
   if (runs.length === 0) {
     return (
       <div
-        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-small-body text-subtle"
+        className="rounded-lg bg-sunken px-4 py-6 text-center text-small-body text-subtle"
         data-testid="loop-recent-runs-empty"
       >
         This Loop has not run yet.
@@ -31,21 +31,18 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
     );
   }
   return (
-    <div
-      className="flex flex-col rounded-lg border border-line bg-canvas-soft"
-      data-testid="loop-recent-runs"
-    >
+    <div className="flex flex-col rounded-lg bg-card shadow-card" data-testid="loop-recent-runs">
       {runs.map(run => (
         <Link
           key={run.id}
           aria-label={`${loopStatusLabel(run.status)} run, started ${formatRelativeTime(run.created_at)}`}
           to="/loop-runs/$runId"
           params={{ runId: run.id }}
-          className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-row-hover"
+          className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-surface-2"
           data-testid="loop-recent-run-row"
           title={run.id}
         >
-          <LoopStatusPill status={run.status} />
+          <LoopStatusMark status={run.status} />
           <span className="min-w-0 truncate text-form-hint text-subtle">
             <Time iso={run.created_at} />
           </span>

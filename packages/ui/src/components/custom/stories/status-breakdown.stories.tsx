@@ -94,7 +94,7 @@ export const LabelAndValue: Story = {
       },
       {
         label: "Free",
-        swatch: <PillDot color="var(--color-canvas-tint)" />,
+        swatch: <PillDot color="var(--color-surface-2)" />,
         value: 166_300,
         formattedValue: "166.3K",
         showBar: false,

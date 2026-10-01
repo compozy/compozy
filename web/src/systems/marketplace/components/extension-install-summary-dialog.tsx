@@ -91,7 +91,7 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
               disabled={pending || !form.valid}
               type="submit"
             >
-              {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {pending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
               {pending ? model.pendingLabel : actionLabel}
             </Button>
           </DialogFooter>

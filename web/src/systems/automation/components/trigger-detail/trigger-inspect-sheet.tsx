@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import {
   CodeBlock,
   Eyebrow,
+  KindIcon,
   LaneTabs,
   MetadataTile,
   Sheet,
@@ -50,17 +51,12 @@ export function TriggerInspectSheet({ trigger, open, onOpenChange }: TriggerInsp
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent
-        className="w-150 max-w-[calc(100%-1.5rem)] gap-0 bg-canvas sm:max-w-[calc(100%-1.5rem)]"
+        className="w-150 max-w-[calc(100%-1.5rem)] gap-0 sm:max-w-[calc(100%-1.5rem)]"
         data-testid="trigger-inspect-sheet"
         side="right"
       >
         <SheetHeader className="flex-row items-start gap-3 border-b border-line p-5">
-          <span
-            aria-hidden="true"
-            className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-line bg-canvas-soft text-subtle"
-          >
-            <Search className="size-4" strokeWidth={1.75} />
-          </span>
+          <KindIcon aria-hidden="true" className="mt-0.5" icon={Search} tone="well" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <Eyebrow className="text-subtle">Operator</Eyebrow>
             <SheetTitle className="text-item-title font-medium tracking-tight text-fg-strong">

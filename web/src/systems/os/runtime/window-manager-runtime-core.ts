@@ -55,9 +55,8 @@ export abstract class WindowManagerRuntimeCore {
   protected binding: WindowManagerRuntimeBinding | null = null;
   protected client: WindowManagerClientView | null = null;
   protected clientAttachmentToken: string | null = null;
-  protected wallpaper: OsWallpaper = "ember";
+  protected wallpaper: OsWallpaper = "flat";
   protected reduceMotion = false;
-  protected dockMagnify = true;
   protected loadError: Error | null = null;
   private diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
   private conflictRecovery: Promise<boolean> | null = null;

@@ -46,7 +46,7 @@ const BRAND_CLASS: Record<MarketplaceEntryLogoSize, string> = {
 const MONOGRAM_CLASS: Record<MarketplaceEntryLogoSize, string> = {
   sm: "text-mono-id",
   md: "text-card-title",
-  lg: "text-xl",
+  lg: "text-detail-h1",
 };
 
 const MARBLE_PIXELS: Record<MarketplaceEntryLogoSize, number> = { sm: 24, md: 40, lg: 56 };
@@ -92,7 +92,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
   const icon = marketplaceIconURL(entry.icon);
   const brandKey = marketplaceBrandKeyFor(entry);
   const wellClass = cn(
-    "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg-strong",
+    "inline-flex shrink-0 items-center justify-center overflow-hidden text-fg",
     WELL_CLASS[size],
     className
   );
@@ -101,7 +101,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
     return (
       <span
         aria-hidden="true"
-        className={cn(wellClass, "bg-surface-glaze")}
+        className={cn(wellClass, "bg-surface-2")}
         data-rung="icon"
         data-slot="marketplace-entry-logo"
       >
@@ -122,12 +122,12 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
     return (
       <span
         aria-hidden="true"
-        className={cn(wellClass, "bg-surface-glaze")}
+        className={cn(wellClass, "bg-surface-2")}
         data-rung="brand"
         data-slot="marketplace-entry-logo"
       >
         <KindIcon
-          className={cn("text-fg-strong", BRAND_CLASS[size])}
+          className={cn("text-fg", BRAND_CLASS[size])}
           data-slot="marketplace-entry-brand"
           kind={brandKey}
           registry={marketplaceBrandRegistry}
@@ -143,7 +143,7 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
       aria-hidden="true"
       className={cn(
         wellClass,
-        "bg-surface-glaze font-sans font-semibold tracking-tight uppercase",
+        "bg-surface-2 font-sans font-semibold tracking-tight uppercase",
         MONOGRAM_CLASS[size]
       )}
       data-rung="monogram"

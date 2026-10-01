@@ -113,7 +113,7 @@ export function LoopRunAboutRail({
               >
                 <span
                   aria-hidden="true"
-                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill font-mono text-pill-group-badge font-semibold text-muted"
+                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-2 font-mono text-pill-group-badge font-semibold text-muted"
                 >
                   {avatarSeed(row.value)}
                 </span>

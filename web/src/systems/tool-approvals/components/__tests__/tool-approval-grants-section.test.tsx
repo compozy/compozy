@@ -288,7 +288,10 @@ describe("ToolApprovalGrantsSection", () => {
       ).toBeInTheDocument()
     );
 
-    fireEvent.click(screen.getByTestId(`tool-approval-grant-revoke-${rejectGrant.id}`));
+    // Revoke is a worded control, not an icon-only trash (same as terminal rows).
+    const revoke = screen.getByTestId(`tool-approval-grant-revoke-${rejectGrant.id}`);
+    expect(revoke).toHaveTextContent("Revoke");
+    fireEvent.click(revoke);
     fireEvent.click(await screen.findByTestId(`${TEST_ID}-revoke-confirm`));
 
     await waitFor(() =>

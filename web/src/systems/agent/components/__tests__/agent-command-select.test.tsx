@@ -48,6 +48,33 @@ describe("AgentCommandSelect", () => {
     );
   });
 
+  it("Should lead the composer trigger with the full agent name and leave the category path to the list", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <AgentCommandSelect
+          agents={[
+            makeAgent({
+              name: "product-launch-manager-agent",
+              category_path: ["Operations", "Launch week"],
+            }),
+          ]}
+          value="product-launch-manager-agent"
+          onChange={() => undefined}
+          triggerTestId="trigger"
+          variant="composer"
+        />
+      </UIProvider>
+    );
+    const trigger = screen.getByTestId("trigger");
+    expect(trigger).toHaveTextContent("product-launch-manager-agent");
+    expect(trigger).toHaveTextContent("claude");
+    expect(screen.queryByTestId("agent-command-select-trigger-category")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect((await screen.findAllByText("Operations / Launch week")).length).toBeGreaterThan(0);
+  });
+
   it("Should show placeholder text when no agent is selected", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>

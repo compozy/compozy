@@ -14,7 +14,7 @@ const TEST_PREFIX = "settings-page-roles";
 
 export function RolesSettingsPage() {
   const page = useSettingsRolesPage();
-  useSettingsTopbar("roles");
+  useSettingsTopbar();
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
     isInvalid: page.isInvalid,
@@ -29,7 +29,7 @@ export function RolesSettingsPage() {
       <div className="mx-auto flex w-full max-w-settings-page-wide flex-col px-6 pt-5">
         <div
           aria-busy="true"
-          className="rounded-lg border border-line bg-canvas-soft px-4"
+          className="rounded-lg bg-card shadow-card px-4"
           data-testid={`${TEST_PREFIX}-loading`}
           role="status"
         >

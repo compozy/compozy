@@ -1,6 +1,6 @@
 import "./global.css";
 import { Geist, JetBrains_Mono, Playfair_Display } from "next/font/google";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -9,6 +9,11 @@ import { Toaster, UIProvider } from "@compozy/ui";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
+
+const SITE_TOASTER_STYLE = {
+  "--normal-bg": "var(--color-canvas-soft)",
+  "--normal-border": "var(--color-line-soft)",
+} as CSSProperties;
 
 const geist = Geist({
   subsets: ["latin"],
@@ -94,7 +99,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to content
         </a>
         <UIProvider>
-          <Toaster />
+          <Toaster
+            // D9: the site's toasts keep the lifted canvas-soft surface and soft hairline.
+            style={SITE_TOASTER_STYLE}
+          />
           <SiteSearchProvider>
             <RootProvider
               search={{

@@ -66,7 +66,7 @@ export function DirectoryBrowser({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-md bg-canvas-soft ring-1 ring-line ring-inset max-md:h-60 max-md:flex-none",
+        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-sunken max-md:h-60 max-md:flex-none",
         className
       )}
       data-testid={testIdPrefix}
@@ -78,7 +78,7 @@ export function DirectoryBrowser({
           disabled={!homePath}
           onClick={onGoHome}
           size="icon-sm"
-          variant="ghost"
+          variant="quiet"
         >
           <House className="size-3.5" />
         </Button>
@@ -87,7 +87,7 @@ export function DirectoryBrowser({
           disabled={!parentPath}
           onClick={onGoParent}
           size="icon-sm"
-          variant="ghost"
+          variant="quiet"
         >
           <ChevronUp className="size-3.5" />
         </Button>
@@ -100,7 +100,7 @@ export function DirectoryBrowser({
             disabled={!currentPath || isPicked(currentPath) || pickPending}
             onClick={() => onPick(currentPath)}
             size="sm"
-            variant="outline"
+            variant="secondary"
           >
             {pickPending ? <Spinner /> : <Plus className="size-3.5" />}
             {pickLabel}
@@ -154,7 +154,7 @@ export function DirectoryBrowser({
         ) : (
           entries.map(entry => (
             <div
-              className="group flex h-setup-row items-center gap-2.5 rounded px-2 hover:bg-hover"
+              className="group flex h-setup-row items-center gap-2.5 rounded-md px-2 hover:bg-surface-2"
               key={entry.path}
             >
               <button
@@ -168,7 +168,7 @@ export function DirectoryBrowser({
                 ) : (
                   <Spline className="size-4 flex-none text-faint" />
                 )}
-                <span className="truncate text-small-body text-fg">{entry.name}</span>
+                <span className="truncate text-body text-fg">{entry.name}</span>
               </button>
               <Button
                 aria-label={pickRowLabel(entry.name)}
@@ -179,7 +179,7 @@ export function DirectoryBrowser({
                 disabled={isPicked(entry.path) || pickPending}
                 onClick={() => onPick(entry.path)}
                 size="icon-sm"
-                variant="ghost"
+                variant="quiet"
               >
                 <FolderPlus className="size-3.5" />
               </Button>

@@ -62,7 +62,10 @@ export function LoopRunOverrides({
             className="flex items-center justify-between gap-2.5 border-t border-line-soft py-2 first:border-t-0"
             data-testid={`loop-run-override-${field.key}`}
           >
-            <label className="text-xs text-subtle" htmlFor={`loop-run-override-input-${field.key}`}>
+            <label
+              className="text-form-label text-subtle"
+              htmlFor={`loop-run-override-input-${field.key}`}
+            >
               {field.label}
             </label>
             <div className="flex items-center gap-2">
@@ -72,7 +75,7 @@ export function LoopRunOverrides({
                 type="number"
                 min={0}
                 max={field.ceiling}
-                className="h-8 w-24 font-mono text-form-input"
+                className="w-24 font-mono text-form-input"
                 disabled={disabled}
                 placeholder={
                   field.defaultValue !== null ? String(field.defaultValue) : field.placeholder
@@ -90,13 +93,13 @@ export function LoopRunOverrides({
           className="flex items-center justify-between gap-2.5 border-t border-line-soft py-2"
           data-testid="loop-run-override-budget_on_exceeded"
         >
-          <label className="text-xs text-subtle" htmlFor="loop-run-override-policy">
+          <label className="text-form-label text-subtle" htmlFor="loop-run-override-policy">
             {LOOP_LIMIT_LABELS.budget_on_exceeded}
           </label>
           <NativeSelect
             id="loop-run-override-policy"
             data-testid="loop-run-override-policy"
-            className="h-8 w-40 text-form-input"
+            className="w-40 text-form-input"
             disabled={disabled}
             value={draft.budgetOnExceeded}
             onChange={event =>

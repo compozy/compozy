@@ -1160,7 +1160,8 @@
               "horizontal",
               "vertical",
               "grid",
-              "stack"
+              "stack",
+              "main_stack"
             ],
             "type": "string"
           },
@@ -1196,6 +1197,9 @@
           },
           "group_id": {
             "type": "string"
+          },
+          "keep_frames": {
+            "type": "boolean"
           },
           "resource_id": {
             "type": "string"
@@ -6482,6 +6486,9 @@
               },
               "desktop_id": {
                 "type": "string"
+              },
+              "floating": {
+                "type": "boolean"
               },
               "floating_rect": {
                 "properties": {
@@ -150522,7 +150529,8 @@
                         "new_window_policy": {
                           "enum": [
                             "floating",
-                            "beside_focus"
+                            "beside_focus",
+                            "tab"
                           ],
                           "type": "string"
                         },
@@ -151151,7 +151159,8 @@
                       "new_window_policy": {
                         "enum": [
                           "floating",
-                          "beside_focus"
+                          "beside_focus",
+                          "tab"
                         ],
                         "type": "string"
                       },
@@ -151609,7 +151618,8 @@
                         "new_window_policy": {
                           "enum": [
                             "floating",
-                            "beside_focus"
+                            "beside_focus",
+                            "tab"
                           ],
                           "type": "string"
                         },

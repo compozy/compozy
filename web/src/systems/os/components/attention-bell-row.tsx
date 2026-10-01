@@ -122,7 +122,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
     <button
       type="button"
       className={cn(
-        "grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none",
+        "grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
         stale && "opacity-60"
       )}
       data-testid={`os-attention-${row.kind}-${row.id}`}
@@ -133,16 +133,16 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
       <RowMark row={row} />
       <span className="flex min-w-0 flex-col gap-px">
         <span className="truncate text-small-body font-medium text-fg-strong">{row.title}</span>
-        <span className="flex min-w-0 items-center gap-1.5 text-micro text-subtle">
+        <span className="flex min-w-0 items-center gap-1.5 text-eyebrow text-subtle">
           <span className="truncate">{rowReason(row)}</span>
           {workspace ? (
-            <span className="shrink-0 font-mono text-micro text-faint">{workspace}</span>
+            <span className="shrink-0 font-mono text-eyebrow text-faint">{workspace}</span>
           ) : null}
         </span>
       </span>
-      <span className="flex shrink-0 items-center gap-1 font-mono text-micro text-subtle">
+      <span className="flex shrink-0 items-center gap-1 text-eyebrow tabular-nums text-subtle">
         {muted ? (
-          <Icon as={BellOff} size="xs" className="text-faint" aria-label="Notifications muted" />
+          <Icon as={BellOff} size="sm" className="text-faint" aria-label="Notifications muted" />
         ) : null}
         {isSession ? <Time iso={row.changedAt} /> : null}
         {isTerminalInput ? <Time iso={row.requestedAt} /> : null}
@@ -151,7 +151,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
             <Time iso={row.openedAt} />
             {row.expiresAt ? (
               <span className="flex items-center gap-0.5 text-danger">
-                <Icon as={Clock3} size="xs" />
+                <Icon as={Clock3} size="sm" />
                 <Time iso={row.expiresAt} />
               </span>
             ) : null}

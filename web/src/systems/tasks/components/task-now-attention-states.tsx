@@ -37,7 +37,8 @@ function TaskApprovalState() {
       body="Approve or reject it above. It won't start until someone approves it."
       data-testid="tasks-detail-now-approval"
       title="Waiting for your approval"
-      tone="info"
+      // An approval waits on a person: the needs-you accent.
+      tone="accent"
     />
   );
 }
@@ -62,7 +63,6 @@ function TaskBlockingState({
         actions={
           dependencyId ? (
             <Button
-              className="min-h-6"
               data-testid={`tasks-detail-now-open-blocking-${key}`}
               onClick={() => handlers.onOpenTask(dependencyId)}
               size="sm"
@@ -80,7 +80,7 @@ function TaskBlockingState({
         }
         data-testid={`tasks-detail-now-dependency-${key}`}
         title="Waits on another task"
-        tone="warning"
+        tone="neutral"
       />
     );
   }
@@ -90,7 +90,6 @@ function TaskBlockingState({
       <TaskStateBand
         actions={
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-resume"
             disabled={pending.resume}
             onClick={handlers.onResume}
@@ -104,7 +103,7 @@ function TaskBlockingState({
         body={detail.task.paused_reason || "New runs stay queued until the task is resumed."}
         data-testid="tasks-detail-now-paused"
         title="Paused"
-        tone="warning"
+        tone="neutral"
       />
     );
   }
@@ -115,7 +114,6 @@ function TaskBlockingState({
       actions={
         blockId ? (
           <Button
-            className="min-h-6"
             data-testid={`tasks-detail-now-clear-block-${key}`}
             disabled={pending.clearBlock}
             onClick={() => handlers.onClearBlock(blockId)}
@@ -130,7 +128,8 @@ function TaskBlockingState({
       body={reason.reason || "A block is holding this task."}
       data-testid={`tasks-detail-now-block-${key}`}
       title={reason.kind === "needs_input" ? "Needs input to continue" : "Blocked"}
-      tone="warning"
+      // A block waits on a person: the needs-you accent, never the warning amber.
+      tone="accent"
     />
   );
 }
@@ -151,7 +150,6 @@ function TaskNeedsAttentionState({
       actions={
         canRecover ? (
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-recover"
             disabled={pending.recover}
             onClick={handlers.onRecover}

@@ -72,7 +72,6 @@ export function TranscriptDisclosure({
             "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
             expanded ? "rotate-180" : null
           )}
-          strokeWidth={1.75}
         />
       )}
     </button>

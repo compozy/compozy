@@ -66,9 +66,9 @@ function ListColumn({
               type="button"
               data-active={selected === row.id}
               onClick={() => onSelect(row.id)}
-              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-hover data-[active=true]:bg-canvas-tint"
+              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-hover data-[active=true]:bg-selected"
             >
-              <span className="text-[13px] font-medium text-foreground">{row.name}</span>
+              <span className="text-small-body font-medium text-foreground">{row.name}</span>
               <span className="font-mono text-badge uppercase tracking-badge text-subtle">
                 {row.meta}
               </span>
@@ -100,8 +100,8 @@ function DetailEmpty() {
       <div className="flex size-12 items-center justify-center rounded-xl bg-elevated text-muted-foreground">
         <InboxIcon className="size-5" aria-hidden="true" />
       </div>
-      <h3 className="text-[15px] font-medium text-foreground">Select a run</h3>
-      <p className="max-w-[380px] text-[13px] text-muted-foreground">
+      <h3 className="text-heading font-medium text-foreground">Select a run</h3>
+      <p className="max-w-[380px] text-small-body text-muted-foreground">
         Pick a run from the list to inspect its timeline, agents, and artifacts.
       </p>
     </div>

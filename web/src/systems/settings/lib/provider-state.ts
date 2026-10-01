@@ -72,8 +72,9 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
       };
     }
     case "binary-missing":
+      // Absence is a fact, not a warning: the amber stays for broken setups.
       return {
-        tone: "warning",
+        tone: "neutral",
         label,
         display: "Not installed",
         hint: "The app for this provider isn't installed on this computer yet.",

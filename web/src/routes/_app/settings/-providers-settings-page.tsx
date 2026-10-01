@@ -20,7 +20,7 @@ import {
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
-  useSettingsTopbar("providers", {
+  useSettingsTopbar({
     actions:
       !page.isLoading && !page.error && page.envelope ? (
         <Button
@@ -29,8 +29,9 @@ export function ProvidersSettingsPage() {
           ref={createProviderButtonRef}
           size="sm"
           type="button"
+          variant="secondary"
         >
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           New provider
         </Button>
       ) : undefined,
@@ -128,7 +129,7 @@ function ProvidersCatalog({ page }: { page: ProvidersPage }) {
               }}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               Clear filters
             </Button>
@@ -279,12 +280,12 @@ function LastActionAlert({
         <Button
           aria-label="Dismiss"
           type="button"
-          variant="ghost"
-          size="sm"
+          variant="quiet"
+          size="icon-sm"
           onClick={onDismiss}
           data-testid="settings-page-providers-action-result-dismiss"
         >
-          <X aria-hidden="true" className="size-3" />
+          <X aria-hidden="true" />
         </Button>
       </AlertAction>
     </Alert>

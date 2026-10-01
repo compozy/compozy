@@ -42,10 +42,10 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
   return (
     <ListingPage data-testid="vault-shell">
       <p
-        className="mb-3 flex items-center gap-2 text-xs text-subtle"
+        className="mb-3 flex items-center gap-2 text-eyebrow text-subtle"
         data-testid="vault-page-sec-note"
       >
-        <Lock aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
+        <Lock aria-hidden="true" className="size-3 shrink-0 text-faint" />
         Values are encrypted. You can't view a secret after you save it.
       </p>
 
@@ -90,7 +90,7 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
 }
 
 function VaultRefreshIcon({ isRefetching }: { isRefetching: boolean }) {
-  return isRefetching ? <Spinner className="size-3" /> : <RefreshCw className="size-3" />;
+  return isRefetching ? <Spinner className="size-3.5" /> : <RefreshCw />;
 }
 
 function VaultTopbarActions({ page }: { page: VaultPageModel }) {
@@ -107,8 +107,14 @@ function VaultTopbarActions({ page }: { page: VaultPageModel }) {
         <VaultRefreshIcon isRefetching={page.isRefetching} />
         Refresh
       </Button>
-      <Button data-testid="vault-page-create" onClick={page.openCreate} size="sm" type="button">
-        <Plus className="size-3" />
+      <Button
+        data-testid="vault-page-create"
+        onClick={page.openCreate}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        <Plus />
         New secret
       </Button>
     </div>
@@ -142,7 +148,7 @@ function VaultPageLoading() {
     <ListingPage data-testid="vault-page-loading">
       <div aria-label="Loading secrets" role="status">
         <SkeletonRows
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           count={4}
           rowClassName="flex-row items-center gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
         >
@@ -179,7 +185,7 @@ function VaultPageContent({ page }: { page: VaultPageModel }) {
             onClick={() => void page.refetch()}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="secondary"
           >
             <VaultRefreshIcon isRefetching={page.isRefetching} />
             Retry
@@ -202,7 +208,7 @@ function VaultPageContent({ page }: { page: VaultPageModel }) {
           size="sm"
           type="button"
         >
-          <Plus className="size-3" />
+          <Plus />
           New secret
         </Button>
       }

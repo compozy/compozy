@@ -2,6 +2,8 @@ import type { WorktreeRemovalBatch, WorktreeRemovalProfile } from "@/systems/wor
 import { Check, ChevronRight } from "lucide-react";
 
 import {
+  Avatar,
+  AvatarFallback,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -64,9 +66,10 @@ function WorkspaceRowLabel({
 }) {
   return (
     <>
-      <span className="grid size-4 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-micro font-semibold">
-        {monogram}
-      </span>
+      {/* The same monogram well as the topbar's workspace chip. */}
+      <Avatar size="sm" className="size-5 shrink-0">
+        <AvatarFallback className="text-badge font-semibold">{monogram}</AvatarFallback>
+      </Avatar>
       {name}
       <WorktreeAggregate runningAgents={runningAgents} />
     </>
@@ -149,7 +152,7 @@ export function WorkspaceMenu({
                             onClick={() => onSelectWorkspace(workspace.id)}
                           >
                             {rowLabel}
-                            {isActive ? <Check className="ml-auto size-3 text-accent" /> : null}
+                            {isActive ? <Check className="ml-auto size-3.5 text-accent" /> : null}
                           </MenubarItem>
                         );
                       }
@@ -170,8 +173,8 @@ export function WorkspaceMenu({
                           >
                             {rowLabel}
                             <span className="ml-auto flex shrink-0 items-center gap-1">
-                              {isActive ? <Check className="size-3 text-accent" /> : null}
-                              <ChevronRight aria-hidden="true" className="size-3 text-faint" />
+                              {isActive ? <Check className="size-3.5 text-accent" /> : null}
+                              <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
                             </span>
                           </MenubarSubTrigger>
                           <MenubarSubContent

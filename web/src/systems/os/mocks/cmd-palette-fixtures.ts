@@ -179,7 +179,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     title: "Settings → Appearance",
     section: "Settings",
     icon: "palette",
-    keywords: ["wallpaper", "theme", "dock"],
+    keywords: ["theme", "dark mode", "light mode", "wallpaper", "motion"],
     action: { kind: "navigate", app: "settings", args: { pathname: "/settings/appearance" } },
   }),
   baseCommand({

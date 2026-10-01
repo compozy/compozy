@@ -71,6 +71,9 @@ export function useSessionComposerController({
   promptEmbeddedContextCapability = "unknown",
   sessionId,
   quoteSlot,
+  placeholder,
+  attachments = true,
+  backdrop = true,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const {
     consumeSubmittedDraft,
@@ -190,6 +193,9 @@ export function useSessionComposerController({
     },
     meta: {
       allowBusyInput,
+      attachments,
+      backdrop,
+      placeholder,
       busyInputSteerDelivery,
       canPrompt,
       commandCatalog,

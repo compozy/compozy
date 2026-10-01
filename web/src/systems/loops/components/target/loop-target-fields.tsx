@@ -15,7 +15,7 @@ import {
 import { LoopInputControl } from "./loop-input-control";
 import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
 import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
-import { LoopCatalogValueSelect } from "../input/loop-typed-input-control";
+import { LoopCatalogValueSelect } from "../input/loop-catalog-value-select";
 import { LoopInputMapping } from "./loop-input-mapping";
 
 interface LoopTargetFieldsProps {
@@ -131,7 +131,7 @@ function LoopTargetSelector({
   const empty = catalog.options.length === 0 && !selected;
   if (catalog.isLoading && empty) {
     return (
-      <div className="flex h-9 items-center gap-2 text-form-hint text-subtle">
+      <div className="flex h-input items-center gap-2 text-form-hint text-subtle">
         <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
         Loading Loops…
       </div>

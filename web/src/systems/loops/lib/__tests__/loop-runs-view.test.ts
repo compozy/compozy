@@ -77,7 +77,7 @@ describe("buildRunsRoster", () => {
     expect(model.groups[0].rows[0]).toMatchObject({
       needsYou: false,
       progressLabel: "3 rounds",
-      statusPulse: false,
+      statusStill: true,
       summaryLine: null,
     });
   });
@@ -108,8 +108,8 @@ describe("buildRunsRoster", () => {
     const row = model.groups[0].rows[0];
     expect(row.needsYou).toBe(true);
     expect(row.statusLabel).toBe("Needs you");
-    // Warning on the page; danger stays with failure and the attention bell.
-    expect(row.statusTone).toBe("warning");
+    // The needs-you signal on the page; failure keeps its own mark.
+    expect(row.statusGlyph).toBe("attention");
     expect(row.summaryLine).toBe("an approval is waiting on “aplicar-correcoes”");
     expect(row.progressLabel).toBe("step 4 of 6");
   });

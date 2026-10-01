@@ -1222,6 +1222,52 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should carry an explicit split, floating, or target desktop onto the open command", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    const openedWindow = async (target: Parameters<typeof runtime.openOrFocus>[0]) => {
+      vi.mocked(executeWindowManagerCommand).mockClear();
+      await runtime.openOrFocus(target).completion;
+      const command = vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4];
+      return (command?.payload as { window: Record<string, unknown> } | undefined)?.window;
+    };
+
+    const plain = await openedWindow({ app: "tasks", forceNewInstance: true });
+    expect(plain).toMatchObject({ insert_tiled: false, desktop_id: "desktop:one" });
+    expect(plain).not.toHaveProperty("floating");
+    expect(
+      await openedWindow({ app: "tasks", forceNewInstance: true, placement: "split" })
+    ).toMatchObject({ insert_tiled: true });
+    expect(
+      await openedWindow({ app: "tasks", forceNewInstance: true, placement: "floating" })
+    ).toMatchObject({ insert_tiled: false, floating: true });
+    expect(
+      await openedWindow({ app: "tasks", forceNewInstance: true, desktopId: "desktop:two" })
+    ).toMatchObject({ desktop_id: "desktop:two" });
+    runtime.stop();
+  });
+
   it("[UT-041] Should keep another Tasks instance's route intent after closing its sibling", async () => {
     const firstId = "w-tasks-first";
     const secondId = "w-tasks-second";
@@ -1720,7 +1766,7 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should normalize a tile command against the same gap-inset area used by its preview", async () => {
+  it("Should store a tile as the exact zone fraction of the gap-inset area, whatever its pixel width", async () => {
     const queryClient = new QueryClient();
     const snapshot: WindowManagerSnapshot = {
       ...SNAPSHOT,
@@ -1750,9 +1796,11 @@ describe("WindowManagerRuntime", () => {
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, { ...SETTINGS_SECTION, config });
+    // An odd-width layout area (1201 − 20 gaps = 1181px) rounds the preview's
+    // edge to a whole pixel; the stored frame must still be the exact half.
     windowManagerStore.trigger.workAreaMeasured({
       workArea: {
-        rect: { x: 10, y: 20, w: 1200, h: 800 },
+        rect: { x: 10, y: 20, w: 1201, h: 800 },
         origin: { x: 0, y: 0 },
       },
     });
@@ -1831,6 +1879,75 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
     runtime.stop();
   });
+
+  it.each([
+    { anchor: "app:board", preset: "columns" as const, windowIds: ["app:board", "app:agents"] },
+    { anchor: "app:agents", preset: "main-stack" as const, windowIds: ["app:agents", "app:board"] },
+  ])(
+    "Should arrange a deck and a peer naming the deck once by its active tab ($preset from $anchor)",
+    async ({ anchor, preset, windowIds }) => {
+      const queryClient = new QueryClient();
+      const stacked = snapshotWithFloatingStack();
+      const snapshot: WindowManagerSnapshot = {
+        ...stacked,
+        desktops: stacked.desktops.map(desktop =>
+          desktop.id === "desktop:one" ? { ...desktop, floating: ["app:board"] } : desktop
+        ),
+        windows: {
+          ...stacked.windows,
+          "app:board": {
+            ...stacked.windows["app:tasks"]!,
+            id: "app:board",
+            app: "tasks",
+            placement: "floating",
+            floatingRect: { x: 0.6, y: 0.1, w: 0.3, h: 0.5 },
+          },
+        },
+      };
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+      });
+      vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+        snapshot: { ...snapshot, revision: 8 },
+        applied: true,
+        changes: { ...EMPTY_CHANGES },
+        diagnostics: [],
+        client: null,
+        rebasedFrom: null,
+      });
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: anchor,
+        focusOrder: [anchor],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.arrangeLayout(anchor, preset);
+
+      await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4]).toMatchObject({
+        commandId: "layout.arrange",
+        payload: {
+          window_ids: windowIds,
+          frame: { x: 0, y: 0, width: 1, height: 1 },
+          keep_frames: true,
+        },
+      });
+      runtime.stop();
+    }
+  );
 
   it("Should arrange a floating tab frame as one tiled stack and reactivate its active tab", async () => {
     const queryClient = new QueryClient();
@@ -2188,6 +2305,88 @@ describe("WindowManagerRuntime", () => {
       expect.any(Number),
       expect.objectContaining({ commandId: "window.focus" })
     );
+    runtime.stop();
+  });
+
+  it("Should balance the focused window's whole group, never its leaf node", async () => {
+    const queryClient = new QueryClient();
+    const tiled = (id: string, app: string) => ({
+      id,
+      app,
+      instanceKey: null,
+      route: { pathname: `/${app}`, search: {} },
+      navStack: [],
+      pinned: false,
+      placement: "tiled" as const,
+      desktopId: "desktop:one",
+      floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+      minimized: false,
+      zoomed: false,
+      returnAnchor: null,
+    });
+    const snapshot: WindowManagerSnapshot = {
+      ...SNAPSHOT,
+      desktops: SNAPSHOT.desktops.map(desktop =>
+        desktop.id === "desktop:one"
+          ? {
+              ...desktop,
+              groups: [
+                {
+                  id: "group:one",
+                  frame: { x: 0, y: 0, w: 1, h: 1 },
+                  root: {
+                    id: "split:one",
+                    kind: "split",
+                    axis: "horizontal",
+                    weights: [0.7, 0.3],
+                    children: [
+                      { id: "leaf:tasks", kind: "leaf", windowId: "app:tasks" },
+                      { id: "leaf:agents", kind: "leaf", windowId: "app:agents" },
+                    ],
+                  },
+                },
+              ],
+            }
+          : desktop
+      ),
+      windows: {
+        "app:tasks": tiled("app:tasks", "tasks"),
+        "app:agents": tiled("app:agents", "agents"),
+      },
+    };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    windowManagerStore.trigger.workAreaMeasured({
+      workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+    });
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 8 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:tasks",
+      focusOrder: ["app:tasks"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    runtime.balanceFocusedLayout();
+    await flushCommandQueue();
+
+    // The daemon rejects a split_id that names a leaf, so the group is the target.
+    expect(vi.mocked(executeWindowManagerCommand).mock.calls.map(call => call[4])).toEqual([
+      expect.objectContaining({ commandId: "layout.balance", payload: { group_id: "group:one" } }),
+    ]);
     runtime.stop();
   });
 

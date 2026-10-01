@@ -86,10 +86,14 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     this.dispatch({ commandId: "layout.redo", payload: {} });
   }
 
+  /**
+   * Evens every split in the focused window's tiled group. The window's own
+   * node is a leaf, never a split, so it is not a valid balance target.
+   */
   balanceFocusedLayout(): void {
     const focused = this.view.focusedId ? this.view.windows[this.view.focusedId] : undefined;
-    if (!focused) return;
-    this.balanceLayout(focused.groupId ?? undefined, focused.nodeId ?? undefined);
+    if (!focused?.groupId) return;
+    this.balanceLayout(focused.groupId);
   }
 
   protected buildView(): OsDesktopRuntimeStore {
@@ -108,7 +112,6 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
         loadError: this.currentLoadError(),
         wallpaper: this.wallpaper,
         reduceMotion: this.reduceMotion,
-        dockMagnify: this.dockMagnify,
       }),
       clientAttachmentToken: this.clientAttachmentToken,
     };
@@ -153,9 +156,11 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     }
 
     const desktopId =
+      target.desktopId ??
       (target.stackTargetWindowId
         ? state.windows[target.stackTargetWindowId]?.desktopId
-        : undefined) ?? state.activeDesktopId;
+        : undefined) ??
+      state.activeDesktopId;
     const id = randomOsWindowId();
     if (desktopId === null || desktopId === undefined) {
       return { windowId: id, accepted: false, completion: Promise.resolve(false) };
@@ -288,11 +293,6 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
 
   setWallpaper = (wallpaper: OsWallpaper): void => {
     this.wallpaper = wallpaper;
-    this.publish();
-  };
-
-  setDockMagnify = (on: boolean): void => {
-    this.dockMagnify = on;
     this.publish();
   };
 

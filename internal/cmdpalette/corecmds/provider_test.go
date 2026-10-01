@@ -84,6 +84,72 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose the arrange presets under the Window menu copy", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		expected := map[cmdpalette.CommandID]struct{ title, icon string }{
+			"layout.arrange.main-stack": {"Main and stack", "layout-panel-left"},
+			"layout.arrange.columns":    {"Columns", "columns-3"},
+			"layout.arrange.grid":       {"Grid", "layout-grid"},
+			"layout.balance":            {"Balance sizes", "scale"},
+		}
+		for id, want := range expected {
+			command, ok := byID[id]
+			if !ok {
+				t.Errorf("command %q missing from the core catalog", id)
+				continue
+			}
+			if command.Title != want.title || command.Icon != want.icon {
+				t.Errorf("command %q = %q/%q, want %q/%q", id, command.Title, command.Icon, want.title, want.icon)
+			}
+			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
+				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
+			}
+			// A preset has nothing to lay out without a peer: it reads disabled
+			// with the reason instead of running as a no-op.
+			if len(command.When) != 2 || command.When[0].Key != cmdpalette.ContextWindowFocused ||
+				command.When[1].Key != cmdpalette.ContextDesktopWindowCount ||
+				command.When[1].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
+				command.When[1].Value != 2 || command.When[1].Reason != "needs two windows on this desktop" {
+				t.Errorf("command %q when = %#v, want focused window + two windows on this desktop", id, command.When)
+			}
+		}
+	})
+
+	t.Run("Should give every desktop slot a focus-gated move-window command", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		keymap := windowmanager.DefaultKeymap()
+		for slot := 1; slot <= 9; slot++ {
+			id := cmdpalette.CommandID(fmt.Sprintf("window.move_to_desktop.%d", slot))
+			command, ok := byID[id]
+			if !ok {
+				t.Errorf("command %q missing from the core catalog", id)
+				continue
+			}
+			if command.Title != fmt.Sprintf("Move window to desktop %d", slot) {
+				t.Errorf("command %q title = %q", id, command.Title)
+			}
+			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
+				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
+			}
+			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextWindowFocused {
+				t.Errorf("command %q when = %#v, want the focused-window requirement", id, command.When)
+			}
+			if binding, bindable := keymap[string(id)]; !bindable || len(binding) != 0 {
+				t.Errorf("DefaultKeymap()[%q] = %v (bindable %t), want unbound", id, binding, bindable)
+			}
+		}
+	})
+
 	t.Run("Should navigate to every settings route [UT-012]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)

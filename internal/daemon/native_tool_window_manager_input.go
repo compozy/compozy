@@ -96,6 +96,7 @@ type windowManagerWindowOpenPayload struct {
 	Route               *windowmanager.RouteIntent    `json:"route,omitempty"`
 	FloatingRect        *windowmanager.NormalizedRect `json:"floating_rect,omitempty"`
 	InsertTiled         bool                          `json:"insert_tiled,omitempty"`
+	Floating            bool                          `json:"floating,omitempty"`
 	StackTargetWindowID string                        `json:"stack_target_window_id,omitempty"`
 	RestoreWindowID     string                        `json:"restore_window_id,omitempty"`
 }
@@ -270,6 +271,7 @@ type windowManagerLayoutArrangePayload struct {
 	Frame       *windowmanager.NormalizedRect `json:"frame,omitempty"`
 	GroupID     string                        `json:"group_id,omitempty"`
 	ResourceID  string                        `json:"resource_id,omitempty"`
+	KeepFrames  bool                          `json:"keep_frames,omitempty"`
 }
 
 type windowManagerLayoutArrangeInput struct {

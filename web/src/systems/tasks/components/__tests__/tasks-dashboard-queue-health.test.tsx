@@ -1,31 +1,39 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { TasksDashboardQueueHealth, type QueueBucket } from "../tasks-dashboard-queue-health";
+import { TasksDashboardQueueHealth } from "../tasks-dashboard-queue-health";
 import { buildDashboardFixture } from "../test-fixtures";
 
-function buildBuckets(count: number): QueueBucket[] {
-  return Array.from({ length: count }, (_unused, index) => ({
-    label: `${count - index}h`,
-    value: (index + 1) * 2,
-    stuck: index >= count - 2,
-  }));
-}
-
 describe("TasksDashboardQueueHealth", () => {
-  it("Should render QueueHealthSparkline when buckets carry positive samples", () => {
-    const buckets = buildBuckets(24);
-    render(<TasksDashboardQueueHealth buckets={buckets} dashboard={buildDashboardFixture()} />);
+  // Regression: the panel used to derive 24 equal "hourly" buckets from
+  // runs_total / 24, which the sparkline scaled to 24 full-height bars — a
+  // queue-depth history the read model never reported.
+  it("Should report the current queue snapshot and never draw an invented history", () => {
+    const dashboard = buildDashboardFixture();
+    Object.assign(dashboard, { totals: { ...dashboard.totals, runs_total: 11 } });
 
-    const chart = screen.getByTestId("tasks-dashboard-queue-chart");
-    expect(chart).toBeInTheDocument();
-    expect(chart.querySelector("[data-slot=queue-health-sparkline]")).not.toBeNull();
+    render(<TasksDashboardQueueHealth dashboard={dashboard} />);
+
+    const panel = screen.getByTestId("tasks-dashboard-queue-health");
+    expect(panel.querySelector("[data-slot=queue-health-sparkline]")).toBeNull();
+    expect(panel).not.toHaveTextContent("24h");
+    expect(screen.getByTestId("tasks-dashboard-queue-depth")).toHaveTextContent("1");
+    expect(screen.getByTestId("tasks-dashboard-queue-oldest-wait")).toHaveTextContent("42s");
+  });
+
+  it("Should not name an oldest wait when nothing is waiting", () => {
+    const dashboard = buildDashboardFixture();
+    Object.assign(dashboard, { queue: { ...dashboard.queue, total: 0, oldest_queue_age_ms: 0 } });
+
+    render(<TasksDashboardQueueHealth dashboard={dashboard} />);
+
+    expect(screen.getByTestId("tasks-dashboard-queue-depth")).toHaveTextContent("0");
+    expect(screen.getByTestId("tasks-dashboard-queue-oldest-wait")).toHaveTextContent("—");
+    expect(screen.getByTestId("tasks-dashboard-ok")).toHaveTextContent("Queue is healthy.");
   });
 
   it("Should NOT render the deprecated 6-cell Metric sub-grid", () => {
-    render(
-      <TasksDashboardQueueHealth buckets={buildBuckets(24)} dashboard={buildDashboardFixture()} />
-    );
+    render(<TasksDashboardQueueHealth dashboard={buildDashboardFixture()} />);
 
     // The legacy sub-grid emitted `data-testid="tasks-dashboard-queue-total"`
     // etc. through `<Metric>` primitives. None of those testids should resolve.
@@ -40,19 +48,6 @@ describe("TasksDashboardQueueHealth", () => {
     expect(panel.querySelectorAll("[data-slot=metric]").length).toBe(0);
   });
 
-  it("Should render the Empty primitive when no buckets are available", () => {
-    const dashboard = buildDashboardFixture();
-    Object.assign(dashboard, {
-      active_runs: { ...dashboard.active_runs, running: 0, total: 0 },
-      queue: { ...dashboard.queue, total: 0 },
-      totals: { ...dashboard.totals, runs_total: 0 },
-    });
-
-    render(<TasksDashboardQueueHealth buckets={[]} dashboard={dashboard} />);
-
-    expect(screen.getByTestId("tasks-dashboard-queue-chart-empty")).toBeInTheDocument();
-  });
-
   it("Should surface the queue warning banner when backlog_warning is true", () => {
     const dashboard = buildDashboardFixture({
       queue: {
@@ -65,7 +60,7 @@ describe("TasksDashboardQueueHealth", () => {
       },
     });
 
-    render(<TasksDashboardQueueHealth buckets={buildBuckets(24)} dashboard={dashboard} />);
+    render(<TasksDashboardQueueHealth dashboard={dashboard} />);
 
     expect(screen.getByTestId("tasks-dashboard-warning")).toBeInTheDocument();
   });

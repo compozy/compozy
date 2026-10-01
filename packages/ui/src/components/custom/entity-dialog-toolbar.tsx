@@ -18,7 +18,7 @@ export interface EntityDialogToolbarProps extends React.ComponentProps<"div"> {
  * Layout row between a modal header and its body.
  *
  * Unpainted on its own so dialogs without Simple/Advanced do not grow an empty
- * chrome bar. `EntityModeToolbar` adds the recessed `--color-canvas-tint` strip.
+ * chrome bar. `EntityModeToolbar` adds the recessed `--color-sunken` strip.
  * Workspace scope belongs in `EntityDialogFooter`'s hint slot; `trailing` is
  * compact status only.
  */

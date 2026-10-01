@@ -1,4 +1,4 @@
-import type { PixelRect } from "./window-manager-types";
+import type { NormalizedRect, PixelRect } from "./window-manager-types";
 import { windowManagerTileInset } from "./window-manager-layout-area";
 
 export type SnapEdge = "left" | "right";
@@ -110,4 +110,32 @@ export function createTileSnapTarget(
     rect: windowManagerTileInset(zoneRect, area, innerGap),
     zoneRect,
   };
+}
+
+/**
+ * The zone as an exact fraction of the layout area — what the group frame
+ * stores. The pixel zone rounds its edge to whole pixels, so normalizing it
+ * back would store 0.50036 instead of 0.5 on an odd-width desk and every
+ * viewport would inherit that drift.
+ */
+export function tileZoneFraction(target: Pick<TileSnapTarget, "edge" | "ratio">): NormalizedRect {
+  const { edge, ratio } = target;
+  if (isSnapCorner(edge)) {
+    return {
+      x: edge.endsWith("right") ? 0.5 : 0,
+      y: edge.startsWith("bottom") ? 0.5 : 0,
+      w: 0.5,
+      h: 0.5,
+    };
+  }
+  switch (edge) {
+    case "left":
+      return { x: 0, y: 0, w: ratio, h: 1 };
+    case "right":
+      return { x: 1 - ratio, y: 0, w: ratio, h: 1 };
+    case "top":
+      return { x: 0, y: 0, w: 1, h: ratio };
+    case "bottom":
+      return { x: 0, y: 1 - ratio, w: 1, h: ratio };
+  }
 }

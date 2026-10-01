@@ -19,8 +19,9 @@ export function useAgentsCatalogTopbar(page: AgentsFleetPage) {
             onClick={page.openCreate}
             size="sm"
             type="button"
+            variant="secondary"
           >
-            <Plus aria-hidden="true" className="size-3" />
+            <Plus aria-hidden="true" />
             New agent
           </Button>
         </div>

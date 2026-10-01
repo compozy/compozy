@@ -38,7 +38,12 @@ function mergeAttributeTokens(...values: Array<string | undefined>): string | un
 
 function groupedControl(control: ReactNode, labelId: string, describedBy: string | undefined) {
   return (
-    <div aria-describedby={describedBy} aria-labelledby={labelId} role="group">
+    <div
+      aria-describedby={describedBy}
+      aria-labelledby={labelId}
+      className="flex items-center gap-2"
+      role="group"
+    >
       {control}
     </div>
   );

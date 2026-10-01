@@ -36,6 +36,83 @@ export interface WorktreeRefSelectProps {
   className?: string;
 }
 
+interface WorktreeRefSelection {
+  ready: readonly WorktreePayload[];
+  selected: WorktreePayload | undefined;
+  isEmptySelection: boolean;
+  missing: boolean;
+}
+
+function resolveWorktreeRefSelection(
+  value: string,
+  worktrees: readonly WorktreePayload[],
+  emptyOption: WorktreeRefSelectProps["emptyOption"]
+): WorktreeRefSelection {
+  const selected = worktrees.find(worktree => worktree.id === value);
+  const isEmptySelection = emptyOption !== undefined && value === emptyOption.value;
+  return {
+    ready: worktrees.filter(worktree => worktree.state === "ready"),
+    selected,
+    isEmptySelection,
+    missing: value !== "" && !isEmptySelection && selected === undefined,
+  };
+}
+
+/** Trigger text: an explicit display value wins, then the empty choice, the row, the raw id. */
+function worktreeRefTriggerText(
+  value: string,
+  selection: WorktreeRefSelection,
+  emptyOption: WorktreeRefSelectProps["emptyOption"],
+  placeholder: string,
+  displayValue: string | undefined
+): string {
+  if (displayValue !== undefined) return displayValue;
+  if (selection.isEmptySelection && emptyOption) return emptyOption.label;
+  return selection.selected?.name ?? (value || placeholder);
+}
+
+function WorktreeRefOptions({
+  ready,
+  emptyOption,
+  footer,
+  onSelect,
+}: {
+  ready: readonly WorktreePayload[];
+  emptyOption: WorktreeRefSelectProps["emptyOption"];
+  footer: ReactNode;
+  onSelect: (next: string) => void;
+}) {
+  return (
+    <CommandList>
+      <CommandEmpty>No worktrees match your search.</CommandEmpty>
+      {emptyOption ? (
+        <CommandSelectGroup>
+          <CommandItem onSelect={() => onSelect(emptyOption.value)} value={emptyOption.label}>
+            {emptyOption.label}
+          </CommandItem>
+        </CommandSelectGroup>
+      ) : null}
+      {ready.length > 0 ? (
+        <CommandSelectGroup heading="Worktrees">
+          {ready.map(worktree => (
+            <CommandItem
+              key={worktree.id}
+              onSelect={() => onSelect(worktree.id)}
+              value={worktree.name}
+            >
+              <span className="min-w-0 flex-1 truncate text-small-body text-fg">
+                {worktree.name}
+              </span>
+              <MonoId size="sm" value={worktree.branch} />
+            </CommandItem>
+          ))}
+        </CommandSelectGroup>
+      ) : null}
+      {footer ? <CommandSelectGroup>{footer}</CommandSelectGroup> : null}
+    </CommandList>
+  );
+}
+
 /**
  * Picks one worktree inside a single workspace.
  *
@@ -50,22 +127,22 @@ export function WorktreeRefSelect({
   worktrees,
   onChange,
   ariaLabel,
-  disabled = false,
+  disabled,
   emptyOption,
   footer,
   placeholder = "Select a worktree",
   testId,
   triggerId,
   displayValue,
-  invalid = false,
+  invalid,
   describedBy,
   className,
 }: WorktreeRefSelectProps) {
   const [open, setOpen] = useState(false);
-  const ready = worktrees.filter(worktree => worktree.state === "ready");
-  const selected = worktrees.find(worktree => worktree.id === value);
-  const isEmptySelection = emptyOption !== undefined && value === emptyOption.value;
-  const missing = value !== "" && !isEmptySelection && selected === undefined;
+  const selection = resolveWorktreeRefSelection(value, worktrees, emptyOption);
+  const { missing } = selection;
+  const hasSelection =
+    selection.selected !== undefined || selection.isEmptySelection || Boolean(displayValue);
 
   function handleSelect(next: string) {
     onChange(next);
@@ -79,54 +156,29 @@ export function WorktreeRefSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        aria-invalid={invalid || missing || undefined}
+        aria-invalid={invalid === true || missing || undefined}
         aria-describedby={describedBy}
         className={cn("w-full justify-between gap-2", className)}
         data-missing={missing ? "" : undefined}
         data-testid={testId}
-        disabled={disabled}
-        selected={Boolean(selected) || isEmptySelection || Boolean(displayValue)}
+        disabled={disabled === true}
+        selected={hasSelection}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
           {missing ? <WorktreeStateChip state="missing" /> : null}
           <span className="min-w-0 flex-1 truncate text-small-body text-fg">
-            {displayValue ??
-              (isEmptySelection ? emptyOption.label : (selected?.name ?? (value || placeholder)))}
+            {worktreeRefTriggerText(value, selection, emptyOption, placeholder, displayValue)}
           </span>
         </span>
-        <ChevronsUpDown aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+        <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-subtle" />
       </CommandSelectTrigger>
       <CommandSelectShell className="min-w-64" inputPlaceholder="Search worktrees...">
-        <CommandList>
-          <CommandEmpty>No worktrees match your search.</CommandEmpty>
-          {emptyOption ? (
-            <CommandSelectGroup>
-              <CommandItem
-                onSelect={() => handleSelect(emptyOption.value)}
-                value={emptyOption.label}
-              >
-                {emptyOption.label}
-              </CommandItem>
-            </CommandSelectGroup>
-          ) : null}
-          {ready.length > 0 ? (
-            <CommandSelectGroup heading="Worktrees">
-              {ready.map(worktree => (
-                <CommandItem
-                  key={worktree.id}
-                  onSelect={() => handleSelect(worktree.id)}
-                  value={worktree.name}
-                >
-                  <span className="min-w-0 flex-1 truncate text-small-body text-fg">
-                    {worktree.name}
-                  </span>
-                  <MonoId size="sm" value={worktree.branch} />
-                </CommandItem>
-              ))}
-            </CommandSelectGroup>
-          ) : null}
-          {footer ? <CommandSelectGroup>{footer}</CommandSelectGroup> : null}
-        </CommandList>
+        <WorktreeRefOptions
+          emptyOption={emptyOption}
+          footer={footer}
+          onSelect={handleSelect}
+          ready={selection.ready}
+        />
       </CommandSelectShell>
     </CommandSelect>
   );

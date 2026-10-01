@@ -16,7 +16,7 @@ const GROUP_CLASS = `${paletteGroupClass} ${paletteGroupFollowClass}`;
 
 function EntityOverflow({ shown, total }: { shown: number; total: number }) {
   if (total <= shown) return null;
-  return <div className="px-3 py-1 text-micro text-faint">{`showing ${shown} of ${total}`}</div>;
+  return <div className="px-3 py-1 text-eyebrow text-faint">{`showing ${shown} of ${total}`}</div>;
 }
 
 export interface OsPaletteEntitySectionsProps {
@@ -71,7 +71,7 @@ export function OsPaletteEntitySections({
                 <ProfileOwnerTag compact owner={session.owner} />
               )}
               <span className="min-w-0 truncate leading-none">{session.title}</span>
-              <span className="ml-auto shrink-0 text-micro text-subtle">
+              <span className="ml-auto shrink-0 text-eyebrow text-subtle">
                 {session.agentName}
                 {session.workspaceLabel ? ` · ${session.workspaceLabel}` : ""}
               </span>
@@ -101,13 +101,13 @@ export function OsPaletteEntitySections({
               <span className="min-w-0 truncate leading-none">{tab.label}</span>
               {tab.needsInput ? (
                 <span
-                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-pill-group-badge leading-none font-bold text-accent-ink"
+                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-pill-group-badge leading-none font-semibold text-accent-ink"
                   data-slot="os-palette-tab-attention"
                 >
                   1
                 </span>
               ) : null}
-              <span className="ml-auto shrink-0 text-micro text-subtle">
+              <span className="ml-auto shrink-0 text-eyebrow text-subtle">
                 {tab.minimized ? "minimized · " : ""}
                 {tab.desktopName}
               </span>
@@ -138,7 +138,7 @@ export function OsPaletteEntitySections({
               {entry.worktree ? <ProfileOwnerTag owner={ownerFromRow(entry.worktree)} /> : null}
               <MonoId className="ml-auto" preserveCase size="sm" value={entry.branch} />
               {entry.workspaceLabel ? (
-                <span className="shrink-0 text-micro text-faint">{entry.workspaceLabel}</span>
+                <span className="shrink-0 text-eyebrow text-faint">{entry.workspaceLabel}</span>
               ) : null}
             </CommandItem>
           ))}

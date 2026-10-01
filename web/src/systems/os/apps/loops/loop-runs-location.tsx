@@ -110,7 +110,7 @@ function LoopRunsInventoryPane({
     return (
       <RunsState
         action={
-          <Button onClick={inventory.refetch} size="sm" type="button" variant="outline">
+          <Button onClick={inventory.refetch} size="sm" type="button" variant="secondary">
             Try again
           </Button>
         }

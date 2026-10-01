@@ -45,6 +45,7 @@ const (
 	windowManagerFrameFlag        = "frame"
 	windowManagerGroupFlag        = "group"
 	windowManagerResourceFlag     = "resource"
+	windowManagerKeepFramesFlag   = "keep-frames"
 	windowManagerDiagnostics      = "diagnostics"
 	windowManagerNameField        = "name"
 	windowManagerDesktopID        = "desktop_id"

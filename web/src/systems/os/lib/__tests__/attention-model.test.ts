@@ -230,6 +230,14 @@ describe("OS attention sections", () => {
     });
   });
 
+  it("Should title an untitled session the way its window does, never by its raw id", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({ sessions: [session({ id: "sess-fc79f940924ca862", name: undefined })] })
+    );
+
+    expect(sections.needsYou[0]).toMatchObject({ title: "New session" });
+  });
+
   it("Should fall back to the state word rather than invent a reason", () => {
     const sections = deriveAttentionSections(
       sectionsInput({ sessions: [session({ id: "s-failed", badge: "failed" })] })

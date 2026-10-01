@@ -19,7 +19,7 @@ export type SliderTone = "accent" | "neutral";
 type SliderProps<Value extends number | readonly number[]> = SliderPrimitive.Root.Props<Value> & {
   /** Gives each thumb an explicit name when a range needs domain-specific language. */
   getAriaLabel?: NonNullable<SliderPrimitive.Thumb.Props["getAriaLabel"]>;
-  /** Accent is the default fill. Neutral is a quiet scrubber that is not a primary action. */
+  /** Neutral (the inverted primary ink) is the default fill. Accent is reserved for a range that flags attention. */
   tone?: SliderTone;
 };
 
@@ -29,7 +29,7 @@ function Slider<Value extends number | readonly number[] = number>({
   value,
   min = 0,
   max = 100,
-  tone = "accent",
+  tone = "neutral",
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
   getAriaLabel,
@@ -64,13 +64,13 @@ function Slider<Value extends number | readonly number[] = number>({
     >
       <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:cursor-not-allowed data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col">
         <SliderPrimitive.Track
-          className="relative grow overflow-hidden rounded-pill bg-bar-fill select-none data-horizontal:h-1 data-horizontal:w-full data-vertical:h-full data-vertical:w-1"
+          className="relative grow overflow-hidden rounded-pill bg-surface-2 select-none data-horizontal:h-1 data-horizontal:w-full data-vertical:h-full data-vertical:w-1"
           data-slot="slider-track"
         >
           <SliderPrimitive.Indicator
             className={cn(
               "select-none data-horizontal:h-full data-vertical:w-full",
-              tone === "neutral" ? "bg-fg-strong" : "bg-accent"
+              tone === "neutral" ? "bg-primary" : "bg-accent"
             )}
             data-slot="slider-range"
             data-tone={tone}
@@ -92,7 +92,7 @@ function Slider<Value extends number | readonly number[] = number>({
                   : undefined
               }
               className={cn(
-                "relative block size-3 shrink-0 rounded-pill border border-line-strong bg-fg-strong",
+                "relative block size-3 shrink-0 rounded-pill border border-line-strong bg-canvas",
                 "transition-[box-shadow] duration-fast ease-out select-none after:absolute after:-inset-2",
                 "focus-visible:shadow-focus-ring focus-visible:outline-none",
                 "data-disabled:pointer-events-none"

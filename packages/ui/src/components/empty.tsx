@@ -66,14 +66,14 @@ interface EmptyScale {
 const EMPTY_SCALES: Record<EmptySize, EmptyScale> = {
   default: {
     gap: "gap-3",
-    well: "size-empty-icon rounded-lg bg-canvas-soft",
+    well: "size-empty-icon rounded-lg bg-surface-2",
     glyph: "size-5",
     title: "text-empty-h1 tracking-empty-h1",
     description: "text-small-body leading-relaxed",
   },
   compact: {
     gap: "gap-2",
-    well: "size-8 rounded-md bg-canvas-tint",
+    well: "size-8 rounded-md bg-surface-2",
     glyph: "size-3.75",
     title: "text-form-label",
     description: "text-micro leading-4",
@@ -142,7 +142,7 @@ function Empty({
         titleTag,
         {
           "data-slot": "empty-title",
-          className: cn("font-medium leading-snug text-fg-strong", scale.title),
+          className: cn("font-medium leading-snug text-fg", scale.title),
         },
         title
       )}
@@ -170,7 +170,7 @@ function Empty({
           </summary>
           <div
             data-slot="empty-cause-detail"
-            className="mt-2 max-h-48 overflow-auto rounded border border-line bg-canvas px-3 py-2 font-mono text-badge leading-relaxed whitespace-pre-wrap break-words text-subtle"
+            className="mt-2 max-h-48 overflow-auto rounded border border-line bg-code-bg px-3 py-2 font-mono text-badge leading-relaxed whitespace-pre-wrap break-words text-subtle"
           >
             {cause}
           </div>

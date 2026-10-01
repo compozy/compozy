@@ -274,6 +274,9 @@ describe("useTasksPage", () => {
     expect(listTasks).not.toHaveBeenCalled();
     expect(getTaskInbox).not.toHaveBeenCalled();
     expect(getTaskDashboard).not.toHaveBeenCalled();
+    // A suspended read has not answered yet: it is loading, never an empty project.
+    expect(result.current.isEmpty).toBe(false);
+    expect(result.current.listLoading).toBe(true);
   });
 
   it("ignores a stale row completion token", () => {

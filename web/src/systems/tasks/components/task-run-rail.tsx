@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Search } from "lucide-react";
 import type * as React from "react";
 
-import { Button, cn, OwnerAvatar, Pill, PropertyRow, Time } from "@compozy/ui";
+import { Button, cn, OwnerAvatar, PropertyRow, StateGlyph, Time } from "@compozy/ui";
 
 import { describeCost } from "@/lib/cost-provenance";
-import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
+import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunLineage } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunDetailView } from "../types";
 import { TaskRailSection } from "./task-rail-section";
@@ -28,12 +28,12 @@ function LineageRow({ label, taskId, target }: { label: string; taskId: string; 
     <PropertyRow
       editor={
         <Link
-          className="inline-flex min-h-6 min-w-6 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+          className="inline-flex min-h-6 min-w-6 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
           data-testid={`tasks-run-lineage-${target.id}`}
           params={{ id: taskId, runId: target.id }}
           to="/tasks/$id/runs/$runId"
         >
-          <Pill.Dot tone={taskRunStatusTone(target.status)} />
+          <StateGlyph state={taskRunStateGlyph(target.status)} />
           <span className="truncate">
             Attempt {target.attempt} · {taskRunStatusLabel(target.status)}
           </span>
@@ -64,7 +64,7 @@ export function TaskRunRail({
   return (
     <div
       {...props}
-      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
+      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
       data-testid="tasks-run-rail"
     >
       <TaskRunSessionSection run={run} />
@@ -78,14 +78,13 @@ export function TaskRunRail({
       />
       <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
-          className="min-h-6"
           data-testid="tasks-run-inspect"
           onClick={onInspect}
           size="sm"
           type="button"
           variant="ghost"
         >
-          <Search aria-hidden="true" className="size-3" />
+          <Search aria-hidden="true" data-icon="inline-start" />
           Inspect
         </Button>
       </footer>
@@ -110,13 +109,13 @@ function TaskRunSessionSection({ run }: { run: TaskRunDetailView }) {
         <PropertyRow
           editor={
             <Link
-              className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+              className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
               data-testid="tasks-run-rail-session"
               params={{ id: sessionId }}
               to="/session/$id"
             >
               Open session
-              <ArrowUpRight aria-hidden="true" className="size-3" />
+              <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </Link>
           }
           label="Session"
@@ -179,8 +178,10 @@ function TaskRunTimingSection({
           <Time iso={record.ended_at} mode="relative" />
         </PropertyRow>
       ) : null}
-      <PropertyRow label={record.ended_at ? "Duration" : "Elapsed"} mono>
-        {duration ?? METRIC_PLACEHOLDER}
+      <PropertyRow label={record.ended_at ? "Duration" : "Elapsed"}>
+        <span className="tabular-nums" data-testid="task-run-rail-duration">
+          {duration ?? METRIC_PLACEHOLDER}
+        </span>
       </PropertyRow>
     </TaskRailSection>
   );

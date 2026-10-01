@@ -16,7 +16,6 @@ import { cmdPaletteStoryRegistry } from "../../mocks/cmd-palette-fixtures";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";
-import { OsDockZone } from "../os-dock";
 import { createStoryShell } from "./_shell-fixture";
 import { buildDeskItems, DesktopShell } from "./_desktop";
 
@@ -202,7 +201,7 @@ function SessionsModalFixture() {
   });
   return (
     <OsShellContext.Provider value={shell}>
-      <DesktopShell dock={false} dockItems={dockItems}>
+      <DesktopShell dockItems={dockItems}>
         <OsSessionsModal
           open
           onOpenChange={fn()}
@@ -212,7 +211,6 @@ function SessionsModalFixture() {
           sessionActions={SESSION_ACTIONS}
           onNewSession={fn()}
         />
-        <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
       </DesktopShell>
     </OsShellContext.Provider>
   );

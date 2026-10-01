@@ -40,7 +40,7 @@ export function LoopRunControls({
       {verbs.includes("pause") ? (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid="loop-run-pause"
           disabled={pendingVerb === "pause"}
@@ -54,7 +54,7 @@ export function LoopRunControls({
           boundary; the daemon still reports `running`, so say so rather than
           offering a verb it would now reject. */}
       {pausing ? (
-        <Button type="button" variant="outline" size="sm" data-testid="loop-run-pausing" disabled>
+        <Button type="button" variant="secondary" size="sm" data-testid="loop-run-pausing" disabled>
           <Pause className="size-3.5" aria-hidden="true" />
           Pausing…
         </Button>
@@ -62,7 +62,7 @@ export function LoopRunControls({
       {verbs.includes("resume") ? (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid="loop-run-resume"
           disabled={pendingVerb === "resume"}

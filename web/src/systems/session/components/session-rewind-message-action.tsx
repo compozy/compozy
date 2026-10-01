@@ -23,9 +23,9 @@ export function SessionRewindMessageAction() {
         onClick={action.trigger}
         size="xs"
         type="button"
-        variant="ghost"
+        variant="quiet"
       >
-        <RotateCcw aria-hidden="true" className="size-3" />
+        <RotateCcw aria-hidden="true" />
         Rewind to here
       </Button>
       <ConfirmDialog

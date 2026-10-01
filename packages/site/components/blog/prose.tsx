@@ -239,7 +239,7 @@ export interface BlogWireCardProps {
 
 export function BlogWireCard({ kind, rows, protocol = "v0" }: BlogWireCardProps) {
   return (
-    <div className="mt-7 max-w-wire-card-max overflow-hidden rounded-md border border-line bg-canvas-soft">
+    <div className="mt-7 max-w-wire-card overflow-hidden rounded-md border border-line bg-canvas-soft">
       <Eyebrow className="block border-b border-line bg-rail px-3 py-1.5 text-subtle">
         kind={kind} · {protocol}
       </Eyebrow>

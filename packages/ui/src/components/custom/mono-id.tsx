@@ -112,11 +112,7 @@ function MonoIdCopyButton({
       }}
       className="inline-flex size-3 shrink-0 items-center justify-center rounded-xs text-subtle transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
     >
-      {copied ? (
-        <CheckIcon width={10} height={10} strokeWidth={2} />
-      ) : (
-        <CopyIcon width={10} height={10} strokeWidth={1.75} />
-      )}
+      {copied ? <CheckIcon width={10} height={10} /> : <CopyIcon width={10} height={10} />}
     </button>
   );
 }

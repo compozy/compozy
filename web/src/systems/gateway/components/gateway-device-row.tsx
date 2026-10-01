@@ -34,9 +34,9 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
     <ListingRow data-testid={`gateway-device-${device.id}`} interactive={false}>
       <ListingRow.Icon>
         {device.actor_kind === "cli_profile" ? (
-          <Terminal className="size-3.5" />
+          <Terminal className="size-4" />
         ) : (
-          <Smartphone className="size-3.5" />
+          <Smartphone className="size-4" />
         )}
       </ListingRow.Icon>
       <ListingRow.Main>
@@ -73,7 +73,8 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
       </ListingRow.Main>
       <ListingRow.Trail>
         {isRevoked ? (
-          <Pill size="sm" tone="neutral">
+          <Pill form="plain" tone="neutral">
+            <Pill.Dot />
             Revoked
           </Pill>
         ) : draft === null ? (
@@ -83,11 +84,11 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
               data-testid={`gateway-device-${device.id}-rename`}
               disabled={isBusy}
               onClick={() => setDraft(device.name)}
-              size="sm"
+              size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <Pencil aria-hidden="true" className="size-3" />
+              <Pencil aria-hidden="true" />
             </Button>
             <Button
               data-testid={`gateway-device-${device.id}-revoke`}
@@ -125,20 +126,20 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
               data-testid={`gateway-device-${device.id}-rename-save`}
               disabled={isBusy}
               onClick={commit}
-              size="sm"
+              size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <Check aria-hidden="true" className="size-3" />
+              <Check aria-hidden="true" />
             </Button>
             <Button
               aria-label="Cancel rename"
               onClick={() => setDraft(null)}
-              size="sm"
+              size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </>
         )}

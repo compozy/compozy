@@ -47,7 +47,12 @@ export function ProfileIdentityDialog({
         data-testid="profile-identity-dialog"
         showCloseButton={false}
       >
-        <EntityDialogHeader eyebrow="Profiles" icon={Palette} title={`Edit ${profile.name}`} />
+        <EntityDialogHeader
+          eyebrow="Profiles"
+          icon={Palette}
+          onClose={isPending ? undefined : () => onOpenChange(false)}
+          title={`Edit ${profile.name}`}
+        />
         <EntityDialogBody>
           <ProfileIdentityFields
             catalog={catalog}

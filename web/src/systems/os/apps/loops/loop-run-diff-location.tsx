@@ -9,7 +9,7 @@ import {
   LoopRunDiffPickers,
   LoopRunDiffView,
   type LoopRunDiffRouteSearch,
-  LoopStatusPill,
+  LoopStatusMark,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -58,7 +58,7 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
       openRuns: page.goToRuns,
       runId,
     }),
-    status: page.run ? <LoopStatusPill status={page.run.status} /> : undefined,
+    status: page.run ? <LoopStatusMark status={page.run.status} /> : undefined,
   });
 
   if (page.isRunLoading) {

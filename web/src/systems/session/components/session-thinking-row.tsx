@@ -1,8 +1,8 @@
-import { CircleAlert, CircleStop, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import { SessionSummaryDisclosure } from "./session-summary-disclosure";
 
-import { TypingDots } from "@compozy/ui";
+import { StateGlyph, TypingDots } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { useSecondClock } from "@/hooks/use-second-clock";
@@ -199,7 +199,7 @@ function SessionStatusLine({
           data-stopped-by={status.byYou ? "you" : "daemon"}
           className={ROW_CLASS}
         >
-          <CircleStop aria-hidden="true" className="size-3 shrink-0 text-warning" />
+          <StateGlyph size="sm" state="stopped" />
           <span>
             {status.byYou ? "Stopped by you after " : "Stopped after "}
             <span className="font-medium">{status.duration}</span>
@@ -220,7 +220,7 @@ function SessionStatusLine({
           data-status="failed"
           className={ROW_CLASS}
         >
-          <CircleAlert aria-hidden="true" className="size-3 shrink-0 text-danger" />
+          <StateGlyph size="sm" state="failed" />
           <span>
             Failed after <span className="font-medium">{status.duration}</span>
             {status.cause ? (

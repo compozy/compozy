@@ -1,4 +1,4 @@
-import { Check, Info, RotateCcw, Trash2, X } from "lucide-react";
+import { Info, RotateCcw, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Spinner,
+  StateGlyph,
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
@@ -88,7 +89,7 @@ export function SessionDeleteDialogSet({
           tabIndex={0}
           className="min-h-0 space-y-4 overflow-y-auto"
         >
-          <ul className="overflow-hidden rounded-md border border-line bg-canvas">
+          <ul className="overflow-hidden rounded-lg bg-sunken py-1">
             {sessions.slice(0, 5).map(session => (
               <SessionDeleteResultRow
                 key={session.id}
@@ -97,9 +98,7 @@ export function SessionDeleteDialogSet({
               />
             ))}
             {count > 5 ? (
-              <li className="border-t border-line-soft px-2.5 py-1.5 text-micro text-subtle">
-                and {count - 5} more
-              </li>
+              <li className="px-3 py-1.5 text-micro text-subtle">and {count - 5} more</li>
             ) : null}
           </ul>
           <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
@@ -165,7 +164,7 @@ function SessionDeleteResultRow({
     <li
       data-testid={`delete-dialog-row-${session.id}`}
       className={cn(
-        "grid grid-cols-[8px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 border-t border-line-soft px-2.5 py-1.5 text-form first:border-t-0",
+        "grid grid-cols-[12px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 px-3 py-1.5 text-form",
         className
       )}
       {...props}
@@ -175,13 +174,13 @@ function SessionDeleteResultRow({
       <span className={`text-micro ${sessionBadgeWordClass(session.badge)}`}>
         {sessionBadgeSignal(session.badge).displayLabel}
       </span>
-      <span className="grid size-3.5 place-items-center text-subtle">
+      <span className="grid size-3.5 place-items-center">
         {result?.status === "done" ? (
-          <Check className="size-3" aria-label="Deleted" />
+          <StateGlyph label="Deleted" size="sm" state="done" />
         ) : result?.status === "running" ? (
-          <Spinner className="size-3 motion-reduce:animate-none" aria-label="Deleting" />
+          <StateGlyph label="Deleting" size="sm" state="running" />
         ) : result?.status === "failed" ? (
-          <X className="size-3 text-danger" aria-label="Failed" />
+          <StateGlyph label="Failed" size="sm" state="failed" />
         ) : null}
       </span>
       {result?.status === "failed" ? (

@@ -28,6 +28,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  StateGlyph,
+  type StateGlyphState,
   SelectTrigger,
   SelectValue,
   Separator,
@@ -51,7 +53,7 @@ export function ButtonsAndPillsSection() {
       data-testid="section-buttons"
       label={<SectionLink section={sectionById("buttons")}>Buttons & Pills</SectionLink>}
       right={
-        <Pill mono tone="accent">
+        <Pill mono tone="neutral">
           action
         </Pill>
       }
@@ -87,7 +89,7 @@ export function ButtonsAndPillsSection() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone="neutral">Neutral</Pill>
-          <Pill tone="accent">Action</Pill>
+          <Pill tone="accent">Needs you</Pill>
           <Pill tone="success">Stable</Pill>
           <Pill tone="warning">Pending</Pill>
           <Pill tone="danger">Error</Pill>
@@ -158,7 +160,7 @@ export function InputsAndSearchSection() {
         </Field>
         <InputGroup>
           <InputGroupAddon align="inline-start">
-            <SearchIcon className="size-3" />
+            <SearchIcon className="size-3.5" />
           </InputGroupAddon>
           <InputGroupInput placeholder="Filter sessions…" />
           <InputGroupAddon align="inline-end">
@@ -200,6 +202,17 @@ export function InputsAndSearchSection() {
   );
 }
 
+// Mint ring = in progress, dashed = queued, filled mint check = done, orange = needs you.
+const STATE_GLYPH_DEMO: ReadonlyArray<readonly [StateGlyphState, string]> = [
+  ["running", "In progress"],
+  ["queued", "Queued"],
+  ["done", "Done"],
+  ["attention", "Needs you"],
+  ["failed", "Failed"],
+  ["stopped", "Stopped"],
+  ["idle", "Idle"],
+];
+
 export function StatusAndMetricSection() {
   return (
     <Section
@@ -213,7 +226,7 @@ export function StatusAndMetricSection() {
       }
     >
       <div className="grid gap-3 pt-4 md:grid-cols-3">
-        <Metric label="Active sessions" value="12" detail="+3" tone="accent" />
+        <Metric label="Active sessions" value="12" detail="+3" />
         <Metric
           label="Throughput"
           value="248"
@@ -225,15 +238,15 @@ export function StatusAndMetricSection() {
       <div className="flex flex-wrap items-center gap-4 pt-4">
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="success" />
-          <span className="text-sm text-muted">Connected</span>
+          <span className="text-small-body text-muted">Connected</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="warning" pulse />
-          <span className="text-sm text-muted">Connecting</span>
+          <span className="text-small-body text-muted">Connecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="danger" />
-          <span className="text-sm text-muted">Disconnected</span>
+          <span className="text-small-body text-muted">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
         <ConnectionIndicator status="connecting" />
@@ -246,7 +259,7 @@ export function StatusAndMetricSection() {
         <Pill mono tone="neutral">
           idle
         </Pill>
-        <Pill mono tone="accent">
+        <Pill mono tone="success">
           RUNNING
         </Pill>
         <Pill mono tone="success">
@@ -262,9 +275,17 @@ export function StatusAndMetricSection() {
           INFO
         </Pill>
       </div>
+      <div className="flex flex-wrap items-center gap-4 pt-4" data-testid="showcase-state-glyphs">
+        {STATE_GLYPH_DEMO.map(([state, label]) => (
+          <div key={state} className="inline-flex items-center gap-2">
+            <StateGlyph state={state} />
+            <span className="text-small-body text-muted">{label}</span>
+          </div>
+        ))}
+      </div>
       <div className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-4">
-          <Spinner className="size-4 text-accent" />
+          <Spinner className="size-4 text-success" />
           <Skeleton className="h-4 w-40" />
           <Separator orientation="vertical" className="h-6" />
           <Eyebrow className="text-subtle">spinners · skeletons · separators</Eyebrow>

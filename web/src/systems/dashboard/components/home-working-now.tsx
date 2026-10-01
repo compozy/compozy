@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 
-import { Button, Empty, OwnerAvatar, Pill, Section, SkeletonRows, Surface } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  OwnerAvatar,
+  Panel,
+  Pill,
+  Section,
+  SkeletonRows,
+  StateGlyph,
+  Surface,
+} from "@compozy/ui";
 
 import { useElapsedNowSeconds } from "../hooks/use-elapsed-ticker";
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
@@ -20,14 +30,15 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
   const ticked =
     card.elapsedBaseSeconds + Math.max(0, nowSeconds - Math.floor(card.baseAtMs / 1000));
 
+  // One row of the shared live-work card: rows divide, the card carries the edge.
   const body = (
-    <Surface
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 transition-colors duration-base hover:bg-canvas-tint"
+    <div
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-surface-2"
       data-slot="home-run-card"
     >
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-small-body font-medium text-fg-strong">
-          <Pill.Dot pulse tone="accent" />
+        <div className="flex items-center gap-2 text-body font-medium text-fg-strong">
+          <StateGlyph state="running" />
           <OwnerAvatar name={card.agentName} ownerId={card.agentName} ownerKind="agent" size="sm" />
           <span className="truncate">{card.title}</span>
           {card.kind === "task_run" ? (
@@ -38,16 +49,16 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
         </div>
         <p className="mt-1 truncate text-small-body text-muted">{card.subtitle}</p>
       </div>
-      <span className="font-mono text-mono-id tabular-nums text-muted">
+      <span className="text-meta tabular-nums text-muted">
         {formatHomeDurationSeconds(ticked, "clock")}
       </span>
-    </Surface>
+    </div>
   );
 
   if (card.sessionLink) {
     return (
       <Link
-        className="block min-w-0 rounded-lg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="block min-w-0 focus-visible:shadow-focus-inset focus-visible:outline-none"
         params={{ name: card.sessionLink.agentName, id: card.sessionLink.sessionId }}
         to="/agents/$name/sessions/$id"
       >
@@ -58,7 +69,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
   if (card.runLink) {
     return (
       <Link
-        className="block min-w-0 rounded-lg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="block min-w-0 focus-visible:shadow-focus-inset focus-visible:outline-none"
         params={{ id: card.runLink.taskId, runId: card.runLink.runId }}
         to="/tasks/$id/runs/$runId"
       >
@@ -117,7 +128,7 @@ export function HomeWorkingNow({
       count={total}
       label="Working now"
       right={
-        <Button nativeButton={false} render={<Link to="/agents" />} size="sm" variant="ghost">
+        <Button nativeButton={false} render={<Link to="/agents" />} size="sm" variant="link">
           View agents
           <ChevronRight aria-hidden="true" />
         </Button>
@@ -139,9 +150,13 @@ export function HomeWorkingNow({
       ) : (
         <>
           {status === "partial" ? <HomeWorkingNowPartialNote /> : null}
-          {cards.map(card => (
-            <HomeRunCard card={card} key={card.key} nowSeconds={nowSeconds} />
-          ))}
+          <Panel bodyClassName="p-0" className="overflow-hidden">
+            <div className="divide-y divide-line-soft">
+              {cards.map(card => (
+                <HomeRunCard card={card} key={card.key} nowSeconds={nowSeconds} />
+              ))}
+            </div>
+          </Panel>
         </>
       )}
     </Section>

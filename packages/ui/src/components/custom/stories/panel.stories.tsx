@@ -12,7 +12,7 @@ const meta: Meta<typeof Panel> = {
     docs: {
       description: {
         component:
-          "Flat panel container behind dashboard zones and grouped rows. Optional hairline head (title/meta/right) and pinned foot; body padding overridable for full-bleed row lists.",
+          "Surface card (canvas + shadow-card, the Metric tile language) behind dashboard zones and grouped rows. Optional line-soft hairline head (title/meta/right) and pinned foot; body padding overridable for full-bleed row lists.",
       },
     },
   },

@@ -590,6 +590,34 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 				)
 			}
 
+			// The window.stack.group journey below groups two floating windows. The
+			// shipped new_window_policy is tab (tiled tabs), so the floating
+			// premise is set explicitly through the public settings route.
+			var windowManagerSettings map[string]json.RawMessage
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				"/api/settings/window-manager",
+				nil,
+				&windowManagerSettings,
+			); err != nil {
+				t.Fatalf("HTTP window manager settings error = %v", err)
+			}
+			var windowManagerConfig map[string]json.RawMessage
+			if err := json.Unmarshal(windowManagerSettings["config"], &windowManagerConfig); err != nil {
+				t.Fatalf("decode window manager settings config error = %v", err)
+			}
+			windowManagerConfig["new_window_policy"] = json.RawMessage(`"floating"`)
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPatch,
+				"/api/settings/window-manager",
+				map[string]any{"config": windowManagerConfig},
+				nil,
+			); err != nil {
+				t.Fatalf("HTTP window manager floating policy error = %v", err)
+			}
+
 			openRequest := func(
 				revision compozycontract.WindowManagerRevision,
 				windowID string,

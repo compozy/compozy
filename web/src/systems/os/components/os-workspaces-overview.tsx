@@ -90,7 +90,7 @@ export function OsWorkspacesOverview({ open, onOpenChange, ...stage }: OsWorkspa
           // variant bucket — the overlay owns the whole viewport.
           "sm:max-w-none",
           "flex flex-col items-center justify-center rounded-none px-4 pt-6 pb-20",
-          "bg-transparent shadow-none backdrop-blur-shell-scrim"
+          "bg-transparent shadow-none"
         )}
         onClick={event => {
           // Backdrop click closes; the popup is full-bleed, so "backdrop" is
@@ -257,7 +257,9 @@ function OsWorkspacesStage({
       <div
         data-slot="os-workspaces-stage"
         className={cn(
-          "flex w-workspaces-stage flex-col items-center",
+          // Above the reserved dismiss band below: a tall worktree menu hangs
+          // into that band and must stay clickable.
+          "relative z-1 flex w-workspaces-stage flex-col items-center",
           !reducedMotion && "os-wsov-in"
         )}
         onKeyDown={switcher.onStageKeyDown}
@@ -274,8 +276,8 @@ function OsWorkspacesStage({
             data-slot="os-workspaces-strip"
             data-testid="os-workspaces-strip"
             className={cn(
-              "flex flex-col items-center gap-2.5 rounded-xl border border-line-strong px-6 py-5",
-              "bg-shell-glass-pop text-center shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-shell-glass"
+              "flex flex-col items-center gap-2.5 rounded-xl px-6 py-5",
+              "bg-popover text-center shadow-pop"
             )}
           >
             <p className="max-w-workspaces-empty-copy text-small-body text-muted">
@@ -288,7 +290,7 @@ function OsWorkspacesStage({
               type="button"
               onClick={() => activateEntry(ADD_ENTRY)}
             >
-              <Plus aria-hidden="true" className="size-3" />
+              <Plus aria-hidden="true" data-icon="inline-start" />
               New project
             </Button>
           </div>

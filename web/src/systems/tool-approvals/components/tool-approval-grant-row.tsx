@@ -1,4 +1,4 @@
-import { Shield, Trash2 } from "lucide-react";
+import { Shield } from "lucide-react";
 
 import { Button, ListingRow, Pill, Time } from "@compozy/ui";
 
@@ -45,6 +45,7 @@ export function ToolApprovalGrantRow({ grant, onRevoke }: ToolApprovalGrantRowPr
           <ListingRow.Title title={grant.tool_id}>{toolLabel}</ListingRow.Title>
           <Pill
             data-testid={`tool-approval-grant-decision-${grant.id}`}
+            form="plain"
             size="sm"
             tone={toolApprovalDecisionTone(grant.decision)}
           >
@@ -72,15 +73,16 @@ export function ToolApprovalGrantRow({ grant, onRevoke }: ToolApprovalGrantRowPr
         </ListingRow.Meta>
       </ListingRow.Main>
       <ListingRow.Trail>
+        {/* A worded control, like the terminal permission rows in the same list. */}
         <Button
           aria-label={`Revoke ${toolLabel} decision`}
           data-testid={`tool-approval-grant-revoke-${grant.id}`}
           onClick={() => onRevoke(grant)}
-          size="icon-sm"
+          size="sm"
           type="button"
-          variant="ghost"
+          variant="quiet"
         >
-          <Trash2 aria-hidden="true" className="size-3" />
+          Revoke
         </Button>
       </ListingRow.Trail>
     </ListingRow>

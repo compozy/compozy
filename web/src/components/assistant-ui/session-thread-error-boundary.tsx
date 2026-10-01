@@ -57,7 +57,7 @@ export class SessionThreadErrorBoundary extends Component<
           </p>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             className="mt-4"
             onClick={this.handleRetry}
             data-testid="session-thread-error-boundary-retry"

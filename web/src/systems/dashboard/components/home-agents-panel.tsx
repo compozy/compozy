@@ -27,13 +27,13 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
       className="flex min-h-full flex-col"
       data-slot="home-agents"
       label="Agents"
-      right={<span className="text-micro text-faint">runtime · all time</span>}
+      right={<span className="text-eyebrow text-muted">runtime · all time</span>}
     >
       <Panel
         bodyClassName="flex flex-1 flex-col p-0"
         className="flex-1"
         foot={
-          <Button nativeButton={false} render={<Link to="/agents" />} size="sm" variant="ghost">
+          <Button nativeButton={false} render={<Link to="/agents" />} size="sm" variant="link">
             View agents
             <ChevronRight aria-hidden="true" />
           </Button>
@@ -59,13 +59,13 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
             <div className="flex flex-1 flex-col divide-y divide-line-soft">
               {rows.map(row => (
                 <Link
-                  className={`grid ${ROW_GRID} ${ROW_GRID_NARROW} flex-1 items-center gap-3 px-4 py-2.5 transition-colors duration-base hover:bg-row-hover focus-visible:shadow-focus-inset focus-visible:outline-none`}
+                  className={`grid ${ROW_GRID} ${ROW_GRID_NARROW} flex-1 items-center gap-3 px-4 py-2.5 transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none`}
                   data-slot="home-agent-row"
                   key={row.name}
                   params={{ name: row.name }}
                   to="/agents/$name"
                 >
-                  <span className="flex min-w-0 items-center gap-2 text-small-body font-medium text-fg-strong">
+                  <span className="flex min-w-0 items-center gap-2 text-body font-medium text-fg-strong">
                     <OwnerAvatar name={row.name} ownerId={row.name} ownerKind="agent" size="sm" />
                     <span className="truncate">{row.name}</span>
                   </span>
@@ -77,13 +77,13 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
                     value={row.failed}
                   />
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-pill bg-input-fill">
+                    <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-2">
                       <span
                         className="block h-full rounded-pill bg-viz-bar"
                         style={{ width: `${Math.round(row.runtimeShare * 100)}%` }}
                       />
                     </span>
-                    <span className="shrink-0 font-mono text-mono-id tabular-nums text-subtle">
+                    <span className="shrink-0 text-eyebrow tabular-nums text-subtle">
                       {formatRuntimeHours(row.runtimeSeconds)}
                     </span>
                   </span>
@@ -108,10 +108,7 @@ function AgentCount({
 } & React.ComponentProps<"span">) {
   const color = tone === "danger" ? "text-danger" : value === 0 ? "text-faint" : "text-muted";
   return (
-    <span
-      className={cn("text-right font-mono text-mono-id tabular-nums", color, className)}
-      {...props}
-    >
+    <span className={cn("text-right text-small-body tabular-nums", color, className)} {...props}>
       {value}
     </span>
   );

@@ -4,16 +4,20 @@ import { Kbd } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
+import { OsShortcutChords } from "./os-shortcut-chords";
+
 interface HintProps {
   keys: string;
+  /** The keys are a " / "-joined chord label: one cap per chord. */
+  chords?: boolean;
   className?: string;
   children: ReactNode;
 }
 
-function Hint({ keys, className, children }: HintProps) {
+function Hint({ keys, chords, className, children }: HintProps) {
   return (
     <span className={cn("flex items-center gap-1.5", className)}>
-      <Kbd>{keys}</Kbd>
+      {chords === true ? <OsShortcutChords label={keys} /> : <Kbd>{keys}</Kbd>}
       {children}
     </span>
   );
@@ -54,13 +58,17 @@ export function OsPaletteFooter({
     <div
       data-testid="os-palette-footer"
       className={cn(
-        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-4 py-2 text-micro text-subtle",
+        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line-soft px-4 py-2 text-eyebrow text-subtle",
         className
       )}
     >
       <Hint keys="↑↓">move</Hint>
       <Hint keys="⏎">{enterHint}</Hint>
-      {actionsChord === undefined ? null : <Hint keys={actionsChord}>actions</Hint>}
+      {actionsChord === undefined ? null : (
+        <Hint chords keys={actionsChord}>
+          actions
+        </Hint>
+      )}
       {hasFilters === true ? <Hint keys="⇥">filters</Hint> : null}
       {backHint === undefined ? null : <Hint keys="⌫">{backHint}</Hint>}
       <Hint keys="esc" className="ml-auto">

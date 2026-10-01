@@ -1,7 +1,8 @@
 import { Eye, FileText, TerminalSquare } from "lucide-react";
 
-import { Pill, useTopbarSlot } from "@compozy/ui";
+import { Pill, StateGlyph, type StateGlyphState, useTopbarSlot } from "@compozy/ui";
 
+import { terminalDisplayTitle } from "../lib/terminal-copy";
 import type { TerminalInfo } from "../types";
 import { TerminalHeaderActions, TerminalWindowVerbs } from "./terminal-header-actions";
 
@@ -44,6 +45,87 @@ function terminalCapCount(terminalCount: number | undefined, limit: number | und
 }
 
 /**
+ * The head's leading state mark. Only a clean exit earns the done check; a
+ * failing run stays neutral (information, not an emergency — see
+ * `terminalExitCopy`), and a signal reads as stopped.
+ */
+function terminalStateGlyph(terminal: TerminalInfo): StateGlyphState {
+  if (terminal.state === "running") return "running";
+  if (terminal.exit?.cause === "signaled") return "stopped";
+  if (terminal.exit?.cause === "exited" && terminal.exit.code === 0) return "done";
+  return "idle";
+}
+
+/** Which status chips and action groups the head has for this terminal. */
+function terminalHeaderFlags({
+  terminal,
+  recording,
+  onStop,
+  onSignal,
+  onWait,
+  onStopRecording,
+}: Pick<
+  TerminalHeaderProps,
+  "terminal" | "recording" | "onStop" | "onSignal" | "onWait" | "onStopRecording"
+>) {
+  const isPipe = terminal.mode === "pipe";
+  const showViewers = !isPipe && terminal.viewers > 1;
+  const hasStatus = Boolean(recording) || isPipe || showViewers;
+  const hasTerminalActions = isPipe
+    ? Boolean(onWait || onSignal)
+    : Boolean((recording && onStopRecording) || onStop);
+  return { isPipe, showViewers, hasStatus, hasTerminalActions };
+}
+
+/** The head's status chips: recording, read-only log, and shared viewers. */
+function TerminalHeaderStatus({
+  isPipe,
+  recording,
+  showViewers,
+  viewers,
+}: {
+  isPipe: boolean;
+  recording: TerminalRecordingState | null | undefined;
+  showViewers: boolean;
+  viewers: number;
+}) {
+  return (
+    <>
+      {recording ? (
+        <Pill data-testid="terminal-recording-chip" form="plain" size="sm" tone="neutral">
+          <Pill.Dot pulse tone="danger" />
+          Recording {recording.elapsed}
+        </Pill>
+      ) : null}
+      {isPipe ? (
+        <Pill data-testid="terminal-pipe-chip" form="plain" size="sm" tone="neutral">
+          <Pill.Dot />
+          read-only log
+        </Pill>
+      ) : null}
+      {showViewers ? (
+        <Pill
+          aria-label={`${viewers} ${viewers === 1 ? "viewer" : "viewers"}`}
+          data-testid="terminal-viewers"
+          form="plain"
+          mono
+          size="sm"
+          tone="neutral"
+        >
+          <Eye aria-hidden="true" className="size-3" />
+          {viewers}
+        </Pill>
+      ) : null}
+    </>
+  );
+}
+
+function TerminalIdentityIcon({ isPipe }: { isPipe: boolean }) {
+  const Icon = isPipe ? FileText : TerminalSquare;
+  return <Icon aria-hidden="true" className="size-3.5 text-muted" />;
+}
+
+/**
  * The terminal's identity row.
  *
  * The name is stated once and at most two actions trail it — the head is where
@@ -62,55 +144,51 @@ export function TerminalHeader({
   onViewJournal,
   hostChrome = false,
 }: TerminalHeaderProps) {
-  const isPipe = terminal.mode === "pipe";
-  const capCount = terminalCapCount(terminalCount, limit);
+  const { isPipe, showViewers, hasStatus, hasTerminalActions } = terminalHeaderFlags({
+    terminal,
+    recording,
+    onStop,
+    onSignal,
+    onWait,
+    onStopRecording,
+  });
   // The raw terminal id lives in the journal detail; the head only shows the cap count.
-  const identityCount = capCount ?? undefined;
+  const identityCount = terminalCapCount(terminalCount, limit) ?? undefined;
+  // One hairline between groups, never a leading or doubled one: the OS head
+  // already rules status off from actions, so only the in-window row needs it.
+  const chipsLeadActions = hasStatus && !hostChrome;
   const actions = (
     <>
       <TerminalHeaderActions
         isPipe={isPipe}
+        leadingRule={chipsLeadActions}
         onSignal={onSignal}
         onStop={onStop}
         onStopRecording={onStopRecording}
         onWait={onWait}
         recording={recording}
       />
-      <TerminalWindowVerbs onNewTerminal={onNewTerminal} onViewJournal={onViewJournal} />
+      <TerminalWindowVerbs
+        leadingRule={hasTerminalActions || chipsLeadActions}
+        onNewTerminal={onNewTerminal}
+        onViewJournal={onViewJournal}
+      />
     </>
   );
-  const status = (
-    <>
-      {recording ? (
-        <Pill data-testid="terminal-recording-chip" size="sm" tone="neutral">
-          <Pill.Dot pulse tone="danger" />
-          Recording {recording.elapsed}
-        </Pill>
-      ) : null}
-      {isPipe ? (
-        <Pill data-testid="terminal-pipe-chip" size="sm" tone="neutral">
-          read-only log
-        </Pill>
-      ) : null}
-      {isPipe || terminal.viewers <= 1 ? null : (
-        <Pill
-          aria-label={`${terminal.viewers} ${terminal.viewers === 1 ? "viewer" : "viewers"}`}
-          data-testid="terminal-viewers"
-          mono
-          size="sm"
-          tone="neutral"
-        >
-          <Eye aria-hidden="true" className="size-3" />
-          {terminal.viewers}
-        </Pill>
-      )}
-    </>
-  );
+  const status = hasStatus ? (
+    <TerminalHeaderStatus
+      isPipe={isPipe}
+      recording={recording}
+      showViewers={showViewers}
+      viewers={terminal.viewers}
+    />
+  ) : null;
   useTopbarSlot(
     hostChrome
       ? {
-          glyph: isPipe ? <FileText /> : <TerminalSquare />,
-          crumb: terminal.title,
+          glyph: <StateGlyph size="sm" state={terminalStateGlyph(terminal)} />,
+          glyphPresentation: "state",
+          crumb: terminalDisplayTitle(terminal),
           count: identityCount,
           status,
           actions,
@@ -120,17 +198,13 @@ export function TerminalHeader({
   if (hostChrome) return null;
   return (
     <header
-      className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
+      className="flex min-h-window-head flex-none items-center gap-2.5 border-line border-b bg-canvas px-4"
       data-testid="terminal-header"
     >
       <span className="flex min-w-0 items-center gap-2">
-        {isPipe ? (
-          <FileText aria-hidden="true" className="size-3.5 text-muted" />
-        ) : (
-          <TerminalSquare aria-hidden="true" className="size-3.5 text-muted" />
-        )}
-        <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
-          {terminal.title}
+        <TerminalIdentityIcon isPipe={isPipe} />
+        <span className="truncate font-medium text-fg text-heading tracking-tight">
+          {terminalDisplayTitle(terminal)}
         </span>
         {identityCount}
       </span>

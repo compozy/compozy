@@ -1,5 +1,5 @@
 import type { Preview } from "@storybook/react-vite";
-import { withThemeByClassName } from "@storybook/addon-themes";
+import { withThemeByClassName, withThemeByDataAttribute } from "@storybook/addon-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider, UIProvider } from "@compozy/ui";
 import {
@@ -298,12 +298,25 @@ function StorybookProvidersBoundary({
   );
 }
 
-export const themeDecorator = withThemeByClassName({
+// The app theme contract: `data-theme` and `.dark` move together on <html>.
+// Both decorators read the same toolbar `theme` global, so they never diverge.
+export const themeAttributeDecorator = withThemeByDataAttribute({
+  themes: {
+    light: "light",
+    dark: "dark",
+  },
+  defaultTheme: "dark",
+  attributeName: "data-theme",
+  parentSelector: "html",
+});
+
+export const themeClassDecorator = withThemeByClassName({
   themes: {
     light: "",
     dark: "dark",
   },
   defaultTheme: "dark",
+  parentSelector: "html",
 });
 
 export const queryClientDecorator = (Story: StoryRenderer) =>
@@ -321,7 +334,12 @@ export const routerDecorator = (
     routerOptions: context?.parameters?.router,
   });
 
-export const storybookDecorators = [themeDecorator, uiProviderDecorator, routerDecorator];
+export const storybookDecorators = [
+  themeAttributeDecorator,
+  themeClassDecorator,
+  uiProviderDecorator,
+  routerDecorator,
+];
 export const storybookAppStateLoader = (context: {
   parameters?: { router?: StorybookRouterOptions };
 }) => {

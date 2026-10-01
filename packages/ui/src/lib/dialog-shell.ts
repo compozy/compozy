@@ -67,6 +67,15 @@ export const DIALOG_TOUCH_TARGET_CLASS = "max-[760px]:min-h-(--height-button-cta
 export const DIALOG_TOUCH_TARGET_SQUARE_CLASS = "max-[760px]:size-(--height-button-cta-lg)";
 
 /**
+ * Quiet icon-button grammar for a dialog or sheet dismiss control — the window
+ * controls' look: no fill or ring at rest, subtle ink, a small squircle hover
+ * plate. Pair with `variant="quiet"` and `size="icon-sm"` (26px, above the 24px
+ * target floor).
+ */
+export const DIALOG_CLOSE_BUTTON_CLASS =
+  "rounded-xs text-subtle hover:text-fg max-[760px]:size-(--height-button-cta-lg)";
+
+/**
  * {@link DIALOG_TOUCH_TARGET_CLASS} projected onto segmented-control children.
  * Written as one literal so Tailwind's source scan can see it — composing this
  * selector at runtime would emit no CSS.

@@ -79,6 +79,36 @@ const STREAM_STATE_PRESENTATION: Record<
   receiving: { label: "Receiving", pulse: true, tone: "success" },
 };
 
+interface DiagnosticsTile {
+  value: string;
+  detail?: string;
+}
+
+/** Plain-language tiles for the snapshot header, derived from one inspect view. */
+function diagnosticsTiles(inspect: TaskInspectView): {
+  nextAction: DiagnosticsTile;
+  run: DiagnosticsTile;
+  session: DiagnosticsTile;
+  scheduler: string;
+} {
+  const run = inspect.current_run ?? null;
+  const session = inspect.bound_session ?? null;
+  const nextAction = inspect.next_action ?? null;
+  return {
+    nextAction: {
+      value: nextAction ? (NEXT_ACTION_COPY[nextAction] ?? nextAction.replaceAll("_", " ")) : "—",
+      detail: nextAction ?? undefined,
+    },
+    run: run
+      ? { value: `Attempt ${run.attempt} · ${taskRunStatusLabel(run.status)}`, detail: run.run_id }
+      : { value: "No current run" },
+    session: session
+      ? { value: session.state ?? "bound", detail: session.session_id }
+      : { value: "No bound session" },
+    scheduler: inspect.scheduler.paused ? "Paused" : "Active",
+  };
+}
+
 function DiagnosticsPane({
   taskId,
   inspect,
@@ -107,11 +137,19 @@ function DiagnosticsPane({
       </p>
     );
   }
+  return <DiagnosticsSnapshot errorMessage={errorMessage} inspect={inspect} taskId={taskId} />;
+}
 
-  const run = inspect.current_run ?? null;
-  const session = inspect.bound_session ?? null;
-  const diagnostics = inspect.diagnostics ?? [];
-  const nextAction = inspect.next_action ?? null;
+function DiagnosticsSnapshot({
+  taskId,
+  inspect,
+  errorMessage,
+}: {
+  taskId: string;
+  inspect: TaskInspectView;
+  errorMessage: string | null;
+}) {
+  const tiles = diagnosticsTiles(inspect);
 
   return (
     <div className="flex flex-col gap-4" data-testid="tasks-inspect-diagnostics">
@@ -122,56 +160,16 @@ function DiagnosticsPane({
       ) : null}
       <div className="grid grid-cols-2 gap-2.5">
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Next action"
-          value={
-            nextAction ? (NEXT_ACTION_COPY[nextAction] ?? nextAction.replaceAll("_", " ")) : "—"
-          }
-          detail={nextAction ?? undefined}
+          value={tiles.nextAction.value}
+          detail={tiles.nextAction.detail}
         />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Current run"
-          value={
-            run ? `Attempt ${run.attempt} · ${taskRunStatusLabel(run.status)}` : "No current run"
-          }
-          detail={run ? run.run_id : undefined}
-        />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Session"
-          value={session ? (session.state ?? "bound") : "No bound session"}
-          detail={session ? session.session_id : undefined}
-        />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Scheduler"
-          value={inspect.scheduler.paused ? "Paused" : "Active"}
-        />
+        <MetadataTile label="Current run" value={tiles.run.value} detail={tiles.run.detail} />
+        <MetadataTile label="Session" value={tiles.session.value} detail={tiles.session.detail} />
+        <MetadataTile label="Scheduler" value={tiles.scheduler} />
       </div>
 
-      {diagnostics.length === 0 ? (
-        <p className="rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
-          No diagnostics were reported in this snapshot.
-        </p>
-      ) : (
-        diagnostics.map(diagnostic => (
-          <StatusCard
-            className="border border-line-soft"
-            data-testid={`tasks-inspect-diagnostic-${diagnostic.code}`}
-            key={diagnostic.id}
-            tone={SEVERITY_TONE[diagnostic.severity ?? ""] ?? "neutral"}
-          >
-            <StatusCard.Header label={diagnostic.title}>
-              <MonoId className="ml-auto" size="sm" value={diagnostic.code} />
-            </StatusCard.Header>
-            <StatusCard.Body>{diagnostic.message}</StatusCard.Body>
-            {diagnostic.suggested_command ? (
-              <CodeBlock code={diagnostic.suggested_command} language="bash" />
-            ) : null}
-          </StatusCard>
-        ))
-      )}
+      <DiagnosticsList diagnostics={inspect.diagnostics ?? []} />
 
       <CodeBlock
         code={`# same view from the CLI\ncompozy task inspect ${taskId} -o json`}
@@ -184,6 +182,35 @@ function DiagnosticsPane({
   );
 }
 
+function DiagnosticsList({
+  diagnostics,
+}: {
+  diagnostics: NonNullable<TaskInspectView["diagnostics"]>;
+}) {
+  if (diagnostics.length === 0) {
+    return (
+      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
+        No diagnostics were reported in this snapshot.
+      </p>
+    );
+  }
+  return diagnostics.map(diagnostic => (
+    <StatusCard
+      data-testid={`tasks-inspect-diagnostic-${diagnostic.code}`}
+      key={diagnostic.id}
+      tone={SEVERITY_TONE[diagnostic.severity ?? ""] ?? "neutral"}
+    >
+      <StatusCard.Header label={diagnostic.title}>
+        <MonoId className="ml-auto" size="sm" value={diagnostic.code} />
+      </StatusCard.Header>
+      <StatusCard.Body>{diagnostic.message}</StatusCard.Body>
+      {diagnostic.suggested_command ? (
+        <CodeBlock code={diagnostic.suggested_command} language="bash" />
+      ) : null}
+    </StatusCard>
+  ));
+}
+
 function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
   const presentation = STREAM_STATE_PRESENTATION[stream.state];
 
@@ -191,7 +218,6 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
     <div className="flex flex-col gap-4" data-testid="tasks-inspect-stream">
       <div className="grid grid-cols-2 gap-2.5">
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Connection"
           value={
             <span className="inline-flex items-center gap-1.5">
@@ -200,21 +226,13 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
             </span>
           }
         />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Latest event seq"
-          value={stream.latestEventSeq ?? "—"}
-        />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Resume seed"
-          value={stream.seedSequence}
-        />
+        <MetadataTile label="Latest event seq" value={stream.latestEventSeq ?? "—"} />
+        <MetadataTile label="Resume seed" value={stream.seedSequence} />
       </div>
       {stream.errorMessage ? (
         <p className="text-small-body text-danger">{stream.errorMessage}</p>
       ) : null}
-      <p className="rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
         The task stream replays durable events for this task subtree, then tails new ones. The page
         refetches on every frame.
       </p>

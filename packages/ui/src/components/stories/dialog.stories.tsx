@@ -131,7 +131,7 @@ export const RuledFooter: Story = {
     docs: {
       description: {
         story:
-          '`DialogFooter variant="ruled"` matches the header with `border-t border-line`, `px-5 py-3`, and the same `--color-canvas-soft` fill so the unframed shell is one surface.',
+          '`DialogFooter variant="ruled"` matches the header with a `border-t` hairline, `px-5 py-3`, and the same `--color-canvas` fill so the unframed shell is one surface.',
       },
     },
   },

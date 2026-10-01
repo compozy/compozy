@@ -66,7 +66,7 @@ export function DetailPayload({
           data-testid="detail-payload-truncation"
           data-expanded={expanded}
         >
-          <Scissors aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
+          <Scissors aria-hidden="true" className="size-3 shrink-0 text-faint" />
           <span className="min-w-0 truncate tabular-nums" data-testid="detail-payload-note">
             {expanded
               ? `All ${model.totalLines.toLocaleString("en-US")} lines`

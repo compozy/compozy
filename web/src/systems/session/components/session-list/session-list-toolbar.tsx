@@ -10,6 +10,7 @@ import {
   Icon,
 } from "@compozy/ui";
 
+import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import { SESSION_LIST_SORTS, type SessionListSort } from "../../lib/session-list-preferences";
 import { SessionArchivedToggle, SessionScopeToggle } from "./session-toolbar-toggles";
 
@@ -53,7 +54,7 @@ export function SessionListToolbar({
   testIdPrefix,
 }: SessionListToolbarProps) {
   return (
-    <div className="flex items-center gap-1 px-3 py-1.5">
+    <div className={SESSION_LIST_BAR_CLASS}>
       <SessionScopeToggle
         allWorkspaces={allWorkspaces}
         busy={disabled}
@@ -72,7 +73,7 @@ export function SessionListToolbar({
           render={
             <Button
               type="button"
-              variant="ghost"
+              variant="quiet"
               size="icon-sm"
               className="ml-auto shrink-0"
               disabled={disabled}
@@ -98,8 +99,10 @@ export function SessionListToolbar({
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* Secondary, not the inverted primary: the composer's send owns that (P4). */}
       <Button
         type="button"
+        variant="secondary"
         size="icon-sm"
         className="shrink-0"
         aria-label="New session"

@@ -10,7 +10,7 @@ const meta: Meta<typeof Surface> = {
     docs: {
       description: {
         component:
-          "The flat card tile — `rounded-lg` on `--canvas-soft`. Compose it instead of re-copying the padding tuple; content layout stays with the consumer.",
+          "One of the two surface levels at `rounded-lg`: `card` (default) lifts content on `--canvas` with `shadow-card`; `sunken` recesses secondary lists on `--sunken` with no border or shadow. Compose it instead of re-copying the padding tuple; content layout stays with the consumer.",
       },
     },
   },
@@ -40,6 +40,20 @@ export const Compact: Story = {
     <Surface size="compact" className="flex items-center justify-between gap-2">
       <span className="text-small-body text-fg">Queue depth</span>
       <span className="font-mono text-mono-id tabular-nums text-muted">142</span>
+    </Surface>
+  ),
+};
+
+/** Recessed inset for secondary lists — tool rows, command previews. */
+export const Sunken: Story = {
+  render: () => (
+    <Surface variant="sunken" size="compact" className="flex flex-col gap-1">
+      <span className="text-small-body text-muted">
+        <span className="font-medium text-fg">Read</span> web/src/checkout/order-summary.tsx
+      </span>
+      <span className="text-small-body text-muted">
+        <span className="font-medium text-fg">Run</span> bun run test checkout
+      </span>
     </Surface>
   ),
 };

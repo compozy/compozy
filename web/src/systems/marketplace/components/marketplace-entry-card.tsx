@@ -131,7 +131,7 @@ function highlightQuery(text: string, query: string): ReactNode {
   for (const match of text.matchAll(pattern)) {
     result.push(text.slice(offset, match.index));
     result.push(
-      <mark className="rounded-xxs bg-surface-glaze text-fg-strong" key={match.index}>
+      <mark className="rounded-xxs bg-selected text-fg" key={match.index}>
         {match[0]}
       </mark>
     );

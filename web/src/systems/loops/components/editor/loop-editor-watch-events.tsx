@@ -63,10 +63,7 @@ export function LoopEditorWatchEvents({
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-watch-events">
       {subscriptions.map((subscription, index) => (
-        <div
-          key={rowKeys.keys[index]}
-          className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
-        >
+        <div key={rowKeys.keys[index]} className="rounded-md bg-sunken p-2.5">
           <div className="mb-2 flex items-center gap-2">
             <Pill size="xs" tone="neutral">
               Event
@@ -81,7 +78,7 @@ export function LoopEditorWatchEvents({
               aria-label={`Remove subscription ${index + 1}`}
               className="ml-auto"
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </div>
           <div className="flex flex-col gap-2">
@@ -123,14 +120,13 @@ export function LoopEditorWatchEvents({
       ))}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled}
         onClick={add}
-        className="border-dashed"
         data-testid="loop-editor-watch-events-add"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add subscription
       </Button>
     </div>

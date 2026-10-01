@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CalendarClock, ClipboardCheck, KeyRound } from "lucide-react";
+import { CalendarClock, ClipboardCheck, KeyRound, Trash2 } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Dialog, DialogContent } from "../../dialog";
@@ -15,7 +15,7 @@ const meta: Meta<typeof EntityDialogHeader> = {
     docs: {
       description: {
         component:
-          "Canonical entity-editor modal header: a 36px accent icon well beside an accent-strong eyebrow, the dialog title, and an optional description. The icon well is the only accent-tinted surface in the modal shell.",
+          "Canonical entity-editor modal header: the mint identity well beside a muted eyebrow, the dialog title, an optional description, and a quiet close control. `tone` follows the shared dialog tone model (`neutral` default; `danger` / `warning` keep semantic wells), so an entity editor never reads as needing attention.",
       },
     },
   },
@@ -150,6 +150,23 @@ export const WithClose: Story = {
         icon={CalendarClock}
         onClose={() => {}}
         title="Create job"
+      />
+    </HeaderHost>
+  ),
+};
+
+/** A destructive subject keeps its semantic well and eyebrow through `tone`. */
+export const DangerTone: Story = {
+  args: { eyebrow: "System · Vault", icon: Trash2, title: "Remove vault secret", tone: "danger" },
+  render: () => (
+    <HeaderHost>
+      <EntityDialogHeader
+        description="Sessions that reference this secret stop resolving it."
+        eyebrow="System · Vault"
+        icon={Trash2}
+        onClose={() => {}}
+        title="Remove vault secret"
+        tone="danger"
       />
     </HeaderHost>
   ),

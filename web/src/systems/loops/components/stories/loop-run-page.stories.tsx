@@ -11,7 +11,7 @@ import {
   LoopRunControls,
   LoopRunOverflowMenu,
   LoopRunPageBody,
-  LoopStatusPill,
+  LoopStatusMark,
 } from "../../index";
 import {
   forkedRunScenario,
@@ -88,7 +88,7 @@ function ScenarioPage({
 
   useTopbarSlot({
     ...topbarIdentity,
-    status: <LoopStatusPill status={props.run.status} data-testid="loop-run-status-pill" />,
+    status: <LoopStatusMark status={props.run.status} data-testid="loop-run-status-pill" />,
     actions: (
       <div className="flex items-center gap-2">
         <LoopRunControls

@@ -56,10 +56,7 @@ export function LoopRequestDetails({
         Details
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div
-          className="mt-2 rounded-md border border-line-soft bg-input-fill px-3 py-2.5"
-          data-testid="loop-request-context"
-        >
+        <div className="mt-2 rounded-lg bg-sunken px-3 py-2.5" data-testid="loop-request-context">
           {preview ? (
             <>
               <Eyebrow className="text-faint">Context</Eyebrow>
@@ -122,7 +119,7 @@ function FullContextFetch({
         onClick={onRequestFull}
         size="sm"
         type="button"
-        variant="outline"
+        variant="secondary"
       >
         {isLoading ? <Spinner /> : <ScrollText aria-hidden="true" />}
         {error ? "Try again" : "Show full context"}

@@ -76,9 +76,9 @@ function AgentFleetToolbar({
                   data-testid="agent-fleet-filters-add"
                   size="sm"
                   type="button"
-                  variant="ghost"
+                  variant="quiet"
                 >
-                  <ListFilter aria-hidden="true" className="size-3" />
+                  <ListFilter aria-hidden="true" />
                   Filter
                 </Button>
               }

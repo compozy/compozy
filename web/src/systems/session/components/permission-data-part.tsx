@@ -89,7 +89,7 @@ export function PermissionExpiredReceipt({
   return (
     <Receipt
       tone="neutral"
-      icon={cause === "restart" ? <RotateCcw strokeWidth={2} /> : <X strokeWidth={2} />}
+      icon={cause === "restart" ? <RotateCcw /> : <X />}
       data-testid="permission-expired-receipt"
       data-cause={cause}
       data-resolution={interaction.resolution}

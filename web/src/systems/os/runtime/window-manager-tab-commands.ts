@@ -42,7 +42,8 @@ export function openWindowCommand(
         route: target.route ?? defaultOsWindowRoute(target.app),
         desktop_id: desktopId,
         floating_rect: normalizedRectToWire(DEFAULT_WINDOW_MANAGER_FLOATING_RECT),
-        insert_tiled: false,
+        insert_tiled: target.placement === "split",
+        ...(target.placement === "floating" ? { floating: true } : {}),
         ...(target.stackTargetWindowId
           ? { stack_target_window_id: target.stackTargetWindowId }
           : {}),

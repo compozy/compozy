@@ -15,12 +15,13 @@ compozy layout arrange [flags]
 
 ```
       --actor-id string      Optional actor identifier
-      --arrangement string   Arrangement: horizontal, vertical, grid, or stack
+      --arrangement string   Arrangement: horizontal, vertical, grid, stack, or main_stack
       --client string        Connected presentation client ID
       --desktop string       Desktop ID
       --frame string         Group frame as x,y,width,height; defaults to the full desktop
       --group string         Stable group ID; generated when omitted
   -h, --help                 help for arrange
+      --keep-frames          Arrange each named window's whole tab frame as one participant, keeping the deck intact
       --origin string        Command origin label (default "cli")
       --resource string      Declarative layout resource ID
       --revision uint        Expected workspace revision

@@ -180,7 +180,7 @@ function RestartBannerMessage({
     <AlertDescription
       data-slot="restart-banner-message"
       className={cn(
-        "flex min-w-0 flex-wrap items-center gap-2 text-sm",
+        "flex min-w-0 flex-wrap items-center gap-2 text-small-body",
         hasDescription && "flex-col items-start gap-0.5"
       )}
     >

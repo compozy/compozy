@@ -96,7 +96,7 @@ function DegradedNotice({
             onClick={onRetry}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             <RotateCcw aria-hidden="true" />
             Retry now
@@ -201,7 +201,7 @@ function RosterBody({
     return (
       <SkeletonRows
         aria-hidden="true"
-        className="gap-3 rounded-lg border border-line bg-canvas-soft px-4 py-3"
+        className="gap-3 rounded-lg bg-card shadow-card px-4 py-3"
         count={3}
         data-testid="loop-runs-skeleton"
       >

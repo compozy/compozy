@@ -38,36 +38,47 @@ export function SettingsGroup({
 }: SettingsGroupProps) {
   return (
     <section className={cn("flex flex-col gap-2.5", className)} data-testid={testId}>
-      {title || help || description || action ? (
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            {title || help ? (
-              <div className="flex min-w-0 items-center gap-1.5">
-                {title ? (
-                  <h2 className="text-ws-name font-semibold tracking-tight text-fg-strong">
-                    {title}
-                  </h2>
-                ) : null}
-                {help ? <HelpTip label={groupHelpLabel(title)}>{help}</HelpTip> : null}
-              </div>
-            ) : null}
-            {description ? (
-              <p className="max-w-settings-page-description text-form-label text-muted">
-                {description}
-              </p>
-            ) : null}
-          </div>
-          {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
-        </header>
-      ) : null}
+      <SettingsGroupHeader action={action} description={description} help={help} title={title} />
       {bare ? (
         children
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-          {children}
-        </div>
+        <div className="overflow-hidden rounded-lg bg-card shadow-card">{children}</div>
       )}
     </section>
+  );
+}
+
+function SettingsGroupTitle({ title, help }: Pick<SettingsGroupProps, "title" | "help">) {
+  if (!title && !help) return null;
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      {title ? (
+        <h2 className="text-item-title font-medium tracking-tight text-fg">{title}</h2>
+      ) : null}
+      {help ? <HelpTip label={groupHelpLabel(title)}>{help}</HelpTip> : null}
+    </div>
+  );
+}
+
+function SettingsGroupHeader({
+  title,
+  help,
+  description,
+  action,
+}: Pick<SettingsGroupProps, "title" | "help" | "description" | "action">) {
+  if (!title && !help && !description && !action) return null;
+  return (
+    <header className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <SettingsGroupTitle help={help} title={title} />
+        {description ? (
+          <p className="max-w-settings-page-description text-small-body text-muted">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+    </header>
   );
 }
 

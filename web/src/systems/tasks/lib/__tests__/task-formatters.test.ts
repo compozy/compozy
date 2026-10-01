@@ -28,7 +28,8 @@ import {
   taskRunStatusLabel,
   taskRunStatusTone,
   taskStatusLabel,
-  taskStatusSignal,
+  taskStateGlyph,
+  taskRunStateGlyph,
   taskStatusTone,
   taskWakeIndicatorApplies,
 } from "../task-formatters";
@@ -403,12 +404,62 @@ describe("recover + wake affordance gating", () => {
     expect(taskCanRecover({ status: "completed" } as Pick<TaskRecord, "status">)).toBe(false);
   });
 
-  it("Should render blocked and needs_attention as distinct StatusDot signals", () => {
-    // The header title dot must agree with the status pill and keep the two
-    // states distinct (no coercion): blocked → danger, needs_attention → warning.
-    expect(taskStatusSignal("blocked").tone).toBe("danger");
-    expect(taskStatusSignal("needs_attention").tone).toBe("warning");
-    expect(taskStatusSignal("blocked").tone).not.toBe(taskStatusSignal("needs_attention").tone);
+  it("Should map every task and run status onto the canonical StateGlyph states", () => {
+    // Both escalations wait on a person, so both read as attention; their
+    // labels (taskStatusLabel) keep them distinct.
+    expect(
+      Object.fromEntries(
+        (
+          [
+            "draft",
+            "pending",
+            "ready",
+            "in_progress",
+            "blocked",
+            "needs_attention",
+            "completed",
+            "failed",
+            "canceled",
+          ] as const
+        ).map(status => [status, taskStateGlyph(status)])
+      )
+    ).toEqual({
+      draft: "queued",
+      pending: "queued",
+      ready: "queued",
+      in_progress: "running",
+      blocked: "attention",
+      needs_attention: "attention",
+      completed: "done",
+      failed: "failed",
+      canceled: "stopped",
+    });
+    expect(taskStateGlyph("mystery")).toBe("idle");
+    expect(
+      Object.fromEntries(
+        (
+          [
+            "queued",
+            "claimed",
+            "starting",
+            "running",
+            "needs_attention",
+            "completed",
+            "failed",
+            "canceled",
+          ] as const
+        ).map(status => [status, taskRunStateGlyph(status)])
+      )
+    ).toEqual({
+      queued: "queued",
+      claimed: "running",
+      starting: "running",
+      running: "running",
+      needs_attention: "attention",
+      completed: "done",
+      failed: "failed",
+      canceled: "stopped",
+    });
   });
 
   it("Should surface the wake indicator only for agent-session-created tasks", () => {

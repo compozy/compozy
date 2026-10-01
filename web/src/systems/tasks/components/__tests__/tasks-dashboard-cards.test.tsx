@@ -77,6 +77,6 @@ describe("TasksDashboardCards", () => {
     });
 
     render(<TasksDashboardCards dashboard={dashboard} />);
-    expect(screen.getByTestId("tasks-dashboard-card-success-rate")).toHaveTextContent("--");
+    expect(screen.getByTestId("tasks-dashboard-card-success-rate")).toHaveTextContent("—");
   });
 });

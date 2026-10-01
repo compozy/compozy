@@ -53,7 +53,7 @@ export function SettingsPageState({
       <Empty
         action={
           onRetry ? (
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
+            <Button onClick={onRetry} size="sm" type="button" variant="secondary">
               Try again
             </Button>
           ) : undefined

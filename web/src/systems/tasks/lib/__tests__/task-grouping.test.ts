@@ -5,7 +5,7 @@ import {
   getTaskListGroups,
   groupTasksForKanban,
   groupTasksForList,
-  listGroupDotProps,
+  listGroupGlyph,
   resolveKanbanColumnId,
   resolveTaskListGroupId,
 } from "../task-grouping";
@@ -25,23 +25,28 @@ function buildTask(id: string, status: TaskListItem["status"]): TaskListItem {
 }
 
 describe("task-grouping", () => {
-  it("Should attach a stable StatusDot tone and variant to every list group", () => {
-    const expected: Record<string, { tone: string; variant: string }> = {
-      active: { tone: "accent", variant: "ring" },
-      // blocked → danger, needs_attention → warning: distinct escalation buckets,
-      // no coercion (matches TASK_STATUS_TONE).
-      blocked: { tone: "danger", variant: "solid" },
-      needs_attention: { tone: "warning", variant: "solid" },
-      queued: { tone: "faint", variant: "ring" },
-      done: { tone: "faint", variant: "solid" },
-      failed: { tone: "danger", variant: "solid" },
-    };
-
-    for (const group of getTaskListGroups()) {
-      expect(listGroupDotProps(group.id)).toEqual(expected[group.id]);
-      expect(group.dotTone).toBe(expected[group.id]?.tone);
-      expect(group.dotVariant).toBe(expected[group.id]?.variant);
-    }
+  it("Should attach a canonical StateGlyph state to every list group and kanban column", () => {
+    // blocked and needs_attention both wait on a person (attention); their labels
+    // keep the two escalation buckets distinct (no coercion).
+    expect(
+      Object.fromEntries(getTaskListGroups().map(group => [group.id, listGroupGlyph(group.id)]))
+    ).toEqual({
+      active: "running",
+      blocked: "attention",
+      needs_attention: "attention",
+      queued: "queued",
+      done: "done",
+      failed: "failed",
+    });
+    expect(Object.fromEntries(getKanbanColumns().map(column => [column.id, column.glyph]))).toEqual(
+      {
+        pending: "queued",
+        in_progress: "running",
+        blocked: "attention",
+        needs_attention: "attention",
+        done: "done",
+      }
+    );
   });
 
   it("Should return the canonical columns including a distinct needs_attention column in order", () => {

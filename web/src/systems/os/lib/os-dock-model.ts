@@ -47,10 +47,19 @@ export function dockBadgeFor(
 }
 
 /** OpenDesign dock name: app title, plus the exact needs-you count when present. */
-export function dockItemAccessibleName(item: Pick<OsDockItemData, "name" | "badge">): string {
-  const count = item.badge;
-  if (count === undefined || count <= 0) return item.name;
-  return count === 1 ? `${item.name} — 1 needs you` : `${item.name} — ${count} need you`;
+export function dockItemAccessibleName(
+  item: Pick<OsDockItemData, "name" | "badge" | "hint">
+): string {
+  const count = item.badge ?? 0;
+  let name = item.name;
+  if (count === 1) name = `${item.name} — 1 needs you`;
+  else if (count > 1) name = `${item.name} — ${count} need you`;
+  return item.hint ? `${name}. ${item.hint}` : name;
+}
+
+/** Tooltip text: the app title, plus why the launcher does something else right now. */
+export function dockItemTip(item: Pick<OsDockItemData, "name" | "hint">): string {
+  return item.hint ? `${item.name} — ${item.hint}` : item.name;
 }
 
 export interface OsDockItemData {
@@ -62,17 +71,12 @@ export interface OsDockItemData {
   icon: DockIconId;
   /** Window is open. */
   running?: boolean;
+  /** The focused window belongs to this app (selected plate in the rail). */
+  active?: boolean;
   /** Window is minimized into its icon (hollow indicator, dimmed glyph). */
   minimized?: boolean;
   /** Attention count from a runtime projection; 0/undefined renders nothing. */
   badge?: number;
-}
-
-/** Group break matching OpenDesign `dock-sep` (sidebar group seams). */
-export type OsDockSeparator = { id: string; sep: true };
-
-export type OsDockEntry = OsDockItemData | OsDockSeparator;
-
-export function isOsDockSeparator(entry: OsDockEntry): entry is OsDockSeparator {
-  return "sep" in entry && entry.sep === true;
+  /** Why activation leads somewhere else right now (e.g. pick a project first). */
+  hint?: string;
 }

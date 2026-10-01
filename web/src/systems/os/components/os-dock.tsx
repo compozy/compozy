@@ -1,118 +1,104 @@
-import { useRef } from "react";
-import { Plus } from "lucide-react";
+import { useState } from "react";
 
-import { Icon, PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { useDockMagnify } from "../hooks/use-dock-magnify";
-import {
-  dockItemAccessibleName,
-  isOsDockSeparator,
-  type OsDockEntry,
-  type OsDockItemData,
-} from "../lib/os-dock-model";
+import { dockTabStopId, moveDockRovingFocus } from "../lib/dock-roving-focus";
+import type { LaunchModifiers } from "../lib/launch-placement";
+import { dockItemAccessibleName, dockItemTip, type OsDockItemData } from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
-/** OpenDesign tip clearance above the icon (`bottom: calc(100% + 12px)`). */
-const DOCK_TIP_SIDE_OFFSET = 12;
+export type { OsDockItemData } from "../lib/os-dock-model";
 
-export type { OsDockEntry, OsDockItemData, OsDockSeparator } from "../lib/os-dock-model";
+/** Tip clearance beside the rail item (shell-rail v2 `.tip`). */
+const RAIL_TIP_SIDE_OFFSET = 10;
 
 /**
- * The dock: a centered glass strip of app launchers floating over the desktop,
- * with an optional detached New Session control in its own glass segment
- * (OpenDesign `dock-zone` anatomy). DesktopDock owns the runtime wiring.
+ * The rail: the dock as a vertical launcher column on the chrome surface,
+ * beside the desktop (shell-rail v2 `.rail` / `.ri`). DesktopDock owns the
+ * runtime wiring; the foot slot hosts shell controls below the launchers.
  */
-
-export interface OsDockProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
-  items: OsDockEntry[];
-  /** Item activation. Omit to render items as presentation. */
-  onSelect?: (id: string) => void;
+export interface OsDockProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
+  items: OsDockItemData[];
+  /**
+   * Item activation. Pointer clicks report their ⌥ / ⇧ modifiers; keyboard
+   * activation never does, so Enter and Space always act as a plain click.
+   * Omit to render items as presentation.
+   */
+  onSelect?: (id: string, modifiers?: LaunchModifiers) => void;
   /** Keeps launchers visible while the authoritative command fence hydrates. */
   disabled?: boolean;
   /** Wraps each interactive item with its destination context menu (US-006). */
   renderItemMenu?: (item: OsDockItemData, children: React.ReactNode) => React.ReactNode;
-  /**
-   * OpenDesign proximity magnification. Default on; DesktopDock turns this
-   * off in compact presentation. Reduced-motion also disables the effect.
-   */
-  magnify?: boolean;
+  /** Shell controls pinned to the bottom of the rail, below the launchers. */
+  foot?: React.ReactNode;
+  /** Names the launcher navigation (not the rail container). */
+  "aria-label"?: string;
 }
 
-interface OsDockNewSessionProps extends Omit<
-  React.ComponentProps<"button">,
-  "onClick" | "children"
-> {
-  /** When omitted the control renders as non-interactive presentation. */
-  onNewSession?: () => void;
+type DockItemState = "minimized" | "running" | "closed";
+
+function dockItemState(item: OsDockItemData): DockItemState {
+  if (item.minimized) return "minimized";
+  return item.running ? "running" : "closed";
 }
 
-/** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
-function DockTip({ label }: { label: string }) {
+function DockItemBody({ item }: { item: OsDockItemData }) {
+  const state = dockItemState(item);
   return (
-    <TooltipContent
-      side="top"
-      sideOffset={DOCK_TIP_SIDE_OFFSET}
-      className={cn(
-        "border border-line-strong bg-shell-glass-pop px-2.5 py-1 text-micro font-medium shadow-none",
-        // OpenDesign dock tip has no caret; hide the shared Tooltip arrow.
-        "[&>*:last-child]:hidden"
-      )}
-    >
-      {label}
-    </TooltipContent>
+    <>
+      <DockIcon name={item.icon} className={cn("size-4.5", item.minimized && "opacity-50")} />
+      <span
+        data-slot="os-dock-indicator"
+        aria-hidden="true"
+        className={cn(
+          "absolute top-1/2 -left-1.5 -translate-y-1/2 rounded-full transition-opacity duration-base",
+          state === "closed" ? "opacity-0" : "opacity-100",
+          state === "minimized"
+            ? "size-1.25 border border-subtle bg-transparent"
+            : cn("size-1", item.active ? "bg-fg" : "bg-muted")
+        )}
+      />
+      {item.badge ? (
+        <PillCount
+          data-slot="os-dock-badge"
+          count={item.badge}
+          className="absolute top-0.75 right-0.75 ring-2 ring-rail"
+        />
+      ) : null}
+    </>
   );
 }
 
+const ITEM_BASE =
+  "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted transition-[background-color,color,box-shadow] duration-base ease-spring";
+const ITEM_INTERACTIVE =
+  "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none";
+const ITEM_ACTIVE = "bg-rail-selected text-fg hover:bg-rail-selected";
+
 function DockItem({
   item,
+  tabStop,
+  onFocusItem,
   onSelect,
   disabled,
   renderItemMenu,
 }: {
   item: OsDockItemData;
-  onSelect?: (id: string) => void;
+  tabStop: boolean;
+  onFocusItem: (id: string) => void;
+  onSelect?: OsDockProps["onSelect"];
   disabled?: boolean;
   renderItemMenu?: OsDockProps["renderItemMenu"];
 }) {
-  const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
-  const body = (
-    <>
-      <span
-        className={cn(
-          "grid place-items-center text-muted transition-colors duration-base",
-          item.minimized && "opacity-55"
-        )}
-      >
-        <DockIcon name={item.icon} className="size-dock-icon" />
-      </span>
-      {item.badge ? (
-        <PillCount
-          data-slot="os-dock-badge"
-          count={item.badge}
-          className="absolute top-0.5 right-0.5"
-        />
-      ) : null}
-      <span
-        data-slot="os-dock-indicator"
-        aria-hidden="true"
-        className={cn(
-          "absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full transition-opacity duration-base",
-          item.running || item.minimized ? "opacity-100" : "opacity-0",
-          item.minimized
-            ? "size-dock-indicator-min border border-muted bg-transparent"
-            : "size-dock-indicator bg-muted"
-        )}
-      />
-    </>
+  const name = dockItemAccessibleName(item);
+  const classes = cn(ITEM_BASE, onSelect && ITEM_INTERACTIVE, item.active && ITEM_ACTIVE);
+  const tip = (
+    <TooltipContent side="right" sideOffset={RAIL_TIP_SIDE_OFFSET}>
+      {dockItemTip(item)}
+    </TooltipContent>
   );
-
-  const base =
-    "relative grid size-dock-item origin-bottom place-items-center rounded-dock-item transition-[transform,background-color,color] duration-shell-fast ease-spring";
-  const interactive =
-    "hover:bg-btn-default-fill focus-visible:shadow-focus-ring focus-visible:outline-none";
-  const classes = cn(base, onSelect && interactive);
 
   if (!onSelect) {
     return (
@@ -122,17 +108,18 @@ function DockItem({
             <span
               data-slot="os-dock-item"
               data-app={item.id}
-              data-state={state}
+              data-state={dockItemState(item)}
               className={classes}
             />
           }
         >
-          {body}
+          <DockItemBody item={item} />
         </TooltipTrigger>
-        <DockTip label={dockItemAccessibleName(item)} />
+        {tip}
       </Tooltip>
     );
   }
+
   const interactiveItem = (
     <Tooltip>
       <TooltipTrigger
@@ -141,181 +128,113 @@ function DockItem({
             type="button"
             data-slot="os-dock-item"
             data-app={item.id}
-            data-state={state}
-            aria-label={dockItemAccessibleName(item)}
+            data-state={dockItemState(item)}
+            aria-label={name}
+            aria-current={item.active ? "true" : undefined}
+            tabIndex={tabStop ? 0 : -1}
             disabled={disabled}
             className={classes}
-            onClick={() => onSelect(item.id)}
+            onFocus={() => onFocusItem(item.id)}
+            onClick={event =>
+              onSelect(
+                item.id,
+                // `detail` is 0 for keyboard (and programmatic) activation.
+                event.detail === 0 ? undefined : { altKey: event.altKey, shiftKey: event.shiftKey }
+              )
+            }
           />
         }
       >
-        {body}
+        <DockItemBody item={item} />
       </TooltipTrigger>
-      <DockTip label={dockItemAccessibleName(item)} />
+      {tip}
     </Tooltip>
   );
   return renderItemMenu ? <>{renderItemMenu(item, interactiveItem)}</> : interactiveItem;
 }
 
-const DOCK_SEG =
-  "flex items-end gap-dock-gap rounded-dock border border-line bg-shell-glass p-dock-pad shadow-dock backdrop-blur-shell";
+export interface OsRailButtonProps extends Omit<React.ComponentProps<"button">, "children"> {
+  /** Accessible name and the tooltip beside the rail. */
+  label: string;
+  /** Tooltip side: beside the rail, or above the compact tab bar. */
+  tipSide?: "right" | "top";
+  children: React.ReactNode;
+}
+
+/** A rail-foot control in the launcher grammar: 40px item, muted glyph, tooltip at the right. */
+export function OsRailButton({
+  label,
+  tipSide = "right",
+  className,
+  children,
+  ...props
+}: OsRailButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            className={cn(ITEM_BASE, ITEM_INTERACTIVE, className)}
+            {...props}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side={tipSide} sideOffset={RAIL_TIP_SIDE_OFFSET}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function OsDock({
   items,
   onSelect,
   disabled,
   renderItemMenu,
-  magnify = true,
+  foot,
+  "aria-label": ariaLabel = "Dock",
   className,
   ...props
 }: OsDockProps) {
-  const rootRef = useRef<HTMLElement>(null);
-  useDockMagnify(rootRef, magnify);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const tabStopId = dockTabStopId(items, focusedId);
 
   return (
-    <nav
-      ref={rootRef}
-      data-slot="os-dock"
-      aria-label="Dock"
-      className={cn(DOCK_SEG, className)}
+    <div
+      data-slot="os-rail"
+      className={cn("flex w-rail shrink-0 flex-col items-center bg-rail", className)}
       {...props}
     >
-      {items.map(entry =>
-        isOsDockSeparator(entry) ? (
-          <span
-            key={entry.id}
-            data-slot="os-dock-sep"
-            aria-hidden="true"
-            className="mb-dock-pad h-8 w-px shrink-0 self-end bg-line-strong"
-          />
-        ) : (
+      <nav
+        data-slot="os-dock"
+        aria-label={ariaLabel}
+        className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-1.5 overflow-y-auto py-3.5"
+        onKeyDown={onSelect ? event => moveDockRovingFocus(event, "vertical") : undefined}
+      >
+        {items.map(item => (
           <DockItem
-            key={entry.id}
-            item={entry}
+            key={item.id}
+            item={item}
+            tabStop={item.id === tabStopId}
+            onFocusItem={setFocusedId}
             onSelect={onSelect}
             disabled={disabled}
             renderItemMenu={renderItemMenu}
           />
-        )
-      )}
-    </nav>
-  );
-}
-
-/**
- * Detached New Session control — its own glass segment beside the dock strip
- * (OpenDesign `dock-actions` / `dock-new`).
- */
-function OsDockNewSession({ onNewSession, className, ...props }: OsDockNewSessionProps) {
-  const innerClass = cn(
-    "grid size-dock-item place-items-center rounded-dock-item bg-accent text-accent-ink shadow-highlight",
-    onNewSession &&
-      "transition-transform duration-shell-fast ease-spring hover:-translate-y-0.5 hover:bg-accent-hover"
-  );
-  const glyph = <Icon as={Plus} className="size-dock-new-icon" />;
-
-  if (!onNewSession) {
-    return (
-      <div data-slot="os-dock-actions" className={cn(DOCK_SEG, className)}>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span
-                data-slot="os-dock-new"
-                className={innerClass}
-                {...(props as React.ComponentProps<"span">)}
-              />
-            }
-          >
-            {glyph}
-          </TooltipTrigger>
-          <DockTip label="New session" />
-        </Tooltip>
-      </div>
-    );
-  }
-
-  return (
-    <div data-slot="os-dock-actions" className={cn(DOCK_SEG, className)}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              data-slot="os-dock-new"
-              aria-label="New session"
-              className={cn(
-                "rounded-dock-item focus-visible:shadow-focus-ring focus-visible:outline-none",
-                innerClass
-              )}
-              onClick={onNewSession}
-              {...props}
-            />
-          }
+        ))}
+      </nav>
+      {foot ? (
+        <div
+          data-slot="os-rail-foot"
+          className="flex shrink-0 flex-col items-center gap-1.5 pt-2.5 pb-3.5"
         >
-          {glyph}
-        </TooltipTrigger>
-        <DockTip label="New session" />
-      </Tooltip>
-    </div>
-  );
-}
-
-/**
- * Full dock zone: centered strip + detached New Session, matching OpenDesign
- * `dock-zone` (flex spacers keep the pair centered).
- */
-export function OsDockZone({
-  items,
-  leading,
-  onSelect,
-  disabled,
-  renderItemMenu,
-  onNewSession,
-  magnify = true,
-  className,
-  style,
-  ...props
-}: {
-  items: OsDockEntry[];
-  leading?: React.ReactNode;
-  onSelect?: (id: string) => void;
-  disabled?: boolean;
-  renderItemMenu?: OsDockProps["renderItemMenu"];
-  onNewSession?: () => void;
-  magnify?: boolean;
-  className?: string;
-} & Omit<React.ComponentProps<"div">, "children" | "onSelect">) {
-  return (
-    <div
-      data-slot="os-dock-zone"
-      className={cn(
-        "pointer-events-none absolute inset-x-0 z-10 flex items-center gap-2.5",
-        className
-      )}
-      style={{
-        bottom: "calc(var(--spacing) * 2.5 + env(safe-area-inset-bottom, 0px))",
-        paddingInline:
-          "calc(var(--spacing) * 4 + max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px)))",
-        ...style,
-      }}
-      {...props}
-    >
-      <div className="flex min-w-0 flex-1 items-center justify-start overflow-hidden">
-        <div className="pointer-events-auto w-fit">{leading}</div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2.5">
-        <OsDock
-          items={items}
-          onSelect={onSelect}
-          disabled={disabled}
-          renderItemMenu={renderItemMenu}
-          magnify={magnify}
-          className="pointer-events-auto"
-        />
-        <OsDockNewSession onNewSession={onNewSession} className="pointer-events-auto" />
-      </div>
-      <span className="min-w-0 flex-1" aria-hidden="true" />
+          {foot}
+        </div>
+      ) : null}
     </div>
   );
 }

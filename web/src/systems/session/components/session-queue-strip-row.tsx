@@ -30,7 +30,7 @@ function SessionQueuedAttachmentWell({ summary }: { summary: QueuedPromptAttachm
     <>
       <span
         data-testid="composer-queued-attachment-well"
-        className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-xs border border-line bg-canvas-soft"
+        className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-xs border border-line bg-card"
       >
         {summary.preview?.kind === "image" ? (
           <img src={summary.preview.url} alt="" className="size-full object-cover" />
@@ -71,7 +71,7 @@ function SessionQueuedPreview({ text }: { text: string }) {
       title={text}
     >
       {preview.kind === "code" ? (
-        <span className="mr-1.5 rounded-xxs bg-badge-fill px-1 font-mono text-mono-id text-subtle">
+        <span className="mr-1.5 rounded-xxs bg-surface-2 px-1 font-mono text-mono-id text-subtle">
           code
         </span>
       ) : null}
@@ -103,19 +103,16 @@ function SessionQueuedState({
 function SessionQueueRowFrame({
   children,
   className,
-  first,
   ...props
 }: {
   children: ReactNode;
   className?: string;
-  first: boolean;
 } & Record<`data-${string}`, string | undefined>) {
   return (
     <div
       data-testid="composer-queued-prompt-row"
       className={cn(
-        "flex min-h-8 min-w-0 items-center gap-2 py-transcript-meta-gap pr-transcript-inline-gap pl-3",
-        !first && "border-t border-line-soft",
+        "flex min-h-8 min-w-0 items-center gap-2 py-transcript-meta-gap pr-transcript-inline-gap pl-3.5",
         className
       )}
       {...props}
@@ -138,7 +135,6 @@ function SessionQueuePosition({ children }: { children: ReactNode }) {
 
 export interface SessionQueueEntryRowProps {
   prompt: QueuedPrompt;
-  first: boolean;
   /** Row verbs are suspended (a mutation or send is in flight). */
   disabled: boolean;
   /** The verbs are absent while another row is being edited or the queue is being cleared. */
@@ -157,7 +153,6 @@ export interface SessionQueueEntryRowProps {
  */
 export function SessionQueueEntryRow({
   prompt,
-  first,
   disabled,
   actionsHidden,
   onSteer,
@@ -167,11 +162,7 @@ export function SessionQueueEntryRow({
   const dispatching = prompt.status === "dispatching";
   const mutable = isQueuedPromptMutable(prompt) && prompt.owner === null;
   return (
-    <SessionQueueRowFrame
-      first={first}
-      data-status={prompt.status}
-      data-owner-kind={prompt.owner?.kind}
-    >
+    <SessionQueueRowFrame data-status={prompt.status} data-owner-kind={prompt.owner?.kind}>
       <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       {prompt.owner ? <SessionQueuedOwner owner={prompt.owner} /> : null}
@@ -196,7 +187,7 @@ export function SessionQueueEntryRow({
                 ? "Queued messages with files can't be steered on this agent"
                 : undefined
             }
-            className="text-muted hover:text-fg-strong"
+            className="text-muted hover:text-fg"
           >
             <CornerDownRight aria-hidden="true" className="size-3" />
             Steer
@@ -235,7 +226,6 @@ export function SessionQueueEntryRow({
 
 export interface SessionUnconfirmedRowProps {
   send: UnconfirmedSend;
-  first: boolean;
   disabled: boolean;
   onRetry?: (id: string) => void;
   onDiscard?: (id: string) => void;
@@ -244,19 +234,18 @@ export interface SessionUnconfirmedRowProps {
 /**
  * The only client-local row: a send whose acknowledgment was lost. No position
  * (it has none yet), the retained message id beside "Not confirmed", and Retry
- * — the one action-colored control — replaying the same identity. Discard drops
+ * replaying the same identity. Discard drops
  * the local row only; the daemon is never asked to forget anything.
  */
 export function SessionUnconfirmedRow({
   send,
-  first,
   disabled,
   onRetry,
   onDiscard,
 }: SessionUnconfirmedRowProps) {
   const retrying = send.phase === "retrying";
   return (
-    <SessionQueueRowFrame first={first} data-local="unconfirmed" data-phase={send.phase}>
+    <SessionQueueRowFrame data-local="unconfirmed" data-phase={send.phase}>
       <SessionQueuePosition>—</SessionQueuePosition>
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <SessionQueuedPreview text={send.text} />
@@ -273,12 +262,11 @@ export function SessionUnconfirmedRow({
         <div className="flex shrink-0 items-center gap-px">
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() => onRetry?.(send.id)}
             disabled={disabled || !onRetry}
             data-testid="composer-queued-retry"
-            className="text-accent-strong hover:bg-accent-tint hover:text-accent-strong"
           >
             <RotateCcw aria-hidden="true" className="size-3" />
             Retry

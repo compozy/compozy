@@ -78,8 +78,8 @@ export function WorktreeRow({
       data-inert={inert ? "true" : undefined}
       className={cn(
         "grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-2",
-        inert ? "cursor-default" : "hover:bg-row-hover",
-        selected && "bg-row-selected",
+        inert ? "cursor-default" : "hover:bg-surface-2",
+        selected && "bg-selected",
         className
       )}
       {...props}
@@ -91,7 +91,7 @@ export function WorktreeRow({
           "grid size-7 shrink-0 place-items-center rounded",
           DASHED_WELL_STATES.has(entry.displayState)
             ? "border border-dashed border-line-strong text-muted"
-            : "bg-elevated text-muted"
+            : "bg-surface-2 text-muted"
         )}
       >
         <Icon as={STATE_ICON[entry.displayState]} size="sm" />
@@ -103,7 +103,7 @@ export function WorktreeRow({
             data-slot="worktree-row-name"
             className={cn(
               "min-w-0 truncate text-small-body font-medium tracking-tight",
-              MUTED_NAME_STATES.has(entry.displayState) ? "text-muted" : "text-fg-strong"
+              MUTED_NAME_STATES.has(entry.displayState) ? "text-muted" : "text-fg"
             )}
           >
             {entry.name}

@@ -38,12 +38,12 @@ export function FilterConditions({
   if (rows.length === 0) {
     return (
       <div>
-        <div className="mb-2 rounded-md border border-dashed border-line-soft bg-canvas-tint px-3 py-2.5 text-form-label text-subtle">
+        <div className="mb-2 rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-label text-subtle">
           No conditions, fires on every{" "}
           <b className="font-mono text-form-hint font-medium text-fg">{eventKind}</b> event.
         </div>
         <Button onClick={handleAdd} size="xs" type="button" variant="neutral">
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           Add condition
         </Button>
       </div>
@@ -78,7 +78,7 @@ export function FilterConditions({
       {openPayload ? (
         <p className="text-form-hint leading-snug text-subtle">
           <span className="font-mono text-fg">{eventKind}</span> payloads are open; type any{" "}
-          <code className="rounded-xs bg-badge-fill px-1 font-mono text-mono-id text-fg">
+          <code className="rounded-xs bg-surface-2 px-1 font-mono text-mono-id text-fg">
             data.&lt;path&gt;
           </code>{" "}
           to match a custom field.
@@ -86,7 +86,7 @@ export function FilterConditions({
       ) : null}
       <div className="flex items-center">
         <Button onClick={handleAdd} size="xs" type="button" variant="neutral">
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           Add condition
         </Button>
         <span className="ml-2.5 text-form-hint text-faint">all conditions must match (AND)</span>

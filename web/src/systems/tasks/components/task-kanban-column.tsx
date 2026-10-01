@@ -1,53 +1,32 @@
 import { Plus } from "lucide-react";
 import * as React from "react";
 
-import { Button, StatusDot, type StatusDotTone } from "@compozy/ui";
+import { Button, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 import type { TaskKanbanColumn as TaskKanbanColumnDef } from "../lib/task-grouping";
 
-import type { PillTone } from "@compozy/ui";
-
 export interface TaskKanbanColumnProps {
   column: TaskKanbanColumnDef;
   count: number;
   totalCount?: number;
-  tone: PillTone;
   onAdd?: () => void;
   emptyState?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
 }
 
-/**
- * Maps the kanban header pill tone onto a `<StatusDot>` tone. Only
- * attention-demanding columns emit a dot; neutral and `info` columns keep the
- * header rhythm flat so the accent budget stays reserved for the active CTA.
- */
-function headerDotTone(tone: PillTone): StatusDotTone | null {
-  switch (tone) {
-    case "warning":
-      return "warning";
-    case "danger":
-      return "danger";
-    default:
-      return null;
-  }
-}
-
 export function TaskKanbanColumn({
   column,
   count,
   totalCount,
-  tone,
   onAdd,
   emptyState,
   children,
   className,
 }: TaskKanbanColumnProps) {
   const isEmpty = React.Children.count(children) === 0;
-  const dotTone = headerDotTone(tone);
   const countLabel =
     totalCount === undefined
       ? undefined
@@ -58,18 +37,18 @@ export function TaskKanbanColumn({
   return (
     <li
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-lg bg-canvas-soft",
+        "flex min-w-0 flex-col overflow-hidden rounded-lg bg-sunken",
         "min-h-115 max-h-[calc(100vh-var(--space-kanban-col-offset))]",
         className
       )}
       data-testid={`tasks-kanban-column-${column.id}`}
     >
       <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
-        {dotTone === null ? null : <StatusDot tone={dotTone} size="default" label={column.label} />}
-        <h2 className="text-small-body font-medium text-fg-strong">{column.label}</h2>
+        <StateGlyph data-testid={`tasks-kanban-column-glyph-${column.id}`} state={column.glyph} />
+        <h2 className="text-item-title font-medium text-fg">{column.label}</h2>
         {countLabel ? (
           <span
-            className="font-mono text-badge tabular-nums text-faint"
+            className="text-small-body tabular-nums text-subtle"
             data-testid={`tasks-kanban-column-count-${column.id}`}
           >
             {countLabel}
@@ -83,7 +62,7 @@ export function TaskKanbanColumn({
             onClick={() => onAdd()}
             size="icon-xs"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
             <Plus />
           </Button>
@@ -91,7 +70,7 @@ export function TaskKanbanColumn({
       </header>
 
       <div
-        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pt-1 pb-3"
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-1 pb-3"
         data-testid={`tasks-kanban-column-body-${column.id}`}
       >
         {isEmpty

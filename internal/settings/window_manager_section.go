@@ -2,7 +2,9 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"reflect"
 	"sort"
@@ -38,14 +40,24 @@ func (s *service) buildCatalogWindowManagerSection(
 	clientID string,
 	section WindowManagerSection,
 ) (WindowManagerSection, error) {
-	catalog, err := s.cmdPalette.Catalog(
-		ctx,
-		cmdpalette.CatalogRequest{
-			ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
-			WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
-			ClientID:    cmdpalette.ClientID(clientID),
-		},
-	)
+	request := cmdpalette.CatalogRequest{
+		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
+		ClientID:    cmdpalette.ClientID(clientID),
+	}
+	catalog, err := s.cmdPalette.Catalog(ctx, request)
+	if err != nil && clientID != "" && errors.Is(err, cmdpalette.ErrNoAttachedShell) {
+		// A read can name a client that is not attached to this workspace yet
+		// (registration racing a workspace switch, or a daemon restart). The
+		// section is still answerable without that client's context; only its
+		// global-shortcut statuses are missing until the next read.
+		slog.Default().DebugContext(
+			ctx, "settings: window-manager read names an unattached client; reading without it",
+			"workspace_id", workspaceID, "client_id", clientID,
+		)
+		request.ClientID = ""
+		catalog, err = s.cmdPalette.Catalog(ctx, request)
+	}
 	if err != nil {
 		return WindowManagerSection{}, fmt.Errorf("settings: load command catalog for shortcuts: %w", err)
 	}

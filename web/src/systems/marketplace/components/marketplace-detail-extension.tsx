@@ -93,7 +93,7 @@ function MarketplaceExtensionArtifactSection({ data }: { data: MarketplaceCatalo
 function MarketplaceExternalLink({ href }: { href: string }) {
   return (
     <a
-      className="min-w-0 truncate font-mono text-mono-id text-muted transition-colors duration-base hover:text-fg-strong"
+      className="min-w-0 truncate font-mono text-mono-id text-muted transition-colors duration-base hover:text-fg"
       href={href}
       rel="noreferrer"
       target="_blank"

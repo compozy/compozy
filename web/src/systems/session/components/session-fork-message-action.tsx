@@ -29,9 +29,9 @@ export function SessionForkMessageAction({ messageText }: SessionForkMessageActi
       onClick={action.trigger}
       size="xs"
       type="button"
-      variant="ghost"
+      variant="quiet"
     >
-      <GitFork aria-hidden="true" className="size-3" />
+      <GitFork aria-hidden="true" />
       Fork from here
     </Button>
   );

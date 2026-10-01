@@ -391,7 +391,7 @@ describe("session create workspace binding", () => {
       { wrapper }
     );
 
-    let first: Promise<void> | undefined;
+    let first: Promise<unknown> | undefined;
     act(() => {
       first = fallback.result.current.run("Plan the release");
       void fallback.result.current.run("Plan the release");
@@ -412,6 +412,49 @@ describe("session create workspace binding", () => {
 
     await act(async () => fallback.result.current.run("Plan the release"));
     expect(createSessionAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should start with the chosen agent in the scoped worktree and report where the query went", async () => {
+    agents.data = [{ name: "general" }, { name: "reviewer" }];
+    createSessionAsync
+      .mockResolvedValueOnce({
+        id: "session-chosen",
+        workspace_id: "ws_home",
+        agent_name: "reviewer",
+      })
+      .mockRejectedValueOnce(new Error("agent executable is unavailable"));
+    const { store, wrapper } = renderFallback();
+    const onCreated = vi.fn();
+    const fallback = renderHook(
+      () => useSessionPromptFallback({ onCreated, onPickerOpened: vi.fn() }),
+      { wrapper }
+    );
+    const run = (options: { agentName?: string; worktreeId?: string }) =>
+      act(async () => fallback.result.current.run("Review the diff", options));
+
+    await expect(run({ agentName: "reviewer", worktreeId: "wt-feature" })).resolves.toBe("created");
+    expect(createSessionAsync).toHaveBeenLastCalledWith({
+      agent_name: "reviewer",
+      workspace: "ws_home",
+      worktree: "wt-feature",
+    });
+    expect(sessionStore.getSnapshot().context.firstPrompts["session-chosen"]?.text).toBe(
+      "Review the diff"
+    );
+    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "session-chosen" }));
+
+    await expect(run({ agentName: "reviewer" })).resolves.toBe("failed");
+    expect(store.getSnapshot().context.operation).toEqual({ status: "idle" });
+
+    await expect(run({ agentName: "retired", worktreeId: "wt-feature" })).resolves.toBe("picker");
+    expect(createSessionAsync).toHaveBeenCalledTimes(2);
+    expect(store.getSnapshot().context).toMatchObject({
+      open: true,
+      pendingPrompt: "Review the diff",
+      draft: { environment: { kind: "worktree", worktreeId: "wt-feature" } },
+    });
+
+    await expect(act(async () => fallback.result.current.run("   "))).resolves.toBe("ignored");
   });
 
   it("Should hold a sourced quote and keep the create dialog free of the envelope", () => {

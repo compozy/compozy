@@ -18,16 +18,15 @@ const TILE_CLASS = cn(
   "shell-wide:w-workspaces-tile-wide",
   "outline-none focus-visible:outline-none",
   "transition-colors duration-base ease-out",
-  "data-[on=true]:bg-(image:--shell-plate-gradient) data-[on=true]:shadow-shell-plate",
-  "data-[on=true]:backdrop-blur-shell-plate data-[on=true]:backdrop-saturate-shell-plate"
+  "data-[on=true]:bg-selected data-[on=true]:shadow-card"
 );
 
 const WELL_CLASS = cn(
-  "relative grid size-workspaces-well flex-none place-items-center rounded-window text-fg",
-  "border border-line-strong bg-(image:--shell-well-gradient) shadow-highlight",
+  "relative grid size-workspaces-well flex-none place-items-center rounded-lg text-fg",
+  "bg-surface-2 shadow-card",
   "shell-wide:size-workspaces-well-wide",
   "transition-[background,border-color,box-shadow,transform,scale] duration-base ease-out",
-  "group-hover/wsov-tile:bg-none group-hover/wsov-tile:bg-btn-default-hover",
+  "group-hover/wsov-tile:bg-selected",
   "group-data-[on=true]/wsov-tile:-translate-y-px",
   "group-active/wsov-tile:scale-(--scale-workspaces-tile-press) group-active/wsov-tile:translate-y-0"
 );
@@ -41,7 +40,7 @@ function CurrentPill({ current }: { current: OsWorkspaceTileCurrent }) {
     <span
       aria-hidden="true"
       data-slot="os-workspace-tile-current"
-      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-accent-ink shadow-shell-current-halo"
+      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-accent-ink ring-2 ring-popover"
     >
       <Glyph className="size-2.5" />
     </span>
@@ -118,7 +117,7 @@ export function OsWorkspaceAddTile({ focused, className, ...props }: OsWorkspace
         className={cn(
           WELL_CLASS,
           "border-dashed bg-none text-muted shadow-none",
-          "group-hover/wsov-tile:text-fg-strong group-hover/wsov-tile:bg-btn-default-fill",
+          "group-hover/wsov-tile:text-fg-strong group-hover/wsov-tile:bg-surface-2",
           "group-data-[on=true]/wsov-tile:text-fg-strong"
         )}
       >

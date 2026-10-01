@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
-import { Button, Pill, Time } from "@compozy/ui";
+import { Button, StateGlyph, Time } from "@compozy/ui";
 import type { TaskDetailView } from "../types";
 import { TaskStateBand } from "./task-state-band";
 
@@ -40,7 +40,6 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
             </span>
           ) : null}
           <Button
-            className="min-h-6"
             data-testid="tasks-detail-now-open-run"
             onClick={() => onOpenRun(run.id)}
             size="sm"
@@ -48,7 +47,7 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
             variant="ghost"
           >
             Open run
-            <ArrowUpRight aria-hidden="true" className="size-3" />
+            <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
           </Button>
         </>
       }
@@ -73,11 +72,11 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
       data-testid="tasks-detail-now-run"
       title={
         <span className="inline-flex items-center gap-2.5">
-          <Pill.Dot pulse tone="accent" />
+          <StateGlyph state="running" />
           {title}
         </span>
       }
-      tone="accent"
+      tone="neutral"
     />
   );
 }

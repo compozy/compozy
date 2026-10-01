@@ -18,7 +18,7 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
   if (graph.nodes.length === 0) {
     return (
       <div
-        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-small-body text-subtle"
+        className="rounded-lg bg-sunken px-4 py-6 text-center text-small-body text-subtle"
         data-testid="loop-dag-empty"
       >
         This Loop has no steps to show.
@@ -26,7 +26,7 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
     );
   }
   return (
-    <div className="rounded-lg border border-line bg-canvas-soft" data-testid="loop-dag">
+    <div className="rounded-lg bg-sunken" data-testid="loop-dag">
       <div className="flex items-stretch gap-0 overflow-x-auto p-4">
         {graph.nodes.map((node, index) => (
           <div key={node.id} className="flex items-stretch">
@@ -62,7 +62,7 @@ function DagNode({ node }: { node: LoopGraphNode }) {
     : undefined;
   return (
     <div
-      className="flex w-31 shrink-0 flex-col gap-1 overflow-hidden rounded-md border border-line bg-canvas-tint px-3 py-2.5"
+      className="flex w-31 shrink-0 flex-col gap-1 overflow-hidden rounded-md bg-card px-3 py-2.5 shadow-card"
       data-testid="loop-dag-node"
       data-node-id={node.id}
     >

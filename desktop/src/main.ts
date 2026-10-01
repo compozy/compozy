@@ -7,7 +7,15 @@ import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 
-import { app, globalShortcut, ipcMain, session, shell, systemPreferences } from "electron";
+import {
+  app,
+  globalShortcut,
+  ipcMain,
+  nativeTheme,
+  session,
+  shell,
+  systemPreferences,
+} from "electron";
 
 import { BootstrapRunner } from "./bootstrap/bootstrap-runner";
 import { verifyRuntimeBundle } from "./bootstrap/bundle-integrity";
@@ -41,6 +49,7 @@ import { OperationWatcher } from "./update/operation-watcher";
 import { UpdateTransitionClient } from "./update/transition-client";
 import { BootWindow } from "./window/boot-window";
 import { ProductWindow } from "./window/product-window";
+import { WindowTheme } from "./window/window-theme";
 import type { WindowPresentation } from "./window/window-presentation";
 import { applyDefaultDenyPermissions } from "./window/security";
 import { installApplicationMenu } from "./window/application-menu";
@@ -171,6 +180,13 @@ async function quitCleanly(): Promise<void> {
 /** Initializes the shell and permits verified staged updates before runtime readiness. */
 async function start(): Promise<void> {
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
+  // Before any window: native chrome, backgrounds and every renderer's
+  // prefers-color-scheme follow the renderer's last reported theme.
+  const windowTheme = new WindowTheme({
+    nativeTheme,
+    path: join(paths.home, "desktop-theme.json"),
+  });
+  await windowTheme.load();
   const resources = resourcePaths();
   const shortcutRuntime = new ElectronGlobalShortcut(globalShortcut);
   const shortcutPolicy = new GlobalShortcutPolicy({
@@ -187,7 +203,11 @@ async function start(): Promise<void> {
       product?.send("shell:summon", { command_id: commandID });
     },
   });
-  productBridge = new ProductBridgeController({ ipcMain, shortcuts: shortcutPolicy });
+  productBridge = new ProductBridgeController({
+    ipcMain,
+    shortcuts: shortcutPolicy,
+    theme: windowTheme,
+  });
   productBridge.register();
   if (__COMPOZY_DESKTOP_E2E_BUILD__) {
     Reflect.set(globalThis, "__compozyGlobalShortcutInvoke", (accelerator: string) =>
@@ -208,6 +228,7 @@ async function start(): Promise<void> {
     pagePath: resources.page,
     preloadPath: resources.bootPreload,
     presentation: windowPresentation,
+    theme: windowTheme,
     onError: error => logger.error("load boot window", error),
   });
   installApplicationMenu(() => product);
@@ -295,6 +316,7 @@ async function start(): Promise<void> {
         preloadPath: resources.productPreload,
         presentation: windowPresentation,
         links,
+        theme: windowTheme,
         onReady: async () => {
           if (bootstrapAbort.signal.aborted) return;
           await statePublisher.publish({

@@ -92,7 +92,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     deleteTargetOpen: deleteTargetSecret !== null,
     updateSearch,
   });
-  const deletion = useVaultDelete(pageFlow, deleteTargetSecret);
+  const deletion = useVaultDelete(pageFlow, deleteTargetSecret, updateSearch);
 
   return {
     counts: { total: secrets.length },

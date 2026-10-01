@@ -84,7 +84,7 @@ export function WindowManagerShortcutTable({
           disabled={changed === 0 || recorder.saving}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={recorder.resetAll}
         >
           Reset all

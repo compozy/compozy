@@ -30,7 +30,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
     return (
       <Receipt
         tone="neutral"
-        icon={<RotateCcw strokeWidth={1.8} />}
+        icon={<RotateCcw />}
         data-status={view.status}
         data-cause={cause}
         data-testid="clarification-receipt"
@@ -45,7 +45,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
     return (
       <Receipt
         tone="neutral"
-        icon={<MessageCircleQuestion strokeWidth={1.8} />}
+        icon={<MessageCircleQuestion />}
         data-status={view.status}
         data-testid="clarification-receipt"
       >
@@ -64,7 +64,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
     return (
       <Receipt
         tone="neutral"
-        icon={<Clock strokeWidth={1.8} />}
+        icon={<Clock />}
         data-status={view.status}
         data-testid="clarification-receipt"
       >
@@ -76,7 +76,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
   return (
     <Receipt
       tone="neutral"
-      icon={<X strokeWidth={1.8} />}
+      icon={<X />}
       data-status={view.status}
       data-testid="clarification-receipt"
     >

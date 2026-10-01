@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 
-import { Button, Panel, Section, StatusDot, Time } from "@compozy/ui";
+import { Button, Panel, Section, StateGlyph, Time } from "@compozy/ui";
 
 import type { AttentionNotificationScope } from "@/systems/notifications";
 
@@ -27,8 +27,8 @@ interface HomeAttentionRowProps {
   isMutating: boolean;
 }
 
-function attentionDotTone(kind: string): "warning" | "danger" {
-  return kind === "failure" ? "danger" : "warning";
+function attentionGlyph(kind: string): "attention" | "failed" {
+  return kind === "failure" ? "failed" : "attention";
 }
 
 function attentionKindLabel(kind: string): string {
@@ -70,7 +70,7 @@ function HomeAttentionRow({
         data-resolved={resolved}
         data-slot="home-attention-row"
       >
-        <StatusDot label="Resolved" tone="faint" />
+        <StateGlyph label="Resolved" state="done" />
         <span className="truncate text-small-body text-muted">
           {resolved === "approved" ? "Approved — " : "Rejected — "}
           <span className="font-medium text-fg-strong">{item.title}</span>
@@ -85,20 +85,20 @@ function HomeAttentionRow({
   const runId = item.run_id;
   return (
     <div
-      className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-row-hover max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
+      className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-surface-2 max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
       data-slot="home-attention-row"
     >
-      <StatusDot label={attentionKindLabel(item.kind)} tone={attentionDotTone(item.kind)} />
+      <StateGlyph label={attentionKindLabel(item.kind)} state={attentionGlyph(item.kind)} />
       <span className="truncate text-small-body text-muted max-[760px]:whitespace-normal">
         <span className="font-medium text-fg-strong">{item.title}</span> {attentionSentence(item)}
       </span>
-      <span className="font-mono text-mono-id tabular-nums text-subtle max-[760px]:hidden">
+      <span className="text-eyebrow tabular-nums text-subtle max-[760px]:hidden">
         <Time iso={item.occurred_at} />
       </span>
       <span className="flex items-center gap-1.5">
         <Button
           size="icon-sm"
-          variant="ghost"
+          variant="quiet"
           aria-label={`Mark ${item.title} as read`}
           disabled={isMutating || acknowledgementDisabled || !item.notification_id}
           onClick={() => onAcknowledge(item.notification_id)}
@@ -110,7 +110,7 @@ function HomeAttentionRow({
             disabled={isMutating}
             onClick={() => onApprove(taskId)}
             size="sm"
-            variant="primary"
+            variant="secondary"
           >
             Approve
           </Button>
@@ -121,7 +121,12 @@ function HomeAttentionRow({
           </Button>
         ) : null}
         {item.actions.includes("retry") && runId ? (
-          <Button disabled={isMutating} onClick={() => onRetry(runId)} size="sm" variant="primary">
+          <Button
+            disabled={isMutating}
+            onClick={() => onRetry(runId)}
+            size="sm"
+            variant="secondary"
+          >
             Retry
           </Button>
         ) : null}
@@ -168,7 +173,7 @@ export function HomeAttentionZone({
     <span className="flex items-center gap-2">
       <Button
         size="sm"
-        variant="ghost"
+        variant="quiet"
         disabled={acknowledgementDisabled || attention.total === 0}
         aria-label={`Clear all notifications in ${scopeLabel}`}
         onClick={() => onAcknowledge()}
@@ -179,7 +184,7 @@ export function HomeAttentionZone({
         nativeButton={false}
         render={<Link search={{ mode: "inbox" }} to="/tasks" />}
         size="sm"
-        variant="ghost"
+        variant="link"
       >
         Open inbox
         <ChevronRight aria-hidden="true" />

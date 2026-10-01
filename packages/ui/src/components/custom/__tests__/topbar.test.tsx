@@ -25,17 +25,17 @@ function SlotInspector({ probeId }: { probeId: string }) {
 }
 
 describe("Topbar", () => {
-  it("Should render left-aligned identity with a quiet glyph and title", () => {
+  it("Should render left-aligned identity with the glyph well and title", () => {
     render(
       <TopbarSlotProvider>
         <Topbar
-          leading={<span data-testid="window-controls">lights</span>}
+          controls={<span data-testid="window-controls">controls</span>}
           glyph={<LayoutDashboard data-testid="glyph" />}
           title="Tasks"
         />
       </TopbarSlotProvider>
     );
-    expect(document.querySelector("[data-slot='topbar-leading']")).toContainElement(
+    expect(document.querySelector("[data-slot='topbar-controls']")).toContainElement(
       screen.getByTestId("window-controls")
     );
     expect(document.querySelector("[data-slot='topbar-glyph']")).toContainElement(
@@ -47,7 +47,7 @@ describe("Topbar", () => {
     expect(document.querySelector("[data-slot='topbar-breadcrumb']")).toBeNull();
   });
 
-  it("Should render route identity without leading or slots", () => {
+  it("Should render route identity without controls or slots", () => {
     const { container } = render(
       <TopbarSlotProvider>
         <Topbar title="Home" />
@@ -55,7 +55,7 @@ describe("Topbar", () => {
     );
     expect(container.querySelector("[data-slot='topbar']")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
-    expect(container.querySelector("[data-slot='topbar-leading']")).toBeNull();
+    expect(container.querySelector("[data-slot='topbar-controls']")).toBeNull();
     expect(container.querySelector("[data-slot='topbar-actions']")).toBeNull();
   });
 
@@ -195,7 +195,7 @@ describe("Topbar", () => {
     expect(selectWeb).not.toHaveBeenCalled();
   });
 
-  it("Should let leading coexist with published actions/overflow slots", () => {
+  it("Should place window controls after the published trail", () => {
     function Setup() {
       useTopbarSlot({
         actions: <span data-testid="action-btn">action</span>,
@@ -205,10 +205,16 @@ describe("Topbar", () => {
     render(
       <TopbarSlotProvider>
         <Setup />
-        <Topbar leading={<span data-testid="window-controls">lights</span>} title="Tasks" />
+        <Topbar controls={<span data-testid="window-controls">controls</span>} title="Tasks" />
       </TopbarSlotProvider>
     );
-    expect(document.querySelector("[data-slot='topbar-leading']")).toContainElement(
+    const zones = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "[data-slot='topbar-identity'], [data-slot='topbar-actions'], [data-slot='topbar-controls']"
+      )
+    ).map(zone => zone.dataset.slot);
+    expect(zones).toEqual(["topbar-identity", "topbar-actions", "topbar-controls"]);
+    expect(document.querySelector("[data-slot='topbar-controls']")).toContainElement(
       screen.getByTestId("window-controls")
     );
     expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
@@ -235,6 +241,13 @@ describe("Topbar", () => {
     );
     expect(screen.getByTestId("topbar-overflow")).toContainElement(
       screen.getByTestId("overflow-trigger")
+    );
+    // The ⋯ menu belongs to the identity, right after the title; actions stay in the trail.
+    const identity = document.querySelector("[data-slot='topbar-identity']");
+    expect(identity).toContainElement(screen.getByTestId("topbar-overflow"));
+    expect(identity?.lastElementChild).toBe(screen.getByTestId("topbar-overflow"));
+    expect(document.querySelector("[data-slot='topbar-trailing']")).not.toContainElement(
+      screen.getByTestId("topbar-overflow")
     );
   });
 

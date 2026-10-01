@@ -92,14 +92,21 @@ type DeleteDesktopCommand struct {
 func (DeleteDesktopCommand) CommandID() CommandID { return CommandDesktopDelete }
 
 type WindowSpec struct {
-	ID                  WindowID       `json:"id,omitempty"`
-	App                 string         `json:"app"`
-	InstanceKey         *string        `json:"instance_key,omitempty"`
-	Route               RouteIntent    `json:"route"`
-	DesktopID           DesktopID      `json:"desktop_id"`
-	FloatingRect        NormalizedRect `json:"floating_rect"`
-	InsertTiled         bool           `json:"insert_tiled,omitempty"`
-	StackTargetWindowID *WindowID      `json:"stack_target_window_id,omitempty"`
+	ID           WindowID       `json:"id,omitempty"`
+	App          string         `json:"app"`
+	InstanceKey  *string        `json:"instance_key,omitempty"`
+	Route        RouteIntent    `json:"route"`
+	DesktopID    DesktopID      `json:"desktop_id"`
+	FloatingRect NormalizedRect `json:"floating_rect"`
+	InsertTiled  bool           `json:"insert_tiled,omitempty"`
+	// Floating opens a free window at FloatingRect whatever the new-window
+	// policy; it cannot be combined with a tiled or stacked placement.
+	Floating            bool      `json:"floating,omitempty"`
+	StackTargetWindowID *WindowID `json:"stack_target_window_id,omitempty"`
+	// BesideWindowID anchors a tiled open (beside_focus, tab, or InsertTiled)
+	// to this window instead of the client's focus. Daemon-originated opens
+	// have no client focus; they name the window the new one belongs next to.
+	BesideWindowID *WindowID `json:"beside_window_id,omitempty"`
 }
 
 type OpenWindowCommand struct {
@@ -253,6 +260,9 @@ const (
 	ArrangementVertical   Arrangement = "vertical"
 	ArrangementGrid       Arrangement = "grid"
 	ArrangementStack      Arrangement = "stack"
+	// ArrangementMainStack gives the first participant the main column and
+	// splits the remaining participants vertically in the side column.
+	ArrangementMainStack Arrangement = "main_stack"
 )
 
 type ArrangeLayoutCommand struct {
@@ -262,6 +272,11 @@ type ArrangeLayoutCommand struct {
 	Frame       NormalizedRect
 	GroupID     GroupID
 	ResourceID  string
+	// KeepFrames makes each named window stand for its whole tab frame: a deck
+	// is arranged as one participant with its members, active tab and identity
+	// kept, and later names inside an already-named frame are absorbed. Without
+	// it every named window is its own participant.
+	KeepFrames bool
 }
 
 func (ArrangeLayoutCommand) CommandID() CommandID { return CommandLayoutArrange }

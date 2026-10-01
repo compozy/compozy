@@ -303,7 +303,8 @@ a `window_ids` array and an optional `insert_index`; `window_reorder` moves one 
 stack with a clamped `index`; `window_activate` sets the stack's durable active member and is the
 public name of the internal `window.stack.set_active` command; `window_pin` takes a required `pinned`
 boolean; `window_reopen` needs only the revision. Three existing tools carry tab inputs:
-`window_open` accepts `stack_target_window_id`, `window_navigate` accepts `mode`
+`window_open` accepts `stack_target_window_id` (plus `floating` for an explicit floating window;
+it rejects `insert_tiled` or `stack_target_window_id` alongside it), `window_navigate` accepts `mode`
 (`replace`/`push`/`pop`, and `pop` forbids `route`), and `window_close` accepts `scope`
 (`tab`/`group`/`others`/`right`, rejected together with `minimize`).
 

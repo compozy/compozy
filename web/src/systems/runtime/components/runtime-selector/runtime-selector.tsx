@@ -152,7 +152,7 @@ export function RuntimeSelector({
         anchor={popup.anchor}
         initialFocus={popup.resolveInitialFocus}
         aria-label="Choose model"
-        className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-canvas p-0 shadow-overlay"
+        className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-popover p-0 shadow-pop"
       >
         <div
           id={popup.popupId}

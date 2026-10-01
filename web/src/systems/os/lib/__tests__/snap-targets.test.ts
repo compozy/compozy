@@ -13,6 +13,7 @@ import {
   DEFAULT_SNAP_TARGET_CONFIG,
   resolveSnapTarget,
   snapTargetIsContained,
+  tileZoneFraction,
   type OccupiedSnapCandidate,
   type ResolveSnapTargetInput,
 } from "../snap-targets";
@@ -46,8 +47,10 @@ describe("resolveSnapTarget", () => {
     });
   });
 
-  it("Should keep the reserved bottom-center approach strip above the Dock blocked on overshoot", () => {
-    expect(resolve({ point: { x: 600, y: AREA.y + AREA.h + 40 }, workArea: AREA })).toBeNull();
+  it("Should resolve zoom when the pointer overshoots the bottom-center band", () => {
+    expect(resolve({ point: { x: 600, y: AREA.y + AREA.h + 40 }, workArea: AREA })).toMatchObject({
+      kind: "zoom",
+    });
   });
 
   it("Should force a swap over a structural band while the modifier is held", () => {
@@ -99,7 +102,8 @@ describe("resolveSnapTarget", () => {
     expect(target.edge).toBe("left");
     expect(target.ratio).toBeCloseTo(ratio, 5);
     expect(target.zoneRect).toEqual({ x: 10, y: 20, w: width, h: 800 });
-    expect(target.rect).toEqual({ x: 10, y: 20, w: width - 4, h: 800 });
+    // Flush default (inner gap 0): the preview fills its zone exactly.
+    expect(target.rect).toEqual(target.zoneRect);
   });
 
   it.each([
@@ -107,39 +111,32 @@ describe("resolveSnapTarget", () => {
       point: { x: 11, y: 21 },
       edge: "top-left",
       zoneRect: { x: 10, y: 20, w: 600, h: 400 },
-      rect: { x: 10, y: 20, w: 596, h: 396 },
     },
     {
       point: { x: 1209, y: 21 },
       edge: "top-right",
       zoneRect: { x: 610, y: 20, w: 600, h: 400 },
-      rect: { x: 614, y: 20, w: 596, h: 396 },
     },
     {
       point: { x: 11, y: 819 },
       edge: "bottom-left",
       zoneRect: { x: 10, y: 420, w: 600, h: 400 },
-      rect: { x: 10, y: 424, w: 596, h: 396 },
     },
     {
       point: { x: 1209, y: 819 },
       edge: "bottom-right",
       zoneRect: { x: 610, y: 420, w: 600, h: 400 },
-      rect: { x: 614, y: 424, w: 596, h: 396 },
     },
-  ])(
-    "Should resolve the $edge quarter from either adjacent band",
-    ({ point, edge, zoneRect, rect }) => {
-      const target = resolve({ point, workArea: AREA });
+  ])("Should resolve the $edge quarter from either adjacent band", ({ point, edge, zoneRect }) => {
+    const target = resolve({ point, workArea: AREA });
 
-      expect(target?.kind).toBe("tile");
-      if (target?.kind !== "tile") return;
-      expect(target.edge).toBe(edge);
-      expect(target.zoneRect).toEqual(zoneRect);
-      expect(target.rect).toEqual(rect);
-      expect(snapTargetIsContained(target, AREA)).toBe(true);
-    }
-  );
+    expect(target?.kind).toBe("tile");
+    if (target?.kind !== "tile") return;
+    expect(target.edge).toBe(edge);
+    expect(target.zoneRect).toEqual(zoneRect);
+    expect(target.rect).toEqual(zoneRect);
+    expect(snapTargetIsContained(target, AREA)).toBe(true);
+  });
 
   it("Should partition odd work areas on one shared pixel edge", () => {
     const oddArea = { x: 10, y: 20, w: 1201, h: 801 };
@@ -150,6 +147,36 @@ describe("resolveSnapTarget", () => {
 
     expect(left.rect.x + left.rect.w).toBe(right.rect.x);
     expect(top.rect.y + top.rect.h).toBe(bottom.rect.y);
+  });
+
+  it.each([
+    { edge: "left", fraction: { x: 0, y: 0, w: 0.5, h: 1 } },
+    { edge: "right", fraction: { x: 0.5, y: 0, w: 0.5, h: 1 } },
+    { edge: "top", fraction: { x: 0, y: 0, w: 1, h: 0.5 } },
+    { edge: "bottom", fraction: { x: 0, y: 0.5, w: 1, h: 0.5 } },
+    { edge: "top-left", fraction: { x: 0, y: 0, w: 0.5, h: 0.5 } },
+    { edge: "bottom-right", fraction: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } },
+  ] as const)(
+    "Should store the $edge half of an odd work area as an exact fraction",
+    ({ edge, fraction }) => {
+      // 1201 × 801 rounds every half-way edge to a whole pixel; the stored
+      // frame must stay the exact half so peers at other widths agree.
+      const target = createTileSnapTarget({ x: 10, y: 20, w: 1201, h: 801 }, edge, [0.5]);
+
+      expect(tileZoneFraction(target)).toEqual(fraction);
+    }
+  );
+
+  it("Should store a progressive two-thirds side as the exact ratio", () => {
+    const target = createTileSnapTarget(
+      { x: 0, y: 0, w: 1201, h: 801 },
+      "right",
+      [0.5, 0.666667],
+      1
+    );
+
+    expect(target.ratio).toBe(0.666667);
+    expect(tileZoneFraction(target)).toEqual({ x: 1 - 0.666667, y: 0, w: 0.666667, h: 1 });
   });
 
   it.each([9, 10])("Should leave exactly one gap of %i px between two facing tiles", innerGap => {
@@ -168,12 +195,12 @@ describe("resolveSnapTarget", () => {
     expect(bottom.rect.y + bottom.rect.h).toBe(oddArea.y + oddArea.h);
   });
 
-  it("Should block the reserved bottom-center approach strip above the Dock and map top-center to zoom", () => {
-    const zoom = resolve({ point: { x: 600, y: 21 }, workArea: AREA });
-    const dock = resolve({ point: { x: 600, y: 819 }, workArea: AREA });
+  it("Should map both top-center and bottom-center to zoom by default", () => {
+    const top = resolve({ point: { x: 600, y: 21 }, workArea: AREA });
+    const bottom = resolve({ point: { x: 600, y: 819 }, workArea: AREA });
 
-    expect(zoom).toEqual({ kind: "zoom", id: "zoom", rect: AREA });
-    expect(dock).toBeNull();
+    expect(top).toEqual({ kind: "zoom", id: "zoom", rect: AREA });
+    expect(bottom).toEqual({ kind: "zoom", id: "zoom", rect: AREA });
   });
 
   it("Should retain an active side through exit slack and release immediately after", () => {
@@ -234,6 +261,7 @@ describe("resolveSnapTarget", () => {
       workArea: AREA,
       config: {
         ...DEFAULT_SNAP_TARGET_CONFIG,
+        innerGap: 8,
         outerGaps: { top: 7, right: 10, bottom: 13, left: 10 },
       },
     });

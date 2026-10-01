@@ -11,6 +11,7 @@ describe("product preload contract", () => {
   it("Should allow only the declared product methods", () => {
     expect(PRODUCT_METHODS.has("global_shortcuts.sync")).toBe(true);
     expect(PRODUCT_METHODS.has("global_shortcuts.status")).toBe(true);
+    expect(PRODUCT_METHODS.has("theme.set")).toBe(true);
     expect(PRODUCT_METHODS.has("shell.execute")).toBe(false);
   });
 
@@ -62,5 +63,13 @@ describe("product preload contract", () => {
     expect(
       validProductEventPayload("shell:summon", { command_id: "palette.open", extra: true })
     ).toBe(false);
+  });
+
+  it("Should accept only a known theme preference and echo it back", () => {
+    expect(validProductParams("theme.set", { preference: "system" })).toBe(true);
+    expect(validProductParams("theme.set", { preference: "sepia" })).toBe(false);
+    expect(validProductParams("theme.set", { preference: "dark", extra: true })).toBe(false);
+    expect(validProductResponse("theme.set", { preference: "light" })).toBe(true);
+    expect(validProductResponse("theme.set", [])).toBe(false);
   });
 });

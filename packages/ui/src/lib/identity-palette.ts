@@ -20,9 +20,21 @@ export interface IdentityColors extends IdentityInk {
   bg: string;
 }
 
-/** Mirrored from `--color-canvas-soft`; the token-contract suite prevents drift. */
+export type IdentityTheme = "dark" | "light";
+
+/** Mirrored from `--color-canvas-soft` per theme; the token-contract suite prevents drift. */
 export const IDENTITY_SURFACE_TOKEN = "color-canvas-soft";
-export const IDENTITY_SURFACE_VALUE = "#1f1e1c";
+export const IDENTITY_SURFACE_VALUES: Readonly<Record<IdentityTheme, string>> = {
+  dark: "#1a1a1a",
+  light: "#ffffff",
+};
+/** The default (dark) theme's surface, used when a caller names no surface. */
+export const IDENTITY_SURFACE_VALUE = IDENTITY_SURFACE_VALUES.dark;
+
+/** The panel surface identity plates sit on in the given theme. */
+export function identitySurfaceFor(theme: IdentityTheme): string {
+  return IDENTITY_SURFACE_VALUES[theme];
+}
 
 /** Neutral fallback for an absent or malformed identity color. */
 export const IDENTITY_FALLBACK_COLOR = "#8a8f98";

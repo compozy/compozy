@@ -203,7 +203,6 @@ export { projectLoopRunPageView } from "./lib/loop-run-page-view";
 export { useNowTick } from "./hooks/use-now-tick";
 
 // Formatters and helpers
-export type { LoopStatusSignal } from "./lib/loop-formatters";
 export { isLiveLoopRun, isTerminalLoopStatus } from "./lib/loop-formatters";
 
 // Read hooks
@@ -278,8 +277,8 @@ export { useLoopStream } from "./hooks/use-loop-stream";
 export type { LoopStreamEventSource } from "./hooks/use-loop-stream";
 
 // Components
-export { LoopStatusPill } from "./components/loop-status-pill";
-export type { LoopStatusPillProps } from "./components/loop-status-pill";
+export { LoopStatusMark } from "./components/loop-status-mark";
+export type { LoopStatusMarkProps } from "./components/loop-status-mark";
 export { LoopSection } from "./components/loop-section";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";

@@ -37,49 +37,53 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   } as TaskListItem;
 }
 
+function inTable(row: React.ReactElement) {
+  return (
+    <table>
+      <tbody>{row}</tbody>
+    </table>
+  );
+}
+
 describe("TasksListRow", () => {
-  it("omits the status-dot column by default", () => {
-    const { container, rerender } = render(
-      <TasksListRow task={buildTask({ status: "completed" })} />
+  const baseRow = {
+    link: <a aria-label="Open Summarize feedback" href="/tasks/task_xyz" />,
+    title: "Summarize feedback",
+    state: "running" as const,
+    statusLabel: "In progress",
+  };
+
+  it("Should pair the state glyph with the literal status word", () => {
+    const { container } = render(inTable(<TasksListRow {...baseRow} />));
+    const status = container.querySelector('[data-slot="tasks-list-row-status"]');
+    expect(status).toHaveTextContent("In progress");
+    expect(status?.querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "running"
     );
-    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
-    expect(container.querySelector('[data-slot="tasks-list-row-dot"]')).toBeNull();
-
-    rerender(<TasksListRow task={buildTask({ status: "in_progress" })} />);
-    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
-    expect(container.querySelector('[data-slot="tasks-list-row-dot"]')).toBeNull();
   });
 
-  it("renders the identifier as bare mono text (proposal `.task-row__id`, not a Pill)", () => {
-    render(<TasksListRow task={buildTask({ identifier: "TASK-42" })} />);
-    const id = screen.getByText("task-42").closest('[data-slot="tasks-list-row-id"]');
-    expect(id).not.toBeNull();
-    expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");
+  it("Should render the identifier as bare mono text, preserving its case", () => {
+    render(inTable(<TasksListRow {...baseRow} id="TASK-42" />));
+    expect(screen.getByText("TASK-42")).toHaveAttribute("data-slot", "tasks-list-row-id");
   });
 
-  it("omits the raw short id when no custom identifier is set", () => {
-    const { container } = render(<TasksListRow task={buildTask({ identifier: undefined })} />);
-    expect(container.querySelector('[data-slot="tasks-list-row-id"]')).toBeNull();
-    expect(screen.queryByText("task_ab")).toBeNull();
-  });
-
-  it("links the main region to /tasks/$id", () => {
-    render(<TasksListRow task={buildTask({ id: "task_xyz" })} />);
+  it("Should wrap the title in the row link", () => {
+    render(inTable(<TasksListRow {...baseRow} />));
     const link = screen.getByRole("link", { name: "Open Summarize feedback" });
-    expect(link).toHaveAttribute("href", "/tasks/$id");
-    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "task_xyz" }));
+    expect(link).toHaveTextContent("Summarize feedback");
   });
 
-  it("keeps trail content outside the link region", () => {
-    render(
-      <TasksListRow
-        task={buildTask({ id: "task_trail" })}
-        trailing={<span data-testid="trail-pill">High</span>}
-      />
-    );
+  it("Should keep the owner cell outside the link region", () => {
+    render(inTable(<TasksListRow {...baseRow} owner={<span data-testid="owner-chip">PL</span>} />));
     const link = screen.getByRole("link", { name: "Open Summarize feedback" });
-    const trail = screen.getByTestId("trail-pill");
-    expect(link).not.toContainElement(trail);
+    expect(link).not.toContainElement(screen.getByTestId("owner-chip"));
+  });
+
+  it("Should render an inert row without a link", () => {
+    render(inTable(<TasksListRow {...baseRow} link={null} />));
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("Summarize feedback")).toBeInTheDocument();
   });
 });
 
@@ -103,7 +107,7 @@ describe("TaskLoopRow", () => {
 
   // UT-040
   it("Should render plain identity, the loop glyph and a run link, never the raw task id", () => {
-    const { container } = render(<TaskLoopRow loop={cellLoop} task={cellTask} />);
+    const { container } = render(inTable(<TaskLoopRow loop={cellLoop} task={cellTask} />));
 
     const identity = container.querySelector('[data-slot="task-loop-row-identity"]');
     expect(identity).toHaveTextContent("revisao-paralela · round 1 · step revisor-perf");
@@ -111,7 +115,10 @@ describe("TaskLoopRow", () => {
     expect(container.querySelector('[data-slot="task-loop-row-role"]')).toHaveTextContent(
       "Loop step"
     );
-    expect(container.querySelector('[data-slot="listing-row-icon"] svg')).not.toBeNull();
+    expect(container.querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "running"
+    );
 
     const link = screen.getByRole("link", {
       name: "Open run for revisao-paralela · round 1 · step revisor-perf",
@@ -128,14 +135,19 @@ describe("TaskLoopRow", () => {
 
   it("Should lead the parent record with the loop name and the literal word run", () => {
     const { container } = render(
-      <TaskLoopRow
-        loop={{
-          role: "coordinator",
-          run_id: "looprun-8f3ab2c1d4e5f607",
-          loop_name: "revisao-paralela",
-        }}
-        task={buildTask({ id: "loop.looprun-8f3ab2c1d4e5f607.coordinator", identifier: undefined })}
-      />
+      inTable(
+        <TaskLoopRow
+          loop={{
+            role: "coordinator",
+            run_id: "looprun-8f3ab2c1d4e5f607",
+            loop_name: "revisao-paralela",
+          }}
+          task={buildTask({
+            id: "loop.looprun-8f3ab2c1d4e5f607.coordinator",
+            identifier: undefined,
+          })}
+        />
+      )
     );
     expect(container.querySelector('[data-slot="task-loop-row-identity"]')).toHaveTextContent(
       "revisao-paralela · run"
@@ -147,10 +159,12 @@ describe("TaskLoopRow", () => {
 
   it("Should disambiguate fan-out workers past the first by item index", () => {
     const { container } = render(
-      <TaskLoopRow
-        loop={{ ...cellLoop, node_id: "revisores", item_index: 2 }}
-        task={buildTask({ id: "loop.run.g1.node.revisores.2", identifier: undefined })}
-      />
+      inTable(
+        <TaskLoopRow
+          loop={{ ...cellLoop, node_id: "revisores", item_index: 2 }}
+          task={buildTask({ id: "loop.run.g1.node.revisores.2", identifier: undefined })}
+        />
+      )
     );
     expect(container.querySelector('[data-slot="task-loop-row-identity"]')).toHaveTextContent(
       "revisao-paralela · round 1 · step revisores · item 2"
@@ -161,13 +175,15 @@ describe("TaskLoopRow", () => {
   // provenance but offers no link to follow.
   it("Should render the run-gone degrade with no link when the loop name is unrecoverable", () => {
     const { container } = render(
-      <TaskLoopRow
-        loop={{ role: "cell", run_id: "looprun-77aa01b2c3d4e5f6", generation: 2 }}
-        task={buildTask({
-          id: "loop.looprun-77aa01b2c3d4e5f6.g2.node.saida.0",
-          identifier: undefined,
-        })}
-      />
+      inTable(
+        <TaskLoopRow
+          loop={{ role: "cell", run_id: "looprun-77aa01b2c3d4e5f6", generation: 2 }}
+          task={buildTask({
+            id: "loop.looprun-77aa01b2c3d4e5f6.g2.node.saida.0",
+            identifier: undefined,
+          })}
+        />
+      )
     );
     expect(container.querySelector('[data-slot="task-loop-row-identity"]')).toHaveTextContent(
       "Loop step"

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
+import { Bot, Home, ListChecks } from "lucide-react";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 
@@ -14,7 +15,7 @@ const meta: Meta<typeof OsWindowFrame> = {
     docs: {
       description: {
         component:
-          "Floating window frame — the shell chrome around one app's route subtree. Head carries traffic lights, left-aligned identity (glyph + title), and a trailing status/actions slot; optional context strip below. Frame depth (border + cast shadow) is the sanctioned shell-carve-out; window-body content stays flat.",
+          "Window frame — the shell chrome around one app's route subtree. The 48px head carries the identity (well + title), the trailing status/actions slot, and the quiet minimize/zoom/close controls; optional context strip below. Tiled frames are flat surface boxes; floating frames keep a `line` hairline and `shadow-elevated`. Blurred windows dim their identity and trail.",
       },
     },
   },
@@ -41,7 +42,7 @@ function AgentsBody() {
           key={agent.name}
           className="flex items-center gap-3 border-b border-line-soft px-4 py-2.5 last:border-0"
         >
-          <span className="grid size-workspace-avatar shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted">
+          <span className="grid size-4.5 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted">
             {agent.chip}
           </span>
           <span className="min-w-0 flex-1">
@@ -126,11 +127,11 @@ function DashboardBody() {
 }
 
 /**
- * Focused — a single agents window with the sharp `--color-line-focus` border
- * and the cast `--shadow-window` over the ember desktop.
+ * Focused — a single floating agents window: `line` hairline and
+ * `shadow-elevated` over the desk.
  */
 export const Focused: Story = {
-  args: { title: "Agents", focused: true, onTrafficLight: fn() },
+  args: { title: "Agents", glyph: <Bot />, focused: true, onTrafficLight: fn() },
   render: args => (
     <DesktopShell dockItems={buildDeskItems({ open: ["agents"] })}>
       <OsWindowFrame {...args} className="absolute top-[118px] left-[260px] h-[390px] w-[540px]">
@@ -141,11 +142,11 @@ export const Focused: Story = {
 };
 
 /**
- * Unfocused — the agents window dimmed and on the lighter
- * `--shadow-window-unfocused`, beside a focused dashboard window.
+ * Unfocused — the agents window's identity and trail dim to .55 beside a
+ * focused dashboard window; the frame finish does not change with focus.
  */
 export const Unfocused: Story = {
-  args: { title: "Agents", focused: false, onTrafficLight: fn() },
+  args: { title: "Agents", glyph: <Bot />, focused: false, onTrafficLight: fn() },
   render: args => (
     <DesktopShell dockItems={buildDeskItems({ open: ["agents", "dashboard"] })}>
       <OsWindowFrame {...args} className="absolute top-[80px] left-[120px] h-[390px] w-[540px]">
@@ -153,6 +154,7 @@ export const Unfocused: Story = {
       </OsWindowFrame>
       <OsWindowFrame
         title="Dashboard"
+        glyph={<Home />}
         focused
         onTrafficLight={fn()}
         className="absolute top-[170px] left-[700px] h-[540px] w-[680px]"
@@ -195,12 +197,46 @@ function RouteActionPublisher() {
  * window's `<Topbar>`, scoped to this window's provider.
  */
 export const WithRouteAction: Story = {
-  args: { title: "Tasks", focused: true, onTrafficLight: fn() },
+  args: { title: "Tasks", glyph: <ListChecks />, focused: true, onTrafficLight: fn() },
   render: args => (
     <DesktopShell>
       <OsWindowFrame {...args} className="absolute top-[118px] left-[260px] h-[390px] w-[540px]">
         <RouteActionPublisher />
       </OsWindowFrame>
+    </DesktopShell>
+  ),
+};
+
+/**
+ * Tiled — two flush panes: flat surface boxes with no radius, border, or
+ * shadow. The seam between them is the only divider; the blurred pane dims.
+ */
+export const Tiled: Story = {
+  args: {
+    title: "Tasks",
+    glyph: <ListChecks />,
+    focused: true,
+    kind: "tiled",
+    onTrafficLight: fn(),
+  },
+  render: args => (
+    <DesktopShell dockItems={buildDeskItems({ open: ["agents", "dashboard"] })}>
+      <div className="absolute inset-0 flex">
+        <OsWindowFrame {...args} className="h-full w-1/2">
+          <RouteActionPublisher />
+        </OsWindowFrame>
+        <span aria-hidden="true" className="w-px shrink-0 bg-line" />
+        <OsWindowFrame
+          title="Dashboard"
+          glyph={<Home />}
+          kind="tiled"
+          focused={false}
+          onTrafficLight={fn()}
+          className="h-full min-w-0 flex-1"
+        >
+          <DashboardBody />
+        </OsWindowFrame>
+      </div>
     </DesktopShell>
   ),
 };

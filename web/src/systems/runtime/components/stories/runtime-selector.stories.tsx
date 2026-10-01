@@ -165,10 +165,10 @@ export const Default: Story = {
         {states.map(state => (
           <section
             key={state.label}
-            className="flex min-h-32 flex-col justify-between gap-5 rounded-lg border border-line bg-canvas-soft p-5"
+            className="flex min-h-32 flex-col justify-between gap-5 rounded-lg border border-line bg-canvas p-5"
           >
             <div>
-              <h2 className="text-item-title font-semibold text-fg-strong">{state.label}</h2>
+              <h2 className="text-item-title font-semibold text-fg">{state.label}</h2>
               <p className="mt-1 text-small-body text-subtle">{state.description}</p>
             </div>
             <ControlledRuntimeSelector

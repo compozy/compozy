@@ -53,7 +53,6 @@ export function MarketplaceDetailLocation({
     crumb: entryName,
     actions: entry ? (
       <MarketplaceCatalogTrail
-        emphasis="primary"
         entry={entry}
         onInstall={actions.install}
         onUpdate={actions.update}
@@ -76,7 +75,16 @@ export function MarketplaceDetailLocation({
           title="Unable to load this item"
           description="The marketplace entry could not be loaded."
           cause={query.error?.message}
-          action={<Button onClick={() => void query.refetch()}>Retry</Button>}
+          action={
+            <Button
+              onClick={() => void query.refetch()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Retry
+            </Button>
+          }
         />
       </div>
     );

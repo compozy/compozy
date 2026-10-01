@@ -343,21 +343,6 @@ describe("TaskKanbanCard", () => {
     expect(screen.getByTestId("tasks-kanban-card-canceled")).toHaveTextContent("Canceled");
   });
 
-  it("Should paint the card with an inset ring instead of a border class", () => {
-    const tasks = [buildTask({ id: "ring" })];
-    render(
-      <TasksKanbanBoard
-        columns={groupTasksForKanban(tasks)}
-        onSelectTask={vi.fn()}
-        selectedTaskId={null}
-      />
-    );
-
-    const card = screen.getByTestId("tasks-kanban-card-ring");
-    expect(card.className).toContain("shadow-hairline-inset");
-    expect(card.className).not.toContain("border-line");
-  });
-
   it("Should not render an accent rail when the card is selected", () => {
     const tasks = [buildTask({ id: "sel" })];
     const { container } = render(

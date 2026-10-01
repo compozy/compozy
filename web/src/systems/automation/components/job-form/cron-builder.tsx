@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Button, cn, HelpTip, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { Button, cn, HelpTip, Input, NativeSelect, NativeSelectOption, Toggle } from "@compozy/ui";
 
 import type { CronFrequency, CronModel } from "../../lib/cron-engine";
 import { formatClock, SCHEDULE_CONSTANTS } from "../../lib/cron-engine";
@@ -71,18 +71,18 @@ const CRON_LEGEND = ["min", "hour", "day", "month", "weekday"];
 
 const CHIP_BASE =
   "inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-form-label font-medium transition-colors outline-none focus-visible:shadow-focus-ring";
-const CHIP_RESTING = "border-line-soft bg-canvas-tint text-muted hover:bg-elevated hover:text-fg";
-const CHIP_SELECTED = "border-accent-dim bg-accent-tint text-accent-strong";
+// Pill-group grammar: quiet at rest, the selected chip is the pressed plate (surface-2, no ring).
+const CHIP_RESTING = "border-transparent text-muted hover:bg-surface-2 hover:text-fg";
+const CHIP_SELECTED = "border-transparent bg-surface-2 text-fg";
 
 const FREQ_BASE =
   "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-small-body font-medium transition-colors outline-none focus-visible:shadow-focus-ring";
-const FREQ_RESTING = "border-line-soft bg-canvas-tint text-muted hover:bg-elevated hover:text-fg";
-const FREQ_SELECTED = "bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset";
+const FREQ_RESTING = "border-transparent text-muted hover:bg-surface-2 hover:text-fg";
+const FREQ_SELECTED = "border-transparent bg-surface-2 text-fg";
 
-const ROW_SHELL =
-  "mb-3 flex flex-wrap items-center gap-2.5 rounded-md border border-line-soft bg-canvas-tint px-3.5 py-3";
-const TIME_INPUT = "h-8 w-auto min-w-[120px] font-mono tabular-nums [color-scheme:dark]";
-const SEL_TRIGGER = "[&_select]:h-8 [&_select]:min-w-[72px]";
+const ROW_SHELL = "mb-3 flex flex-wrap items-center gap-2.5 rounded-md bg-sunken px-3.5 py-3";
+const TIME_INPUT = "w-auto min-w-[120px] font-mono tabular-nums";
+const SEL_TRIGGER = "[&_select]:min-w-[72px]";
 
 /** Split an `HH:MM` value into `{ hour, minute }`, or `null` for malformed input. */
 function parseTime(value: string): { hour: number; minute: number } | null {
@@ -238,21 +238,17 @@ export function CronBuilder({
               const pressed = selectedWeekdays.has(day);
               const weekday = SCHEDULE_CONSTANTS.DOW_LONG[day];
               return (
-                <button
+                // The shared pressed toggle: quiet ink at rest, the held plate and
+                // full ink when on — no edge, so nothing shifts between states.
+                <Toggle
                   key={weekday}
                   aria-label={weekday}
-                  aria-pressed={pressed}
-                  className={cn(
-                    "h-9 rounded-sm border text-small-body font-semibold transition-colors outline-none focus-visible:shadow-focus-ring",
-                    pressed
-                      ? "border-accent-dim bg-accent-tint text-accent-strong"
-                      : "border-line bg-elevated text-muted hover:bg-canvas-soft hover:text-fg"
-                  )}
-                  onClick={() => onToggleWeekday(day)}
-                  type="button"
+                  className="w-full"
+                  onPressedChange={() => onToggleWeekday(day)}
+                  pressed={pressed}
                 >
                   {label.slice(0, 2)}
-                </button>
+                </Toggle>
               );
             })}
           </fieldset>
@@ -267,7 +263,7 @@ export function CronBuilder({
               ).map(({ preset, label }) => (
                 <button
                   key={preset}
-                  className="rounded-pill border border-line-soft px-2.5 py-1 text-form-label font-medium text-subtle transition-colors outline-none hover:bg-elevated hover:text-fg focus-visible:shadow-focus-ring"
+                  className="rounded-pill border border-line-soft px-2.5 py-1 text-form-label font-medium text-subtle transition-colors outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring"
                   onClick={() => onWeekdayPreset(preset)}
                   type="button"
                 >
@@ -328,7 +324,7 @@ export function CronBuilder({
           aria-describedby="job-cron-readout"
           aria-invalid={!valid}
           aria-label="Cron expression"
-          className={cn("font-mono", isCustom ? "" : "border-dashed bg-canvas-tint text-muted")}
+          className={cn("font-mono", isCustom ? "" : "border-dashed bg-sunken text-muted")}
           onChange={event => onExpr(event.target.value)}
           readOnly={!isCustom}
           value={expr}

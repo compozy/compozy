@@ -1,4 +1,4 @@
-import { StatusDot, Time } from "@compozy/ui";
+import { StateGlyph, Time } from "@compozy/ui";
 
 import { terminalWaitingLead } from "../lib/permission-receipt-copy";
 import type { PermissionRequest } from "../types";
@@ -22,11 +22,7 @@ export function PermissionWaitingLine({ permission, askedAt }: PermissionWaiting
       data-testid="permission-waiting-line"
       role="status"
     >
-      <StatusDot
-        className="motion-safe:animate-pulse motion-reduce:animate-none"
-        size="sm"
-        tone="warning"
-      />
+      <StateGlyph size="sm" state="attention" />
       <span className="min-w-0 truncate">
         Waiting for your approval to {lead.verb}
         {lead.command ? (

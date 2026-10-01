@@ -32,7 +32,7 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
       data-testid="changed-file-row"
       className="flex min-h-transcript-row min-w-0 items-center gap-2 text-transcript-body"
     >
-      <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
+      <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <span
         className="flex min-w-0 flex-1 items-baseline font-mono text-transcript-caption"
         title={file.path}
@@ -68,9 +68,7 @@ export function SessionChangedFilesRowView({
         expanded={row.expanded}
         onToggle={onToggle}
         aria-controls={detailsId}
-        icon={
-          <FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
-        }
+        icon={<FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" />}
         label={
           <>
             Edited {fileCount} {fileCount === 1 ? "file" : "files"}

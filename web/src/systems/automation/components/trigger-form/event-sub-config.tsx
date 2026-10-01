@@ -10,7 +10,7 @@ interface EventSubConfigProps {
 }
 
 const MONO_INPUT = "font-mono text-form-label";
-const BOX = "mt-1.5 ml-4 rounded-md border border-line bg-canvas-tint p-3.5";
+const BOX = "mt-1.5 ml-4 rounded-md bg-sunken p-3.5";
 
 /**
  * Inline per-event configuration rendered directly under the selected event

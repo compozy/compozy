@@ -16,7 +16,7 @@ const pillVariants = cva(
         xs: "h-pill-xs px-1.5 leading-none",
         sm: "h-pill-sm px-2 leading-none",
         md: "h-pill-md px-2.5 leading-none",
-        count: "h-3.5 min-w-3.5 gap-0 px-1 leading-none tabular-nums",
+        count: "h-3.75 min-w-3.75 gap-0 px-1 leading-none tabular-nums",
       },
       mono: {
         true: "font-mono",
@@ -26,6 +26,7 @@ const pillVariants = cva(
       form: {
         tint: "",
         hollow: "",
+        plain: "",
       },
       active: { true: "", false: "" },
     },
@@ -36,7 +37,7 @@ const pillVariants = cva(
       { mono: false, size: "xs", className: "text-eyebrow font-medium tracking-eyebrow" },
       { mono: false, size: "sm", className: "text-eyebrow font-medium tracking-eyebrow" },
       { mono: false, size: "md", className: "text-eyebrow font-medium tracking-eyebrow" },
-      { size: "count", className: "font-mono text-micro font-bold" },
+      { size: "count", className: "text-count font-semibold" },
       { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
       { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
       { solid: true, tone: "success", className: "bg-success text-canvas" },
@@ -45,11 +46,15 @@ const pillVariants = cva(
       { solid: true, tone: "info", className: "bg-info text-canvas" },
       {
         active: true,
-        className: "bg-elevated text-fg-strong",
+        className: "bg-surface-2 text-fg",
       },
       {
         form: "hollow",
         className: "bg-transparent text-subtle shadow-inset-strong",
+      },
+      {
+        form: "plain",
+        className: "h-auto bg-transparent px-0 text-muted",
       },
     ],
     defaultVariants: {

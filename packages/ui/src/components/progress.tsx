@@ -31,7 +31,7 @@ function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   return (
     <ProgressPrimitive.Track
       className={cn(
-        "relative flex h-1 w-full items-center overflow-x-hidden rounded-full bg-canvas-tint",
+        "relative flex h-1 w-full items-center overflow-x-hidden rounded-full bg-surface-2",
         className
       )}
       data-slot="progress-track"

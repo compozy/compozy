@@ -1,6 +1,6 @@
 import { Folder, X } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Empty, Eyebrow } from "@compozy/ui";
+import { Alert, AlertDescription, Button, Empty, Eyebrow, KindIcon } from "@compozy/ui";
 
 import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
@@ -88,22 +88,20 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
               {selected.map(workspace => (
                 <li
                   key={workspace.path}
-                  className="flex flex-none items-center gap-2.5 rounded-md bg-canvas-soft px-2.5 py-2 ring-1 ring-inset ring-line"
+                  className="flex flex-none items-center gap-2.5 rounded-lg bg-card px-2.5 py-2 shadow-card"
                   data-testid="onboarding-selected-workspace"
                 >
-                  <span className="grid size-7 flex-none place-items-center rounded-sm bg-elevated text-muted">
-                    <Folder className="size-3.5" />
-                  </span>
+                  <KindIcon icon={Folder} tone="well" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-small-body font-medium text-fg-strong">
+                    <span className="block truncate text-body font-medium text-fg">
                       {workspace.name}
                     </span>
-                    <span className="block truncate font-mono text-micro text-subtle">
+                    <span className="block truncate font-mono text-eyebrow text-subtle">
                       {workspace.path}
                     </span>
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="quiet"
                     size="icon-sm"
                     disabled={
                       workspaces.isRemoving ||
@@ -125,7 +123,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
               onClick={onSkip}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               {GLOBAL_SCOPE_COPY.skipOnboarding}
             </Button>

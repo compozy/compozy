@@ -15,7 +15,7 @@ function JsonField({ label, value }: { label: string; value: Record<string, unkn
       {hasValue ? (
         <JsonViewer className="mt-1.5 bg-rail" value={value} />
       ) : (
-        <p className="mt-1 text-xs text-subtle">None</p>
+        <p className="mt-1 text-meta text-subtle">None</p>
       )}
     </div>
   );

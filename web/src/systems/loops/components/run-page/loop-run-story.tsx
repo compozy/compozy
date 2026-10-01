@@ -51,10 +51,11 @@ interface LoopRunStoryProps {
  * immediately, and older history loads backward on demand, fenced to a snapshot
  * so appends never shift the ground under a reader.
  */
-// Colour at rest is noise: only beats that warn or fail keep their signal ring.
+// Colour at rest is noise: only beats that need a person (accent), warn or fail
+// keep their signal ring. Parked beats (retry, pause, wait) stay calm.
 const TONE_RING = {
   neutral: "ring-line text-muted",
-  accent: "ring-line text-muted",
+  accent: "ring-accent text-accent",
   success: "ring-line text-muted",
   warning: "ring-warning text-warning",
   danger: "ring-danger text-danger",
@@ -119,7 +120,7 @@ export function LoopRunStory({ beats, paging, isReconnecting = false }: LoopRunS
       right={<LoopRunStoryStatusPill isError={isError} isReconnecting={isReconnecting} />}
       title="Activity"
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft px-4 py-2">
+      <div className="overflow-hidden rounded-lg bg-card shadow-card px-4 py-2">
         {beats.length === 0 ? (
           <LoopRunStoryEmpty isError={isError} isLoading={isLoading} />
         ) : (

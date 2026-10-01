@@ -2,6 +2,7 @@ import { useId, type SVGProps } from "react";
 
 interface LinearLogoProps extends SVGProps<SVGSVGElement> {
   variant?: "icon" | "logo" | "wordmark";
+  /** Fixed brand ink for a known backdrop; omitted, the mark follows `currentColor` (theme-aware). */
   mode?: "dark" | "light";
 }
 
@@ -23,13 +24,8 @@ const COLORS = {
  * - Provide plenty of space around logo assets
  * - Monochrome usage preferred with brand colors
  */
-export function LinearLogo({
-  className,
-  variant = "logo",
-  mode = "dark",
-  ...props
-}: LinearLogoProps) {
-  const color = COLORS[mode];
+export function LinearLogo({ className, variant = "logo", mode, ...props }: LinearLogoProps) {
+  const color = mode ? COLORS[mode] : "currentColor";
   const idPrefix = `linear-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const iconId = (suffix: string) => `${idPrefix}-${suffix}`;
 

@@ -38,7 +38,7 @@ export function AgentSettingsDangerSection({
           disabled={disabled || isDeleting}
           data-testid="agent-settings-delete"
         >
-          <Trash2 className="size-3" />
+          <Trash2 aria-hidden="true" />
           {isDeleting ? "Deleting…" : "Delete agent"}
         </Button>
       </div>

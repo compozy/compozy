@@ -31,7 +31,7 @@ const meta: Meta<typeof SessionAttachmentTile> = {
   decorators: [
     Story => (
       <CenteredSurface>
-        <div className="w-80 rounded-lg border border-line bg-elevated p-2">
+        <div className="w-80 rounded-lg bg-canvas shadow-card p-2">
           <Story />
         </div>
       </CenteredSurface>

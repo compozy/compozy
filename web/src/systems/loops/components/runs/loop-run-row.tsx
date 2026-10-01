@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { TriangleAlert } from "lucide-react";
 
-import { cn, Pill, PillDot, TableCell, TableRow, Time } from "@compozy/ui";
+import { cn, StateGlyph, TableCell, TableRow, Time } from "@compozy/ui";
 
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRunRow as LoopRunRowModel } from "../../lib/loop-runs-view";
@@ -29,7 +28,7 @@ export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
   const { run } = row;
   return (
     <TableRow
-      className={cn(row.needsYou && "bg-row-selected hover:bg-surface-glaze")}
+      className={cn(row.needsYou && "bg-selected hover:bg-selected")}
       data-needs-you={row.needsYou ? "true" : undefined}
       data-run-id={run.id}
       data-status={run.status}
@@ -57,17 +56,14 @@ export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
         </span>
       </TableCell>
       <TableCell>
-        <Pill data-testid="loop-run-status" tone={row.statusTone}>
-          {/* The needs-you chip carries a glyph as well as tone, so colour never
-              travels alone on the one row a person has to act on. Every other
-              status keeps production's dot-and-label chip vocabulary. */}
-          {row.needsYou ? (
-            <TriangleAlert aria-hidden="true" />
-          ) : (
-            <PillDot pulse={row.statusPulse} />
-          )}
+        <span
+          className="inline-flex items-center gap-1.75 text-small-body text-fg-2"
+          data-state={row.statusGlyph}
+          data-testid="loop-run-status"
+        >
+          <StateGlyph state={row.statusGlyph} still={row.statusStill} />
           {row.statusLabel}
-        </Pill>
+        </span>
       </TableCell>
       <TableCell className={META_CELL} data-testid="loop-run-progress">
         {row.progressLabel}

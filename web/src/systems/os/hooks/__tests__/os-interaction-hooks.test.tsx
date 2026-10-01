@@ -214,7 +214,6 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     focusedId: primary.id,
     wallpaper: "ember",
     reduceMotion: false,
-    dockMagnify: true,
     presentation: "floating",
     viewportState: "ready",
     hydration: authoritative ? "live" : "pending",
@@ -260,7 +259,6 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     reopenWindow: vi.fn(() => acceptedOutcome()),
     closeWindowScoped: vi.fn(async () => true),
     setWallpaper: vi.fn(),
-    setDockMagnify: vi.fn(),
     setReduceMotion: vi.fn(),
     setDesktopBounds: vi.fn(),
     createDesktop: vi.fn(),
@@ -1194,6 +1192,26 @@ describe("useWindowMergeTarget", () => {
     act(() => pointerMove(600, 60));
     frames.flush();
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+  });
+
+  it("Should not advertise a group target while the layer origin is unmeasured", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
+    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+    result.current.chromeRef.current = chromeWithHead();
+
+    act(() => {
+      beginPrimarySnapGesture();
+      windowManagerStore.trigger.workAreaMeasured({ workArea: null });
+    });
+    act(() => pointerMove(200, 60));
+    frames.flush();
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+    expect(result.current.mergeTargeted).toBe(false);
   });
 
   it("Should preserve a drop target published by a deck", () => {

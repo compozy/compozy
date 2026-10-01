@@ -41,7 +41,7 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
               className="size-3 shrink-0 animate-spin text-subtle motion-reduce:animate-none"
             />
           ) : (
-            <Check aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
+            <Check aria-hidden="true" className="size-3 shrink-0 text-subtle" />
           )
         }
         label={

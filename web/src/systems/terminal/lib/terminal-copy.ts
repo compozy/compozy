@@ -188,3 +188,14 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * The name a terminal goes by: its own title, else the shell it runs (`zsh`),
+ * else the app name. A fresh shell has no title until it sets one.
+ */
+export function terminalDisplayTitle(terminal: { title: string; shell?: string | null }): string {
+  const title = terminal.title.trim();
+  if (title) return title;
+  const shell = terminal.shell?.trim().split("/").pop();
+  return shell || "Terminal";
+}

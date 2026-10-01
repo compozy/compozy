@@ -26,6 +26,41 @@
  * by next/font in app/layout.tsx via the html className.
  */
 @theme inline {
+  /* D9: the site keeps its own type and geometry. The shared ui tokens moved
+     to Inter 425/500/600, a 14.5px body and tighter radii for the product;
+     these pins hold the site on its Geist ladder and prior sizes. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 510;
+  --font-weight-bold: 700;
+  --text-kbd: 0.65625rem;
+  --text-kbd--line-height: 0.75rem;
+  --text-kbd--font-weight: 510;
+  --text-item-title: 1rem;
+  --text-compact-h1: 1.1rem;
+  --text-form-label: 0.78125rem;
+  --tracking-body: -0.006em;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --height-button-default: 30px;
+  /* The hero's floating product window. The shared tokens retired the window
+     radius and shadow with the flat shell; the site keeps them for its mock. */
+  --radius-window: 12px;
+  /* Blog wire card (BlogWireCard): capped narrower than the prose column. */
+  --max-width-wire-card: 520px;
+  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+  /* Button labels moved to the 14.5px product body; the site keeps 12.5px. */
+  --text-body: 0.78125rem;
+  --text-empty-h1: 1.125rem;
+  --text-modal-title: 0.84375rem;
+  --text-form-input: 0.78125rem;
+  --text-form-hint: 0.78125rem;
+  --text-code-block: 0.78125rem;
+  --text-code-block--line-height: 1.5;
+  /* The product's primary action is inverted (near-white on dark); the site
+     keeps its accent-orange CTA. */
+  --color-primary: var(--color-accent);
+  --color-primary-hover: var(--color-accent-hover);
+  --color-primary-foreground: var(--color-accent-ink);
   --font-sans: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
   --font-mono:
@@ -88,6 +123,55 @@
   --tracking-site-doc-sidebar-group-label: var(--site-doc-sidebar-group-label-tracking);
   --color-site-doc-sidebar-section-label: var(--site-doc-sidebar-section-label-color);
   --color-site-doc-sidebar-group-label: var(--site-doc-sidebar-group-label-color);
+}
+
+/*
+ * D9 palette pins. The shared ui tokens moved the product to a neutral ramp
+ * with opaque hairlines; the site keeps its warm dark ramp. Values are the
+ * pre-shell-rail tokens. The roles the ui primitives adopted since (surface-2,
+ * selected, sunken, code-bg, fg-2/3, well, card/pop shadows) map onto the warm
+ * equivalents of what those primitives painted before, so site renders of
+ * `@compozy/ui` keep their look. Unlayered, so it wins over the token theme.
+ */
+:root {
+  --color-rail: #0c0b0b;
+  --color-canvas: #171615;
+  --color-canvas-soft: #1f1e1c;
+  --color-canvas-tint: #232220;
+  --color-sidebar: #1f1e1c;
+  --color-elevated: #2a2927;
+  --color-disabled: #4a4847;
+  --color-line: rgba(255, 255, 255, 0.055);
+  --color-line-soft: rgba(255, 255, 255, 0.03);
+  --color-line-strong: rgba(255, 255, 255, 0.09);
+  --color-line-focus: rgba(255, 255, 255, 0.14);
+  --color-fg: #eeedeb;
+  --color-fg-strong: #f7f6f4;
+  --color-muted: #a4a29e;
+  --color-subtle: oklch(0.663 0.004 75);
+  --color-faint: oklch(0.638 0.003 75);
+  --color-success: #5fbf85;
+  --color-success-tint: rgba(95, 191, 133, 0.08);
+  --color-warning: #d6a647;
+  --color-warning-tint: rgba(214, 166, 71, 0.08);
+  --color-danger: #e0635a;
+  --color-danger-tint: rgba(224, 99, 90, 0.09);
+  --color-popover: var(--color-canvas-soft);
+  /* The shared --hover steps to surface-2; the site keeps its row glaze. */
+  --color-hover: rgba(255, 255, 255, 0.045);
+  /* Roles the primitives adopted, on the warm ramp. */
+  --color-desk: var(--color-rail);
+  --color-surface-2: var(--color-canvas-tint);
+  --color-selected: var(--color-elevated);
+  --color-sunken: var(--color-rail);
+  --color-code-bg: var(--color-canvas-soft);
+  --color-fg-2: color-mix(in srgb, var(--color-muted) 60%, var(--color-fg));
+  --color-fg-3: color-mix(in srgb, var(--color-fg) 70%, var(--color-muted));
+  --color-well: color-mix(in srgb, var(--color-success) 14%, var(--color-canvas));
+  /* The site's surfaces stay flat: cards had no lift, popups a hairline. */
+  --theme-shadow-card: none;
+  --theme-shadow-elevated: none;
+  --theme-shadow-pop: 0 0 0 1px var(--color-line-soft);
 }
 
 :root {
@@ -228,7 +312,25 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
 body {
   background: var(--color-canvas);
   color: var(--color-fg);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+  font-feature-settings: normal;
   text-rendering: optimizeLegibility;
+}
+
+/* D9: the site still ships JetBrains Mono, which needs its native stroke
+   rendering instead of the grayscale smoothing the body baseline applies. The
+   shared ui baseline dropped this rule when the product moved to Geist Mono. */
+.font-mono,
+[class*="font-mono"],
+code,
+kbd,
+samp,
+pre {
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
 }
 
 a {

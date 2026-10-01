@@ -491,6 +491,32 @@ describe("RoutingCoordinator", () => {
     await vi.waitFor(() => expect(store.getState().focusedId).toBe("w-dashboard"));
   });
 
+  it("Should leave an empty desktop alone when the desktop URL lands while Home lives on another desktop", () => {
+    const elsewhere = { ...windowFixture("dashboard", "/"), desktopId: "desktop:other" };
+    const focusedHere = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([elsewhere, focusedHere]);
+    coordinator.completeHydration();
+
+    // Switching to an empty desktop reports `/`: focusing the other desktop's
+    // Home would switch the client straight back.
+    coordinator.reportRouteMatch(route("/"));
+
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+    expect(store.spies.focusWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should still focus Home for the desktop URL when it lives on the active desktop", async () => {
+    const home = windowFixture("dashboard", "/");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([home, tasks]);
+    coordinator.completeHydration();
+
+    coordinator.reportRouteMatch(route("/"));
+
+    expect(store.spies.openOrFocus).toHaveBeenCalledWith({ app: "dashboard", route: route("/") });
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(home.id));
+  });
+
   it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();

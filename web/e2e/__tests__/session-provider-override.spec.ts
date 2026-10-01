@@ -6,7 +6,12 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  closeAppWindow,
+  openAppWindow,
+  sessionWindow,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import {
   cleanupBrowserSettingsFixtures,
   seedBrowserSettingsFixtures,
@@ -283,8 +288,7 @@ test("operator can create a provider/model override session and attach without l
     overrideProvider
   );
   const focusedAgentsWin = await openAppWindow(appPage, "Agents", "agents");
-  await focusedAgentsWin.getByRole("button", { name: "Close window" }).click();
-  await expect(focusedAgentsWin).toBeHidden();
+  await closeAppWindow(appPage, focusedAgentsWin);
 
   await writeWorkspaceConfig({
     rootDir: workspaceRoot,

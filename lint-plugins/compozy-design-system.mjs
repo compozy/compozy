@@ -17,6 +17,8 @@ import {
   noInlineEyebrow,
   normalizeFilename,
   splitClassTokens,
+  THEME_BLIND_INK_LITERAL_RE,
+  THEME_BLIND_INK_RE,
 } from "./compozy-design-system-core-rules.mjs";
 
 /**
@@ -49,20 +51,60 @@ const PREFER_BARE_UTILITY_WHITELIST = new Set([
   "width-modal-xl",
   "size-catalog-logo",
   "size-provider-logo-well",
-  "size-pill-group-badge",
   "height-pill-group-segment-md",
   "height-pill-group-segment-sm",
-  "space-pill-group-track-gap",
-  "space-pill-group-track-padding",
   "space-pill-group-segment-sm-x",
   "space-pill-group-segment-md-x",
-  "space-pill-group-badge-x",
   // Eyebrow utility uses arbitrary length syntax internally (allowed)
   "length:--text-eyebrow",
 ]);
 
 const PREFER_BARE_RE =
   /\b([a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z][a-zA-Z0-9]*){0,2})-\(--([a-zA-Z0-9-]+)\)/g;
+
+/**
+ * Theme namespaces each sizing utility reads in Tailwind v4 (tailwindcss 4.3
+ * `dist/lib.js`). A bare `min-w-<stem>` resolves `--min-width-<stem>`, never
+ * `--width-<stem>`, so `min-w-(--width-x)` has no bare form: suggesting
+ * `min-w-x` produces a class that generates no CSS.
+ */
+const SPACING = "spacing";
+const SIZING_UTILITY_NAMESPACES = new Map([
+  ["w", ["width", SPACING, "container"]],
+  ["min-w", ["min-width", SPACING, "container"]],
+  ["max-w", ["max-width", SPACING, "container"]],
+  ["h", ["height", SPACING]],
+  ["min-h", ["min-height", "height", SPACING]],
+  ["max-h", ["max-height", "height", SPACING]],
+  ["size", ["size", SPACING]],
+  ["basis", ["flex-basis", SPACING, "container"]],
+  ...["p", "px", "py", "pt", "pr", "pb", "pl", "ps", "pe"].map(p => [p, ["padding", SPACING]]),
+  ...["m", "mx", "my", "mt", "mr", "mb", "ml", "ms", "me"].map(p => [p, ["margin", SPACING]]),
+  ...["gap", "gap-x", "gap-y"].map(p => [p, ["gap", SPACING]]),
+  ...["inset", "inset-x", "inset-y", "top", "right", "bottom", "left", "start", "end"].map(p => [
+    p,
+    ["inset", SPACING],
+  ]),
+]);
+
+/** Sizing namespaces a token name can start with, longest first. */
+const SIZING_NAMESPACES = [...new Set([...SIZING_UTILITY_NAMESPACES.values()].flat())].sort(
+  (a, b) => b.length - a.length
+);
+
+/**
+ * True when the bare utility would read `--<name>`: either the prefix is not a
+ * sizing utility (colors, radius, shadows…), or the token's namespace is one
+ * the sizing utility reads. A token outside every sizing namespace keeps the
+ * old behaviour (flagged unless whitelisted).
+ */
+function hasBareForm(prefix, name) {
+  const namespaces = SIZING_UTILITY_NAMESPACES.get(prefix);
+  if (!namespaces) return true;
+  const namespace = SIZING_NAMESPACES.find(candidate => name.startsWith(candidate + "-"));
+  if (!namespace) return true;
+  return namespaces.includes(namespace);
+}
 
 function findArbitraryTokenViolations(value) {
   if (!value || typeof value !== "string") return [];
@@ -71,6 +113,7 @@ function findArbitraryTokenViolations(value) {
     const [, prefix, name] = match;
     if (PREFER_BARE_UTILITY_WHITELIST.has(name)) continue;
     if (name.startsWith("radix-")) continue;
+    if (!hasBareForm(prefix, name)) continue;
     out.push({ prefix, name, full: match[0] });
   }
   return out;
@@ -115,10 +158,17 @@ const preferBareTokenUtility = {
 // failure). The low-contrast hairline colors (`ring-line-strong` / `ring-ring`)
 // and the sub-2px width (`ring-1`) are therefore forbidden inside ANY focus
 // variant. Callers use the shared focus tokens `shadow-focus-ring` (outset) /
-// `shadow-focus-inset` (inset); accent focus rings stay on `ring-2 ring-accent`.
+// `shadow-focus-inset` (inset), which flip per theme (50% white on dark, 50% ink on
+// light); accent focus rings stay on `ring-2 ring-accent`. A white or black ring ink
+// only reads on one theme, so it is banned inside focus variants too.
 const FOCUS_RING_COLOR_UTILITIES = new Set(["ring-line-strong", "ring-ring"]);
 
 const FOCUS_RING_WIDTH_UTILITIES = new Set(["ring-1"]);
+
+// Opaque or numeric-opacity `ring-white` / `ring-black` (and `outline-*`); arbitrary
+// translucent forms and hand-rolled `shadow-[…rgba(255,255,255,…)]` rings are caught by
+// the shared theme-blind ink matchers.
+const FOCUS_RING_THEME_INK_RE = /^(?:ring|outline)-(?:white|black)$/;
 
 function focusRingUtilityViolation(token) {
   // Strip an optional Tailwind opacity modifier (e.g. `ring-ring/50`).
@@ -132,6 +182,13 @@ function focusRingUtilityViolation(token) {
   if (!variants.includes("focus")) return null;
   if (FOCUS_RING_COLOR_UTILITIES.has(utility)) return "focusRingColor";
   if (FOCUS_RING_WIDTH_UTILITIES.has(utility)) return "focusRingWidth";
+  if (
+    FOCUS_RING_THEME_INK_RE.test(utility) ||
+    THEME_BLIND_INK_RE.test(token) ||
+    (utility.startsWith("shadow-[") && THEME_BLIND_INK_LITERAL_RE.test(utility))
+  ) {
+    return "focusRingThemeInk";
+  }
   return null;
 }
 
@@ -155,6 +212,8 @@ const noLowContrastFocusRing = {
     messages: {
       focusRingColor:
         "Low-contrast focus ring in className. :focus-visible indicators need ≥3:1 contrast (GhostFocus is a critical a11y failure). Use focus-visible:shadow-focus-ring (outset) or focus-visible:shadow-focus-inset (inset); for accent focus use focus-visible:ring-2 focus-visible:ring-accent. ring-line-strong / ring-ring are banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
+      focusRingThemeInk:
+        "Theme-blind focus ring ink in className. A white or black ring only reads on one theme. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, which flip per theme (or focus-visible:ring-2 focus-visible:ring-accent). See BUG-20260714 and DESIGN.md §10.",
       focusRingWidth:
         "Sub-2px focus ring in className. :focus-visible indicators must be ≥2px thick. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, or focus-visible:ring-2 for accent rings. ring-1 is banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
     },

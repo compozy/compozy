@@ -29,7 +29,7 @@ export interface LoopEditorReviewFieldProps {
   suggestions: readonly LoopReferenceSuggestion[];
 }
 
-const CONTROL_CLASS = "h-8 px-2.5 font-mono text-form-input";
+const CONTROL_CLASS = "px-2.5 font-mono text-form-input";
 
 function asDecisions(values: readonly string[]): LoopReviewDecision[] {
   return LOOP_REVIEW_DECISIONS.filter(decision => values.includes(decision));
@@ -58,7 +58,7 @@ export function LoopEditorReviewField({
 
   return (
     <Field className="gap-3" data-slot="loop-node-review-field" data-testid="loop-editor-review">
-      <div className="flex items-center gap-3 rounded-md border border-line-soft bg-canvas-soft px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-md bg-sunken px-3 py-2.5">
         <Switch
           aria-label={spec.label}
           checked={spec.enabled}
@@ -154,7 +154,7 @@ function ReviewRequestFields({
           value={spec.prompt}
         />
       </Field>
-      <div className="flex items-center gap-3 rounded-md border border-line-soft bg-canvas-soft px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-md bg-sunken px-3 py-2.5">
         <Switch
           aria-label="Agents may respond"
           checked={spec.agentsAllowed}

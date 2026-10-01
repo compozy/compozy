@@ -13,7 +13,7 @@ export interface OsPaletteFallbackRowProps {
   onSelect(query: string): void;
 }
 
-/** Agent delegation is a normal result row; only its glyph carries the informational tint. */
+/** Agent delegation is a normal result row: a plain agent glyph, the query, and ↵. */
 export function OsPaletteFallbackRow({ fallback, pending, onSelect }: OsPaletteFallbackRowProps) {
   return (
     <CommandItem
@@ -25,9 +25,7 @@ export function OsPaletteFallbackRow({ fallback, pending, onSelect }: OsPaletteF
       value={fallback.value}
       onSelect={() => onSelect(fallback.query)}
     >
-      <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-info-tint text-info">
-        <Bot aria-hidden="true" className="size-3" />
-      </span>
+      <Bot aria-hidden="true" className="size-3.5 text-muted" />
       <span className="min-w-0 truncate leading-none text-fg">
         Ask agent: <span className="text-fg-strong">&apos;{fallback.query}&apos;</span>
       </span>

@@ -20,7 +20,7 @@ export function RightRail({ open, mode, children, className }: RightRailProps) {
     <aside
       aria-label={mode === "thread" ? "Thread overlay" : "Channel inspector"}
       className={cn(
-        "flex min-h-0 h-full w-full flex-col border-l border-line bg-canvas-soft",
+        "flex min-h-0 h-full w-full flex-col border-l border-line bg-canvas",
         className
       )}
       data-mode={mode}

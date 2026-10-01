@@ -29,9 +29,9 @@ export function LayoutProfileCard({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-lg border border-line bg-canvas-soft",
-        "transition-colors duration-base ease-out hover:border-line-strong",
-        selected && "border-accent-dim bg-accent-tint"
+        "flex flex-col overflow-hidden rounded-lg bg-card shadow-card",
+        "transition-colors duration-base ease-out",
+        selected ? "bg-selected" : "hover:bg-surface-2"
       )}
       data-selected={selected ? "true" : undefined}
       data-testid={`layout-profile-card-${record.id}`}
@@ -46,7 +46,7 @@ export function LayoutProfileCard({
           <LayoutProfileThumbnail record={record} />
         </span>
         <span className="block px-3 pt-2.5 pb-3">
-          <span className="block truncate text-small-body font-semibold text-fg-strong">
+          <span className="block truncate text-body font-medium text-fg">
             {record.spec.displayName}
           </span>
           <span className="mt-0.5 block truncate font-mono text-mono-id text-faint">
@@ -72,7 +72,7 @@ export function LayoutProfileCard({
           data-testid={`layout-profile-load-${record.id}`}
           size="xs"
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={onLoad}
         >
           Load
@@ -115,7 +115,7 @@ function LayoutProfileThumbnail({ record }: { record: WindowManagerLayoutResourc
         <g key={`${tile.x}:${tile.y}:${tile.w}:${tile.h}`}>
           {tile.stacked ? (
             <rect
-              className="fill-surface-glaze stroke-line-strong"
+              className="fill-surface-2 stroke-line-strong"
               height={tile.h}
               rx="1.6"
               strokeWidth="0.8"

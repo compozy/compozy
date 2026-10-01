@@ -105,7 +105,7 @@ func TestWindowLifecycleReflow(t *testing.T) {
 func TestWindowTabGroupingV3(t *testing.T) {
 	t.Run("Should group floating windows and activate the newly added member [UT-010]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
 		result := executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
@@ -169,7 +169,7 @@ func TestWindowTabGroupingV3(t *testing.T) {
 
 	t.Run("Should splice a floating tab frame beside a tiled target as one stack node", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		for _, windowID := range []WindowID{"w1", "w2", "board"} {
 			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
 		}
@@ -209,7 +209,7 @@ func TestWindowTabGroupingV3(t *testing.T) {
 
 	t.Run("Should float a tiled tab frame as one unit when a group move carries a rect", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		for _, windowID := range []WindowID{"w1", "w2", "board"} {
 			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
 		}
@@ -261,7 +261,7 @@ func TestWindowTabGroupingV3(t *testing.T) {
 
 	t.Run("Should fold a center group drop into the target stack", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		for _, windowID := range []WindowID{"w1", "w2", "board"} {
 			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
 		}
@@ -393,7 +393,7 @@ func TestWindowTabGroupingV3(t *testing.T) {
 
 	t.Run("Should grow a tiled leaf stack and restore a minimized member [UT-012]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
 		executeTestCommand(t, environment.manager, "workspace-a", nil, ToggleFloatingCommand{WindowID: "w1"})
@@ -701,9 +701,30 @@ func TestWindowTabCloseAndReopenV3(t *testing.T) {
 		}
 	})
 
+	t.Run("Should move the closing client's focus to the tab its frame shows next", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		// w1 enters the focus history ahead of w2, then w3 becomes the shown tab.
+		for _, windowID := range []WindowID{"w1", "w3"} {
+			executeTestCommand(t, environment.manager, "workspace-a", &clientID,
+				FocusWindowCommand{WindowID: new(windowID)})
+		}
+
+		closed := executeTestCommand(t, environment.manager, "workspace-a", &clientID,
+			CloseWindowCommand{WindowID: "w3"})
+		location := stackLocationForWindow(t, closed.Snapshot, "w1")
+		if closed.Client == nil || closed.Client.StackActive[location.id()] != "w2" ||
+			valueOrZero(closed.Client.FocusedWindowID) != "w2" {
+			t.Fatalf("client after closing the shown tab = %+v, want focus on the next shown tab w2", closed.Client)
+		}
+	})
+
 	t.Run("Should close a whole frame as one ordered entry [UT-021]", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
 		stack := stacked.Snapshot.Desktops[0].FloatingStacks[0]
 		executeTestCommand(t, environment.manager, "workspace-a", nil, SetStackActiveCommand{WindowID: "w2"})
@@ -1113,7 +1134,7 @@ func TestDeletedSessionWindowReconciliation(t *testing.T) {
 		"Should retire matching windows to the session empty route without disturbing another workspace",
 		func(t *testing.T) {
 			t.Parallel()
-			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a", "workspace-b")
+			environment := newTestEnvironment(t, floatingConfig(), "workspace-a", "workspace-b")
 			const deletedSession = "session-deleted"
 
 			executeTestCommand(
@@ -2519,7 +2540,7 @@ func TestFocusAndZoom(t *testing.T) {
 		"Should keep a restored window on its own desktop when the focused window is tiled elsewhere",
 		func(t *testing.T) {
 			t.Parallel()
-			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 			openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 			openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
 			arranged := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
@@ -2566,7 +2587,7 @@ func TestFocusAndZoom(t *testing.T) {
 
 	t.Run("Should count floating frames as desktop content and transfer them on delete", func(t *testing.T) {
 		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
 		executeTestCommand(
 			t,
 			environment.manager,

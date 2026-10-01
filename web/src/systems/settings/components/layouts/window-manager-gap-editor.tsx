@@ -34,7 +34,7 @@ export function WindowManagerGapEditor({
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="relative h-54 overflow-hidden rounded-md border border-line-strong bg-canvas select-none"
+        className="relative h-54 overflow-hidden rounded-md border border-line-strong bg-sunken select-none"
         data-testid="window-manager-gap-editor"
       >
         <div
@@ -48,7 +48,7 @@ export function WindowManagerGapEditor({
           }}
         >
           {[0, 1, 2, 3].map(index => (
-            <div className="rounded-xxs border border-line-strong bg-surface-glaze" key={index} />
+            <div className="rounded-xxs border border-line-strong bg-surface-2" key={index} />
           ))}
         </div>
 

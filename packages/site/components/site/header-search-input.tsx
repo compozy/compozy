@@ -4,7 +4,10 @@ import { cn, Kbd } from "@compozy/ui";
 import { Search } from "lucide-react";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
 import type { ComponentProps } from "react";
+
 import { useSiteSearch } from "@/components/site/hooks/use-site-search";
+
+const SITE_KBD_CLASS = "rounded-sm border border-line bg-canvas-soft text-muted inset-ring-0";
 
 type HeaderSearchInputProps = Omit<ComponentProps<"form">, "onSubmit"> & {
   hideIfDisabled?: boolean;
@@ -59,7 +62,10 @@ export function HeaderSearchInput({ className, hideIfDisabled, ...props }: Heade
       />
       <span aria-hidden className={cn(keyboardHintClasses)}>
         {hotKey.map((key, index) => (
-          <Kbd key={index}>{key.display}</Kbd>
+          // D9: the site keeps its bordered key cap; the shared Kbd moved to an inset ring.
+          <Kbd key={index} className={SITE_KBD_CLASS}>
+            {key.display}
+          </Kbd>
         ))}
       </span>
     </form>

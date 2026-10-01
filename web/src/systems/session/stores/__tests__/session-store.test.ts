@@ -61,6 +61,8 @@ describe("session store", () => {
         "session-persisted": "Revisão 😊 antes   do lançamento",
         blank: "",
         invalid: 42,
+        // The retired shared empty-desktop slot never resurfaces in any project.
+        "desktop:new-session": "Prompt typed before drafts were kept per project",
       },
       firstPrompts: { unsafe: { text: "must not hydrate", claimed: false } },
       goalFeedback: { unsafe: { errorVisible: true } },

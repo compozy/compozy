@@ -57,7 +57,7 @@ export function SettingsSkillsScopeSelector({
   return (
     <SettingsGroup title="Applies to">
       <div
-        className="flex flex-wrap items-center gap-2"
+        className="flex flex-wrap items-center gap-2 px-4 py-3"
         data-testid="settings-page-skills-scope-row"
       >
         <PillGroup<SkillsScopeValue>
@@ -74,7 +74,7 @@ export function SettingsSkillsScopeSelector({
       </div>
 
       {showContextPickers ? (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 border-t border-line-soft px-4 py-3 md:grid-cols-2">
           {selection.scope === "agent" ? (
             <SettingsFieldRow
               data-testid="settings-page-skills-agent-select"
@@ -129,7 +129,7 @@ export function SettingsSkillsScopeNotice({ kind }: { kind: "agent" | "repositor
         title="Set by the active profile"
         data-testid="settings-page-skills-repository-profile-note"
       >
-        <p className="text-sm text-muted">
+        <p className="px-4 py-3 text-small-body text-muted">
           This project uses the active profile&apos;s settings and can&apos;t be edited here.
         </p>
       </SettingsGroup>
@@ -140,7 +140,7 @@ export function SettingsSkillsScopeNotice({ kind }: { kind: "agent" | "repositor
       title="Other skill settings"
       data-testid="settings-page-skills-agent-policy-note"
     >
-      <p className="text-sm text-muted">
+      <p className="px-4 py-3 text-small-body text-muted">
         For a single agent you can only turn skills off. Everything else on this page is set for you
         as a whole.
       </p>

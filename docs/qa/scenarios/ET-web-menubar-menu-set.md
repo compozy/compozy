@@ -4,7 +4,7 @@ area: ET
 title: Operate every desktop surface from the static menubar
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: The Compozy mark is one `role="menubar"`. The Global scope globe sits between the mark and the workspace chip, outside `role="menubar"`. The workspace chip is a second `role="menubar"`. The static Session · Go · Window · Help set is a third `role="menubar"`; ←/→ traverse each menubar, Home/End jump to the ends, ↓ enters a menu, → opens a submenu, Esc closes, and hovering a sibling switches the open menu. Compact viewports (<960px) hide the app menus but keep mark · globe · chip leading. Compozy opens About/Settings/Appearance/Layouts, Session creates a session or agent and opens the catalog, Go mirrors the dock groups plus the palette and Workspaces, Window carries the everyday window actions (Minimize, Zoom, Floating, Move & resize, Arrange, Desktops overview, Close) with real chords while directional focus, tab merge/detach, layout undo/redo, and desktop stepping stay palette/keyboard commands, and Help reaches the shortcut reference, docs, protocol, changelog, issues, and support; every item is disabled — never hidden — when its runtime predicate fails, and no chord glyph renders unless the registry actually binds it.
+expected: The CompozyOS mark is one `role="menubar"`. The Global scope globe sits between the mark and the workspace chip, outside `role="menubar"`. The workspace chip is a second `role="menubar"`. The static Session · Go · Window · Help set is a third `role="menubar"`; ←/→ traverse each menubar, Home/End jump to the ends, ↓ enters a menu, → opens a submenu, Esc closes, and hovering a sibling switches the open menu. Compact viewports (<960px) hide the app menus but keep mark · globe · chip leading. CompozyOS opens About/Settings/Appearance/Layouts, Session creates a session or agent and opens the catalog, Go mirrors the dock groups plus the palette and Workspaces, Window carries the everyday window actions in the shell-rail order — an Arrange group (Main and stack, Columns, Grid, Balance sizes), a Move window to submenu naming every other desktop, Zoom, Minimize, Floating, Move & resize, All desktops, Close — with real chords while directional focus, tab merge/detach, layout undo/redo, and desktop stepping stay palette/keyboard commands, and Help reaches the shortcut reference, docs, protocol, changelog, issues, and support; every item is disabled — never hidden — when its runtime predicate fails, and no chord glyph renders unless the registry actually binds it.
 entry_points: web desktop menubar; keyboard traversal from the menubar; <960px compact viewport
 qa_status: untested
 bug_ids:
@@ -17,6 +17,11 @@ overlaps: ET-web-desktop-shell-lifecycle; ET-web-command-palette-shortcuts; ET-w
 ---
 
 story: As a builder, I can reach and understand every desktop capability from a menu bar that behaves like an OS menu bar and never offers a command the daemon cannot run.
+
+2026-09-29 qa-impact (shell-rail D3): the Window menu leads with a labelled Arrange group (Main and
+stack, Columns, Grid, Balance sizes — registry titles), adds a Move window to submenu listing the
+other desktops by name (registry slots `window.move_to_desktop.1..9`), and `desktop.overview` is now
+titled All desktops. Flag; the next QA cycle owns live retesting.
 
 qa-impact: 2026-07-24 the menubar moved onto the `@compozy/ui` `Menubar` primitive and grew from
 `Session · View · Help` (one Session item, six View items) to the static five-menu set. The Compozy

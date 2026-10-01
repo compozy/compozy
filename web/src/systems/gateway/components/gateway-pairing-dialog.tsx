@@ -135,7 +135,7 @@ export function GatewayPairingDialog({
             onClick={onMint}
             type="button"
           >
-            <RefreshCw aria-hidden="true" className="size-3" />
+            <RefreshCw aria-hidden="true" />
             {artifact ? "Create a new code" : "Create a code"}
           </Button>
         </DialogFooter>

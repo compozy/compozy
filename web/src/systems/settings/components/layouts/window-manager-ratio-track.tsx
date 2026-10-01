@@ -49,14 +49,14 @@ export function WindowManagerRatioTrack({
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="relative h-20 overflow-hidden rounded-md border border-line-strong bg-canvas select-none"
+        className="relative h-20 overflow-hidden rounded-md border border-line-strong bg-sunken select-none"
         data-testid="window-manager-ratio-track"
         ref={trackRef}
         onPointerDown={addStop}
       >
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute top-2.5 bottom-2.5 left-2.5 rounded-xxs border border-line-soft bg-surface-glaze"
+          className="pointer-events-none absolute top-2.5 bottom-2.5 left-2.5 rounded-xxs border border-line-soft bg-surface-2"
           style={{ width: `calc((100% - ${EDGE_PAD * 2}px) * ${preview})` }}
         />
         <span
@@ -140,7 +140,7 @@ function RatioStop({
       className={cn(
         "group/stop absolute bottom-0.5 z-5 flex -translate-x-1/2 cursor-ew-resize flex-col items-center gap-0.5 px-1",
         "text-muted focus-visible:outline-none focus-visible:shadow-focus-ring",
-        selected && "text-fg-strong",
+        selected && "text-fg",
         drag.dragging && "text-accent-strong"
       )}
       data-testid={`window-manager-ratio-stop-${index}`}

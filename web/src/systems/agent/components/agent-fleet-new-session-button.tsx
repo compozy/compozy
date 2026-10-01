@@ -28,9 +28,9 @@ function AgentFleetNewSessionButton({
             }}
             size="icon-sm"
             type="button"
-            variant="ghost"
+            variant="quiet"
           >
-            <MessageSquare aria-hidden="true" className="size-3.5" />
+            <MessageSquare aria-hidden="true" />
           </Button>
         }
       />

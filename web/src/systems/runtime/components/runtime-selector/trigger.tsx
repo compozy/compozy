@@ -33,7 +33,10 @@ export interface RuntimeSelectorTriggerProps extends Omit<
   onPress?: () => void;
 }
 
-/** Keeps the composer trigger chromeless inside the prompt frame. */
+/**
+ * Keeps the composer trigger chromeless inside the prompt frame, on the 28px
+ * composer toolbar row (tool pills and icon controls share that height).
+ */
 function triggerSurfaceClass(
   variant: RuntimeSelectorVariant,
   open: boolean,
@@ -41,15 +44,17 @@ function triggerSurfaceClass(
 ): string {
   if (variant === "composer") {
     return cn(
-      "group h-button-lg gap-2 border-0 bg-transparent px-2 shadow-none",
+      "group h-(--size-button-icon-default) gap-2 border-0 bg-transparent px-2 shadow-none",
       "hover:bg-transparent focus-visible:shadow-focus-ring",
       inert && "cursor-not-allowed opacity-60"
     );
   }
   return cn(
-    "bg-elevated shadow-highlight hover:bg-btn-default-hover focus-visible:ring-2 focus-visible:ring-accent",
-    variant === "small" ? "h-button-lg gap-2 px-2.5" : "h-[34px] gap-2.5 px-3",
-    open ? "border-accent-dim" : "border-line-strong",
+    // Hover and open are the `selected` plate alone: `shadow-card` carries the
+    // line ring, which would read as a ringed pressed state (P4).
+    "border-transparent bg-surface-2 hover:bg-selected focus-visible:shadow-focus-ring",
+    variant === "small" ? "h-button-lg gap-2 px-2.5" : "h-button-lg gap-2.5 px-3",
+    open && "bg-selected",
     inert && "cursor-not-allowed opacity-60 hover:bg-transparent"
   );
 }
@@ -68,10 +73,8 @@ function TriggerModelName({
     <span
       className={cn(
         "max-w-[150px] truncate text-small-body font-medium",
-        composer
-          ? "text-subtle transition-colors group-data-[open=true]:text-fg-strong"
-          : "text-fg-strong",
-        composer && !inert && "group-hover:text-fg-strong"
+        composer ? "text-fg-2 transition-colors group-data-[open=true]:text-fg" : "text-fg",
+        composer && !inert && "group-hover:text-fg"
       )}
     >
       {name}
@@ -84,9 +87,9 @@ function TriggerFastMark() {
     <span
       title="Fast speed requested"
       data-slot="runtime-selector-fast"
-      className="grid shrink-0 place-items-center text-accent-strong"
+      className="grid shrink-0 place-items-center text-fg-2"
     >
-      <Zap aria-hidden="true" className="size-[11px] fill-current" />
+      <Zap aria-hidden="true" className="size-3 fill-current" />
     </span>
   );
 }
@@ -158,7 +161,7 @@ export function RuntimeSelectorTrigger({
       data-open={open ? "true" : "false"}
       data-variant={variant}
       className={cn(
-        "inline-flex select-none items-center rounded-md border outline-none transition-colors",
+        "inline-flex select-none items-center rounded-pill border outline-none transition-colors",
         triggerSurfaceClass(variant, open, inert),
         className
       )}
@@ -193,7 +196,8 @@ export function RuntimeSelectorTrigger({
         aria-hidden="true"
         data-slot="runtime-selector-chevron"
         className={cn(
-          "size-3.5 shrink-0 text-faint transition-[transform,color]",
+          "size-3.5 shrink-0 transition-[transform,color]",
+          variant === "composer" ? "text-fg-2" : "text-faint",
           variant === "composer" && !inert && "group-hover:text-fg",
           open && "rotate-180 text-fg"
         )}

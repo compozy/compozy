@@ -35,7 +35,7 @@ Unknown TOML keys are errors. Use the supported sections below.
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Live operator preferences for the session list.                                        | last-activity order, recent sessions                                                                  |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
-| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
+| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
 | `[defaults]`                         | Default agent and provider resolution.                                                 | `agent = "general"`, `provider = ""`                                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
 | `[roles.dream]`                      | Dream-session routing.                                                                 | disabled, builtin `dreaming-curator`                                                                  |
@@ -183,7 +183,7 @@ personalization = true
 "session.new" = "new"
 
 [window_manager]
-new_window_policy = "floating"
+new_window_policy = "tab"
 small_viewport_policy = "stack"
 focus_policy = "click_directional"
 focus_wrap = false
@@ -200,11 +200,11 @@ closed_entry_limit = 20
 desktop_transition = "slide"
 
 [window_manager.gaps]
-inner = 8
-top = 8
-right = 10
-bottom = 8
-left = 10
+inner = 0
+top = 0
+right = 0
+bottom = 0
+left = 0
 
 [window_manager.snap]
 edge_band = 32
@@ -214,7 +214,7 @@ repeat_ratios = [0.5, 0.666667, 0.333333]
 
 [window_manager.bindings]
 top_center = "zoom"
-bottom_center = "reserved"
+bottom_center = "zoom"
 
 [defaults]
 # Agent name used when a command or API request does not specify one.
@@ -1016,7 +1016,7 @@ Settings › Layouts, while agents can use `compozy config` or the typed
 
 | Field                   | Type    | Default             | Valid values                              | Description                                               |
 | ----------------------- | ------- | ------------------- | ----------------------------------------- | --------------------------------------------------------- |
-| `new_window_policy`     | string  | `floating`          | `floating`, `beside_focus`                | Initial structural placement.                             |
+| `new_window_policy`     | string  | `tab`               | `tab`, `beside_focus`, `floating`         | Initial structural placement.                             |
 | `small_viewport_policy` | string  | `stack`             | `stack`, `reject`                         | Projection behavior when minimum sizes cannot fit.        |
 | `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                     |
 | `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.    |
@@ -1036,8 +1036,10 @@ limit does not remove existing state; the next relevant mutation retains only th
 
 ### `[window_manager.gaps]`
 
-`inner`, `top`, `right`, `bottom`, and `left` are integer CSS pixels from `0` through `64`.
-Clients apply them to the measured work area; normalized durable geometry never stores pixels.
+`inner`, `top`, `right`, `bottom`, and `left` are integer CSS pixels from `0` through `64`. All
+five default to `0`, so tiled windows meet flush at shared seams and fill the work area. Clients
+apply them to the measured work area; normalized durable geometry never stores pixels. An explicit
+`[window_manager.gaps]` table keeps its values.
 
 ### `[window_manager.snap]`
 
@@ -1050,9 +1052,8 @@ Clients apply them to the measured work area; normalized durable geometry never 
 
 ### `[window_manager.bindings]` and shortcuts
 
-`top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`. `reserved` blocks that
-edge-center snap; the default `bottom_center = "reserved"` keeps the approach strip above the Dock
-clear (the Dock band itself is already excluded from the measured work area). A target-less `stack`
+`top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`, and both default to `zoom`.
+`reserved` blocks that edge-center snap. A target-less `stack`
 action is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]`
 maps action IDs to a chord string or an array of chords. An empty string or array disables an action.
 `desktop.switch` accepts ranges through `Digit1..9`; `window.tab.jump` accepts `Digit1..8`. Range

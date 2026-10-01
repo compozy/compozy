@@ -111,9 +111,12 @@ export function buildTaskFilterFields(
  * chip array. Chip ids are derived from `{field, value}` so the same logical
  * filter keeps a stable identity across renders without an intermediate cache.
  */
-export function taskFiltersToChips(state: TaskFilterState): Filter<string>[] {
+export function taskFiltersToChips(
+  state: TaskFilterState,
+  options: TaskChipOptions = {}
+): Filter<string>[] {
   const chips: Filter<string>[] = [];
-  if (state.statusFilter) {
+  if (state.statusFilter && !options.statusShownElsewhere) {
     chips.push(buildChip("status", state.statusFilter));
   }
   if (state.priorityFilter) {
@@ -137,15 +140,23 @@ function buildChip(field: TaskFilterFieldKey, value: string): Filter<string> {
 /**
  * Decode the `<Filters>` chip array back into the typed setters owned by
  * `useTasksPage`. Filters that disappear from the array reset their slot to
- * `null` so removing a chip restores the default.
+ * `null` so removing a chip restores the default. A status another control
+ * shows (see {@link TaskChipOptions}) never had a chip, so its absence is not a
+ * removal — it is kept unless a status chip is added.
  */
-export function applyTaskFilterChips(chips: Filter<string>[], handlers: TaskFilterHandlers): void {
+export function applyTaskFilterChips(
+  chips: Filter<string>[],
+  handlers: TaskFilterHandlers,
+  options: TaskChipOptions = {}
+): void {
   const lookup = new Map<string, string | undefined>();
   for (const chip of chips) {
     lookup.set(chip.field, chip.values[0]);
   }
 
-  handlers.onStatusChange(asTaskStatus(lookup.get("status")));
+  if (lookup.has("status") || !options.statusShownElsewhere) {
+    handlers.onStatusChange(asTaskStatus(lookup.get("status")));
+  }
   handlers.onPriorityChange(asTaskPriority(lookup.get("priority")));
   handlers.onOwnerChange(taskOwnerFilterFromValue(lookup.get("owner")));
 }
@@ -160,4 +171,59 @@ function asTaskPriority(value: string | undefined): TaskPriority | null {
   return (TASK_PRIORITY_OPTIONS as readonly string[]).includes(value)
     ? (value as TaskPriority)
     : null;
+}
+
+/**
+ * One visible representation per filter: while the quick status pills are on
+ * screen and the active status is one they express, the pill carries it and the
+ * Filter strip renders no duplicate chip.
+ */
+export interface TaskChipOptions {
+  statusShownElsewhere?: boolean;
+}
+
+/** Quick status shortcuts on the Tasks strip; each writes the same single `status` filter. */
+export type TaskQuickStatus = "all" | "in_progress" | "needs_attention";
+
+export interface TaskQuickStatusItem {
+  value: TaskQuickStatus;
+  label: string;
+  /** Facet count, only when it is exact for the pill (see {@link taskQuickStatusItems}). */
+  count?: number;
+}
+
+const TASK_QUICK_STATUSES: ReadonlyArray<{ value: TaskQuickStatus; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "in_progress", label: "In progress" },
+  { value: "needs_attention", label: "Needs attention" },
+];
+
+/** The active quick pill for the current status filter; `null` when the filter names another status. */
+export function taskQuickStatusFor(statusFilter: TaskStatus | null): TaskQuickStatus | null {
+  if (statusFilter === null) return "all";
+  if (statusFilter === "in_progress" || statusFilter === "needs_attention") return statusFilter;
+  return null;
+}
+
+/**
+ * Builds the quick status pills. The daemon computes status facets after the
+ * status filter, so the facet counts are only exact while no status is selected;
+ * with one selected, only that pill keeps its (exact) count.
+ */
+export function taskQuickStatusItems(
+  statusFilter: TaskStatus | null,
+  statusCounts: Record<TaskStatus, number>
+): TaskQuickStatusItem[] {
+  const total = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+  return TASK_QUICK_STATUSES.map(({ value, label }) => {
+    const count = value === "all" ? total : statusCounts[value];
+    const exact = statusFilter === null || statusFilter === value;
+    return exact ? { value, label, count } : { value, label };
+  });
+}
+
+/** Whether the quick pills express `statusFilter` (so the Filter strip should not repeat it). */
+export function taskQuickStatusExpresses(statusFilter: TaskStatus | null): boolean {
+  const quick = taskQuickStatusFor(statusFilter);
+  return quick !== null && quick !== "all";
 }

@@ -19,6 +19,7 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	var desktopID, arrangement, frameRaw, groupID, resourceID string
 	var windowIDs []string
+	var keepFrames bool
 	cmd := &cobra.Command{
 		Use:   windowManagerArrangeKey,
 		Short: "Arrange explicit windows or apply a declarative layout resource",
@@ -32,6 +33,7 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 				frameRaw,
 				groupID,
 				resourceID,
+				keepFrames,
 			)
 			if err != nil {
 				return err
@@ -59,7 +61,7 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 		&arrangement,
 		windowManagerArrangementFlag,
 		"",
-		"Arrangement: horizontal, vertical, grid, or stack",
+		"Arrangement: horizontal, vertical, grid, stack, or main_stack",
 	)
 	cmd.Flags().StringVar(
 		&frameRaw,
@@ -69,6 +71,12 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 	)
 	cmd.Flags().StringVar(&groupID, windowManagerGroupFlag, "", "Stable group ID; generated when omitted")
 	cmd.Flags().StringVar(&resourceID, windowManagerResourceFlag, "", "Declarative layout resource ID")
+	cmd.Flags().BoolVar(
+		&keepFrames,
+		windowManagerKeepFramesFlag,
+		false,
+		"Arrange each named window's whole tab frame as one participant, keeping the deck intact",
+	)
 	return cmd
 }
 
@@ -80,6 +88,7 @@ func resolveWindowManagerArrangePayload(
 	frameRaw string,
 	groupID string,
 	resourceID string,
+	keepFrames bool,
 ) (any, error) {
 	if cmd.Flags().Changed(windowManagerResourceFlag) {
 		resourceID, err := requiredWindowManagerFlag(resourceID, windowManagerResourceFlag)
@@ -92,6 +101,7 @@ func resolveWindowManagerArrangePayload(
 			windowManagerArrangementFlag,
 			windowManagerFrameFlag,
 			windowManagerGroupFlag,
+			windowManagerKeepFramesFlag,
 		}
 		for _, flagName := range inlineFlags {
 			if cmd.Flags().Changed(flagName) {
@@ -132,7 +142,8 @@ func resolveWindowManagerArrangePayload(
 	return contract.WindowManagerArrangeLayoutPayload{
 		DesktopID: windowmanager.DesktopID(desktopID), WindowIDs: participants,
 		Arrangement: arrangementKind, Frame: normalizedFrame,
-		GroupID: windowmanager.GroupID(strings.TrimSpace(groupID)),
+		GroupID:    windowmanager.GroupID(strings.TrimSpace(groupID)),
+		KeepFrames: keepFrames,
 	}, nil
 }
 
@@ -354,7 +365,7 @@ func newLayoutHistoryCommand(
 func isWindowManagerArrangement(arrangement windowmanager.Arrangement) bool {
 	switch arrangement {
 	case windowmanager.ArrangementHorizontal, windowmanager.ArrangementVertical,
-		windowmanager.ArrangementGrid, windowmanager.ArrangementStack:
+		windowmanager.ArrangementGrid, windowmanager.ArrangementStack, windowmanager.ArrangementMainStack:
 		return true
 	default:
 		return false

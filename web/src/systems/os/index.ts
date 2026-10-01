@@ -66,7 +66,7 @@ export {
 export {
   type WindowManagerSocket,
   type WindowManagerSocketFactory,
-} from "./hooks/use-window-manager-stream";
+} from "./lib/window-manager-stream-socket";
 export {
   OS_COMPACT_BREAKPOINT,
   type OsAppId,

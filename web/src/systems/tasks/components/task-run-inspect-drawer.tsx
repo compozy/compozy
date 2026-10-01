@@ -60,31 +60,11 @@ function TaskRunUsageTiles({ run }: { run: TaskRunDetailView }) {
   const sessionId = record.session_id ?? run.session?.session_id ?? null;
   return (
     <div className="mb-4 grid grid-cols-2 gap-2.5" data-testid="tasks-run-inspect-usage">
-      <MetadataTile
-        className="border border-line-soft bg-input-fill"
-        label="Run ID"
-        value={<MonoId value={record.id} />}
-      />
-      <MetadataTile
-        className="border border-line-soft bg-input-fill"
-        label="Session ID"
-        value={sessionId ? <MonoId value={sessionId} /> : "—"}
-      />
-      <MetadataTile
-        className="border border-line-soft bg-input-fill"
-        label="Tool calls"
-        value={formatTaskRunMetric(summary?.tool_call_count)}
-      />
-      <MetadataTile
-        className="border border-line-soft bg-input-fill"
-        label="Turns"
-        value={formatTaskRunMetric(summary?.turn_count)}
-      />
-      <MetadataTile
-        className="border border-line-soft bg-input-fill"
-        label="Tokens"
-        value={formatTaskRunMetric(summary?.total_tokens)}
-      />
+      <MetadataTile label="Run ID" value={<MonoId value={record.id} />} />
+      <MetadataTile label="Session ID" value={sessionId ? <MonoId value={sessionId} /> : "—"} />
+      <MetadataTile label="Tool calls" value={formatTaskRunMetric(summary?.tool_call_count)} />
+      <MetadataTile label="Turns" value={formatTaskRunMetric(summary?.turn_count)} />
+      <MetadataTile label="Tokens" value={formatTaskRunMetric(summary?.total_tokens)} />
     </div>
   );
 }
@@ -131,27 +111,17 @@ function TaskRunInspectSnapshot({
     <>
       <div className="grid grid-cols-2 gap-2.5">
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Heartbeat"
           value={heartbeatAt ? <Time iso={heartbeatAt} mode="relative" /> : "—"}
         />
         <MetadataTile
-          className="border border-line-soft bg-input-fill"
           label="Reserved until"
           value={leaseUntil ? <Time iso={leaseUntil} mode="absolute" /> : "—"}
         />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Claim token"
-          value={claimHash ? `sha256 · ${claimHash}` : "—"}
-        />
-        <MetadataTile
-          className="border border-line-soft bg-input-fill"
-          label="Idempotency key"
-          value={idempotencyKey ?? "—"}
-        />
+        <MetadataTile label="Claim token" value={claimHash ? `sha256 · ${claimHash}` : "—"} />
+        <MetadataTile label="Idempotency key" value={idempotencyKey ?? "—"} />
       </div>
-      <p className="mt-4 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="mt-4 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
         The agent keeps this run reserved while it keeps checking in. If it stops, CompozyOS flags
         the run so it can be tried again.
       </p>

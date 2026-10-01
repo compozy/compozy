@@ -35,12 +35,7 @@ function SessionMessageErrorNotice() {
   }
 
   return (
-    <Marker
-      role="alert"
-      data-testid="session-message-error"
-      tone="danger"
-      icon={<AlertCircle strokeWidth={1.8} />}
-    >
+    <Marker role="alert" data-testid="session-message-error" tone="danger" icon={<AlertCircle />}>
       {error}
     </Marker>
   );

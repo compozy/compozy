@@ -80,7 +80,15 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
 
 function EditButton({ onClick, testId }: { onClick: () => void; testId: string }) {
   return (
-    <Button data-testid={testId} onClick={onClick} size="sm" type="button" variant="ghost">
+    // Optical: the trailing chevron lands on the card's content edge.
+    <Button
+      className="-mr-2"
+      data-testid={testId}
+      onClick={onClick}
+      size="sm"
+      type="button"
+      variant="link"
+    >
       Edit
       <ChevronRight aria-hidden="true" data-icon="inline-end" />
     </Button>

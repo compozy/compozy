@@ -30,22 +30,11 @@ type KnowledgePageModel = ReturnType<typeof useKnowledgePage>;
 export function KnowledgeLocation({ windowId }: { windowId: string }) {
   const search = useDesktop(state => state.windows[windowId]?.route.search ?? EMPTY_SEARCH);
   const page = useKnowledgePage(knowledgeRouteOptions(search));
-  const selected = page.selectedMemory;
-  const clearSelection = () => {
-    page.setSelectedMemoryKey(null);
-  };
-
+  // Master–detail: the list stays on screen while a memory is selected, so the
+  // head keeps the root identity and the detail pane titles the memory.
   useTopbarSlot({
-    glyph: selected ? undefined : <BookOpen />,
-    crumb: selected ? (
-      <span data-testid="knowledge-detail-title">{selected.name}</span>
-    ) : (
-      "Knowledge"
-    ),
-    onBack: selected ? () => clearSelection() : undefined,
-    crumbs: selected
-      ? [{ id: "knowledge", label: "Knowledge", onSelect: () => clearSelection() }]
-      : undefined,
+    glyph: <BookOpen />,
+    crumb: "Knowledge",
     actions: <KnowledgeCreateButton page={page} />,
     toolbar: <KnowledgeScopeToolbar page={page} />,
   });
@@ -65,8 +54,9 @@ function KnowledgeCreateButton({ page }: { page: KnowledgePageModel }) {
       onClick={() => page.setCreateOpen(true)}
       size="sm"
       type="button"
+      variant="secondary"
     >
-      <Plus className="size-3" />
+      <Plus />
       Create
     </Button>
   );
@@ -162,7 +152,7 @@ function KnowledgeLocationBody({ page }: { page: KnowledgePageModel }) {
       >
         <Empty
           action={
-            <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
+            <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="secondary">
               Retry loading knowledge
             </Button>
           }

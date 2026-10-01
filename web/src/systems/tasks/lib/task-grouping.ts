@@ -1,4 +1,4 @@
-import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import type { TaskListItem, TaskStatus } from "../types";
 
@@ -17,14 +17,21 @@ export interface TaskKanbanColumn {
   id: TaskKanbanColumnId;
   label: string;
   statuses: TaskStatus[];
+  /** Canonical `StateGlyph` state for the column header. */
+  glyph: StateGlyphState;
 }
 
 const KANBAN_COLUMNS: TaskKanbanColumn[] = [
-  { id: "pending", label: "Pending", statuses: ["draft", "pending", "ready"] },
-  { id: "in_progress", label: "In progress", statuses: ["in_progress"] },
-  { id: "blocked", label: "Blocked", statuses: ["blocked"] },
-  { id: "needs_attention", label: "Needs attention", statuses: ["needs_attention"] },
-  { id: "done", label: "Done", statuses: ["completed", "failed", "canceled"] },
+  { id: "pending", label: "Pending", statuses: ["draft", "pending", "ready"], glyph: "queued" },
+  { id: "in_progress", label: "In progress", statuses: ["in_progress"], glyph: "running" },
+  { id: "blocked", label: "Blocked", statuses: ["blocked"], glyph: "attention" },
+  {
+    id: "needs_attention",
+    label: "Needs attention",
+    statuses: ["needs_attention"],
+    glyph: "attention",
+  },
+  { id: "done", label: "Done", statuses: ["completed", "failed", "canceled"], glyph: "done" },
 ];
 
 /**
@@ -47,8 +54,8 @@ export interface TaskListGroupDefinition {
   id: TaskListGroupId;
   label: string;
   statuses: TaskStatus[];
-  dotTone: StatusDotTone;
-  dotVariant: StatusDotVariant;
+  /** Canonical `StateGlyph` state for the group header. */
+  glyph: StateGlyphState;
 }
 
 const LIST_GROUPS: TaskListGroupDefinition[] = [
@@ -56,60 +63,47 @@ const LIST_GROUPS: TaskListGroupDefinition[] = [
     id: "active",
     label: "Active",
     statuses: ["in_progress"],
-    dotTone: "accent",
-    dotVariant: "ring",
+    glyph: "running",
   },
   {
-    // `blocked` reads `danger` and `needs_attention` reads `warning`, matching
-    // TASK_STATUS_TONE and taskStatusSignal so the two escalation buckets stay
-    // distinct at the group header too (no coercion).
+    // Both escalation buckets wait on a person, so both carry the attention
+    // glyph (taskStateGlyph); the labels keep them distinct (no coercion).
     id: "blocked",
     label: "Blocked",
     statuses: ["blocked"],
-    dotTone: "danger",
-    dotVariant: "solid",
+    glyph: "attention",
   },
   {
     id: "needs_attention",
     label: "Needs attention",
     statuses: ["needs_attention"],
-    dotTone: "warning",
-    dotVariant: "solid",
+    glyph: "attention",
   },
   {
     id: "queued",
     label: "Queued",
     statuses: ["ready", "pending", "draft"],
-    dotTone: "faint",
-    dotVariant: "ring",
+    glyph: "queued",
   },
   {
     // Canceled work is finished on purpose, so it reads as Done (like the
-    // kanban Done column) rather than as a danger-toned failure.
+    // kanban Done column) rather than as a failure; its row still says Canceled.
     id: "done",
     label: "Done",
     statuses: ["completed", "canceled"],
-    dotTone: "faint",
-    dotVariant: "solid",
+    glyph: "done",
   },
   {
     id: "failed",
     label: "Failed",
     statuses: ["failed"],
-    dotTone: "danger",
-    dotVariant: "solid",
+    glyph: "failed",
   },
 ];
 
-/** Convenience accessor for `<StatusDot>` props derived from a list group id. */
-export function listGroupDotProps(
-  groupId: TaskListGroupId
-): Pick<StatusDotProps, "tone" | "variant"> {
-  const definition = LIST_GROUPS.find(entry => entry.id === groupId);
-  return {
-    tone: definition?.dotTone ?? "faint",
-    variant: definition?.dotVariant ?? "ring",
-  };
+/** Group-header `StateGlyph` state for a list group id. */
+export function listGroupGlyph(groupId: TaskListGroupId): StateGlyphState {
+  return LIST_GROUPS.find(entry => entry.id === groupId)?.glyph ?? "idle";
 }
 
 export interface TaskListGroupBucket {

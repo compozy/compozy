@@ -44,7 +44,7 @@ export function VaultSecretsCard({
           </CatalogCard.Logo>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <CatalogCard.Title>{title}</CatalogCard.Title>
-            <span className="truncate text-xs text-subtle">
+            <span className="truncate text-eyebrow text-subtle">
               {vaultSecretLocation(secret.ref) || secret.namespace}
             </span>
           </div>
@@ -58,7 +58,7 @@ export function VaultSecretsCard({
         ) : null}
         <div className="ml-auto flex items-center gap-1">
           <Time
-            className="text-xs text-faint"
+            className="text-eyebrow text-faint"
             data-testid={`vault-secrets-updated-${secret.ref}`}
             iso={secret.updated_at}
           />
@@ -72,9 +72,9 @@ export function VaultSecretsCard({
               }}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="quiet"
             >
-              <Trash2 aria-hidden="true" className="size-3" />
+              <Trash2 aria-hidden="true" />
             </Button>
           ) : null}
         </div>

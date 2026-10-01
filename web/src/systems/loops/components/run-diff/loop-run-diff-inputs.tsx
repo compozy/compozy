@@ -13,10 +13,7 @@ export interface LoopRunDiffInputsProps {
 export function LoopRunDiffInputs({ inputs }: LoopRunDiffInputsProps) {
   if (inputs.length === 0) return null;
   return (
-    <div
-      className="overflow-hidden rounded-md border border-line bg-canvas-soft"
-      data-testid="loop-diff-inputs"
-    >
+    <div className="overflow-hidden rounded-md bg-sunken" data-testid="loop-diff-inputs">
       <div className="flex items-center gap-1.5 border-b border-line-soft px-3 py-2">
         <TextCursorInput aria-hidden="true" className="size-3 text-subtle" />
         <h3 className="eyebrow text-subtle">Inputs</h3>

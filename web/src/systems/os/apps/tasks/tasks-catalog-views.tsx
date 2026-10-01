@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { BlockLoading, Empty, ListingPage } from "@compozy/ui";
+import { BlockLoading, Empty } from "@compozy/ui";
 
 import {
   TasksDashboardView,
@@ -48,14 +48,16 @@ export function TasksCatalogBody({ mode, page, openCreate, openTask }: TasksCata
   if (mode === "dashboard") return <TasksDashboardMode page={page} />;
   if (mode === "inbox") return <TasksInboxMode page={page} />;
   if (page.isEmpty) {
+    // The empty state is its own full-height scroll surface; a ListingPage
+    // around it would nest a second scroller and pad its bottom away.
     return (
-      <ListingPage data-testid="tasks-list-surface">
+      <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-list-surface">
         <TasksEmptyState
           onSelectTemplate={openCreate}
           profileScopeLabel={page.profile.scopeLabel}
           workspaceName={page.activeWorkspaceName}
         />
-      </ListingPage>
+      </div>
     );
   }
   if (mode === "kanban") {

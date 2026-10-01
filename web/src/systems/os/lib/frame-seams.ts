@@ -1,14 +1,12 @@
-import { minimumForNode } from "./layout-minimums";
+import { adaptiveFloorForNode, descendantWindowIds } from "./layout-minimums";
 import type {
   DesktopId,
   GroupId,
   LayoutDesktop,
   LayoutGroup,
-  LayoutNode,
   NormalizedRect,
   PixelRect,
   ProjectedFrameSeam,
-  WindowId,
   WindowMinimums,
 } from "./window-manager-types";
 
@@ -120,12 +118,6 @@ function clusterEdges(edges: FrameEdge[]): EdgeCluster[] {
   return clusters.filter(cluster => cluster.leading.length > 0 && cluster.trailing.length > 0);
 }
 
-function descendantWindows(node: LayoutNode): WindowId[] {
-  if (node.kind === "leaf") return [node.windowId];
-  if (node.kind === "stack") return [...node.windowIds];
-  return node.children.flatMap(descendantWindows);
-}
-
 function seamFromCluster(
   cluster: EdgeCluster,
   orientation: "vertical" | "horizontal",
@@ -142,8 +134,10 @@ function seamFromCluster(
   const trailingInset = gap - Math.ceil(gap / 2);
   const spanStartPx = crossOrigin + Math.round(crossSize * cluster.spanStart);
   const spanEndPx = crossOrigin + Math.round(crossSize * cluster.spanEnd);
+  // An island shrinks down to its adaptive floor: past its split's minimum the
+  // projection renders it as a stack, so a wide stored tree never locks the seam.
   const minPx = (group: LayoutGroup) => {
-    const minimum = minimumForNode(group.root, gap, input.minimums);
+    const minimum = adaptiveFloorForNode(group.root, input.minimums);
     return vertical ? minimum.width : minimum.height;
   };
   const groupStart = (group: LayoutGroup) =>
@@ -182,8 +176,8 @@ function seamFromCluster(
     axisSpan: axisSize,
     leadingGroupIds: leadingIds,
     trailingGroupIds: trailingIds,
-    leadingWindowIds: cluster.leading.flatMap(group => descendantWindows(group.root)),
-    trailingWindowIds: cluster.trailing.flatMap(group => descendantWindows(group.root)),
+    leadingWindowIds: cluster.leading.flatMap(group => descendantWindowIds(group.root)),
+    trailingWindowIds: cluster.trailing.flatMap(group => descendantWindowIds(group.root)),
   };
 }
 

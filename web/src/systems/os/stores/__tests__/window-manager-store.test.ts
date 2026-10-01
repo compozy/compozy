@@ -128,7 +128,7 @@ describe("window manager store", () => {
       profileId: "marketing",
       clientId: "client:two",
     });
-    expect(selectWindowManagerConnectionStatus(state(store))).toBe("disconnected");
+    expect(selectWindowManagerConnectionStatus(state(store))).toBe("idle");
     expect(selectWindowManagerWorkArea(state(store))).toEqual(WORK_AREA);
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
     expect(selectDesktopOverviewSegmentRequest(state(store))).toBeNull();
@@ -191,7 +191,7 @@ describe("window manager store", () => {
       profileId: "research",
       clientId: "client:one",
     });
-    expect(selectWindowManagerConnectionStatus(state(store))).toBe("disconnected");
+    expect(selectWindowManagerConnectionStatus(state(store))).toBe("idle");
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
   });
 

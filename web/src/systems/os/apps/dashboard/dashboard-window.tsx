@@ -1,6 +1,8 @@
-import { Home, Plus, ServerOff } from "lucide-react";
+import { Home, ServerOff } from "lucide-react";
 
-import { Button, ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
+import { ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
+
+import { OsNewSessionButton } from "../../components/os-new-session-button";
 
 import { useDashboardWindowModel } from "./hooks/use-dashboard-window-model";
 import { HomeDashboard } from "@/systems/dashboard";
@@ -18,16 +20,15 @@ export function DashboardWindow({ windowId }: { windowId: string }) {
     status: (
       <ConnectionIndicator data-testid="home-connection-indicator" status={connectionStatus} />
     ),
+    // Global scope has no project to start in, so the action stays disabled and
+    // says why (the shared shell control).
     actions: (
-      <Button
-        disabled={!hasActiveWorkspace || isCreating}
-        onClick={() => openForAgent("")}
-        size="sm"
-        variant="primary"
-      >
-        <Plus aria-hidden="true" />
-        New session
-      </Button>
+      <OsNewSessionButton
+        hasProject={hasActiveWorkspace}
+        busy={isCreating}
+        onNewSession={() => openForAgent("")}
+        disabledTestId="home-new-session-disabled"
+      />
     ),
   });
 

@@ -13,7 +13,6 @@ import {
   matchesMarketplaceCategory,
   skillOriginLabel,
   skillSourceLabel,
-  skillSourceTone,
   skillStatusTone,
 } from "../skill-formatters";
 
@@ -37,15 +36,6 @@ describe("skill-formatters", () => {
       compareSkillSource
     );
     expect(sorted).toEqual(["bundled", "workspace", "marketplace", "user", "additional"]);
-  });
-
-  it("Should map sources to MonoBadge tones", () => {
-    expect(skillSourceTone("bundled")).toBe("success");
-    expect(skillSourceTone("workspace")).toBe("info");
-    expect(skillSourceTone("marketplace")).toBe("accent");
-    expect(skillSourceTone("user")).toBe("warning");
-    expect(skillSourceTone("additional")).toBe("neutral");
-    expect(skillSourceTone("unknown")).toBe("neutral");
   });
 
   it("Should return sentence-case source labels", () => {

@@ -611,6 +611,14 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 		)
 		fixture.resolver.Invalidate(fixture.workspace.ID)
 		fixture.resolver.Invalidate(workspaceB.ID)
+		// The active global policy starts as floating so workspace A's own
+		// beside_focus is observably isolated from it; the shipped default is
+		// tab, so the premise has to be explicit.
+		floating := windowmanager.DefaultConfig()
+		floating.NewWindowPolicy = windowmanager.NewWindowFloating
+		if err := fixture.manager.UpdateDefaults(floating); err != nil {
+			t.Fatalf("UpdateDefaults(floating) error = %v", err)
+		}
 
 		open := func(workspaceID string, windowID windowmanager.WindowID) windowmanager.Result {
 			t.Helper()

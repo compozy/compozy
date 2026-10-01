@@ -95,13 +95,13 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
     <header className="flex items-start gap-3 border-b border-line px-5 py-4.5">
       <span
         aria-hidden="true"
-        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-glaze text-muted"
+        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-2 text-muted"
       >
         <KeyRound className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
         <h2
-          className="break-all text-item-title font-medium tracking-tight text-fg-strong"
+          className="break-all text-item-title font-medium tracking-tight text-fg"
           data-testid="vault-secret-sheet-title"
           id="vault-secret-sheet-title"
         >
@@ -128,9 +128,9 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
         onClick={onClose}
         size="icon-sm"
         type="button"
-        variant="ghost"
+        variant="quiet"
       >
-        <X aria-hidden="true" className="size-3.5" />
+        <X aria-hidden="true" />
       </Button>
     </header>
   );
@@ -158,7 +158,7 @@ function SheetValueSection({ present }: { present: boolean }) {
   return (
     <section className="mb-4.5" data-testid="vault-secret-sheet-value">
       <Eyebrow className="mb-2.5 text-subtle">Value</Eyebrow>
-      <div className="flex items-center gap-2.5 rounded-md border border-line-soft bg-input-fill px-3.5 py-2.5">
+      <div className="flex items-center gap-2.5 rounded-lg bg-sunken px-3.5 py-2.5">
         <span aria-hidden="true" className="flex-1 font-mono text-form-input text-faint">
           • • • • • • • •
         </span>
@@ -192,7 +192,7 @@ function SheetReplaceSection({
   return (
     <section className="mb-4.5" data-testid="vault-secret-sheet-replace">
       <Eyebrow className="mb-2.5 text-subtle">Replace value</Eyebrow>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Input
           aria-label="New secret value"
           autoComplete="off"
@@ -208,9 +208,8 @@ function SheetReplaceSection({
           data-testid="vault-secret-sheet-replace-save"
           disabled={!isValid || isPending}
           onClick={onReplace}
-          size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           {isPending ? "Saving…" : "Save"}
         </Button>

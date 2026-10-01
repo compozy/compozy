@@ -24,7 +24,6 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
           <Button
             data-testid="home-first-run-session"
             onClick={() => sessionCreate.openForAgent("")}
-            size="sm"
             type="button"
             variant="primary"
           >
@@ -33,7 +32,6 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
           <Button
             nativeButton={false}
             render={<Link to="/tasks/new" />}
-            size="sm"
             variant="ghost"
             data-testid="home-first-run-task"
           >
@@ -42,7 +40,6 @@ export function HomeFirstRun({ workspaceName }: HomeFirstRunProps) {
           <Button
             nativeButton={false}
             render={<Link to="/marketplace" />}
-            size="sm"
             variant="ghost"
             data-testid="home-first-run-marketplace"
           >

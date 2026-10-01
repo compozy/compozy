@@ -1,9 +1,8 @@
 import type { ComponentProps } from "react";
-import { createElement } from "react";
 import { useReducedMotionConfig } from "motion/react";
 import { ArrowDown, Search } from "lucide-react";
 
-import { Button, cn, Pill, Time } from "@compozy/ui";
+import { Button, cn, Pill, StateGlyph, Time } from "@compozy/ui";
 import type { PillTone } from "@compozy/ui";
 
 import type { LoopRunOutcomeModel } from "../../lib/loop-run-artifacts";
@@ -37,16 +36,12 @@ interface LoopRunBriefingProps extends Omit<ComponentProps<"section">, "children
  * so and points down to the card that owns Approve and Reject — one primary per
  * decision, in one viewport.
  */
+// Needs-you leads in the accent (amber is kept for real warnings); a
+// calm verdict sits in the sunken inset.
 const WEIGHT_CLASS = {
-  calm: "border-line bg-canvas-soft",
-  lead: "border-warning/40 bg-warning-tint",
+  calm: "border-transparent bg-sunken",
+  lead: "border-accent/40 bg-accent-tint",
   danger: "border-danger/40 bg-danger-tint",
-} as const;
-
-const WEIGHT_ICON_CLASS = {
-  calm: "text-muted",
-  lead: "text-warning",
-  danger: "text-danger",
 } as const;
 
 /**
@@ -104,10 +99,7 @@ export function LoopRunBriefing({
       data-tone={briefing.tone}
       {...props}
     >
-      {createElement(briefing.icon, {
-        "aria-hidden": true,
-        className: cn("mt-0.5 size-3.5 shrink-0", WEIGHT_ICON_CLASS[briefing.weight]),
-      })}
+      <StateGlyph className="mt-1" data-testid="loop-run-briefing-glyph" state={briefing.glyph} />
       <div className="min-w-0 flex-1">
         {outcome?.outcome ? (
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
@@ -156,7 +148,7 @@ export function LoopRunBriefing({
               onClick={handleAction}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               {action.target === "needs-you" ? (
                 <ArrowDown aria-hidden="true" />

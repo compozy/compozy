@@ -53,7 +53,7 @@ function modeItems(testIdPrefix: string): PillGroupItem<EntityMode>[] {
 /**
  * Full-width chrome strip for Simple/Advanced.
  *
- * Recessed `--color-canvas-tint` against the dialog's `--color-canvas-soft` so
+ * Recessed `--color-sunken` against the dialog's `--color-canvas` so
  * the mode switcher reads as chrome, not as the first form row. Simple shows
  * the common path and Advanced is the only disclosure tier — it never hides a
  * required field. Leaving Advanced is the consumer's cue to snap unsupported
@@ -71,7 +71,7 @@ function EntityModeToolbar({
 }: EntityModeToolbarProps) {
   return (
     <EntityDialogToolbar
-      className={cn("border-b border-line-soft bg-canvas-tint", className)}
+      className={cn("border-b border-line-soft bg-sunken", className)}
       data-slot="entity-mode-toolbar"
       data-mode={mode}
       leading={

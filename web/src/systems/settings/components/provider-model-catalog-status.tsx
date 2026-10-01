@@ -130,9 +130,9 @@ export function ProviderModelCatalogStatus({
         data-testid={`${testId}-refresh`}
       >
         {refreshMutation.isPending ? (
-          <Spinner aria-hidden="true" className="size-3" />
+          <Spinner aria-hidden="true" className="size-3.5" />
         ) : (
-          <RefreshCw aria-hidden="true" className="size-3" />
+          <RefreshCw aria-hidden="true" />
         )}
         Refresh catalog
       </Button>

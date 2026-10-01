@@ -213,7 +213,7 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 	},
 	{
 		id: toolspkg.ToolIDLayoutArrange, nativeName: "layout_arrange", title: "Layout Arrange",
-		description: "Arrange selected windows into a horizontal, vertical, grid, or stack group.",
+		description: "Arrange selected windows into a horizontal, vertical, grid, stack, or main_stack group.",
 		inputSchema: windowManagerLayoutArrangeInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
 		tags: []string{windowManagerTag, windowManagerLayoutTag, "arrange", windowManagerTileTag},

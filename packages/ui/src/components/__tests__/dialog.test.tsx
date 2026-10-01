@@ -90,7 +90,7 @@ describe("Dialog", () => {
       </TooltipProvider>
     );
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "token" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
     expect(screen.getByRole("button", { name: "About token" })).not.toHaveFocus();
     expect(screen.queryByText("GitHub personal access token")).not.toBeInTheDocument();
 
@@ -100,42 +100,69 @@ describe("Dialog", () => {
     });
   });
 
-  it("Should choose the first eligible control in browser tab order", async () => {
+  it("Should open focused on the popup rather than ringing its first control", async () => {
     render(
       <Dialog defaultOpen>
-        <DialogContent showCloseButton={false}>
-          <DialogTitle>Focus order</DialogTitle>
-          <input aria-label="hidden-input" type="hidden" />
-          <div
-            ref={node => {
-              node?.setAttribute("aria-hidden", "true");
-            }}
-          >
-            <button type="button">Aria hidden</button>
-          </div>
-          <div hidden>
-            <button type="button">HTML hidden</button>
-          </div>
-          <fieldset disabled>
-            <button type="button">Disabled fieldset</button>
-          </fieldset>
-          <button tabIndex={-1} type="button">
-            Negative tab index
-          </button>
-          <input aria-label="default-order" />
-          <button tabIndex={2} type="button">
-            Second explicit
-          </button>
-          <button tabIndex={1} type="button">
-            First explicit
-          </button>
+        <DialogContent>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <button type="button">Reset to defaults</button>
+          <input aria-label="search" />
         </DialogContent>
       </Dialog>
     );
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "First explicit" })).toHaveFocus()
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+    expect(screen.getByRole("button", { name: "Reset to defaults" })).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: "Close" })).not.toHaveFocus();
+  });
+
+  it("Should move into the controls on the first Tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <Dialog defaultOpen>
+        <DialogContent showCloseButton={false}>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <button type="button">Reset to defaults</button>
+        </DialogContent>
+      </Dialog>
     );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Reset to defaults" })).toHaveFocus();
+  });
+
+  it("Should honour a consumer's initialFocus", async () => {
+    function Named() {
+      const fieldRef = React.useRef<HTMLInputElement | null>(null);
+      return (
+        <Dialog defaultOpen>
+          <DialogContent initialFocus={fieldRef}>
+            <DialogTitle>Rename task</DialogTitle>
+            <button type="button">Help</button>
+            <input aria-label="name" ref={fieldRef} />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    render(<Named />);
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "name" })).toHaveFocus());
+  });
+
+  it("Should keep focus on a field that autofocuses while the dialog mounts", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent>
+          <DialogTitle>Rename task</DialogTitle>
+          <button type="button">Help</button>
+          {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the policy under test */}
+          <input aria-label="name" autoFocus />
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "name" })).toHaveFocus());
   });
 
   it("Should focus the popup when no child is eligible", async () => {
@@ -163,9 +190,8 @@ describe("Dialog", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(contentRef.current).toBe(dialog);
-    await waitFor(() =>
-      expect(screen.getByRole("textbox", { name: "referenced-field" })).toHaveFocus()
-    );
+    // The internal popup ref still drives the default policy: focus the popup.
+    await waitFor(() => expect(dialog).toHaveFocus());
   });
 
   it("Should render a default close button that dismisses the dialog", async () => {

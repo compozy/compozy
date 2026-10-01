@@ -44,10 +44,11 @@ export function EventCard({
       className={cn(
         "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors outline-none focus-visible:shadow-focus-ring",
         disabled
-          ? "cursor-not-allowed border-line-soft bg-canvas-tint opacity-50"
+          ? "cursor-not-allowed border-transparent bg-card opacity-50 shadow-card"
           : selected
-            ? "border-transparent bg-accent-tint ring-1 ring-accent-dim ring-inset"
-            : "border-line-soft bg-canvas-tint hover:border-line hover:bg-elevated"
+            ? // Selection stays neutral (RadioCard grammar); accent is kept for needs-you.
+              "border-transparent bg-selected shadow-inset-strong"
+            : "border-transparent bg-card shadow-card hover:bg-surface-2"
       )}
       data-testid={`trigger-event-${catalogId}`}
       onClick={onSelect}
@@ -56,20 +57,14 @@ export function EventCard({
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded",
-          selected ? "bg-accent-tint-strong text-accent-strong" : "bg-badge-fill text-muted"
+          selected ? "bg-well text-well-ink" : "bg-surface-2 text-muted"
         )}
       >
         <Icon aria-hidden="true" className="size-4" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex flex-wrap items-baseline gap-2">
-          <span
-            className={cn(
-              "text-form-label font-medium",
-              selected ? "text-accent-strong" : "text-fg-strong"
-            )}
-            title={displayId}
-          >
+          <span className={cn("text-form-label font-medium", "text-fg-strong")} title={displayId}>
             {label}
           </span>
         </span>
@@ -78,7 +73,7 @@ export function EventCard({
       <Check
         aria-hidden="true"
         className={cn(
-          "mt-0.5 size-4 shrink-0 text-accent-strong transition-opacity",
+          "mt-0.5 size-4 shrink-0 text-fg transition-opacity",
           selected ? "opacity-100" : "opacity-0"
         )}
       />

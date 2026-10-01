@@ -119,9 +119,13 @@ describe("OsWindowFrame", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Body action" }));
     expect(onPointerDownCapture).toHaveBeenCalledOnce();
 
-    await user.tab();
-    expect(screen.getByRole("button", { name: "Close window" })).toHaveFocus();
-    expect(onFocusCapture).toHaveBeenCalledOnce();
+    const close = screen.getByRole("button", { name: "Close window" });
+    // Identity precedes the trailing controls in tab order: minimize, zoom, close.
+    for (let step = 0; step < 8 && document.activeElement !== close; step += 1) {
+      await user.tab();
+    }
+    expect(close).toHaveFocus();
+    expect(onFocusCapture).toHaveBeenCalled();
 
     await user.keyboard("{Enter}");
     expect(onTrafficLight).toHaveBeenCalledOnce();
@@ -140,7 +144,7 @@ describe("OsWindowFrame", () => {
     expect(document.querySelectorAll('[data-slot="page-head"]')).toHaveLength(0);
   });
 
-  it("Should show and clear the optional 38px toolbar strip (UT-091, UT-131)", () => {
+  it("Should show and clear the optional toolbar strip (UT-091, UT-131)", () => {
     function Harness({ withToolbar }: { withToolbar: boolean }) {
       return (
         <OsWindowFrame title="Tasks">
@@ -229,7 +233,7 @@ describe("OsWindowFrame", () => {
     expect(screen.queryByRole("button", { name: "Back one level" })).toBeNull();
   });
 
-  it("Should cast a window shadow only on floating chrome", () => {
+  it("Should lift only floating chrome with a hairline and elevated shadow", () => {
     const classesOf = (node: HTMLElement) => node.className.split(/\s+/);
     const { rerender } = render(
       <OsWindowFrame title="Home" data-testid="frame">
@@ -239,32 +243,45 @@ describe("OsWindowFrame", () => {
     const frame = () => screen.getByTestId("frame");
 
     expect(frame()).toHaveAttribute("data-kind", "floating");
-    expect(classesOf(frame())).toContain("shadow-window");
+    expect(classesOf(frame())).toEqual(expect.arrayContaining(["border", "shadow-elevated"]));
 
     rerender(
       <OsWindowFrame title="Home" focused={false} data-testid="frame">
         <p>body</p>
       </OsWindowFrame>
     );
-    expect(frame()).toHaveAttribute("data-kind", "floating");
-    expect(classesOf(frame())).toContain("shadow-window-unfocused");
+    expect(classesOf(frame())).toEqual(expect.arrayContaining(["border", "shadow-elevated"]));
 
-    rerender(
-      <OsWindowFrame title="Home" kind="tiled" data-testid="frame">
-        <p>body</p>
+    for (const props of [
+      { kind: "tiled" as const },
+      { kind: "tiled" as const, focused: false },
+      { presentation: "compact" as const },
+    ]) {
+      rerender(
+        <OsWindowFrame title="Home" data-testid="frame" {...props}>
+          <p>body</p>
+        </OsWindowFrame>
+      );
+      expect(classesOf(frame())).not.toContain("border");
+      expect(classesOf(frame())).not.toContain("shadow-elevated");
+    }
+  });
+
+  it("Should trail the head with minimize, zoom, close after the identity", () => {
+    render(
+      <OsWindowFrame title="Tasks" onTrafficLight={vi.fn()}>
+        <p>Tasks content</p>
       </OsWindowFrame>
     );
-    expect(frame()).toHaveAttribute("data-kind", "tiled");
-    expect(classesOf(frame())).not.toContain("shadow-window");
-    expect(classesOf(frame())).not.toContain("shadow-window-unfocused");
 
-    rerender(
-      <OsWindowFrame title="Home" kind="tiled" focused={false} data-testid="frame">
-        <p>body</p>
-      </OsWindowFrame>
+    const controls = document.querySelector('[data-slot="topbar-controls"]');
+    expect(controls).not.toBeNull();
+    expect(
+      Array.from(controls!.querySelectorAll("button")).map(button => button.dataset.action)
+    ).toEqual(["minimize", "zoom", "close"]);
+    const identity = document.querySelector('[data-slot="topbar-identity"]')!;
+    expect(identity.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
     );
-    expect(frame()).toHaveAttribute("data-kind", "tiled");
-    expect(classesOf(frame())).not.toContain("shadow-window");
-    expect(classesOf(frame())).not.toContain("shadow-window-unfocused");
   });
 });

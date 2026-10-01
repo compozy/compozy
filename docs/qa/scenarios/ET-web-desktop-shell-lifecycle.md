@@ -4,9 +4,9 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
+expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
@@ -98,3 +98,5 @@ archived, internal, and foreign-scope rows must not leak into that counter.
 Visible search parity: verify Greek title `ΟΣ` with query `ος` and agent `İ` with query `i̇` across
 durable and active rows. Search remains case-insensitive using the desktop Unicode lowercase
 semantics; no accent stripping or locale-specific alternate search is introduced.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The shell grid is now topbar (full width) + rail (left) + desk; the dock band, glass menubar and wallpaper hint are gone and the default desk is flat. Reset for a boot, workspace-switch and reconnect walk in both themes.

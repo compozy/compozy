@@ -13,7 +13,7 @@ import { AutomationTargetDetails } from "./automation-target-details";
 export function AutomationTargetSection({ target }: { target: LoopTargetProjection }) {
   return (
     <Section label="Runs a loop">
-      <div className="rounded-md border border-line bg-canvas-soft px-4 py-3">
+      <div className="rounded-md bg-sunken px-4 py-3">
         <AutomationTargetDetails showInputMapping={false} target={target} />
       </div>
     </Section>

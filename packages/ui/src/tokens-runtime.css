@@ -1,7 +1,7 @@
 /* Nerd Font symbols — shell prompts and agent output lean on Private Use Area
    icons (powerline separators, devicons, octicons), and browsers resolve no
    system fallback for PUA codepoints, so an installed Nerd Font on the machine
-   never reaches this document. The bundled JetBrains Mono ships none of them;
+   never reaches this document. The bundled Geist Mono ships none of them;
    the mono stack carries this symbols-only face instead, scoped by
    unicode-range to exactly the codepoints the font ships so ordinary text
    never downloads it. `local()` first: an installed copy costs no bytes. */
@@ -18,6 +18,7 @@
     U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58, U+E000-F533, U+F0001-F1AF0;
 }
 
+[data-theme="dark"],
 .dark {
   color-scheme: dark;
 }
@@ -35,23 +36,14 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    /* Body baseline / DESIGN.md §9. */
-    font-size: 0.9375rem;
-    line-height: 1.55;
-    letter-spacing: -0.006em;
+    /* Body baseline / DESIGN.md §9: Inter 425 at 13.5px, −0.01em, and
+       Inter's cv11 (single-storey a), as the brand reference sets it. */
+    font-size: var(--text-body);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+    letter-spacing: var(--tracking-body);
+    font-feature-settings: "cv11";
     text-rendering: optimizeLegibility;
-  }
-
-  /* JetBrains Mono needs its native stroke rendering instead of the grayscale
-     smoothing the body baseline applies for the sans stack. */
-  .font-mono,
-  [class*="font-mono"],
-  code,
-  kbd,
-  samp,
-  pre {
-    -webkit-font-smoothing: subpixel-antialiased;
-    -moz-osx-font-smoothing: auto;
   }
 
   ::selection {

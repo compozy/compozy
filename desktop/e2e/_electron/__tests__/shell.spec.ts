@@ -730,7 +730,7 @@ test("E2E-008: native product chrome and window geometry survive relaunch", asyn
       };
     });
     expect(overlay).toEqual({
-      height: 44,
+      height: 52,
       narrowerThanWindow: true,
       visible: true,
     });
@@ -1676,7 +1676,8 @@ test("E2E-027: a global summon restores and focuses the palette without crossing
   await product.keyboard.press("Escape");
   await expect(product.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
-  await product.getByRole("button", { name: "New session" }).last().click();
+  await product.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await product.getByTestId("os-menubar-command-session.new").click();
   const modal = product.getByRole("dialog").first();
   await expect(modal).toBeVisible();
   await invokeGlobalShortcut(desktop, "CommandOrControl+Shift+Space");

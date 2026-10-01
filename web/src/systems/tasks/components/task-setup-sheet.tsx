@@ -5,6 +5,7 @@ import {
   Button,
   ConfirmDialog,
   JsonViewer,
+  KindIcon,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -71,12 +72,7 @@ export function TaskSetupSheet({
       <SheetContent className="w-full sm:max-w-xl" data-testid="tasks-setup-sheet" side="right">
         <SheetHeader>
           <div className="flex items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="grid size-9 shrink-0 place-items-center rounded-md bg-accent-tint text-accent-strong"
-            >
-              <Settings2 className="size-4" />
-            </span>
+            <KindIcon aria-hidden="true" icon={Settings2} tone="well" />
             <div className="min-w-0">
               <span className="eyebrow text-subtle">Execution profile</span>
               <SheetTitle>Task setup</SheetTitle>
@@ -88,7 +84,7 @@ export function TaskSetupSheet({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {hasActiveRun ? (
             <div
-              className="mb-4 flex items-start gap-2.5 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted"
+              className="mb-4 flex items-start gap-2.5 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted"
               data-testid="tasks-setup-locked"
             >
               <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
@@ -245,7 +241,6 @@ function TaskSetupFooter({
           <Button
             data-testid="tasks-setup-toggle-json"
             onClick={onToggleJson}
-            size="sm"
             type="button"
             variant="ghost"
           >
@@ -257,7 +252,6 @@ function TaskSetupFooter({
             data-testid="tasks-setup-clear"
             disabled={isDeletePending}
             onClick={() => onClearOpenChange(true)}
-            size="sm"
             type="button"
             variant="ghost"
           >
@@ -270,7 +264,6 @@ function TaskSetupFooter({
           <Button
             data-testid="tasks-setup-edit"
             onClick={() => editor.setOpen(true)}
-            size="sm"
             type="button"
             variant="neutral"
           >
@@ -280,7 +273,6 @@ function TaskSetupFooter({
         <Button
           data-testid="tasks-setup-close"
           onClick={() => onOpenChange(false)}
-          size="sm"
           type="button"
           variant={hasActiveRun || editor.open ? "neutral" : "ghost"}
         >

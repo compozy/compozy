@@ -11,7 +11,7 @@ interface SkillActivationPillProps extends Omit<PillProps, "children" | "tone"> 
 
 function SkillActivationPill({ active, ...props }: SkillActivationPillProps) {
   return (
-    <Pill tone={active ? "success" : "warning"} {...props}>
+    <Pill form="plain" tone={active ? "success" : "warning"} {...props}>
       <Pill.Dot />
       {active ? "Active" : "Inactive"}
     </Pill>

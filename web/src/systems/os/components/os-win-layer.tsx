@@ -1,4 +1,5 @@
 import { MonitorX } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { Empty } from "@compozy/ui";
 
@@ -6,7 +7,7 @@ import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-lay
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
-import { OsShortcutChords } from "./os-shortcut-chords";
+import { OsEmptyDesktop } from "./os-empty-desktop";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
@@ -42,30 +43,14 @@ function desktopTransitionAnimationName(input: {
   return undefined;
 }
 
-function DesktopLayer({
-  model,
-  compact,
-  reducedMotion,
-  viewportReady,
-  transition,
-  onTransitionComplete,
-  seamProjection,
-  onResize,
-  onFrameResize,
-  onSeamPreview,
-  onFrameSeamPreview,
-  onSeamPreviewEnd,
-  paletteShortcutLabel,
-}: {
+/** Visibility, interactivity, and the enter/leave animation for one desktop tree. */
+function desktopLayerView(input: {
   model: DesktopLayerModel;
-  compact: boolean;
   reducedMotion: boolean;
   viewportReady: boolean;
   transition: DesktopTransitionIntent | null;
-  onTransitionComplete: () => void;
-  seamProjection: LayoutProjection | undefined;
-  paletteShortcutLabel: string | null;
-} & SeamGestureHandlers) {
+}) {
+  const { model, reducedMotion, viewportReady, transition } = input;
   const incoming = transition?.toDesktopId === model.desktop.id;
   const outgoing = transition?.fromDesktopId === model.desktop.id;
   const transitionActive =
@@ -83,6 +68,55 @@ function DesktopLayer({
     mode: transition?.mode,
     direction: transition?.direction,
   });
+  const style: CSSProperties = {
+    contain: "strict",
+    contentVisibility: visible ? "visible" : "hidden",
+    opacity: model.active ? 1 : 0,
+    pointerEvents: interactive ? "auto" : "none",
+    animation:
+      animation === undefined
+        ? undefined
+        : `${animation} ${
+            reducedMotion ? "0ms linear" : "var(--duration-shell-base) var(--ease-spring)"
+          } both`,
+  };
+  return { incoming, interactive, style };
+}
+
+function DesktopLayer({
+  model,
+  compact,
+  reducedMotion,
+  viewportReady,
+  transition,
+  onTransitionComplete,
+  seamProjection,
+  onResize,
+  onFrameResize,
+  onSeamPreview,
+  onFrameSeamPreview,
+  onSeamPreviewEnd,
+  paletteShortcutLabel,
+  hasProject,
+  onPickProject,
+}: {
+  model: DesktopLayerModel;
+  compact: boolean;
+  reducedMotion: boolean;
+  viewportReady: boolean;
+  transition: DesktopTransitionIntent | null;
+  onTransitionComplete: () => void;
+  seamProjection: LayoutProjection | undefined;
+  paletteShortcutLabel: string | null;
+  hasProject: boolean;
+  onPickProject?: () => void;
+} & SeamGestureHandlers) {
+  const { incoming, interactive, style } = desktopLayerView({
+    model,
+    reducedMotion,
+    viewportReady,
+    transition,
+  });
 
   return (
     <section
@@ -97,27 +131,15 @@ function DesktopLayer({
           onTransitionComplete();
         }
       }}
-      style={{
-        contain: "strict",
-        contentVisibility: visible ? "visible" : "hidden",
-        opacity: model.active ? 1 : 0,
-        pointerEvents: interactive ? "auto" : "none",
-        animation:
-          animation === undefined
-            ? undefined
-            : `${animation} ${
-                reducedMotion ? "0ms linear" : "var(--duration-shell-base) var(--ease-spring)"
-              } both`,
-      }}
+      style={style}
     >
       {interactive && !model.anyVisible ? (
-        <p
-          data-testid="os-desk-hint"
-          className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 text-small-body text-subtle select-none"
-        >
-          {paletteShortcutLabel ? <OsShortcutChords label={paletteShortcutLabel} /> : null} to open
-          anything — or pick a surface from the dock
-        </p>
+        <OsEmptyDesktop
+          desktopName={model.desktop.name}
+          paletteShortcutLabel={paletteShortcutLabel}
+          hasProject={hasProject}
+          onPickProject={onPickProject}
+        />
       ) : null}
       {model.frames.map(frame => (
         <OsWindow key={frame.id} frame={frame} />
@@ -151,20 +173,26 @@ export function OsWinLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
+  hasProject,
+  onPickProject,
 }: {
   model: OsWinLayerModel;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
   paletteShortcutLabel: string | null;
+  /** A project is active (Global has none): gates the empty desktop's composer. */
+  hasProject: boolean;
+  /** Global scope has no project: the empty desktop offers the workspace picker instead. */
+  onPickProject?: () => void;
 } & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
     <div
       ref={layerRef}
       data-slot="os-win-layer"
-      // The measured work area stops above the Dock band so snaps and floating clamps never resolve beneath it.
-      className="absolute inset-x-0 top-0 bottom-[calc(var(--size-dock-band)+env(safe-area-inset-bottom,0px))]"
+      // The desk is the whole work area: the rail and the compact tab bar own their own grid tracks.
+      className="absolute inset-0"
     >
       {desktops.map(desktop => (
         <DesktopLayer
@@ -182,6 +210,8 @@ export function OsWinLayer({
           onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
           paletteShortcutLabel={paletteShortcutLabel}
+          hasProject={hasProject}
+          onPickProject={onPickProject}
         />
       ))}
       {viewportState === "rejected" ? (
@@ -193,7 +223,7 @@ export function OsWinLayer({
           <Empty
             framed
             icon={MonitorX}
-            className="max-w-sm bg-canvas shadow-overlay"
+            className="max-w-sm bg-card shadow-overlay"
             title="Make the window wider to see your desktop"
             description="You can also change this in Settings › Layouts."
           />

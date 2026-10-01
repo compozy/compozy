@@ -3,9 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
-import { OsDockZone } from "../os-dock";
-import { OsDockTabBar } from "../os-dock-tab-bar";
-import { DESK_ITEMS, DesktopShell } from "./_desktop";
+import { DesktopShell } from "./_desktop";
 
 const DESKTOPS: DesktopPagerItem[] = [
   { id: "control", name: "Control" },
@@ -13,6 +11,11 @@ const DESKTOPS: DesktopPagerItem[] = [
   { id: "review", name: "Review" },
   { id: "research", name: "Research" },
 ];
+
+/** Research holds a session that needs you: an orange dot until it is the active desktop. */
+const NEEDS_YOU_DESKTOPS: DesktopPagerItem[] = DESKTOPS.map(desktop =>
+  desktop.id === "research" ? { ...desktop, needsYou: true } : desktop
+);
 
 const MANY_DESKTOPS: DesktopPagerItem[] = [
   ...DESKTOPS,
@@ -39,44 +42,22 @@ function InteractivePager({
   const [activeDesktopId, setActiveDesktopId] = useState(initialDesktopId);
 
   return (
-    <DesktopShell wallpaper="carbon" deskHint dock={false}>
-      {compact ? (
-        <OsDockTabBar
-          items={DESK_ITEMS}
-          leading={
-            <DesktopPager
-              desktops={desktops}
-              activeDesktopId={activeDesktopId}
-              compact
-              onSelectDesktop={desktopId => {
-                setActiveDesktopId(desktopId);
-                onSelectDesktop(desktopId);
-              }}
-              onOpenOverview={onOpenOverview}
-            />
-          }
-          onSelect={fn()}
-          onNewSession={fn()}
+    <DesktopShell
+      wallpaper="carbon"
+      deskHint
+      compact={compact}
+      pager={
+        <DesktopPager
+          desktops={desktops}
+          activeDesktopId={activeDesktopId}
+          onSelectDesktop={desktopId => {
+            setActiveDesktopId(desktopId);
+            onSelectDesktop(desktopId);
+          }}
+          onOpenOverview={onOpenOverview}
         />
-      ) : (
-        <OsDockZone
-          items={DESK_ITEMS}
-          leading={
-            <DesktopPager
-              desktops={desktops}
-              activeDesktopId={activeDesktopId}
-              onSelectDesktop={desktopId => {
-                setActiveDesktopId(desktopId);
-                onSelectDesktop(desktopId);
-              }}
-              onOpenOverview={onOpenOverview}
-            />
-          }
-          onSelect={fn()}
-          onNewSession={fn()}
-        />
-      )}
-    </DesktopShell>
+      }
+    />
   );
 }
 
@@ -88,7 +69,7 @@ const meta: Meta<typeof DesktopPager> = {
     docs: {
       description: {
         component:
-          "Bottom-chrome desktop navigation with invisible 44px targets, minimal position dots, keyboard navigation, and adaptive overflow into the management overview.",
+          "Topbar desktop navigation in the tray: 6px dots, the active desktop as an 18px pill, an orange dot for an off-screen desktop that needs you, arrow-key navigation, and ±2 overflow controls that open the desktops overview. Dots only select.",
       },
     },
   },
@@ -151,12 +132,29 @@ export const OverflowAtEnd: Story = {
   ),
 };
 
-/** Compact tab-bar mode keeps the active desktop between at most two overflow controls. */
+/** An off-screen desktop that needs you shows an orange dot; switching to it clears the mark. */
+export const NeedsYouOffScreen: Story = {
+  args: {
+    desktops: NEEDS_YOU_DESKTOPS,
+    activeDesktopId: "build",
+    onSelectDesktop: fn(),
+    onOpenOverview: fn(),
+  },
+  render: args => (
+    <InteractivePager
+      desktops={args.desktops}
+      initialDesktopId={args.activeDesktopId}
+      onSelectDesktop={args.onSelectDesktop}
+      onOpenOverview={args.onOpenOverview}
+    />
+  ),
+};
+
+/** Compact presentation (tab bar below, narrow topbar) keeps the same ±2 window around the active desktop. */
 export const CompactTabBar: Story = {
   args: {
     desktops: MANY_DESKTOPS,
     activeDesktopId: "qa",
-    compact: true,
     onSelectDesktop: fn(),
     onOpenOverview: fn(),
   },

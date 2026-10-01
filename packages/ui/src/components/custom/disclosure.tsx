@@ -21,7 +21,7 @@ export interface DisclosureProps extends Omit<
    * "Advanced" layer).
    */
   variant?: "inline" | "framed";
-  /** `sm` for form-label density (dialogs, rails); `md` for body-size toggles. */
+  /** `sm` = 12.5 px meta toggles (dialogs, rails, framed panels); `md` = 13 px row-size toggles. */
   size?: "sm" | "md";
   /** Keep the panel in the DOM while closed (preserves form state and anchors). */
   keepMounted?: boolean;
@@ -56,7 +56,7 @@ function Disclosure({
       data-variant={variant}
       className={cn(
         "flex min-w-0 flex-col",
-        framed && "overflow-hidden rounded-lg border border-line bg-canvas-soft",
+        framed && "overflow-hidden rounded-lg bg-sunken",
         className
       )}
       {...rootProps}
@@ -68,8 +68,8 @@ function Disclosure({
           "group/disclosure flex items-center text-left font-medium text-muted",
           "transition-colors duration-base hover:text-fg",
           "focus-visible:shadow-focus-ring focus-visible:outline-none",
-          size === "sm" ? "gap-1 text-form-label" : "gap-2 text-small-body",
-          framed ? "w-full px-4 py-3 hover:bg-row-hover" : "w-fit rounded-sm py-1",
+          size === "sm" ? "gap-1 text-meta" : "gap-2 text-small-body",
+          framed ? "w-full px-4 py-3 hover:bg-surface-2" : "w-fit rounded-sm py-1",
           triggerClassName
         )}
         {...restTrigger}

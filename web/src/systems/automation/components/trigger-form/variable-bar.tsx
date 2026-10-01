@@ -12,7 +12,7 @@ export function VariableBar({ variables, onInsert }: VariableBarProps) {
       {variables.map(variable => (
         <button
           aria-label={`Insert ${variable}`}
-          className="inline-flex items-center gap-1 rounded-xs border border-line-soft bg-badge-fill px-1.5 py-1 font-mono text-mono-id font-medium text-fg outline-none transition-colors hover:border-accent-dim hover:bg-accent-tint hover:text-accent-strong focus-visible:shadow-focus-ring"
+          className="inline-flex items-center gap-1 rounded-xs border border-line-soft bg-surface-2 px-1.5 py-1 font-mono text-mono-id font-medium text-fg outline-none transition-colors hover:border-accent-dim hover:bg-accent-tint hover:text-accent-strong focus-visible:shadow-focus-ring"
           key={variable}
           onClick={() => onInsert(variable)}
           type="button"

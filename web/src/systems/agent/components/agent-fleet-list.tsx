@@ -51,7 +51,7 @@ function AgentFleetList({
         >
           {Array.from({ length: 6 }, (_, index) => (
             <div
-              className="flex flex-col gap-3 rounded-lg bg-canvas-soft p-4"
+              className="flex flex-col gap-3 rounded-lg bg-card p-4 shadow-card"
               key={`agent-fleet-card-skeleton-${index}`}
             >
               <div className="flex items-start gap-3">
@@ -76,7 +76,7 @@ function AgentFleetList({
       <div
         aria-busy="true"
         aria-label="Loading agents"
-        className="min-h-0 flex-1 overflow-hidden rounded-lg border border-line bg-canvas-soft"
+        className="min-h-0 flex-1 overflow-hidden rounded-lg bg-card shadow-card"
         data-testid="agent-fleet-loading"
       >
         <SkeletonRows count={8} className="gap-0" rowClassName="px-4 py-3">
@@ -169,7 +169,7 @@ function AgentFleetList({
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-slot="agent-fleet-rows"
         >
           {rows.map(row => (

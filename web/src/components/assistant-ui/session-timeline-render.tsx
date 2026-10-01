@@ -288,7 +288,7 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
       data-goal-node={goal.node_id}
       data-goal-generation={goal.generation}
       tone="info"
-      icon={<Target strokeWidth={1.8} />}
+      icon={<Target />}
     >
       <b>{GOAL_PROMPT_LABELS[goal.kind]}</b>{" "}
       {goal.turn === null ? null : (

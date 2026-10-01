@@ -50,7 +50,7 @@ const PROSE_BASE = [
   PROSE_TYPE.body,
   "group/md leading-prose text-fg",
   "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-  "[&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-canvas [&_pre]:p-3 [&_pre]:text-form-input [&_pre]:font-mono",
+  "[&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-code-bg [&_pre]:p-3 [&_pre]:text-form-input [&_pre]:font-mono",
   "[&_pre_code]:bg-transparent [&_pre_code]:px-0",
   "[&_blockquote>:first-child]:mt-0 [&_blockquote>:last-child]:mb-0",
 ].join(" ");

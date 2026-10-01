@@ -41,7 +41,7 @@ function Harness({
   const [value, setValue] = useState<string | null>(workspaces[0]?.id ?? null);
   return (
     <CenteredSurface className="items-start">
-      <div className="w-[420px] border border-line bg-canvas-soft">
+      <div className="w-[420px] border border-line bg-canvas">
         <WorkspaceCommandSelect
           userHomeDir="/Users/ada"
           workspaces={workspaces}

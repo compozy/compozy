@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AlertTriangle, Ban, Hourglass, Info, Pause, Trash2, Zap } from "lucide-react";
+import { AlertTriangle, Ban, GitFork, Hourglass, Info, Pause, Trash2, Zap } from "lucide-react";
 
 import { Button } from "../button";
 import { ConfirmDialog } from "../custom/confirm-dialog";
@@ -53,10 +53,28 @@ export const Warning: Story = {
       description="This draft has unsaved changes."
       eyebrow="Draft"
       icon={AlertTriangle}
-      iconTone="neutral"
       onConfirm={() => undefined}
       title="Discard draft?"
       tone="warning"
+    />
+  ),
+};
+
+/** `iconTone="neutral"` is the mint identity well — the thing being acted on, not a risk. */
+export const IdentityWell: Story = {
+  args: {},
+  render: () => (
+    <ConfirmDialog
+      cancelLabel="Cancel"
+      confirmLabel="Fork run"
+      defaultOpen
+      description="The fork starts from this node with the same inputs."
+      eyebrow="Run"
+      icon={GitFork}
+      iconTone="neutral"
+      onConfirm={() => undefined}
+      title="Fork this run?"
+      tone="neutral"
     />
   ),
 };

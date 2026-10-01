@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@compozy/ui/lib/utils";
 import {
@@ -190,6 +190,20 @@ function StepperBody({ children, className, ...props }: ComponentProps<"div">) {
   );
 }
 
+/** The configured indicator for this step's state, or `null` to fall back to `children`. */
+function resolveStepIndicator(
+  indicators: StepIndicators | undefined,
+  state: StepState,
+  isLoading: boolean
+): ReactNode {
+  if (!indicators) return null;
+  if (isLoading && indicators.loading) return indicators.loading;
+  if (state === "completed" && indicators.completed) return indicators.completed;
+  if (state === "active" && indicators.active) return indicators.active;
+  if (state === "inactive" && indicators.inactive) return indicators.inactive;
+  return null;
+}
+
 function StepperIndicator({ children, className }: ComponentProps<"div">) {
   const { state, isLoading } = useStepItem();
   const { indicators } = useStepper();
@@ -199,24 +213,15 @@ function StepperIndicator({ children, className }: ComponentProps<"div">) {
       data-slot="stepper-indicator"
       data-state={state}
       className={cn(
-        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold tabular-nums transition-[background-color,color,box-shadow] duration-base ease-in-out",
-        "data-[state=inactive]:bg-elevated data-[state=inactive]:text-subtle data-[state=inactive]:shadow-inset-strong",
-        "data-[state=active]:bg-accent data-[state=active]:text-accent-ink data-[state=active]:shadow-[var(--shadow-highlight),0_0_0_4px_var(--color-accent-tint)]",
-        "data-[state=completed]:bg-accent data-[state=completed]:text-accent-ink data-[state=completed]:shadow-highlight",
+        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-eyebrow font-semibold tabular-nums transition-[background-color,color,box-shadow] duration-base ease-in-out",
+        "data-[state=inactive]:bg-canvas data-[state=inactive]:text-subtle data-[state=inactive]:shadow-inset-strong",
+        "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_0_4px_var(--color-surface-2)]",
+        "data-[state=completed]:bg-primary data-[state=completed]:text-primary-foreground",
         className
       )}
     >
       <div className="absolute">
-        {indicators &&
-        ((isLoading && indicators.loading) ||
-          (state === "completed" && indicators.completed) ||
-          (state === "active" && indicators.active) ||
-          (state === "inactive" && indicators.inactive))
-          ? (isLoading && indicators.loading) ||
-            (state === "completed" && indicators.completed) ||
-            (state === "active" && indicators.active) ||
-            (state === "inactive" && indicators.inactive)
-          : children}
+        {resolveStepIndicator(indicators, state, isLoading) || children}
       </div>
     </div>
   );
@@ -232,7 +237,7 @@ function StepperSeparator({ className }: ComponentProps<"div">) {
       className={cn(
         "rounded-sm bg-line transition-colors duration-base",
         "group-data-[orientation=horizontal]/stepper-nav:m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
-        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-px group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-accent-dim",
+        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-px group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-primary",
         className
       )}
     />

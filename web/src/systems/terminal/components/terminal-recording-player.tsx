@@ -68,7 +68,7 @@ export function TerminalRecordingPlayer({
         role="status"
         variant="warning"
       >
-        <AlertTitle className="text-form-input font-semibold">{playback.error}</AlertTitle>
+        <AlertTitle className="text-form-input font-medium">{playback.error}</AlertTitle>
       </Alert>
     );
   }
@@ -76,13 +76,13 @@ export function TerminalRecordingPlayer({
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-recording-player">
       {title ? (
-        <div className="flex min-h-9 min-w-0 flex-none items-center gap-2 border-line border-b bg-canvas-soft px-3">
+        <div className="flex min-h-9 min-w-0 flex-none items-center gap-2 border-line border-b bg-canvas px-4">
           <Play aria-hidden="true" className="size-3 flex-none text-subtle" />
-          <span className="truncate font-semibold text-eyebrow text-fg-strong">{title}</span>
+          <span className="truncate font-medium text-eyebrow text-fg">{title}</span>
           <MonoId size="sm" value={recordingId} />
           <div className="ml-auto flex flex-none items-center gap-2.5">
             {recordedAtLabel || retentionNote ? (
-              <span className="font-mono text-micro text-faint">
+              <span className="font-mono text-eyebrow text-faint">
                 {recordedAtLabel}
                 {recordedAtLabel && retentionNote ? " · " : ""}
                 {retentionNote}
@@ -120,7 +120,7 @@ export function TerminalRecordingPlayer({
           onClick={playback.toggle}
           size="icon-sm"
           type="button"
-          variant="ghost"
+          variant="quiet"
         >
           {playback.playing ? (
             <Pause aria-hidden="true" className="size-3.5" />
@@ -140,7 +140,7 @@ export function TerminalRecordingPlayer({
           value={Math.min(playback.positionMs, playback.durationMs)}
         />
         <span
-          className="font-mono text-badge tabular-nums whitespace-nowrap text-subtle"
+          className="font-mono text-eyebrow tabular-nums whitespace-nowrap text-subtle"
           data-testid="terminal-recording-clock"
         >
           {formatPlaybackClock(playback.positionMs)} / {formatPlaybackClock(playback.durationMs)}

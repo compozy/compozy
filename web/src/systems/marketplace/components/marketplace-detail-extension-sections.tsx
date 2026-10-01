@@ -29,11 +29,14 @@ function ExtensionEnvironmentState({
     <div className="space-y-2" data-testid="extension-environment-state">
       {required.map(value => (
         <div className="flex items-center justify-between gap-3" key={value}>
-          <code className="font-mono text-xs text-fg">{value}</code>
+          <code className="font-mono text-eyebrow text-fg">{value}</code>
           {boundValues.has(value) ? (
             <span className="text-form-label text-muted">Set</span>
           ) : missingValues.has(value) ? (
-            <Pill tone="warning">Missing</Pill>
+            <Pill form="plain" tone="warning">
+              <Pill.Dot />
+              Missing
+            </Pill>
           ) : (
             <span className="text-form-label text-muted">From your system</span>
           )}
@@ -41,8 +44,11 @@ function ExtensionEnvironmentState({
       ))}
       {stale.map(value => (
         <div className="flex items-center justify-between gap-3" key={value}>
-          <code className="font-mono text-xs text-fg">{value}</code>
-          <Pill tone="warning">Set · no longer used</Pill>
+          <code className="font-mono text-eyebrow text-fg">{value}</code>
+          <Pill form="plain" tone="warning">
+            <Pill.Dot />
+            Set · no longer used
+          </Pill>
         </div>
       ))}
     </div>

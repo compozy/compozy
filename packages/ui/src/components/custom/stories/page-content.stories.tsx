@@ -30,7 +30,9 @@ export const Listing: Story = {
   render: () => (
     <PageContent density="listing">
       <p className="text-card-title font-semibold text-fg-strong">Page content</p>
-      <p className="text-[13px] text-muted">Horizontal inset matches ListingPage and PageShell.</p>
+      <p className="text-small-body text-muted">
+        Horizontal inset matches ListingPage and PageShell.
+      </p>
     </PageContent>
   ),
 };
@@ -39,7 +41,7 @@ export const Comfortable: Story = {
   render: () => (
     <PageContent density="comfortable">
       <p className="text-card-title font-semibold text-fg-strong">Comfortable</p>
-      <p className="text-[13px] text-muted">
+      <p className="text-small-body text-muted">
         Same px-9 gutter; denser gap/padding differs by density.
       </p>
     </PageContent>

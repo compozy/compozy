@@ -162,6 +162,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.ArrangementVertical),
 			string(windowmanager.ArrangementGrid),
 			string(windowmanager.ArrangementStack),
+			string(windowmanager.ArrangementMainStack),
 		},
 		reflect.TypeFor[contract.SkillDiagnosticState]():        skillDiagnosticStateValues(),
 		reflect.TypeFor[contract.SkillActivationReasonCode]():   skillActivationReasonCodeValues(),

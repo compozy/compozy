@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-operate-desktop-shell
-  scenarios: [ET-web-geist-wght-medium-510, ET-web-ui-resilience]
+  scenarios: [ET-web-inter-type-ramp, ET-web-ui-resilience]
   tour: Feature Tour
   time_box_minutes: 60
   guidance:

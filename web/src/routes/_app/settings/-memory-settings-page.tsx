@@ -26,7 +26,7 @@ import { MemorySystemSection, ProviderResilienceSection } from "./-memory-system
 
 export function MemorySettingsPage() {
   const page = useSettingsMemoryPage();
-  useSettingsTopbar("memory");
+  useSettingsTopbar();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError: ValidationSetter = (key: string) => (message: string | null) => {
     setValidationErrors(current =>

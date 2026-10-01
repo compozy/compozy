@@ -30,13 +30,13 @@ export function ProfileDestinationChip({
       role="img"
       aria-label={destinationChipLabel(profile)}
       className={cn(
-        "inline-flex h-pill-xs shrink-0 items-center gap-1.5 rounded-xs bg-badge-fill px-2",
+        "inline-flex h-pill-xs shrink-0 items-center gap-1.5 rounded-pill bg-surface-2 px-2",
         "text-eyebrow font-medium tracking-eyebrow text-muted",
         className
       )}
       {...props}
     >
-      <CornerDownRight aria-hidden="true" className="size-2.5" />
+      <CornerDownRight aria-hidden="true" className="size-3" />
       <b className="font-medium text-fg">{profile}</b>
     </span>
   );

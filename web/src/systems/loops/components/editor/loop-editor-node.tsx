@@ -48,14 +48,16 @@ const ROUTE_SUMMARY_ROW_KEYS = new Set(["routes", "default"]);
 
 type RouteCardRow = ReturnType<typeof routeCardRows>[number];
 
+/**
+ * The node is a card on the canvas: its `shadow-card` hairline ring is the
+ * edge. A selected node, or the one open in the inspector, holds the selected
+ * plate on that same edge; only an error recolors the edge, since accent stays
+ * reserved for what needs you.
+ */
 function nodeFrameClassName(hasError: boolean, focused: boolean, selected: boolean): string {
-  if (hasError) return cn("border-danger", focused && "ring-2 ring-danger");
-  if (focused)
-    return "border-line hover:border-line-strong border-accent-dim ring-2 ring-accent-dim";
-  return cn(
-    "border-line hover:border-line-strong",
-    selected && "border-accent-dim/50 ring-1 ring-accent-dim/40"
-  );
+  const held = focused || selected;
+  if (hasError) return cn("ring-danger", focused ? "ring-2" : "ring-1", held && "bg-selected");
+  return held ? "bg-selected" : "hover:ring-1 hover:ring-line-strong";
 }
 
 export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
@@ -74,7 +76,7 @@ export function LoopEditorNode({ id, data, selected }: NodeProps<EditorNode>) {
   const card = (
     <div
       className={cn(
-        "group relative flex w-47 flex-col rounded-md border bg-canvas-tint transition-colors",
+        "group relative flex w-47 flex-col rounded-md bg-card shadow-card transition-shadow",
         nodeFrameClassName(hasError, focused, selected)
       )}
       data-testid="loop-editor-node"
@@ -159,8 +161,8 @@ function LoopEditorNodeHeader({
     >
       <span
         className={cn(
-          "grid size-6 shrink-0 place-items-center rounded border border-line-strong bg-elevated",
-          focused ? "text-accent-strong" : "text-muted"
+          "grid size-6 shrink-0 place-items-center rounded bg-surface-2",
+          focused ? "text-fg" : "text-muted"
         )}
       >
         <KindIcon
@@ -169,7 +171,7 @@ function LoopEditorNodeHeader({
           kind={kind}
           registry={LOOP_EDITOR_KIND_ICON_REGISTRY}
           size="xs"
-          tone={focused ? "accent" : "muted"}
+          tone={focused ? "default" : "muted"}
         />
       </span>
       <span
@@ -178,7 +180,7 @@ function LoopEditorNodeHeader({
       >
         {nodeId}
       </span>
-      <Pill size="xs" tone={focused ? "accent" : "neutral"} mono>
+      <Pill size="xs" tone="neutral" mono>
         {editorNodeClassLabel(nodeClass, kind)}
       </Pill>
     </div>
@@ -222,7 +224,7 @@ function LoopEditorNodeBody({
           {chips.map(chip => (
             <span
               key={chip}
-              className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
+              className="rounded-xs bg-surface-2 px-1 py-px font-mono text-pill-group-badge text-subtle"
             >
               {chip}
             </span>

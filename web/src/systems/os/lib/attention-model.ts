@@ -16,6 +16,7 @@
  * `done` lives in its own Finished section and never inflates needs-you.
  */
 import {
+  getSessionDisplayTitle,
   isFinishedBadge,
   isNeedsYouBadge,
   pendingInteractionReason,
@@ -223,7 +224,7 @@ function toSessionRow(
   return {
     kind: "session",
     id: session.id,
-    title: session.name?.trim() || session.id,
+    title: getSessionDisplayTitle(session),
     agentName: session.agent_name,
     workspaceId,
     workspaceLabel: input.workspaceLabels.get(workspaceId) ?? workspaceId,

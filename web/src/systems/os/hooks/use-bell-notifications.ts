@@ -8,7 +8,7 @@ import {
   type AttentionNotification,
 } from "@/systems/notifications";
 import { useProfileReadScope } from "@/systems/profiles";
-import { toSessionBadge } from "@/systems/session";
+import { getSessionDisplayTitle, toSessionBadge } from "@/systems/session";
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
 
 export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
@@ -75,6 +75,12 @@ function notificationRow(
       return {
         ...common,
         kind: "session",
+        // The daemon titles an untitled session by its id; show it as its window does.
+        title: getSessionDisplayTitle({
+          id: item.source_id,
+          name: item.title,
+          agent_name: item.agent_name,
+        }),
         badge: toSessionBadge(item.badge),
         agentName: item.agent_name ?? "",
         reason: item.detail,

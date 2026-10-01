@@ -1039,9 +1039,12 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
     .locator('[style*="cursor: se-resize"]');
   await expect(resizeHandle).toBeVisible();
   const handleBox = await resizeHandle.boundingBox();
-  if (!handleBox) throw new Error("Terminal window resize handle has no layout box.");
-  const resizeX = handleBox.x + handleBox.width / 2;
-  const resizeY = handleBox.y + handleBox.height / 2;
+  const frameBox = await windowFrame(firstWindow).boundingBox();
+  if (!handleBox || !frameBox) throw new Error("Terminal window resize handle has no layout box.");
+  // The corner handle straddles the frame edge, which can sit on the viewport
+  // edge on the full-bleed desk: grab the half that overlaps the frame.
+  const resizeX = Math.min(handleBox.x + handleBox.width, frameBox.x + frameBox.width) - 2;
+  const resizeY = Math.min(handleBox.y + handleBox.height, frameBox.y + frameBox.height) - 2;
   await appPage.mouse.move(resizeX, resizeY);
   await appPage.mouse.down();
   await appPage.mouse.move(resizeX - 160, resizeY - 80, { steps: 12 });

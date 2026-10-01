@@ -1,6 +1,4 @@
-import { CheckIcon, CircleAlertIcon, MinusIcon } from "lucide-react";
-
-import { Spinner, cn } from "@compozy/ui";
+import { StateGlyph, cn, type StateGlyphState } from "@compozy/ui";
 
 import type {
   WorktreeExitProgressPhase,
@@ -27,13 +25,13 @@ const STAGE: Record<WorktreeExitPhaseState, string> = {
   failed: "fail",
 };
 
-function PhaseGlyph({ state }: { state: WorktreeExitPhaseState }) {
-  if (state === "running") return <Spinner className="size-3" />;
-  if (state === "completed") return <CheckIcon aria-hidden="true" className="size-3" />;
-  if (state === "failed") return <CircleAlertIcon aria-hidden="true" className="size-3" />;
-  if (state === "skipped") return <MinusIcon aria-hidden="true" className="size-3" />;
-  return <span aria-hidden="true" className="size-1.5 rounded-full bg-line-strong" />;
-}
+const PHASE_GLYPH: Record<WorktreeExitPhaseState, StateGlyphState> = {
+  pending: "queued",
+  running: "running",
+  completed: "done",
+  skipped: "stopped",
+  failed: "failed",
+};
 
 /**
  * The phases of an exit action, announced up front.
@@ -61,9 +59,7 @@ export function WorktreePhaseSteps({ phases }: WorktreePhaseStepsProps) {
             data-stage={STAGE[phase.state]}
             key={phase.phase}
           >
-            <span className="grid size-3.5 shrink-0 place-items-center">
-              <PhaseGlyph state={phase.state} />
-            </span>
+            <StateGlyph state={PHASE_GLYPH[phase.state]} size="sm" />
             <span>{done ? label.done : label.active}</span>
             {phase.reason ? (
               <span className="text-subtle" data-slot="worktree-phase-reason">

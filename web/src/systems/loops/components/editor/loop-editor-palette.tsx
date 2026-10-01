@@ -24,9 +24,11 @@ const LOOP_EDITOR_KIND_ICON_REGISTRY = {
   "": LOOP_CALL_TOOL_ICON,
 } satisfies KindIconRegistry;
 
+// Kinds are list rows, not boxes: space groups them and the hover plate marks
+// the row under the pointer; the active option holds the selected plate.
 const PALETTE_ITEM_CLASS = [
-  "group flex items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors",
-  "hover:border-line-strong hover:bg-canvas-tint",
+  "group flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+  "hover:bg-surface-2",
   "disabled:cursor-not-allowed disabled:opacity-60",
 ];
 
@@ -105,11 +107,11 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
           {groups.map(group => (
             <div
               aria-label={group.label}
-              className="flex flex-col gap-1.5"
+              className="flex flex-col gap-0.5"
               key={group.label}
               role="group"
             >
-              <Eyebrow variant="caps" className="px-0.5 text-faint">
+              <Eyebrow variant="caps" className="mb-1 px-2 text-faint">
                 {group.label}
               </Eyebrow>
               {group.items.map(item => {
@@ -117,12 +119,7 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
                 return (
                   <button
                     aria-selected={active}
-                    className={cn(
-                      PALETTE_ITEM_CLASS,
-                      active
-                        ? "border-line-strong bg-canvas-tint"
-                        : "border-line-soft bg-canvas-soft"
-                    )}
+                    className={cn(PALETTE_ITEM_CLASS, active && "bg-selected")}
                     data-testid={`loop-palette-item-${item.kindLabel}`}
                     disabled={disabled}
                     id={optionId(listId, item)}
@@ -132,7 +129,7 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
                     title={item.hint}
                     type="button"
                   >
-                    <span className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill transition-transform group-hover:scale-110">
+                    <span className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-2 transition-transform group-hover:scale-110">
                       <KindIcon
                         className="size-2.5"
                         fallback={loopNodeClassIcon({

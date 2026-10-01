@@ -56,7 +56,7 @@ function ExtensionTrustDialog({
       confirmLabel={
         pending ? (
           <>
-            <Spinner aria-hidden="true" className="size-3" />
+            <Spinner aria-hidden="true" className="size-3.5" />
             {actionLabel}…
           </>
         ) : (

@@ -143,7 +143,7 @@ function PillLink({
       tone={tone}
       size={size}
       mono={mono}
-      className={cn("hover:text-accent-strong", className)}
+      className={cn("hover:text-fg", className)}
       render={
         render ?? (
           <a href={href ?? "#"} aria-label={typeof children === "string" ? children : undefined} />

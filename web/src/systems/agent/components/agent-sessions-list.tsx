@@ -10,6 +10,7 @@ import {
   CollapsibleTrigger,
   Pill,
   Skeleton,
+  StateGlyph,
   Spinner,
   Table,
   TableBody,
@@ -18,7 +19,6 @@ import {
   TableHeader,
   TableRow,
   Time,
-  cn,
   formatDuration as formatCanonicalDuration,
 } from "@compozy/ui";
 
@@ -26,7 +26,6 @@ import { getAgentSessionStatus } from "../lib/session-status";
 
 import {
   getSessionDisplayTitle,
-  isSessionRunning,
   type SessionLifecycleActionHandlers,
   type SessionPayload,
   SessionRowActions,
@@ -85,9 +84,9 @@ export function AgentSessionsList({
                   onClick={onRetry}
                   size="sm"
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                 >
-                  <RefreshCw aria-hidden="true" className="size-3" />
+                  <RefreshCw aria-hidden="true" />
                   Retry
                 </Button>
               ) : undefined
@@ -200,7 +199,6 @@ interface AgentSessionRowProps {
 
 function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
-  const running = isSessionRunning(session);
   const title = getSessionDisplayTitle(session);
   return (
     <TableRow data-testid={`agent-session-row-${session.id}`} data-state={status.kind}>
@@ -208,10 +206,7 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
         <Link
           to="/agents/$name/sessions/$id"
           params={{ name: agentName, id: session.id }}
-          className={cn(
-            "text-item-title flex flex-col gap-0.5 text-fg",
-            "transition-colors hover:text-accent"
-          )}
+          className="flex flex-col gap-0.5 text-body text-fg"
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
@@ -219,8 +214,8 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap justify-start gap-1">
-          <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
-            {running ? <Spinner className="size-3" /> : null}
+          <Pill form="plain" data-testid={`agent-session-status-${session.id}`}>
+            <StateGlyph state={status.glyph} size="sm" />
             {status.label}
           </Pill>
           {session.archived_at !== null ? <Pill tone="neutral">Archived</Pill> : null}
@@ -263,17 +258,20 @@ function ArchivedSessionsSection({
         render={
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="sm"
             aria-label={total === undefined ? "Archived sessions" : `Archived sessions (${total})`}
-            className="w-full justify-start gap-2 px-2 text-small-body text-subtle"
+            className="w-full justify-start"
           />
         }
       >
-        <ChevronRight className="size-3 transition-transform group-data-panel-open/agent-sessions-archived:rotate-90" />
+        <ChevronRight
+          aria-hidden="true"
+          className="transition-transform group-data-panel-open/agent-sessions-archived:rotate-90"
+        />
         Archived
         {total === undefined ? null : (
-          <span className="font-mono text-micro text-faint">{total}</span>
+          <span className="text-eyebrow text-subtle tabular-nums">{total}</span>
         )}
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-1">

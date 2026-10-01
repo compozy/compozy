@@ -8,7 +8,9 @@ export type LayoutNodeId = string;
 export type WindowId = string;
 export type WindowManagerClientId = string;
 export type WindowManagerClientKind = "shell" | "browser";
+/** `idle`: no stream attempted for this binding yet — there is nothing to report. */
 export type WindowManagerConnectionStatus =
+  | "idle"
   | "disconnected"
   | "connecting"
   | "connected"
@@ -27,6 +29,7 @@ export type DropPlacement =
   | "center";
 export type FocusDirection = "left" | "right" | "up" | "down";
 export type WindowManagerEdgeCenterBinding = "none" | "reserved" | "zoom";
+export type WindowManagerNewWindowPolicy = "floating" | "beside_focus" | "tab";
 export type WindowManagerSmallViewportPolicy = "stack" | "reject";
 export type WindowManagerFocusPolicy = "click_directional" | "directional";
 export type WindowManagerDesktopTransition = "slide" | "crossfade" | "instant";
@@ -159,7 +162,7 @@ export interface WindowManagerBindingsConfig {
 }
 
 export interface WindowManagerWorkspaceConfig {
-  newWindowPolicy?: "floating" | "beside_focus";
+  newWindowPolicy?: WindowManagerNewWindowPolicy;
   smallViewportPolicy?: WindowManagerSmallViewportPolicy;
   focusPolicy?: WindowManagerFocusPolicy;
   focusWrap?: boolean;
@@ -181,7 +184,7 @@ export interface WindowManagerWorkspaceConfig {
 
 /** Effective global config before workspace-scoped overrides are applied. */
 export interface WindowManagerConfig {
-  newWindowPolicy: "floating" | "beside_focus";
+  newWindowPolicy: WindowManagerNewWindowPolicy;
   smallViewportPolicy: WindowManagerSmallViewportPolicy;
   focusPolicy: WindowManagerFocusPolicy;
   focusWrap: boolean;

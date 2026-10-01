@@ -45,7 +45,7 @@ export function LoopReferenceInput({
   const inputClass = cn(
     "px-2.5 text-form-input",
     mono && "font-mono",
-    multiline ? "min-h-18.5 resize-y leading-relaxed" : "h-8"
+    multiline && "min-h-18.5 resize-y leading-relaxed"
   );
 
   const activeOptionId =
@@ -83,7 +83,7 @@ export function LoopReferenceInput({
       {auto.matches.length > 0 ? (
         <ul
           aria-label="Reference suggestions"
-          className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-md border border-line-strong bg-elevated py-1 shadow-lg"
+          className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg bg-popover p-1 shadow-pop"
           data-testid="loop-reference-suggestions"
           id={listboxId}
           role="listbox"
@@ -92,8 +92,8 @@ export function LoopReferenceInput({
             <li
               aria-selected={index === auto.activeIndex}
               className={cn(
-                "flex w-full cursor-default items-center justify-between gap-3 px-2.5 py-1 text-left hover:bg-row-hover",
-                index === auto.activeIndex && "bg-row-hover"
+                "flex w-full cursor-default items-center justify-between gap-3 px-2.5 py-1 text-left hover:bg-surface-2",
+                index === auto.activeIndex && "bg-surface-2"
               )}
               data-active={index === auto.activeIndex ? "true" : "false"}
               id={`${listboxId}-option-${index}`}

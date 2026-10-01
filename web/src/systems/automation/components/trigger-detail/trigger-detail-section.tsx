@@ -36,10 +36,10 @@ export function TriggerDetailSection({
           "focus-visible:shadow-focus-ring focus-visible:outline-none"
         )}
       >
-        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
+        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
         <Eyebrow className="shrink-0 text-subtle">{label}</Eyebrow>
         {count !== undefined && count > 0 ? (
-          <span className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted">
+          <span className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-surface-2 px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted">
             {count}
           </span>
         ) : null}
@@ -47,7 +47,6 @@ export function TriggerDetailSection({
         <ChevronDown
           aria-hidden="true"
           className="ml-auto size-3.5 shrink-0 -rotate-90 text-subtle transition-transform duration-base ease-out group-data-panel-open/section:rotate-0"
-          strokeWidth={1.75}
         />
       </CollapsibleTrigger>
       <CollapsibleContent>{children}</CollapsibleContent>

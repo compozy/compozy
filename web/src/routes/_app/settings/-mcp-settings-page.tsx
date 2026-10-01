@@ -37,15 +37,16 @@ type MCPScopeLane = "user" | "workspace";
  */
 export function MCPSettingsPage() {
   const page = useSettingsMCPPage();
-  useSettingsTopbar("mcp", {
+  useSettingsTopbar({
     actions: (
       <Button
         data-testid="settings-page-mcp-create"
         onClick={page.openCreate}
         size="sm"
         type="button"
+        variant="secondary"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add MCP server
       </Button>
     ),
@@ -156,7 +157,7 @@ function MCPServersBody({
     return (
       <div
         aria-busy="true"
-        className="rounded-lg border border-line bg-canvas-soft p-3.5"
+        className="rounded-lg bg-card shadow-card p-3.5"
         data-testid="settings-page-mcp-loading"
         role="status"
       >
@@ -192,9 +193,8 @@ function MCPServersBody({
             onClick={page.openCreate}
             size="sm"
             type="button"
-            variant="neutral"
           >
-            <Plus aria-hidden="true" className="size-3" />
+            <Plus aria-hidden="true" />
             Add MCP server
           </Button>
         }
@@ -209,7 +209,7 @@ function MCPServersBody({
     return (
       <Empty
         action={
-          <Button onClick={() => page.setQuery("")} size="sm" type="button" variant="outline">
+          <Button onClick={() => page.setQuery("")} size="sm" type="button" variant="secondary">
             Clear search
           </Button>
         }

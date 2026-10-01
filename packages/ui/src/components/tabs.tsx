@@ -41,7 +41,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-full items-center gap-1.5 px-2 text-form-label font-medium tracking-eyebrow whitespace-nowrap text-muted transition-colors duration-base ease-out hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative inline-flex h-full items-center gap-1.5 px-2 text-body font-medium tracking-body whitespace-nowrap text-muted transition-colors duration-base ease-out hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "data-active:bg-transparent data-active:text-fg-strong",
         "after:absolute after:bg-fg-strong after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:right-0 group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:left-0 group-data-horizontal/tabs:after:h-tab-underline group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-px data-active:after:opacity-100",
         className
@@ -54,7 +54,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       {count !== undefined ? (
         <span
           data-slot="tabs-trigger-count"
-          className="inline-flex h-pill-xs min-w-count-chip-sm items-center justify-center rounded-mono-badge bg-canvas-soft px-1 text-badge font-medium tabular-nums text-muted"
+          className="inline-flex items-center font-normal tabular-nums text-subtle"
         >
           {count}
         </span>
@@ -63,9 +63,9 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
         <span
           aria-live="polite"
           data-slot="tabs-trigger-live"
-          className="eyebrow inline-flex h-4 items-center gap-1 rounded-sm bg-accent-tint px-1.5 text-accent"
+          className="eyebrow inline-flex h-4 items-center gap-1 rounded-pill bg-success-tint px-1.5 text-success"
         >
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
           {liveLabel}
         </span>
       ) : null}

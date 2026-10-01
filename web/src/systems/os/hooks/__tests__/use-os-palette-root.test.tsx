@@ -476,7 +476,6 @@ function desktopFixture(
     connectionStatus: "connected",
     desktopBounds: null,
     desktops: DESKTOPS,
-    dockMagnify: false,
     focusedId,
     frames: {},
     hydration: "live",
@@ -1962,6 +1961,54 @@ describe("palette execution surfaces", () => {
     expect(result.current.values[0]).toBe("settings.layouts");
     expect(result.current.selected).toBe(selected);
     expect(result.current.execution.panel.open).toBe(true);
+  });
+
+  it("Should keep an untouched highlight on the top row while ranking arrives", () => {
+    const { result, rerender } = renderHook(
+      () => useOsPaletteSurface({ open: true, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <CmdPaletteRegistryProvider registry={EXECUTION_REGISTRY}>
+            {children}
+          </CmdPaletteRegistryProvider>
+        ),
+      }
+    );
+    expect(result.current.selected).toBe(result.current.values[0]);
+    // Recents and pins land after the palette opens and reorder the list; an
+    // automatic highlight left on the old first row would now sit off-screen.
+    paletteMocks.rankSignals = { ...TEST_RANK_SIGNALS, pins: ["settings.layouts"] };
+    rerender();
+    expect(result.current.values[0]).toBe("settings.layouts");
+    expect(result.current.selected).toBe("settings.layouts");
+  });
+
+  it("Should start at the top result when the palette opens or the query changes", () => {
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) =>
+        useOsPaletteSurface({ open, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
+      {
+        initialProps: { open: false },
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <CmdPaletteRegistryProvider registry={EXECUTION_REGISTRY}>
+            {children}
+          </CmdPaletteRegistryProvider>
+        ),
+      }
+    );
+    // A row picked while the overlay is closed must not survive into the next open.
+    const stale = result.current.values.at(-1) ?? "";
+    expect(stale).not.toBe(result.current.values[0]);
+    act(() => result.current.onSelectionChange(stale));
+    expect(result.current.selected).toBe(stale);
+    rerender({ open: true });
+    expect(result.current.selected).toBe(result.current.values[0]);
+
+    // A new query re-ranks the list, so the highlight moves to its top result.
+    act(() => result.current.onSelectionChange(stale));
+    act(() => result.current.root.setQuery("capture"));
+    expect(result.current.selected).not.toBe("");
+    expect(result.current.selected).toBe(result.current.values[0]);
   });
 
   it("Should toggle the action panel on the selected row, filter it, and close it [UT-125]", async () => {

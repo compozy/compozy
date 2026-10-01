@@ -51,7 +51,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
   return (
     <Item
       as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
+      className="rounded-none border-x-0 border-t-0 border-b border-line-soft px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
       indicator={isSelected ? "rail" : "none"}
@@ -66,13 +66,13 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         </Eyebrow>
       </ItemHeader>
       {memory.description ? (
-        <ItemDescription className="basis-full truncate text-xs text-muted">
+        <ItemDescription className="basis-full truncate text-eyebrow text-muted">
           {memory.description}
         </ItemDescription>
       ) : null}
       <ItemFooter className="justify-start gap-2">
         <span
-          className="text-xs text-subtle"
+          className="text-eyebrow text-subtle"
           data-knowledge-type={knowledgeTypeFor(memory.type)}
           data-testid={`type-badge-${memory.type}`}
         >
@@ -194,6 +194,7 @@ function KnowledgeListEmptyState({
           className="max-w-sm"
           description={errorMessage}
           icon={AlertCircle}
+          size="compact"
           title="Couldn't load knowledge"
         />
       </div>
@@ -212,6 +213,7 @@ function KnowledgeListEmptyState({
             : "Agents save what they learn here. Use Create to add your own."
         }
         icon={BookOpen}
+        size="compact"
         title={searching ? "No matches" : "No knowledge yet"}
       />
     </div>
@@ -265,7 +267,7 @@ function KnowledgeListRetryRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-danger"
+      className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-eyebrow text-danger"
       data-testid="knowledge-list-pagination-error"
       role="alert"
     >
@@ -295,7 +297,7 @@ function KnowledgeListLoadMore({
   const label = isLoadingMore ? "Loading more knowledge" : "Load more knowledge";
   return (
     <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
-      <span className="text-xs tabular-nums text-subtle">
+      <span className="text-eyebrow tabular-nums text-subtle">
         {loadedCount} of {totalCount}
       </span>
       <Button
@@ -307,7 +309,7 @@ function KnowledgeListLoadMore({
         type="button"
         variant="neutral"
       >
-        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+        {isLoadingMore ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
         {label}
       </Button>
     </div>

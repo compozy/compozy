@@ -65,7 +65,7 @@ export function AgentInstructionsTab({
           <Button
             type="button"
             size="sm"
-            variant="ghost"
+            variant="link"
             onClick={onEditAgentPrompt}
             data-testid="agent-file-edit-prompt"
           >

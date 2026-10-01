@@ -5,7 +5,10 @@
 // Boundary OUT: coordinator command execution and browser lifecycle journeys.
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type * as React from "react";
 
 import { TooltipProvider } from "@compozy/ui";
 
@@ -15,13 +18,17 @@ import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
-import { isOsDockSeparator } from "../../lib/os-dock-model";
 import { pickLastCreatedSession } from "../../lib/last-created-session";
 import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
-  manager: { getState: vi.fn() },
+  manager: {
+    getState: vi.fn(),
+    createDesktop: vi.fn(),
+    switchDesktop: vi.fn(),
+    deleteDesktop: vi.fn(),
+  },
   coordinator: {
     userActivateWindow: vi.fn(),
     userMinimize: vi.fn(),
@@ -37,6 +44,43 @@ const launchCatalog = vi.hoisted(() => ({
 }));
 
 const jumpToSession = vi.hoisted(() => vi.fn());
+const notifyUser = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
+
+const catalogInputs = vi.hoisted(() => ({
+  workspace: { runtimeWorkspaceId: null as string | null, pending: false },
+  catalog: {
+    sessions: [] as SessionPayload[],
+    filters: [] as Array<Record<string, unknown>>,
+  },
+}));
+
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: () => catalogInputs.workspace,
+}));
+
+vi.mock("@/systems/session", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session")>()),
+  sessionCatalogOptions: (filters: Record<string, unknown>) => {
+    catalogInputs.catalog.filters.push(filters);
+    return {
+      queryKey: ["launch-catalog", JSON.stringify(filters)],
+      queryFn: async () => ({
+        sessions: catalogInputs.catalog.sessions,
+        page: { has_more: false },
+      }),
+      initialPageParam: null,
+      getNextPageParam: () => undefined,
+    };
+  },
+}));
+
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => ({ params: {} }),
+}));
 
 const SNAPSHOT: WindowManagerSnapshot = {
   version: 4,
@@ -147,7 +191,6 @@ function desktopState(
     focusedId,
     wallpaper: "ember",
     reduceMotion: false,
-    dockMagnify: true,
     presentation: "floating",
     viewportState: "ready",
     hydration: "live",
@@ -182,11 +225,6 @@ function catalogSession(
 
 describe("OsDock", () => {
   beforeEach(() => {
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
-      cb(0);
-      return 1;
-    });
-    vi.stubGlobal("cancelAnimationFrame", () => undefined);
     vi.clearAllMocks();
     launchCatalog.ready = true;
     launchCatalog.sessions = [];
@@ -197,15 +235,12 @@ describe("OsDock", () => {
     setDockState(desktopState());
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("Should expose the real closed, running, and minimized state for each launcher", () => {
+  it("Should expose the real closed, running, focused, and minimized state for each launcher", () => {
     renderDock(
       <OsDock
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard", running: true },
+          { id: "session", name: "Sessions", icon: "sessions", running: true, active: true },
           { id: "tasks", name: "Tasks", icon: "tasks", minimized: true },
           { id: "agents", name: "Agents", icon: "agents" },
         ]}
@@ -216,6 +251,11 @@ describe("OsDock", () => {
     expect(screen.getByRole("button", { name: "Dashboard" })).toHaveAttribute(
       "data-state",
       "running"
+    );
+    expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: "Sessions" })).toHaveAttribute(
+      "aria-current",
+      "true"
     );
     expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute(
       "data-state",
@@ -228,7 +268,12 @@ describe("OsDock", () => {
     const user = userEvent.setup();
     setDockState({ ...desktopState(), hydration: "pending", connectionStatus: "reconnecting" });
     const view = renderDock(
-      <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
+      <DesktopDock
+        badges={{}}
+        onNewSession={vi.fn()}
+        onOpenSettings={vi.fn()}
+        contextMenusEnabled
+      />
     );
     const tasks = screen.getByRole("button", { name: "Tasks" });
 
@@ -239,7 +284,12 @@ describe("OsDock", () => {
     setDockState({ ...desktopState(), connectionStatus: "reconnecting" });
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
+        <DesktopDock
+          badges={{}}
+          onNewSession={vi.fn()}
+          onOpenSettings={vi.fn()}
+          contextMenusEnabled
+        />
       </TooltipProvider>
     );
 
@@ -268,13 +318,13 @@ describe("OsDock", () => {
     expect(screen.getByRole("button", { name: "Tasks — 12 need you" })).toHaveTextContent("9+");
   });
 
-  it("Should show the launcher name in a tooltip on focus", async () => {
+  it("Should rove focus across launchers with one tab stop and show the name in a tooltip", async () => {
     const user = userEvent.setup();
     renderDock(
       <OsDock
-        magnify={false}
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+          { id: "tasks", name: "Tasks", icon: "tasks", running: true, active: true },
           { id: "knowledge", name: "Knowledge", icon: "knowledge" },
         ]}
         onSelect={vi.fn()}
@@ -282,73 +332,23 @@ describe("OsDock", () => {
     );
 
     await user.tab();
-    await user.tab();
+    expect(screen.getByRole("button", { name: "Tasks" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
     await waitFor(() => {
       expect(screen.getByText("Knowledge")).toBeInTheDocument();
     });
-  });
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
 
-  it("Should magnify the nearest launcher on pointer proximity", () => {
-    renderDock(
-      <OsDock
-        items={[
-          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
-          { id: "tasks", name: "Tasks", icon: "tasks" },
-        ]}
-        onSelect={vi.fn()}
-      />
-    );
-
-    const dock = screen.getByRole("navigation", { name: "Dock" });
-    const dashboard = screen.getByRole("button", { name: "Dashboard" });
-    vi.spyOn(dashboard, "getBoundingClientRect").mockReturnValue({
-      left: 100,
-      width: 46,
-      top: 0,
-      height: 46,
-      right: 146,
-      bottom: 46,
-      x: 100,
-      y: 0,
-      toJSON: () => ({}),
-    });
-
-    fireEvent.pointerMove(dock, { clientX: 123 });
-
-    expect(dashboard.style.transform).toContain("scale(");
-    expect(dashboard.style.transform).toContain("translateY(");
-  });
-
-  it("Should keep launchers static when magnification is disabled", () => {
-    renderDock(
-      <OsDock
-        magnify={false}
-        items={[
-          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
-          { id: "tasks", name: "Tasks", icon: "tasks" },
-        ]}
-        onSelect={vi.fn()}
-      />
-    );
-
-    const dock = screen.getByRole("navigation", { name: "Dock" });
-    const dashboard = screen.getByRole("button", { name: "Dashboard" });
-    vi.spyOn(dashboard, "getBoundingClientRect").mockReturnValue({
-      left: 100,
-      width: 46,
-      top: 0,
-      height: 46,
-      right: 146,
-      bottom: 46,
-      x: 100,
-      y: 0,
-      toJSON: () => ({}),
-    });
-
-    fireEvent.pointerMove(dock, { clientX: 123 });
-
-    expect(dashboard.style.transform).toBe("");
+    await user.tab();
+    expect(document.body).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
   });
 
   it("Should focus the MRU task instance, cycle on repeat, and restore a minimized turn (UT-043)", () => {
@@ -379,6 +379,19 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(first.id);
   });
 
+  it("Should restore a minimized window that the client still reports as focused", () => {
+    // The topology can mark a window minimized before the client frame drops
+    // its focus; the hollow-ring launcher must still restore it, not minimize.
+    const tasks = windowFixture("window:tasks", "tasks", { minimized: true, zoomed: true });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+    setDockState(desktopState({ [tasks.id]: tasks }, tasks.id, [tasks.id]));
+
+    act(() => result.current.handleSelect("tasks"));
+
+    expect(dockShell.coordinator.userMinimize).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledWith(tasks.id);
+  });
+
   it("Should target a task instance on another desktop through the activation coordinator (UT-044)", () => {
     const remote = windowFixture("window:tasks-remote", "tasks", { desktopId: "desktop:two" });
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
@@ -407,28 +420,57 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should keep Agents through Triggers in one dock division after Terminal", () => {
+  it("Should list every launcher in catalog order with no group separators", () => {
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
-    const ids = result.current.entries.map(entry =>
-      isOsDockSeparator(entry) ? `sep:${entry.id}` : entry.id
-    );
 
-    expect(ids).toEqual([
+    expect(result.current.entries.map(entry => entry.id)).toEqual([
       "session",
       "dashboard",
       "terminal",
-      "sep:sep-1",
       "agents",
       "tasks",
       "loops",
       "jobs",
       "triggers",
-      "sep:sep-2",
       "marketplace",
       "knowledge",
-      "sep:sep-3",
       "vault",
     ]);
+  });
+
+  it("Should resolve the Sessions launch catalog across every workspace in Global scope", async () => {
+    const { useSessionLaunchCatalog } = await vi.importActual<
+      typeof import("../../hooks/use-session-launch-catalog")
+    >("../../hooks/use-session-launch-catalog");
+    catalogInputs.workspace = { runtimeWorkspaceId: null, pending: false };
+    catalogInputs.catalog.filters = [];
+    catalogInputs.catalog.sessions = [
+      catalogSession("sess-global", "2026-08-02T00:00:00Z", { workspace_id: "workspace:other" }),
+    ];
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSessionLaunchCatalog(), { wrapper });
+
+    // Global has no runtime workspace: the catalog still reads (all workspaces)
+    // and resolves, so the launcher never drops the click.
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(catalogInputs.catalog.filters.at(-1)).toMatchObject({
+      workspace_id: undefined,
+      limit: 1,
+      sort: "created",
+      archive: "exclude",
+    });
+    expect(result.current.workspaceId).toBeNull();
+    await waitFor(() =>
+      expect(result.current.sessions.map(session => session.id)).toEqual(["sess-global"])
+    );
+
+    catalogInputs.workspace = { runtimeWorkspaceId: null, pending: true };
+    const pending = renderHook(() => useSessionLaunchCatalog(), { wrapper });
+    expect(pending.result.current.ready).toBe(false);
   });
 
   it("Should launch a new session from the dock when the catalog is empty", async () => {
@@ -441,6 +483,42 @@ describe("OsDock", () => {
     expect(onNewSession).toHaveBeenCalledOnce();
     expect(jumpToSession).not.toHaveBeenCalled();
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should hand a Global dock click with no sessions to the workspace switcher and say why", () => {
+    launchCatalog.workspaceId = null;
+    launchCatalog.sessions = [];
+    const onNewSession = vi.fn();
+    const onPickProject = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession, onPickProject }));
+    setDockState(desktopState());
+
+    const sessions = result.current.entries.find(entry => entry.id === "session");
+    expect(sessions?.hint).toBe("Pick a project to start a session");
+    act(() => result.current.handleSelect("session"));
+
+    expect(onPickProject).toHaveBeenCalledOnce();
+    expect(onNewSession).not.toHaveBeenCalled();
+  });
+
+  it("Should name the Sessions launcher with its Global hint", () => {
+    renderDock(
+      <OsDock
+        items={[
+          {
+            id: "session",
+            name: "Sessions",
+            icon: "sessions",
+            hint: "Pick a project to start a session",
+          },
+        ]}
+        onSelect={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Sessions. Pick a project to start a session" })
+    ).toBeInTheDocument();
   });
 
   it("Should ignore a Sessions dock click while the catalog is still unknown", async () => {
@@ -543,18 +621,71 @@ describe("OsDock", () => {
     }
   );
 
-  it("Should keep the plus control creating a session even when the catalog has rows", async () => {
+  it("Should put the theme toggle and Settings in the rail foot, outside the launcher navigation", async () => {
     const user = userEvent.setup();
-    const onNewSession = vi.fn();
-    launchCatalog.sessions = [catalogSession("sess-newer", "2026-08-02T00:00:00Z")];
+    const onOpenSettings = vi.fn();
     renderDock(
-      <DesktopDock badges={{}} onNewSession={onNewSession} pager={null} contextMenusEnabled />
+      <DesktopDock
+        badges={{}}
+        onNewSession={vi.fn()}
+        onOpenSettings={onOpenSettings}
+        contextMenusEnabled
+        profileSwitcher={<button type="button">Profile</button>}
+      />
     );
 
-    await user.click(screen.getByRole("button", { name: "New session" }));
+    const foot = document.querySelector('[data-slot="os-rail-foot"]');
+    if (!(foot instanceof HTMLElement)) throw new Error("Expected the rail foot");
+    const order = Array.from(foot.querySelectorAll("button")).map(
+      button => button.getAttribute("aria-label") ?? button.textContent
+    );
+    expect(order).toEqual([
+      "Profile",
+      expect.stringMatching(/^Switch to (light|dark) mode$/),
+      "Settings",
+    ]);
+    expect(foot.closest("nav")).toBeNull();
 
-    expect(onNewSession).toHaveBeenCalledOnce();
-    expect(jumpToSession).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+
+    const toggle = screen.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
+    const before = toggle.getAttribute("aria-label");
+    await user.click(toggle);
+    expect(
+      screen.getByRole("button", { name: /^Switch to (light|dark) mode$/ })
+    ).not.toHaveAttribute("aria-label", before);
+  });
+
+  it("Should keep every launcher and the foot controls in the compact tab bar, with no New session", () => {
+    setDockState({ ...desktopState(), presentation: "compact" });
+    renderDock(
+      <DesktopDock
+        badges={{ tasks: 2 }}
+        onNewSession={vi.fn()}
+        onOpenSettings={vi.fn()}
+        contextMenusEnabled
+      />
+    );
+
+    const tabBar = document.querySelector('[data-slot="os-dock-tabbar"]');
+    if (!(tabBar instanceof HTMLElement)) throw new Error("Expected the compact tab bar");
+    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(11);
+    expect(screen.getByRole("button", { name: "Tasks — 2 need you" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="os-rail"]')).toBeNull();
+
+    // One tab stop for the strip; Left/Right rove and wrap like the rail's Up/Down.
+    const launchers = Array.from(
+      tabBar.querySelectorAll<HTMLButtonElement>('[data-slot="os-dock-item"]')
+    );
+    expect(launchers.filter(button => button.tabIndex === 0)).toHaveLength(1);
+    launchers[0]?.focus();
+    fireEvent.keyDown(launchers[0] as HTMLElement, { key: "ArrowLeft" });
+    expect(launchers.at(-1)).toHaveFocus();
+    fireEvent.keyDown(launchers.at(-1) as HTMLElement, { key: "ArrowRight" });
+    expect(launchers[0]).toHaveFocus();
   });
 
   it("Should mark Terminal running from catalog truth rather than an open window", () => {
@@ -593,59 +724,205 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should dispatch each explicit launch destination from an open app menu (UT-083)", async () => {
+  it("Should report each explicit launch destination from an open app menu (UT-083)", async () => {
     const user = userEvent.setup();
-    const task = windowFixture("window:tasks", "tasks");
-    const focused = windowFixture("window:dashboard", "dashboard");
-    setDockState(
-      desktopState({ [task.id]: task, [focused.id]: focused }, focused.id, [task.id, focused.id])
-    );
+    const onLaunch = vi.fn();
     render(
-      <OsDockAppMenu appId="tasks">
+      <OsDockAppMenu appId="tasks" onLaunch={onLaunch}>
         <button type="button">Tasks</button>
       </OsDockAppMenu>
     );
 
+    for (const [label, placement] of [
+      ["Open in new tab", "tab"],
+      ["Open in split", "split"],
+      ["Open in new window", "window"],
+      ["Open in new desktop", "desktop"],
+    ] as const) {
+      fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
+      await user.click(await screen.findByText(label));
+      expect(onLaunch).toHaveBeenLastCalledWith(placement);
+    }
     fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    await user.click(await screen.findByText("Open in new window"));
-    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
-      app: "tasks",
-      forceNewInstance: true,
-    });
+    expect(await screen.findByTestId("os-dock-app-menu-tasks-split")).toHaveTextContent("⌥ click");
+    expect(screen.getByTestId("os-dock-app-menu-tasks-desktop")).toHaveTextContent("⇧ click");
+  });
 
-    fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    await user.click(await screen.findByText("Open as tab in focused window"));
+  it("Should open each explicit destination as a new instance of the launcher (UT-083)", async () => {
+    const focused = windowFixture("window:dashboard", "dashboard");
+    setDockState(desktopState({ [focused.id]: focused }, focused.id, [focused.id]));
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(true),
+    });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleLaunch("tasks", "tab"));
     expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
       app: "tasks",
       forceNewInstance: true,
       stackTargetWindowId: focused.id,
     });
+    act(() => result.current.handleLaunch("tasks", "split"));
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "tasks",
+      forceNewInstance: true,
+      placement: "split",
+    });
+    act(() => result.current.handleLaunch("tasks", "window"));
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "tasks",
+      forceNewInstance: true,
+      placement: "floating",
+    });
+
+    act(() => result.current.handleLaunch("tasks", "desktop"));
+    await waitFor(() =>
+      expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+        app: "tasks",
+        forceNewInstance: true,
+        desktopId: expect.stringMatching(/^desktop-[0-9a-f]{32}$/),
+      })
+    );
+    const desktopId = dockShell.manager.createDesktop.mock.calls[0]?.[0];
+    expect(dockShell.manager.switchDesktop).toHaveBeenCalledExactlyOnceWith(desktopId);
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({ desktopId })
+    );
   });
 
-  it("Should expose Go to tab and explain why a tab destination is unavailable (UT-084)", async () => {
+  it("Should say so and open nothing when the new desktop is refused", async () => {
+    setDockState(desktopState());
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(false),
+    });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleLaunch("tasks", "desktop"));
+
+    await waitFor(() =>
+      expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
+        message: "Couldn't create a new desktop. Try again.",
+        tone: "error",
+      })
+    );
+    expect(dockShell.manager.switchDesktop).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should return to the previous desktop and drop the new one when its open fails", async () => {
+    setDockState(desktopState());
+    const previousDesktopId = dockShell.manager.getState().activeDesktopId;
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(true),
+    });
+    dockShell.coordinator.userOpen.mockResolvedValue(null);
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleLaunch("tasks", "desktop"));
+
+    await waitFor(() =>
+      expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
+        message: "Couldn't open it on a new desktop. Try again.",
+        tone: "error",
+      })
+    );
+    const desktopId = dockShell.manager.createDesktop.mock.calls[0]?.[0];
+    expect(dockShell.manager.switchDesktop.mock.calls).toEqual([[desktopId], [previousDesktopId]]);
+    expect(dockShell.manager.deleteDesktop).toHaveBeenCalledExactlyOnceWith(desktopId, null);
+  });
+
+  it("Should split on ⌥-click and open a new desktop on ⇧-click, including Sessions", async () => {
+    const task = windowFixture("window:tasks", "tasks");
+    setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
+    launchCatalog.sessions = [catalogSession("session:latest", "2026-07-31T00:00:00Z")];
+    dockShell.manager.createDesktop.mockReturnValue({
+      accepted: true,
+      completion: Promise.resolve(true),
+    });
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+
+    act(() => result.current.handleSelect("tasks", { altKey: true, shiftKey: false }));
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "tasks",
+      forceNewInstance: true,
+      placement: "split",
+    });
+
+    act(() => result.current.handleSelect("session", { altKey: true, shiftKey: false }));
+    expect(jumpToSession).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+      app: "session",
+      forceNewInstance: true,
+      placement: "split",
+    });
+
+    act(() => result.current.handleSelect("session", { altKey: true, shiftKey: true }));
+    await waitFor(() =>
+      expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
+        app: "session",
+        forceNewInstance: true,
+        desktopId: expect.stringMatching(/^desktop-/),
+      })
+    );
+
+    act(() => result.current.handleSelect("tasks"));
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userMinimize).toHaveBeenCalledWith(task.id);
+  });
+
+  it("Should report pointer modifiers but treat keyboard activation as a plain click", () => {
+    const onSelect = vi.fn();
+    renderDock(
+      <OsDock items={[{ id: "tasks", name: "Tasks", icon: "tasks" }]} onSelect={onSelect} />
+    );
+    const tasks = screen.getByRole("button", { name: "Tasks" });
+
+    fireEvent.click(tasks, { detail: 1, altKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith("tasks", { altKey: true, shiftKey: false });
+    fireEvent.click(tasks, { detail: 0, shiftKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith("tasks", undefined);
+  });
+
+  it("Should expose Go to tab only while the launcher has an instance (UT-084)", async () => {
     const user = userEvent.setup();
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, null, [task.id]));
-    render(
-      <OsDockAppMenu appId="tasks">
+    const view = render(
+      <OsDockAppMenu appId="tasks" onLaunch={vi.fn()}>
         <button type="button">Tasks</button>
       </OsDockAppMenu>
     );
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    const tabDestination = await screen.findByText("Open as tab (no window focused)");
-    expect(tabDestination).toHaveAttribute("data-disabled");
-    expect(await screen.findByText("Go to tab")).toBeInTheDocument();
-
+    expect(await screen.findByText("Open in new tab")).not.toHaveAttribute("data-disabled");
     await user.click(screen.getByText("Go to tab"));
     expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledWith(task.id);
+
+    setDockState(desktopState());
+    view.rerender(
+      <OsDockAppMenu appId="tasks" onLaunch={vi.fn()}>
+        <button type="button">Tasks</button>
+      </OsDockAppMenu>
+    );
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
+    await screen.findByText("Open in new tab");
+    expect(screen.queryByText("Go to tab")).not.toBeInTheDocument();
   });
 
   it("Should close an open destination menu and keep it unavailable while an overlay is active (UT-085)", async () => {
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
     const view = renderDock(
-      <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
+      <DesktopDock
+        badges={{}}
+        onNewSession={vi.fn()}
+        onOpenSettings={vi.fn()}
+        contextMenusEnabled
+      />
     );
     const taskButton = screen.getByRole("button", { name: "Tasks" });
     fireEvent.contextMenu(taskButton);
@@ -653,7 +930,12 @@ describe("OsDock", () => {
 
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled={false} />
+        <DesktopDock
+          badges={{}}
+          onNewSession={vi.fn()}
+          onOpenSettings={vi.fn()}
+          contextMenusEnabled={false}
+        />
       </TooltipProvider>
     );
 
@@ -669,8 +951,9 @@ describe("OsDock", () => {
     setDockState(
       desktopState({ [task.id]: task, [focused.id]: focused }, focused.id, [task.id, focused.id])
     );
+    const onLaunch = vi.fn();
     render(
-      <OsDockAppMenu appId="tasks">
+      <OsDockAppMenu appId="tasks" onLaunch={onLaunch}>
         <button type="button">Tasks</button>
       </OsDockAppMenu>
     );
@@ -699,9 +982,6 @@ describe("OsDock", () => {
     expect(keyboardMenuEvent?.clientY).toBe(64);
     await user.keyboard("{ArrowDown}{Enter}");
 
-    expect(dockShell.coordinator.userOpen).toHaveBeenCalledWith({
-      app: "tasks",
-      forceNewInstance: true,
-    });
+    expect(onLaunch).toHaveBeenCalledExactlyOnceWith("tab");
   });
 });

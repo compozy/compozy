@@ -10,7 +10,7 @@ import { CopyIconButton } from "@compozy/ui";
 import { deriveMessageActions } from "./message-actions.logic";
 import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
 
-const ACTIONS_CLASS_NAME = "flex items-center gap-2 text-small-body text-muted tabular-nums";
+const ACTIONS_CLASS_NAME = "flex items-center gap-1.5 text-transcript-meta text-muted tabular-nums";
 
 export interface MessageActionsProps {
   /** `start` aligns the row under a flat assistant message; `end` under the right-aligned user bubble. */
@@ -50,7 +50,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       copiedToastLabel="Message copied"
       copyFailedToastLabel="Couldn't copy message"
       disabled={streaming && source.length === 0}
-      className="text-muted hover:text-fg"
+      variant="quiet"
       data-testid={`${testId}-copy`}
     />
   );

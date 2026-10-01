@@ -9,7 +9,7 @@ import { sessionRuntime } from "../../mocks/fixtures";
 import type { SessionPayload } from "../../types";
 import {
   buildSessionTree,
-  childSessionSignalTone,
+  childSessionSignalState,
   collectThreadSessions,
   filterThreadSessions,
   visibleSessionOrder,
@@ -182,8 +182,8 @@ describe("visibleSessionOrder", () => {
   });
 });
 
-describe("childSessionSignalTone", () => {
-  it("Should rank the needs-you class above runtime health above running", () => {
+describe("childSessionSignalState", () => {
+  it("Should rank waiting on the operator above failures above running", () => {
     const running = treeSession("sess-running", { parent: "p", badge: "running" });
     const hung = treeSession("sess-hung", { parent: "p", badge: "hung" });
     const waiting = treeSession("sess-waiting", { parent: "p", badge: "waiting-for-auth" });
@@ -192,23 +192,22 @@ describe("childSessionSignalTone", () => {
     const stopped = treeSession("sess-stopped", { parent: "p", badge: "stopped" });
     const unverified = treeSession("sess-unverified", { parent: "p", badge: "needs-attention" });
 
-    expect(childSessionSignalTone([stopped])).toBeNull();
-    expect(childSessionSignalTone([stopped, running])).toBe("accent");
-    expect(childSessionSignalTone([running, hung])).toBe("warning");
-    expect(childSessionSignalTone([running, hung, waiting])).toBe("danger");
-    expect(childSessionSignalTone([running, asking])).toBe("danger");
-    expect(childSessionSignalTone([running, failed])).toBe("danger");
-    // An unverified stop needs the operator but is inked warning: it escalates
-    // above running without reading as a failure of the operator's work.
-    expect(childSessionSignalTone([running, unverified])).toBe("warning");
-    expect(childSessionSignalTone([running, unverified, waiting])).toBe("danger");
+    expect(childSessionSignalState([stopped])).toBeNull();
+    expect(childSessionSignalState([stopped, running])).toBe("running");
+    expect(childSessionSignalState([running, hung])).toBe("failed");
+    expect(childSessionSignalState([running, failed])).toBe("failed");
+    expect(childSessionSignalState([running, hung, waiting])).toBe("attention");
+    expect(childSessionSignalState([running, asking])).toBe("attention");
+    expect(childSessionSignalState([failed, asking])).toBe("attention");
+    // An unverified stop needs the operator: it escalates like any needs-you ask.
+    expect(childSessionSignalState([running, unverified])).toBe("attention");
   });
 
   it("Should leave finished-unseen work unsignalled — done is an inbox item, not an escalation", () => {
     const done = treeSession("sess-done", { parent: "p", badge: "done" });
     const running = treeSession("sess-running", { parent: "p", badge: "running" });
 
-    expect(childSessionSignalTone([done])).toBeNull();
-    expect(childSessionSignalTone([done, running])).toBe("accent");
+    expect(childSessionSignalState([done])).toBeNull();
+    expect(childSessionSignalState([done, running])).toBe("running");
   });
 });

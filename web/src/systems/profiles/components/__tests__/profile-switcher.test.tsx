@@ -1,11 +1,11 @@
-// Suite: menubar profile switcher
+// Suite: rail-foot profile switcher
 // Invariant: the switcher is quiet until a second profile exists, answers the boundary
 // question in one sentence, marks the active context, and refuses to offer a profile the
 // runtime would reject.
 // Boundary IN: the switcher composition and its menu.
 // Boundary OUT: selection persistence (hook suites) and row projection (profile-rows suite).
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -79,16 +79,20 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-all")).not.toBeInTheDocument();
   });
 
-  it("Should become an identity element once a second profile exists", () => {
+  it("Should become an identity element once a second profile exists", async () => {
+    const user = userEvent.setup();
     renderSwitcher();
     const trigger = screen.getByTestId("os-menubar-profile");
-    expect(trigger).toHaveTextContent("marketing");
     expect(trigger).toHaveAccessibleName("Profile: marketing");
+    expect(trigger.querySelector('[data-slot="profile-glyph"]')).toBeInTheDocument();
+
+    await user.hover(trigger);
+    expect(await screen.findByText("marketing")).toBeInTheDocument();
   });
 
   it("Should name the aggregate rather than a profile when it is on", () => {
     renderSwitcher({ aggregate: true });
-    expect(screen.getByTestId("os-menubar-profile")).toHaveTextContent("All profiles");
+    expect(screen.getByTestId("os-menubar-profile")).toHaveAccessibleName("Profile: All profiles");
   });
 
   it("Should answer the boundary question in one sentence", async () => {
@@ -176,6 +180,23 @@ describe("ProfileSwitcher", () => {
     await user.click(await screen.findByTestId("profile-switcher-edit-default"));
     expect(onEditProfile).toHaveBeenCalledWith("default");
     expect(onSelectProfile).not.toHaveBeenCalled();
+  });
+
+  // Invariant: a pointer open rings no row control, and the menu still takes
+  // arrow keys. Owning layer: the switcher composition (this suite).
+  it("Should open by pointer onto the menu, not a ringed row action, and keep arrow keys", async () => {
+    const user = userEvent.setup();
+    renderSwitcher({ onEditProfile: () => {} });
+    await user.click(screen.getByTestId("os-menubar-profile"));
+    const menu = await screen.findByTestId("os-menubar-profile-menu");
+    const root = menu.querySelector<HTMLElement>("[cmdk-root]");
+    await waitFor(() => expect(root).toHaveFocus());
+    expect(screen.getByTestId("profile-switcher-edit-default")).not.toHaveFocus();
+
+    const selected = () => menu.querySelector('[cmdk-item][data-selected="true"]');
+    const first = selected();
+    await user.keyboard("{ArrowDown}");
+    expect(selected()).not.toBe(first);
   });
 
   it("Should demote archive management to Settings rather than listing it here", async () => {

@@ -55,7 +55,7 @@ export function LayoutCanvas({
   return (
     <div
       className={cn(
-        "relative aspect-[16/10] overflow-hidden rounded-md border border-line-strong bg-canvas",
+        "relative aspect-[16/10] overflow-hidden rounded-md border border-line-strong bg-sunken",
         "shadow-hairline-inset select-none"
       )}
       data-testid="layout-canvas"
@@ -82,7 +82,7 @@ export function LayoutCanvas({
             "transition-[outline-color] duration-base ease-out",
             selection?.kind === "group" &&
               selection.id === group.id &&
-              "outline-accent-dim outline-offset-1",
+              "outline-fg-2 outline-offset-1",
             overlapping.has(group.id) && "outline-dashed outline-danger"
           )}
           data-overlapping={overlapping.has(group.id) ? "true" : undefined}

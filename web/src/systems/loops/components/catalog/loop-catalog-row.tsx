@@ -3,9 +3,9 @@ import { Repeat2 } from "lucide-react";
 
 import { ListingRow } from "@compozy/ui";
 
-import { successRateLabel } from "../../lib/loop-catalog";
+import { loopMonthActivity } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
+import { LoopStatusMark } from "../loop-status-mark";
 import { LoopCatalogFacts } from "./loop-catalog-facts";
 import { LoopRunButton } from "./loop-run-button";
 
@@ -15,6 +15,7 @@ interface LoopCatalogRowProps {
 }
 
 export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
+  const activity = loopMonthActivity(entry.aggregate_30d.runs, entry.success_rate_30d);
   return (
     <ListingRow
       className="max-sm:grid-cols-[var(--size-icon-well-row)_minmax(0,1fr)]"
@@ -43,10 +44,14 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="col-span-2 justify-between gap-3 sm:col-auto sm:justify-self-auto">
-        {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
-        <ListingRow.Stat className="hidden w-20 xl:flex">
-          <ListingRow.Stat.Value>{successRateLabel(entry.success_rate_30d)}</ListingRow.Stat.Value>
-          <ListingRow.Stat.Label>{entry.aggregate_30d.runs} runs this month</ListingRow.Stat.Label>
+        {entry.last_run ? <LoopStatusMark status={entry.last_run.status} /> : null}
+        {/* max-content keeps "N runs this month" on one line beside its rate. */}
+        <ListingRow.Stat
+          className="hidden min-w-max xl:flex"
+          data-testid="loop-catalog-row-activity"
+        >
+          <ListingRow.Stat.Value>{activity.rate}</ListingRow.Stat.Value>
+          <ListingRow.Stat.Label>{activity.runs}</ListingRow.Stat.Label>
         </ListingRow.Stat>
         <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
       </ListingRow.Trail>

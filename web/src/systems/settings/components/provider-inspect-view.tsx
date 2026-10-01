@@ -48,7 +48,7 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
   return (
     <div className="flex flex-col gap-5">
       <section
-        className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-4"
+        className="flex flex-col gap-3 rounded-lg bg-sunken p-4"
         data-testid="provider-detail-summary"
       >
         <div className="flex flex-col gap-1">
@@ -83,7 +83,7 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
             onClick={onAction}
             size="sm"
             type="button"
-            variant="outline"
+            variant="secondary"
           >
             {state.cta.label}
           </Button>
@@ -275,12 +275,15 @@ function CredentialList({
         return (
           <li
             key={slot.name}
-            className="flex flex-col gap-1.5 rounded-md bg-canvas-soft px-3 py-2.5"
+            className="flex flex-col gap-1.5 rounded-lg bg-sunken px-3 py-2.5"
             data-testid={`inspect-credential-${slot.name}`}
           >
             <div className="flex items-center justify-between gap-2">
               <MonoId preserveCase value={slot.name} />
-              <Pill tone={stateTone}>{stateLabel}</Pill>
+              <Pill form="plain" tone={stateTone}>
+                <Pill.Dot />
+                {stateLabel}
+              </Pill>
             </div>
             <MetadataList>
               <MetadataListRow label="Variable">
@@ -365,9 +368,9 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
         data-testid="inspect-catalog-refresh"
       >
         {refreshMutation.isPending ? (
-          <Spinner aria-hidden="true" className="size-3" />
+          <Spinner aria-hidden="true" className="size-3.5" />
         ) : (
-          <RefreshCw aria-hidden="true" className="size-3" />
+          <RefreshCw aria-hidden="true" />
         )}
         {refreshing ? "Refreshing…" : "Refresh model list"}
       </Button>
@@ -378,7 +381,7 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
 function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
   const timestamp = source.last_success?.trim() || source.last_refresh?.trim() || undefined;
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-sm bg-canvas-soft px-3 py-2">
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md bg-sunken px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5">
         <MonoId preserveCase value={source.source_id} />
         {timestamp ? (

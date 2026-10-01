@@ -174,7 +174,7 @@ describe("SessionTerminalBlock", () => {
 
     const block = screen.getByTestId(`session-terminal-block-${DEV_SERVER_TERMINAL.id}`);
     await waitFor(() => {
-      expect(block.querySelector("[data-tone='accent']")).not.toBeNull();
+      expect(block.querySelector("[data-slot='state-glyph'][data-state='running']")).not.toBeNull();
     });
     expect(block.querySelector("[data-tone='success']")).toBeNull();
     expect(block).toHaveTextContent("still running — the agent continued without waiting");

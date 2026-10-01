@@ -101,7 +101,7 @@ export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSele
           type="button"
           variant="ghost"
         >
-          <Pencil aria-hidden="true" className="size-3" />
+          <Pencil aria-hidden="true" />
           Edit
         </Button>
         {onRemove ? (
@@ -113,7 +113,7 @@ export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSele
             type="button"
             variant="ghost"
           >
-            <Trash2 aria-hidden="true" className="size-3" />
+            <Trash2 aria-hidden="true" />
             Delete
           </Button>
         ) : null}

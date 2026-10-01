@@ -33,6 +33,16 @@ export interface UseOsPaletteSurfaceOptions {
   readonly dispatch: CmdPaletteDispatch;
 }
 
+interface PaletteSurfaceSelection {
+  readonly previous: readonly string[];
+  readonly value: string;
+  /** True once the operator moved or acted on the highlight; false while it is automatic. */
+  readonly chosen: boolean;
+  /** The overlay state and query the selection was made under. */
+  readonly open: boolean;
+  readonly query: string;
+}
+
 /**
  * Everything the palette is currently showing, assembled once.
  *
@@ -58,20 +68,34 @@ export function useOsPaletteSurface({
     setPinned: (command, pinned) => void dispatch.setPinned(command, pinned),
   });
   const values = paletteSelectionValues(root);
-  const [selection, setSelection] = useState<{ previous: readonly string[]; value: string }>(
-    () => ({ previous: values, value: values[0] ?? "" })
-  );
-  // The highlight survives the catalog moving underneath it, falling to the
-  // nearest neighbour only when its own row leaves.
-  const selected = resolveCommandSelection(selection.previous, values, selection.value);
-  // Remember automatic selection too, so asynchronous ranking cannot move it
-  // again after the catalog first arrives or the selected row disappears.
+  const [selection, setSelection] = useState<PaletteSurfaceSelection>(() => ({
+    previous: values,
+    value: values[0] ?? "",
+    chosen: false,
+    open,
+    query: root.query,
+  }));
+  // Opening the palette or changing the query starts over at the top result.
+  // The hook outlives the overlay, so without this a row picked while the
+  // palette was closed (or before the query changed) stayed highlighted even
+  // when it had scrolled far out of view.
+  const restart = selection.open !== open || selection.query !== root.query;
+  const chosen = !restart && selection.chosen;
+  // An automatic highlight follows the top row while ranking settles (recents
+  // and rank signals arrive after the palette opens). A highlight the operator
+  // chose — by keyboard, pointer, or by acting on it — survives the catalog
+  // moving underneath it, falling to the nearest neighbour only when its own
+  // row leaves.
+  const selected = chosen
+    ? resolveCommandSelection(selection.previous, values, selection.value)
+    : (values[0] ?? "");
   if (
+    restart ||
     selection.value !== selected ||
     selection.previous.length !== values.length ||
     selection.previous.some((value, index) => value !== values[index])
   ) {
-    setSelection({ previous: values, value: selected });
+    setSelection({ previous: values, value: selected, chosen, open, query: root.query });
   }
   const execution = useOsPaletteExecution({
     open,
@@ -83,6 +107,12 @@ export function useOsPaletteSurface({
     runCommand: (command, options) => void dispatch.run(command, options),
   });
 
+  // Acting on a row pins the highlight to it: the action panel must keep
+  // pointing at the row it was opened for.
+  if (execution.panel.open && !chosen) {
+    setSelection({ previous: values, value: selected, chosen: true, open, query: root.query });
+  }
+
   return {
     root,
     execution,
@@ -91,6 +121,10 @@ export function useOsPaletteSurface({
     pending: new Set(Object.keys(pending)),
     values,
     selected,
-    onSelectionChange: next => setSelection({ previous: values, value: next }),
+    onSelectionChange: next => {
+      // cmdk also reports the value it already holds; only a move is a choice.
+      if (next === selected) return;
+      setSelection({ previous: values, value: next, chosen: true, open, query: root.query });
+    },
   };
 }

@@ -1,11 +1,11 @@
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import type { LoopRun, LoopRunStatus } from "../types";
 import {
   isLiveLoopRun,
   isLoopRunStatus,
   loopStatusLabel,
-  loopStatusSignal,
+  loopStatusGlyph,
 } from "./loop-formatters";
 
 /** The runs roster's client-side outcome filter: `all` or one daemon run status. */
@@ -30,8 +30,9 @@ export type LoopRunGroupId = "needs-you" | "active" | "recent";
 export interface LoopRunRow {
   run: LoopRun;
   statusLabel: string;
-  statusTone: PillTone;
-  statusPulse: boolean;
+  statusGlyph: StateGlyphState;
+  /** Imported history never animates, even when its recorded status was live. */
+  statusStill: boolean;
   needsYou: boolean;
   /** A sentence that adds something the status pill has not already said. */
   summaryLine: string | null;
@@ -130,14 +131,13 @@ function progressLabel(run: LoopRun): string {
 
 function buildRow(run: LoopRun): LoopRunRow {
   const needsYou = !run.historical && Boolean(run.attention);
-  const signal = loopStatusSignal(run.status);
   return {
     run,
     // A run that needs a person leads with that fact, not with the mechanism
     // that produced it.
     statusLabel: needsYou ? "Needs you" : loopStatusLabel(run.status),
-    statusTone: needsYou ? "warning" : signal.tone,
-    statusPulse: run.historical || needsYou ? false : signal.pulse,
+    statusGlyph: needsYou ? "attention" : loopStatusGlyph(run.status),
+    statusStill: run.historical,
     needsYou,
     summaryLine: summaryLine(run),
     progressLabel: progressLabel(run),

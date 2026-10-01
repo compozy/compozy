@@ -1,4 +1,4 @@
-import { Archive, Palette, TriangleAlert } from "lucide-react";
+import { Archive, Palette } from "lucide-react";
 
 import { Button, Pill } from "@compozy/ui";
 
@@ -37,7 +37,7 @@ export function ProfileSettingsList({
 }: ProfileSettingsListProps) {
   return (
     <div
-      className="overflow-hidden rounded-md border border-line bg-canvas-soft"
+      className="overflow-hidden rounded-lg bg-card shadow-card"
       data-testid={`profiles-${variant}-list`}
     >
       {profiles.map(profile => {
@@ -55,7 +55,7 @@ export function ProfileSettingsList({
               current={profile.name === currentName}
               needsSetup={profile.needs_setup === true}
             />
-            <span className="truncate text-small-body font-medium text-fg">{profile.name}</span>
+            <span className="truncate text-body font-medium text-fg">{profile.name}</span>
             {permanent ? (
               <Pill tone="neutral" size="xs">
                 Permanent
@@ -68,19 +68,19 @@ export function ProfileSettingsList({
               </Pill>
             ) : null}
             {profile.needs_setup === true ? (
-              <Pill tone="warning" size="xs" data-testid={`profile-needs-setup-${profile.name}`}>
-                <TriangleAlert aria-hidden="true" />
+              <Pill form="plain" tone="warning" data-testid={`profile-needs-setup-${profile.name}`}>
+                <Pill.Dot />
                 Needs setup
               </Pill>
             ) : null}
-            <span className="ml-auto shrink-0 text-small-body tabular-nums text-subtle">
+            <span className="ml-auto shrink-0 text-meta tabular-nums text-subtle">
               {workItemsLabel(profile.work_items ?? 0)}
             </span>
             {manageable ? (
               <div className="flex shrink-0 items-center gap-1.5">
                 <Button
                   size="icon-sm"
-                  variant="ghost"
+                  variant="quiet"
                   aria-label={`Edit identity for ${profile.name}`}
                   onClick={() => onEditIdentity(profile.name)}
                   data-testid={`profile-edit-identity-${profile.name}`}
@@ -90,7 +90,7 @@ export function ProfileSettingsList({
                 {archived ? (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => onUnarchive(profile.name)}
                     data-testid={`profile-unarchive-${profile.name}`}
                   >
@@ -101,7 +101,7 @@ export function ProfileSettingsList({
                     {permanent ? null : (
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => onRename(profile.name)}
                         data-testid={`profile-rename-${profile.name}`}
                       >
@@ -111,7 +111,7 @@ export function ProfileSettingsList({
                     {permanent ? null : (
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => onArchive(profile.name)}
                         data-testid={`profile-archive-${profile.name}`}
                       >

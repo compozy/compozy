@@ -27,7 +27,7 @@ export function TerminalJournalFooter({
 
   return (
     <div className="flex min-h-11.5 flex-none items-center gap-3 border-line border-t px-3.5 py-2.25">
-      <span className="mr-auto text-badge text-subtle" data-testid="terminal-journal-loaded">
+      <span className="mr-auto text-eyebrow text-subtle" data-testid="terminal-journal-loaded">
         {summary}
       </span>
       {hasMore && !emptyMatch ? (

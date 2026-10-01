@@ -1,11 +1,16 @@
 // Suite: desktop pager
-// Invariant: visible controls preserve ordered desktop navigation and disclose every hidden range.
-// Boundary IN: DesktopPager control projection, callbacks, accessibility, and keyboard navigation.
+// Invariant: visible controls preserve ordered desktop navigation, disclose every hidden range, and
+// mark off-screen desktops that need you.
+// Boundary IN: DesktopPager control projection, callbacks, accessibility, keyboard navigation, and the
+// desktop needs-you projection.
 // Boundary OUT: overview rendering, shell positioning measurements, persistence, and browser layout.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { desktopIdsNeedingYou } from "../../lib/desktop-pager-attention";
+import type { OsAttentionRow } from "../../lib/attention-model";
+import type { OsWindow } from "../../lib/os-types";
 import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
 
 const DESKTOPS: DesktopPagerItem[] = [
@@ -24,19 +29,13 @@ const MANY_DESKTOPS: DesktopPagerItem[] = [
   { id: "archive", name: "Archive" },
 ];
 
-function renderPager(
-  desktops = DESKTOPS,
-  activeDesktopId = "build",
-  compact = false,
-  canSwitchDesktop = true
-) {
+function renderPager(desktops = DESKTOPS, activeDesktopId = "build", canSwitchDesktop = true) {
   const onSelectDesktop = vi.fn();
   const onOpenOverview = vi.fn();
   render(
     <DesktopPager
       desktops={desktops}
       activeDesktopId={activeDesktopId}
-      compact={compact}
       canSwitchDesktop={canSwitchDesktop}
       onSelectDesktop={onSelectDesktop}
       onOpenOverview={onOpenOverview}
@@ -110,34 +109,32 @@ describe("DesktopPager", () => {
     expect(onSelectDesktop).toHaveBeenCalledWith("control");
   });
 
-  it("Should preserve the floating projection and bounded overflow in compact mode", async () => {
-    const user = userEvent.setup();
-    const { onOpenOverview } = renderPager(MANY_DESKTOPS, "qa", true);
-
-    expect(screen.getAllByRole("button")).toHaveLength(7);
-    expect(screen.getByRole("button", { name: "Desktop 5 of 9: QA" })).toHaveAttribute(
-      "aria-current",
-      "page"
+  it("Should mark an off-screen desktop that needs you and clear the mark once it is active", () => {
+    const needsYou = DESKTOPS.map(desktop =>
+      desktop.id === "research" || desktop.id === "build" ? { ...desktop, needsYou: true } : desktop
     );
+    renderPager(needsYou, "build");
 
-    await user.click(screen.getByRole("button", { name: "Show 2 earlier desktops" }));
-    expect(onOpenOverview).toHaveBeenLastCalledWith({
-      direction: "earlier",
-      hiddenDesktopIds: ["control", "build"],
-      anchorDesktopId: "qa",
+    const offScreen = screen.getByRole("button", {
+      name: "Desktop 4 of 4: Research — needs you",
     });
+    expect(offScreen).toHaveAttribute("data-needs-you", "true");
+    const active = screen.getByRole("button", { name: "Desktop 2 of 4: Build" });
+    expect(active).not.toHaveAttribute("data-needs-you");
+  });
 
-    await user.click(screen.getByRole("button", { name: "Show 2 later desktops" }));
-    expect(onOpenOverview).toHaveBeenLastCalledWith({
-      direction: "later",
-      hiddenDesktopIds: ["incidents", "archive"],
-      anchorDesktopId: "qa",
-    });
+  it("Should only select with dots, leaving the active dot inert", async () => {
+    const user = userEvent.setup();
+    const { onSelectDesktop, onOpenOverview } = renderPager();
+
+    await user.click(screen.getByRole("button", { name: "Desktop 2 of 4: Build" }));
+    expect(onSelectDesktop).not.toHaveBeenCalled();
+    expect(onOpenOverview).not.toHaveBeenCalled();
   });
 
   it("Should keep overview disclosure available while desktop switching is unavailable", async () => {
     const user = userEvent.setup();
-    const { onOpenOverview, onSelectDesktop } = renderPager(MANY_DESKTOPS, "qa", false, false);
+    const { onOpenOverview, onSelectDesktop } = renderPager(MANY_DESKTOPS, "qa", false);
 
     const desktop = screen.getByRole("button", { name: "Desktop 4 of 9: Research" });
     expect(desktop).toHaveAttribute("aria-disabled", "true");
@@ -146,5 +143,50 @@ describe("DesktopPager", () => {
 
     await user.click(screen.getByRole("button", { name: "Show 2 earlier desktops" }));
     expect(onOpenOverview).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("desktopIdsNeedingYou", () => {
+  function sessionWindow(id: string, sessionId: string, desktopId: string): OsWindow {
+    return {
+      id,
+      app: "session",
+      instanceKey: sessionId,
+      desktopId,
+    } as OsWindow;
+  }
+
+  function sessionRow(id: string, stale = false): OsAttentionRow {
+    return {
+      kind: "session",
+      id,
+      title: id,
+      agentName: "codex",
+      workspaceId: "ws",
+      workspaceLabel: "ws",
+      badge: "needs-attention",
+      reason: "Needs input",
+      changedAt: "2026-09-29T00:00:00Z",
+      muted: false,
+      stale,
+    } as OsAttentionRow;
+  }
+
+  it("Should return the desktops whose session windows need you, ignoring stale rows", () => {
+    const windows = {
+      a: sessionWindow("a", "sess-a", "desktop:one"),
+      b: sessionWindow("b", "sess-b", "desktop:two"),
+      c: sessionWindow("c", "sess-c", "desktop:three"),
+      tasks: {
+        id: "tasks",
+        app: "tasks",
+        instanceKey: "sess-a",
+        desktopId: "desktop:four",
+      } as OsWindow,
+    };
+
+    const ids = desktopIdsNeedingYou(windows, [sessionRow("sess-a"), sessionRow("sess-c", true)]);
+
+    expect([...ids]).toEqual(["desktop:one"]);
   });
 });

@@ -10,6 +10,12 @@ import {
 } from "@compozy/ui";
 import { ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 
+import {
+  SITE_MENU_CONTENT_CLASS,
+  SITE_MENU_ITEM_CLASS,
+  SITE_MENU_LABEL_CLASS,
+} from "@/components/docs/page-actions/menu-classes";
+
 export interface OpenWithAIProps {
   pageUrl: string;
 }
@@ -33,11 +39,12 @@ export function OpenWithAI({ pageUrl }: OpenWithAIProps) {
           </Button>
         }
       />
-      <DropdownMenuContent align="end" sideOffset={6}>
-        <DropdownMenuLabel>Ask about this page</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className={SITE_MENU_CONTENT_CLASS} sideOffset={6}>
+        <DropdownMenuLabel className={SITE_MENU_LABEL_CLASS}>Ask about this page</DropdownMenuLabel>
         {targets.map(target => (
           <DropdownMenuItem
             key={target.id}
+            className={SITE_MENU_ITEM_CLASS}
             render={
               <a href={target.href} rel="noreferrer noopener" target="_blank">
                 {target.label}

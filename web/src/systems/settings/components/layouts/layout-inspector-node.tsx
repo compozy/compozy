@@ -109,13 +109,14 @@ function ArrangeAction({
     <button
       aria-pressed={active}
       className={cn(
-        "flex w-16 flex-col items-center gap-1.5 rounded-md border border-line px-1 py-2",
-        "bg-btn-default-fill text-form-hint font-medium text-muted",
+        "flex w-16 flex-col items-center gap-1.5 rounded-lg px-1 py-2",
+        "text-form-hint font-medium text-muted",
         "transition-colors duration-base ease-out",
-        "hover:not-disabled:border-line-strong hover:not-disabled:bg-btn-default-hover hover:not-disabled:text-fg-strong",
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
         "disabled:cursor-not-allowed disabled:opacity-35",
-        active && "border-accent-dim bg-accent-tint text-accent-strong"
+        active
+          ? "bg-selected text-fg"
+          : "bg-card shadow-card hover:not-disabled:bg-surface-2 hover:not-disabled:text-fg"
       )}
       data-testid={`layout-inspector-arrange-${label.toLowerCase()}`}
       disabled={disabled}
@@ -163,7 +164,7 @@ function LayoutSplitBalance({
         className="self-start"
         size="xs"
         type="button"
-        variant="outline"
+        variant="secondary"
         onClick={onDistribute}
       >
         Distribute evenly

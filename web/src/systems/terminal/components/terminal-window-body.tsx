@@ -235,7 +235,12 @@ function TerminalPipeFetchedOutput({
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
           action={
-            <Button onClick={() => void output.refetch()} size="sm" type="button" variant="outline">
+            <Button
+              onClick={() => void output.refetch()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
               Retry
             </Button>
           }

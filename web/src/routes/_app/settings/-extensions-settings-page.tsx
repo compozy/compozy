@@ -12,7 +12,7 @@ import { ExtensionPalettePanels } from "./-extension-palette-panel";
 
 export function ExtensionsSettingsPage() {
   const page = useSettingsExtensionsPage();
-  useSettingsTopbar("extensions");
+  useSettingsTopbar();
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isPolicyDirty,
     isSaving: page.isSavingPolicy,

@@ -1,29 +1,31 @@
-import { Link } from "@tanstack/react-router";
-import { ListChecks } from "lucide-react";
 import * as React from "react";
 
-import { ListingRow, MonoId } from "@compozy/ui";
+import { StateGlyph, type StateGlyphState, TableCell, TableRow } from "@compozy/ui";
+import { cn } from "@/lib/utils";
 
-import { formatRelativeTime, taskShortId } from "../lib/task-formatters";
-import type { TaskListItem } from "../types";
+import { TASKS_TABLE_COLUMN_CLASS } from "../lib/tasks-table-columns";
 
-export interface TasksListRowProps {
-  task: TaskListItem;
-  /** Optional slot rendered as the trail column. */
-  trailing?: React.ReactNode;
+export interface TasksListRowProps extends Omit<React.ComponentProps<"tr">, "title" | "id"> {
   /**
-   * Optional inline meta line rendered under the title row. Each child should
-   * be a span; the row inserts `·` separators between adjacent children.
+   * Router link rendered over the title. Its hit area stretches across the row,
+   * so the whole row opens the record while trailing controls stay outside it.
+   * `null` renders an inert row (e.g. a Loop record whose run is gone).
    */
+  link: React.ReactElement<{ className?: string; children?: React.ReactNode }> | null;
+  title: React.ReactNode;
+  /** Quiet inline facts after the title. Each child should be a span; `·` joins them. */
   meta?: React.ReactNode;
-  /** Test-id override. Defaults to the canonical row id `task-card-${task.id}`. */
-  testId?: string;
-  className?: string;
+  id?: React.ReactNode;
+  state: StateGlyphState;
+  statusLabel: React.ReactNode;
+  priority?: React.ReactNode;
+  owner?: React.ReactNode;
+  updated?: React.ReactNode;
 }
 
 function MetaSeparator() {
   return (
-    <span aria-hidden="true" className="text-faint opacity-60" data-slot="tasks-list-row-meta-sep">
+    <span aria-hidden="true" className="text-subtle" data-slot="tasks-list-row-meta-sep">
       ·
     </span>
   );
@@ -38,55 +40,89 @@ function joinMeta(children: React.ReactNode): React.ReactNode[] {
   });
 }
 
-function TasksListRow({ task, trailing, meta, testId, className }: TasksListRowProps) {
-  const identifier = taskShortId(task);
-  const lastActivity = task.last_activity_at ?? task.updated_at;
-  const timestamp = formatRelativeTime(lastActivity);
-  const resolvedTestId = testId ?? `task-card-${task.id}`;
-
+/** One Tasks table row: title and quiet meta, identifier, state glyph, priority, owner, recency. */
+function TasksListRow({
+  link,
+  title,
+  meta,
+  id,
+  state,
+  statusLabel,
+  priority,
+  owner,
+  updated,
+  className,
+  ...props
+}: TasksListRowProps) {
+  const metaItems = meta === undefined ? [] : joinMeta(meta);
+  const titleText = (
+    <span className="min-w-0 truncate font-medium text-fg" data-slot="tasks-list-row-title">
+      {title}
+    </span>
+  );
   return (
-    <ListingRow
-      className={className}
+    <TableRow
+      className={cn("relative", link === null && "hover:bg-transparent", className)}
       data-slot="tasks-list-row"
-      data-status={task.status}
-      data-testid={resolvedTestId}
+      {...props}
     >
-      <ListingRow.Link
-        render={<Link to="/tasks/$id" params={{ id: task.id }} aria-label={`Open ${task.title}`} />}
-      >
-        <ListingRow.Icon>
-          <ListChecks aria-hidden="true" className="size-4" />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          <ListingRow.Name>
-            <ListingRow.Title data-slot="tasks-list-row-title">{task.title}</ListingRow.Title>
-          </ListingRow.Name>
-          <ListingRow.Meta data-slot="tasks-list-row-meta">
-            {task.identifier ? (
-              <>
-                <MonoId value={identifier} size="sm" data-slot="tasks-list-row-id" />
-                <MetaSeparator />
-              </>
-            ) : null}
+      <TableCell className="max-w-0 pl-4">
+        <div className="flex min-w-0 items-center gap-2">
+          {link
+            ? React.cloneElement(
+                link,
+                {
+                  className:
+                    "flex min-w-0 shrink items-center outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:shadow-focus-ring",
+                },
+                titleText
+              )
+            : titleText}
+          {metaItems.length > 0 ? (
             <span
-              className="font-mono text-badge tabular-nums text-faint"
-              data-slot="tasks-list-row-timestamp"
+              className="flex min-w-0 shrink-[4] items-center gap-1.5 truncate text-meta text-muted"
+              data-slot="tasks-list-row-meta"
             >
-              {timestamp}
+              {metaItems}
             </span>
-            {meta !== undefined ? (
-              <>
-                <MetaSeparator />
-                {joinMeta(meta)}
-              </>
-            ) : null}
-          </ListingRow.Meta>
-        </ListingRow.Main>
-      </ListingRow.Link>
-      {trailing !== undefined ? (
-        <ListingRow.Trail data-slot="tasks-list-row-trailing">{trailing}</ListingRow.Trail>
-      ) : null}
-    </ListingRow>
+          ) : null}
+        </div>
+      </TableCell>
+      <TableCell className={cn("max-w-0", TASKS_TABLE_COLUMN_CLASS.id)}>
+        {id ? (
+          <span
+            className="block truncate font-mono text-meta tabular-nums text-fg-2"
+            data-slot="tasks-list-row-id"
+          >
+            {id}
+          </span>
+        ) : null}
+      </TableCell>
+      <TableCell className={TASKS_TABLE_COLUMN_CLASS.status}>
+        <span
+          className="inline-flex items-center gap-1.75 text-fg-2"
+          data-slot="tasks-list-row-status"
+        >
+          <StateGlyph state={state} />
+          {statusLabel}
+        </span>
+      </TableCell>
+      <TableCell className={cn("text-muted", TASKS_TABLE_COLUMN_CLASS.priority)}>
+        {priority}
+      </TableCell>
+      <TableCell className={cn("relative z-1 pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner)}>
+        {owner}
+      </TableCell>
+      <TableCell
+        className={cn(
+          "pr-4 font-mono text-meta tabular-nums text-subtle",
+          TASKS_TABLE_COLUMN_CLASS.updated
+        )}
+        data-slot="tasks-list-row-updated"
+      >
+        {updated}
+      </TableCell>
+    </TableRow>
   );
 }
 

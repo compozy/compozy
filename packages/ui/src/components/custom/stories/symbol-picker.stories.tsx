@@ -53,8 +53,10 @@ const meta: Meta<typeof SymbolPicker> = {
     },
   },
   decorators: [
+    // The picker's hosts are the profile identity dialogs: render it on that
+    // dialog surface so the sticky emoji headers read against their real fill.
     Story => (
-      <div className="w-[32rem]">
+      <div className="w-[32rem] rounded-lg bg-popover p-4 shadow-overlay">
         <Story />
       </div>
     ),

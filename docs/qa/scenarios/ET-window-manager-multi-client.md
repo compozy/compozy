@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Two registered clients using the same profile in one workspace observe the same persistent desktops, groups, windows, revisions, routes, and durable events while independently switching desktops and focusing or zooming windows; clients using different profiles observe separate desktops and windows, and switching one never changes the other's active view; a remote presentation command reaches exactly the selected client's fenced stream without advancing topology revision/history/hooks or leaking that ClientView to its peer; missing, foreign, and disconnected client IDs reject.
 entry_points: two Web browser contexts in one profile; two Web browser contexts in different profiles; compozy desktop clients; compozy desktop switch; compozy window focus; compozy window zoom; profile-scoped window-manager reads and commands
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -48,3 +48,5 @@ beyond the `zoomed` flag: two clients on one profile both see the zoomed frame, 
 without a client leaves every client's active desktop and focus untouched. Reset for the current build.
 
 qa-impact: 2026-09-01 two browser clients: the zooming client follows a lifted zoom to its new desktop while the peer stays on its desktop and sees the pager grow; a clientless CLI unzoom returns the window and repairs only the lifted client's view. Walked P2.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). Presentation chrome changed (pager in the topbar tray, dock rail, flat tiles) and the theme is a per-browser preference: two clients may paint different themes. Reset to re-walk shared topology vs client-local desktop/focus/zoom and confirm a theme switch in one client never reaches the other.

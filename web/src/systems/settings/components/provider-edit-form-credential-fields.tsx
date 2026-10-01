@@ -68,9 +68,9 @@ export function ProviderCredentialFields({
         onClick={() => onChange(addProviderCredentialSlot)}
         size="sm"
         type="button"
-        variant="outline"
+        variant="secondary"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add credential slot
       </Button>
     </div>
@@ -105,7 +105,7 @@ function CredentialSlotBlock({
   const present = mode === "edit" && Boolean(presence?.present);
 
   return (
-    <section className="flex flex-col gap-3 rounded-md bg-canvas px-3 py-3" data-testid={testId}>
+    <section className="flex flex-col gap-3 rounded-md bg-sunken px-3 py-3" data-testid={testId}>
       <header className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate font-mono text-mono-id tracking-normal text-muted">
           {slot.name.trim() || `slot ${index + 1}`}
@@ -119,7 +119,7 @@ function CredentialSlotBlock({
             type="button"
             variant="ghost"
           >
-            <X aria-hidden="true" className="size-3" />
+            <X aria-hidden="true" />
           </Button>
         ) : null}
       </header>

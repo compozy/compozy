@@ -29,7 +29,7 @@ export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelP
   return (
     <Panel bodyClassName="p-0" data-slot="home-system">
       <Collapsible onOpenChange={onOpenChange} open={open}>
-        <CollapsibleTrigger className="group flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors duration-base hover:bg-row-hover focus-visible:shadow-focus-inset focus-visible:outline-none">
+        <CollapsibleTrigger className="group flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none">
           <Pill.Dot tone={system.allNormal ? "success" : "warning"} />
           <span className="shrink-0 text-small-body font-medium text-fg-strong">
             {system.allNormal ? "All systems normal" : "Needs a look"}

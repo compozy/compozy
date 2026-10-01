@@ -1,15 +1,6 @@
-import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  Check,
-  CircleAlert,
-  CircleDashed,
-  Loader,
-  Minus,
-  Pause,
-  Radio,
-  TriangleAlert,
-} from "lucide-react";
+import type { StateGlyphState } from "@compozy/ui";
+
+import { loopStatusGlyph } from "./loop-formatters";
 
 import type { LoopBriefing, LoopBriefingBlocker } from "../types";
 
@@ -54,7 +45,7 @@ export interface LoopBriefingAction {
 export interface LoopBriefingView {
   tone: LoopBriefingTone;
   weight: LoopBriefingWeight;
-  icon: LucideIcon;
+  glyph: StateGlyphState;
   /** Server-authored. Rendered verbatim. */
   headline: string;
   detail: string | null;
@@ -70,33 +61,14 @@ function readTone(tone: string): LoopBriefingTone {
 }
 
 /**
- * The glyph follows the run's own state, so a watching run reads as watching
- * rather than as a generic "in progress".
+ * The glyph follows the run's own state (`loopStatusGlyph`), so a watching run
+ * spins like any live run; the daemon's verdict overrides it when a person is
+ * needed or the run failed.
  */
-const STATUS_ICONS: Record<string, LucideIcon> = {
-  queued: CircleDashed,
-  running: Loader,
-  watching: Radio,
-  paused: Pause,
-  "needs-approval": TriangleAlert,
-  done: Check,
-  "no-op": Minus,
-  canceled: Minus,
-  blocked: TriangleAlert,
-  failed: CircleAlert,
-  exhausted: TriangleAlert,
-  stalled: TriangleAlert,
-};
-
-function briefingIcon(briefing: LoopBriefing, tone: LoopBriefingTone): LucideIcon {
-  if (tone === "needs_you") return TriangleAlert;
-  if (tone === "failed") return CircleAlert;
-  // A finished run whose output survived only as a name says so with the archive
-  // glyph rather than a clean check it has not quite earned.
-  if (briefing.status === "done" && briefing.artifacts.some(a => a.availability === "pruned")) {
-    return Archive;
-  }
-  return STATUS_ICONS[briefing.status] ?? Loader;
+function briefingGlyph(briefing: LoopBriefing, tone: LoopBriefingTone): StateGlyphState {
+  if (tone === "needs_you") return "attention";
+  if (tone === "failed") return "failed";
+  return loopStatusGlyph(briefing.status);
 }
 
 function briefingWeight(tone: LoopBriefingTone): LoopBriefingWeight {
@@ -169,7 +141,7 @@ export function buildBriefingView(briefing: LoopBriefing): LoopBriefingView {
   return {
     tone,
     weight: briefingWeight(tone),
-    icon: briefingIcon(briefing, tone),
+    glyph: briefingGlyph(briefing, tone),
     headline: briefing.headline,
     detail: detail ? detail : null,
     action: briefingAction(tone, blockers),

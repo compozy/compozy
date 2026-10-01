@@ -17,6 +17,7 @@ import {
 } from "@compozy/ui";
 
 import type { TerminalInfo } from "../types";
+import { terminalDisplayTitle } from "../lib/terminal-copy";
 
 export interface TerminalLimitDialogProps {
   open: boolean;
@@ -84,7 +85,7 @@ export function TerminalLimitDialog({
               >
                 <ItemContent>
                   <ItemTitle className="min-w-0 truncate font-normal text-muted">
-                    {terminal.title}
+                    {terminalDisplayTitle(terminal)}
                   </ItemTitle>
                 </ItemContent>
                 <ItemActions>
@@ -95,12 +96,12 @@ export function TerminalLimitDialog({
           })}
         </div>
         <DialogFooter className="justify-between gap-3" variant="ruled">
-          <span className="font-mono text-micro text-subtle">
+          <span className="font-mono text-eyebrow text-subtle">
             terminal_limit_reached · terminal.max_per_workspace {limit}
           </span>
           <span className="flex items-center gap-1">
             {onOpenSettings ? (
-              <Button onClick={onOpenSettings} size="sm" type="button" variant="ghost">
+              <Button onClick={onOpenSettings} type="button" variant="ghost">
                 Open Settings
               </Button>
             ) : null}
@@ -112,11 +113,10 @@ export function TerminalLimitDialog({
                 onCloseTerminal(selected.id);
                 onOpenChange(false);
               }}
-              size="sm"
               type="button"
               variant="secondary"
             >
-              {selected ? `Close "${selected.title}"` : "Close a terminal"}
+              {selected ? `Close "${terminalDisplayTitle(selected)}"` : "Close a terminal"}
             </Button>
           </span>
         </DialogFooter>

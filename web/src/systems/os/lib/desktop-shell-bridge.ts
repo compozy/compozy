@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { ThemePreference } from "@/systems/theme";
+
 import {
   globalShortcutRegistrationSchema,
   type GlobalShortcutRegistrationStatus,
@@ -34,6 +36,13 @@ export interface CompozyShellBridge {
   readonly globalShortcuts: {
     sync(bindings: GlobalShortcutBindingWire[]): Promise<GlobalShortcutRegistrationWire[]>;
     status(): Promise<GlobalShortcutRegistrationWire[]>;
+  };
+  /**
+   * Reports the theme preference so native chrome and window backgrounds follow
+   * it. Absent on desktop shells that predate theming.
+   */
+  readonly theme?: {
+    set(preference: ThemePreference): Promise<void>;
   };
 }
 

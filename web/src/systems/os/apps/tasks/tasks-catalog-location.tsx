@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ListChecks, Plus } from "lucide-react";
 
-import { Button, RouteNav, useTopbarSlot } from "@compozy/ui";
+import { Button, RouteNav, Separator, useTopbarSlot } from "@compozy/ui";
 
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
@@ -60,7 +60,11 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
 
   useTopbarSlot({
     glyph: <ListChecks />,
-    count: mode === "list" && !page.listLoading ? page.tasksCount : undefined,
+    // The head count names the whole list; under a filter the table header
+    // carries the (filtered) count instead, so the head never implies a total
+    // it is not showing.
+    count:
+      mode === "list" && !page.listLoading && !page.hasListFilters ? page.tasksCount : undefined,
     actions: (
       <Button
         data-testid="tasks-open-create"
@@ -68,8 +72,9 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         onClick={() => openCreate()}
         size="sm"
         type="button"
+        variant="secondary"
       >
-        <Plus className="size-3" />
+        <Plus aria-hidden="true" data-icon="inline-start" />
         New task
       </Button>
     ),
@@ -79,21 +84,25 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       <>
         {modeNav}
         {mode === "list" && page.hasActiveTaskScope ? (
-          <TasksListToolbar
-            onOwnerChange={page.handleOwnerChange}
-            onPriorityChange={page.handlePriorityChange}
-            onRecordsFilterChange={page.handleRecordsFilterChange}
-            onSearchQueryChange={page.setSearchQuery}
-            onSortChange={page.handleSortChange}
-            onStatusChange={page.handleStatusChange}
-            ownerFilter={page.ownerFilter}
-            ownerOptions={page.ownerOptions}
-            priorityFilter={page.priorityFilter}
-            recordsFilter={page.recordsFilter}
-            searchQuery={page.searchQuery}
-            sortBy={page.sortBy}
-            statusFilter={page.statusFilter}
-          />
+          <>
+            <Separator className="h-4 self-center" orientation="vertical" />
+            <TasksListToolbar
+              onOwnerChange={page.handleOwnerChange}
+              onPriorityChange={page.handlePriorityChange}
+              onRecordsFilterChange={page.handleRecordsFilterChange}
+              onSearchQueryChange={page.setSearchQuery}
+              onSortChange={page.handleSortChange}
+              onStatusChange={page.handleStatusChange}
+              ownerFilter={page.ownerFilter}
+              ownerOptions={page.ownerOptions}
+              priorityFilter={page.priorityFilter}
+              recordsFilter={page.recordsFilter}
+              searchQuery={page.searchQuery}
+              sortBy={page.sortBy}
+              statusCounts={page.statusCounts}
+              statusFilter={page.statusFilter}
+            />
+          </>
         ) : null}
       </>
     ),

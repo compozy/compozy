@@ -12,21 +12,19 @@ export function TaskRowsLoadingSkeleton({ label, testId, rows = 3 }: TaskRowsLoa
   return (
     <div
       aria-label={label}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid={testId}
       role="status"
     >
       {SKELETON_ROWS.slice(0, rows).map(row => (
         <div
-          className="flex items-center gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
+          className="flex h-12 items-center gap-3 border-b border-line-soft px-4 last:border-b-0"
           key={row}
         >
-          <Skeleton className="size-7 shrink-0 rounded-md" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Skeleton className="h-3 w-3/5 rounded-xs" />
-            <Skeleton className="h-2.5 w-2/5 rounded-xs" />
-          </div>
-          <Skeleton className="h-5 w-16 rounded-pill" />
+          <Skeleton className="h-3 w-3/5 rounded-xs" />
+          <span className="flex-1" />
+          <Skeleton className="size-3.5 shrink-0 rounded-full" />
+          <Skeleton className="h-3 w-16 rounded-xs" />
         </div>
       ))}
     </div>

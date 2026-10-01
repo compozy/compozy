@@ -1,0 +1,208 @@
+/* Light theme — re-declares every theme-scoped token from tokens.css and
+   terminal-tokens.css. Dark stays the default in
+   `@theme` / `:root`; `<html data-theme="light">` switches the whole tree.
+   The theme attribute lives on <html> only: alias tokens (`--color-hover`,
+   `--color-background`, …) resolve where they are declared, on :root. The
+   `:root` qualifier outranks tokens.css's own unlayered `:root` block, which
+   the CSS @import order places after this file.
+   Values: brand-spec.md light column (aicss.dev "Approval Card" light set);
+   The accent orange steps one shade deeper for light contrast. */
+
+[data-theme="light"]:root {
+  color-scheme: light;
+
+  /* Surface ramp (polish contract P1). Light keeps the same stack: a grey
+     chrome (rail + topbar), a white content panel and panes, white cards
+     separated by the `line` hairline and `shadow-card`, white popovers lifted
+     by `shadow-pop`. `sidebar` follows `sunken` from tokens.css. */
+  --color-rail: #f2f2f3;
+  --color-rail-hover: #e8e8ea;
+  --color-rail-selected: #e3e3e6;
+  --color-desk: #ffffff;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #ffffff;
+  --color-sunken: #f7f7f8;
+  --color-surface-2: #f4f4f5;
+  --color-selected: #efeff1;
+  --color-code-bg: #f6f6f7;
+  --color-elevated: #ffffff;
+  --color-disabled: #c4c7cc;
+
+  /* Hairlines. */
+  --color-line: #e6e6e9;
+  --color-line-soft: #efeff1;
+  --color-line-strong: #d6d6db;
+  --color-line-focus: #b8bcc4;
+  --color-indicator: #888888;
+  --color-knob: #ffffff;
+
+  /* Text — muted clears AA 4.5:1 on every text surface, the selected row
+     included (the reference's #a1a1a1 reads 2.6:1); fg-2 / fg-3 re-derive
+     from it. */
+  --color-fg: #1a1a1a;
+  --color-fg-strong: #0b0d12;
+  --color-fg-2: #4c4c4c;
+  --color-fg-3: #333333;
+  --color-muted: #6b6b6b;
+  --color-subtle: #6b6b6b;
+  --color-faint: #6b6b6b;
+
+  /* Primary (inverted). */
+  --color-primary: #0b0d12;
+  --color-primary-hover: #2a2f3a;
+  --color-primary-foreground: #ffffff;
+
+  /* Accent — the brand orange, one step deeper. */
+  /* Deep enough that white count ink clears 4.5:1 on the fill. */
+  --color-accent: #c94b24;
+  --color-accent-hover: #b9441f;
+  --color-accent-strong: #b9441f;
+  --color-accent-ink: #ffffff;
+  --color-accent-tint: rgba(201, 75, 36, 0.08);
+  --color-accent-tint-strong: rgba(201, 75, 36, 0.14);
+  --color-accent-dim: rgba(201, 75, 36, 0.22);
+  --color-accent-glow: rgba(201, 75, 36, 0.05);
+
+  /* Signal palette. */
+  --color-success: #15a06a;
+  --color-success-tint: rgba(21, 160, 106, 0.08);
+  --color-warning: #d98404;
+  --color-warning-tint: rgba(217, 132, 4, 0.08);
+  --color-danger: #dc2626;
+  --color-danger-tint: rgba(220, 38, 38, 0.07);
+  --color-info: #5f5f94;
+  --color-info-tint: rgba(95, 95, 148, 0.1);
+  --color-well: #def2ea;
+  --color-well-ink: #139362;
+  --color-spectrum-blue: #1d7fd8;
+  --color-spectrum-violet: #a347b8;
+  --color-neutral: #8a8a90;
+  --color-neutral-ink: #6b6b70;
+  --color-neutral-tint: rgba(110, 110, 120, 0.07);
+  --color-destructive-foreground: #ffffff;
+
+  /* Data-viz ink — black-alpha monochrome. */
+  --color-viz-line: rgba(10, 13, 18, 0.45);
+  --color-viz-fill: rgba(10, 13, 18, 0.05);
+  --color-viz-bar: rgba(10, 13, 18, 0.28);
+  --color-viz-other: rgba(10, 13, 18, 0.2);
+  --color-viz-grid: rgba(10, 13, 18, 0.06);
+  --color-viz-cell: #0b0d12;
+
+  /* Surface glaze ladder — black-alpha ink over white. */
+  --color-bar-fill: rgba(10, 13, 18, 0.07);
+
+  /* Session transcript washes. */
+  --color-chat-fill-user: rgba(10, 13, 18, 0.04);
+  --color-chat-fill-code: rgba(10, 13, 18, 0.03);
+
+  /* Overlays. */
+  --color-overlay-scrim: rgba(15, 17, 22, 0.28);
+  --color-overlay-ghost-hover: rgba(10, 13, 18, 0.05);
+
+  /* Owner avatar palette — same hues, inks deepened to read on white. */
+  --color-avatar-agent-0-bg: rgba(214, 110, 60, 0.14);
+  --color-avatar-agent-0-fg: #a4491f;
+  --color-avatar-agent-1-bg: rgba(110, 124, 190, 0.14);
+  --color-avatar-agent-1-fg: #4a5590;
+  --color-avatar-agent-2-bg: rgba(70, 160, 128, 0.14);
+  --color-avatar-agent-2-fg: #2a7259;
+  --color-avatar-agent-3-bg: rgba(190, 110, 150, 0.14);
+  --color-avatar-agent-3-fg: #914a70;
+  --color-avatar-human-0-bg: rgba(200, 160, 70, 0.16);
+  --color-avatar-human-0-fg: #7e5f14;
+  --color-avatar-human-1-bg: rgba(170, 140, 105, 0.16);
+  --color-avatar-human-1-fg: #6e5a3f;
+  --color-avatar-human-2-bg: rgba(170, 130, 140, 0.16);
+  --color-avatar-human-2-fg: #74525c;
+
+  /* Shadows — `--theme-shadow-*` literals behind the @theme adapters. */
+  --theme-shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005;
+  --theme-shadow-elevated:
+    0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
+  --theme-shadow-pop:
+    0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a,
+    0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a;
+  --theme-shadow-overlay: 0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line);
+  --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --theme-shadow-focus-ring: 0 0 0 2px rgba(10, 13, 18, 0.5);
+  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(10, 13, 18, 0.5);
+
+  /* Workspaces strip "more to scroll" veil: a faint ink on light. */
+  --workspaces-edge-veil: rgba(10, 13, 18, 0.06);
+
+  /* Wallpapers — the white-alpha stacks flip to black-alpha, and the teal
+     depth wash drops to a light tint (the dark strengths paint a heavy cast
+     on white). Flat needs no override: it is the `desk` role. */
+  --wallpaper-ember:
+    radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%),
+    radial-gradient(
+      1000px 640px at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 12%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-mesh:
+    radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%),
+    radial-gradient(
+      1200px 700px at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 14%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
+  --wallpaper-thumb-ember:
+    radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%),
+    radial-gradient(
+      75% 90% at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 20%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-thumb-mesh:
+    radial-gradient(
+      70% 85% at 85% 108%,
+      color-mix(in oklab, var(--color-success) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      85% 95% at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 22%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
+  --wallpaper-grid: radial-gradient(
+    1.5px 1.5px at 50% 50%,
+    rgba(10, 13, 18, 0.06) 40%,
+    transparent 41%
+  );
+  --wallpaper-carbon:
+    radial-gradient(1000px 620px at 50% -14%, rgba(10, 13, 18, 0.03), transparent 58%),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
+  --wallpaper-thumb-carbon:
+    radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%),
+    linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%);
+
+  /* Terminal well — ink-on-white ANSI: each hue deepened so it reads on #fff,
+     and the "white" lanes become greys (a white glyph on a white well is
+     invisible). */
+  --terminal-bg: #ffffff;
+  --terminal-fg: #434343;
+  --terminal-cursor: #1a1a1a;
+  --terminal-selection: rgba(10, 13, 18, 0.12);
+  --terminal-ansi-0: #1a1a1a;
+  --terminal-ansi-1: #dc2626;
+  --terminal-ansi-2: #15a06a;
+  --terminal-ansi-3: #b86e00;
+  --terminal-ansi-4: #2f6fd0;
+  --terminal-ansi-5: #9a4fb5;
+  --terminal-ansi-6: #178a8a;
+  --terminal-ansi-7: #8a8a8a;
+  --terminal-ansi-8: #737373;
+  --terminal-ansi-9: #b91c1c;
+  --terminal-ansi-10: #0f8a5a;
+  --terminal-ansi-11: #a86200;
+  --terminal-ansi-12: #1d5bbf;
+  --terminal-ansi-13: #83399e;
+  --terminal-ansi-14: #0e7373;
+  --terminal-ansi-15: #b0b0b0;
+}

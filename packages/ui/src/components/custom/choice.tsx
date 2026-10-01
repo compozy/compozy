@@ -29,7 +29,7 @@ function ChoiceRow({ children, className, type, ...props }: React.ComponentProps
         "transition-colors duration-base ease-out motion-reduce:transition-none",
         "hover:border-line hover:bg-hover",
         "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-transparent disabled:hover:bg-transparent",
-        "aria-pressed:border-line-strong aria-pressed:bg-row-selected",
+        "aria-pressed:border-line-strong aria-pressed:bg-selected",
         "focus-visible:shadow-focus focus-visible:outline-none",
         className
       )}
@@ -88,9 +88,9 @@ function ChoiceFreeTextarea({ className, ...props }: React.ComponentProps<"texta
     <textarea
       data-slot="choice-free-textarea"
       className={cn(
-        "min-h-[52px] w-full resize-none rounded-md border border-line bg-elevated",
+        "min-h-[52px] w-full resize-none rounded-md border border-line bg-canvas",
         "px-2 py-[7px] text-small-body leading-normal text-fg",
-        "placeholder:text-subtle focus:border-accent-dim focus:outline-none",
+        "placeholder:text-subtle focus:border-line-focus focus:outline-none",
         className
       )}
       {...props}

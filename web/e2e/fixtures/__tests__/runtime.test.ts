@@ -204,6 +204,17 @@ describe("runtime helpers", () => {
     ).toContain("[model_catalog.sources.models_dev]\nenabled = false\n");
   });
 
+  it("Should pin the new-window policy for specs whose invariants need one placement", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        newWindowPolicy: "floating",
+        port: 4321,
+        socketPath: "/tmp/compozy.sock",
+      })
+    ).toContain('[window_manager]\nnew_window_policy = "floating"\n');
+  });
+
   it("Should render unverified extension policy only when explicitly requested", () => {
     expect(
       renderRuntimeConfig({

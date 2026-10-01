@@ -287,7 +287,7 @@ export function LoopRunPageBody({
             />
           </main>
           <aside data-testid="loop-run-detail-rail">
-            <div className="rounded-lg border border-line bg-canvas-soft">
+            <div className="rounded-lg bg-card shadow-card">
               <LoopRunUsageRail rows={usageRows} note={usageNote} />
               <LoopRunAboutRail
                 run={run}
@@ -303,14 +303,13 @@ export function LoopRunPageBody({
               />
               <div className="flex items-center border-t border-line-soft px-3 py-2">
                 <Button
-                  className="min-h-6"
                   data-testid="loop-run-open-inspect"
                   onClick={() => inspect.onOpenChange(true)}
                   size="sm"
                   type="button"
                   variant="ghost"
                 >
-                  <Search aria-hidden="true" className="size-3" />
+                  <Search aria-hidden="true" />
                   Inspect
                 </Button>
               </div>

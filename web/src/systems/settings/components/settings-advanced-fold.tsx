@@ -47,7 +47,7 @@ export function SettingsAdvancedFold({
       triggerProps={{
         "aria-controls": bodyId,
         "data-testid": "settings-advanced-toggle",
-        className: cn("text-ws-name", bare && "w-full px-0 py-3"),
+        className: cn("text-body", bare && "w-full px-0 py-3"),
       }}
       contentProps={{
         id: bodyId,

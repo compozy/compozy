@@ -230,6 +230,31 @@ describe("SymbolPicker", () => {
     expect(screen.getByRole("button", { name: "Change skin tone" })).toBeInTheDocument();
   });
 
+  it("Should lay the emoji grid out in as many columns as the pane fits", async () => {
+    // jsdom has no layout: give the shared picker cell and the pane a real size.
+    const offsetWidth = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("size-symbol-picker-cell") ? 28 : 0;
+      });
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.hasAttribute("frimousse-viewport") ? 480 : 0;
+      });
+    try {
+      render(<Harness symbol={{ kind: "emoji", value: "🌱" }} />);
+      await screen.findByLabelText("Search emojis");
+      await vi.waitFor(() => {
+        const list = document.querySelector<HTMLElement>("[frimousse-list]");
+        expect(list?.style.getPropertyValue("--frimousse-list-columns")).toBe("17");
+      });
+    } finally {
+      offsetWidth.mockRestore();
+      clientWidth.mockRestore();
+    }
+  });
+
   it("Should surface the emoji empty state with the shared no-results copy", async () => {
     const user = userEvent.setup();
     render(<Harness symbol={{ kind: "emoji", value: "🌱" }} />);

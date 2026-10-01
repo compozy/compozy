@@ -72,7 +72,6 @@ export function ToolCallStatusIcon({ status, className }: ToolCallStatusIconProp
       data-status={status}
       role="img"
       aria-label={label}
-      strokeWidth={1.75}
       className={cn("size-3 shrink-0", TONE_CLASS[status], className)}
     />
   );

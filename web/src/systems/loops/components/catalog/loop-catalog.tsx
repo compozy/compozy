@@ -94,7 +94,7 @@ export function LoopCatalog({
               </>
             ) : (
               <ListGroup
-                className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+                className="overflow-hidden rounded-lg bg-card shadow-card"
                 count={count}
                 label={group.label}
               >

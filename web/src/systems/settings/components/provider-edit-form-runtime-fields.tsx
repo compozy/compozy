@@ -149,7 +149,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
       <ModalSettingsFieldRow
         control={
           <Textarea
-            className="min-h-24 w-72 font-mono text-xs"
+            className="min-h-24 w-72 font-mono text-eyebrow"
             data-testid="settings-providers-editor-curated-models-input"
             onChange={event =>
               onChange(current => ({ ...current, curated_models: event.target.value }))

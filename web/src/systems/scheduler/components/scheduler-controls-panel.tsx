@@ -43,7 +43,7 @@ export function SchedulerControlsPanel({
   if (errorMessage && !status) {
     return (
       <section
-        className="border-b border-line-soft bg-canvas-soft px-5 py-4"
+        className="border-b border-line-soft px-5 py-4"
         data-testid="scheduler-controls-panel-error"
       >
         <Empty
@@ -58,10 +58,7 @@ export function SchedulerControlsPanel({
   }
 
   return (
-    <section
-      className="border-b border-line-soft bg-canvas-soft px-5 py-4"
-      data-testid="scheduler-controls-panel"
-    >
+    <section className="border-b border-line-soft px-5 py-4" data-testid="scheduler-controls-panel">
       <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-start @3xl:justify-between">
         <SchedulerStatusSummary isLoading={isLoading} status={status} />
         <SchedulerControlActions
@@ -142,7 +139,7 @@ function SchedulerControlActions({
           type="button"
           variant="neutral"
         >
-          <PlayCircle className="size-3" aria-hidden="true" />
+          <PlayCircle aria-hidden="true" />
           Resume
         </Button>
       ) : (
@@ -154,7 +151,7 @@ function SchedulerControlActions({
           type="button"
           variant="neutral"
         >
-          <PauseCircle className="size-3" aria-hidden="true" />
+          <PauseCircle aria-hidden="true" />
           Pause
         </Button>
       )}
@@ -166,7 +163,7 @@ function SchedulerControlActions({
         type="button"
         variant="neutral"
       >
-        <RotateCw className="size-3" aria-hidden="true" />
+        <RotateCw aria-hidden="true" />
         Finish current and pause
       </Button>
     </div>

@@ -216,24 +216,24 @@ function LoopBindingsAddActions({
       {canAddTrigger ? (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid="loop-add-trigger"
           onClick={onAddTrigger}
         >
-          <Zap aria-hidden="true" className="size-3" />
+          <Zap aria-hidden="true" />
           Add trigger
         </Button>
       ) : null}
       {canAddSchedule ? (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid="loop-add-schedule"
           onClick={onAddSchedule}
         >
-          <CalendarClock aria-hidden="true" className="size-3" />
+          <CalendarClock aria-hidden="true" />
           Add schedule
         </Button>
       ) : null}

@@ -38,7 +38,9 @@ function statusView({
       detail: diagnostic?.message ?? null,
     };
   }
-  if (connectionStatus !== "connected") {
+  // `idle`: the stream has not been attempted yet (startup, registration) —
+  // not a failure, so it only yields to a refused-command notice below.
+  if (connectionStatus !== "connected" && connectionStatus !== "idle") {
     return { tone: "neutral", icon: RefreshCw, label: "Reconnecting…", detail: null };
   }
   // A refused command's notice is already written for people; it keeps the
@@ -68,11 +70,17 @@ export function OsHydrationStatus(props: OsHydrationStatusProps) {
       aria-atomic="true"
       aria-live="polite"
       data-testid="os-window-manager-status"
+      form="plain"
       tone={view.tone}
       size="sm"
       className="shrink-0 gap-1.5"
     >
-      <Icon as={view.icon} size="sm" aria-hidden="true" />
+      <Icon
+        as={view.icon}
+        size="sm"
+        aria-hidden="true"
+        className={view.tone === "warning" ? "text-warning" : undefined}
+      />
       {view.label}
     </Pill>
   );

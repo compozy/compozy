@@ -33,6 +33,9 @@ function usageCostDetail(overview: HomeOverview): string {
   return `≈ ${cost.toFixed(2)} ${overview.usage.cost_currency ?? ""} estimated`.trimEnd();
 }
 
+// A linked tile lifts its own card on hover — the wrapping link has no fill of its own.
+const KPI_LINK_METRIC = "transition-colors duration-base group-hover/kpi:bg-surface-2";
+
 /**
  * Zone 2 — the four at-a-glance counters. Every tile deep-links into the
  * surface that owns the number; the usage tile carries the 30d spark.
@@ -43,11 +46,12 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
   return (
     <MetricGrid columns={4} data-slot="home-kpi-strip">
       <Link
-        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="group/kpi min-w-0 rounded-lg focus-visible:shadow-focus-ring focus-visible:outline-none"
         search={{ mode: "dashboard" }}
         to="/tasks"
       >
         <Metric
+          className={KPI_LINK_METRIC}
           label="Working now"
           labelCase="eyebrow"
           subtext={workingNowDetail}
@@ -55,11 +59,12 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
         />
       </Link>
       <Link
-        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="group/kpi min-w-0 rounded-lg focus-visible:shadow-focus-ring focus-visible:outline-none"
         search={{ mode: "inbox" }}
         to="/tasks"
       >
         <Metric
+          className={KPI_LINK_METRIC}
           label="Needs you"
           labelCase="eyebrow"
           subtext={attentionDetail(overview.attention.by_kind ?? {})}
@@ -67,11 +72,12 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
         />
       </Link>
       <Link
-        className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="group/kpi min-w-0 rounded-lg focus-visible:shadow-focus-ring focus-visible:outline-none"
         search={{ mode: "dashboard" }}
         to="/tasks"
       >
         <Metric
+          className={KPI_LINK_METRIC}
           label="Completed today"
           labelCase="eyebrow"
           subtext={`${overview.today.runs_completed} runs, ${overview.today.tasks_closed} tasks finished`}

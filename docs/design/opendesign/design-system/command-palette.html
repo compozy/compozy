@@ -6,7 +6,7 @@
 <title>CompozyOS DS · 04 Command Palette</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-shell.css">
 <link rel="stylesheet" href="ds-docs.css">
@@ -38,7 +38,7 @@
 /* head */
 .cp-scope{flex:none;margin-left:auto;display:inline-flex;align-items:center;height:22px;padding:0 10px;
   border-radius:var(--radius-xs);background:var(--neutral-tint);color:var(--neutral-ink);
-  font-size:var(--text-eyebrow);font-weight:510;letter-spacing:var(--track-eyebrow)}
+  font-size:var(--text-eyebrow);font-weight:500;letter-spacing:var(--track-eyebrow)}
 .cp-back{flex:none;width:24px;height:24px;margin-left:8px;display:grid;place-items:center;
   border-radius:var(--radius-sm);color:var(--muted)}
 .cp-back:hover{background:var(--row-hover);color:var(--fg-strong)}
@@ -47,7 +47,7 @@
   font-size:var(--text-eyebrow);color:var(--muted)}
 .cp-crumbs svg{width:12px;height:12px;flex:none;color:var(--faint)}
 .cp-crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cp-crumbs .cp-crumb:last-child{font-weight:510;color:var(--fg-strong)}
+.cp-crumbs .cp-crumb:last-child{font-weight:500;color:var(--fg-strong)}
 .cp-ghost{flex:1;min-width:0;display:flex;align-items:center;font-size:13px;letter-spacing:var(--track-body);white-space:nowrap}
 .cp-ghost__typed{color:var(--fg)}
 .cp-ghost__tail{color:var(--subtle)}
@@ -63,7 +63,7 @@
 .cp-hint~.chord,.cp-state~.chord,.pal-meta~.chord,.cp-ret~.chord{margin-left:0}
 .cp-two{min-height:44px;align-items:center}
 .cp-two__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
-.cp-two__t{font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.cp-two__t{font-size:var(--text-small-body);font-weight:500;color:var(--fg-strong)}
 .cp-two__s{font-size:var(--text-micro);line-height:1.3;color:var(--subtle)}
 .cp-skel{display:flex;align-items:center;gap:8px;min-height:32px;padding:6px 12px}
 .cp-skel i,.cp-skel u{border-radius:var(--radius-md);text-decoration:none;
@@ -77,7 +77,7 @@
 .cp-ask{width:18px;height:18px;flex:none;display:grid;place-items:center;border-radius:var(--radius-pill);
   background:var(--info-tint);color:var(--info)}
 .cp-ask svg{width:11px;height:11px;color:var(--info)}
-.cp-askq{color:var(--info);font-weight:510}
+.cp-askq{color:var(--info);font-weight:500}
 
 /* bands + frames */
 .cp-band{position:relative;overflow:hidden;display:flex;align-items:center;gap:8px;
@@ -97,7 +97,7 @@
   min-height:200px;padding:36px 24px;text-align:center}
 .cp-frame svg{width:16px;height:16px;color:var(--faint)}
 .cp-frame--health svg{color:var(--warning)}
-.cp-frame__t{font-size:13px;font-weight:510;color:var(--fg-strong)}
+.cp-frame__t{font-size:13px;font-weight:500;color:var(--fg-strong)}
 .cp-frame__s{font-size:var(--text-eyebrow);line-height:1.45;color:var(--muted);max-width:28ch}
 
 /* split + detail */
@@ -116,10 +116,10 @@
 .cp-body{padding:14px 16px 16px}
 .cp-form{display:flex;flex-direction:column;gap:14px}
 .cp-field{display:flex;flex-direction:column;gap:6px;min-width:0}
-.cp-field__lab{font-size:var(--text-eyebrow);font-weight:510;color:var(--fg)}
+.cp-field__lab{font-size:var(--text-eyebrow);font-weight:500;color:var(--fg)}
 .cp-field__hint{font-size:11.5px;color:var(--muted)}
 .cp-field__err{font-size:11.5px;color:var(--danger)}
-.cp-field.is-miss .input::placeholder{color:var(--fg);font-weight:510}
+.cp-field.is-miss .input::placeholder{color:var(--fg);font-weight:500}
 .cp-check{display:inline-flex;align-items:center;gap:8px;min-height:36px;font-size:var(--text-small-body);color:var(--fg)}
 .cp-path{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;
   border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
@@ -133,7 +133,7 @@
 .cp-tile.is-active{background:var(--elevated);color:var(--fg-strong)}
 .cp-tile__media{height:52px;border-radius:var(--radius-sm);background:var(--elevated);
   display:grid;place-items:center;font-size:22px;line-height:1}
-.cp-tile__t{font-size:var(--text-eyebrow);font-weight:510;color:var(--fg-strong);
+.cp-tile__t{font-size:var(--text-eyebrow);font-weight:500;color:var(--fg-strong);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* action panel */
@@ -144,7 +144,7 @@
   font-size:13px;color:var(--subtle)}
 .cp-act__filter svg{width:16px;height:16px;flex:none}
 .cp-act__sec{border-top:1px solid var(--line-soft);margin:6px -8px 0;padding:14px 20px 6px;
-  font-size:11.5px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--faint)}
+  font-size:11.5px;font-weight:500;letter-spacing:var(--track-eyebrow);color:var(--faint)}
 .cp-act__sec:first-child{border-top:0;margin-top:0;padding-top:10px}
 .cp-ret{margin-left:auto;font-family:var(--font-mono);font-size:var(--text-badge);color:var(--faint)}
 .cp-danger,.cp-danger:hover{color:var(--danger)}
@@ -161,7 +161,7 @@
 .cp-arg__ph{min-width:72px;flex:1;font-size:13px;color:var(--subtle)}
 .cp-arg.is-on{border-color:var(--line-strong);background:var(--elevated)}
 .cp-arg.is-miss{border-color:var(--danger);box-shadow:none}
-.cp-arg.is-miss .cp-arg__ph{color:var(--fg);font-weight:510}
+.cp-arg.is-miss .cp-arg__ph{color:var(--fg);font-weight:500}
 .cp-arg__err{position:absolute;top:calc(100% + 8px);left:0;font-size:11.5px;color:var(--danger);white-space:nowrap}
 .cp-reserve{position:relative;min-height:36px}
 

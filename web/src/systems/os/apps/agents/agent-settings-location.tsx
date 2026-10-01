@@ -116,9 +116,7 @@ export function AgentSettingsLocation({
                     className={cn(
                       "rounded-md px-3 py-2 text-left text-small-body font-medium tracking-tight transition-colors duration-base ease-out",
                       "w-auto shrink-0 md:w-full",
-                      isActive
-                        ? "bg-row-selected text-fg-strong"
-                        : "text-muted hover:bg-hover hover:text-fg"
+                      isActive ? "bg-selected text-fg" : "text-muted hover:bg-hover hover:text-fg"
                     )}
                   >
                     <span className="whitespace-nowrap md:truncate">{SECTION_LABELS[section]}</span>
@@ -168,7 +166,6 @@ export function AgentSettingsLocation({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => page.onBackToDetail()}
               data-testid="agent-settings-cancel"
             >
@@ -177,7 +174,6 @@ export function AgentSettingsLocation({
             <Button
               type="button"
               variant="default"
-              size="sm"
               disabled={!page.dirty || page.saveBlocked || saving || page.agentLoading}
               aria-busy={saving}
               title={page.saveBlockedCaption}

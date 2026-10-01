@@ -135,11 +135,14 @@ export function AuthoredFileMeta({
 }: Pick<AuthoredFileEditorModel, "status" | "payload">) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-line-soft px-4 py-2.5">
-      <Pill mono tone={authoredFileStatusTone(status)}>
+      {/* Lifecycle states, not tags: dot + word, no plate. */}
+      <Pill form="plain" tone={authoredFileStatusTone(status)}>
+        <Pill.Dot />
         {status}
       </Pill>
       {payload && "enabled" in payload ? (
-        <Pill mono tone={payload.enabled ? "success" : "neutral"}>
+        <Pill form="plain" tone={payload.enabled ? "success" : "neutral"}>
+          <Pill.Dot />
           {payload.enabled ? "enabled" : "disabled"}
         </Pill>
       ) : null}

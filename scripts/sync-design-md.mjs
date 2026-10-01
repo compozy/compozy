@@ -9,21 +9,25 @@ const designPath = join(root, "DESIGN.md");
 const runtimeCss = ["tokens.css", "terminal-tokens.css"]
   .map(file => readFileSync(join(root, "packages/ui/src", file), "utf8"))
   .join("\n");
+// The light theme re-declares theme-scoped tokens under `[data-theme="light"]:root`;
+// every other value is shared with the (default) dark theme.
+const lightCss = readFileSync(join(root, "packages/ui/src/tokens-light.css"), "utf8");
 const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8");
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
-  "surface-ramp": "rail canvas canvas-soft canvas-tint sidebar elevated hover disabled",
+  "surface-ramp":
+    "rail rail-hover rail-selected desk canvas canvas-soft sunken surface-2 selected code-bg sidebar elevated well hover disabled",
   hairlines: "line line-soft line-strong line-focus",
-  "text-ladder": "fg fg-strong muted subtle faint",
+  "text-ladder": "fg fg-strong fg-2 fg-3 muted subtle faint",
+  primary: "primary primary-hover primary-foreground",
   accent:
-    "accent accent-hover accent-strong accent-ink accent-tint accent-tint-strong accent-dim accent-glow",
-  "glaze-ladder":
-    "row-hover row-selected surface-glaze bar-fill input-fill btn-default-fill btn-default-hover badge-fill",
+    "accent accent-hover accent-strong accent-ink accent-tint accent-tint-strong accent-dim accent-glow attn",
+  "glaze-ladder": "bar-fill",
 };
 const componentSizeTokenPattern =
   /^(basis|breakpoint|container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;
-// Matched against every declaration, not just @theme: `--font-weight-display`
-// lives in `:root` (L-023).
+// Matched against every declaration, not just @theme, so a `:root`-scoped font
+// token (L-023) still reaches the table.
 const fontTokenPattern = /^font-/;
 const runtimeTheme = parseTheme(
   runtimeCss,
@@ -33,6 +37,10 @@ const runtimeDecls = parseDecls(runtimeCss);
 const siteTheme = parseTheme(siteCss, "packages/site/app/global.css");
 const siteDecls = parseDecls(siteCss);
 const runtime = new Map(runtimeDecls.map(({ name, value }) => [name, value]));
+const lightOverrides = new Map(
+  parseDecls(lightBlock(lightCss)).map(({ name, value }) => [name, value])
+);
+const light = new Map([...runtime, ...lightOverrides]);
 
 const body = replaceGeneratedSections(stripFrontmatter(design));
 const nextDesign = emitFrontmatter() + "\n\n" + body.trimStart();
@@ -52,6 +60,12 @@ function parseTheme(css, label) {
   return matches.flatMap(match => parseDecls(match[1]));
 }
 
+function lightBlock(css) {
+  const match = css.match(/\[data-theme="light"\]:root\s*\{([\s\S]*?)\n\}/);
+  if (!match) throw new Error('Could not locate [data-theme="light"]:root in tokens-light.css');
+  return match[1];
+}
+
 function parseDecls(css) {
   return Array.from(css.matchAll(/--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g), match => ({
     name: match[1],
@@ -67,24 +81,20 @@ function stripFrontmatter(text) {
 
 function replaceGeneratedSections(text) {
   const sections = [
-    ...Object.entries(colorGroups).map(([id, stems]) => [id, tokenTable(colorRows(stems))]),
-    ["shell-glass", tokenTable(shellGlassRows())],
+    ...Object.entries(colorGroups).map(([id, stems]) => [id, themedTable(colorNames(stems))]),
     ["signal", signalTable()],
-    ["owner-avatar", tokenTable(prefixRows(runtimeTheme, "color-avatar-"))],
-    ["terminal-ansi", tokenTable(terminalRampRows())],
+    ["owner-avatar", themedTable(prefixNames(runtimeTheme, "color-avatar-"))],
+    ["terminal-ansi", themedTable(terminalRampNames())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],
     ["type-ladder", typeTable()],
     ["tracking-ladder", tokenTable(prefixRows(runtimeTheme, "tracking-"))],
     ["radii", tokenTable(prefixRows(runtimeTheme, "radius", true))],
     ["component-sizes", tokenTable(namedRows(runtimeDecls, componentSizeTokenPattern))],
-    ["shadows", tokenTable(prefixRows(runtimeTheme, "shadow-"))],
+    ["shadows", themedTable(prefixNames(runtimeTheme, "shadow-"))],
     [
       "shell-backdrop",
-      tokenTable(
-        namedRows(
-          runtimeDecls,
-          /^(blur-shell|saturate-shell|shell-(?:plate-gradient|well-gradient|edge-veil|edge-fade-(?:start|end))|wallpaper-)/
-        )
+      themedTable(
+        namedRows(runtimeDecls, /^(workspaces-edge-|wallpaper-)/).map(([name]) => name.slice(2))
       ),
     ],
     ["motion", tokenTable(namedRows(runtimeTheme, /^(distance|duration|ease|scale)-/))],
@@ -107,31 +117,47 @@ function replaceSection(text, id, content) {
   );
 }
 
-function colorRows(stems) {
-  return stems.split(" ").map(stem => ["--color-" + stem, runtime.get("color-" + stem)]);
+function colorNames(stems) {
+  return stems.split(" ").map(stem => "color-" + stem);
 }
 
-// The shell-glass family pairs each canonical `:root --shell-glass*` literal with
-// its `@theme --color-*` adapter, so DESIGN.md documents both the contract name and
-// the utility-facing token that references it (single literal, no duplication).
-function shellGlassRows() {
-  return ["shell-glass", "shell-glass-pop"].flatMap(stem => [
-    ["--" + stem, runtime.get(stem)],
-    ["--color-" + stem, runtime.get("color-" + stem)],
-  ]);
-}
-
-// The terminal ramp follows the shell-glass shape: canonical `:root --terminal-*`
-// literals with mechanical `@theme --color-terminal-*` adapters. The table
+// The terminal ramp pairs each canonical `:root --terminal-*` literal with a
+// mechanical `@theme --color-terminal-*` adapter. The table
 // documents the canonical names — the identity the emulator bridge resolves —
 // because the alias is `var(--terminal-X)` for every one of them and listing
 // forty rows to say that twenty times would bury the palette.
-function terminalRampRows() {
-  return namedRows(runtimeDecls, /^terminal-/);
+function terminalRampNames() {
+  return namedRows(runtimeDecls, /^terminal-/).map(([name]) => name.slice(2));
 }
 
 function namedRows(decls, re) {
   return decls.filter(({ name }) => re.test(name)).map(({ name, value }) => ["--" + name, value]);
+}
+
+// `--shadow-*: var(--theme-shadow-*)` adapters exist only so Tailwind reads the
+// variable at runtime; the spec shows each theme's literal behind them.
+function themeValue(theme, name) {
+  const value = theme.get(name);
+  const adapter = value?.match(/^var\(--(theme-[a-zA-Z0-9-]+)\)$/);
+  return adapter && theme.has(adapter[1]) ? theme.get(adapter[1]) : value;
+}
+
+function resolveThemeAdapters(decls, theme) {
+  return decls.map(({ name }) => ({ name, value: themeValue(theme, name) }));
+}
+
+function prefixNames(decls, prefix) {
+  return decls.filter(({ name }) => name.startsWith(prefix)).map(({ name }) => name);
+}
+
+// One row per token: its dark (default) value and its light value.
+function themedTable(names) {
+  const rows = names.map(name => [
+    code("--" + name),
+    code(themeValue(runtime, name)),
+    code(themeValue(light, name)),
+  ]);
+  return markdownTable(["Token", "Dark", "Light"], rows);
 }
 
 function prefixRows(decls, prefix, includeBase = false) {
@@ -149,10 +175,11 @@ function signalTable() {
       stem.charAt(0).toUpperCase() + stem.slice(1),
       code("--color-" + stem),
       code(runtime.get("color-" + stem)),
-      code("--color-" + stem + "-tint"),
+      code(light.get("color-" + stem)),
       code(runtime.get("color-" + stem + "-tint")),
+      code(light.get("color-" + stem + "-tint")),
     ]);
-  return markdownTable(["Role", "Token", "Value", "Tint token", "Tint value"], rows);
+  return markdownTable(["Role", "Token", "Dark", "Light", "Tint dark", "Tint light"], rows);
 }
 
 function typeTable() {
@@ -206,6 +233,7 @@ function emitFrontmatter() {
     "# Generated from:",
     "#   packages/ui/src/tokens.css         (runtime)",
     "#   packages/ui/src/terminal-tokens.css (terminal runtime)",
+    "#   packages/ui/src/tokens-light.css   (light theme overrides)",
     "#   packages/site/app/global.css       (site extensions)",
     "# by scripts/sync-design-md.mjs.",
     "# Do not edit by hand. Run make codegen to refresh.",
@@ -214,6 +242,7 @@ function emitFrontmatter() {
     "tokens:",
     "  runtime:",
     yamlMap("colors", namespaceMap(runtimeTheme, "color"), 4),
+    yamlMap("colors-light", lightOverrideMap("color"), 4),
     yamlMap(
       "fonts",
       mapNamed(runtimeDecls, fontTokenPattern, name => name.slice("font-".length)),
@@ -226,7 +255,8 @@ function emitFrontmatter() {
     yamlMap("duration", namespaceMap(runtimeTheme, "duration"), 6),
     yamlMap("ease", namespaceMap(runtimeTheme, "ease"), 6),
     yamlMap("scale", namespaceMap(runtimeTheme, "scale"), 6),
-    yamlMap("shadow", namespaceMap(runtimeTheme, "shadow"), 4),
+    yamlMap("shadow", namespaceMap(resolveThemeAdapters(runtimeTheme, runtime), "shadow"), 4),
+    yamlMap("shadow-light", lightOverrideMap("shadow"), 4),
     yamlMap(
       "sizes",
       mapNamed(runtimeDecls, componentSizeTokenPattern, name => name),
@@ -248,6 +278,14 @@ function emitFrontmatter() {
     "---",
   ];
   return lines.join("\n");
+}
+
+// The @theme tokens of one namespace whose light value differs from dark.
+function lightOverrideMap(ns) {
+  const changed = runtimeTheme.filter(
+    ({ name }) => name.startsWith(ns + "-") && themeValue(light, name) !== themeValue(runtime, name)
+  );
+  return namespaceMap(resolveThemeAdapters(changed, light), ns);
 }
 
 function namespaceMap(decls, ns) {

@@ -84,7 +84,7 @@ export function LoopEditorEffects({
         return (
           <div
             key={rowKeys.keys[index]}
-            className="rounded-md border border-line-soft bg-canvas-soft p-2"
+            className="rounded-md bg-sunken p-2"
             data-testid={`${testId}-row`}
             data-shape={shape}
           >
@@ -134,7 +134,7 @@ export function LoopEditorEffects({
                 onClick={() => remove(index)}
                 aria-label={`Remove ${rowName}`}
               >
-                <X aria-hidden="true" className="size-3" />
+                <X aria-hidden="true" />
               </Button>
             </div>
             <details
@@ -177,14 +177,13 @@ export function LoopEditorEffects({
       })}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled}
         onClick={add}
-        className="border-dashed"
         data-testid={`${testId}-add`}
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add effect
       </Button>
     </div>

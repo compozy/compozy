@@ -12,6 +12,12 @@ export {
   type StatusDotVariant,
 } from "../components/custom/status-dot";
 export {
+  StateGlyph,
+  type StateGlyphProps,
+  type StateGlyphSize,
+  type StateGlyphState,
+} from "../components/custom/state-glyph";
+export {
   FORMAT_TIME_FALLBACK,
   formatAbsoluteTime,
   formatDuration,
@@ -131,7 +137,12 @@ export {
   type SymbolSwatch,
   type SymbolValue,
 } from "../lib/symbol-palette";
-export { identityColorsFor, type IdentityColors } from "../lib/identity-palette";
+export {
+  identityColorsFor,
+  identitySurfaceFor,
+  type IdentityColors,
+  type IdentityTheme,
+} from "../lib/identity-palette";
 export {
   runViewTransition,
   viewTransitionName,

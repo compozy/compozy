@@ -1,4 +1,4 @@
-import { Button, Field, FieldDescription, FieldLabel, Input, cn } from "@compozy/ui";
+import { Button, Field, FieldDescription, FieldLabel, Input, PillGroup, cn } from "@compozy/ui";
 
 import type { WindowManagerLayoutProfilesModel } from "../../hooks/use-window-manager-layout-profiles";
 import type {
@@ -59,13 +59,12 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
 
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="flex flex-col overflow-hidden rounded-lg bg-card shadow-card"
       data-testid="layout-profile-editor"
     >
       <div className="grid gap-3.5 p-4 sm:grid-cols-2">
         <ProfileField htmlFor="layout-profile-name" label="Name">
           <Input
-            className="h-8"
             id="layout-profile-name"
             placeholder="Two-up review"
             value={editor.displayName}
@@ -82,7 +81,7 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
           label="Resource ID"
         >
           <Input
-            className="h-8 font-mono"
+            className="font-mono"
             id="layout-profile-id"
             placeholder="two-up-review"
             value={editor.id}
@@ -90,34 +89,37 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
           />
         </ProfileField>
         <ProfileField hint={scopeHint} label="Who can use it">
-          <Segmented
-            ariaLabel="Who can use it"
-            options={SCOPES}
+          <PillGroup
+            aria-label="Who can use it"
+            items={SCOPES}
             value={editor.scope}
             onChange={editor.setScope}
+            size="sm"
           />
         </ProfileField>
         <ProfileField
           hint="Stored on the layout. Nothing selects a layout by shape yet."
           label="Screen shape"
         >
-          <Segmented
-            ariaLabel="Screen shape"
-            options={ASPECTS}
+          <PillGroup
+            aria-label="Screen shape"
+            items={ASPECTS}
             value={editor.aspect}
             onChange={editor.setAspect}
+            size="sm"
           />
         </ProfileField>
         <ProfileField className="sm:col-span-2" label="When there is not enough room">
-          <Segmented
-            ariaLabel="When there is not enough room"
-            options={OVERFLOWS}
+          <PillGroup
+            aria-label="When there is not enough room"
+            items={OVERFLOWS}
             value={editor.overflow}
             onChange={editor.setOverflow}
+            size="sm"
           />
         </ProfileField>
       </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-line-soft bg-canvas-tint px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-4 py-2.5">
         <span className="flex-1 text-form-hint text-subtle">
           {slots} window{slots === 1 ? "" : "s"} captured from the layout in the editor.
         </span>
@@ -166,43 +168,5 @@ function ProfileField({
       {children}
       {hint ? <FieldDescription className="text-form-hint">{hint}</FieldDescription> : null}
     </Field>
-  );
-}
-
-function Segmented<TValue extends string>({
-  ariaLabel,
-  options,
-  value,
-  onChange,
-}: {
-  ariaLabel: string;
-  options: ReadonlyArray<{ value: TValue; label: string }>;
-  value: TValue;
-  onChange: (next: TValue) => void;
-}) {
-  return (
-    <div
-      aria-label={ariaLabel}
-      className="inline-flex w-fit gap-0.5 rounded-md border border-line-soft bg-canvas-tint p-0.5"
-      role="radiogroup"
-    >
-      {options.map(option => (
-        <button
-          aria-checked={option.value === value}
-          className={cn(
-            "inline-flex h-6.5 items-center rounded-sm px-2.5 text-form-label font-medium text-muted",
-            "transition-colors duration-base ease-out hover:text-fg",
-            "focus-visible:outline-none focus-visible:shadow-focus-ring",
-            option.value === value && "bg-elevated text-fg-strong shadow-highlight"
-          )}
-          key={option.value}
-          role="radio"
-          type="button"
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
   );
 }

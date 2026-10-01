@@ -8,13 +8,18 @@ import { pickLastCreatedSession } from "../lib/last-created-session";
 export interface SessionLaunchCatalog {
   sessions: SessionPayload[];
   ready: boolean;
+  /** The scoped workspace, or null in Global (rows then carry their own workspace). */
   workspaceId: string | null;
   resolveLatest: () => Promise<SessionPayload | null>;
 }
 
-/** The newest unarchived workspace session, independent of activity ordering. */
+/**
+ * The newest unarchived session for the dock's Sessions launcher, independent
+ * of activity ordering. Workspace scope reads that workspace; Global has no
+ * runtime workspace, so it reads every workspace instead of never resolving.
+ */
 export function useSessionLaunchCatalog(): SessionLaunchCatalog {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const workspaceId = runtimeWorkspaceId?.trim() || null;
   const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
@@ -25,11 +30,11 @@ export function useSessionLaunchCatalog(): SessionLaunchCatalog {
       archive: "exclude",
       ...params,
     }),
-    enabled: workspaceId !== null,
+    enabled: !pending,
   });
   return {
     sessions: query.data?.pages[0]?.sessions ?? [],
-    ready: workspaceId !== null && !query.isLoading,
+    ready: !pending && !query.isLoading,
     workspaceId,
     resolveLatest: async () => {
       const result = await query.refetch({ throwOnError: true, cancelRefetch: false });

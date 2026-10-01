@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -47,7 +48,7 @@ func TestCommandTransaction(t *testing.T) {
 		var generated atomic.Int64
 		environment := newTestEnvironmentWithOptions(
 			t,
-			DefaultConfig(),
+			floatingConfig(),
 			[]WorkspaceID{"workspace-a"},
 			WithIDGenerator(func(kind string) (string, error) {
 				return fmt.Sprintf("%s-durable-%d", kind, generated.Add(1)), nil
@@ -872,6 +873,36 @@ func TestWindowTabClientActivationV3(t *testing.T) {
 			case clientB:
 				if view.StackActive[location.id()] != "w2" {
 					t.Fatalf("peer client view = %+v", view)
+				}
+			}
+		}
+	})
+
+	t.Run("Should keep a peer's visible window active when a tab open creates the frame", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientA, clientB := ClientID("client-a"), ClientID("client-b")
+		registerTestClient(t, environment.manager, "workspace-a", clientA)
+		registerTestClient(t, environment.manager, "workspace-a", clientB)
+		openTestWindow(t, environment.manager, "workspace-a", &clientA, "w1", "desktop-default")
+		opened := openTestWindow(t, environment.manager, "workspace-a", &clientA, "w2", "desktop-default")
+		location := stackLocationForWindow(t, opened.Snapshot, "w2")
+		if !slices.Equal(location.members(), []WindowID{"w1", "w2"}) {
+			t.Fatalf("tab open members = %v, want w2 joining the w1 frame", location.members())
+		}
+		views, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients(after tab open) error = %v", err)
+		}
+		for _, view := range views {
+			switch view.ClientID {
+			case clientA:
+				if view.StackActive[location.id()] != "w2" || valueOrZero(view.FocusedWindowID) != "w2" {
+					t.Fatalf("issuing client view = %+v", view)
+				}
+			case clientB:
+				if view.StackActive[location.id()] != "w1" || valueOrZero(view.FocusedWindowID) != "w1" {
+					t.Fatalf("peer client view = %+v, want w1 still showing", view)
 				}
 			}
 		}

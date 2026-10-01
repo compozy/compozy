@@ -3,7 +3,6 @@ import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
 
 import {
   Button,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,32 +10,24 @@ import {
   DropdownMenuTrigger,
   Pill,
   Spinner,
+  StateGlyph,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import {
-  HEAD_STATUS_TONE_TEXT,
-  taskHandoffActionCopy,
-  taskStatusLabel,
-  taskStatusSignal,
-} from "../lib/task-formatters";
+import { taskHandoffActionCopy, taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskCommandState, TaskPrimaryCommand } from "../lib/task-command-state";
 import type { TaskStatus } from "../types";
 
-/** Single source of task status in the window head (w2-status contract). */
+/**
+ * Single source of task status in the window head (w2-status contract): a plain
+ * indicator (glyph + label), never a button-like pill.
+ */
 export function TaskPageStatus({ status }: { status?: TaskStatus | null }) {
-  const signal = taskStatusSignal(status);
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-badge font-semibold",
-        HEAD_STATUS_TONE_TEXT[signal.tone]
-      )}
-      data-testid="tasks-detail-status"
-    >
-      <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+    <Pill data-state={taskStateGlyph(status)} data-testid="tasks-detail-status" form="plain">
+      <StateGlyph state={taskStateGlyph(status)} />
       {taskStatusLabel(status)}
-    </span>
+    </Pill>
   );
 }
 
@@ -123,7 +114,8 @@ function runPrimaryCommand(primary: TaskPrimaryCommand, handlers: TaskPageAction
 }
 
 /**
- * The one accent target in the head, driven by the task command state machine.
+ * The head's action row, driven by the task command state machine. Window-head
+ * actions are `secondary` at `sm`; the primary command leads by position (last).
  *
  * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §6
  */
@@ -138,25 +130,23 @@ export function TaskPageActions({ command, handlers, pending = {} }: TaskPageAct
     <div className="flex items-center gap-1.5">
       {secondary.edit ? (
         <Button
-          className="min-h-6"
           data-testid="tasks-detail-edit-button"
           disabled={anyPending}
           onClick={handlers.onEdit}
           size="sm"
           type="button"
-          variant="neutral"
+          variant="secondary"
         >
           Edit
         </Button>
       ) : null}
       {secondary.pause ? (
         <Button
-          className="min-h-6"
           disabled={anyPending}
           onClick={handlers.onPause}
           size="sm"
           type="button"
-          variant="neutral"
+          variant="secondary"
         >
           Pause
         </Button>
@@ -164,15 +154,16 @@ export function TaskPageActions({ command, handlers, pending = {} }: TaskPageAct
       {secondary.reject ? (
         <Button
           aria-busy={pending.reject || undefined}
-          className="min-h-6"
           data-testid="tasks-detail-reject-button"
           disabled={anyPending}
           onClick={handlers.onReject}
           size="sm"
           type="button"
-          variant="neutral"
+          variant="secondary"
         >
-          {pending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
+          {pending.reject ? (
+            <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+          ) : null}
           {pending.reject ? "Rejecting…" : "Reject"}
         </Button>
       ) : null}
@@ -206,23 +197,27 @@ function TaskPrimaryActionButton({
   return (
     <Button
       aria-busy={pending || undefined}
-      className="min-h-6"
       data-testid={`tasks-detail-primary-${primary.kind}`}
       disabled={disabled}
       onClick={onClick}
       size="sm"
       title={primaryActionTitle(primary)}
       type="button"
+      variant="secondary"
     >
-      {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+      {pending ? (
+        <Spinner aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+      ) : null}
       {!pending && primary.kind === "recover" ? (
-        <LifeBuoy aria-hidden="true" className="size-3" />
+        <LifeBuoy aria-hidden="true" data-icon="inline-start" />
       ) : null}
       {!pending && primary.kind === "retry" ? (
-        <RotateCw aria-hidden="true" className="size-3" />
+        <RotateCw aria-hidden="true" data-icon="inline-start" />
       ) : null}
       {label}
-      {primary.kind === "open_run" ? <ArrowUpRight aria-hidden="true" className="size-3" /> : null}
+      {primary.kind === "open_run" ? (
+        <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
+      ) : null}
     </Button>
   );
 }
@@ -266,9 +261,9 @@ export function TaskPageOverflow({
       <DropdownMenuTrigger
         aria-label="More actions"
         data-testid="tasks-detail-overflow"
-        render={<Button className="size-6" type="button" variant="ghost" size="icon-sm" />}
+        render={<Button size="icon-sm" type="button" variant="quiet" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="tasks-detail-overflow-menu">
         {overflow.edit ? (
@@ -367,7 +362,7 @@ function TaskOverflowPendingItem({
       disabled={pending}
       onClick={onClick}
     >
-      {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+      {pending ? <Spinner aria-hidden="true" /> : null}
       {pending ? pendingLabel : label}
     </DropdownMenuItem>
   );

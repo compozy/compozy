@@ -6,17 +6,18 @@ import { cn } from "@/lib/utils";
 import { OsTrafficLights, type OsTrafficLightAction } from "./os-traffic-lights";
 
 /**
- * Outer shell chrome for one window frame (solo window or tab group): border,
- * radius, and (for floating frames) the cast window shadow are the sanctioned
- * shell carve-out. Tiled frames keep radius and border without a cast that
- * cannot fit the layout gutters. Everything inside stays flat. Presentational
- * only — drag, z-order, and focus come from the window manager.
+ * Outer shell chrome for one window frame (solo window or tab group). Tiled
+ * frames are flat surface boxes: the seams between them are the only divider.
+ * Floating frames lift off the desk with a `line` hairline and the elevated
+ * shadow. Focus is carried by the head (blurred windows dim their identity and
+ * trail), never by the frame edge. Presentational only — drag, z-order, and
+ * focus come from the window manager.
  */
 export interface OsWindowChromeProps extends React.ComponentProps<"section"> {
   focused?: boolean;
-  /** Compact (<960px): full-bleed stack surface — no border/radius/shadow. */
+  /** Compact (<960px): full-bleed stack surface — no border/shadow. */
   presentation?: "floating" | "compact";
-  /** Tiled panes sit in the work-area gutters; floating frames lift off the wallpaper. */
+  /** Tiled panes are flush with their seams; floating frames lift off the desk. */
   kind?: "tiled" | "floating";
 }
 
@@ -36,23 +37,16 @@ export function OsWindowChrome({
   onPointerDownCapture,
   ...props
 }: OsWindowChromeProps) {
-  const compact = presentation === "compact";
-  const tiled = kind === "tiled";
+  const floating = presentation !== "compact" && kind === "floating";
   return (
     <section
       data-slot="os-window-frame"
       data-focused={focused ? "" : undefined}
-      data-presentation={compact ? "compact" : undefined}
+      data-presentation={presentation === "compact" ? "compact" : undefined}
       data-kind={kind}
       className={cn(
         "flex min-h-0 flex-col overflow-hidden bg-canvas",
-        compact
-          ? "rounded-none border-0 shadow-none"
-          : [
-              "rounded-window border",
-              focused ? "border-line-focus" : "border-line-strong",
-              tiled ? "shadow-none" : focused ? "shadow-window" : "shadow-window-unfocused",
-            ],
+        floating && "border border-line shadow-elevated",
         className
       )}
       onPointerDownCapture={event => {
@@ -72,7 +66,7 @@ function OsWindowToolbar() {
   return (
     <div
       data-slot="os-window-toolbar"
-      className="no-scrollbar flex h-[38px] shrink-0 items-center gap-2.5 overflow-x-auto border-b border-line bg-canvas px-3 py-0.5 [&_[data-slot=listing-toolbar]]:w-full [&_[data-slot=listing-toolbar]]:flex-nowrap"
+      className="no-scrollbar flex h-window-toolbar shrink-0 items-center gap-2.5 overflow-x-auto border-b border-line bg-canvas px-3 [&_[data-slot=listing-toolbar]]:w-full [&_[data-slot=listing-toolbar]]:flex-nowrap"
     >
       {slot.toolbar}
     </div>
@@ -115,7 +109,7 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
   title: React.ReactNode;
   glyph?: React.ReactNode;
   focused?: boolean;
-  /** Deck frames omit head controls — the deck row owns the traffic lights. */
+  /** Deck frames omit head controls — the deck row owns the window controls. */
   controls?: "head" | "deck";
   onTrafficLight?: (action: OsTrafficLightAction) => void;
   zoomMenu?: (button: React.ReactNode) => React.ReactNode;
@@ -160,7 +154,7 @@ export function OsWindowSurface({
         <Topbar
           data-slot="os-window-head"
           data-scrolled={scrolled ? "" : undefined}
-          leading={
+          controls={
             controls === "head" ? (
               <OsTrafficLights
                 onSelect={onTrafficLight}
@@ -173,9 +167,9 @@ export function OsWindowSurface({
           title={title}
           glyph={glyph}
           className={cn(
-            scrolled && "border-line-strong shadow-window-head-scrolled",
+            scrolled && "border-line-strong",
             !focused &&
-              "[&_[data-slot=topbar-title]]:text-subtle [&_[data-slot=topbar-identity]]:opacity-60 [&_[data-slot=topbar-trailing]]:opacity-60",
+              "[&_[data-slot=topbar-identity]]:opacity-55 [&_[data-slot=topbar-trailing]]:opacity-55",
             headClassName
           )}
         />

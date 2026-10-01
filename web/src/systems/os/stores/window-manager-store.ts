@@ -78,7 +78,7 @@ function bindingScopedState(
 ): Omit<WindowManagerStoreState, "workArea"> {
   return {
     binding,
-    connectionStatus: "disconnected",
+    connectionStatus: "idle",
     activeOverlay: null,
     overviewSegmentRequest: null,
     transitionIntent: null,

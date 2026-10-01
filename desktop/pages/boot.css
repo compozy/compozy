@@ -16,7 +16,7 @@ body {
   letter-spacing: -0.006em;
 }
 ::selection {
-  background: rgb(232 87 42 / 35%);
+  background: var(--selection);
   color: var(--strong);
 }
 
@@ -122,14 +122,18 @@ body {
 .boot__control:hover:not(:disabled) {
   background: var(--surface-hover);
 }
+.boot__control:not(.boot__control--primary):hover:not(:disabled, :focus-visible) {
+  box-shadow: var(--surface-hover-shadow);
+}
 .boot__control:focus-visible,
 .boot__technical summary:focus-visible {
-  outline: 2px solid rgb(255 255 255 / 50%);
-  outline-offset: 2px;
+  /* The product focus ring; the transparent outline stays visible in forced-colors mode. */
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 .boot__control--primary {
   background: var(--action);
-  color: #17110f;
+  color: var(--action-ink);
 }
 .boot__control--primary:hover:not(:disabled) {
   background: var(--action-hover);

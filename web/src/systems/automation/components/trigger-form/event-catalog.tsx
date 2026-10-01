@@ -55,7 +55,7 @@ export function EventCatalog({
       </div>
 
       {groups.length === 0 ? (
-        <div className="rounded-md border border-dashed border-line-soft bg-canvas-tint px-3 py-2.5 text-form-label text-subtle">
+        <div className="rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-label text-subtle">
           No events match “{query}”.
         </div>
       ) : (

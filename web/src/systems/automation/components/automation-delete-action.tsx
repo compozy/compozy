@@ -92,7 +92,7 @@ export function AutomationDeleteAction({
             />
           }
         >
-          <Trash2 className="size-3" />
+          <Trash2 />
           Delete {noun}
         </DialogTrigger>
       )}

@@ -1,7 +1,7 @@
 import { AlertCircle, ChevronRight, History } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { cn, Empty, Pill, Section, SkeletonRows } from "@compozy/ui";
+import { cn, Empty, Pill, Section, SkeletonRows, StateGlyph } from "@compozy/ui";
 
 import {
   automationRunSkipReason,
@@ -9,7 +9,7 @@ import {
   automationSkipReasonLabel,
   automationSkipReasonTone,
   automationRunStatusLabel,
-  automationStatusTone,
+  automationRunStateGlyph,
   formatDateTime,
   formatRunDuration,
 } from "../lib/automation-formatters";
@@ -41,15 +41,12 @@ function RunRowChevron() {
   return (
     <ChevronRight
       aria-hidden="true"
-      className="ml-2 mt-1 size-3 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
-      strokeWidth={1.75}
+      className="ml-2 mt-0.5 size-3.5 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
     />
   );
 }
 
 function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
-  const tone = automationStatusTone(run.status);
-  const pulse = run.status === "running";
   const startedAt = formatDateTime(run.started_at);
   const duration = formatRunDuration(run);
   const statusLabel = automationRunStatusLabel(run.status);
@@ -67,10 +64,13 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
     <>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={tone}>
-            <Pill.Dot pulse={pulse} tone={tone} />
+          <span
+            className="inline-flex items-center gap-1.5 text-small-body text-fg-2"
+            data-state={automationRunStateGlyph(run.status)}
+          >
+            <StateGlyph state={automationRunStateGlyph(run.status)} />
             {statusLabel}
-          </Pill>
+          </span>
           {skipReason ? (
             <Pill
               data-testid="automation-run-skip-reason"
@@ -84,13 +84,13 @@ function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
           ) : null}
         </div>
         {skipReason ? (
-          <p className="text-xs leading-relaxed text-muted">
+          <p className="text-meta leading-relaxed text-muted">
             {automationSkipReasonDetail(skipReason)}
           </p>
         ) : null}
-        {run.error ? <p className="text-xs leading-relaxed text-danger">{run.error}</p> : null}
+        {run.error ? <p className="text-meta leading-relaxed text-danger">{run.error}</p> : null}
         {run.delivery_error ? (
-          <p className="text-xs leading-relaxed text-danger">{`Delivery: ${run.delivery_error}`}</p>
+          <p className="text-meta leading-relaxed text-danger">{`Delivery: ${run.delivery_error}`}</p>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 text-right">
@@ -156,7 +156,7 @@ export function AutomationRunHistory({
     <Section data-testid="automation-run-history" label={title} count={runs.length}>
       {isLoading ? (
         <SkeletonRows
-          className="gap-4 rounded-lg bg-canvas-soft px-4 py-4"
+          className="gap-4 rounded-lg bg-card px-4 py-4 shadow-card"
           count={3}
           data-testid="automation-run-history-loading"
         />
@@ -175,7 +175,7 @@ export function AutomationRunHistory({
         </div>
       ) : (
         <ul
-          className="overflow-hidden rounded-lg bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-testid="automation-run-history-rows"
         >
           {runs.map(run => (

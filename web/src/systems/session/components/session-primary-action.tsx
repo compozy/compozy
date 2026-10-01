@@ -57,7 +57,7 @@ export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-11 focus-visible:shadow-focus-inset"
+            className="focus-visible:shadow-focus-inset"
             onClick={action.onClick}
             disabled={action.disabled}
             data-testid={action.testId}

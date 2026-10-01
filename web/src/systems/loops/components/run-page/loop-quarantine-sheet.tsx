@@ -166,7 +166,7 @@ function QuarantineFacts({ entry }: { entry: LoopQuarantineEntry }) {
         ) : null}
       </div>
       {entry.inputRef ? (
-        <div className="mt-2 rounded bg-canvas-soft px-3 py-2.5">
+        <div className="mt-2 rounded bg-sunken px-3 py-2.5">
           <Eyebrow className="text-muted">Input</Eyebrow>
           <p className="mt-1 truncate font-mono text-mono-id text-fg">{entry.inputRef}</p>
         </div>
@@ -223,9 +223,8 @@ function QuarantineSheetFooter({
             <Button
               data-testid="loop-quarantine-cancel"
               onClick={() => onVerb("cancel", node)}
-              size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <CancelIcon className="size-3.5" />
               {LOOP_NODE_VERB_PRESENTATION.cancel.label}
@@ -234,7 +233,6 @@ function QuarantineSheetFooter({
               data-testid="loop-quarantine-requeue"
               disabled={isRequeuePending}
               onClick={() => onVerb("requeue", node)}
-              size="sm"
               type="button"
               variant="primary"
             >

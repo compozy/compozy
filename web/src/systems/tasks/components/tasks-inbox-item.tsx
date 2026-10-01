@@ -8,15 +8,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Pill,
+  type StateGlyphState,
   Time,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import type { InboxGroupId } from "../lib/inbox-grouping";
-import { taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
+import { inboxBlockingReasonLabel, type InboxGroupId } from "../lib/inbox-grouping";
+import { taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskInboxItem } from "../types";
 import { TasksInboxRow } from "./tasks-inbox-row";
 
@@ -63,6 +63,7 @@ export function TasksInboxItem({
   const isArchived = lane === "archived" || triage.archived;
   const failedError = run?.error ?? null;
   const ownerLabel = task.owner?.ref ?? "Unassigned";
+  const blockingReason = inboxBlockingReasonLabel(item.blocking_reason);
 
   const handleSelect = onOpen ? () => onOpen(taskId) : undefined;
 
@@ -77,16 +78,16 @@ export function TasksInboxItem({
       >
         {task.title}
       </h3>
-      <Pill size="xs" tone={taskStatusTone(task.status)}>
+      <span className="shrink-0 text-small-body text-muted" data-slot="tasks-inbox-row-status">
         {taskStatusLabel(task.status)}
-      </Pill>
+      </span>
     </>
   );
 
   const detail = (
     <>
-      {item.blocking_reason ? (
-        <p data-testid={`tasks-inbox-item-blocking-${taskId}`}>{item.blocking_reason}</p>
+      {blockingReason ? (
+        <p data-testid={`tasks-inbox-item-blocking-${taskId}`}>{blockingReason}</p>
       ) : null}
 
       {failedError ? (
@@ -94,7 +95,7 @@ export function TasksInboxItem({
           className="flex items-start gap-1 text-danger"
           data-testid={`tasks-inbox-item-error-${taskId}`}
         >
-          <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           <span className="min-w-0 truncate">{failedError}</span>
         </p>
       ) : null}
@@ -138,6 +139,7 @@ export function TasksInboxItem({
       data-lane={lane}
       detail={detail}
       group={group}
+      state={inboxItemState(item)}
       onSelect={handleSelect}
       taskId={taskId}
       top={top}
@@ -263,7 +265,7 @@ function InboxApprovalActions({
           onClick={() => onApprove(taskId)}
           pending={pendingApproveIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-approve-${taskId}`}
-          variant="primary"
+          variant="secondary"
         />
       ) : null}
     </>
@@ -296,7 +298,7 @@ function InboxItemOverflowMenu({
         data-testid={`tasks-inbox-item-more-${taskId}`}
         render={<Button size="icon-xs" type="button" variant="ghost" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {onMarkRead ? (
@@ -305,7 +307,7 @@ function InboxItemOverflowMenu({
             disabled={pendingMarkReadIds?.has(taskId) ?? false}
             onClick={() => onMarkRead(taskId)}
           >
-            <Eye aria-hidden="true" className="size-3" />
+            <Eye aria-hidden="true" />
             Mark read
           </DropdownMenuItem>
         ) : null}
@@ -315,7 +317,7 @@ function InboxItemOverflowMenu({
             disabled={pendingDismissIds?.has(taskId) ?? false}
             onClick={() => onDismiss(taskId)}
           >
-            <ArchiveX aria-hidden="true" className="size-3" />
+            <ArchiveX aria-hidden="true" />
             Dismiss
           </DropdownMenuItem>
         ) : null}
@@ -325,7 +327,7 @@ function InboxItemOverflowMenu({
             disabled={pendingArchiveIds?.has(taskId) ?? false}
             onClick={() => onArchive(taskId)}
           >
-            <Archive aria-hidden="true" className="size-3" />
+            <Archive aria-hidden="true" />
             Archive
           </DropdownMenuItem>
         ) : null}
@@ -341,16 +343,17 @@ interface ActionButtonProps {
   pending: boolean;
   testId: string;
   /**
-   * `primary` -- solid accent CTA (max one per card).
+   * `secondary` -- the row's filled resolving action. A repeated row action is
+   * never the inverted primary: a view carries at most one of those.
    * `ghost` -- neutral secondary action.
    * `destructive-ghost` -- ghost with `text-danger`. Solid-filled destructive
    * buttons only belong inside a confirmation dialog, not inline on a row.
    */
-  variant: "primary" | "ghost" | "destructive-ghost";
+  variant: "secondary" | "ghost" | "destructive-ghost";
 }
 
 function ActionButton({ label, icon, onClick, pending, testId, variant }: ActionButtonProps) {
-  const buttonVariant = variant === "primary" ? "default" : "ghost";
+  const buttonVariant = variant === "secondary" ? "secondary" : "ghost";
   return (
     <Button
       aria-busy={pending}
@@ -368,4 +371,14 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       {label}
     </Button>
   );
+}
+
+/**
+ * The inbox row's leading state: a failed run reads as failed and an approval
+ * waits on a person; everything else follows the task status.
+ */
+function inboxItemState(item: TaskInboxItem): StateGlyphState {
+  if (item.lane === "failed_runs") return "failed";
+  if (item.lane === "approvals") return "attention";
+  return taskStateGlyph(item.task.status);
 }

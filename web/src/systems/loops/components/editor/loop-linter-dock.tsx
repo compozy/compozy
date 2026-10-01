@@ -37,7 +37,7 @@ export function LoopLinterDock({
 
   return (
     <div
-      className="flex max-h-48 flex-none flex-col border-t border-line bg-canvas-soft"
+      className="flex max-h-48 flex-none flex-col border-t border-line bg-sunken"
       data-testid="loop-linter-dock"
     >
       <button
@@ -167,7 +167,7 @@ function IssueRow({
       {issue.node_id ? (
         <Button
           type="button"
-          variant="outline"
+          variant="quiet"
           size="xs"
           onClick={() => onReveal(issue.node_id!)}
           className="shrink-0"

@@ -173,6 +173,7 @@ function TasksListStoryRoute({
         recordsFilter={recordsFilter}
         searchQuery={searchQuery}
         sortBy={sortBy}
+        statusCounts={props.statusCounts ?? countTasksByStatus(tasks)}
         statusFilter={statusFilter}
       />
     ),

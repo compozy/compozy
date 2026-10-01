@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -26,6 +26,7 @@ const { TasksListToolbar } = await import("../tasks-list-toolbar");
 type TaskListItem = import("../../types").TaskListItem;
 const { countTasksByStatus } = await import("../../lib/task-formatters");
 type TaskRecordsFilter = import("../../types").TaskRecordsFilter;
+type TaskStatus = import("../../types").TaskStatus;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -110,23 +111,27 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("task-group-done")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-failed")).toBeInTheDocument();
 
-    expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-tone", "accent");
-    expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-variant", "ring");
-    expect(screen.getByTestId("task-group-dot-blocked")).toHaveAttribute("data-tone", "danger");
-    expect(screen.getByTestId("task-group-dot-needs_attention")).toHaveAttribute(
-      "data-tone",
-      "warning"
-    );
-    expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-tone", "faint");
-    expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-variant", "ring");
-    expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-tone", "faint");
-    expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-variant", "solid");
-    expect(screen.getByTestId("task-group-dot-failed")).toHaveAttribute("data-tone", "danger");
+    const groupGlyph = (id: string) => screen.getByTestId(`task-group-dot-${id}`);
+    expect(groupGlyph("active")).toHaveAttribute("data-state", "running");
+    // Both escalation buckets wait on a person; their labels keep them distinct.
+    expect(groupGlyph("blocked")).toHaveAttribute("data-state", "attention");
+    expect(groupGlyph("needs_attention")).toHaveAttribute("data-state", "attention");
+    expect(groupGlyph("queued")).toHaveAttribute("data-state", "queued");
+    expect(groupGlyph("done")).toHaveAttribute("data-state", "done");
+    expect(groupGlyph("failed")).toHaveAttribute("data-state", "failed");
 
-    const rowDots = container.querySelectorAll(
-      '[data-slot="tasks-list-row"] [data-slot="status-dot"]'
+    // Every row carries its own exact status beside the glyph.
+    const rowStatuses = [...container.querySelectorAll('[data-slot="tasks-list-row-status"]')].map(
+      node => node.textContent
     );
-    expect(rowDots).toHaveLength(0);
+    expect(rowStatuses).toEqual([
+      "In progress",
+      "Blocked",
+      "Needs attention",
+      "Ready",
+      "Completed",
+      "Failed",
+    ]);
   });
 
   it("Should link each list row to /tasks/$id", () => {
@@ -182,6 +187,7 @@ describe("TasksListSurface", () => {
           recordsFilter="work"
           searchQuery="api"
           sortBy="recent"
+          statusCounts={countTasksByStatus([])}
           statusFilter={null}
         />
       </UIProvider>
@@ -197,6 +203,157 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("tasks-records-filter-work")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("tasks-records-filter-loop"));
     expect(handleRecordsFilterChange).toHaveBeenCalledWith("loop");
+  });
+
+  it("Should write the quick status pills through the single status filter", () => {
+    const handleStatusChange = vi.fn();
+    const statusCounts = countTasksByStatus([]);
+    statusCounts.in_progress = 1;
+    statusCounts.needs_attention = 2;
+    statusCounts.ready = 3;
+    const toolbar = (statusFilter: TaskStatus | null) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={handleStatusChange}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={statusCounts}
+          statusFilter={statusFilter}
+        />
+      </UIProvider>
+    );
+    const { rerender } = render(toolbar(null));
+
+    expect(screen.getByTestId("tasks-quick-status-all")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("tasks-quick-status-all")).toHaveTextContent("All6");
+    expect(screen.getByTestId("tasks-quick-status-needs_attention")).toHaveTextContent(
+      "Needs attention2"
+    );
+    fireEvent.click(screen.getByTestId("tasks-quick-status-in_progress"));
+    expect(handleStatusChange).toHaveBeenCalledWith("in_progress");
+
+    // Facets are counted after the status filter, so with one selected only
+    // that pill keeps a (still exact) count and All returns to the unfiltered list.
+    rerender(toolbar("in_progress"));
+    expect(screen.getByTestId("tasks-quick-status-in_progress")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByTestId("tasks-quick-status-all")).toHaveTextContent(/^All$/);
+    fireEvent.click(screen.getByTestId("tasks-quick-status-all"));
+    expect(handleStatusChange).toHaveBeenLastCalledWith(null);
+
+    // A status picked from the Filter menu leaves every quick pill unpressed.
+    rerender(toolbar("failed"));
+    for (const id of ["all", "in_progress", "needs_attention"]) {
+      expect(screen.getByTestId(`tasks-quick-status-${id}`)).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+    }
+  });
+
+  // One visible representation per status: the pill that expresses it, or the
+  // Filter chip when no pill can (another status, or a strip too narrow for pills).
+  it("Should show the active status once — as a pill or as a Filter chip, never both", () => {
+    const toolbar = (statusFilter: TaskStatus | null) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={countTasksByStatus([])}
+          statusFilter={statusFilter}
+        />
+      </UIProvider>
+    );
+    const statusChip = () =>
+      within(screen.getByTestId("tasks-list-filters")).queryByText("In progress");
+
+    const { rerender, unmount } = render(toolbar("in_progress"));
+    expect(screen.getByTestId("tasks-quick-status-in_progress")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(statusChip()).toBeNull();
+
+    rerender(toolbar("failed"));
+    expect(within(screen.getByTestId("tasks-list-filters")).getByText("Failed")).toBeVisible();
+    unmount();
+
+    // A strip too narrow for the pills hands the status back to the Filter chip.
+    const measure = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(DOMRect.fromRect({ width: 400, height: 38 }));
+    try {
+      render(toolbar("in_progress"));
+      expect(screen.queryByTestId("tasks-quick-status")).toBeNull();
+      expect(statusChip()).toBeVisible();
+    } finally {
+      measure.mockRestore();
+    }
+  });
+
+  it("Should fold search to a toggle only when the strip is too narrow for a usable field", () => {
+    const toolbar = (searchQuery: string) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery={searchQuery}
+          sortBy="recent"
+          statusCounts={countTasksByStatus([])}
+          statusFilter={null}
+        />
+      </UIProvider>
+    );
+    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    try {
+      // Narrow enough for the icon strip, still wide enough for the field.
+      measure.mockReturnValue(DOMRect.fromRect({ width: 400, height: 38 }));
+      const wide = render(toolbar(""));
+      expect(screen.getByTestId("tasks-list-search-input")).toBeVisible();
+      wide.unmount();
+
+      // Below the field's usable floor: a named toggle, never a clipped field.
+      measure.mockReturnValue(DOMRect.fromRect({ width: 300, height: 38 }));
+      const narrow = render(toolbar(""));
+      expect(screen.queryByTestId("tasks-list-search-input")).toBeNull();
+      expect(screen.getByRole("button", { name: "Search tasks" })).toBeVisible();
+      narrow.unmount();
+
+      // A live query keeps its field on screen even in the narrow strip.
+      render(toolbar("deploy"));
+      expect(screen.getByTestId("tasks-list-search-input")).toHaveValue("deploy");
+    } finally {
+      measure.mockRestore();
+    }
   });
 
   it("Should name the profile the list is scoped to, not the create target", () => {

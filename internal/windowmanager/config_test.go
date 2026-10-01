@@ -19,7 +19,7 @@ func TestEffectiveConfig(t *testing.T) {
 	t.Run("Should apply every workspace override without aliasing caller-owned collections", func(t *testing.T) {
 		t.Parallel()
 		defaults := DefaultConfig()
-		newWindowPolicy := NewWindowInsert
+		newWindowPolicy := NewWindowFloating
 		smallViewportPolicy := SmallViewportReject
 		focusPolicy := FocusDirectional
 		focusWrap := true
@@ -51,7 +51,7 @@ func TestEffectiveConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("effectiveConfig() error = %v", err)
 		}
-		if effective.NewWindowPolicy != NewWindowInsert ||
+		if effective.NewWindowPolicy != NewWindowFloating ||
 			effective.SmallViewportPolicy != SmallViewportReject ||
 			effective.FocusPolicy != FocusDirectional || !effective.FocusWrap || !effective.FocusFollowsPointer ||
 			effective.RaiseOnFocus ||
@@ -72,7 +72,7 @@ func TestEffectiveConfig(t *testing.T) {
 		if snap.RepeatRatios[0] != 0.4 || shortcuts["layout.balance"][0] != " Shift + Meta + KeyB " {
 			t.Fatal("effective config aliases caller-owned collections")
 		}
-		if defaults.NewWindowPolicy != NewWindowFloating || defaults.HistoryLimit != 50 {
+		if defaults.NewWindowPolicy != NewWindowTab || defaults.HistoryLimit != 50 {
 			t.Fatalf("defaults were mutated = %+v", defaults)
 		}
 	})

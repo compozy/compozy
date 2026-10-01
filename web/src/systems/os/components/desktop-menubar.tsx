@@ -9,6 +9,7 @@ import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-sel
 import { useDesktop } from "../hooks/use-desktop";
 import { useWindowManagerDiagnostic } from "../hooks/use-window-manager-store";
 import { desktopMenubarScopeModel } from "../lib/desktop-menubar-model";
+import { desktopShellBridge } from "../lib/desktop-shell-bridge";
 import { primaryShortcutModifier, shortcutAriaKeys } from "../lib/window-manager-shortcuts";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
@@ -66,11 +67,8 @@ export interface DesktopMenubarProps {
   removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
-  /**
-   * Profile switcher, supplied by the shell. It owns its own reads, so it is
-   * injected rather than constructed here — the bar stays presentational.
-   */
-  profileSwitcher?: React.ReactNode;
+  /** Desktop pager, supplied by the shell (it owns the desktop switch wiring). */
+  pager?: React.ReactNode;
   /** No project is bound, so there is no layout stream to report on. */
   layoutUnbound?: boolean;
 }
@@ -98,9 +96,9 @@ function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
 }
 
 /**
- * The wired menubar: the CompozyOS system menu, the workspace switcher, the static
- * Session / Go / Window / Help set, the bell aggregator, the palette button, and the
- * settings cog. All actions are runtime-backed — no menu item renders without a
+ * The wired topbar: the CompozyOS system menu (which holds Settings), the workspace
+ * switcher, the static Session / Go / Window / Help set, then the tray — desktop
+ * pager, All desktops, the bell aggregator, and the palette button. All actions are runtime-backed — no menu item renders without a
  * working mechanism, and none is hidden when its predicate fails (SD-007).
  */
 export function DesktopMenubar({
@@ -131,7 +129,7 @@ export function DesktopMenubar({
   onRemoveWorktree,
   removalProfile,
   onRemoveWorktrees,
-  profileSwitcher,
+  pager,
   layoutUnbound = false,
 }: DesktopMenubarProps) {
   const actions = useMenubarActions();
@@ -173,7 +171,9 @@ export function DesktopMenubar({
       }
       notifications={attention.notificationCount}
       onCommandClick={() => onRunCommand("palette.open")}
-      onSettingsClick={() => onRunCommand("settings.general")}
+      onDesktopsClick={() => onOverlayOpenChange("desktops", activeOverlay !== "desktops")}
+      desktopsOpen={activeOverlay === "desktops"}
+      trafficLights={desktopShellBridge()?.platform === "darwin"}
       commandShortcutLabel={paletteOpen?.chords[0]}
       commandKeyShortcuts={paletteKeyShortcuts(paletteOpen?.bindings[0])}
       logoMenu={trigger => (
@@ -233,7 +233,7 @@ export function DesktopMenubar({
           </>
         ) : null
       }
-      profileSwitcher={profileSwitcher}
+      pager={pager}
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

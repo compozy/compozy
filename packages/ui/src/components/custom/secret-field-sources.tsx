@@ -58,17 +58,84 @@ interface SecretFieldSourcesProps {
   createTestId?: string;
 }
 
-/**
- * Store-reference picker for `SecretField`. Values are never read back — the
- * list carries presence only, and a missing reference cannot be selected.
- */
-function SecretFieldSources({
+/** Roving-focus target for an arrow/Home/End key, or `null` when the key is not a move. */
+function nextSourceIndex(key: string, currentIndex: number, count: number): number | null {
+  switch (key) {
+    case "ArrowDown":
+    case "ArrowRight":
+      return (currentIndex + 1) % count;
+    case "ArrowUp":
+    case "ArrowLeft":
+      return (currentIndex - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return null;
+  }
+}
+
+function SecretFieldCreateForm({
+  create,
+  fieldLabel,
+  createTestId,
+}: {
+  create: SecretFieldSourceCreate;
+  fieldLabel: string;
+  createTestId?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Eyebrow className="text-muted">Create inline</Eyebrow>
+      <code className="break-all font-mono text-form-hint text-muted">{create.ref}</code>
+      <Input
+        aria-label={create.valueLabel ?? `New stored value for ${fieldLabel}`}
+        autoComplete="new-password"
+        onChange={event => create.onValueChange(event.target.value)}
+        placeholder="Secret value"
+        type="password"
+        value={create.value}
+      />
+      {create.error ? (
+        <p className="text-small-body text-danger" role="alert">
+          {create.error}
+        </p>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <Button
+          data-testid={createTestId}
+          className={DIALOG_TOUCH_TARGET_CLASS}
+          disabled={create.pending || create.value.trim() === ""}
+          onClick={create.onSubmit}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          {create.pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+          {create.pending ? "Creating…" : "Create secret"}
+        </Button>
+        <Button
+          disabled={create.pending}
+          onClick={() => create.onOpenChange(false)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SecretFieldSourceList({
   binding,
   fieldLabel,
-  testId,
-  createTestId,
-}: SecretFieldSourcesProps) {
-  const { create } = binding;
+}: {
+  binding: SecretFieldBinding;
+  fieldLabel: string;
+}) {
   const selectableSources = binding.sources.filter(source => source.present);
   const rovingRef = selectableSources.some(source => source.ref === binding.selectedRef)
     ? binding.selectedRef
@@ -81,25 +148,8 @@ function SecretFieldSources({
     const currentIndex = selectableSources.findIndex(source => source.ref === sourceRef);
     if (currentIndex === -1) return;
 
-    let nextIndex: number;
-    switch (event.key) {
-      case "ArrowDown":
-      case "ArrowRight":
-        nextIndex = (currentIndex + 1) % selectableSources.length;
-        break;
-      case "ArrowUp":
-      case "ArrowLeft":
-        nextIndex = (currentIndex - 1 + selectableSources.length) % selectableSources.length;
-        break;
-      case "Home":
-        nextIndex = 0;
-        break;
-      case "End":
-        nextIndex = selectableSources.length - 1;
-        break;
-      default:
-        return;
-    }
+    const nextIndex = nextSourceIndex(event.key, currentIndex, selectableSources.length);
+    if (nextIndex === null) return;
 
     const nextSource = selectableSources[nextIndex];
     if (!nextSource) return;
@@ -112,8 +162,95 @@ function SecretFieldSources({
   };
 
   return (
+    <div aria-label={`${fieldLabel} stored references`} className="grid gap-1.5" role="radiogroup">
+      {binding.sources.map(source => (
+        <RadioCard
+          badge={
+            <Pill mono size="xs" tone={source.present ? "success" : "danger"}>
+              {source.present ? "present" : "missing"}
+            </Pill>
+          }
+          className={cn(
+            "gap-0 border border-line bg-card px-2.5 py-2 data-[selected]:border-line-strong data-[selected]:bg-selected",
+            DIALOG_TOUCH_TARGET_CLASS
+          )}
+          disabled={!source.present}
+          key={source.ref}
+          onKeyDown={event => handleSourceKeyDown(event, source.ref)}
+          onSelect={() => binding.onSelectRef(source.ref)}
+          selected={binding.selectedRef === source.ref}
+          tabIndex={source.ref === rovingRef ? 0 : -1}
+          title={
+            <code className="block break-all font-mono text-mono-id font-normal leading-snug tracking-normal text-fg">
+              {source.ref}
+            </code>
+          }
+          titleClassName="overflow-visible whitespace-normal font-normal tracking-normal"
+        />
+      ))}
+    </div>
+  );
+}
+
+function SecretFieldSourcePicker({
+  binding,
+  fieldLabel,
+}: {
+  binding: SecretFieldBinding;
+  fieldLabel: string;
+}) {
+  const { create } = binding;
+  const isEmpty = !binding.loading && !binding.error && binding.sources.length === 0;
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <Eyebrow className="text-muted">Choose existing secret</Eyebrow>
+        {binding.namespaceLabel ? (
+          <Pill className="ml-auto" mono size="xs">
+            {binding.namespaceLabel}
+          </Pill>
+        ) : null}
+      </div>
+      {isEmpty ? (
+        <p className="text-small-body text-muted">
+          {binding.emptyLabel ?? "No stored secrets yet."}
+        </p>
+      ) : null}
+      {binding.sources.length > 0 ? (
+        <SecretFieldSourceList binding={binding} fieldLabel={fieldLabel} />
+      ) : null}
+      <div className="flex items-center gap-2">
+        <p className="mr-auto text-form-hint text-muted">Values stay hidden.</p>
+        {create ? (
+          <Button
+            onClick={() => create.onOpenChange(true)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Plus aria-hidden="true" className="size-3" />
+            {create.openLabel ?? "Create secret"}
+          </Button>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Store-reference picker for `SecretField`. Values are never read back — the
+ * list carries presence only, and a missing reference cannot be selected.
+ */
+function SecretFieldSources({
+  binding,
+  fieldLabel,
+  testId,
+  createTestId,
+}: SecretFieldSourcesProps) {
+  const { create } = binding;
+  return (
     <div
-      className="flex flex-col gap-2.5 rounded-md bg-canvas px-3 py-3"
+      className="flex flex-col gap-2.5 rounded-md bg-sunken px-3 py-3"
       data-slot="secret-field-sources"
       data-testid={testId}
     >
@@ -125,109 +262,13 @@ function SecretFieldSources({
       ) : null}
       {binding.error ? <FieldError>{binding.error}</FieldError> : null}
       {create?.open ? (
-        <div className="flex flex-col gap-2">
-          <Eyebrow className="text-muted">Create inline</Eyebrow>
-          <code className="break-all font-mono text-form-hint text-muted">{create.ref}</code>
-          <Input
-            aria-label={create.valueLabel ?? `New stored value for ${fieldLabel}`}
-            autoComplete="new-password"
-            onChange={event => create.onValueChange(event.target.value)}
-            placeholder="Secret value"
-            type="password"
-            value={create.value}
-          />
-          {create.error ? (
-            <p className="text-small-body text-danger" role="alert">
-              {create.error}
-            </p>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <Button
-              data-testid={createTestId}
-              className={DIALOG_TOUCH_TARGET_CLASS}
-              disabled={create.pending || create.value.trim() === ""}
-              onClick={create.onSubmit}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {create.pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {create.pending ? "Creating…" : "Create secret"}
-            </Button>
-            <Button
-              disabled={create.pending}
-              onClick={() => create.onOpenChange(false)}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
+        <SecretFieldCreateForm
+          create={create}
+          createTestId={createTestId}
+          fieldLabel={fieldLabel}
+        />
       ) : (
-        <>
-          <div className="flex items-center gap-2">
-            <Eyebrow className="text-muted">Choose existing secret</Eyebrow>
-            {binding.namespaceLabel ? (
-              <Pill className="ml-auto" mono size="xs">
-                {binding.namespaceLabel}
-              </Pill>
-            ) : null}
-          </div>
-          {!binding.loading && !binding.error && binding.sources.length === 0 ? (
-            <p className="text-small-body text-muted">
-              {binding.emptyLabel ?? "No stored secrets yet."}
-            </p>
-          ) : null}
-          {binding.sources.length > 0 ? (
-            <div
-              aria-label={`${fieldLabel} stored references`}
-              className="grid gap-1.5"
-              role="radiogroup"
-            >
-              {binding.sources.map(source => (
-                <RadioCard
-                  badge={
-                    <Pill mono size="xs" tone={source.present ? "success" : "danger"}>
-                      {source.present ? "present" : "missing"}
-                    </Pill>
-                  }
-                  className={cn(
-                    "gap-0 border border-line bg-input-fill px-2.5 py-2 data-[selected]:border-line-strong data-[selected]:bg-row-selected",
-                    DIALOG_TOUCH_TARGET_CLASS
-                  )}
-                  disabled={!source.present}
-                  key={source.ref}
-                  onKeyDown={event => handleSourceKeyDown(event, source.ref)}
-                  onSelect={() => binding.onSelectRef(source.ref)}
-                  selected={binding.selectedRef === source.ref}
-                  tabIndex={source.ref === rovingRef ? 0 : -1}
-                  title={
-                    <code className="block break-all font-mono text-mono-id font-normal leading-snug tracking-normal text-fg">
-                      {source.ref}
-                    </code>
-                  }
-                  titleClassName="overflow-visible whitespace-normal font-normal tracking-normal"
-                />
-              ))}
-            </div>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <p className="mr-auto text-form-hint text-muted">Values stay hidden.</p>
-            {create ? (
-              <Button
-                onClick={() => create.onOpenChange(true)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <Plus aria-hidden="true" className="size-3" />
-                {create.openLabel ?? "Create secret"}
-              </Button>
-            ) : null}
-          </div>
-        </>
+        <SecretFieldSourcePicker binding={binding} fieldLabel={fieldLabel} />
       )}
     </div>
   );

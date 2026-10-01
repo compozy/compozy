@@ -14,7 +14,7 @@ const meta: Meta<typeof ListingRow> = {
     docs: {
       description: {
         component:
-          "Canonical main-pane inventory row. Grid: 34px icon well · main · trail. Hover uses `--row-hover`; selected uses `--row-selected` via `data-selected`. The link region spans icon + main; trail actions stay siblings.",
+          "Canonical main-pane inventory row. Grid: 34px icon well · main · trail. Hover steps to `--surface-2`; selected uses `--selected` via `data-selected`. The link region spans icon + main; trail actions stay siblings.",
       },
     },
   },

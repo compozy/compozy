@@ -66,7 +66,7 @@ export const WithEditor: Story = {
     <PropertyRow
       editor={
         <button
-          className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover"
+          className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2"
           type="button"
         >
           High

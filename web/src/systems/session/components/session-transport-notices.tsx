@@ -17,19 +17,16 @@ export function SessionTransportFailureNotice() {
   if (transport.phase !== "failed" || transport.failure === null) return null;
   const lostAt = transport.lastLiveAt === null ? "" : formatMessageTimestamp(transport.lastLiveAt);
   return (
-    <Marker
-      role="alert"
-      data-testid="session-transport-failure"
-      tone="danger"
-      icon={<WifiOff strokeWidth={1.8} />}
-    >
+    <Marker role="alert" data-testid="session-transport-failure" tone="danger" icon={<WifiOff />}>
       <b>{lostAt ? `Live updates stopped at ${lostAt}` : "Live updates stopped"}</b> — couldn&apos;t
       reconnect after {transport.failure.attempts} tries. What you see is saved up to then.{" "}
       <Button
         type="button"
         variant="link"
         size="xs"
-        className="h-auto px-0 text-muted underline underline-offset-2 hover:text-fg-strong"
+        // Inline in the sentence: no pill geometry, and the underline is the
+        // non-color cue against the notice's own muted ink.
+        className="h-auto px-0 underline underline-offset-2"
         onClick={transport.retry}
         data-testid="session-transport-failure-retry"
       >
@@ -57,7 +54,7 @@ export function SessionTransportHistoryResetNotice() {
       data-reset-reason={reset.reason ?? undefined}
       data-reset-generation={reset.generation}
       tone="info"
-      icon={<History strokeWidth={1.8} />}
+      icon={<History />}
     >
       <b>{sentence.lead}</b>
       {sentence.rest}

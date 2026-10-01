@@ -34,7 +34,7 @@ export interface ProfilesSettingsPageProps {
 
 export function ProfilesSettingsPage({ profileFlow }: ProfilesSettingsPageProps) {
   const page = useProfilesSettingsPage();
-  useSettingsTopbar("profiles");
+  useSettingsTopbar();
   useProfileFlowIntent(profileFlow);
   const lifecycleActions = {
     onEditIdentity: (name: string) => page.open({ flow: "update", profile: name }),

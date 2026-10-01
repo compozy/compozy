@@ -57,11 +57,10 @@ export function SessionWindowEmpty({
             <Button
               data-testid="session-window-empty-new"
               onClick={sidebar.onNewSession}
-              size="sm"
               type="button"
-              variant="outline"
+              variant="primary"
             >
-              <Plus aria-hidden="true" className="size-3" />
+              <Plus aria-hidden="true" data-icon="inline-start" />
               New session
             </Button>
           }

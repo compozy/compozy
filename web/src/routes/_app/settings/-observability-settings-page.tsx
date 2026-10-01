@@ -26,7 +26,7 @@ import { ObservabilityDiagnosticsSection } from "./-observability-support-bundle
 
 export function ObservabilitySettingsPage() {
   const page = useSettingsObservabilityPage();
-  useSettingsTopbar("observability");
+  useSettingsTopbar();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError = (key: string) => (message: string | null) => {
     setValidationErrors(current =>

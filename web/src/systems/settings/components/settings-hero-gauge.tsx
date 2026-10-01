@@ -44,18 +44,21 @@ export function SettingsHeroGauge({
 
   return (
     <section
-      className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-4"
+      className="flex flex-col gap-3 rounded-lg bg-card shadow-card p-4"
       data-testid={testId ?? "settings-hero-gauge"}
     >
       <div className="flex min-w-0 items-baseline gap-2.5">
-        <span className="min-w-0 truncate text-metric-value font-semibold tabular-nums text-fg-strong">
+        <span className="min-w-0 truncate text-metric-value font-semibold tabular-nums text-fg">
           {usage}
         </span>
         <span className="font-mono text-small-body tabular-nums text-subtle">
           {Math.round(clamped)}%
         </span>
         <span className="ml-auto shrink-0 self-center">
-          <Pill tone={tone}>{pill}</Pill>
+          <Pill form="plain" tone={tone}>
+            <Pill.Dot />
+            {pill}
+          </Pill>
         </span>
       </div>
       <div

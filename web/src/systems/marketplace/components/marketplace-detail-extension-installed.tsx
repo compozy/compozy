@@ -246,7 +246,7 @@ function MarketplaceExtensionAccessRow({
     <div className="flex items-start gap-2.5 border-t border-line-soft px-4 py-3 first:border-t-0">
       {icon}
       <div className="min-w-0">
-        <p className="text-small-body font-medium text-fg-strong">{title}</p>
+        <p className="text-body font-medium text-fg">{title}</p>
         <p className="mt-0.5 max-w-prose text-form-label leading-relaxed text-muted">
           {description}
         </p>

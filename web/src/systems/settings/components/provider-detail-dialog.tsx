@@ -189,7 +189,7 @@ function ProviderDetailTabs({
   onChange: (next: DetailTab) => void;
 }) {
   return (
-    <div className="border-b border-line bg-canvas-soft px-5 pb-2">
+    <div className="border-b border-line px-5 pb-2">
       <LaneTabs<DetailTab>
         ariaLabel="Provider detail sections"
         items={DETAIL_TABS}
@@ -358,7 +358,7 @@ function ProviderInspectFooter({
             type="button"
             variant="ghost"
           >
-            <Trash2 aria-hidden="true" className="size-3" />
+            <Trash2 aria-hidden="true" />
             {provider?.fallback ? "Reset to default" : "Delete provider"}
           </Button>
         ) : undefined
@@ -394,12 +394,12 @@ function ProviderHeaderStatus({
   return (
     <span className="flex flex-wrap items-center gap-2" data-testid="provider-detail-status">
       {state ? (
-        <Pill tone={state.label === "installed" ? "neutral" : state.tone}>
-          <Pill.Dot tone={state.label === "installed" ? "success" : state.tone} />
+        <Pill form="plain" tone={state.label === "installed" ? "success" : state.tone}>
+          <Pill.Dot />
           {state.display}
         </Pill>
       ) : null}
-      {isDefault ? <Pill tone="accent">Default</Pill> : null}
+      {isDefault ? <Pill tone="neutral">Default</Pill> : null}
     </span>
   );
 }

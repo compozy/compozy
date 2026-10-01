@@ -17,9 +17,9 @@ function formatNumber(value?: number): string {
   return value.toLocaleString();
 }
 
-/** Tiles sit on `canvas` with a hairline so they read against the rail's canvas-soft. */
+/** Tiles are cards (`card` + the ring in `shadow-card`), one step above the recessed rail. */
 const TILE =
-  "gap-1 border border-line-soft bg-canvas px-3 py-2.5 [&_[data-slot=metric-subtext]]:text-micro [&_[data-slot=metric-subtext]]:leading-4 [&_[data-slot=metric-subtext]]:whitespace-normal [&_[data-slot=metric-subtext]]:text-subtle";
+  "gap-1 bg-card px-3 py-2.5 shadow-card [&_[data-slot=metric-subtext]]:text-eyebrow [&_[data-slot=metric-subtext]]:whitespace-normal [&_[data-slot=metric-subtext]]:text-subtle";
 
 export function SessionInspectorUsageSection({
   usage,

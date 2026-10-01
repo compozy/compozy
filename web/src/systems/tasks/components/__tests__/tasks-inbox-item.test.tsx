@@ -13,7 +13,7 @@ import { TasksInboxItem } from "../tasks-inbox-item";
 import { buildInboxItemFixture } from "../test-fixtures";
 
 describe("TasksInboxItem", () => {
-  it("Should render a 3-col grid (rail / body / meta) with the rail painted by the group tone, not a left border", () => {
+  it("Should lead an approval row with the attention glyph", () => {
     const item = buildInboxItemFixture({
       lane: "approvals",
       task: {
@@ -38,11 +38,42 @@ describe("TasksInboxItem", () => {
     const row = screen.getByTestId("tasks-inbox-item-task_apr");
     expect(row).toHaveAttribute("data-group", "needs_review");
 
-    const rail = row.querySelector("[data-slot=tasks-inbox-row-rail]");
-    expect(rail).not.toBeNull();
+    // An approval waits on a person, so the row leads with the attention glyph.
+    expect(row.querySelector("[data-slot=tasks-inbox-row-glyph]")).toHaveAttribute(
+      "data-state",
+      "attention"
+    );
   });
 
-  it("Should paint the rail with the blocked danger tone when the row belongs to the blocked group", () => {
+  it("Should state the blocking reason in plain words and never print a wire code", () => {
+    const failed = buildInboxItemFixture({
+      blocking_reason: "latest_run_failed",
+      lane: "failed_runs",
+      task: {
+        id: "task_fail",
+        identifier: "TASK-7",
+        scope: "workspace",
+        status: "failed",
+        title: "Settle batch",
+      },
+    });
+    const { rerender } = render(<TasksInboxItem group="needs_review" item={failed} />);
+    expect(screen.getByTestId("tasks-inbox-item-blocking-task_fail")).toHaveTextContent(
+      "Latest run failed"
+    );
+    expect(screen.queryByText("latest_run_failed")).toBeNull();
+
+    // An unknown code is omitted rather than leaked.
+    rerender(
+      <TasksInboxItem
+        group="needs_review"
+        item={{ ...failed, blocking_reason: "some_future_reason" }}
+      />
+    );
+    expect(screen.queryByTestId("tasks-inbox-item-blocking-task_fail")).toBeNull();
+  });
+
+  it("Should lead a blocked row with the attention glyph", () => {
     const item = buildInboxItemFixture({
       lane: "blocked",
       task: {
@@ -55,13 +86,13 @@ describe("TasksInboxItem", () => {
     });
 
     render(<TasksInboxItem group="blocked" item={item} />);
-    const rail = screen
+    const glyph = screen
       .getByTestId("tasks-inbox-item-task_block")
-      .querySelector("[data-slot=tasks-inbox-row-rail]");
-    expect(rail).not.toBeNull();
+      .querySelector("[data-slot=tasks-inbox-row-glyph]");
+    expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
-  it("Should render Reject as a ghost-danger button and Approve as the single accent CTA", () => {
+  it("Should render Reject as a ghost-danger button and Approve as the filled secondary row action", () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();
     const item = buildInboxItemFixture({
@@ -89,9 +120,10 @@ describe("TasksInboxItem", () => {
       "data-variant",
       "destructive-ghost"
     );
+    // A repeated row action is never the view's inverted primary (polish contract P4).
     expect(screen.getByTestId("tasks-inbox-item-approve-task_apr")).toHaveAttribute(
       "data-variant",
-      "primary"
+      "secondary"
     );
     expect(screen.getByTestId("tasks-inbox-item-open-task_apr")).toBeInTheDocument();
 

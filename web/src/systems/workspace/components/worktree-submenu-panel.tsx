@@ -77,7 +77,7 @@ function WorktreeSubmenuRowActions({
   const canResolve = Boolean(onResolveMissing) && entry.displayState === "missing";
   const canOpenContext = Boolean(onOpenContext) && entry.displayState === "ready";
   const triggerClass =
-    "inline-flex size-6 shrink-0 items-center justify-center rounded-md p-0 text-faint hover:bg-row-hover hover:text-fg";
+    "inline-flex size-6 shrink-0 items-center justify-center rounded-md p-0 text-faint hover:bg-surface-2 hover:text-fg";
   const items = (
     <>
       <ActionItem
@@ -257,7 +257,7 @@ export function WorktreeSubmenuPanel({
           disabled={Boolean(reason)}
           aria-label={`Select ${entry.name}`}
           title={reason ?? undefined}
-          className="flex w-full flex-wrap items-center gap-1 rounded-md p-2 text-left hover:bg-row-hover"
+          className="flex w-full flex-wrap items-center gap-1 rounded-md p-2 text-left hover:bg-surface-2"
           onClick={event => selection.toggle(entry, event.shiftKey)}
         >
           {content}
@@ -308,7 +308,7 @@ export function WorktreeSubmenuPanel({
           data-testid={`${testIdPrefix}-worktree-option-${entry.key}`}
           className={cn(
             "group/wtnest flex min-h-control-compact min-w-0 items-center overflow-hidden rounded-md px-1.5 py-1 text-left",
-            "hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none focus-visible:shadow-focus-ring",
+            "hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring",
             !entry.selectable && "pointer-events-none opacity-50"
           )}
           onClick={() => selectEntry(entry)}
@@ -332,7 +332,7 @@ export function WorktreeSubmenuPanel({
             onClose?.();
           }}
         >
-          <Plus className="size-3 text-faint" />
+          <Plus className="size-3.5 text-faint" />
           New worktree
         </MenubarItem>
       </>
@@ -344,14 +344,14 @@ export function WorktreeSubmenuPanel({
           data-testid={`${testIdPrefix}-worktree-create-${workspaceId}`}
           className={cn(
             FOOTER_ROW_CLASS,
-            "flex w-full items-center gap-2 rounded-md px-1.5 text-form-label text-subtle hover:bg-elevated"
+            "flex w-full items-center gap-2 rounded-md px-1.5 text-form-label text-subtle hover:bg-surface-2"
           )}
           onClick={() => {
             onCreateWorktree();
             onClose?.();
           }}
         >
-          <Plus className="size-3 text-faint" />
+          <Plus className="size-3.5 text-faint" />
           New worktree
         </button>
       </>

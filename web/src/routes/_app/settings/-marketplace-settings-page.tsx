@@ -17,7 +17,7 @@ import {
 export function MarketplaceSettingsPage() {
   const page = useSettingsMarketplacePage();
   const addMarketplace = useAddMarketplaceDialog();
-  useSettingsTopbar("marketplace");
+  useSettingsTopbar();
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
     isInvalid: page.isInvalid,

@@ -28,7 +28,7 @@ export function SessionWorkspaceSwitchDialog({
       onOpenChange={nextOpen => {
         if (!nextOpen) onCancel();
       }}
-      tone="accent"
+      tone="neutral"
       title={isGlobal ? "Turn on Global scope?" : "Switch project?"}
       description={
         isGlobal

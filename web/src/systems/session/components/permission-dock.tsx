@@ -1,4 +1,4 @@
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, SquareTerminal } from "lucide-react";
 
 import {
   Button,
@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
+  KindIcon,
 } from "@compozy/ui";
 
 import {
@@ -21,7 +22,7 @@ import {
   useKnownTerminalTitle,
 } from "@/systems/terminal/parts";
 
-import { toolAskPhrase } from "../lib/tool-labels";
+import { getToolIcon, resolveRegisteredToolName, toolAskPhrase } from "../lib/tool-labels";
 import { usePermissionDock } from "../hooks/use-permission-dock";
 import { useSession } from "../hooks/use-sessions";
 import type { PermissionDecision } from "../adapters/session-api";
@@ -38,10 +39,13 @@ export interface PermissionDockProps {
 }
 
 /**
- * The pending permission as a composer-docked decision panel. Buttons render
- * only for the decisions the runtime offers; reject-always lives behind the
- * reject split menu on ordinary asks; digit keys 1–4 decide directly (ignoring
- * focused inputs). Exec that always asks withholds both remembered polarities.
+ * The pending permission as a composer-docked approval card: the tool's
+ * identity well + the ask, the subject on the sunken inset, then the pill
+ * actions with the inverted "Allow once" last. Buttons render only for the
+ * decisions the runtime offers; reject-always lives behind the reject split
+ * menu on ordinary asks; digit keys 1–4 decide directly (ignoring focused
+ * inputs) and each button shows its digit. Exec that always asks withholds
+ * both remembered polarities.
  *
  * Host chrome stays Dock — the live decision surface. Terminal facts flavor
  * the body as an attention-row read inside that host.
@@ -131,7 +135,18 @@ function PermissionDockHead({
 }) {
   return (
     <Dock.Head>
-      <Dock.Eyebrow data-testid="permission-dock-eyebrow">Needs your OK</Dock.Eyebrow>
+      <KindIcon
+        data-testid="permission-dock-well"
+        icon={
+          terminalDetail
+            ? SquareTerminal
+            : getToolIcon(
+                resolveRegisteredToolName(permission.toolId ?? permission.toolName),
+                permission.toolInput
+              )
+        }
+        tone="well"
+      />
       <Dock.Title data-testid="permission-dock-title" title={permission.toolId ?? undefined}>
         {terminalDetail
           ? terminalAskTitle(terminalDetail, agentName, catalogTitle)
@@ -195,11 +210,12 @@ function PermissionDockActions({
 
   return (
     <Dock.Actions>
-      <PermissionAllowOnceAction
-        available={decisionOptions.includes("allow-once")}
+      <span className="flex-1" />
+      <PermissionRejectActions
         decide={decide}
-        irreversible={irreversible}
         isSubmitting={isSubmitting}
+        offersRejectAlways={offersRejectAlways}
+        offersRejectOnce={offersRejectOnce}
       />
       <PermissionAllowAlwaysAction
         available={decisionOptions.includes("allow-always")}
@@ -207,12 +223,11 @@ function PermissionDockActions({
         isSubmitting={isSubmitting}
         terminalDetail={terminalDetail}
       />
-      <span className="flex-1" />
-      <PermissionRejectActions
+      <PermissionAllowOnceAction
+        available={decisionOptions.includes("allow-once")}
         decide={decide}
+        irreversible={irreversible}
         isSubmitting={isSubmitting}
-        offersRejectAlways={offersRejectAlways}
-        offersRejectOnce={offersRejectOnce}
       />
     </Dock.Actions>
   );
@@ -232,14 +247,14 @@ function PermissionAllowOnceAction({
   if (!available) return null;
   return (
     <Button
-      size="sm"
       variant={irreversible ? "destructive" : "primary"}
       disabled={isSubmitting}
       onClick={() => decide("allow-once")}
+      aria-keyshortcuts="1"
+      kbd="1"
       data-testid="permission-allow-once"
     >
       Allow once
-      <Dock.Key>1</Dock.Key>
     </Button>
   );
 }
@@ -256,14 +271,14 @@ function PermissionAllowAlwaysAction({
   if (!available) return null;
   return (
     <Button
-      size="sm"
-      variant="outline"
+      variant="secondary"
       disabled={isSubmitting}
       onClick={() => decide("allow-always")}
+      aria-keyshortcuts="2"
+      kbd="2"
       data-testid="permission-allow-always"
     >
       {terminalDetail ? terminalAlwaysAllowLabel(terminalDetail) : "Always allow"}
-      <Dock.Key>2</Dock.Key>
     </Button>
   );
 }
@@ -280,14 +295,14 @@ function PermissionRejectActions({
   if (!offersRejectOnce) {
     return offersRejectAlways ? (
       <Button
-        size="sm"
-        variant="ghost"
+        variant="secondary"
         disabled={isSubmitting}
         onClick={() => decide("reject-always")}
+        aria-keyshortcuts="4"
+        kbd="4"
         data-testid="permission-reject-always"
       >
         Never allow
-        <Dock.Key>4</Dock.Key>
       </Button>
     ) : null;
   }
@@ -295,23 +310,23 @@ function PermissionRejectActions({
   return (
     <div className="inline-flex gap-px">
       <Button
-        size="sm"
-        variant="ghost"
+        variant="secondary"
         disabled={isSubmitting}
         onClick={() => decide("reject-once")}
+        aria-keyshortcuts="3"
+        kbd="3"
         data-testid="permission-reject-once"
       >
         {terminalRejectOnceLabel()}
-        <Dock.Key>3</Dock.Key>
       </Button>
       {offersRejectAlways ? (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button
-                size="sm"
-                variant="ghost"
-                className="group/reject-menu px-1"
+                size="icon"
+                variant="quiet"
+                className="group/reject-menu"
                 disabled={isSubmitting}
                 aria-label="More decline options"
                 data-testid="permission-reject-menu-trigger"

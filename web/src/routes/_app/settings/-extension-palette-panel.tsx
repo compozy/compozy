@@ -28,15 +28,12 @@ export function ExtensionPalettePanel({ extension }: ExtensionPalettePanelProps)
   return (
     <section
       aria-label={`${extension.name} palette contributions`}
-      className={cn(
-        "overflow-hidden rounded-lg border border-line bg-canvas-soft",
-        unavailable && "text-muted"
-      )}
+      className={cn("overflow-hidden rounded-lg bg-card shadow-card", unavailable && "text-muted")}
       data-testid={`extension-palette-${extension.name}`}
     >
       <header className="flex items-start justify-between gap-3 border-b border-line-soft px-4 py-3">
         <div className="min-w-0">
-          <h3 className="truncate text-ws-name font-semibold tracking-tight text-fg-strong">
+          <h3 className="truncate text-body font-medium text-fg">
             {extensionDisplayName(extension.name)}
           </h3>
           <MonoId
@@ -86,7 +83,7 @@ export function ExtensionPalettePanel({ extension }: ExtensionPalettePanelProps)
 
       {palette.views.length > 0 ? (
         <>
-          <div className="border-y border-line-soft bg-canvas px-4 py-2 text-form-label font-semibold text-muted">
+          <div className="eyebrow border-y border-line-soft bg-sunken px-4 py-2 text-muted">
             Views
           </div>
           <div className={cn(unavailable && "opacity-55")}>
@@ -120,8 +117,8 @@ export function ExtensionPalettePanels({
   );
   if (contributors.length === 0) return null;
   return (
-    <SettingsGroup data-testid="settings-page-extensions-palette-section" title="Palette">
-      <div className="flex flex-col gap-3 p-3">
+    <SettingsGroup bare data-testid="settings-page-extensions-palette-section" title="Palette">
+      <div className="flex flex-col gap-3">
         {contributors.map(extension => (
           <ExtensionPalettePanel extension={extension} key={extension.name} />
         ))}

@@ -28,7 +28,7 @@ export function TriggerDetailActions({
   if (trigger.source !== "dynamic") return null;
   return (
     <Button data-testid="edit-trigger-btn" onClick={onEdit} size="sm" type="button" variant="ghost">
-      <Pencil className="size-3" />
+      <Pencil aria-hidden="true" />
       Edit
     </Button>
   );
@@ -70,16 +70,16 @@ export function TriggerDetailOverflow({
         data-testid="automation-detail-overflow"
         render={<Button size="icon-sm" type="button" variant="ghost" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
         <DropdownMenuItem data-testid="copy-trigger-id-btn" onClick={handleCopyId}>
-          <Copy className="size-3" />
+          <Copy />
           Copy trigger id
         </DropdownMenuItem>
         {isDynamic ? (
           <DropdownMenuItem data-testid="edit-automation-btn" onClick={onEdit}>
-            <Pencil className="size-3" />
+            <Pencil aria-hidden="true" />
             Edit
           </DropdownMenuItem>
         ) : null}

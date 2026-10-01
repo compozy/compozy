@@ -1,58 +1,47 @@
-import type { PillTone } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 import { describe, expect, it } from "vitest";
 
 import {
   isLiveLoopRun,
   isLoopRunStatus,
   isTerminalLoopStatus,
+  loopStatusGlyph,
   loopStatusLabel,
-  loopStatusPulse,
-  loopStatusSignal,
-  loopStatusTone,
 } from "../loop-formatters";
 import type { LoopRunStatus } from "../../types";
 
 const STATUS_TABLE: Array<{
   status: LoopRunStatus;
-  tone: PillTone;
-  pulse: boolean;
+  glyph: StateGlyphState;
   terminal: boolean;
   label: string;
 }> = [
-  { status: "queued", tone: "neutral", pulse: false, terminal: false, label: "Queued" },
-  { status: "running", tone: "accent", pulse: true, terminal: false, label: "Running" },
-  { status: "watching", tone: "info", pulse: true, terminal: false, label: "Watching" },
-  {
-    status: "needs-approval",
-    tone: "warning",
-    pulse: false,
-    terminal: false,
-    label: "Needs approval",
-  },
-  { status: "paused", tone: "neutral", pulse: false, terminal: false, label: "Paused" },
-  { status: "done", tone: "success", pulse: false, terminal: true, label: "Done" },
-  { status: "no-op", tone: "neutral", pulse: false, terminal: true, label: "Nothing to do" },
-  { status: "blocked", tone: "warning", pulse: false, terminal: true, label: "Blocked" },
-  { status: "failed", tone: "danger", pulse: false, terminal: true, label: "Failed" },
-  { status: "exhausted", tone: "warning", pulse: false, terminal: true, label: "Exhausted" },
-  { status: "stalled", tone: "neutral", pulse: false, terminal: true, label: "Stalled" },
-  { status: "canceled", tone: "neutral", pulse: false, terminal: true, label: "Canceled" },
+  { status: "queued", glyph: "queued", terminal: false, label: "Queued" },
+  { status: "running", glyph: "running", terminal: false, label: "Running" },
+  { status: "watching", glyph: "running", terminal: false, label: "Watching" },
+  { status: "needs-approval", glyph: "attention", terminal: false, label: "Needs approval" },
+  { status: "paused", glyph: "stopped", terminal: false, label: "Paused" },
+  { status: "done", glyph: "done", terminal: true, label: "Done" },
+  { status: "no-op", glyph: "idle", terminal: true, label: "Nothing to do" },
+  { status: "blocked", glyph: "attention", terminal: true, label: "Blocked" },
+  { status: "failed", glyph: "failed", terminal: true, label: "Failed" },
+  { status: "exhausted", glyph: "failed", terminal: true, label: "Exhausted" },
+  { status: "stalled", glyph: "failed", terminal: true, label: "Stalled" },
+  { status: "canceled", glyph: "stopped", terminal: true, label: "Canceled" },
 ];
 
 describe("loop-formatters", () => {
-  it("Should map every one of the 12 statuses to the design tone, pulse, terminal group and label", () => {
+  it("Should map every one of the 12 statuses to its state glyph, terminal group and label", () => {
     for (const row of STATUS_TABLE) {
-      expect(loopStatusTone(row.status)).toBe(row.tone);
-      expect(loopStatusPulse(row.status)).toBe(row.pulse);
+      expect(loopStatusGlyph(row.status)).toBe(row.glyph);
       expect(isTerminalLoopStatus(row.status)).toBe(row.terminal);
       expect(loopStatusLabel(row.status)).toBe(row.label);
-      expect(loopStatusSignal(row.status)).toEqual({ tone: row.tone, pulse: row.pulse });
     }
   });
 
-  it("Should pulse only the live running/watching states", () => {
-    const pulsing = STATUS_TABLE.filter(row => row.pulse).map(row => row.status);
-    expect(pulsing).toEqual(["running", "watching"]);
+  it("Should spin only the live running/watching states", () => {
+    const live = STATUS_TABLE.filter(row => row.glyph === "running").map(row => row.status);
+    expect(live).toEqual(["running", "watching"]);
   });
 
   it("Should recognize the 7 terminal statuses and reject live ones", () => {
@@ -70,13 +59,12 @@ describe("loop-formatters", () => {
     expect(isLiveLoopRun(undefined)).toBe(false);
   });
 
-  it("Should treat unknown or missing statuses as neutral, non-pulsing, non-terminal", () => {
+  it("Should treat unknown or missing statuses as idle and non-terminal", () => {
     expect(isLoopRunStatus("mystery")).toBe(false);
     expect(isLoopRunStatus(null)).toBe(false);
-    expect(loopStatusTone("mystery")).toBe("neutral");
-    expect(loopStatusPulse("mystery")).toBe(false);
+    expect(loopStatusGlyph("mystery")).toBe("idle");
     expect(isTerminalLoopStatus("mystery")).toBe(false);
-    expect(loopStatusSignal(undefined)).toEqual({ tone: "neutral", pulse: false });
+    expect(loopStatusGlyph(undefined)).toBe("idle");
   });
 
   it("Should label unknown statuses with the raw value and blank statuses as Unknown", () => {

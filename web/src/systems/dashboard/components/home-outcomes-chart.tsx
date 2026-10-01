@@ -29,16 +29,13 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
       className="flex min-h-full flex-col"
       data-slot="home-outcomes"
       label="How work ended"
-      right={<span className="text-micro text-muted">Last 14 days</span>}
+      right={<span className="text-eyebrow text-muted">Last 14 days</span>}
     >
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="flex-1">
         {hasData ? (
           <>
             <div className="flex items-baseline gap-2.5">
-              <span
-                className="text-kpi-value text-fg-strong tabular-nums"
-                style={{ fontWeight: "var(--font-weight-display)" }}
-              >
+              <span className="text-kpi-value font-semibold text-fg-strong tabular-nums">
                 {Math.round(outcomes.success_pct)}%
               </span>
               <span className="text-small-body text-subtle">
@@ -83,7 +80,7 @@ function LegendEntry({ color, count, label }: { color: string; count: number; la
   return (
     <span className="inline-flex items-center gap-1.5">
       <span aria-hidden="true" className="size-2 rounded-xs" style={{ background: color }} />
-      {label} <span className="font-mono text-micro tabular-nums text-subtle">{count}</span>
+      {label} <span className="text-eyebrow tabular-nums text-subtle">{count}</span>
     </span>
   );
 }

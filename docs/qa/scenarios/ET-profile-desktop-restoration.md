@@ -5,7 +5,7 @@ title: Keep desktops and window layouts per profile
 persona: Ada
 journey: J-restore-per-profile-state
 expected: Each profile keeps its own desktops and window arrangement per workspace; switching profiles restores the target profile's desks exactly as they were left and shows none of the previous profile's windows; a brand-new profile enters on a single seeded default desktop; an archived profile's arrangement is retained and returns untouched on unarchive; deleting a profile counts its saved arrangements in the delete preview and removes every one of them, with other profiles' desks intact.
-entry_points: menubar profile switcher; web desktop pager; GET /api/workspaces/{workspace_id}/window-manager?profile=; POST /api/workspaces/{workspace_id}/window-manager/preview?profile=; POST /api/workspaces/{workspace_id}/window-manager/commands?profile=; compozy desktop list; compozy profile delete
+entry_points: dock-foot profile switcher; web topbar pager; GET /api/workspaces/{workspace_id}/window-manager?profile=; POST /api/workspaces/{workspace_id}/window-manager/preview?profile=; POST /api/workspaces/{workspace_id}/window-manager/commands?profile=; compozy desktop list; compozy profile delete
 qa_status: untested
 bug_ids:
 fix_status:
@@ -37,3 +37,5 @@ Walk:
 Expected evidence: screenshots of each profile's desks before and after a switch, the fresh-profile
 clean state, the two-context pair, and the delete preview beside the delete result showing the same
 saved-desktop count.
+
+qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The profile switcher moved from the menubar tray to the dock foot (above the theme toggle and Settings) and the pager to the topbar tray. Scenario already untested; entry points updated.

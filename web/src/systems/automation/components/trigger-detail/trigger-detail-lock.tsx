@@ -33,7 +33,7 @@ export function TriggerDetailLock({ trigger, className, ...props }: TriggerDetai
         <p>{copy}</p>
       </div>
       {trigger.source === "config" ? (
-        <div className="flex items-start gap-2 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
+        <div className="flex items-start gap-2 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
           <FileCode aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
           <p>
             Lives in <b className="font-medium text-fg">config.toml</b> —{" "}

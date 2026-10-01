@@ -37,13 +37,13 @@ export function TidyUpRow({
       control={
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-testid={`${TEST_PREFIX}-dream-trigger`}
           disabled={!dreamAvailable || dreamPending}
           onClick={onTriggerDream}
         >
-          {dreamPending ? <Spinner className="size-3" /> : <Play className="size-3" />}
+          {dreamPending ? <Spinner className="size-3.5" /> : <Play />}
           Tidy up now
         </Button>
       }

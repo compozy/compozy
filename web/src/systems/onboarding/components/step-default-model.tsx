@@ -112,7 +112,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
                 badge={
                   <Check
                     aria-hidden="true"
-                    className={selected ? "size-3.5 text-fg-strong" : "size-3.5 opacity-0"}
+                    className={selected ? "size-3.5 text-fg" : "size-3.5 opacity-0"}
                   />
                 }
                 className="p-3"

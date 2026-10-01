@@ -48,10 +48,10 @@ function KnowledgeDecisionsSection({
     >
       {isLoading ? (
         <div
-          className="flex items-center gap-2 px-1 py-3 text-xs text-subtle"
+          className="flex items-center gap-2 px-1 py-3 text-eyebrow text-subtle"
           data-testid="knowledge-decisions-loading"
         >
-          <Spinner /> Loading history…
+          <Spinner className="size-3" /> Loading history…
         </div>
       ) : error ? (
         <Empty
@@ -59,6 +59,7 @@ function KnowledgeDecisionsSection({
           data-testid="knowledge-decisions-error"
           description={error.message ?? "Try again in a moment."}
           icon={AlertCircle}
+          size="compact"
           title="Couldn't load history"
         />
       ) : (
@@ -124,9 +125,9 @@ function KnowledgeDecisionsSection({
                         variant="ghost"
                       >
                         {isReverting ? (
-                          <Spinner aria-hidden="true" className="size-3" />
+                          <Spinner aria-hidden="true" className="size-3.5" />
                         ) : (
-                          <RotateCcw className="size-3" />
+                          <RotateCcw />
                         )}
                         Revert
                       </Button>

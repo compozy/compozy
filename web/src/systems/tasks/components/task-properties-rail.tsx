@@ -2,14 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, OwnerAvatar, Pill, PropertyRow, Time } from "@compozy/ui";
+import { Button, cn, OwnerAvatar, PropertyRow, StateGlyph, Time } from "@compozy/ui";
 
 import {
   computeElapsed,
   ownerAvatarKindFor,
   taskOwnerLabel,
   taskRunStatusLabel,
-  taskRunStatusTone,
+  taskRunStateGlyph,
 } from "../lib/task-formatters";
 import {
   taskExecutionProfileSummary,
@@ -59,7 +59,7 @@ export function TaskPropertiesRail({
   return (
     <div
       {...props}
-      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
+      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
       data-testid="tasks-detail-rail"
     >
       {/* Leads the rail: "what is this record, which run owns it" comes first. */}
@@ -97,7 +97,7 @@ export function TaskPropertiesRail({
           <PropertyRow
             editor={
               <Link
-                className="inline-flex min-h-6 min-w-0 items-center rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+                className="inline-flex min-h-6 min-w-0 items-center rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
                 data-testid="tasks-rail-parent"
                 params={{ id: record.parent_task_id }}
                 to="/tasks/$id"
@@ -113,12 +113,13 @@ export function TaskPropertiesRail({
       <RailSection
         action={
           <Button
-            className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
+            // Optical: the link's text lands on the rail's value edge.
+            className="-mr-2.5"
             data-testid="tasks-rail-edit-setup"
             onClick={onEditSetup}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="link"
           >
             Edit setup
           </Button>
@@ -162,14 +163,13 @@ export function TaskPropertiesRail({
 
       <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
-          className="min-h-6"
           data-testid="tasks-rail-inspect"
           onClick={onInspect}
           size="sm"
           type="button"
           variant="ghost"
         >
-          <Search aria-hidden="true" className="size-3" />
+          <Search aria-hidden="true" data-icon="inline-start" />
           Inspect
         </Button>
       </footer>
@@ -186,7 +186,7 @@ function TaskRunHistorySections({
       {stuckRun ? (
         <RailSection label="Current run">
           <PropertyRow label="Status">
-            <Pill.Dot tone={taskRunStatusTone(stuckRun.status)} />
+            <StateGlyph state={taskRunStateGlyph(stuckRun.status)} />
             {taskRunStatusLabel(stuckRun.status)}
           </PropertyRow>
           {stuckRun.claimed_by?.ref ? (
@@ -206,7 +206,7 @@ function TaskRunHistorySections({
       {lastFailedRun ? (
         <RailSection label="Last run">
           <PropertyRow label="Status">
-            <Pill.Dot tone="danger" />
+            <StateGlyph state="failed" />
             Failed
           </PropertyRow>
           {lastFailedRun.ended_at ? (
@@ -214,8 +214,10 @@ function TaskRunHistorySections({
               <Time iso={lastFailedRun.ended_at} mode="relative" />
             </PropertyRow>
           ) : null}
-          <PropertyRow label="Duration" mono>
-            {computeElapsed(lastFailedRun) ?? "—"}
+          <PropertyRow label="Duration">
+            <span className="tabular-nums" data-testid="task-last-run-duration">
+              {computeElapsed(lastFailedRun) ?? "—"}
+            </span>
           </PropertyRow>
         </RailSection>
       ) : null}

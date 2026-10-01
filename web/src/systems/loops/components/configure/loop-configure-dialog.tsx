@@ -2,6 +2,7 @@ import { RotateCcw, Save, SlidersHorizontal } from "lucide-react";
 
 import {
   Alert,
+  AlertActions,
   AlertDescription,
   Button,
   Dialog,
@@ -71,10 +72,9 @@ export function LoopConfigureDialog({
 
         <EntityDialogBody className="flex flex-col" data-testid="loop-configure-body">
           <Alert data-testid="loop-configure-structural-note" variant="neutral">
-            <AlertDescription>
-              Steps, inputs, and the goal stay fixed here. To change those,{" "}
+            <AlertDescription>Steps, inputs, and the goal stay fixed here.</AlertDescription>
+            <AlertActions>
               <Button
-                className="h-auto px-0 align-baseline"
                 data-testid="loop-configure-edit-link"
                 disabled={!onOpenEditor || model.busy}
                 onClick={onOpenEditor}
@@ -82,10 +82,9 @@ export function LoopConfigureDialog({
                 type="button"
                 variant="link"
               >
-                {loop.source === "workspace" ? "Edit" : "Copy and edit"}
-              </Button>{" "}
-              it in the builder.
-            </AlertDescription>
+                {loop.source === "workspace" ? "Edit" : "Copy and edit"} in the builder
+              </Button>
+            </AlertActions>
           </Alert>
 
           <FormSection title="Checks">
@@ -99,7 +98,7 @@ export function LoopConfigureDialog({
           </FormSection>
 
           <FormSection title="Your approval">
-            <div className="overflow-hidden rounded-lg border border-line-soft bg-canvas-tint">
+            <div className="overflow-hidden rounded-lg bg-sunken">
               <LoopConfigureSwitchRow
                 checked={model.draft.humanGateEnabled}
                 disabled={model.busy}
@@ -139,7 +138,7 @@ export function LoopConfigureDialog({
                 onClick={() => void worktrees.refetch()}
                 size="sm"
                 type="button"
-                variant="outline"
+                variant="secondary"
               >
                 Retry
               </Button>

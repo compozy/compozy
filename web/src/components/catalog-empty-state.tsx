@@ -40,7 +40,7 @@ export function CatalogEmptyState({
           icon={
             <span
               aria-hidden="true"
-              className="flex size-full items-center justify-center rounded-lg border border-line bg-canvas text-muted"
+              className="flex size-full items-center justify-center rounded-lg bg-card text-muted shadow-card"
             >
               <Icon className="size-4" />
             </span>
@@ -63,9 +63,9 @@ export interface CatalogEmptyPanelProps extends ComponentProps<"section"> {
 }
 
 /**
- * The one panel treatment of the zero-inventory state: hairline border,
- * canvas-soft fill, eyebrow header with count plus at most one muted note,
- * and rule-separated disclosure rows.
+ * The one panel treatment of the zero-inventory state: a card surface
+ * (card fill + card shadow), eyebrow header with count plus at most one muted
+ * note, and rule-separated disclosure rows.
  */
 export function CatalogEmptyPanel({
   children,
@@ -80,10 +80,7 @@ export function CatalogEmptyPanel({
     <Section
       bodyClassName="min-h-0"
       bordered
-      className={cn(
-        "gap-0 overflow-hidden rounded-lg border border-line bg-canvas-soft",
-        className
-      )}
+      className={cn("gap-0 overflow-hidden rounded-lg bg-card shadow-card", className)}
       count={count}
       headClassName="px-4 pt-3.5 pb-3"
       label={label}

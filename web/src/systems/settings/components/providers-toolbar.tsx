@@ -50,7 +50,7 @@ export function ProvidersToolbar({
             <DropdownMenuTrigger
               aria-label="Filter by status"
               data-testid="settings-providers-status-filter"
-              render={<Button size="sm" type="button" variant="outline" />}
+              render={<Button size="sm" type="button" variant="quiet" />}
             >
               <span className="text-subtle">Status</span>
               <span aria-hidden="true" className="text-faint">

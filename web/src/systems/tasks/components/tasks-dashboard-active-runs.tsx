@@ -1,16 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ChevronRight } from "lucide-react";
+import { Activity, AlertCircle, ChevronRight } from "lucide-react";
 
-import { Eyebrow, Pill, Panel } from "@compozy/ui";
+import { Empty, Eyebrow, Panel, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 import {
   formatAttemptLabel,
   formatDurationMs,
+  taskRunStateGlyph,
   taskRunStatusLabel,
-  taskRunStatusTone,
-  taskStatusSignal,
 } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 
@@ -41,20 +40,20 @@ export function TasksDashboardActiveRuns({
       title="Active runs"
     >
       {visible.length === 0 ? (
-        <p
-          className="px-5 py-6 text-form-label text-muted"
+        <Empty
+          className="px-5 py-6"
           data-testid="tasks-dashboard-active-runs-empty"
-        >
-          No active runs right now.
-        </p>
+          icon={Activity}
+          size="compact"
+          title="No active runs right now."
+        />
       ) : (
         <ul className="divide-y divide-line-soft" data-testid="tasks-dashboard-active-runs-list">
           {visible.map(run => {
-            const signal = taskStatusSignal(run.task_status);
             const attemptLabel = formatAttemptLabel(run.attempt, run.max_attempts);
             return (
               <li
-                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-row-hover"
+                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-surface-2"
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >
@@ -67,9 +66,9 @@ export function TasksDashboardActiveRuns({
                   params={{ id: run.task_id, runId: run.run_id }}
                   to="/tasks/$id/runs/$runId"
                 >
-                  <Pill.Dot tone={signal.tone} pulse={signal.pulse} size="sm" />
+                  <StateGlyph state={taskRunStateGlyph(run.run_status)} />
                   <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <span className="min-w-0 truncate text-section-head font-medium tracking-section-head text-fg-strong">
+                    <span className="min-w-0 truncate text-small-body font-medium text-fg-strong">
                       {run.task_title}
                     </span>
                     {run.task_identifier ? (
@@ -86,9 +85,9 @@ export function TasksDashboardActiveRuns({
                       {attemptLabel}
                     </span>
                   ) : null}
-                  <Pill size="sm" tone={taskRunStatusTone(run.run_status)}>
+                  <span className="shrink-0 text-form-label text-fg-2">
                     {taskRunStatusLabel(run.run_status)}
-                  </Pill>
+                  </span>
                   {run.stuck ? (
                     <Pill
                       data-testid={`tasks-dashboard-active-run-stuck-${run.run_id}`}
@@ -100,12 +99,12 @@ export function TasksDashboardActiveRuns({
                   ) : null}
                   <ChevronRight
                     aria-hidden="true"
-                    className="size-3 shrink-0 text-faint transition-colors group-hover:text-muted"
+                    className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-muted"
                   />
                 </Link>
                 {run.error ? (
                   <p
-                    className="flex items-start gap-1.5 pl-3.5 text-form-hint text-danger"
+                    className="flex items-start gap-1.5 pl-6 text-form-hint text-danger"
                     data-testid={`tasks-dashboard-active-run-error-${run.run_id}`}
                   >
                     <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />

@@ -1,3 +1,5 @@
+import type { StateGlyphState } from "@compozy/ui";
+
 import { sessionBadgeSignal } from "./session-badge";
 import type { SessionListScope } from "./session-list-preferences";
 import type { SessionPayload } from "../types";
@@ -149,29 +151,30 @@ export function filterThreadSessions(
   return descendants.filter(session => visibleIds.has(session.id));
 }
 
-export type ChildSessionSignalTone = "danger" | "warning" | "accent";
+export type ChildSessionSignalState = Extract<StateGlyphState, "attention" | "failed" | "running">;
+
+const CHILD_SIGNAL_RANK: Record<ChildSessionSignalState, number> = {
+  attention: 3,
+  failed: 2,
+  running: 1,
+};
 
 /**
  * Most urgent child state, so a collapsed thread never hides an escalation.
- * Urgency is read from the one badge dictionary rather than a local badge list,
- * so every member of the needs-you class escalates and runtime-health warnings
- * stay a rank below it. The dictionary's tone decides the rank: a needs-you
- * badge inked warning (`needs-attention`, an unverified stop) escalates as a
- * warning, never as a failure of the operator's work. `done` deliberately
- * raises nothing: finished-unseen work is an inbox item, not an escalation.
+ * Urgency is read from the one badge dictionary rather than a local badge list:
+ * a child waiting on the operator (attention) outranks a failure or a stuck
+ * runtime (failed), which outranks work still in flight (running). `done`,
+ * `idle`, `stopped` and `unknown` deliberately raise nothing: finished-unseen
+ * work is an inbox item, not an escalation.
  */
-export function childSessionSignalTone(
+export function childSessionSignalState(
   children: readonly SessionPayload[]
-): ChildSessionSignalTone | null {
-  let tone: ChildSessionSignalTone | null = null;
+): ChildSessionSignalState | null {
+  let signal: ChildSessionSignalState | null = null;
   for (const child of children) {
-    const signal = sessionBadgeSignal(child.badge);
-    if (signal.attention === "needs-you" && signal.tone === "danger") return "danger";
-    if (signal.tone === "warning") {
-      tone = "warning";
-    } else if (signal.label === "running" && tone !== "warning") {
-      tone = "accent";
-    }
+    const { state } = sessionBadgeSignal(child.badge);
+    if (state !== "attention" && state !== "failed" && state !== "running") continue;
+    if (signal === null || CHILD_SIGNAL_RANK[state] > CHILD_SIGNAL_RANK[signal]) signal = state;
   }
-  return tone;
+  return signal;
 }

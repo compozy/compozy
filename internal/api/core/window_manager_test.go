@@ -918,11 +918,14 @@ type windowManagerHandlerFixture struct {
 func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 	t.Helper()
 	var sequence atomic.Int64
+	// Wire-contract cases assert floating opens; placement-policy defaults belong to the windowmanager suite.
+	config := windowmanager.DefaultConfig()
+	config.NewWindowPolicy = windowmanager.NewWindowFloating
 	manager, err := windowmanager.NewService(
 		windowmanager.NewMemoryRepository(),
 		windowmanager.NewMemoryWorkspaceResolver("workspace-a", "workspace-b"),
 		nil,
-		windowmanager.DefaultConfig(),
+		config,
 		windowmanager.WithClock(func() time.Time { return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC) }),
 		windowmanager.WithIDGenerator(func(kind string) (string, error) {
 			return fmt.Sprintf("%s-%03d", kind, sequence.Add(1)), nil

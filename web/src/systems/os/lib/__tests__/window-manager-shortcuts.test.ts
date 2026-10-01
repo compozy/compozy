@@ -94,6 +94,28 @@ describe("chord grammar [UT-062]", () => {
     expect(shortcutLabel("control+alt+ArrowLeft")).toBe("⌃⌥←");
   });
 
+  it("Should label every named key code with the key it types, never its code name", () => {
+    const cases: Array<[string, string]> = [
+      ["meta+Slash", "⌘/"],
+      ["shift+Backslash", "⇧\\"],
+      ["meta+Comma", "⌘,"],
+      ["meta+Period", "⌘."],
+      ["meta+BracketLeft", "⌘["],
+      ["meta+BracketRight", "⌘]"],
+      ["meta+Quote", "⌘'"],
+      ["meta+Semicolon", "⌘;"],
+      ["meta+Minus", "⌘-"],
+      ["meta+Equal", "⌘="],
+      ["meta+Backquote", "⌘`"],
+      ["meta+Home", "⌘↖"],
+      ["meta+End", "⌘↘"],
+      ["meta+PageUp", "⌘⇞"],
+      ["meta+PageDown", "⌘⇟"],
+    ];
+    for (const [chord, label] of cases) expect(shortcutLabel(chord)).toBe(label);
+    expect(shortcutAriaKeys("meta+Slash")).toBe("Meta+/");
+  });
+
   it("Should reject bare, modifier-only, and unsupported keys", () => {
     expect(chordFromKeyboardEvent(press({ code: "KeyB" }))).toBe(null);
     expect(chordFromKeyboardEvent(press({ code: "ShiftLeft", key: "Shift", shiftKey: true }))).toBe(

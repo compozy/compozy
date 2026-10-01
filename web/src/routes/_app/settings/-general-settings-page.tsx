@@ -185,7 +185,7 @@ function GeneralAdvancedSection({
             type="button"
             variant="neutral"
           >
-            {page.isReloading ? <Spinner className="size-3" /> : null}
+            {page.isReloading ? <Spinner className="size-3.5" /> : null}
             Reload
           </Button>
         }
@@ -314,7 +314,7 @@ function GeneralApplyRecordsSheet({
 
 export function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
-  useSettingsTopbar("general");
+  useSettingsTopbar();
   const [applyRecordsOpen, setApplyRecordsOpen] = useState(false);
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,

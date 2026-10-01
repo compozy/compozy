@@ -19,7 +19,7 @@ import {
 
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
-  useSettingsTopbar("skills");
+  useSettingsTopbar();
   const policySaveState = useSettingsSaveBarState({
     isDirty: page.isPolicyDirty,
     isSaving: page.isSavingPolicy,

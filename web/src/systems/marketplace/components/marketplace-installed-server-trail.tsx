@@ -131,7 +131,7 @@ function MarketplaceInstalledServerLeading({
           variant="neutral"
         >
           {live.query.isPending && !live.server ? (
-            <Spinner aria-hidden="true" className="size-3" />
+            <Spinner aria-hidden="true" className="size-3.5" />
           ) : null}
           Authorize
         </Button>

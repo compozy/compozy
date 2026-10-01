@@ -11,6 +11,15 @@ import {
 } from "@compozy/ui/logos";
 import { createElement, type SVGProps } from "react";
 
+// Monochrome marks take no fixed brand ink: they follow the text color, so they read in either theme.
+function renderLinearLogo(props: SVGProps<SVGSVGElement>) {
+  return createElement(LinearLogo, { ...props, mode: undefined });
+}
+
+function renderOpenAILogo(props: SVGProps<SVGSVGElement>) {
+  return createElement(OpenAILogo, { ...props, mode: undefined });
+}
+
 /**
  * Rung 2 of the entry logo ladder: a brand mark from the shared inventory keyed by `entry_id`, then
  * by the tail of `install_slug`. Every entry carries a real brand mark — a Lucide fallback would be
@@ -18,18 +27,12 @@ import { createElement, type SVGProps } from "react";
  */
 const marketplaceBrandRegistry = {
   github: { brand: GithubLogo },
-  linear: {
-    render: (props: SVGProps<SVGSVGElement>) =>
-      createElement(LinearLogo, { ...props, mode: "dark" }),
-  },
+  linear: { render: renderLinearLogo },
   slack: { brand: SlackLogo },
   claude: { brand: ClaudeLogo },
   cursor: { brand: CursorLogo },
   gemini: { brand: GeminiLogo },
-  openai: {
-    render: (props: SVGProps<SVGSVGElement>) =>
-      createElement(OpenAILogo, { ...props, mode: "dark" }),
-  },
+  openai: { render: renderOpenAILogo },
   vercel: { brand: VercelLogo },
 } satisfies KindIconRegistry;
 

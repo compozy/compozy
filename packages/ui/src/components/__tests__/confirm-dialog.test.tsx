@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Info, Trash2, Zap } from "lucide-react";
+import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "../button";
@@ -75,6 +76,18 @@ describe("ConfirmDialog", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("cancel-action")).toHaveFocus());
+  });
+
+  it("Should open a typed confirmation on its input, not on Cancel", async () => {
+    const consumerRef = React.createRef<HTMLInputElement>();
+    renderDialog({
+      confirmTyping: "operator-style.md",
+      confirmInputProps: { "data-testid": "confirm-typing", ref: consumerRef },
+      cancelButtonProps: { "data-testid": "cancel-action" },
+    });
+
+    await waitFor(() => expect(screen.getByTestId("confirm-typing")).toHaveFocus());
+    expect(consumerRef.current).toBe(screen.getByTestId("confirm-typing"));
   });
 
   it("Should render error copy in an alert region", () => {
@@ -241,7 +254,22 @@ describe("ConfirmDialog", () => {
       .getByTestId("confirm-dialog")
       .querySelector('[data-slot="confirm-dialog-icon"]');
     expect(well).toHaveAttribute("data-icon-tone", "neutral");
-    expect(well?.className).toContain("bg-canvas-tint");
+    expect(well?.className).toContain("bg-well");
+  });
+
+  it("Should keep a warning dialog on the semantic warning well by default", async () => {
+    renderDialog({
+      contentProps: { "data-testid": "confirm-dialog" },
+      icon: Trash2,
+      tone: "warning",
+    });
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const well = screen
+      .getByTestId("confirm-dialog")
+      .querySelector('[data-slot="confirm-dialog-icon"]');
+    expect(well).toHaveAttribute("data-icon-tone", "warning");
+    expect(well?.className).toContain("bg-warning-tint");
+    expect(well?.className).not.toContain("bg-well");
   });
 
   it("Should keep description muted instead of painting it with tone", async () => {

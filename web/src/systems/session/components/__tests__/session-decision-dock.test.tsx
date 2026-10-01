@@ -267,7 +267,8 @@ describe("SessionDecisionDock", () => {
     renderDock({ messages: [permissionMessage("req-1")] });
 
     expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
-    expect(screen.getByTestId("permission-dock-eyebrow")).toHaveTextContent("Needs your OK");
+    // The ask leads with the tool's identity well (approval-card anatomy).
+    expect(screen.getByTestId("permission-dock-well")).toBeInTheDocument();
     // A known tool reads as a plain question, never its raw id.
     expect(screen.getByTestId("permission-dock-title")).toHaveTextContent(
       "Allow the agent to run command?"

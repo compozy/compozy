@@ -58,10 +58,10 @@ export function MarketplaceDetailExtensionActions({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button aria-label={`Actions for ${extension.name}`} size="icon-sm" variant="ghost" />
+              <Button aria-label={`Actions for ${extension.name}`} size="icon-sm" variant="quiet" />
             }
           >
-            <MoreHorizontal className="size-4" />
+            <MoreHorizontal aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {!facts.dev ? (

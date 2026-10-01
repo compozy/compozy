@@ -21,7 +21,7 @@ const meta: Meta<typeof ContextMenu> = {
     docs: {
       description: {
         component:
-          "Right-click destination chooser. Launch surfaces and deck tabs attach it to offer explicit open/close/pin choices; items follow the shared menu grammar (small-body rows, elevated focus, danger tint for destructive).",
+          "Right-click destination chooser. Launch surfaces and deck tabs attach it to offer explicit open/close/pin choices; items follow the shared menu grammar (32px rows at radius 8 on a `shadow-pop` card, `surface-2` focus, danger tint for destructive).",
       },
     },
   },
@@ -71,7 +71,7 @@ export const TabMenu: Story = {
   },
 };
 
-/** Launch-surface destinations with a disabled option explaining itself. */
+/** Launch-surface destinations, mirroring the dock app menu. */
 export const DestinationMenu: Story = {
   render: () => (
     <ContextMenu>
@@ -82,9 +82,16 @@ export const DestinationMenu: Story = {
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuLabel>Open Tasks</ContextMenuLabel>
+        <ContextMenuItem>Open in new tab</ContextMenuItem>
+        <ContextMenuItem>
+          Open in split
+          <ContextMenuShortcut>⌥ click</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuItem>Open in new window</ContextMenuItem>
-        <ContextMenuItem disabled>Open as tab in focused window</ContextMenuItem>
-        <ContextMenuItem>Open new instance</ContextMenuItem>
+        <ContextMenuItem>
+          Open in new desktop
+          <ContextMenuShortcut>⇧ click</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuSub>
           <ContextMenuSubTrigger>Go to tab</ContextMenuSubTrigger>

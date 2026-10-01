@@ -30,7 +30,7 @@ import { LoopPageLede } from "../loop-page-lede";
 import { LoopSection } from "../loop-section";
 
 import type { LoopBindingRow } from "../../lib/loop-bindings";
-import { loopSourceLabel, successRateLabel } from "../../lib/loop-catalog";
+import { loopMonthActivity, loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
   LoopAggregate30d,
@@ -105,7 +105,13 @@ export function LoopDetailView({
     crumb: loop.name,
     actions: (
       <div className="flex items-center" data-testid="loop-detail-actions">
-        <Button type="button" size="sm" onClick={onRun} data-testid="loop-run-action">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onRun}
+          data-testid="loop-run-action"
+        >
           <Play aria-hidden="true" className="size-3.5" />
           Run loop
         </Button>
@@ -118,7 +124,7 @@ export function LoopDetailView({
           data-testid="loop-detail-overflow"
           render={<Button type="button" variant="ghost" size="icon-sm" />}
         >
-          <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+          <TopbarOverflowIcon aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="loop-detail-overflow-menu">
           <DropdownMenuItem data-testid="loop-edit-action" onClick={onOpenEditor}>
@@ -171,7 +177,7 @@ export function LoopDetailView({
             ...(category ? [category] : []),
             `${graph.nodes.length} ${graph.nodes.length === 1 ? "step" : "steps"}`,
             ...(aggregate && successRate !== null
-              ? [`${successRateLabel(successRate)} success · ${aggregate.runs} runs this month`]
+              ? [detailActivityLine(aggregate.runs, successRate)]
               : []),
           ]}
           name={loop.name}
@@ -201,11 +207,7 @@ export function LoopDetailView({
                       type="button"
                       variant="ghost"
                     >
-                      {writable ? (
-                        <PencilLine aria-hidden="true" className="size-3" />
-                      ) : (
-                        <Copy aria-hidden="true" className="size-3" />
-                      )}
+                      {writable ? <PencilLine aria-hidden="true" /> : <Copy aria-hidden="true" />}
                       {writable ? "Edit steps" : "Copy and edit"}
                     </Button>
                   </span>
@@ -249,4 +251,10 @@ export function LoopDetailView({
       </div>
     </div>
   );
+}
+
+/** The lede's 30-day line; a Loop with no runs states that instead of "0% success". */
+function detailActivityLine(runs: number, successRate: number): string {
+  const activity = loopMonthActivity(runs, successRate);
+  return activity.hasRuns ? `${activity.rate} success · ${activity.runs}` : activity.runs;
 }

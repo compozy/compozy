@@ -56,8 +56,8 @@ export class OsWindowErrorBoundary extends Component<
           icon={AlertTriangle}
           title={`${this.props.title} couldn't open`}
           action={
-            <Button onClick={this.handleRetry} size="sm" type="button" variant="outline">
-              <RefreshCw className="size-3" />
+            <Button onClick={this.handleRetry} size="sm" type="button" variant="secondary">
+              <RefreshCw aria-hidden="true" data-icon="inline-start" />
               Retry
             </Button>
           }

@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
     isSuccess: true,
   },
   vaultFilter: vi.fn(),
+  allSecretsRefetch: vi.fn(),
   toast: Object.assign(vi.fn(), { success: vi.fn() }),
 }));
 
@@ -70,7 +71,7 @@ vi.mock("@/systems/vault/hooks/use-vault", () => ({
       isLoading: isUnfiltered ? mocks.allSecretsState.isLoading : false,
       isStale: isUnfiltered ? mocks.allSecretsState.isStale : false,
       isSuccess: isUnfiltered ? mocks.allSecretsState.isSuccess : true,
-      refetch: vi.fn(),
+      refetch: isUnfiltered ? mocks.allSecretsRefetch : vi.fn(),
     };
   },
 }));
@@ -175,6 +176,25 @@ describe("useVaultPage route state", () => {
     const routeSearch = mocks.navigate.mock.lastCall?.[0].search;
     if (typeof routeSearch !== "function") throw new Error("Expected a route search updater.");
     expect(routeSearch({ ref: providerSecret.ref })).toEqual({ ref: undefined });
+  });
+
+  it("Should drop the route selection of a secret the operator just deleted", async () => {
+    mocks.secrets = [providerSecret];
+    mocks.deleteMutateAsync.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useVaultPage({ ref: providerSecret.ref }));
+    await waitFor(() => expect(result.current.selectedSecret?.ref).toBe(providerSecret.ref));
+
+    act(() => result.current.openDelete(providerSecret));
+    await act(async () => result.current.confirmDelete());
+
+    await waitFor(() => expect(mocks.deleteMutateAsync).toHaveBeenCalledWith(providerSecret.ref));
+    const routeSearch = mocks.navigate.mock.lastCall?.[0].search;
+    if (typeof routeSearch !== "function") throw new Error("Expected a route search updater.");
+    expect(routeSearch({ ref: providerSecret.ref, view: "cards" })).toEqual({
+      ref: undefined,
+      view: "cards",
+    });
+    expect(routeSearch({ ref: sessionSecret.ref })).toEqual({ ref: sessionSecret.ref });
   });
 
   it("Should expose a clear error when a requested secret is gone", () => {
@@ -393,6 +413,29 @@ describe("useVaultPage route state", () => {
     expect(mocks.putMutateAsync).not.toHaveBeenCalled();
 
     mocks.allSecretsState.isFetching = false;
+    mocks.allSecretsState.isStale = false;
+    rerender();
+
+    expect(result.current.editorIsValid).toBe(true);
+  });
+
+  it("Should refresh an idle stale inventory instead of leaving a valid draft unsavable", () => {
+    mocks.allSecretsState.isStale = true;
+    const { result, rerender } = renderHook(() => useVaultPage());
+
+    expect(mocks.allSecretsRefetch).not.toHaveBeenCalled();
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/anthropic",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(mocks.allSecretsRefetch).toHaveBeenCalled();
+    expect(result.current.editorIsValid).toBe(false);
+
     mocks.allSecretsState.isStale = false;
     rerender();
 

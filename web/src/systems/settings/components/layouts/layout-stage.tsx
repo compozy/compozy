@@ -40,7 +40,7 @@ export function LayoutStage({ editor, config }: LayoutStageProps) {
   if (!desktop) {
     return (
       <div
-        className="rounded-lg border border-line bg-canvas-soft px-4 py-5 text-form-label text-subtle"
+        className="rounded-lg bg-card shadow-card px-4 py-5 text-form-label text-subtle"
         data-testid="layout-stage-empty"
       >
         This project has no desktops yet. Open a window to create the first one.
@@ -52,7 +52,7 @@ export function LayoutStage({ editor, config }: LayoutStageProps) {
 
   return (
     <div
-      className="@container/stage overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="@container/stage overflow-hidden rounded-lg bg-card shadow-card"
       data-testid="layout-stage"
     >
       <LayoutDesktopTabs

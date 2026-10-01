@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { useRef } from "react";
 
-import { cn, RadioCard } from "@compozy/ui";
+import { RadioCard } from "@compozy/ui";
 
 export interface SettingsChoiceOption<V extends string> {
   value: V;
@@ -67,16 +67,12 @@ export function SettingsChoiceGroup<V extends string>({
             badge={
               <Check
                 aria-hidden="true"
-                className={checked ? "size-3.5 text-fg-strong" : "size-3.5 opacity-0"}
+                className={checked ? "size-3.5 text-fg" : "size-3.5 opacity-0"}
               />
             }
-            // The card's own selected treatment (glaze + inset ring) carries the
-            // choice; the resting tint applies only to unselected cards so it
-            // never masks it.
-            className={cn(
-              "relative rounded-md border",
-              checked ? "border-line-strong" : "border-line-soft bg-canvas-tint"
-            )}
+            // The card's own selected treatment (selected fill + inset ring)
+            // carries the choice.
+            className="relative"
             data-testid={testId ? `${testId}-${option.value}` : undefined}
             description={<span className="block leading-snug">{option.description}</span>}
             key={option.value}

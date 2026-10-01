@@ -263,6 +263,31 @@ describe("TerminalView", () => {
     await waitFor(() => expect(terminal.options.theme?.background).toBe("#050403"));
   });
 
+  it("Should repaint when only the root data-theme flips", async () => {
+    const engine = createFakeEngine();
+    const style = document.createElement("style");
+    style.textContent = ':root[data-theme="light"] { --terminal-bg: #ffffff; }';
+    document.head.append(style);
+    document.documentElement.style.removeProperty("--terminal-bg");
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={loaderFor(engine)}
+        instanceId={nextInstanceId()}
+      />
+    );
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    const terminal = engine.lastTerminal();
+
+    document.documentElement.dataset.theme = "light";
+    try {
+      await waitFor(() => expect(terminal.options.theme?.background).toBe("#ffffff"));
+    } finally {
+      delete document.documentElement.dataset.theme;
+      style.remove();
+    }
+  });
+
   it("Should resolve the write promise only after the emulator reports the parse", async () => {
     const engine = createFakeEngine();
     const handleRef = React.createRef<TerminalViewHandle>();
@@ -325,6 +350,8 @@ describe("TerminalView", () => {
 
     expect(onData).toHaveBeenCalledWith("ls\r");
     expect(engine.lastTerminal().options.disableStdin).toBe(false);
+    // An idle writable pane keeps the solid block; only a watching view is hollow.
+    expect(engine.lastTerminal().options.cursorInactiveStyle).toBe("block");
   });
 
   it("Should fall back to the DOM renderer per pane when WebGL cannot start", async () => {

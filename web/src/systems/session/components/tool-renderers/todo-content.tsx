@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Eyebrow } from "@compozy/ui";
+import { Eyebrow, StateGlyph } from "@compozy/ui";
 
 import type { UIMessage } from "../../types";
 import { GenericContent } from "./generic-content";
@@ -49,23 +49,20 @@ function parseTodos(value: unknown): TodoItem[] | null {
   return items;
 }
 
+// Done is the transcript's grey check (completion is the resting state, ADR-009);
+// active and pending take the shared running / queued glyphs.
 function TodoGlyph({ state }: { state: TodoState }) {
   if (state === "done") {
     return <Check aria-hidden="true" className="size-3 text-subtle" strokeWidth={2} />;
   }
-  if (state === "active") {
-    return (
-      <span aria-hidden="true" className="session-state-pulse size-1.5 rounded-full bg-accent" />
-    );
-  }
-  return <span aria-hidden="true" className="size-1.5 rounded-full border-[1.4px] border-faint" />;
+  return <StateGlyph size="sm" state={state === "active" ? "running" : "queued"} />;
 }
 
 /**
  * TodoWrite plan renderer — task lines, never JSON: a "Plan · X of N" caption
  * over rows whose state reads as done (grey check + line-through), active
- * (accent pulse dot — the one accent in the transcript body), or pending
- * (hollow dot). Unrecognizable payloads fall back to the generic JSON detail.
+ * (running ring) or pending (queued dashed ring). Unrecognizable payloads fall
+ * back to the generic JSON detail.
  */
 export function TodoContent({ message }: { message: UIMessage }) {
   const todos = parseTodos(message.toolInput?.todos);

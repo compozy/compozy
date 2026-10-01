@@ -7182,7 +7182,7 @@ export interface components {
     };
     WindowManagerArrangeLayoutPayload: {
       /** @enum {string} */
-      arrangement: "horizontal" | "vertical" | "grid" | "stack";
+      arrangement: "horizontal" | "vertical" | "grid" | "stack" | "main_stack";
       desktop_id: string;
       frame: {
         /** Format: double */
@@ -7195,6 +7195,7 @@ export interface components {
         y: number;
       };
       group_id: string;
+      keep_frames?: boolean;
       resource_id?: string;
       window_ids: string[];
     };
@@ -8636,6 +8637,7 @@ export interface components {
       window: {
         app: string;
         desktop_id: string;
+        floating?: boolean;
         floating_rect: {
           /** Format: double */
           height: number;
@@ -61331,7 +61333,7 @@ export interface operations {
               history_limit: number;
               nav_stack_limit: number;
               /** @enum {string} */
-              new_window_policy: "floating" | "beside_focus";
+              new_window_policy: "floating" | "beside_focus" | "tab";
               raise_on_focus: boolean;
               shortcuts: {
                 [key: string]: string[] | string;
@@ -61534,7 +61536,7 @@ export interface operations {
             history_limit: number;
             nav_stack_limit: number;
             /** @enum {string} */
-            new_window_policy: "floating" | "beside_focus";
+            new_window_policy: "floating" | "beside_focus" | "tab";
             raise_on_focus: boolean;
             shortcuts: {
               [key: string]: string[] | string;
@@ -61681,7 +61683,7 @@ export interface operations {
               history_limit: number;
               nav_stack_limit: number;
               /** @enum {string} */
-              new_window_policy: "floating" | "beside_focus";
+              new_window_policy: "floating" | "beside_focus" | "tab";
               raise_on_focus: boolean;
               shortcuts: {
                 [key: string]: string[] | string;

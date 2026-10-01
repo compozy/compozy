@@ -103,10 +103,7 @@ export function LoopEditorCriteria({
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-criteria">
       {criteria.map((criterion, index) => (
-        <div
-          key={rowKeys.keys[index]}
-          className="rounded-md border border-line-soft bg-canvas-soft p-3"
-        >
+        <div key={rowKeys.keys[index]} className="rounded-md bg-sunken p-3">
           <div className="mb-2 flex items-center gap-2">
             <span className="font-mono text-mono-id text-fg-strong">
               {str(criterion.id) || "criterion"}
@@ -122,7 +119,7 @@ export function LoopEditorCriteria({
               onClick={() => remove(index)}
               aria-label={`Remove criterion ${str(criterion.id) || index + 1}`}
             >
-              <X aria-hidden="true" className="size-3" />
+              <X aria-hidden="true" />
             </Button>
           </div>
           <CriterionBody
@@ -136,14 +133,13 @@ export function LoopEditorCriteria({
       ))}
       <Button
         type="button"
-        variant="outline"
+        variant="quiet"
         size="sm"
         disabled={disabled || !defaultType}
         onClick={add}
-        className="border-dashed"
         data-testid="loop-editor-criteria-add"
       >
-        <Plus aria-hidden="true" className="size-3" />
+        <Plus aria-hidden="true" />
         Add criterion
       </Button>
     </div>
@@ -158,7 +154,7 @@ interface CriterionBodyProps {
   allowedTypes: readonly CriterionType[];
 }
 
-const fieldClass = "h-8 px-2.5 font-mono text-form-input";
+const fieldClass = "px-2.5 font-mono text-form-input";
 
 function CriterionBody({
   criterion,

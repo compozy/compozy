@@ -49,7 +49,7 @@ export function SessionDeriveSubmitOutcome({
               onClick={() => void model.open()}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               {model.isOpening ? <Spinner aria-hidden="true" className="size-3" /> : null}
               Open new session

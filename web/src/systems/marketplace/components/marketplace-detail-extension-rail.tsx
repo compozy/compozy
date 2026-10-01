@@ -137,7 +137,8 @@ function MarketplaceExtensionRuntimeRows({
       <div data-testid="marketplace-extension-runtime">
         <PropertyRow
           editor={
-            <Pill mono tone={extension.daemon_running ? "success" : "neutral"}>
+            <Pill form="plain" mono tone={extension.daemon_running ? "success" : "neutral"}>
+              <Pill.Dot />
               {extension.state}
             </Pill>
           }
@@ -146,7 +147,8 @@ function MarketplaceExtensionRuntimeRows({
         {extension.health ? (
           <PropertyRow
             editor={
-              <Pill mono tone={extension.health === "healthy" ? "success" : "warning"}>
+              <Pill form="plain" mono tone={extension.health === "healthy" ? "success" : "warning"}>
+                <Pill.Dot />
                 {extension.health}
               </Pill>
             }
@@ -154,9 +156,7 @@ function MarketplaceExtensionRuntimeRows({
           />
         ) : null}
         {extension.health_message ? (
-          <p className="pb-1 text-transcript-caption leading-relaxed text-faint">
-            {extension.health_message}
-          </p>
+          <p className="pb-1 text-eyebrow leading-relaxed text-faint">{extension.health_message}</p>
         ) : null}
         <PropertyRow label="Process ID" mono>
           {extension.pid ? String(extension.pid) : "—"}

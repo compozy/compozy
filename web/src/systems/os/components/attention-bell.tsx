@@ -39,7 +39,7 @@ function BellSection({
           <AttentionBellRow row={row} onSelect={onSelect} />
           <Button
             size="icon-sm"
-            variant="ghost"
+            variant="quiet"
             aria-label={`Mark ${row.title} as read`}
             disabled={disabled || !row.notificationId || !onAcknowledge}
             onClick={() => onAcknowledge?.(row)}
@@ -166,7 +166,7 @@ function BellNotices({
         </p>
       ) : null}
       {total !== undefined && total > shown ? (
-        <p className="px-2 py-2 text-micro text-subtle">
+        <p className="px-2 py-2 text-eyebrow text-subtle">
           {shown} of {total} shown
         </p>
       ) : null}

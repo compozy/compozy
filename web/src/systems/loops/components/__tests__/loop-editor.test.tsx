@@ -99,7 +99,8 @@ function renderEditor(
   name = "quality-gate-demo",
   extraHandlers: HttpHandler[] = [],
   topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">,
-  workspaceId = WS
+  workspaceId = WS,
+  liveDataEnabled = true
 ) {
   vi.stubGlobal(
     "fetch",
@@ -112,6 +113,7 @@ function renderEditor(
       <LoopEditor
         workspaceId={workspaceId}
         name={name}
+        liveDataEnabled={liveDataEnabled}
         onPublished={onPublished}
         topbarIdentity={topbarIdentity}
       />
@@ -158,6 +160,15 @@ describe("LoopEditor", () => {
     });
   });
   afterEach(() => vi.unstubAllGlobals());
+
+  // Regression: a suspended window disables the Loop read; with no data yet the
+  // editor used to fall through to "Loop <name> not found" for a Loop that exists.
+  it("Should keep waiting, not report a missing Loop, while its window is suspended", async () => {
+    renderEditor("quality-gate-demo", [], undefined, WS, false);
+
+    expect(await screen.findByTestId("loop-editor-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-editor-not-found")).not.toBeInTheDocument();
+  });
 
   it("Should preserve route identity and editor actions in one topbar publication", async () => {
     const onBack = vi.fn();

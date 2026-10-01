@@ -60,7 +60,7 @@ export const SizeLadder: Story = {
 
 export const OwnerKindMatrix: Story = {
   render: () => (
-    <div className="grid grid-cols-3 gap-6 [&_label]:text-muted [&_label]:text-[11px] [&_label]:font-medium [&_label]:uppercase [&_label]:tracking-mono">
+    <div className="grid grid-cols-3 gap-6 [&_label]:text-muted [&_label]:text-micro [&_label]:font-medium [&_label]:uppercase [&_label]:tracking-mono">
       <div className="flex flex-col items-center gap-2">
         <label>Agent · sm/default/lg</label>
         <div className="flex items-center gap-3">

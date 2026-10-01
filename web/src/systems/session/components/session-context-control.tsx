@@ -83,10 +83,7 @@ function SessionContextTooltipLine({
   switch (row.kind) {
     case "numbers":
       return (
-        <p
-          className={cn("flex items-baseline gap-1 text-fg-strong tabular-nums", className)}
-          {...props}
-        >
+        <p className={cn("flex items-baseline gap-1 text-fg tabular-nums", className)} {...props}>
           {row.percent ? (
             <>
               <b
@@ -152,8 +149,8 @@ export function SessionContextControl({
         render={
           <Button
             type="button"
-            variant="ghost"
-            size="icon-xs"
+            variant="quiet"
+            size="icon"
             aria-label={`${view.label}${context.stale ? ", may be out of date" : ""}`}
             aria-describedby={tipOpen ? tooltipId : undefined}
             aria-busy={context.loading}
@@ -161,9 +158,9 @@ export function SessionContextControl({
             data-testid="composer-context-button"
             data-state={view.state}
             className={cn(
-              "shrink-0 text-muted hover:text-fg data-[popup-open]:bg-btn-default-hover data-[popup-open]:text-fg",
+              "shrink-0 text-fg-2 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
               view.state === "warning" && "text-warning hover:text-warning",
-              open && "bg-btn-default-hover text-fg-strong"
+              open && "bg-surface-2 text-fg"
             )}
           />
         }
@@ -173,7 +170,7 @@ export function SessionContextControl({
       <TooltipContent
         role="tooltip"
         id={tooltipId}
-        className="min-w-53 max-w-70 flex-col items-start gap-1.25 px-2.75 py-2.25 text-eyebrow leading-[1.45] text-muted"
+        className="min-w-53 max-w-70 flex-col items-start gap-1.25 px-2.75 py-2.25 text-eyebrow leading-normal text-muted"
         side="top"
         align="start"
       >

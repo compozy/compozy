@@ -24,24 +24,48 @@ const bootTokenMap = {
   muted: "color-subtle",
   action: "color-accent",
   "action-hover": "color-accent-hover",
+  "action-ink": "color-accent-ink",
+  selection: "color-accent-tint",
+  "focus-ring": "theme-shadow-focus-ring",
   success: "color-success",
   danger: "color-danger",
   warning: "color-warning",
   info: "color-info",
   line: "color-line",
-  surface: "color-surface-glaze",
-  "surface-hover": "color-btn-default-hover",
+  // Boot controls are secondary pills: the product's rest and hover fills.
+  surface: "color-surface-2",
+  "surface-hover": "color-selected",
+  "surface-hover-shadow": "theme-shadow-card",
   sans: "font-sans",
   mono: "font-mono",
 } as const;
+const lightTokens = await readFile(
+  join(root, "..", "packages", "ui", "src", "tokens-light.css"),
+  "utf8"
+);
+/** A declaration's value, including values wrapped across lines (font stacks). */
+function tokenValue(source: string, name: string): string | undefined {
+  const value = new RegExp(`^\\s*--${name}:\\s*([^;]+);`, "mu").exec(source)?.[1];
+  return value?.replace(/\s+/gu, " ").trim();
+}
 const bootTokens = Object.entries(bootTokenMap).map(([bootName, canonicalName]) => {
-  const match = new RegExp(`^\\s*--${canonicalName}:\\s*(.+);$`, "mu").exec(canonicalTokens);
-  if (!match?.[1]) throw new Error(`Canonical desktop token --${canonicalName} is missing.`);
-  return `  --${bootName}: ${match[1]};`;
+  const value = tokenValue(canonicalTokens, canonicalName);
+  if (!value) throw new Error(`Canonical desktop token --${canonicalName} is missing.`);
+  return `  --${bootName}: ${value};`;
+});
+// The boot page follows the user's theme through prefers-color-scheme: main sets
+// nativeTheme.themeSource to the stored preference before the boot window exists.
+// Tokens the light theme does not re-declare (fonts) keep their dark value.
+const bootLightTokens = Object.entries(bootTokenMap).flatMap(([bootName, canonicalName]) => {
+  const value = tokenValue(lightTokens, canonicalName);
+  return value ? [`    --${bootName}: ${value};`] : [];
 });
 await writeFile(
   join(output, "pages", "boot-tokens.css"),
-  `/* Generated from packages/ui/src/tokens.css by build-main.ts. */\n:root {\n  color-scheme: dark;\n${bootTokens.join("\n")}\n}\n`,
+  `/* Generated from packages/ui/src/tokens.css and tokens-light.css by build-main.ts. */\n` +
+    `:root {\n  color-scheme: dark;\n${bootTokens.join("\n")}\n}\n` +
+    `@media (prefers-color-scheme: light) {\n  :root {\n    color-scheme: light;\n` +
+    `${bootLightTokens.join("\n")}\n  }\n}\n`,
   "utf8"
 );
 

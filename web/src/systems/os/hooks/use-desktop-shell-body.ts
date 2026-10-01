@@ -17,6 +17,7 @@ import { useWorktreeListings } from "@/systems/workspace";
 import { frameSeamEdits } from "../lib/frame-seams";
 import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
+import { desktopIdsNeedingYou } from "../lib/desktop-pager-attention";
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore, OsOpenTarget } from "../lib/os-types";
@@ -209,15 +210,30 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       globalScope: shortcutActionLabel(effective, "scope.global.toggle", platform),
     };
   }, shallowEqual);
-  const pager = useDesktop(
+  // Keycaps for the desktops overview: `desktop.switch.1…9` by position.
+  const effectiveShortcuts = useDesktop(state => state.windowManagerConfig?.effectiveShortcuts);
+  const desktopSwitchShortcuts = Array.from({ length: 9 }, (_, index) =>
+    shortcutActionLabel(
+      effectiveShortcuts,
+      `desktop.switch.${index + 1}`,
+      typeof navigator === "undefined" ? "" : navigator.platform
+    )
+  );
+  const pagerState = useDesktop(
     state => ({
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
-      compact: state.presentation === "compact",
+      windows: state.windows,
       canSwitchDesktop: windowManagerCommandsAvailable(state),
     }),
     shallowEqual
   );
+  const pager = {
+    activeDesktopId: pagerState.activeDesktopId,
+    desktops: pagerState.desktops,
+    canSwitchDesktop: pagerState.canSwitchDesktop,
+    needsYouDesktopIds: desktopIdsNeedingYou(pagerState.windows, attention.sections.needsYou),
+  };
 
   // The shell's half of the dispatch seam: what a `client_op` is allowed to
   // reach in this client. The seam owns which operation runs; this owns what it
@@ -365,6 +381,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
+    desktopSwitchShortcuts,
     onOpenDesktopOverview: openDesktopOverview,
     onSeamPreview: setSeamPreview,
     onFrameSeamPreview: setFrameSeamPreview,

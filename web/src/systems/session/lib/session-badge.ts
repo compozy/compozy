@@ -1,5 +1,5 @@
 /**
- * The one session badge → tone / glyph / shape dictionary.
+ * The one session badge → state glyph / tone / word dictionary.
  *
  * Every attention surface reads from here: sidebar rows, the attention bell,
  * the palette Sessions view, and the session window status line. Two local maps
@@ -13,31 +13,18 @@
  * dictionary exhaustive: a new token fails `bun-typecheck` until it has an
  * entry, exactly like `TASK_STATUS_TONE` in `@/lib/status-tone`.
  *
- * Signal grammar is locked in `docs/design/opendesign/herdr-parity/DESIGN-NOTES.md`:
- * the needs-you class shares one tone (danger — "you are the blocker") and
- * differs by glyph, so colour is never the only channel. `needs-attention` is
- * the one needs-you member on warning (sessions-stability §08): the runtime,
- * not the operator, is what could not be confirmed. Two presentation
- * scales, one meaning: 7–9 px shapes on rows, 18 px tinted glyph roundels on
- * bell rows, toasts, palette rows, and the window status line. The state word
- * is plain language (`displayLabel`); the exact CLI vocabulary stays
- * one step deeper, in the accessible label and `data-*` attributes. Colour is
- * reserved for states that ask something of the user: resting states (`idle`,
- * `done`) are neutral and lean on their glyph.
+ * Signal grammar follows the shell-rail brand (`StateGlyph` canonical
+ * mapping): needs-you reads as the accent-orange attention dot, a failure as
+ * the danger ring, work in flight as the mint running ring, and resting states
+ * as neutral marks. The word tone agrees with the glyph. Where two badges share
+ * a glyph (the needs-you trio, the failure trio, idle/unknown) the entry
+ * `speaks`: every surface that shows the mark also shows the plain state word,
+ * so no state rests on colour or a shared shape alone. The exact CLI vocabulary
+ * stays one step deeper, in the accessible label and `data-*` attributes.
  */
-import {
-  Activity,
-  Check,
-  Circle,
-  CircleHelp,
-  Minus,
-  Shield,
-  TriangleAlert,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import type { PillTone, StateGlyphState } from "@compozy/ui";
 
-import type { PillTone } from "@compozy/ui";
+import type { SessionPayload, SessionState } from "../types";
 
 /** The daemon's eleven-token badge vocabulary, in precedence order. */
 export const SESSION_BADGES = [
@@ -59,17 +46,16 @@ export type SessionBadgeToken = (typeof SESSION_BADGES)[number];
 /** Mirrors `session.AttentionClass` — the daemon derives it, the web renders it. */
 export type SessionAttentionClass = "needs-you" | "finished" | "none";
 
-/** Row-scale shape. Pairs with the tone so state never reads as colour alone. */
-export type SessionBadgeShape = "dot" | "diamond" | "square" | "check" | "ring" | "dashed-ring";
-
 export interface SessionBadgeSignal {
-  /** Tone for the roundel, the state word, and the row mark. */
+  /** The shared work-state glyph (`StateGlyph`) at every scale. */
+  state: StateGlyphState;
+  /** Tone for the state word; it agrees with the glyph. */
   tone: PillTone;
-  /** 7–9 px row mark. */
-  shape: SessionBadgeShape;
-  /** 18 px roundel glyph. */
-  glyph: LucideIcon;
-  pulse: boolean;
+  /**
+   * The glyph is shared with another badge, so every surface that shows the
+   * mark also shows the state word.
+   */
+  speaks: boolean;
   /** Exact CLI vocabulary — the accessible label and `data-*` lane. */
   label: SessionBadgeToken;
   /** Plain-language state word shown on screen. */
@@ -80,103 +66,92 @@ export interface SessionBadgeSignal {
 export const SESSION_BADGE_SIGNAL = {
   // A stop whose ladder ran out without a verified death: the daemon still
   // reads `stopping` and asks the operator to retry. Needs-you by the daemon's
-  // own class, but warning rather than danger — nothing in the operator's work
-  // failed; the runtime is being honest about what it cannot prove.
+  // own class; nothing in the operator's work failed, the runtime is being
+  // honest about what it cannot prove, so its word names that.
   "needs-attention": {
-    tone: "warning",
-    shape: "diamond",
-    glyph: TriangleAlert,
-    pulse: false,
+    state: "attention",
+    tone: "accent",
+    speaks: true,
     label: "needs-attention",
     displayLabel: "Needs attention",
     attention: "needs-you",
   },
   "waiting-for-input": {
-    tone: "danger",
-    shape: "dot",
-    glyph: CircleHelp,
-    pulse: false,
+    state: "attention",
+    tone: "accent",
+    speaks: true,
     label: "waiting-for-input",
     displayLabel: "Needs your answer",
     attention: "needs-you",
   },
   "waiting-for-auth": {
-    tone: "danger",
-    shape: "diamond",
-    glyph: Shield,
-    pulse: false,
+    state: "attention",
+    tone: "accent",
+    speaks: true,
     label: "waiting-for-auth",
     displayLabel: "Needs sign-in",
     attention: "needs-you",
   },
   failed: {
+    state: "failed",
     tone: "danger",
-    shape: "square",
-    glyph: X,
-    pulse: false,
+    speaks: true,
     label: "failed",
     displayLabel: "Failed",
     attention: "needs-you",
   },
   done: {
+    state: "done",
     tone: "neutral",
-    shape: "check",
-    glyph: Check,
-    pulse: false,
+    speaks: false,
     label: "done",
     displayLabel: "Done",
     attention: "finished",
   },
   running: {
-    tone: "accent",
-    shape: "dot",
-    glyph: Circle,
-    pulse: true,
+    state: "running",
+    tone: "neutral",
+    speaks: false,
     label: "running",
     displayLabel: "Working",
     attention: "none",
   },
   idle: {
+    state: "idle",
     tone: "neutral",
-    shape: "dot",
-    glyph: Circle,
-    pulse: false,
+    speaks: false,
     label: "idle",
     displayLabel: "Idle",
     attention: "none",
   },
   hung: {
-    tone: "warning",
-    shape: "dot",
-    glyph: Activity,
-    pulse: false,
+    state: "failed",
+    tone: "danger",
+    speaks: true,
     label: "hung",
     displayLabel: "Stuck",
     attention: "none",
   },
   unhealthy: {
-    tone: "warning",
-    shape: "ring",
-    glyph: Activity,
-    pulse: false,
+    state: "failed",
+    tone: "danger",
+    speaks: true,
     label: "unhealthy",
     displayLabel: "Having trouble",
     attention: "none",
   },
   stopped: {
+    state: "stopped",
     tone: "neutral",
-    shape: "ring",
-    glyph: Circle,
-    pulse: false,
+    speaks: false,
     label: "stopped",
     displayLabel: "Stopped",
     attention: "none",
   },
   unknown: {
+    state: "idle",
     tone: "neutral",
-    shape: "dashed-ring",
-    glyph: Minus,
-    pulse: false,
+    speaks: true,
     label: "unknown",
     displayLabel: "Unknown",
     attention: "none",
@@ -211,4 +186,16 @@ export function isNeedsYouBadge(badge: string | null | undefined): boolean {
 /** The finished-unseen class is exactly `done`. It never counts toward needs-you. */
 export function isFinishedBadge(badge: string | null | undefined): boolean {
   return sessionAttentionClass(badge) === "finished";
+}
+
+const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadgeToken> = {
+  active: "idle",
+  starting: "running",
+  stopping: "running",
+  stopped: "stopped",
+};
+
+/** The session's badge, falling back to its lifecycle state when the daemon sent none. */
+export function sessionBadgeOf(session: Pick<SessionPayload, "badge" | "state">): string {
+  return session.badge || STATE_BADGE_FALLBACK[session.state];
 }

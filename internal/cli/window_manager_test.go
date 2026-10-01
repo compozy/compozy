@@ -488,6 +488,16 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			},
 		},
 		{
+			name:            "Should open an explicit floating window",
+			commandID:       contract.WindowManagerCommandWindowOpen,
+			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false,"floating":true}}`,
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "7", "--app", "tasks",
+				"--pathname", "/tasks", "--search-json", "{}", "--floating",
+			},
+			expectedRoute: &windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+		},
+		{
 			name:            "Should group windows at an insertion index",
 			commandID:       contract.WindowManagerCommandWindowStackGroup,
 			expectedPayload: `{"target_window_id":"win-1","window_ids":["win-2","win-3"],"insert_index":1}`,
@@ -638,6 +648,15 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			args: []string{
 				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
 				"--window", "win-2", "--arrangement", "horizontal",
+			},
+		},
+		{
+			name:            "Should arrange explicit windows keeping their tab frames whole",
+			commandID:       contract.WindowManagerCommandLayoutArrange,
+			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"main_stack","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":"","keep_frames":true}`,
+			args: []string{
+				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
+				"--window", "win-2", "--arrangement", "main_stack", "--keep-frames",
 			},
 		},
 		{
@@ -1454,6 +1473,15 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			},
 			wantKind: windowManagerCLIValidationConflicting, wantField: windowManagerResourceFlag,
 			wantError: "--resource cannot be combined with --desktop",
+		},
+		{
+			name: "Should reject keep-frames with a declarative resource",
+			args: []string{
+				"layout", "arrange", "--workspace", "w1", "--revision", "1", "--resource", "focused-work",
+				"--keep-frames",
+			},
+			wantKind: windowManagerCLIValidationConflicting, wantField: windowManagerResourceFlag,
+			wantError: "--resource cannot be combined with --keep-frames",
 		},
 		{
 			name: "Should reject incomplete inline arrangement mode",

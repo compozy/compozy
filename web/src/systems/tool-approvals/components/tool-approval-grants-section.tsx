@@ -36,9 +36,9 @@ export function ToolApprovalGrantsSection() {
           onClick={set.open}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
-          <Plus aria-hidden="true" className="size-3" />
+          <Plus aria-hidden="true" />
           Add rule
         </Button>
       }
@@ -50,23 +50,25 @@ export function ToolApprovalGrantsSection() {
         />
         <DataSurface.Error
           action={
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
+            <Button onClick={onRetry} size="sm" type="button" variant="secondary">
               Retry
             </Button>
           }
           data-testid={`${TEST_ID}-error`}
           description={error?.message}
           icon={Shield}
+          size="compact"
           title="Couldn't load remembered decisions"
         />
         <DataSurface.Empty
           data-testid={`${TEST_ID}-empty`}
           description="When you choose Always allow or Never allow on a prompt, it shows up here."
           icon={Shield}
+          size="compact"
           title="No remembered decisions yet"
         />
         <DataSurface.Content
-          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          className="overflow-hidden rounded-lg bg-card shadow-card"
           data-testid={`${TEST_ID}-list`}
         >
           {renderGrantRows(grants, revoke.open)}

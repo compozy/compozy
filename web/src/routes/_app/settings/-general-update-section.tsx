@@ -53,9 +53,9 @@ function RetryButton({ isFetching, onRetry }: { isFetching: boolean; onRetry: ()
       variant="ghost"
     >
       {isFetching ? (
-        <Spinner aria-hidden="true" className="size-3" />
+        <Spinner aria-hidden="true" className="size-3.5" />
       ) : (
-        <RefreshCw aria-hidden="true" className="size-3" />
+        <RefreshCw aria-hidden="true" />
       )}
       Retry
     </Button>
@@ -136,7 +136,8 @@ function UpdateFailureGroup({
         label="CompozyOS version"
         control={
           <>
-            <Pill tone={failed ? "danger" : "warning"}>
+            <Pill form="plain" tone={failed ? "danger" : "warning"}>
+              <Pill.Dot />
               {failed ? "Check failed" : "Unavailable"}
             </Pill>
             <RetryButton isFetching={isFetching} onRetry={onRetry} />
@@ -171,13 +172,16 @@ function UpdateGroupAction({
           type="button"
           variant="neutral"
         >
-          {actions.isApplying ? <Spinner className="size-3" /> : null}
+          {actions.isApplying ? <Spinner className="size-3.5" /> : null}
           Update CompozyOS
         </Button>
       ) : null}
       {refreshError ? (
         <>
-          <Pill tone="danger">Refresh failed</Pill>
+          <Pill form="plain" tone="danger">
+            <Pill.Dot />
+            Refresh failed
+          </Pill>
           <RetryButton isFetching={isFetching} onRetry={onRetry} />
         </>
       ) : null}
@@ -210,7 +214,10 @@ function UpdateCancelResultRow({ result }: { result: SettingsUpdateCancelResult 
         result.holder ? (
           <UpdateHolderValue holder={result.holder} />
         ) : (
-          <Pill tone={canceled ? "neutral" : "warning"}>{canceled ? "Canceled" : "Declined"}</Pill>
+          <Pill form="plain" tone={canceled ? "neutral" : "warning"}>
+            <Pill.Dot />
+            {canceled ? "Canceled" : "Declined"}
+          </Pill>
         )
       }
     />

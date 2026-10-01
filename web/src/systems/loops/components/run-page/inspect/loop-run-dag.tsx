@@ -106,10 +106,13 @@ function LoopDagCard({
       // pressed state to report at all.
       aria-pressed={selectable ? selected : undefined}
       className={cn(
-        "flex w-40 shrink-0 flex-col gap-1.5 rounded-md border bg-canvas-tint px-3 py-2.5 text-left",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        node.chip.state === "pending" ? "border-dashed border-line" : "border-line",
-        selected && "border-accent",
+        "flex w-40 shrink-0 flex-col gap-1.5 rounded-md bg-card px-3 py-2.5 text-left",
+        "outline-none focus-visible:shadow-focus-ring",
+        // A card lifts with its hairline ring; a step not reached yet is only an
+        // outline of where it will be. The open step holds the selected plate —
+        // accent stays reserved for what needs you.
+        node.chip.state === "pending" ? "border border-dashed border-line-strong" : "shadow-card",
+        selected && "bg-selected",
         // No opacity: the card still has to be read, and dimming it would push
         // its text under the contrast floor to say something the cursor and the
         // disabled state already say.
@@ -227,7 +230,8 @@ export function LoopRunDag({
 
   return (
     <div
-      className={cn("flex items-stretch gap-0 overflow-x-auto px-4 py-4", className)}
+      // Recessed inside the Inspect card, so the step cards on it read as cards.
+      className={cn("flex items-stretch gap-0 overflow-x-auto bg-sunken px-4 py-4", className)}
       data-testid="loop-run-dag"
       ref={laneRef}
       {...props}

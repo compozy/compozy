@@ -57,10 +57,11 @@ export function SessionForkFields({
           ) : (
             <>
               <span>
-                Through <q className="font-medium text-fg-strong">{pointQuote}</q>
+                Through <q className="font-medium text-fg">{pointQuote}</q>
               </span>
               <Button
-                className="h-auto self-start p-0 text-micro text-muted underline underline-offset-2 hover:text-fg-strong"
+                // Inline beside the quote: no pill geometry; the underline is the non-color cue.
+                className="h-auto self-start p-0 underline underline-offset-2"
                 data-testid="session-fork-point-change"
                 disabled={disabled}
                 onClick={onChangePoint}

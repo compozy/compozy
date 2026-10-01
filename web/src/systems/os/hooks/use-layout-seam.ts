@@ -3,14 +3,15 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import { seamWeightDelta } from "../lib/seam-preview";
 import type { ProjectedSeam } from "../lib/window-manager-types";
-import { createSeamDragLogic } from "./seam-drag-store";
+import { createSeamDragLogic, seamKeyStep } from "./seam-drag-store";
 
 /** Matches the daemon's `weightTolerance` no-op band for layout.resize. */
 const SEAM_WEIGHT_EPSILON = 0.000001;
 
 function resizeKeyDelta(event: KeyboardEvent<HTMLElement>): number | null {
-  if (event.key === "ArrowLeft" || event.key === "ArrowUp") return -0.02;
-  if (event.key === "ArrowRight" || event.key === "ArrowDown") return 0.02;
+  const step = seamKeyStep(event);
+  if (event.key === "ArrowLeft" || event.key === "ArrowUp") return -step;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") return step;
   return null;
 }
 

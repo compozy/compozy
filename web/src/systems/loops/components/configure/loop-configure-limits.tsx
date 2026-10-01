@@ -63,7 +63,7 @@ export function LoopConfigureLimits({
                 type="number"
                 min={0}
                 max={field.ceiling}
-                className="h-8 font-mono text-form-input"
+                className="font-mono text-form-input"
                 disabled={disabled}
                 placeholder={
                   field.defaultValue !== null ? String(field.defaultValue) : field.placeholder
@@ -90,7 +90,7 @@ export function LoopConfigureLimits({
           <NativeSelect
             id="loop-configure-limit-policy"
             data-testid="loop-configure-limit-policy"
-            className="h-8 text-form-input"
+            className="text-form-input"
             disabled={disabled}
             value={draft.budgetOnExceeded}
             onChange={event =>

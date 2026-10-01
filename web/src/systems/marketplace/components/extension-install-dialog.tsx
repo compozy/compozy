@@ -154,7 +154,7 @@ export function ExtensionInstallDialog({
               disabled={pending || !inputForm.valid}
               type="submit"
             >
-              {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {pending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
               {pending ? "Working…" : preview ? "Install" : "Review install"}
             </Button>
           </DialogFooter>
@@ -239,7 +239,7 @@ export function ExtensionInstallSummary({ preview }: { preview: ExtensionInstall
       data-testid="extension-install-summary"
     >
       {preview.declared_profiles.map(profile => (
-        <div className="flex items-center gap-2 py-2.5 text-sm" key={profile.name}>
+        <div className="flex items-center gap-2 py-2.5 text-small-body" key={profile.name}>
           <span className="min-w-0 flex-1 text-fg">
             {profile.create ? "Creates" : "Uses"} profile {profile.name}
           </span>
@@ -252,7 +252,7 @@ export function ExtensionInstallSummary({ preview }: { preview: ExtensionInstall
         </div>
       ))}
       {preview.placements.length > 0 ? (
-        <div className="py-2.5 text-sm text-muted">
+        <div className="py-2.5 text-small-body text-muted">
           {preview.placements.length} {preview.placements.length === 1 ? "resource" : "resources"}
         </div>
       ) : null}

@@ -50,7 +50,7 @@ const meta: Meta<typeof SessionVaultPanel> = {
   decorators: [
     Story => (
       <CenteredSurface>
-        <div className="w-full max-w-lg rounded-lg border border-line bg-canvas-soft p-5">
+        <div className="w-full max-w-lg rounded-lg bg-card p-5 shadow-card">
           <Story />
         </div>
       </CenteredSurface>

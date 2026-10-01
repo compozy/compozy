@@ -38,7 +38,6 @@ export function ContractSection({
       <Field>
         <FieldLabel htmlFor="task-description-input">Description</FieldLabel>
         <Textarea
-          className="min-h-form-textarea"
           data-testid="task-description-input"
           id="task-description-input"
           onChange={event => onDescription(event.target.value)}

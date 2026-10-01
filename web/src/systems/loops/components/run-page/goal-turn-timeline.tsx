@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { CheckCircle2, CircleAlert, Clock3, FileWarning, ShieldAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -7,7 +7,9 @@ import {
   Eyebrow,
   MonoId,
   Pill,
-  PillDot,
+  LiveBadge,
+  StateGlyph,
+  type StateGlyphState,
   Time,
   Timeline,
   TimelineEvent,
@@ -39,19 +41,21 @@ function resultTone(turn: GoalTurn): PillTone {
   return turn.result_status === null ? "accent" : (RESULT_TONE[turn.result_status] ?? "neutral");
 }
 
-/** Distinguishes pending, completed, failed, and uncertain turn outcomes visually. */
-function ResultIcon({ turn }: { turn: GoalTurn }) {
-  if (turn.result_status === null) return <Clock3 className="size-3" aria-hidden="true" />;
-  if (turn.result_status === "completed") {
-    return <CheckCircle2 className="size-3" aria-hidden="true" />;
+/**
+ * Turn outcome → canonical state glyph: an open turn is running, a completed turn
+ * is done, an ambiguous turn waits on a person, and failed or invalid results fail.
+ */
+function resultGlyph(turn: GoalTurn): StateGlyphState {
+  switch (turn.result_status) {
+    case null:
+      return "running";
+    case "completed":
+      return "done";
+    case "ambiguous":
+      return "attention";
+    default:
+      return "failed";
   }
-  if (turn.result_status === "failed") {
-    return <CircleAlert className="size-3" aria-hidden="true" />;
-  }
-  if (turn.result_status === "ambiguous") {
-    return <ShieldAlert className="size-3" aria-hidden="true" />;
-  }
-  return <FileWarning className="size-3" aria-hidden="true" />;
 }
 
 /** Pairs a structural label with its operational value in the turn details. */
@@ -103,7 +107,7 @@ function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
           {turn.criteria.map(criterion => (
             <li key={criterion.id} className="min-w-0 py-2 first:pt-0 last:pb-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <MonoId value={criterion.id} className="max-w-table-cell-sm text-fg" />
+                <MonoId value={criterion.id} className="max-w-(--width-table-cell-sm) text-fg" />
                 <Pill tone="neutral" size="xs">
                   {criterion.type}
                 </Pill>
@@ -170,10 +174,13 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
       time={<Time iso={turn.ended_at ?? turn.started_at} />}
       meta={
         <>
-          <Pill tone={tone} size="xs">
-            <ResultIcon turn={turn} />
+          <span
+            className="inline-flex items-center gap-1.5 text-eyebrow text-fg-2"
+            data-testid={`goal-turn-result-${turn.seq}`}
+          >
+            <StateGlyph size="sm" state={resultGlyph(turn)} />
             {resultLabel}
-          </Pill>
+          </span>
           <span className="font-mono text-mono-id text-faint">seq {turn.seq}</span>
           <span className="font-mono text-mono-id text-faint">
             generation {turn.generation} · item {turn.item_index}
@@ -229,7 +236,7 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
         {turn.evidence_ref ? (
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <Eyebrow>Evidence</Eyebrow>
-            <MonoId value={turn.evidence_ref} className="max-w-table-cell-sm text-info" />
+            <MonoId value={turn.evidence_ref} className="max-w-(--width-table-cell-sm) text-info" />
           </span>
         ) : (
           <span className="text-faint">No evidence reference</span>
@@ -237,7 +244,10 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
         {turn.reason_code ? (
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <Eyebrow>Cause</Eyebrow>
-            <MonoId value={turn.reason_code} className="max-w-table-cell-sm text-warning" />
+            <MonoId
+              value={turn.reason_code}
+              className="max-w-(--width-table-cell-sm) text-warning"
+            />
           </span>
         ) : null}
         <span className="ml-auto font-mono text-mono-id tabular-nums text-faint">
@@ -266,10 +276,13 @@ export function GoalTurnTimeline({
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Eyebrow className="text-faint">Goal turns</Eyebrow>
-        <Pill tone={live ? "accent" : "neutral"} size="xs" pulse={live}>
-          <PillDot />
-          {live ? "live" : "audit"}
-        </Pill>
+        {live ? (
+          <LiveBadge label="live" />
+        ) : (
+          <Pill tone="neutral" size="xs">
+            audit
+          </Pill>
+        )}
         <span className="font-mono text-mono-id tabular-nums text-subtle">
           {turns.length} {turns.length === 1 ? "turn" : "turns"}
         </span>

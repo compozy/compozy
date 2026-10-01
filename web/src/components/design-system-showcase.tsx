@@ -47,23 +47,23 @@ export function DesignSystemShowcase() {
               <span
                 aria-hidden="true"
                 data-slot="page-header-icon"
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-icon-well bg-well text-well-ink"
               >
                 <SparklesIcon className="size-3" />
               </span>
-              <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
+              <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg">
                 CompozyOS design system
               </h1>
               <span
                 data-slot="page-header-count"
-                className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
+                className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-surface-2 px-1.5 font-mono text-micro font-medium tabular-nums text-muted"
               >
                 v1
               </span>
             </div>
             <div
               data-slot="page-header-meta"
-              className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-muted"
+              className="ml-auto flex shrink-0 items-center gap-2 text-small-body text-muted"
             >
               <DesignSystemShowcaseLink />
             </div>
@@ -73,7 +73,7 @@ export function DesignSystemShowcase() {
         <div
           role="toolbar"
           aria-label="Showcase filters"
-          className="flex min-h-11 flex-wrap items-center gap-3 border-b border-line bg-canvas-soft px-4 py-2"
+          className="flex min-h-11 flex-wrap items-center gap-3 border-b border-line bg-sunken px-4 py-2"
         >
           <PillGroup
             value={filter}

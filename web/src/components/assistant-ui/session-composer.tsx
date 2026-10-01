@@ -2,6 +2,8 @@ import { ComposerPrimitive } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import type { ReactNode } from "react";
 
+import { InputGroup } from "@compozy/ui";
+
 import { cn } from "@/lib/utils";
 import {
   SessionQueueStrip,
@@ -92,6 +94,12 @@ export interface SessionComposerProps {
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
   quoteSlot?: ReactNode;
+  /** Replaces the idle placeholder, for hosts without the command catalog. */
+  placeholder?: string;
+  /** `false` removes every way to attach files (button, drop, paste), for hosts that carry text only. */
+  attachments?: boolean;
+  /** `false` drops the pane fill around the composer, for hosts that sit on the desk wallpaper. */
+  backdrop?: boolean;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -110,12 +118,12 @@ function SessionComposerSurface() {
   const state = useSessionComposerStateContext();
   const meta = useSessionComposerMetaContext();
   return (
-    <div className="bg-canvas" data-testid="composer-shell">
+    <div className={meta.backdrop ? "bg-canvas" : undefined} data-testid="composer-shell">
       <ThreadContentRail
         inset={meta.contentInset ?? SESSION_THREAD_CONTENT_INSET_DEFAULT}
-        className="pt-1.5 pb-4"
+        className="pt-2 pb-5"
       >
-        <div className="group/composer relative flex min-w-0 flex-col">
+        <div className="group/composer relative flex min-w-0 flex-col gap-2">
           {meta.decisionDock}
           {state.showQueuedStrip ? <SessionComposerQueue /> : null}
           <SessionComposerEditor />
@@ -157,28 +165,22 @@ function SessionComposerEditor() {
         isCatalogLoading={meta.commandCatalogStatus === "loading"}
         onOpen={meta.onCommandCatalogOpen}
       />
-      <SessionComposerDropRoot disabled={!meta.canPrompt}>
-        <ComposerPrimitive.Root
-          className={cn(
-            "tm-composer-stack flex flex-col gap-transcript-inline-gap rounded-lg border border-line bg-elevated shadow-highlight",
-            "pt-3 pr-2.5 pb-2 pl-3.5",
-            "transition-colors duration-base ease-out",
-            "hover:border-line-strong focus-within:border-accent-dim",
-            "group-data-[dragging=true]/drop:border-accent-dim",
-            "group-has-[[data-slot=dock]]/composer:rounded-t-none",
-            state.showQueuedStrip ? "rounded-t-none" : null
-          )}
-          data-testid="session-composer-stack"
-        >
-          {meta.quoteSlot}
-          <SessionAttachmentStrip
-            promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
-            promptImageCapability={meta.promptImageCapability}
-          />
-          <SessionComposerInput />
-          {state.feedback ? <SessionComposerFeedbackNote feedback={state.feedback} /> : null}
-          <SessionComposerControls />
-        </ComposerPrimitive.Root>
+      <SessionComposerDropRoot disabled={!meta.canPrompt || !meta.attachments}>
+        <InputGroup variant="composer">
+          <ComposerPrimitive.Root
+            className="flex min-w-0 flex-col gap-transcript-inline-gap"
+            data-testid="session-composer-stack"
+          >
+            {meta.quoteSlot}
+            <SessionAttachmentStrip
+              promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
+              promptImageCapability={meta.promptImageCapability}
+            />
+            <SessionComposerInput />
+            {state.feedback ? <SessionComposerFeedbackNote feedback={state.feedback} /> : null}
+            <SessionComposerControls />
+          </ComposerPrimitive.Root>
+        </InputGroup>
       </SessionComposerDropRoot>
     </ComposerPrimitive.Unstable_TriggerPopoverRoot>
   );
@@ -193,7 +195,9 @@ function SessionComposerInput() {
       data-testid="composer-input"
       inert={!meta.canPrompt}
       placeholder={
-        meta.canPrompt ? "Send a message — type / for commands" : meta.inactivePlaceholder
+        meta.canPrompt
+          ? (meta.placeholder ?? "Send a message — type / for commands")
+          : meta.inactivePlaceholder
       }
       submitMode="enter"
       formatter={state.commandFormatter}
@@ -206,7 +210,7 @@ function SessionComposerInput() {
         },
       }}
       className={cn(
-        "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
+        "max-h-72 min-h-6 w-full text-body leading-relaxed text-fg",
         !meta.canPrompt ? "opacity-60" : null
       )}
     >
@@ -217,7 +221,7 @@ function SessionComposerInput() {
       <SessionBusyEnterPlugin active={state.busyEnterActive} onEnter={actions.handleEnterAction} />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
-      <SessionComposerPastePlugin />
+      {meta.attachments ? <SessionComposerPastePlugin /> : null}
     </LexicalComposerInput>
   );
 }
@@ -228,6 +232,7 @@ function SessionComposerControls() {
   const meta = useSessionComposerMetaContext();
   return (
     <SessionComposerActionRow
+      attachments={meta.attachments}
       hasStagedQuote={state.hasStagedQuote}
       sessionId={meta.sessionId}
       actionState={{

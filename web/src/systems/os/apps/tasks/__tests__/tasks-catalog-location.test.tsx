@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
     handleSortChange: vi.fn(),
     handleStatusChange: vi.fn(),
     hasActiveTaskScope: true,
+    hasListFilters: false as boolean,
     hasMoreInbox: false,
     hasMoreTasks: false,
     inbox: [],
@@ -177,6 +178,7 @@ describe("TasksCatalogLocation", () => {
     mocks.emptyStateProps = null;
     mocks.listSurfaceProps = null;
     mocks.page.isEmpty = false;
+    mocks.page.hasListFilters = false;
     mocks.page.profile.aggregate = false;
     mocks.page.profile.destination = "default";
     mocks.page.profile.scopeLabel = "default";
@@ -209,6 +211,18 @@ describe("TasksCatalogLocation", () => {
     expect(toolbar).toContainElement(views);
     expect(screen.queryByTestId("tasks-list-toolbar")).not.toBeInTheDocument();
     expect(toolbar?.children).toHaveLength(1);
+  });
+
+  it("Should show the head count only for the unfiltered list", () => {
+    const { unmount } = renderCatalog();
+    expect(document.querySelector("[data-slot='topbar-count']")).toHaveTextContent("3");
+    unmount();
+
+    // Under a filter the count is the filtered total, which the table header
+    // already names; the head must not read it as the size of the list.
+    mocks.page.hasListFilters = true;
+    renderCatalog();
+    expect(document.querySelector("[data-slot='topbar-count']")).toBeNull();
   });
 
   it("Should open the create route with the blank template from zero inventory", async () => {

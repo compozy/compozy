@@ -26,9 +26,9 @@ function GatewayAuditFindingItem({ finding }: { finding: GatewayAuditFinding }) 
         <GatewayStatusChip label={severity.label} tone={severity.tone} />
         <MonoId preserveCase value={finding.id} />
       </div>
-      <p className="text-form-input text-fg">{finding.summary}</p>
+      <p className="text-body text-fg">{finding.summary}</p>
       <p
-        className="text-form-label text-muted"
+        className="text-small-body text-muted"
         data-testid={`gateway-audit-remediation-${finding.id}`}
       >
         {finding.remediation}
@@ -106,7 +106,7 @@ export function GatewayAuditPanel({ onRun, ...state }: GatewayAuditPanelProps) {
           onClick={onRun}
           size="sm"
           type="button"
-          variant="neutral"
+          variant="secondary"
         >
           {state.hasRun ? "Run again" : "Run audit"}
         </Button>

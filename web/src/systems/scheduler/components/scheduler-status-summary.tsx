@@ -18,7 +18,8 @@ export function SchedulerStatusSummary({ status, isLoading }: SchedulerStatusSum
         <h2 className="text-item-title font-medium text-fg-strong">Task queue</h2>
         <SchedulerStateLabel isInitialLoading={isInitialStatusLoading} paused={status?.paused} />
         {isLoading && status ? (
-          <Pill data-testid="scheduler-controls-loading" tone="neutral">
+          <Pill data-testid="scheduler-controls-loading" form="plain">
+            <Pill.Dot tone="neutral" pulse />
             Loading
           </Pill>
         ) : null}
@@ -52,7 +53,7 @@ function SchedulerStateLabel({
       className="inline-flex items-center gap-1.5 text-form-label text-muted"
       data-testid="scheduler-controls-state"
     >
-      {isInitialLoading ? null : <Pill.Dot tone={paused ? "warning" : "success"} />}
+      {isInitialLoading ? null : <Pill.Dot tone={paused ? "neutral" : "success"} />}
       {isInitialLoading ? "Loading" : paused ? "Paused" : "Running"}
     </span>
   );
@@ -95,7 +96,7 @@ function SchedulerStatusMeta({ status }: { status: SchedulerStatus | null }) {
       </span>
       <MetaDot />
       <span
-        className={counts.needsAttention > 0 ? "text-warning" : undefined}
+        className={counts.needsAttention > 0 ? "text-accent" : undefined}
         data-testid="scheduler-controls-needs-attention-count"
       >
         {counts.needsAttention} need attention

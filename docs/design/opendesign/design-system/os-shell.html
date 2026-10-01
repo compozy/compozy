@@ -1,48 +1,68 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CompozyOS DS · 02 OS Shell — Window Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <link rel="stylesheet" href="ds-shell.css">
 <link rel="stylesheet" href="ds-docs.css">
+<script>
+  /* ?theme=light|dark previews either theme; the nav toggle flips it live */
+  (function () {
+    var t = new URLSearchParams(location.search).get("theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  })();
+</script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
 /* ---- page-local doc scaffolding (.osx-*) — never product ---- */
-.osx-stage{position:relative;overflow:hidden}
-.osx-stage--wall{
-  background:
-    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
-    radial-gradient(700px 420px at 12% 110%, var(--accent-tint-strong), transparent 62%),
-    radial-gradient(640px 380px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
-    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
-}
-/* neutralize fixed shell positioning so chrome renders inline on the doc page */
-.osx-stage .menubar{position:relative;z-index:1;border-radius:var(--r-win);border:1px solid var(--line)}
-.osx-stage .win{position:relative;width:100%;min-width:0;resize:none;animation:none}
-.osx-stage .dock-zone{position:relative;left:auto;right:auto;bottom:auto;z-index:1;padding:0;pointer-events:auto}
-.osx-stage .popover{position:relative;z-index:1;animation:none}
+.osx-theme{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:var(--radius-pill);font-size:var(--text-eyebrow);font-weight:var(--w-medium);color:var(--muted)}
+.osx-theme:hover{background:var(--surface-2);color:var(--fg)}
+.osx-theme svg{width:14px;height:14px}
+.osx-stage{position:relative;overflow:hidden;border-radius:var(--r-win);border:1px solid var(--line)}
+/* a live, inline shell: the .os grid without fixed positioning */
+.osx-shell{position:relative;display:grid;grid-template-columns:var(--w-dock-rail) minmax(0,1fr);grid-template-rows:var(--h-bar) minmax(0,1fr);height:620px;background:var(--rail)}
+.osx-shell > .menubar{grid-column:1 / -1}
+.osx-shell .rail{grid-row:2}
+.osx-shell .desktop{grid-row:2}
+.osx-stage .win{animation:none}
 .osx-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.osx-fill{display:grid;place-items:center;color:var(--faint);font-size:var(--text-badge)}
-.osx-pane{display:flex;flex-direction:column;flex:1;min-height:0}
-/* tiling stage: absolute panes + seams + ephemeral preview */
-.osx-tile{position:relative;height:266px;width:100%}
-.osx-tile .win{position:absolute;min-height:0;min-width:0;width:auto}
-.osx-tile .win-body{font-size:var(--text-badge);color:var(--faint);display:grid;place-items:center}
+.osx-fill{display:grid;place-items:center;color:var(--faint);font-size:var(--text-badge);height:100%}
+.osx-rows{padding:8px 0}
+.osx-row{display:flex;align-items:center;gap:10px;height:40px;padding:0 16px;color:var(--fg);border-bottom:1px solid var(--line-soft);font-size:var(--text-small-body)}
+.osx-row .m{margin-left:auto;color:var(--subtle);font-size:var(--text-meta)}
+.osx-tools{margin:12px 16px;border-radius:var(--radius-lg);background:var(--sunken);padding:6px 0}
+.osx-tool{display:flex;align-items:center;gap:10px;height:34px;padding:0 16px;color:var(--muted)}
+.osx-tool svg{width:15px;height:15px;color:var(--subtle)}
+.osx-tool b{color:var(--fg);font-weight:var(--w-medium)}
+.osx-tool .p{font-family:var(--font-mono);font-size:var(--text-meta)}
+.osx-tile{position:relative;height:300px;width:100%;background:var(--desk)}
+.osx-tile .win{position:absolute;min-height:0;min-width:0}
+.osx-float{position:relative;height:250px;background:var(--desk)}
+.osx-float .win{position:absolute;min-width:0;min-height:0}
 .osx-snap-label{
-  position:absolute;z-index:51;left:50%;top:50%;translate:-50% -50%;
-  display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:var(--radius-pill);
-  background:var(--accent);color:var(--accent-ink);font-size:var(--text-badge);font-weight:600;white-space:nowrap;
+  position:absolute;z-index:51;translate:-50% -50%;
+  display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:var(--radius-pill);
+  background:var(--primary);color:var(--primary-ink);font-size:var(--text-eyebrow);font-weight:var(--w-medium);white-space:nowrap;
 }
-.osx-desk{position:relative;height:168px;border-radius:var(--r-win);border:1px solid var(--line);overflow:hidden}
-.osx-merge{position:relative;height:96px;border:1px solid var(--line);border-radius:var(--r-win);overflow:hidden;background:var(--canvas)}
-.osx-zbar{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;font-size:var(--text-form);color:var(--muted);padding:5px 0}
+.osx-desk{position:relative;height:210px;background:var(--desk)}
+.osx-zbar{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:center;font-size:var(--text-form);color:var(--muted);padding:5px 0}
 .osx-zbar b{font-family:var(--font-mono);font-size:var(--text-badge);color:var(--accent-strong);font-weight:400}
 .osx-zbar i{display:block;height:8px;border-radius:var(--radius-xxs);background:var(--bar-fill);font-style:normal}
+.osx-wp{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;width:100%}
+.osx-wp .desktop{height:120px;border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
+.osx-wp figcaption{margin-top:6px;font-size:var(--text-meta);color:var(--muted)}
+.osx-glyphs{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.osx-glyphs span{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:var(--text-small-body)}
+.osx-ring{display:inline-block;width:14px;height:14px;border-radius:50%;flex:none;border:1.5px solid color-mix(in srgb,var(--success) 22%,transparent);border-top-color:var(--success)}
+.osx-dash{display:inline-block;width:14px;height:14px;border-radius:50%;flex:none;border:1.5px dashed var(--line-strong)}
+.osx-check{width:14px;height:14px;border-radius:50%;flex:none;background:var(--success);display:grid;place-items:center}
+.osx-check svg{width:10px;height:10px;stroke-width:3;color:var(--canvas)}
+.osx-attn{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none;background:var(--attn)}
 </style>
 </head>
 <body class="ds-doc">
@@ -59,573 +79,493 @@
     <a href="empty-states.html"><span class="num">08</span>Empty States</a>
     <a href="profiles.html"><span class="num">09</span>Profiles</a>
     <a href="patterns.html"><span class="num">10</span>Patterns</a>
+    <button class="osx-theme" type="button" data-theme-toggle aria-label="Switch theme"><i data-lucide="sun-moon"></i><span>Theme</span></button>
   </nav>
 
   <header class="hero" data-od-id="hero">
-    <p class="eyebrow">CompozyOS · Chapter 02 · Shell chrome</p>
+    <p class="eyebrow">CompozyOS · Chapter 02 · Shell chrome · shell v2</p>
     <h1>OS Shell — Window Manager</h1>
-    <p>The shell is three fixed zones: a <b>44px menu bar</b>, a wallpapered desktop of windows, and a
-    <b>bottom dock</b> whose 82px band is reserved work-area. Every measurement on this page is production
-    truth from <code>web/src/systems/os</code> and <code>packages/ui/src/tokens.css</code>, expressed as the
-    classes in <code>ds-shell.css</code>. The OS radius waiver (12–22px, glass, cast shadows) applies to this
-    layer only — window <i>content</i> returns to the <code>ds-core.css</code> scale. Demos below are live:
-    the deck switches tabs, controls take hover tones, seams take focus.</p>
+    <p>The shell is flat chrome around a desk of gutterless tiles: a full-width <b>52px topbar</b> whose
+    first 84px are reserved for the window's traffic lights, a <b>60px rail on the left</b> (the dock),
+    and the <b>desk</b>, where windows tile edge to edge, split by a single hairline. There is no glass and
+    no radius waiver: chrome sits on <code>--rail</code>, panes on <code>--canvas</code>, and only floating
+    windows, menus and popovers lift. Every value here is production truth from
+    <code>web/src/systems/os</code> and <code>packages/ui/src/tokens.css</code>, expressed as the
+    <code>ds-shell.css</code> classes. The design reference is
+    <a href="../shell-rail/shell-rail-v2.html"><code>shell-rail/shell-rail-v2.html</code></a>, which supersedes
+    the dock-era edition of this chapter. Use <b>Theme</b> (or <code>?theme=light</code>): every specimen
+    reads in both themes.</p>
   </header>
 
-  <!-- ============ 01 MENU BAR ============ -->
-  <section class="sec" id="menubar" data-od-id="sec-menubar">
-    <h2><span class="num">01</span>Menu bar</h2>
-    <p class="lead">One 44px glass strip pinned above the desktop. <b>Leading</b> carries where you are —
-    logo, scope, workspace, app menus. <b>Trailing</b> carries what needs you — status, updates, approvals,
-    ⌘K, settings. Nothing else ever docks here: no clock, no cost meter, no avatar.</p>
+  <!-- ============ 01 ANATOMY ============ -->
+  <section class="sec" id="anatomy" data-od-id="sec-anatomy">
+    <h2><span class="num">01</span>Anatomy</h2>
+    <p class="lead">Three zones, one grid: the topbar spans the full width, the rail sits below it on the left,
+    and the desk fills the rest. The desk is the flat <code>--desk</code> role by default; windows tile with
+    zero gaps, so the seam hairline is the only divider between panes.</p>
 
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-menubar">
-      <header class="menubar" data-od-id="menubar-live">
-        <div class="mb-side">
-          <button class="mb-logo" aria-label="CompozyOS">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
-          </button>
-          <button class="mb-icon" aria-label="Scope: all workspaces"><i data-lucide="globe"></i></button>
-          <button class="ws-trigger" aria-haspopup="menu" aria-expanded="false" data-od-id="ws-chip">
-            <span class="ws-avatar">CZ</span>
-            <span class="ws-name">compozy</span>
-            <span class="ws-worktree">/loop-legibility</span>
-            <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <nav class="mb-menus" aria-label="Application menus">
-            <button class="mb-menu">Compozy</button><button class="mb-menu">Session</button>
-            <button class="mb-menu">Go</button><button class="mb-menu">Window</button><button class="mb-menu">Help</button>
+    <div class="osx-stage" data-od-id="demo-anatomy">
+      <div class="osx-shell">
+        <header class="menubar" aria-label="System bar" data-od-id="anatomy-topbar">
+          <div class="mb-lights mb-lights--dots" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="mb-side">
+            <button class="mb-logo" aria-label="CompozyOS"><i data-lucide="hexagon"></i></button>
+            <button class="mb-icon" aria-label="Global scope"><i data-lucide="globe"></i></button>
+            <button class="ws-trigger" aria-haspopup="menu" aria-expanded="false">
+              <span class="ws-avatar">CZ</span><span class="ws-name">compozy</span><span class="ws-worktree">/ shell-rail</span>
+              <i class="chevrons" data-lucide="chevron-down"></i>
+            </button>
+            <span class="mb-vsep" aria-hidden="true"></span>
+            <nav class="mb-menus" aria-label="App menus">
+              <button class="mb-menu">Session</button><button class="mb-menu">Go</button>
+              <button class="mb-menu">Window</button><button class="mb-menu">Help</button>
+            </nav>
+          </div>
+          <div class="mb-side mb-right">
+            <nav class="pager" aria-label="Desktops">
+              <button class="pager-dot is-on" aria-label="Desktop 1 of 3: Build"><i></i></button>
+              <button class="pager-dot has-attn" aria-label="Desktop 2 of 3: Review — needs you"><i></i></button>
+              <button class="pager-dot" aria-label="Desktop 3 of 3: Notes"><i></i></button>
+            </nav>
+            <button class="mb-icon" aria-label="All desktops" aria-haspopup="dialog"><i data-lucide="layout-grid"></i></button>
+            <button class="mb-icon" aria-label="Attention, 2 waiting"><i data-lucide="bell"></i><span class="badge">2</span></button>
+            <button class="mb-icon" aria-label="Command palette"><i data-lucide="command"></i></button>
+          </div>
+        </header>
+
+        <aside class="rail" data-od-id="anatomy-rail">
+          <nav class="rail-nav" aria-label="Dock">
+            <button class="rail-item is-open is-active" aria-label="Sessions — 1 needs you"><i data-lucide="messages-square"></i><span class="run-dot"></span><span class="badge">1</span></button>
+            <button class="rail-item" aria-label="Home"><i data-lucide="house"></i><span class="run-dot"></span></button>
+            <button class="rail-item is-open" aria-label="Terminal"><i data-lucide="square-terminal"></i><span class="run-dot"></span></button>
+            <button class="rail-item" aria-label="Agents"><i data-lucide="bot"></i><span class="run-dot"></span></button>
+            <button class="rail-item is-open" aria-label="Tasks"><i data-lucide="list-checks"></i><span class="run-dot"></span></button>
+            <button class="rail-item is-min" aria-label="Loops (minimized)"><i data-lucide="repeat"></i><span class="run-dot"></span></button>
+            <button class="rail-item" aria-label="Jobs"><i data-lucide="calendar-clock"></i><span class="run-dot"></span></button>
+            <button class="rail-item" aria-label="Triggers"><i data-lucide="zap"></i><span class="run-dot"></span></button>
           </nav>
-        </div>
-        <div class="mb-side mb-right">
-          <button class="mb-icon" aria-label="Daemon status: connected"><i data-lucide="activity"></i></button>
-          <button class="mb-icon" aria-label="Update available"><i data-lucide="arrow-down-circle"></i></button>
-          <button class="mb-icon" aria-label="Approvals"><i data-lucide="bell"></i><span class="badge">3</span></button>
-          <button class="mb-icon" aria-label="Command palette"><i data-lucide="command"></i></button>
-          <button class="mb-icon" aria-label="Settings"><i data-lucide="settings"></i></button>
-        </div>
-      </header>
-      <p class="demo-note"><b>Truthful chrome.</b> A control with no handler behind it renders inert
-      (<code>aria-disabled</code>, no hover fill, honest tooltip) — never a dead button that swallows the click.</p>
-    </div>
-    <div class="osx-chips" data-od-id="menubar-chips">
-      <span class="mchip">height 44</span><span class="mchip">glass rgba(12,11,11,.72)</span>
-      <span class="mchip">blur 28 · saturate 1.25</span><span class="mchip">padding-x 10</span>
-      <span class="mchip">border-b --line</span><span class="mchip">z 500</span>
-    </div>
+          <div class="rail-foot">
+            <button class="rail-item" aria-label="Profile: personal"><span class="rail-avatar" style="background:var(--well);color:var(--success)">P</span></button>
+            <button class="rail-item" aria-label="Switch theme"><i data-lucide="sun-moon"></i></button>
+            <button class="rail-item" aria-label="Settings"><i data-lucide="settings"></i></button>
+          </div>
+        </aside>
 
-    <table class="spec" data-od-id="menubar-spec">
+        <main class="desktop" data-wallpaper="flat" data-od-id="anatomy-desk">
+          <div class="win-layer">
+            <section class="win is-tiled is-focused" style="left:0;top:0;width:56%;height:100%" data-od-id="anatomy-win-session">
+              <div class="deck">
+                <div class="deck-scroll" role="tablist" aria-label="Open tabs">
+                  <button class="deck-tab is-on" role="tab" aria-selected="true"><span class="deck-tab__foot deck-tab__foot--l"></span><span class="osx-ring" style="width:13px;height:13px"></span><span class="deck-tab__label">Checkout refactor</span><span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span><span class="deck-tab__foot deck-tab__foot--r"></span></button>
+                  <button class="deck-tab" role="tab" aria-selected="false"><span class="osx-attn"></span><span class="deck-tab__label">Release notes</span><span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span></button>
+                </div>
+                <button class="deck-add" aria-label="New tab"><i data-lucide="plus"></i></button>
+                <span class="deck-gutter"></span>
+                <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
+              </div>
+              <header class="win-head">
+                <div class="w2-id"><span class="w2-title">Checkout refactor</span></div>
+                <span class="w2-flex"></span>
+                <div class="win-trail"><span class="w2-status" data-tone="run"><span class="osx-ring"></span>Working</span><span class="w2-meta">12m</span></div>
+              </header>
+              <div class="win-body">
+                <div class="osx-tools">
+                  <div class="osx-tool"><i data-lucide="file-text"></i><b>Read</b><span class="p">web/src/checkout/order-summary.tsx</span></div>
+                  <div class="osx-tool"><i data-lucide="pencil"></i><b>Edit</b><span class="p">web/src/checkout/use-cart.ts</span></div>
+                </div>
+              </div>
+            </section>
+            <span class="snap-seam snap-seam--v" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize boundary 1" style="left:56%;top:0;bottom:0"></span>
+            <section class="win is-tiled" style="left:56%;top:0;width:44%;height:100%" data-od-id="anatomy-win-tasks">
+              <header class="win-head">
+                <div class="w2-id"><span class="w2-glyph"><i data-lucide="list-checks"></i></span><span class="w2-title">Tasks</span><span class="w2-count">6</span></div>
+                <span class="w2-flex"></span>
+                <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
+              </header>
+              <div class="win-toolbar">
+                <button class="btn btn--sm">All</button>
+                <button class="btn btn--sm btn--quiet">Running</button>
+                <button class="btn btn--sm btn--quiet">Needs you</button>
+              </div>
+              <div class="win-body osx-rows">
+                <div class="osx-row"><span class="osx-ring"></span>Split checkout service<span class="m">now</span></div>
+                <div class="osx-row"><span class="osx-attn"></span>Approve migration<span class="m">2m</span></div>
+                <div class="osx-row"><span class="osx-dash"></span>Update docs<span class="m">queued</span></div>
+                <div class="osx-row"><span class="osx-check"><i data-lucide="check"></i></span>Pin fonts<span class="m">1h</span></div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
+    <div class="osx-chips" data-od-id="anatomy-chips">
+      <span class="mchip">topbar 52 · lights 84</span><span class="mchip">rail 60 · item 40</span>
+      <span class="mchip">gaps 0 · seam hit 9</span><span class="mchip">deck 40 · tab 32</span>
+      <span class="mchip">head 48 · toolbar 44</span><span class="mchip">desk = --desk (flat)</span>
+    </div>
+  </section>
+
+  <!-- ============ 02 TOPBAR ============ -->
+  <section class="sec" id="topbar" data-od-id="sec-topbar">
+    <h2><span class="num">02</span>Topbar (the menubar)</h2>
+    <p class="lead">One flat 52px strip on <code>--rail</code> with a hairline under it (<code>aria-label="System bar"</code>).
+    <b>Leading</b> is where you are: the traffic-light reserve, the mark, the Global scope globe, the project
+    chip and the app menus. <b>Trailing</b> is the tray: desktop pager, All desktops, the bell and ⌘K.
+    Settings is not in the topbar: it lives in the rail foot and in the mark's menu.</p>
+
+    <table class="spec" data-od-id="topbar-spec">
       <tr><th>Slot</th><th>Spec</th></tr>
-      <tr><td>Logo</td><td>28px square, radius 7 · 17px mark · hover <code>--btn-fill</code></td></tr>
-      <tr><td>Scope toggle</td><td>28px square, 16px globe · flips the shell between one workspace and all</td></tr>
-      <tr><td>Workspace chip</td><td>28px trigger · 18px mono monogram (8.5/600) + name <b>13.5/600</b> + optional <code>/worktree</code> (13.5, truncates at 160) + 12px chevrons</td></tr>
-      <tr><td>App menus</td><td>Compozy · Session · Go · Window · Help — 28px, 13.5px, <code>--muted</code> → <code>--fg-strong</code> on open; hidden below 960px</td></tr>
-      <tr><td>Trailing tray</td><td>status · update indicator · bell · ⌘K · cog — all 28px squares with 16px glyphs, gap 8</td></tr>
-      <tr><td>Bell badge</td><td>14px accent pill, mono 9/700, min-width 14, caps at <code>9+</code>; zero count hides the badge entirely</td></tr>
-      <tr><td>Popovers</td><td>min-width 224 · pad 6 · radius 12 · glass-pop + blur 30 · rows 30px (workspace list 34px) · z 900</td></tr>
+      <tr><td>Traffic-light reserve</td><td>the first <code>--width-traffic-lights</code> (84px) belong to the frameless window's macOS controls and double as the drag handle; the mark follows. On the web there is no reserve.</td></tr>
+      <tr><td>Mark</td><td>34px pill button, 20px CompozyOS symbol; its menu ("System menu") holds About and the Settings, Appearance and Layouts entries</td></tr>
+      <tr><td>Global scope</td><td>34px globe toggle between the mark and the chip, the only owner of Global vs workspace destination</td></tr>
+      <tr><td>Project chip</td><td>34px pill · 22px round avatar · name <b>15/500</b> · <code>/ worktree</code> muted (truncates at 170) · chevron</td></tr>
+      <tr><td>App menus</td><td>a 1px divider, then <b>Session · Go · Window · Help</b>: 32px pills, <code>--fg-2</code> 500 → <code>--fg</code> on <code>--surface-2</code> when open; hidden below 960px</td></tr>
+      <tr><td>Tray</td><td>pager · <b>All desktops</b> (layout-grid, opens the Desktops overview) · update indicator (only when one exists) · bell ("Attention, N waiting") · ⌘K ("Command palette"); 34px pill icon buttons, 18px glyphs</td></tr>
+      <tr><td>Count badge</td><td>15px <code>--attn</code> pill, 9.5/600 (<code>--text-count</code>), 2px ring cut from the chrome; zero hides it</td></tr>
+      <tr><td>Popovers</td><td><code>--canvas</code> · radius 12 · <code>--shadow-pop</code> · pad 6 · rows 32px · z 900 · no glass</td></tr>
     </table>
   </section>
 
-  <!-- ============ 02 WINDOW FRAME ============ -->
-  <section class="sec" id="window" data-od-id="sec-window">
-    <h2><span class="num">02</span>Window frame</h2>
-    <p class="lead"><b>Identity renders once</b>, in the 44px head, in exactly one of three shapes:
-    root identity, drill-in breadcrumb, or document self-title. Below it an optional 38px strip carries
-    views, filters and display mode. The frame itself only ever says three things: focused, blurred, tiled.</p>
+  <!-- ============ 03 RAIL ============ -->
+  <section class="sec" id="rail" data-od-id="sec-rail">
+    <h2><span class="num">03</span>Rail (the dock)</h2>
+    <p class="lead">The dock is a 60px rail on the left, under the topbar. In product copy it stays <b>the dock</b>
+    (<code>aria-label="Dock"</code>, "Open an app from the dock"); "rail" only names its shape. Launchers follow the
+    dock order with no dividers; the foot holds the profile switcher, the theme toggle and Settings.</p>
 
-    <h3>Root window</h3>
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-win-root">
-      <section class="win is-focused" data-od-id="win-root">
+    <div class="demo demo--rail" data-od-id="demo-rail" style="justify-content:flex-start;gap:28px">
+      <aside class="rail" style="height:420px;border:1px solid var(--line);border-radius:var(--radius-lg)">
+        <nav class="rail-nav" aria-label="Dock">
+          <button class="rail-item is-open is-active" aria-label="Sessions — 1 needs you"><i data-lucide="messages-square"></i><span class="run-dot"></span><span class="badge">1</span></button>
+          <button class="rail-item" aria-label="Home"><i data-lucide="house"></i><span class="run-dot"></span></button>
+          <button class="rail-item is-open" aria-label="Terminal"><i data-lucide="square-terminal"></i><span class="run-dot"></span></button>
+          <button class="rail-item" aria-label="Agents"><i data-lucide="bot"></i><span class="run-dot"></span></button>
+          <button class="rail-item is-min" aria-label="Tasks (minimized)"><i data-lucide="list-checks"></i><span class="run-dot"></span></button>
+        </nav>
+        <div class="rail-foot">
+          <button class="rail-item" aria-label="Profile: personal"><span class="rail-avatar" style="background:var(--well);color:var(--success)">P</span></button>
+          <button class="rail-item" aria-label="Switch theme"><i data-lucide="sun-moon"></i></button>
+          <button class="rail-item" aria-label="Settings"><i data-lucide="settings"></i></button>
+        </div>
+      </aside>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px;align-self:center">
+        <span class="shell-tip">Sessions <span style="opacity:.6">⌘1</span></span>
+        <span class="shell-tip">Light mode</span>
+        <p class="demo-note" style="max-width:44ch">Tooltips sit to the right (offset 10) as an inverted pill. Up/Down rove
+        the launchers (wrapping), Home/End jump. A click goes to the app's window or opens it as a tab; ⌥-click
+        splits and ⇧-click opens a new desktop. The context menu offers <b>Open in new tab</b>, <b>Open in split</b>
+        (⌥ click), <b>Open in new window</b>, <b>Open in new desktop</b> (⇧ click) and, once the app has a window,
+        <b>Go to tab</b>. The theme toggle shows a sun while dark and a moon
+        while light ("Switch to light mode" / "Switch to dark mode").</p>
+      </div>
+    </div>
+
+    <table class="spec" data-od-id="rail-spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Column</td><td><code>--width-rail</code> 60 · <code>--rail</code> · 1px <code>--line</code> right border · launchers gap 6 · py 14</td></tr>
+      <tr><td>Item</td><td>40px (<code>--size-rail-item</code>), radius 12, 20px glyph, <code>--muted</code>; hover <code>--surface-2</code> + <code>--fg</code>; active <code>--selected</code> + <code>--fg</code> + <code>shadow-card</code></td></tr>
+      <tr><td>Order</td><td>Sessions · Home · Terminal · Agents · Tasks · Loops · Jobs · Triggers · Marketplace · Knowledge · Vault, no group dividers</td></tr>
+      <tr><td>Indicator</td><td>left edge: 4px dot when open (<code>--muted</code>, <code>--fg</code> when focused) · minimized = 5px hollow ring + glyph at 50%</td></tr>
+      <tr><td>Badge</td><td>count pill top-right, <code>--attn</code>, ring cut from <code>--rail</code>; accessible name "Sessions — 1 needs you" / "— N need you"</td></tr>
+      <tr><td>Foot</td><td>Profile ("Profile: {name}") · theme toggle (tip "Light mode" / "Dark mode") · Settings, no divider</td></tr>
+      <tr><td>Magnification</td><td>removed; rail items never scale</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 04 WINDOW FRAME ============ -->
+  <section class="sec" id="window" data-od-id="sec-window">
+    <h2><span class="num">04</span>Window frame</h2>
+    <p class="lead"><b>Identity renders once</b>, in the 48px head: a root identity (26px mint well + title),
+    a drill-in breadcrumb, or a document self-title with a state glyph. Quiet window controls close the head
+    after a hairline (Minimize, Zoom, Close as 28px icon buttons), or move up into the deck when the window
+    has tabs. An optional 44px toolbar carries views, filters and display mode.</p>
+
+    <h3>Root window with toolbar</h3>
+    <div class="demo demo--col demo--soft" data-od-id="demo-root">
+      <section class="win win--inline is-focused" style="border:1px solid var(--line)">
         <header class="win-head">
-          <div class="win-controls">
-            <button class="wc wc-close" aria-label="Close"></button>
-            <button class="wc wc-min" aria-label="Minimize"></button>
-            <button class="wc wc-zoom" aria-label="Zoom"></button>
-          </div>
-          <div class="w2-id">
-            <span class="w2-glyph" aria-hidden="true"><i data-lucide="list-checks"></i></span>
-            <span class="w2-title">Tasks</span>
-            <span class="w2-count">6</span>
-          </div>
-          <span class="w2-flex" aria-hidden="true"></span>
-          <div class="win-trail">
-            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
-            <span class="w2-vsep" aria-hidden="true"></span>
-            <div class="w2-actions">
-              <button class="btn btn--primary btn--sm">New task</button>
-              <button class="btn btn--sm btn--icon" aria-label="More"><i data-lucide="more-horizontal"></i></button>
-            </div>
-          </div>
+          <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
+          <div class="w2-id"><span class="w2-glyph"><i data-lucide="repeat"></i></span><span class="w2-title">Loops</span><span class="w2-count">4</span></div>
+          <span class="w2-flex"></span>
+          <div class="win-trail"><button class="btn btn--sm btn--primary"><i data-lucide="plus"></i>New loop</button></div>
         </header>
         <div class="win-toolbar">
-          <div class="app-toolbar">
-            <div class="pill-group" role="group" aria-label="Views">
-              <button class="pill-group__item is-on">List</button>
-              <button class="pill-group__item">Board</button>
-              <button class="pill-group__item">Timeline</button>
-            </div>
-            <div class="pill-group" role="group" aria-label="Filter">
-              <button class="pill-group__item is-on">All <span class="mono">6</span></button>
-              <button class="pill-group__item">Running <span class="mono">2</span></button>
-              <button class="pill-group__item">Needs you <span class="mono">1</span></button>
-            </div>
-            <span class="w2-flex" aria-hidden="true"></span>
-            <div class="pill-group" role="group" aria-label="Display mode">
-              <button class="pill-group__item is-on">Rows</button>
-              <button class="pill-group__item">Cards</button>
-            </div>
-          </div>
+          <button class="btn btn--sm">All <span style="color:var(--subtle);font-weight:400">4</span></button>
+          <button class="btn btn--sm btn--quiet">Running</button>
+          <button class="btn btn--sm btn--quiet">Paused</button>
+          <span class="w2-flex"></span>
+          <button class="btn btn--sm btn--quiet"><i data-lucide="sliders-horizontal"></i>Display</button>
         </div>
-        <div class="win-body osx-fill" style="height:96px">route content · content scale resumes here</div>
+        <div class="win-body" style="height:84px"><div class="osx-fill">body</div></div>
       </section>
-      <p class="demo-note">Head = controls · identity · drag gutter · trail. Views lead the <b>strip</b>,
-      never the head — the deprecated <code>.w2-tabs</code> in-head variant survives only so old boards render.</p>
+      <p class="demo-note">Markup may put <code>.win-controls</code> anywhere in the head; <code>ds-shell.css</code> orders them last,
+      after the hairline, as production's <code>Topbar</code> does. The glyphs come from the class
+      (<code>.wc-min · .wc-zoom · .wc-close</code>).</p>
     </div>
 
-    <h3>Drill-in window</h3>
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-win-drill">
-      <section class="win is-focused" data-od-id="win-drill">
+    <h3>Drill-in and document heads · focused vs blurred</h3>
+    <div class="demo demo--col demo--soft" data-od-id="demo-heads">
+      <section class="win win--inline is-focused" style="border:1px solid var(--line)">
         <header class="win-head">
-          <div class="win-controls">
-            <button class="wc wc-close" aria-label="Close"></button>
-            <button class="wc wc-min" aria-label="Minimize"></button>
-            <button class="wc wc-zoom" aria-label="Zoom"></button>
-          </div>
-          <div class="w2-id" style="max-width:72%">
-            <button class="w2-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
-            <span class="w2-crumbs">
-              <button class="w2-crumb">Tasks</button><span class="w2-sep">/</span>
-              <button class="w2-crumb w2-crumb--more" aria-label="Show hidden levels">…</button><span class="w2-sep">/</span>
-              <button class="w2-crumb">Nightly triage</button><span class="w2-sep">/</span>
-            </span>
-            <span class="w2-title">Run #418</span>
-          </div>
-          <span class="w2-flex" aria-hidden="true"></span>
-          <div class="win-trail">
-            <span class="w2-status" data-tone="needs"><span class="d d--needs"></span>Needs you</span>
-            <span class="w2-vsep" aria-hidden="true"></span>
-            <div class="w2-actions"><button class="btn btn--sm">Stop run</button></div>
-          </div>
+          <button class="w2-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <div class="w2-id"><nav class="w2-crumbs" aria-label="Breadcrumb"><span class="w2-crumb">Tasks</span><span class="w2-sep">/</span><span class="w2-title">Split checkout service</span></nav></div>
+          <span class="w2-flex"></span>
+          <div class="win-trail"><span class="w2-status" data-tone="run"><span class="osx-ring"></span>Working</span></div>
+          <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
         </header>
-        <div class="win-body osx-fill" style="height:84px">level content · status, actions and strip swap per level</div>
       </section>
-      <p class="demo-note">Depth grows a trail inside the same window. More than two parents collapse into a
-      <code>…</code> crumb that keeps the first and last; each crumb truncates at 150px.</p>
+      <section class="win win--inline" data-doc="true" style="border:1px solid var(--line)">
+        <header class="win-head">
+          <div class="w2-id"><span class="osx-attn"></span><span class="w2-title">Release notes</span></div>
+          <span class="w2-flex"></span>
+          <div class="win-trail"><span class="w2-status" data-tone="needs">Needs you</span><span class="w2-meta">2m</span></div>
+          <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
+        </header>
+      </section>
+      <p class="demo-note">The second head is blurred: identity and trail dim to .55, with no border change. A scrolled body
+      strengthens the head hairline to <code>--line-strong</code>.</p>
     </div>
 
-    <h3>Document window · focused vs blurred</h3>
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-win-doc">
-      <section class="win is-focused" data-doc="true" data-od-id="win-doc-focused">
-        <header class="win-head">
-          <div class="win-controls">
-            <button class="wc wc-close" aria-label="Close"></button>
-            <button class="wc wc-min" aria-label="Minimize"></button>
-            <button class="wc wc-zoom" aria-label="Zoom"></button>
-          </div>
-          <div class="w2-id">
-            <span class="d d--run d--pulse" aria-hidden="true"></span>
-            <span class="w2-title">Polish the checkout flow</span>
-          </div>
-          <span class="w2-flex" aria-hidden="true"></span>
-          <div class="win-trail">
-            <span class="w2-status"><span class="agent-chip">WG</span>webgen</span>
-            <span class="w2-vsep" aria-hidden="true"></span>
-            <span class="w2-meta">12:41</span>
-          </div>
-        </header>
-        <div class="win-body osx-fill" style="height:62px">transcript · composer</div>
-      </section>
-      <section class="win" data-doc="true" data-od-id="win-doc-blurred" style="margin-top:16px">
-        <header class="win-head">
-          <div class="win-controls">
-            <button class="wc wc-close" aria-label="Close"></button>
-            <button class="wc wc-min" aria-label="Minimize"></button>
-            <button class="wc wc-zoom" aria-label="Zoom"></button>
-          </div>
-          <div class="w2-id">
-            <span class="d d--ok" aria-hidden="true"></span>
-            <span class="w2-title">Migrate the pricing table</span>
-          </div>
-          <span class="w2-flex" aria-hidden="true"></span>
-          <div class="win-trail">
-            <span class="w2-status"><span class="agent-chip">RS</span>research</span>
-            <span class="w2-vsep" aria-hidden="true"></span>
-            <span class="w2-meta">11:07</span>
-          </div>
-        </header>
-        <div class="win-body osx-fill" style="height:62px">transcript · composer</div>
-      </section>
-      <p class="demo-note">Blurred windows drop to <code>--line-strong</code> border and the softer cast, and dim
-      identity + trail to <b>.6</b>. A document self-titles with a state dot and <b>never</b> breadcrumbs.</p>
+    <h3>Floating finish</h3>
+    <div class="demo demo--col" style="padding:0;overflow:hidden" data-od-id="demo-floating">
+      <div class="osx-float">
+        <section class="win is-floating is-focused" style="left:12%;top:28px;width:52%;height:190px">
+          <header class="win-head">
+            <div class="w2-id"><span class="w2-glyph"><i data-lucide="square-terminal"></i></span><span class="w2-title">Terminal</span></div>
+            <span class="w2-flex"></span>
+            <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
+          </header>
+          <div class="win-body" style="font-family:var(--font-mono);font-size:var(--text-meta);padding:12px 16px;color:var(--fg-3)"><span style="color:var(--success)">~/Dev/compozy</span> make gate</div>
+        </section>
+      </div>
     </div>
 
     <table class="spec" data-od-id="window-spec">
-      <tr><th>Part</th><th>Spec</th></tr>
-      <tr><td>Frame</td><td>radius 12 · border <code>--line-focus</code> (.14) focused / <code>--line-strong</code> blurred · min 280×180, per-app overrides raise it</td></tr>
-      <tr><td>Depth</td><td>focused <code>--shadow-win</code> · blurred <code>--shadow-win-unfocused</code> · <b>tiled: none</b></td></tr>
-      <tr><td>Head</td><td>44px · padding-x 12 · gap 10 · <code>cursor:grab</code> · scrolled adds <code>--line-strong</code> + the head-scrolled cast</td></tr>
-      <tr><td>Traffic lights</td><td>12px glyphs, 7px gap, inside 24px targets · tones only on <b>that control's</b> hover/focus: close → accent, minimize → muted, zoom → success</td></tr>
-      <tr><td>Identity — root</td><td>22px glyph well (14px icon) + 13/600 title + mono count · max-width 55%</td></tr>
-      <tr><td>Identity — drill-in</td><td>24px back + crumbs (13/510, 150px cap); &gt;2 parents collapse to <code>…</code>, first and last kept</td></tr>
-      <tr><td>Identity — document</td><td>state dot + self-title; the glyph well is suppressed via <code>[data-doc]</code></td></tr>
-      <tr><td>Drag gutter</td><td>the flexible <code>.w2-flex</code> between identity and trail is the drag handle — min-width 12</td></tr>
-      <tr><td>Trail</td><td>status tone chip (11/510) · 1×14 vertical separator · <b>at most two</b> actions</td></tr>
-      <tr><td>Strip</td><td>38px · views pill-group · filters · spacer · Rows|Cards · rendered only when the route needs it</td></tr>
-      <tr><td>Deprecated</td><td><code>.w2-tabs</code> — route views inside the head. Kept for legacy boards; new work uses the strip.</td></tr>
+      <tr><th>Aspect</th><th>Spec</th></tr>
+      <tr><td>Tiled</td><td>flat <code>--canvas</code>: no radius, no border, no shadow; the seam is the divider</td></tr>
+      <tr><td>Floating</td><td>1px <code>--line</code> hairline + <code>--shadow-elevated</code>, no radius</td></tr>
+      <tr><td>Head</td><td><code>--height-window-head</code> 48 · pl 16 · pr 8 · <code>--canvas</code> · <code>border-b --line</code> · title 15/500</td></tr>
+      <tr><td>Controls</td><td>Minimize · Zoom (↔ Restore) · Close: 28px, 15px glyph, <code>--subtle</code>, hover <code>--surface-2</code>; labels "Minimize window" / "Zoom window" / "Restore window" / "Close window"; the zoom control's hover menu offers <b>Move &amp; Resize</b> and <b>Fill &amp; Arrange</b></td></tr>
+      <tr><td>Toolbar</td><td><code>--height-window-toolbar</code> 44 · views (30px pills) · filters · spacer · display</td></tr>
+      <tr><td>Minimum pane</td><td>220 × 220</td></tr>
     </table>
   </section>
 
-  <!-- ============ 03 THE DECK ============ -->
+  <!-- ============ 05 DECK ============ -->
   <section class="sec" id="deck" data-od-id="sec-deck">
-    <h2><span class="num">03</span>The deck — window tabs</h2>
-    <p class="lead">A window can hold several documents. The deck mounts <b>only at ≥2 tabs</b> and never in
-    compact mode, so a single-document window never pays for chrome it doesn't use. When it mounts, the traffic
-    lights move <i>into</i> it (<code>controls="deck"</code>) and the head stays where it was. Each tab owns its
-    own head and its own navigation stack.</p>
+    <h2><span class="num">05</span>The deck: browser tabs</h2>
+    <p class="lead">At two or more tabs the window grows a 40px deck: a recessed <code>--sunken</code> strip with the window
+    controls on the right. The active tab is a surface plate with rounded top corners and concave feet, fused with the
+    head below it; inactive tabs are split by hairlines that hide next to hover and next to the active tab.</p>
 
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-deck">
-      <section class="win is-focused" data-deck-root data-od-id="win-deck">
-        <div class="deck" data-deck role="tablist" aria-label="Window tabs">
-          <div class="win-controls">
-            <button class="wc wc-close" aria-label="Close"></button>
-            <button class="wc wc-min" aria-label="Minimize"></button>
-            <button class="wc wc-zoom" aria-label="Zoom"></button>
-          </div>
-          <button class="deck-tab deck-tab--pinned" data-pane="pin" role="tab" aria-selected="false" aria-label="Dashboard (pinned)">
-            <i data-lucide="layout-dashboard" class="deck-tab__glyph"></i>
-          </button>
-          <div class="deck-scroll">
-            <button class="deck-tab is-on" data-pane="a" role="tab" aria-selected="true">
-              <span class="deck-tab__dot" data-s="running"></span>
-              <span class="deck-tab__label">Polish the checkout flow</span>
-              <span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span>
-            </button>
-            <button class="deck-tab" data-pane="b" role="tab" aria-selected="false">
-              <span class="deck-tab__dot" data-s="attention"></span>
-              <span class="deck-tab__label">Migrate pricing</span>
-              <span class="deck-tab__badge">2</span>
-              <span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span>
-            </button>
-            <button class="deck-tab" data-pane="c" role="tab" aria-selected="false">
-              <span class="deck-tab__dot"></span>
-              <span class="deck-tab__label">Release notes v0.3</span>
-              <span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span>
-            </button>
+    <div class="demo demo--col demo--soft" data-od-id="demo-deck">
+      <section class="win win--inline is-focused" data-deck-root style="border:1px solid var(--line)">
+        <div class="deck">
+          <div class="deck-scroll" role="tablist" aria-label="Open tabs" data-deck>
+            <button class="deck-tab is-on" role="tab" aria-selected="true" data-pane="a"><span class="deck-tab__foot deck-tab__foot--l"></span><span class="osx-ring" style="width:13px;height:13px"></span><span class="deck-tab__label">Checkout refactor</span><span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span><span class="deck-tab__foot deck-tab__foot--r"></span></button>
+            <button class="deck-tab" role="tab" aria-selected="false" data-pane="b"><span class="deck-tab__foot deck-tab__foot--l"></span><span class="osx-attn"></span><span class="deck-tab__label">Release notes</span><span class="deck-tab__badge">1</span><span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span><span class="deck-tab__foot deck-tab__foot--r"></span></button>
+            <button class="deck-tab" role="tab" aria-selected="false" data-pane="c"><span class="deck-tab__foot deck-tab__foot--l"></span><i class="deck-tab__glyph" data-lucide="square-terminal"></i><span class="deck-tab__label">make gate</span><span class="deck-tab__x" aria-label="Close tab"><i data-lucide="x"></i></span><span class="deck-tab__foot deck-tab__foot--r"></span></button>
           </div>
           <button class="deck-add" aria-label="New tab"><i data-lucide="plus"></i></button>
-          <span class="deck-gutter" aria-hidden="true"></span>
+          <span class="deck-gutter"></span>
+          <div class="win-controls"><button class="wc wc-min" aria-label="Minimize window"></button><button class="wc wc-zoom" aria-label="Zoom window"></button><button class="wc wc-close" aria-label="Close window"></button></div>
         </div>
-
-        <div class="osx-pane" data-pane-body="pin" hidden>
-          <header class="win-head">
-            <div class="w2-id"><span class="w2-glyph" aria-hidden="true"><i data-lucide="layout-dashboard"></i></span><span class="w2-title">Dashboard</span></div>
-            <span class="w2-flex" aria-hidden="true"></span>
-            <div class="win-trail"><span class="w2-status" data-tone="ok"><span class="d d--ok"></span>All clear</span></div>
-          </header>
-          <div class="win-body osx-fill" style="height:92px">pinned tab · glyph only, never truncates, never scrolls away</div>
-        </div>
-        <div class="osx-pane" data-pane-body="a">
-          <header class="win-head">
-            <div class="w2-id"><span class="d d--run d--pulse" aria-hidden="true"></span><span class="w2-title">Polish the checkout flow</span></div>
-            <span class="w2-flex" aria-hidden="true"></span>
-            <div class="win-trail">
-              <span class="w2-status" data-tone="run"><span class="agent-chip">WG</span>webgen</span>
-              <span class="w2-vsep" aria-hidden="true"></span><span class="w2-meta">12:41</span>
-            </div>
-          </header>
-          <div class="win-body osx-fill" style="height:92px">tab A · its own head, its own nav stack</div>
-        </div>
-        <div class="osx-pane" data-pane-body="b" hidden>
-          <header class="win-head">
-            <div class="w2-id" style="max-width:70%">
-              <button class="w2-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
-              <span class="w2-crumbs"><button class="w2-crumb">Migrate pricing</button><span class="w2-sep">/</span></span>
-              <span class="w2-title">Approval</span>
-            </div>
-            <span class="w2-flex" aria-hidden="true"></span>
-            <div class="win-trail">
-              <span class="w2-status" data-tone="needs"><span class="d d--needs"></span>Needs you</span>
-              <span class="w2-vsep" aria-hidden="true"></span>
-              <div class="w2-actions"><button class="btn btn--primary btn--sm">Review</button></div>
-            </div>
-          </header>
-          <div class="win-body osx-fill" style="height:92px">tab B · drilled one level deep — the deck does not reset it</div>
-        </div>
-        <div class="osx-pane" data-pane-body="c" hidden>
-          <header class="win-head">
-            <div class="w2-id"><span class="d d--idle" aria-hidden="true"></span><span class="w2-title">Release notes v0.3</span></div>
-            <span class="w2-flex" aria-hidden="true"></span>
-            <div class="win-trail"><span class="w2-meta">idle</span></div>
-          </header>
-          <div class="win-body osx-fill" style="height:92px">tab C · idle</div>
+        <header class="win-head"><div class="w2-id"><span class="w2-title" data-pane-title>Checkout refactor</span></div><span class="w2-flex"></span></header>
+        <div class="win-body" style="height:70px">
+          <div class="osx-fill" data-pane-body="a">session transcript</div>
+          <div class="osx-fill" data-pane-body="b" hidden>document</div>
+          <div class="osx-fill" data-pane-body="c" hidden>terminal</div>
         </div>
       </section>
-      <p class="demo-note">Click a tab. The active tab is a <b>canvas plate</b> with a 1px canvas shadow that
-      erases the seam against the head — selection is neutral, never accent.</p>
-    </div>
-
-    <h3>Reorder caret · drop-to-merge · context menu</h3>
-    <div class="demo demo--rail osx-stage" style="align-items:flex-start" data-od-id="demo-deck-affordances">
-      <div class="osx-merge" style="flex:1 1 320px" data-od-id="demo-merge">
-        <div class="deck" aria-hidden="true" style="opacity:.5">
-          <div class="deck-scroll">
-            <span class="deck-tab is-on"><span class="deck-tab__label">Session A</span></span>
-            <span class="deck-caret"></span>
-            <span class="deck-tab"><span class="deck-tab__label">Session B</span></span>
-          </div>
-        </div>
-        <div class="merge-target">Group as tabs</div>
-      </div>
-      <div class="popover" style="flex:0 0 224px" data-od-id="demo-deck-menu">
-        <button class="pop-item">Close tab<span class="chord">⌘W</span></button>
-        <button class="pop-item">Close others</button>
-        <button class="pop-item">Close to the right</button>
-        <div class="pop-sep"></div>
-        <button class="pop-item">Pin</button>
-        <button class="pop-item">Move to new window</button>
-        <button class="pop-item">Merge all windows</button>
-      </div>
-    </div>
-    <div class="osx-chips" data-od-id="deck-chips">
-      <span class="mchip">row 37 on --rail</span><span class="mchip">tab 30 · radius-top 8</span>
-      <span class="mchip">slot 96–180</span><span class="mchip">gap 2 · pad-x 10</span>
-      <span class="mchip">caret 2px accent</span><span class="mchip">merge band 44</span>
+      <p class="demo-note">Click a tab: the deck is live. Session tabs lead with a state glyph (mint spinner = in progress,
+      dashed ring = queued, mint check = done, orange dot = needs you).</p>
     </div>
 
     <table class="spec" data-od-id="deck-spec">
       <tr><th>Part</th><th>Spec</th></tr>
-      <tr><td>Row</td><td>37px on <code>--rail</code> · padding-x 10 · gap 2 · <code>align-items:end</code> · inset 1px bottom line · drag surface for the whole window</td></tr>
-      <tr><td>Tab</td><td>30px · radius 8 8 0 0 · uniform slot, flex 1 within 96–180 (label truncates) · 13.5/510 <code>--subtle</code></td></tr>
-      <tr><td>Active tab</td><td><code>--canvas</code> fill + <code>--line</code> border + 600/<code>--fg-strong</code> + <code>0 1px 0 --canvas</code> fusing it with the head</td></tr>
-      <tr><td>Session state</td><td>dot: running = success + pulse · attention = accent · otherwise neutral. Needs-input adds the 14px accent mono badge.</td></tr>
-      <tr><td>Close</td><td>16px <code>×</code>, appears on hover, on the active tab, and on keyboard focus</td></tr>
-      <tr><td>Pinned</td><td>glyph only — no label, no flex, never scrolls out of reach</td></tr>
-      <tr><td>Add</td><td>24px <code>+</code> after the scroller; the remaining gutter stays draggable</td></tr>
-      <tr><td>Reorder</td><td>drag paints a 2px accent caret at the insertion point</td></tr>
-      <tr><td>Merge</td><td>dropping a window on another paints a 44px accent-tint band reading <b>Group as tabs</b></td></tr>
-      <tr><td>Context menu</td><td>Close tab / Close others / Close to the right / Pin / Move to new window / Merge all windows</td></tr>
+      <tr><td>Strip</td><td><code>--height-deck</code> 40 · <code>--sunken</code> · inset bottom hairline · tablist "Open tabs" · mounts at ≥2 tabs, never in compact</td></tr>
+      <tr><td>Tab</td><td>32px · 208 → 136px (<code>--width-deck-tab-max</code> / <code>--min-width-deck-tab</code>) · radius 9 top · 13.5/500 · pinned tabs shrink to content</td></tr>
+      <tr><td>Active</td><td><code>--canvas</code> plate + side/top hairlines · concave feet: 10px boxes, 1px overlap, surface shadow</td></tr>
+      <tr><td>Add · close</td><td>add 28px pill ("New tab") · close 20px pill with a 12px ×, shown on hover or when active</td></tr>
+      <tr><td>Merge</td><td>dropping a window on a head shows the accent <b>Group as tabs</b> target</td></tr>
     </table>
   </section>
 
-  <!-- ============ 04 DOCK ============ -->
-  <section class="sec" id="dock" data-od-id="sec-dock">
-    <h2><span class="num">04</span>Dock</h2>
-    <p class="lead">A glass segment of routes plus a separate accent segment for <b>New session</b>. The dock is
-    the only route switcher; the menu bar owns workspace, the window head owns depth. Its 82px band is reserved
-    work-area — no window rect ever resolves under it.</p>
-
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-dock">
-      <div class="dock-zone">
-        <span class="dock-flex" aria-hidden="true"></span>
-        <nav class="dock-seg dock" aria-label="Dock">
-          <button class="dock-item is-open" aria-label="Sessions"><i data-lucide="messages-square"></i><span class="run-dot"></span><span class="dk-badge">3</span><span class="tip">Sessions</span></button>
-          <button class="dock-item is-open" aria-label="Dashboard"><i data-lucide="layout-dashboard"></i><span class="run-dot"></span><span class="tip">Dashboard</span></button>
-          <button class="dock-item" aria-label="Agents"><i data-lucide="bot"></i><span class="run-dot"></span><span class="tip">Agents</span></button>
-
-          <button class="dock-item is-min" aria-label="Tasks (minimized)"><i data-lucide="list-checks"></i><span class="run-dot"></span><span class="tip">Tasks</span></button>
-          <button class="dock-item" aria-label="Loops"><i data-lucide="repeat"></i><span class="run-dot"></span><span class="tip">Loops</span></button>
-          <button class="dock-item" aria-label="Jobs"><i data-lucide="briefcase"></i><span class="run-dot"></span><span class="tip">Jobs</span></button>
-          <button class="dock-item" aria-label="Triggers"><i data-lucide="zap"></i><span class="run-dot"></span><span class="tip">Triggers</span></button>
-          <span class="dock-sep" aria-hidden="true"></span>
-          <button class="dock-item" aria-label="Marketplace"><i data-lucide="store"></i><span class="run-dot"></span><span class="tip">Marketplace</span></button>
-
-          <button class="dock-item" aria-label="Knowledge"><i data-lucide="book-open"></i><span class="run-dot"></span><span class="tip">Knowledge</span></button>
-          <span class="dock-sep" aria-hidden="true"></span>
-
-          <button class="dock-item" aria-label="Vault"><i data-lucide="lock"></i><span class="run-dot"></span><span class="tip">Vault</span></button>
-        </nav>
-        <div class="dock-seg dock-actions">
-          <button class="dock-new" aria-label="New session"><i data-lucide="plus"></i><span class="tip">New session</span></button>
-        </div>
-        <span class="dock-flex" aria-hidden="true"></span>
-      </div>
-      <p class="demo-note">Hover an item for its tip. <b>Sessions</b> opens a modal, not a window — it is the one
-      dock item that isn't a route. Settings and new-tab never dock.</p>
-    </div>
-    <div class="osx-chips" data-od-id="dock-chips">
-      <span class="mchip">segment radius 22 · pad 7 · gap 4</span><span class="mchip">item 46 · radius 13 · glyph 21</span>
-      <span class="mchip">running dot 4 filled</span><span class="mchip">minimized dot 5 hollow · glyph .55</span>
-      <span class="mchip">badge 15 accent mono</span><span class="mchip">band 82</span>
-    </div>
-
-    <table class="spec" data-od-id="dock-spec">
-      <tr><th>Aspect</th><th>Spec</th></tr>
-      <tr><td>Segment</td><td>radius 22 · pad 7 · gap 4 · glass + blur 28 saturate 1.25 · <code>--shadow-dock</code> · z 600</td></tr>
-      <tr><td>Item</td><td>46px, radius 13, 21px glyph · running = 4px filled dot · minimized = 5px hollow ring + glyph at .55 · badge 15px accent mono</td></tr>
-      <tr><td>New session</td><td>its own accent segment, 46px, lifts −2px on hover — the shell's single standing primary action</td></tr>
-      <tr><td>Magnification</td><td>radius 96px, scale +.34, lift −7px, linear falloff · gated by the setting, by reduced motion, and off in compact</td></tr>
-      <tr><td>Zone</td><td>bottom 10px + safe-area, inline 16px + safe-area · flex spacers centre the segments</td></tr>
-      <tr><td>Work area</td><td><code>--dock-band: 82px</code> — 46 item + 2×7 pad + 2 border + 10 offset + 10 clearance; <code>.win-layer</code> stops there</td></tr>
-      <tr><td>Order</td><td>Sessions → Dashboard → Agents · Tasks · Loops · Jobs · Triggers → sep → Marketplace · Knowledge → sep → Vault</td></tr>
-      <tr><td>Never docked</td><td>Settings (menu-bar cog) and new-tab (the deck's <code>+</code>)</td></tr>
-    </table>
-  </section>
-
-  <!-- ============ 05 TILING, SNAP & SEAMS ============ -->
+  <!-- ============ 06 TILING ============ -->
   <section class="sec" id="tiling" data-od-id="sec-tiling">
-    <h2><span class="num">05</span>Tiling, snap &amp; seams</h2>
-    <p class="lead">Dragging a window near an edge resolves a <b>target</b>: tile, zoom, insert or swap.
-    The preview is pure affordance — an accent border, an accent tint and a label chip. It never mutates
-    layout until the drop lands.</p>
+    <h2><span class="num">06</span>Tiling, seams &amp; arrange</h2>
+    <p class="lead">Gutterless: tiled panes meet edge to edge (gaps default 0) and share one 1px <code>--line</code> seam with a
+    9px hit area. Hover, focus or drag turns it into a 2px accent line. Arrow keys move a focused seam 2%, Shift 10%;
+    each pane keeps at least 220px. New windows tile beside the focused window.</p>
 
-    <div class="demo demo--col demo--rail osx-stage osx-stage--wall" data-od-id="demo-tiling">
+    <div class="demo demo--col" style="padding:0;overflow:hidden" data-od-id="demo-tiling">
       <div class="osx-tile">
-        <section class="win is-tiled is-focused" style="left:0;top:0;width:calc(50% - 6px);height:100%">
-          <header class="win-head">
-            <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
-            <div class="w2-id"><span class="w2-glyph" aria-hidden="true"><i data-lucide="messages-square"></i></span><span class="w2-title">Session</span></div>
-            <span class="w2-flex" aria-hidden="true"></span>
-          </header>
-          <div class="win-body">tiled · no cast shadow</div>
+        <section class="win is-tiled is-focused" style="left:0;top:0;width:60%;height:100%">
+          <header class="win-head"><div class="w2-id"><span class="w2-title">Main</span></div><span class="w2-flex"></span></header>
+          <div class="win-body"><div class="osx-fill">focused · main column 60%</div></div>
         </section>
-        <span class="snap-seam snap-seam--v" role="separator" aria-orientation="vertical" aria-label="Resize" tabindex="0" style="left:calc(50% - 6px);top:0;bottom:0"></span>
-        <section class="win is-tiled" style="right:0;top:0;width:calc(50% - 6px);height:calc(50% - 4px)">
-          <header class="win-head">
-            <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
-            <div class="w2-id"><span class="w2-glyph" aria-hidden="true"><i data-lucide="list-checks"></i></span><span class="w2-title">Tasks</span></div>
-            <span class="w2-flex" aria-hidden="true"></span>
-          </header>
-          <div class="win-body">shared boundaries resize through the seam</div>
+        <span class="snap-seam snap-seam--v" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize boundary 1" style="left:60%;top:0;bottom:0"></span>
+        <section class="win is-tiled" style="left:60%;top:0;width:40%;height:50%">
+          <header class="win-head"><div class="w2-id"><span class="w2-title">Stack 1</span></div><span class="w2-flex"></span></header>
+          <div class="win-body"><div class="osx-fill">stacked</div></div>
         </section>
-        <span class="snap-seam snap-seam--h" role="separator" aria-orientation="horizontal" aria-label="Resize" tabindex="0" style="right:0;width:calc(50% - 6px);top:calc(50% - 4px);height:12px"></span>
-        <section class="win is-tiled" style="right:0;bottom:0;width:calc(50% - 6px);height:calc(50% - 4px)">
-          <div class="snap-preview" style="inset:0"></div>
-          <span class="osx-snap-label">Insert right</span>
-          <header class="win-head">
-            <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
-            <div class="w2-id"><span class="w2-glyph" aria-hidden="true"><i data-lucide="repeat"></i></span><span class="w2-title">Loops</span></div>
-            <span class="w2-flex" aria-hidden="true"></span>
-          </header>
-          <div class="win-body"></div>
+        <span class="snap-seam snap-seam--h" tabindex="0" role="separator" aria-orientation="horizontal" aria-label="Resize boundary 2" style="left:60%;right:0;top:50%" data-drag></span>
+        <section class="win is-tiled" style="left:60%;top:50%;width:40%;height:50%">
+          <header class="win-head"><div class="w2-id"><span class="w2-title">Stack 2</span></div><span class="w2-flex"></span></header>
+          <div class="win-body"><div class="osx-fill">stacked</div></div>
         </section>
+        <span class="osx-snap-label" style="left:80%;top:calc(50% + 70px)">dragging · 2px accent</span>
       </div>
-      <p class="demo-note">Hover or focus a seam — the hairline turns accent. Seams are keyboard-resizable
-      <code>role="separator"</code> controls, not decoration.</p>
+      <p class="demo-note" style="padding:0 16px 12px">Main and stack. Tab to a seam and use the arrow keys; hover shows the accent line.</p>
     </div>
 
     <table class="spec" data-od-id="tiling-spec">
-      <tr><th>Aspect</th><th>Spec</th></tr>
-      <tr><td>Target kinds</td><td><code>tile</code> · <code>zoom</code> · <code>insert</code> · <code>split</code> · <code>swap</code></td></tr>
-      <tr><td>Zones</td><td>4 sides + 4 corners · <code>topCenter</code> zooms · <code>bottomCenter</code> is reserved</td></tr>
-      <tr><td>Presets</td><td>arrange as two-up or grid from the Window menu</td></tr>
-      <tr><td>Config</td><td><code>edgeBand 32</code> · <code>cornerReach 150</code> · <code>exitSlack 16</code> · <code>innerGap 8</code> · ratios <code>.5 / .667 / .333</code></td></tr>
-      <tr><td>Preview</td><td>accent border + <code>--accent-tint</code> + label chip · ephemeral, pointer-events none, never writes state</td></tr>
-      <tr><td>Seams</td><td>12px hit area over a 1px <code>--line-strong</code> rule → accent on hover, focus and drag · <code>role="separator"</code> + keyboard resize</td></tr>
-      <tr><td>Tiled windows</td><td>shadow none · resize only on free edges · shared boundaries resize through the seam, never by dragging a frame</td></tr>
+      <tr><th>Command</th><th>Behaviour</th></tr>
+      <tr><td>Window › Arrange</td><td><b>Main and stack</b> (the focused window takes a 60% main column) · <b>Columns</b> · <b>Grid</b> · <b>Balance sizes</b> (equal splits)</td></tr>
+      <tr><td>Window › Move window to</td><td>sends the focused window to another desktop by name</td></tr>
+      <tr><td>Zoom</td><td>the focused unit fills its desktop; others stay in the tree. Top- and bottom-center snaps zoom by default</td></tr>
+      <tr><td>Minimize</td><td>the pane leaves the tree; its dock item shows a hollow ring and a dimmed glyph; clicking restores it</td></tr>
+      <tr><td>Snap preview</td><td>accent hairline + <code>--accent-tint</code> over the target; ephemeral, never persisted</td></tr>
     </table>
   </section>
 
-  <!-- ============ 06 DESKTOPS, SPACES & WALLPAPERS ============ -->
-  <section class="sec" id="spaces" data-od-id="sec-spaces">
-    <h2><span class="num">06</span>Desktops, Spaces &amp; wallpapers</h2>
-    <p class="lead">Every desktop stays mounted — switching hides and inerts it rather than tearing it down, so
-    scroll position, focus and in-flight streams survive. An empty desktop says so, and offers the palette chord.</p>
+  <!-- ============ 07 DESKTOPS ============ -->
+  <section class="sec" id="desktops" data-od-id="sec-desktops">
+    <h2><span class="num">07</span>Desktops, overview &amp; wallpapers</h2>
+    <p class="lead">Desktops are switched from the pager dots in the tray; the <b>All desktops</b> button opens the
+    Desktops overview, which owns create, rename, reorder, move and delete. Every desktop stays mounted. Switching hides
+    and inerts it, so scroll, focus and streams survive.</p>
 
-    <div class="demo demo--col demo--rail" data-od-id="demo-desktop">
-      <div class="osx-desk osx-stage--wall">
-        <div class="desk-hint">
-          <span class="dh-desktop">Press <kbd>⌘</kbd><kbd>K</kbd> to open anything</span>
-          <span class="dh-mobile">Tap a route below to start</span>
-        </div>
-      </div>
-      <p class="demo-note">Empty-desktop hint — live chord, centred, never a modal and never a blocking wall.</p>
+    <h3>Pager</h3>
+    <div class="demo demo--rail" data-od-id="demo-pager">
+      <nav class="pager" aria-label="Desktops">
+        <button class="pager-dot" aria-label="Desktop 1 of 4: Build"><i></i></button>
+        <button class="pager-dot is-on" aria-label="Desktop 2 of 4: Review"><i></i></button>
+        <button class="pager-dot has-attn" aria-label="Desktop 3 of 4: Notes — needs you"><i></i></button>
+        <button class="pager-dot" aria-label="Desktop 4 of 4: Scratch"><i></i></button>
+      </nav>
+      <button class="mb-icon" aria-label="All desktops"><i data-lucide="layout-grid"></i></button>
+      <p class="demo-note" style="margin:0">6px dots in 24×30 buttons; the active desktop is an 18px <code>--fg</code> pill;
+      an orange dot marks an off-screen desktop that needs you. Left/Right/Home/End move; above 7 desktops the pager
+      windows ±2 with "Show N earlier/later desktops".</p>
     </div>
 
-    <div class="demo demo--rail" data-od-id="demo-spaces">
-      <div class="space-card is-active">
-        <div class="space-thumb" data-wp="ember">
-          <span class="mini-win" style="left:14%;top:18%;width:38%;height:48%"></span>
-          <span class="mini-win" style="left:56%;top:30%;width:32%;height:40%"></span>
+    <h3>Desktops overview</h3>
+    <div class="demo demo--col" style="padding:0;overflow:hidden" data-od-id="demo-overview">
+      <div class="ov">
+        <div class="ov-head"><h2>Desktops</h2><p>3 desktops · 5 windows</p><button class="btn btn--primary"><i data-lucide="plus"></i>Create desktop</button></div>
+        <div class="ov-grid">
+          <div class="space-card is-active"><div class="space-thumb"><span class="mini-win" style="left:0;top:0;width:58%;height:100%"></span><span class="mini-win" style="left:58%;top:0;width:42%;height:100%"></span></div><div class="space-foot"><span class="space-name">Build</span><span class="space-meta">2 windows</span></div></div>
+          <div class="space-card"><div class="space-thumb"><span class="mini-win" style="left:0;top:0;width:100%;height:50%"></span><span class="mini-win" style="left:0;top:50%;width:50%;height:50%"></span><span class="mini-win" style="left:50%;top:50%;width:50%;height:50%"></span></div><div class="space-foot"><span class="space-name">Review</span><span class="space-meta">3 windows</span></div></div>
+          <div class="space-card"><div class="space-thumb"></div><div class="space-foot"><span class="space-name">Scratch</span><span class="space-meta">empty</span></div></div>
         </div>
-        <div class="space-foot"><span class="ws-avatar">CZ</span><span class="space-name">compozy</span><span class="space-meta">3</span></div>
-      </div>
-      <div class="space-card">
-        <div class="space-thumb" data-wp="mesh">
-          <span class="mini-win" style="left:20%;top:26%;width:56%;height:44%"></span>
-        </div>
-        <div class="space-foot"><span class="ws-avatar">BR</span><span class="space-name">branasio</span><span class="space-meta">1</span></div>
-      </div>
-      <div class="space-card">
-        <div class="space-thumb" data-wp="carbon"></div>
-        <div class="space-foot"><span class="ws-avatar">LB</span><span class="space-name">labs</span><span class="space-meta">0</span></div>
       </div>
     </div>
 
-    <table class="spec" data-od-id="spaces-spec">
-      <tr><th>Aspect</th><th>Spec</th></tr>
-      <tr><td>Mounting</td><td>every desktop stays in the tree; inactive ones go <code>inert</code> + <code>hidden</code> — never unmounted</td></tr>
-      <tr><td>Transitions</td><td>slide (4% amplitude) · crossfade · instant — 240ms on the spring easing; reduced motion collapses to instant</td></tr>
-      <tr><td>Wallpapers</td><td><code>ember</code> (accent + teal) · <code>mesh</code> (success + teal) · <code>carbon</code> (neutral), each over a 26px dot grain</td></tr>
-      <tr><td>Teal</td><td><code>#225555</code> is a wallpaper-only depth tone — it never appears in chrome, content or signal</td></tr>
-      <tr><td>Spaces cards</td><td>264px card · 148px thumb with scaled mini-windows · active card takes the accent border</td></tr>
-    </table>
+    <h3>Empty desktop</h3>
+    <div class="demo demo--col" style="padding:0;overflow:hidden" data-od-id="demo-empty-desk">
+      <div class="osx-desk">
+        <div class="desk-empty">
+          <span class="w2-glyph"><i data-lucide="app-window"></i></span>
+          <h2>Scratch is empty</h2>
+          <p>Open an app from the dock, or press <kbd class="key">⌘</kbd><kbd class="key">K</kbd> to open anything.</p>
+          <button class="btn btn--primary"><i data-lucide="plus"></i>New session</button>
+        </div>
+      </div>
+    </div>
+
+    <h3>Wallpapers</h3>
+    <div class="demo demo--col" data-od-id="demo-wallpapers">
+      <div class="osx-wp">
+        <figure><div class="desktop" data-wallpaper="flat"></div><figcaption><b>Flat</b> · default, the <code>--desk</code> role</figcaption></figure>
+        <figure><div class="desktop" data-wallpaper="ember"></div><figcaption>Ember · accent + teal</figcaption></figure>
+        <figure><div class="desktop" data-wallpaper="mesh"></div><figcaption>Mesh · success + teal</figcaption></figure>
+        <figure><div class="desktop" data-wallpaper="carbon"></div><figcaption>Carbon · neutral</figcaption></figure>
+      </div>
+      <p class="demo-note">Flat renders the desk role with no grain. The others keep the 26px dot grain; on light the teal depth
+      wash drops to a tint (<code>tokens-light.css</code>). Teal <code>#225555</code> is wallpaper-only.</p>
+    </div>
   </section>
 
-  <!-- ============ 07 FOCUS & Z ============ -->
+  <!-- ============ 08 THEMES ============ -->
+  <section class="sec" id="themes" data-od-id="sec-themes">
+    <h2><span class="num">08</span>Themes</h2>
+    <p class="lead">Two themes, dark by default. The preference is <b>Light / Dark / System</b> in Settings › Appearance
+    ("System follows your computer's light or dark setting."); the rail-foot toggle flips the painted theme and stores
+    an explicit choice. One function sets <code>data-theme</code> and the <code>.dark</code> class together on
+    <code>&lt;html&gt;</code> before first paint; the terminal follows the theme.</p>
+    <table class="spec" data-od-id="themes-spec">
+      <tr><th>Role</th><th>Dark</th><th>Light</th></tr>
+      <tr><td>Chrome · desk (<code>--rail</code> · <code>--desk</code>)</td><td><code>#0a0a0a · #101010</code></td><td><code>#fafafa · #fafafa</code></td></tr>
+      <tr><td>Pane surface · sunken (<code>--canvas</code> · <code>--sunken</code>)</td><td><code>#1a1a1a · #101010</code></td><td><code>#ffffff · #f7f8fa</code></td></tr>
+      <tr><td>Hover · selected (<code>--surface-2</code> · <code>--selected</code>)</td><td><code>#242424 · #242424</code></td><td><code>#f4f5f7 · #f0f1f3</code></td></tr>
+      <tr><td>Hairline · strong</td><td><code>#303030 · #424242</code></td><td><code>#e6e8ec · #d4d7dd</code></td></tr>
+      <tr><td>Primary (inverted) · ink</td><td><code>#f5f5f5 · #0a0a0a</code></td><td><code>#0b0d12 · #ffffff</code></td></tr>
+      <tr><td>Needs you (<code>--attn</code>)</td><td><code>#e8572a</code></td><td><code>#d14e25</code></td></tr>
+      <tr><td>In progress · done (<code>--success</code>)</td><td><code>#34d399</code></td><td><code>#15a06a</code></td></tr>
+    </table>
+    <div class="demo" data-od-id="demo-glyphs">
+      <div class="osx-glyphs">
+        <span><span class="osx-ring"></span>In progress</span>
+        <span><span class="osx-dash"></span>Queued</span>
+        <span><span class="osx-check"><i data-lucide="check"></i></span>Done</span>
+        <span><span class="osx-attn"></span>Needs you</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 09 FOCUS & Z ============ -->
   <section class="sec" id="focus" data-od-id="sec-focus">
-    <h2><span class="num">07</span>Focus &amp; z-order</h2>
-    <p class="lead">Focus behaviour is daemon configuration, not a hard-coded preference — every key below is
-    readable and writable per workspace, so a workspace can run click-to-focus while another follows the pointer.</p>
-
-    <table class="spec" data-od-id="focus-spec">
-      <tr><th>Key</th><th>Meaning</th></tr>
-      <tr><td><code>focusPolicy</code></td><td>how focus is acquired at all</td></tr>
-      <tr><td><code>focusFollowsPointer</code></td><td>hovering a window focuses it without a click</td></tr>
-      <tr><td><code>raiseOnFocus</code></td><td>whether focusing also raises above peers</td></tr>
-      <tr><td><code>focusWrap</code></td><td>cycling past the last window wraps to the first</td></tr>
-      <tr><td><code>newWindowPolicy</code></td><td>where a newly opened window lands and whether it steals focus</td></tr>
-      <tr><td><code>dragAwayPolicy</code></td><td>what tearing a tab out of a deck produces</td></tr>
-      <tr><td colspan="2" style="color:var(--subtle)">All six are per-workspace overridable; the workspace value wins over the global default.</td></tr>
-    </table>
-
-    <h3>Layers</h3>
+    <h2><span class="num">09</span>Focus &amp; z-order</h2>
+    <p class="lead">Focus behaviour is daemon configuration (<code>[window_manager]</code>), readable and writable per workspace.
+    The default <code>new_window_policy</code> is <code>tab</code>: new windows open as a tab in the focused window (an empty desktop gets one full pane).</p>
     <div class="demo demo--col demo--soft" data-od-id="demo-z">
       <div class="osx-zbar"><b>1</b><span><i style="width:22%"></i>tiled windows</span></div>
-      <div class="osx-zbar"><b>2</b><span><i style="width:30%"></i>seams</span></div>
-      <div class="osx-zbar"><b>2+n</b><span><i style="width:38%"></i>floating windows — base 2 plus the window's own layer</span></div>
+      <div class="osx-zbar"><b>2+n</b><span><i style="width:32%"></i>floating windows: base 2 plus the window's own layer</span></div>
+      <div class="osx-zbar"><b>3</b><span><i style="width:38%"></i>seams</span></div>
       <div class="osx-zbar"><b>40/60/61</b><span><i style="width:52%"></i>window-body tiers: menu · scrim · sheet</span></div>
-      <div class="osx-zbar"><b>500</b><span><i style="width:62%"></i>menu bar</span></div>
-      <div class="osx-zbar"><b>600</b><span><i style="width:70%"></i>dock zone</span></div>
+      <div class="osx-zbar"><b>500</b><span><i style="width:62%"></i>topbar</span></div>
+      <div class="osx-zbar"><b>600</b><span><i style="width:70%"></i>rail</span></div>
       <div class="osx-zbar"><b>900</b><span><i style="width:80%"></i>shell popovers</span></div>
-      <div class="osx-zbar"><b>1000</b><span><i style="width:90%"></i>overlays — palette, Spaces, modals</span></div>
+      <div class="osx-zbar"><b>1000</b><span><i style="width:90%"></i>overlays: palette, Desktops overview, modals</span></div>
       <div class="osx-zbar"><b>1200</b><span><i style="width:100%"></i>toasts</span></div>
       <p class="demo-note">Fixed tiers only. A bare <code>999</code> or <code>9999</code> anywhere in shell code is a defect.</p>
     </div>
   </section>
 
-  <!-- ============ 08 COMPACT MODE ============ -->
+  <!-- ============ 10 COMPACT ============ -->
   <section class="sec" id="compact" data-od-id="sec-compact">
-    <h2><span class="num">08</span>Compact mode — below 960px</h2>
-    <p class="lead">Reflow, don't block. Compact keeps full route parity while dropping every affordance that
-    needs a pointer and a large canvas — and it never writes over the desktop rects it can't display.</p>
+    <h2><span class="num">10</span>Compact mode below 960px</h2>
+    <p class="lead">Reflow, don't block. Compact keeps full route parity while dropping what needs a pointer and a large
+    canvas, and it never writes over the desktop rects it can't display.</p>
     <table class="spec" data-od-id="compact-spec">
       <tr><th>Zone</th><th>Behaviour</th></tr>
-      <tr><td>Windows</td><td>full-bleed: no border, no radius, no shadow, no drag, no resize · z-order decides which is visible · stored rects survive untouched</td></tr>
-      <tr><td>Deck</td><td>unavailable — tabs are a pointer affordance; the tab set persists and returns at desktop width</td></tr>
-      <tr><td>Dock</td><td>becomes a 56px bottom tab bar · items 44px, radius 14 · horizontal scroll for parity · no magnification, no tips, no separators</td></tr>
-      <tr><td>Traffic lights</td><td>15px glyphs inside 44px targets · zoom hidden</td></tr>
-      <tr><td>Menu bar</td><td>app menus hidden; logo, scope, workspace and the trailing tray stay — every menu action remains reachable in ⌘K</td></tr>
-      <tr><td>Strip</td><td>wraps instead of scrolling; padding drops to 6/12</td></tr>
+      <tr><td>Rail</td><td>hidden; a 56px bottom tab bar takes over with 44px items and horizontal scroll; its trailing group, behind a hairline, holds profile · theme · Settings</td></tr>
+      <tr><td>Topbar</td><td>app menus drop; mark, scope, project chip and tray stay; every menu action remains in ⌘K</td></tr>
+      <tr><td>Windows</td><td>full-bleed: no border, radius or shadow, no drag or resize · z-order decides which is visible · stored rects survive</td></tr>
+      <tr><td>Deck</td><td>unavailable; the tab set persists and returns at desktop width</td></tr>
+      <tr><td>Controls</td><td>44px targets · zoom hidden</td></tr>
+      <tr><td>Toolbar</td><td>wraps instead of scrolling; padding drops to 6/12</td></tr>
     </table>
   </section>
 
-  <!-- ============ 09 SHELL RULES ============ -->
+  <!-- ============ 11 SHELL RULES ============ -->
   <section class="sec" id="rules" data-od-id="sec-shell-rules">
-    <h2><span class="num">09</span>Shell rules</h2>
+    <h2><span class="num">11</span>Shell rules</h2>
     <div class="rule-list" data-od-id="shell-rules">
-      <div class="rule"><i>S1</i><span><b>Identity renders once.</b> The 44px head owns it — root identity, breadcrumb, or document self-title, never two of them stacked and never a second route header inside the body.</span></div>
-      <div class="rule"><i>S2</i><span><b>Chrome is bounded.</b> Head 44 + strip 38 + deck 37 = <b>119px</b> fully loaded. Anything beyond that budget belongs in the body.</span></div>
-      <div class="rule"><i>S3</i><span><b>Views live on the strip</b> as its leading pill-group — views · filters · spacer · Rows|Cards. The in-head <code>.w2-tabs</code> variant is deprecated.</span></div>
-      <div class="rule"><i>S4</i><span><b>One owner per axis.</b> Depth is the breadcrumb, workspace is the menu bar, routes are the dock. No zone borrows another's job.</span></div>
-      <div class="rule"><i>S5</i><span><b>Documents self-title</b> with a state dot and never breadcrumb.</span></div>
-      <div class="rule"><i>S6</i><span><b>Session documents are windows.</b> The dock's Sessions item toggles a modal picker, not a window — it is the one dock item that isn't a route.</span></div>
-      <div class="rule"><i>S7</i><span><b>Minimize folds into the dock icon</b> (hollow dot + dimmed glyph). No minimize tray, no desktop widgets — approvals live in the bell.</span></div>
-      <div class="rule"><i>S8</i><span><b>Settings opens from the cog.</b> It never takes a dock slot and never becomes a route.</span></div>
-      <div class="rule"><i>S9</i><span><b>Accent in chrome means state or primary action.</b> Live dots, attention badges, the New session button, snap previews. Tab selection is neutral.</span></div>
-      <div class="rule"><i>S10</i><span><b>The radius waiver is chrome-only</b> (12–22px, glass, cast shadows). Window content returns to 3–18px and never casts.</span></div>
-      <div class="rule"><i>S11</i><span><b>State persists per desktop via the daemon snapshot</b> — window rects, layout tree, tab set and order, per-tab nav stacks, wallpaper. Not localStorage, not per-browser.</span></div>
-      <div class="rule"><i>S12</i><span><b>Tiled is not floating.</b> Tiled panes drop the cast shadow, resize only through seams and free edges, and stay inside the layout tree.</span></div>
-      <div class="rule"><i>S13</i><span><b>The dock band is reserved.</b> 82px of work area belongs to the dock; no window rect, snap target or arrange preset resolves underneath it.</span></div>
+      <div class="rule"><i>S1</i><span><b>Identity renders once.</b> The 48px head owns it: root identity, breadcrumb, or document self-title, never two stacked and never a second route header inside the body.</span></div>
+      <div class="rule"><i>S2</i><span><b>Chrome is bounded.</b> Deck 40 + head 48 + toolbar 44 = <b>132px</b> fully loaded. Anything beyond belongs in the body.</span></div>
+      <div class="rule"><i>S3</i><span><b>Views live on the toolbar</b> as its leading pills: views · filters · spacer · display. The in-head <code>.w2-tabs</code> variant is deprecated.</span></div>
+      <div class="rule"><i>S4</i><span><b>One owner per axis.</b> Depth is the breadcrumb, project is the topbar chip, apps are the dock, desktops are the pager. No zone borrows another's job.</span></div>
+      <div class="rule"><i>S5</i><span><b>Documents self-title</b> with a state glyph and never breadcrumb.</span></div>
+      <div class="rule"><i>S6</i><span><b>Flat chrome, no glass.</b> The topbar and rail sit on <code>--rail</code>; tiled panes are flat on <code>--canvas</code>. Only floating windows (<code>shadow-elevated</code>), menus and popovers (<code>shadow-pop</code>) lift.</span></div>
+      <div class="rule"><i>S7</i><span><b>Minimize folds into the dock item</b> (hollow ring + dimmed glyph). No minimize tray, no desktop widgets; approvals live in the bell.</span></div>
+      <div class="rule"><i>S8</i><span><b>Settings opens from the rail foot</b> (and the mark's menu). It never takes a launcher slot and never sits in the tray.</span></div>
+      <div class="rule"><i>S9</i><span><b>Orange means needs you.</b> Badges, the pager's attention dot, the seam under your hand, snap previews. The primary action is inverted, amber is only a real warning, and tab selection is neutral.</span></div>
+      <div class="rule"><i>S10</i><span><b>Gutterless tiling.</b> Gaps default to 0; the 1px seam is the only divider and its 9px hit area is the only resize handle between panes.</span></div>
+      <div class="rule"><i>S11</i><span><b>State persists per desktop via the daemon snapshot</b> — layout tree, tab set and order, per-tab nav stacks, wallpaper. The theme is the one per-browser preference (<code>compozy.theme</code>).</span></div>
+      <div class="rule"><i>S12</i><span><b>Tiled is not floating.</b> Tiled panes drop border and shadow, resize only through seams, and stay inside the layout tree.</span></div>
+      <div class="rule"><i>S13</i><span><b>Both themes, always.</b> Every shell specimen reads in light and dark; a literal that only works on one theme is a defect (lint: <code>no-design-glaze-rgba</code>).</span></div>
     </div>
   </section>
 </div>
@@ -644,6 +584,14 @@
       root.querySelectorAll("[data-pane-body]").forEach(function (pane) {
         pane.hidden = pane.dataset.paneBody !== tab.dataset.pane;
       });
+      var title = root.querySelector("[data-pane-title]");
+      if (title) title.textContent = tab.querySelector(".deck-tab__label").textContent;
+    });
+  });
+  document.querySelectorAll("[data-theme-toggle]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === "light" ? "dark" : "light";
     });
   });
   if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();

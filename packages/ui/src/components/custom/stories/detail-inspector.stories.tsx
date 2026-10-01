@@ -29,7 +29,7 @@ const TABS: DetailInspectorTab[] = [
 
 function InspectorBody({ activeTab }: { activeTab: string }) {
   return (
-    <div className="flex flex-col gap-2 p-4 text-[12.5px] text-muted">
+    <div className="flex flex-col gap-2 p-4 text-meta text-muted">
       <p>Active tab: {activeTab}</p>
       <p>
         At ≥ 1440 px viewports this panel renders inline at 320 px. Resize the preview frame below
@@ -49,7 +49,7 @@ export const Inline: Story = {
       const [activeTab, setActiveTab] = useState("summary");
       return (
         <div className="flex h-[480px] w-full overflow-hidden bg-canvas text-fg">
-          <main className="flex flex-1 items-center justify-center text-[13px] text-muted">
+          <main className="flex flex-1 items-center justify-center text-small-body text-muted">
             Main content area
           </main>
           <DetailInspector
@@ -78,7 +78,7 @@ export const Drawer: Story = {
       const [activeTab, setActiveTab] = useState("summary");
       return (
         <div className="flex h-[480px] w-full overflow-hidden bg-canvas p-4 text-fg">
-          <main className="flex flex-1 flex-col items-center justify-center gap-3 text-[13px] text-muted">
+          <main className="flex flex-1 flex-col items-center justify-center gap-3 text-small-body text-muted">
             <p>Main content area</p>
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
               Open inspector

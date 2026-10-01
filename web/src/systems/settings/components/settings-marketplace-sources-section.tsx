@@ -35,7 +35,7 @@ export function SettingsMarketplaceSourcesSection({
           onClick={onAdd}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           Add plugin marketplace…
         </Button>

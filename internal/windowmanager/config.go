@@ -23,6 +23,7 @@ type DesktopTransition string
 const (
 	NewWindowFloating          NewWindowPolicy     = "floating"
 	NewWindowInsert            NewWindowPolicy     = "beside_focus"
+	NewWindowTab               NewWindowPolicy     = "tab"
 	SmallViewportStack         SmallViewportPolicy = "stack"
 	SmallViewportReject        SmallViewportPolicy = "reject"
 	FocusClickDirectional      FocusPolicy         = "click_directional"
@@ -38,6 +39,7 @@ const (
 	dragModifierShift                              = "shift"
 	configValueNone                                = "none"
 	bindingReserved                                = "reserved"
+	bindingZoom                                    = "zoom"
 )
 
 // GapsConfig defines the inner and outer layout gaps in CSS pixels.
@@ -108,7 +110,7 @@ type WorkspaceConfig struct {
 // DefaultConfig returns production defaults from the accepted contract.
 func DefaultConfig() Config {
 	return Config{
-		NewWindowPolicy:     NewWindowFloating,
+		NewWindowPolicy:     NewWindowTab,
 		SmallViewportPolicy: SmallViewportStack,
 		FocusPolicy:         FocusClickDirectional,
 		RaiseOnFocus:        true,
@@ -119,14 +121,14 @@ func DefaultConfig() Config {
 		NavStackLimit:       50,
 		ClosedEntryLimit:    20,
 		DesktopTransition:   DesktopTransitionSlide,
-		Gaps:                GapsConfig{Inner: 8, Top: 8, Right: 10, Bottom: 8, Left: 10},
+		Gaps:                GapsConfig{},
 		Snap: SnapConfig{
 			EdgeBand:     32,
 			CornerReach:  150,
 			ExitSlack:    16,
 			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
 		},
-		Bindings:  BindingsConfig{TopCenter: "zoom", BottomCenter: bindingReserved},
+		Bindings:  BindingsConfig{TopCenter: bindingZoom, BottomCenter: bindingZoom},
 		Shortcuts: map[string]ShortcutBinding{},
 	}
 }
@@ -142,7 +144,9 @@ func validateConfig(config Config) error {
 }
 
 func validateBehaviorConfig(config Config) error {
-	if config.NewWindowPolicy != NewWindowFloating && config.NewWindowPolicy != NewWindowInsert {
+	switch config.NewWindowPolicy {
+	case NewWindowFloating, NewWindowInsert, NewWindowTab:
+	default:
 		return fmt.Errorf("new window policy %q: %w", config.NewWindowPolicy, ErrInvalidCommand)
 	}
 	if config.SmallViewportPolicy != SmallViewportStack && config.SmallViewportPolicy != SmallViewportReject {
@@ -230,7 +234,7 @@ func validateGeometryConfig(config Config) error {
 func validateBindingsConfig(config Config) error {
 	for _, binding := range []string{config.Bindings.TopCenter, config.Bindings.BottomCenter} {
 		switch binding {
-		case configValueNone, bindingReserved, "zoom":
+		case configValueNone, bindingReserved, bindingZoom:
 		default:
 			return fmt.Errorf("binding %q: %w", binding, ErrInvalidCommand)
 		}

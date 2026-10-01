@@ -195,7 +195,7 @@ function SessionTrailTick({
       <TooltipContent side="right" className="w-64 max-w-64 whitespace-normal">
         {/* The popup lays its children out in a row; the card is one column: ask, reply, time · n of N. */}
         <div className="flex min-w-0 flex-col gap-1" data-testid="session-trail-card">
-          <div className="line-clamp-2 text-transcript-body font-medium text-fg-strong">
+          <div className="line-clamp-2 text-transcript-body font-medium text-fg">
             {entry.preview}
           </div>
           {entry.reply_preview ? (

@@ -6,6 +6,7 @@ import { CrashRecoveryBudget } from "./crash-recovery-policy";
 import { guardWindowNavigation } from "./security";
 import { productWindowChrome } from "./product-window-chrome";
 import { presentWindow, type WindowPresentation } from "./window-presentation";
+import type { WindowTheme } from "./window-theme";
 import { MINIMUM_WINDOW_SIZE, restoreWindowBounds } from "./window-state-policy";
 import { nextZoomLevel } from "./zoom-policy";
 
@@ -32,6 +33,7 @@ export class ProductWindow {
   readonly #preloadPath: string;
   readonly #presentation: WindowPresentation;
   readonly #links: DeepLinkQueue;
+  readonly #theme: Pick<WindowTheme, "backgroundColor" | "dark" | "track">;
   readonly #onReady: () => Promise<void>;
   readonly #onLoadFailure: (error: Error) => Promise<void>;
   readonly #onError: (error: Error) => void;
@@ -48,6 +50,7 @@ export class ProductWindow {
     preloadPath: string;
     presentation: WindowPresentation;
     links: DeepLinkQueue;
+    theme: Pick<WindowTheme, "backgroundColor" | "dark" | "track">;
     onReady: () => Promise<void>;
     onLoadFailure: (error: Error) => Promise<void>;
     onError: (error: Error) => void;
@@ -56,6 +59,7 @@ export class ProductWindow {
     this.#windowStatePath = options.windowStatePath;
     this.#preloadPath = options.preloadPath;
     this.#presentation = options.presentation;
+    this.#theme = options.theme;
     this.#links = options.links;
     this.#onReady = options.onReady;
     this.#onLoadFailure = options.onLoadFailure;
@@ -71,12 +75,12 @@ export class ProductWindow {
     this.#zoomLevel = saved?.zoom_level ?? 0;
     const window = new BrowserWindow({
       ...bounds,
-      ...productWindowChrome(process.platform),
+      ...productWindowChrome(process.platform, this.#theme.dark),
       minWidth: MINIMUM_WINDOW_SIZE.width,
       minHeight: MINIMUM_WINDOW_SIZE.height,
       show: false,
       title: "CompozyOS",
-      backgroundColor: "#131211",
+      backgroundColor: this.#theme.backgroundColor("chrome"),
       autoHideMenuBar: true,
       webPreferences: {
         preload: this.#preloadPath,
@@ -88,6 +92,7 @@ export class ProductWindow {
       },
     });
     this.#window = window;
+    this.#theme.track(window, "chrome");
     if (saved?.maximized) window.maximize();
     if (!saved) window.center();
     guardWindowNavigation(window, this.#origin, this.#onError);

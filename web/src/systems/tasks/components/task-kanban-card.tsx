@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { Button, MonoId, OwnerAvatar, Pill } from "@compozy/ui";
+import { Button, MonoId, OwnerAvatar, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -9,7 +9,8 @@ import {
   ownerAvatarKindFor,
   taskOwnerLabel,
   taskShortId,
-  taskStatusTone,
+  taskStateGlyph,
+  taskStatusLabel,
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
@@ -20,22 +21,6 @@ export interface TaskKanbanCardProps {
   onSelect?: (taskId: string) => void;
   onRetry?: (runId: string) => void;
   profileOwner?: ProfileOwner;
-}
-
-const STATUS_LABELS: Partial<Record<TaskListItem["status"], string>> = {
-  pending: "Pending",
-  ready: "Ready",
-  in_progress: "In progress",
-  blocked: "Blocked",
-  needs_attention: "Needs attention",
-  completed: "Done",
-  failed: "Failed",
-  canceled: "Canceled",
-  draft: "Draft",
-};
-
-function statusLabel(status: TaskListItem["status"]): string {
-  return STATUS_LABELS[status] ?? status;
 }
 
 export function TaskKanbanCard({
@@ -51,7 +36,7 @@ export function TaskKanbanCard({
   const retryRunId = isFailed && onRetry ? activeRun?.id : undefined;
   // Single-status columns already name the status; only the mixed Done column
   // needs to tell failed and canceled cards apart from completed ones.
-  const showStatusPill = task.status === "failed" || task.status === "canceled";
+  const showStatus = task.status === "failed" || task.status === "canceled";
   const selection = kanbanCardSelection(task.id, selected, onSelect);
 
   return (
@@ -61,22 +46,22 @@ export function TaskKanbanCard({
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
       className={cn(
-        "relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md bg-canvas-tint p-3 text-left transition-colors duration-base ease-out",
-        "shadow-hairline-inset",
-        "hover:bg-elevated hover:inset-ring-1 hover:inset-ring-line",
-        selection.clickable && "cursor-pointer",
-        selection.clickable &&
-          "focus-visible:shadow-focus-inset focus-visible:outline-none focus-visible:ring-0",
-        selected && "bg-elevated inset-ring-1 inset-ring-line"
+        // A card on the sunken column: `card` plus shadow-card (its hairline),
+        // stepping to surface-2 on hover and to the selected plate when chosen.
+        "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-card p-3 text-left shadow-card transition-colors duration-base ease-out",
+        selection.clickable && "cursor-pointer hover:bg-surface-2",
+        selection.clickable && "focus-visible:shadow-focus-ring focus-visible:outline-none",
+        selected && "bg-selected inset-ring-1 inset-ring-line-strong"
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <h3 className="line-clamp-2 min-w-0 text-small-body font-medium leading-snug text-fg-strong">
+        <h3 className="line-clamp-2 min-w-0 text-small-body font-medium leading-snug text-fg">
           {task.title}
         </h3>
-        {showStatusPill ? (
-          <Pill size="xs" tone={taskStatusTone(task.status)}>
-            {statusLabel(task.status)}
+        {showStatus ? (
+          <Pill data-testid={`tasks-kanban-card-status-${task.id}`} form="plain">
+            <StateGlyph size="sm" state={taskStateGlyph(task.status)} />
+            {taskStatusLabel(task.status)}
           </Pill>
         ) : null}
       </div>

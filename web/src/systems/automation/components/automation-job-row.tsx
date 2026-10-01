@@ -74,9 +74,9 @@ function AutomationJobRow({
           onClick={() => onRun(job.id)}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
-          <Play aria-hidden="true" className="size-3" />
+          <Play aria-hidden="true" />
           {isRunPending ? "Starting…" : "Run now"}
         </Button>
       </ListingRow.Trail>

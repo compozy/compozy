@@ -29,10 +29,16 @@ func TestWindowManagerConfig(t *testing.T) {
 		if err := got.Validate(); err != nil {
 			t.Fatalf("WindowManager.Validate() error = %v", err)
 		}
-		if got.NewWindowPolicy != WindowNewPolicyFloating ||
+		if got.NewWindowPolicy != WindowNewPolicyTab ||
 			got.SmallViewportPolicy != WindowSmallViewportStack ||
 			got.HistoryLimit != 50 || got.NavStackLimit != 50 || got.ClosedEntryLimit != 20 {
-			t.Fatalf("WindowManager = %#v, want floating/stack/history/nav/closed defaults", got)
+			t.Fatalf("WindowManager = %#v, want tab/stack/history/nav/closed defaults", got)
+		}
+		if got.Gaps != (WindowManagerGapsConfig{}) {
+			t.Fatalf("WindowManager.Gaps = %#v, want flush zero gaps", got.Gaps)
+		}
+		if got.Bindings.TopCenter != WindowBindingZoom || got.Bindings.BottomCenter != WindowBindingZoom {
+			t.Fatalf("WindowManager.Bindings = %#v, want zoom/zoom", got.Bindings)
 		}
 		wantRatios := []float64{0.5, 0.666667, 0.333333}
 		if !slices.Equal(got.Snap.RepeatRatios, wantRatios) {
@@ -53,7 +59,7 @@ func TestWindowManagerConfig(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		writeFile(t, homePaths.ConfigFile, `
 [window_manager]
-new_window_policy = "beside_focus"
+new_window_policy = "floating"
 history_limit = 80
 nav_stack_limit = 120
 closed_entry_limit = 40
@@ -83,25 +89,26 @@ top_center = "none"
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		windowManager := got.WindowManager
-		if windowManager.NewWindowPolicy != WindowNewPolicyBesideFocus ||
+		if windowManager.NewWindowPolicy != WindowNewPolicyFloating ||
 			windowManager.HistoryLimit != 25 ||
 			windowManager.NavStackLimit != 75 || windowManager.ClosedEntryLimit != 15 ||
 			windowManager.DesktopTransition != WindowDesktopTransitionCrossfade {
 			t.Fatalf("WindowManager = %#v, want merged behavior", windowManager)
 		}
 		if windowManager.Gaps.Inner != 12 || windowManager.Gaps.Right != 14 ||
-			windowManager.Gaps.Left != 10 {
-			t.Fatalf("WindowManager.Gaps = %#v, want merged 12/14 with default left 10", windowManager.Gaps)
+			windowManager.Gaps.Left != 0 {
+			t.Fatalf("WindowManager.Gaps = %#v, want merged 12/14 with default left 0", windowManager.Gaps)
 		}
-		if windowManager.Bindings.TopCenter != "none" || windowManager.Bindings.BottomCenter != "reserved" {
-			t.Fatalf("WindowManager.Bindings = %#v, want none/reserved", windowManager.Bindings)
+		if windowManager.Bindings.TopCenter != "none" || windowManager.Bindings.BottomCenter != WindowBindingZoom {
+			t.Fatalf("WindowManager.Bindings = %#v, want none/zoom", windowManager.Bindings)
 		}
 	})
 
 	t.Run("Should apply only the workspace window manager overlay onto active defaults", func(t *testing.T) {
 		t.Parallel()
 		base := DefaultWindowManagerConfig()
-		base.NewWindowPolicy = WindowNewPolicyBesideFocus
+		base.NewWindowPolicy = WindowNewPolicyFloating
+		base.Gaps.Left = 6
 		base.HistoryLimit = 80
 		base.NavStackLimit = 90
 		base.ClosedEntryLimit = 30
@@ -132,7 +139,7 @@ right = 14
 		if err != nil {
 			t.Fatalf("ApplyWindowManagerOverlayFile() error = %v", err)
 		}
-		if got.NewWindowPolicy != WindowNewPolicyBesideFocus || got.HistoryLimit != 25 ||
+		if got.NewWindowPolicy != WindowNewPolicyFloating || got.HistoryLimit != 25 ||
 			got.NavStackLimit != 70 || got.ClosedEntryLimit != 10 {
 			t.Fatalf("window manager overlay = %#v, want active policy and workspace history", got)
 		}

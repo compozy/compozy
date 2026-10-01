@@ -79,13 +79,13 @@ export function TriggerRuleCard({
 
   return (
     <div
-      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
+      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
       data-testid="trigger-rule-card"
       {...props}
     >
       <RuleRow label="When">
         <span className="flex flex-wrap items-center gap-2">
-          <WhenIcon aria-hidden="true" className="size-3.5 text-subtle" strokeWidth={1.75} />
+          <WhenIcon aria-hidden="true" className="size-3.5 text-subtle" />
           <b className="text-modal-title font-medium text-fg-strong">{when.headline}</b>
           <Pill mono size="sm">
             {when.eventId}
@@ -97,7 +97,7 @@ export function TriggerRuleCard({
 
       <RuleRow label="If">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <Filter aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
+          <Filter aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
           {condition.clauses.length === 0 ? (
             <span className="text-modal-title text-fg">Any event of this kind</span>
           ) : (

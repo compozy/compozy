@@ -29,8 +29,9 @@ function AutomationDetailActions({
           onClick={onTriggerNow}
           size="sm"
           type="button"
+          variant="secondary"
         >
-          <Play className="size-3" />
+          <Play aria-hidden="true" />
           {triggerPending ? "Starting…" : "Run now"}
         </Button>
       ) : null}
@@ -52,11 +53,11 @@ function AutomationDetailOverflow({ onDelete, onEdit }: AutomationDetailOverflow
         data-testid="automation-detail-overflow"
         render={<Button type="button" variant="ghost" size="icon-sm" />}
       >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        <TopbarOverflowIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
         <DropdownMenuItem data-testid="edit-automation-btn" onClick={onEdit}>
-          <Pencil className="size-3" />
+          <Pencil />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem

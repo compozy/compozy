@@ -28,7 +28,7 @@ function MarketplaceInstalledShelf({ items, updates, query }: MarketplaceInstall
   return (
     <Link
       aria-label={`${items.length} installed${updates > 0 ? `, ${updatesLabel}` : ""}. Open Installed`}
-      className="-mx-1 flex min-h-10 items-center gap-2.5 rounded-md px-1 text-fg transition-colors duration-fast hover:bg-row-hover hover:text-fg-strong focus-visible:shadow-focus-inset focus-visible:outline-none"
+      className="-mx-1 flex min-h-10 items-center gap-2.5 rounded-md px-1 text-fg transition-colors duration-fast hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-inset focus-visible:outline-none"
       data-testid="marketplace-installed-shelf"
       search={{ q: query || undefined }}
       to="/marketplace/installed"
@@ -43,14 +43,14 @@ function MarketplaceInstalledShelf({ items, updates, query }: MarketplaceInstall
           />
         ))}
         {overflow > 0 ? (
-          <span className="-ml-1.5 grid size-(--size-catalog-logo) shrink-0 place-items-center rounded-sm bg-elevated font-mono text-mono-id font-semibold text-subtle ring-2 ring-canvas">
+          <span className="-ml-1.5 grid size-(--size-catalog-logo) shrink-0 place-items-center rounded-sm bg-surface-2 font-mono text-mono-id font-semibold text-subtle ring-2 ring-canvas">
             +{overflow}
           </span>
         ) : null}
       </span>
       <span className="inline-flex items-center gap-1.5 text-small-body font-medium whitespace-nowrap">
         <span
-          className="font-mono text-mono-id font-semibold text-fg-strong tabular-nums"
+          className="font-mono text-mono-id font-semibold text-fg tabular-nums"
           data-testid="marketplace-installed-shelf-count"
         >
           {items.length}

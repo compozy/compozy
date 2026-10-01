@@ -16,7 +16,12 @@ var settingsDestinations = []settingsDestination{
 		Icon:     "sliders-horizontal",
 		Keywords: []string{"defaults", "permissions", "updates"},
 	},
-	{Slug: "appearance", Title: "Appearance", Icon: "palette", Keywords: []string{"wallpaper", "theme", "dock"}},
+	{
+		Slug:     "appearance",
+		Title:    "Appearance",
+		Icon:     "palette",
+		Keywords: []string{"theme", "dark mode", "light mode", "wallpaper", "motion"},
+	},
 	{Slug: coreProfilesKey, Title: "Profiles", Icon: "users", Keywords: []string{"identity", "context", "switch"}},
 	{
 		Slug:     "layouts",

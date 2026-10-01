@@ -51,7 +51,7 @@ describe("EntityModeToolbar", () => {
     const { container } = renderToolbar();
 
     expect(container.querySelector('[data-slot="entity-mode-toolbar"]')).toHaveClass(
-      "bg-canvas-tint",
+      "bg-sunken",
       "border-b",
       "border-line-soft"
     );

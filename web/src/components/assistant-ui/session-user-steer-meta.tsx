@@ -22,7 +22,6 @@ export function SessionUserSteerMeta({
   const glyph = createElement(steerMetaGlyph(kind), {
     "aria-hidden": true,
     className: "size-3 shrink-0 text-faint",
-    strokeWidth: 1.8,
   });
   return (
     <span

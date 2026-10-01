@@ -1,6 +1,7 @@
 // Suite: desktop hydration status
 // Invariant: the menubar carries the one window-layout status, in plain words,
-// and stays silent when there is nothing to report.
+// and stays silent when there is nothing to report — including before the
+// stream's first attempt.
 // Boundary IN: OsHydrationStatus rendering and accessibility contract.
 // Boundary OUT: WebSocket state transitions (hooks/__tests__/use-window-manager-stream.test.tsx).
 import { render, screen } from "@testing-library/react";
@@ -61,6 +62,22 @@ describe("OsHydrationStatus", () => {
       expect(screen.queryByRole("status")).toBeNull();
     }
   );
+
+  it("Should stay silent before the layout stream is first attempted", () => {
+    render(<OsHydrationStatus hydration="live" connectionStatus="idle" />);
+
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("Should keep the save warning for a real disconnect after hydration", () => {
+    render(
+      <TooltipProvider>
+        <OsHydrationStatus hydration="live" connectionStatus="disconnected" />
+      </TooltipProvider>
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Can't save window layout — retrying");
+  });
 
   it("Should stay silent when no project binds a layout stream", () => {
     render(<OsHydrationStatus hydration="degraded" connectionStatus="disconnected" unbound />);

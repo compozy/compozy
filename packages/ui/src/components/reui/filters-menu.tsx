@@ -80,7 +80,7 @@ function FilterSubmenuContent<T = unknown>({
             }
             placeholder={i18n.placeholders.searchField(field.label || "")}
             className={cn(
-              "h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
+              "h-control-compact rounded-none border-0 bg-transparent! px-2 shadow-none",
               "focus-visible:border-line-strong focus-visible:shadow-focus-inset",
               isActive && "placeholder:text-foreground"
             )}
@@ -111,7 +111,7 @@ function FilterSubmenuContent<T = unknown>({
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {filteredOptions.length === 0 ? (
-              <div className="py-2 text-center text-small-body text-muted-foreground">
+              <div className="py-2 text-center text-small-body text-muted">
                 {i18n.noResultsFound}
               </div>
             ) : (
@@ -129,7 +129,7 @@ function FilterSubmenuContent<T = unknown>({
                       onMouseEnter={() => highlightSubmenuOption(index)}
                       checked={isSelected}
                       className={cn(
-                        "data-highlighted:bg-accent data-highlighted:text-accent-foreground",
+                        "data-highlighted:bg-surface-2 data-highlighted:text-fg",
                         option.className
                       )}
                       onSelect={event => {
@@ -183,11 +183,7 @@ function FiltersMenuFieldList<T = unknown>({
   setMenuState,
 }: FiltersMenuFieldListProps<T>) {
   if (filteredFields.length === 0) {
-    return (
-      <div className="py-2 text-center text-small-body text-muted-foreground">
-        {i18n.noFieldsFound}
-      </div>
-    );
+    return <div className="py-2 text-center text-small-body text-muted">{i18n.noFieldsFound}</div>;
   }
 
   return filteredFields.map((field, index) => {
@@ -225,7 +221,7 @@ function FiltersMenuFieldList<T = unknown>({
               highlightRootOption(index);
               setMenuState({ activeMenu: "root" });
             }}
-            className="data-popup-open:bg-accent data-popup-open:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+            className="data-highlighted:bg-surface-2 data-highlighted:text-fg"
           >
             {field.icon}
             <span>{field.label}</span>
@@ -300,7 +296,7 @@ function FiltersMenuFieldList<T = unknown>({
         data-highlighted={isHighlighted || undefined}
         onMouseEnter={() => highlightRootOption(index)}
         onClick={() => field.key && addFilter(field.key)}
-        className="data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+        className="data-highlighted:bg-surface-2 data-highlighted:text-fg"
       >
         {field.icon}
         <span>{field.label}</span>
