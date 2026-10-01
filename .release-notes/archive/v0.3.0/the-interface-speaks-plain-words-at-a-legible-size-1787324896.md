@@ -3,6 +3,11 @@ title: The interface speaks plain words at a legible size
 type: feature
 ---
 
+> Historical note for #440: Bridges and managed Sandbox were subsequently removed, including
+> the Connections and Permissions dock entries and `compozy bridge list` example below. These
+> are no longer current commands or UI labels. See the
+> [migration guide](https://compozy.com/docs/migration#networks-bridges-and-sandbox-removal).
+
 Every end-user surface moved one step up the legibility ramp and one step toward ordinary language. Body text goes from 13.5px to 15px, item titles from 15 to 16, buttons and rows get real height, the radius ladder rebases on 8, and the canvas warms up — so the interface stops asking for a magnifying glass. (#440)
 
 - Home's first run tells the truth. Instead of seven zones filled with zeros, a fresh install shows one heading and the three starts that actually exist. A machine with an agent already running is never told nothing has happened.
