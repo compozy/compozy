@@ -1,5 +1,24 @@
 # Compozy Change Impact
 
+## Release PR 680 — CI and generated extension packaging
+
+- **Native tools / CLI / HTTP / UDS:** existing extension init, build, install, update,
+  disable, remove, and tool invocation contracts are unchanged.
+- **Extensibility / hooks / config:** TypeScript tool, memory, and connectivity templates
+  bundle runtime dependencies with the existing Bun build convention after type checking.
+  Newly generated packages remain executable outside the source tree. No SDK API, hook,
+  permission, or configuration schema changes.
+- **Workspace data isolation:** no persistent state changes. The nightly journey uses its
+  isolated daemon home, registry server, and generated source directories.
+- **Official skill / Web / Docs:** no operator command changes in `skills/compozy/` and no
+  product UI changes. The extension quickstart documents the standalone build; the existing
+  authoring QA scenario maps to the restored TypeScript/Go nightly lifecycle coverage.
+- **Compatibility:** existing user sources are untouched; the template build-script correction
+  applies to newly scaffolded extensions. No migration is required.
+- **Verification:** the scheduler integration fixture explicitly claims its active run because
+  equal queue timestamps are ordered by run ID. Its escalation assertions remain intact.
+  Nightly coverage continues to reject an empty executable scenario set.
+
 ## Shell rail v2 — rail dock, flush tiling defaults, light and dark themes
 
 Owning design: `docs/design/opendesign/shell-rail/` (`shell-rail-v2.html`, `DESIGN-NOTES.md`,

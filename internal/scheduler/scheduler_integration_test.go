@@ -535,6 +535,7 @@ func TestSchedulerEscalatesSerialBacklogBehindCompatibleCapacityIntegration(t *t
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
 		activeClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID:            activeExecution.Run.ID,
 			Scope:            taskpkg.ScopeWorkspace,
 			WorkspaceID:      workspaceID,
 			ClaimerSessionID: "sess-serial",

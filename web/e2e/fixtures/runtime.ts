@@ -90,6 +90,7 @@ export interface BrowserRuntime {
   requestOperatorJSON?<T>(pathname: string, init?: RequestInit): Promise<T>;
   resolveWorkspace(rootDir: string): Promise<WorkspacePayload>;
   replaceMarketplaceCatalog(seed: NonNullable<BrowserRuntimeSeed["marketplaceCatalog"]>): void;
+  replaceExtensionRelease(tag: string, archive: Buffer): void;
   dispose(): Promise<void>;
 }
 export {
@@ -118,6 +119,7 @@ interface RuntimeLaunchState {
   extensionRegistryServer?: Server;
   marketplaceCatalogServer?: Server;
   replaceMarketplaceCatalog?: BrowserRuntime["replaceMarketplaceCatalog"];
+  replaceExtensionRelease?: BrowserRuntime["replaceExtensionRelease"];
   process: ChildProcessWithoutNullStreams;
   repoRoot: string;
 }
@@ -216,6 +218,7 @@ async function createBrowserRuntimeAttempt(
         catalog.replace(resolveMarketplaceCatalogSeed(seed, extensionRegistry));
     }
     runtime.extensionRegistryServer = extensionRegistry?.server;
+    runtime.replaceExtensionRelease = extensionRegistry?.replaceArchive;
     const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
     const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
     await waitForRuntimeReady(
@@ -335,6 +338,13 @@ class ActiveBrowserRuntime implements BrowserRuntime {
       throw new Error("catalog replacement requires a launch-mode seeded catalog");
     }
     this.launchState.replaceMarketplaceCatalog(seed);
+  }
+
+  replaceExtensionRelease(tag: string, archive: Buffer): void {
+    if (!this.launchState?.replaceExtensionRelease) {
+      throw new Error("release replacement requires a launch-mode seeded extension registry");
+    }
+    this.launchState.replaceExtensionRelease(tag, archive);
   }
 
   async requestJSON<T>(pathname: string, init?: RequestInit): Promise<T> {

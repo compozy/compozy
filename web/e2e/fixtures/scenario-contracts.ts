@@ -298,13 +298,11 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     surfaces: ["web", "http", "uds", "cli", "agent-runtime", "persistence", "artifacts"],
     auditIDs: ["A1", "A3", "A6", "A8", "A9", "A10", "A12", "A13", "A15"],
     executionAuditIDs: ["C1", "C2", "C3", "C5", "C6", "C12", "C13", "C16", "C17", "C18"],
-    providerBoundary: "blocked",
+    providerBoundary: "bounded_fake",
     artifacts: standardBrowserArtifacts,
     lanes: ["make test-e2e-nightly"],
-    specPath: "web/e2e/__tests__/marketplace.spec.ts",
+    specPath: "web/e2e/__tests__/extensions.spec.ts",
     nightly: true,
-    blockedReason:
-      "The local release gate covers SDK contracts with sdk/typescript, sdk/go, create-extension unit/integration tests and installs a hand-authored local extension fixture through the daemon. The full scaffold-build-install-launch-update-disable-remove chain is intentionally mapped to nightly because it spans generated TS and Go extension workspaces plus daemon lifecycle mutation and would exceed the daemon-served browser gate budget.",
   },
   {
     id: "TC-EXT-002",

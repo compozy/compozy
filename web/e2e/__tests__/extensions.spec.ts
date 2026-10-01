@@ -1,14 +1,16 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import type { Locator, Page } from "@playwright/test";
 
 import { appWindow, commandPalette, switchWorkspace } from "../fixtures/os-navigation";
 import { marketplaceOperatorSelectors, profilesOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
-import { runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
+import { captureViewportEvidence, runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
@@ -22,6 +24,173 @@ test.describe("Extension dev overlay and source-union install", () => {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
   test.use({ runtimeOptions: { extensionsAllowUnverified: true } });
+
+  test.describe("SDK lifecycle", () => {
+    test.use({
+      runtimeOptions: {
+        extensionsAllowUnverified: true,
+        toolsExternalDefault: "enabled",
+        seed: {
+          extensionRegistry: {
+            repository: "acme/nightly-sdk",
+            extensionName: "nightly-sdk",
+            releases: [
+              { tag: "v0.1.0", version: "0.1.0" },
+              { tag: "v0.2.0", version: "0.2.0" },
+            ],
+          },
+        },
+      },
+    });
+
+    // Invariant: both shipped SDK templates produce installable, callable generations
+    // through the complete lifecycle. Owner: the real daemon extension E2E suite.
+    test("@nightly SDK-generated TypeScript and Go extensions build install launch call a tool update disable and remove", async ({
+      appPage,
+      runtime,
+      browserArtifacts,
+    }) => {
+      test.setTimeout(600_000);
+      requireLaunchPaths(runtime);
+      const root = await mkdtemp(path.join(os.tmpdir(), "compozy-sdk-lifecycle-"));
+      try {
+        await completeOnboardingIfPrompted(appPage);
+        for (const language of ["ts", "go"] as const) {
+          const name = "nightly-sdk";
+          const sourceDir = path.join(root, language);
+          await runBrowserRuntimeCLIJSON(runtime, [
+            "extension",
+            "init",
+            name,
+            "--template",
+            `tool-provider-${language}`,
+            "--dir",
+            sourceDir,
+          ]);
+          if (language === "go") {
+            const goModPath = path.join(sourceDir, "go.mod");
+            await writeFile(
+              goModPath,
+              `${await readFile(goModPath, "utf8")}\nreplace github.com/compozy/compozy/sdk/go => ${path.join(repoRoot, "sdk", "go")}\n`
+            );
+          } else {
+            await promisify(execFile)(
+              "bun",
+              ["add", `@compozy/extension-sdk@file:${path.join(repoRoot, "sdk", "typescript")}`],
+              {
+                cwd: sourceDir,
+                timeout: buildTimeoutMs,
+              }
+            );
+          }
+          const toolID = `ext__${name.replaceAll("-", "_")}__search`;
+          for (const version of ["0.1.0", "0.2.0"]) {
+            if (version === "0.2.0") {
+              const sourcePath = path.join(
+                sourceDir,
+                language === "go" ? "main.go" : "src/index.ts"
+              );
+              await writeFile(
+                sourcePath,
+                (await readFile(sourcePath, "utf8"))
+                  .replace('"0.1.0"', '"0.2.0"')
+                  .replace("No results for", "Updated results for")
+              );
+            }
+            const build = await runBrowserRuntimeCLIJSON<{ generation_dir: string }>(
+              runtime,
+              ["extension", "build", sourceDir],
+              { timeoutMs: buildTimeoutMs }
+            );
+            const archivePath = path.join(root, `${language}-${version}.tar.gz`);
+            await promisify(execFile)(
+              "tar",
+              [
+                "-czf",
+                archivePath,
+                "-C",
+                build.generation_dir,
+                ...(await readdir(build.generation_dir)),
+              ],
+              { env: { ...process.env, COPYFILE_DISABLE: "1" } }
+            );
+            runtime.replaceExtensionRelease(`v${version}`, await readFile(archivePath));
+            if (version === "0.1.0") {
+              await runBrowserRuntimeCLIJSON(runtime, [
+                "extension",
+                "install",
+                "acme/nightly-sdk",
+                "--version",
+                "v0.1.0",
+                "--allow-unverified",
+                "--yes",
+              ]);
+            } else {
+              await runBrowserRuntimeCLIJSON(runtime, [
+                "extension",
+                "update",
+                name,
+                "--version",
+                "v0.2.0",
+                "--allow-unverified",
+                "--yes",
+              ]);
+            }
+            const installed = await runtime.requestJSON<{
+              extension: { name: string; version: string; state: string };
+            }>(`/api/extensions/${name}`);
+            expect(installed.extension).toMatchObject({ name, version, state: "active" });
+            const invocation = await runBrowserRuntimeCLIJSON<{
+              result: { content: Array<{ text: string }> };
+            }>(runtime, [
+              "tool",
+              "invoke",
+              toolID,
+              "--input",
+              JSON.stringify({ query: "nightly-lifecycle" }),
+            ]);
+            expect(invocation.result.content).toEqual(
+              expect.arrayContaining([
+                {
+                  type: "text",
+                  text: `${version === "0.1.0" ? "No" : "Updated"} results for nightly-lifecycle`,
+                },
+              ])
+            );
+            await appPage.goto(runtime.url("/marketplace/installed"));
+            const card = appWindow(appPage, "marketplace").getByTestId(
+              `marketplace-installed-card-${name}`
+            );
+            await captureViewportEvidence({
+              page: appPage,
+              browserArtifacts,
+              moduleName: `${name}-${language}-${version}`,
+              assertVisible: async () => {
+                await expect(card).toBeVisible();
+                await expect(card.getByRole("switch")).toBeChecked();
+              },
+            });
+          }
+          await runBrowserRuntimeCLIJSON(runtime, ["extension", "disable", name]);
+          const disabled = await runtime.requestJSON<{ extension: { enabled: boolean } }>(
+            `/api/extensions/${name}`
+          );
+          expect(disabled.extension.enabled).toBe(false);
+          const tools = await runtime.requestJSON<{ tools: Array<{ id: string }> }>("/api/tools");
+          expect(tools.tools.some(tool => tool.id === toolID)).toBe(false);
+          await runBrowserRuntimeCLIJSON(runtime, ["extension", "remove", name, "--global"]);
+          const remaining = await runtime.requestJSON<{ extensions: Array<{ name: string }> }>(
+            "/api/extensions"
+          );
+          expect(remaining.extensions.some(extension => extension.name === name)).toBe(false);
+          await appPage.reload();
+          await expect(appPage.getByTestId(`marketplace-installed-card-${name}`)).toHaveCount(0);
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  });
 
   test("operator inspects a workspace dev overlay with logs and installs a local path through the union contract", async ({
     appPage,
