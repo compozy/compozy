@@ -18,6 +18,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -2933,6 +2934,83 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 		wantQualifiedForm := rootQualifiedSourceID("agents", losingRoot.RootID()) + ":deploy"
 		if got := status.Collisions[0].QualifiedForm; got != wantQualifiedForm {
 			t.Fatalf("collision qualified form = %q, want %q", got, wantQualifiedForm)
+		}
+	})
+
+	t.Run("Should publish distinct commands for same-name definitions nested in one root", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		root := compozyconfig.SkillRootSpec{
+			Dir: rootDir, SourceSlug: "agents", Kind: compozyconfig.RootKindPreset,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-nested"},
+		}
+		outerPath := filepath.Join(rootDir, "postiz", skillFileName)
+		nestedPath := filepath.Join(rootDir, "postiz", "skills", "postiz", skillFileName)
+		registry := newTestRegistry(t, RegistryConfig{})
+		records := make([]resources.Record[SkillResourceSpec], 0, 2)
+		for index, path := range []string{outerPath, nestedPath} {
+			records = append(records, resources.Record[SkillResourceSpec]{
+				ID:    fmt.Sprintf("agents:postiz:%d", index),
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-nested"},
+				Spec: SkillResourceSpec{
+					Name: "postiz", Description: "Schedule posts", Source: skillSourceName(SourceWorkspace),
+					Origin: "agents", RootID: root.RootID(), Dir: filepath.Dir(path), FilePath: path, Enabled: true,
+				},
+			})
+		}
+		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-nested"}}
+		candidates, err := registry.CommandCandidatesForAgentDefSession(
+			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-nested",
+		)
+		if err != nil {
+			t.Fatalf("CommandCandidatesForAgentDefSession() error = %v", err)
+		}
+
+		qualifierByPath := make(map[string]string)
+		specs := make([]commandpkg.SkillSpec, 0, len(candidates))
+		for _, candidate := range candidates {
+			specs = append(specs, commandpkg.SkillSpec{
+				Name: candidate.Skill.Meta.Name,
+				Source: commandpkg.Source{
+					Kind: candidate.SourceKind, ID: candidate.SourceID, Key: candidate.SourceKey,
+					Scope: candidate.Scope, Origin: candidate.Origin,
+				},
+				Available: candidate.Available,
+				Qualified: candidate.Qualified,
+			})
+			if candidate.Qualified {
+				qualifierByPath[candidate.Skill.FilePath] = candidate.SourceID
+			}
+		}
+		for _, path := range []string{outerPath, nestedPath} {
+			if want := definitionQualifiedSourceID("agents", root.RootID(), path); qualifierByPath[path] != want {
+				t.Fatalf("qualified source for %q = %q, want %q", path, qualifierByPath[path], want)
+			}
+		}
+		if qualifierByPath[outerPath] == qualifierByPath[nestedPath] {
+			t.Fatalf("nested qualifiers = %#v, want distinct invocable tokens", qualifierByPath)
+		}
+		if _, err := commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), nil, specs); err != nil {
+			t.Fatalf("BuildCatalog() error = %v, want nested same-name skills to coexist", err)
+		}
+
+		winner := &Skill{
+			Meta: SkillMeta{Name: "postiz"}, Origin: "agents", RootID: root.RootID(), FilePath: outerPath,
+			Diagnostics: SkillDiagnostics{ShadowedDefinitions: []SkillDefinitionRef{{
+				Path: nestedPath, Origin: "agents",
+			}}},
+		}
+		status := SkillSourceRootStatus{Spec: root}
+		populateRootRuntimeStatus(&status, []*Skill{winner}, nil)
+		if got, want := len(status.Collisions), 1; got != want {
+			t.Fatalf("collision diagnostics = %#v, want %d nested shadow", status.Collisions, want)
+		}
+		if got, want := status.Collisions[0].QualifiedForm, qualifierByPath[nestedPath]+":postiz"; got != want {
+			t.Fatalf("collision qualified form = %q, want published command %q", got, want)
 		}
 	})
 }
