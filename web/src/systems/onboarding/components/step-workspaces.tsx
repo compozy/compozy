@@ -22,7 +22,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
   return (
     <div className="mt-5" data-testid="onboarding-step-workspaces">
       <div className="grid h-setup-split grid-cols-[1.12fr_1fr] gap-4.5 max-md:h-auto max-md:grid-cols-1 max-md:gap-5">
-        <section className="flex min-h-0 flex-col">
+        <section className="flex min-h-0 min-w-0 flex-col">
           <Eyebrow className="mb-2.5 block text-subtle">Browse for a folder</Eyebrow>
           {/* Onboarding registers on pick — the wizard has no deferred commit. */}
           <DirectoryBrowser
@@ -53,7 +53,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
           ) : null}
         </section>
 
-        <section className="flex min-h-0 flex-col">
+        <section className="flex min-h-0 min-w-0 flex-col">
           <div className="flex items-baseline justify-between gap-2.5">
             <Eyebrow className="text-subtle">Selected projects</Eyebrow>
             <span className="text-micro text-muted tabular-nums">
