@@ -1,6 +1,6 @@
 # BUG-20260729-tool-invoke-structural-redaction: CLI redaction erased public structural handles
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -125,3 +125,23 @@ keys and secret-shaped free text remain redacted.
   and `tool_search` calls now equal complete HTTP and UDS structured results, including the exact
   pattern and unchanged digest. See `schema-pattern-red.log`, `schema-pattern-race.log`, and
   `schema-pattern-fixed-*` in this cycle's evidence directory.
+
+## Completed current verification (2026-10-02)
+
+- **Fix commit:** `196cd3010`; all affected local gate lanes passed.
+- Fresh generic discovery matches complete HTTP/UDS structured output. Marketplace cursors
+  open the next page and refuse cross-workspace reuse. A real generated TypeScript extension
+  produces the same immutable generation hash across CLI/HTTP/UDS; that exact returned hash
+  activates the dev extension and the returned tool ID invokes it successfully.
+- The running extension returns a sensitive-key value and secret-shaped free text using synthetic
+  examples only. Generic CLI hides both while retaining the public label and usable tool identity;
+  ordinary structured results, including sensitive-key redaction, match HTTP and UDS.
+- The foreign workspace cannot invoke the extension. Removal leaves no registration or tool in
+  either workspace, HTTP/UDS return 404, and the owned subprocess exits. Authored source remains
+  in the lab project, as the dev-removal contract promises.
+- **Evidence:** `handles-build-parity-*`, `handles-reuse-generation-hash.json`,
+  `handles-reuse-tool-id-*`, `handles-owned-tool-*`, `handles-foreign-tool-refusal.json`, and
+  `handles-clean-*` in this cycle's evidence directory.
+- **External limit:** The current Marketplace Airtable entry requires Compozy 0.5.0 and refused
+  this candidate. Compatible local extension generation supplies the successful digest-reuse leg;
+  no version or redaction bypass was used.

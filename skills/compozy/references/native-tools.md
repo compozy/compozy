@@ -209,7 +209,7 @@ optional). A route `command` selects the account with the same grammar as `provi
 route provider or a command without an executable is rejected as invalid input. The returned agent
 payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on routes that set `command`.
 
-Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
+Fresh daemon boot does not register a workspace automatically, so `compozy__workspace_list` may return an empty catalog on a clean install. Register the intended project explicitly before starting workspace-bound work.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
 

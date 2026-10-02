@@ -1,5 +1,32 @@
 # Compozy Change Impact
 
+## Untested QA sweep — 2026-10-02
+
+Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
+
+- **Native tools / CLI / HTTP / UDS:** Generic CLI tool invocation preserves public
+  `credential_requirements` metadata and its discovery schema, matching the existing daemon
+  contract. Validation patterns retain their exact syntax only inside discovery schemas; descriptions,
+  defaults, and unrelated data keep normal secret redaction. Scoped session-list JSONL restores its documented leading `profile_resolution`
+  frame for both empty and populated pages; aggregate frames and trailing page metadata remain.
+  Profile selection reads retain the effective `profile` and add optional `note` for archived
+  remembered fallback; CLI resolution preserves that provenance. No route, tool ID, or command changes.
+- **Extensibility / hooks / config:** The shared redactor recognizes the public metadata field;
+  nested secret fields and secret-shaped free text retain their existing protection. No new
+  configuration, hook, or extension capability.
+- **Workspace data isolation:** No persistent state or workspace selection changes.
+- **Official skill / Web / Docs:** Profile guidance documents the optional fallback note. Web
+  consumers continue using the existing effective profile field; generated DTOs co-ship. Onboarding
+  references now match the observed empty workspace catalog and optional Skip-to-Global flow.
+  Onboarding grid sections allow long paths to truncate within their columns; existing controls,
+  tokens, and state remain unchanged. Four-width browser replay confirms visible controls.
+- **Compatibility:** The profile-selection note is additive under SD-013's public-surface regime.
+  Existing profile values and persistence remain unchanged; no migration or deprecation is needed.
+- **Verification:** Both regression cases failed before the change. The full redactor race suite
+  passes (80.1% coverage); a rebuilt CLI reproduces complete structured HTTP/UDS parity. The two
+  session-list regressions also failed before repair; the complete CLI race suite passes, and
+  rebuilt scoped/aggregate JSONL output retains one leading frame and a usable trailing page.
+
 ## Release PR 680 — CI and generated extension packaging
 
 - **Native tools / CLI / HTTP / UDS:** existing extension init, build, install, update,

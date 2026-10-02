@@ -1,6 +1,6 @@
 # BUG-20261002-profile-archive-fallback-provenance: Archived profile fallback loses its reason
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Ada
@@ -48,3 +48,9 @@ original name, confirming that the durable selection was retained.
   effective profile. `TestProfileCommandOutputContract` in `internal/cli/profile_test.go` owns
   the CLI resolution source and note.
 - **Commit / delivery gate:** pending.
+
+## Completed verification
+
+- **Fix commit:** `42db6579f`.
+- The original persona completed the affected fresh replay; `make gate` passed all affected lanes.
+- Current-head PR CI and the remaining full-sweep journeys are separate delivery work, still in progress.

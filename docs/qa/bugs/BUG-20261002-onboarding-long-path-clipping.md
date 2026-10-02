@@ -1,6 +1,6 @@
 # BUG-20261002-onboarding-long-path-clipping: Long project paths push setup controls outside the panel
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Lea
@@ -44,3 +44,9 @@ scrolling the body to reach them then clips the heading on the opposite edge.
   `onboarding-long-path-fixed-768.png`, and `onboarding-long-path-fixed-390.png`.
 - **Limits:** Browser zoom and RTL were not verified; this replay uses the charter
   locale en-US. Commit and delivery checks remain pending.
+
+## Completed verification
+
+- **Fix commit:** `951105e0f`.
+- The original persona completed the affected fresh replay; `make gate` passed all affected lanes.
+- Current-head PR CI and the remaining full-sweep journeys are separate delivery work, still in progress.

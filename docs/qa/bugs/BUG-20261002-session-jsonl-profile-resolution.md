@@ -1,6 +1,6 @@
 # BUG-20261002-session-jsonl-profile-resolution: Session JSONL omits the selected profile
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Ada
@@ -48,3 +48,9 @@ rows and a page record, without resolution provenance.
   the changed cases, compared with 14 at the base commit. Both changed tests use canonical
   subtests. Baseline and current checker transcripts are retained; unrelated tests are untouched.
 - **Commit / full scenario replay:** pending; selection fallback and machine-command parity remain.
+
+## Completed verification
+
+- **Fix commit:** `42db6579f`.
+- The original persona completed the affected fresh replay; `make gate` passed all affected lanes.
+- Current-head PR CI and the remaining full-sweep journeys are separate delivery work, still in progress.
