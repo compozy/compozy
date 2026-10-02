@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	profileResolutionFlag       = "flag"
-	profileResolutionEnv        = "env"
-	profileResolutionRemembered = "remembered"
-	profileResolutionSession    = "session"
-	profileResolutionDefault    = configDefaultKey
+	profileResolutionFlag             = "flag"
+	profileResolutionEnv              = "env"
+	profileResolutionRemembered       = "remembered"
+	profileResolutionSession          = "session"
+	profileResolutionDefault          = configDefaultKey
+	profileArchivedRememberedFallback = "archived_remembered_fallback"
 )
 
 type profileResolution struct {
@@ -137,13 +138,14 @@ func resolveProfileForWorkspaceWithArchived(
 		return profileResolution{}, err
 	}
 	if remembered, found := rememberedProfile(selections, base.WorkspaceID); found {
-		selected, exists := byName[remembered]
-		if exists && selected.State == authoredContextActiveKey {
+		selected, exists := byName[remembered.Profile]
+		if exists && selected.State == authoredContextActiveKey &&
+			remembered.Note != profileArchivedRememberedFallback {
 			base.Profile, base.Source = selected, profileResolutionRemembered
 			recordProfileResolution(cmd, base)
 			return base, nil
 		}
-		base.Note = "archived_remembered_fallback"
+		base.Note = profileArchivedRememberedFallback
 	}
 	selected, found := byName[configDefaultKey]
 	if !found {
@@ -218,17 +220,17 @@ func resolveExplicitProfile(
 	return base, nil
 }
 
-func rememberedProfile(selections []contract.ProfileSelection, workspaceID string) (string, bool) {
+func rememberedProfile(selections []contract.ProfileSelection, workspaceID string) (contract.ProfileSelection, bool) {
 	wantedScope := contract.ProfileSelectionScopeGlobal
 	if workspaceID != "" {
 		wantedScope = contract.ProfileSelectionScopeWorkspace
 	}
 	for _, selection := range selections {
 		if selection.Scope == wantedScope && selection.WorkspaceID == workspaceID {
-			return selection.Profile, true
+			return selection, true
 		}
 	}
-	return "", false
+	return contract.ProfileSelection{}, false
 }
 
 func commandProfileFlagIsBlank(cmd *cobra.Command, value string) bool {

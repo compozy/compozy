@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: A command resolves --profile before COMPOZY_PROFILE, remembered workspace or Global selection, and default; archived remembered choices fall back with a note, sessions retain their creation profile, and daemon, doctor, and update ignore selection.
 entry_points: root --profile; COMPOZY_PROFILE; compozy profile current|use|list; compozy session create|list; compozy daemon|doctor|update; compozy__profile_list|current
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261002-session-jsonl-profile-resolution; BUG-20261002-profile-archive-fallback-provenance
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-10-02-untested/profile-empty-jsonl.json; docs/qa/evidence/2026-10-02-untested/profile-populated-jsonl.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
 ---
 
@@ -32,3 +32,8 @@ Walk:
 
 Expected evidence: paired terminal transcripts, selection rows, session status payloads, native-tool
 results, JSONL frames, and machine-command exit/output parity.
+
+2026-10-02: Workspace selection changes preserve both sessions' original owners through native reads.
+The empty and populated session JSONL catalogs omit the promised profile-resolution frame; filed
+BUG-20261002-session-jsonl-profile-resolution. Archive fallback and machine-command parity remain
+pending after this session ended for repair.

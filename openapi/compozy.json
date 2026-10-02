@@ -101112,6 +101112,9 @@
                   "activate": {
                     "nullable": true,
                     "properties": {
+                      "note": {
+                        "type": "string"
+                      },
                       "profile": {
                         "type": "string"
                       },
@@ -101873,6 +101876,9 @@
                     {
                       "items": {
                         "properties": {
+                          "note": {
+                            "type": "string"
+                          },
                           "profile": {
                             "type": "string"
                           },
@@ -101893,6 +101899,9 @@
                     },
                     {
                       "properties": {
+                        "note": {
+                          "type": "string"
+                        },
                         "profile": {
                           "type": "string"
                         },
@@ -102068,6 +102077,9 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "note": {
+                    "type": "string"
+                  },
                   "profile": {
                     "type": "string"
                   },
@@ -102095,6 +102107,9 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "note": {
+                      "type": "string"
+                    },
                     "profile": {
                       "type": "string"
                     },

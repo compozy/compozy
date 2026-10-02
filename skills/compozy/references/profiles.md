@@ -12,6 +12,10 @@ Resolution order is root `--profile`, `COMPOZY_PROFILE`, the resolved workspace'
 (or the Global lens), then `default`. An archived remembered choice falls back to `default` with the
 `archived_remembered_fallback` note. `daemon`, `doctor`, and `update` ignore profile selection.
 
+`GET /api/profiles/selection` returns the effective `profile` for each remembered lens. When the
+remembered profile is archived, `profile` is `default` and optional `note` is
+`archived_remembered_fallback`. The stored choice remains intact and returns after unarchive.
+
 Use structured profile commands. `list` and `current` are reads; `use` persists the selected workspace or Global lens:
 
 ```bash

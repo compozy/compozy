@@ -123,7 +123,9 @@ func operationContract(value profilepkg.LifecycleOp) contract.ProfileOperation {
 	}
 }
 
-func (h *BaseHandlers) profileSelections(c *gin.Context) ([]profilepkg.Selection, map[string]string, error) {
+func (h *BaseHandlers) profileSelections(
+	c *gin.Context,
+) ([]profilepkg.Selection, map[string]profilepkg.Profile, error) {
 	selections, err := h.profileService().ListSelections(c.Request.Context())
 	if err != nil {
 		return nil, nil, err
@@ -132,29 +134,31 @@ func (h *BaseHandlers) profileSelections(c *gin.Context) ([]profilepkg.Selection
 	if err != nil {
 		return nil, nil, err
 	}
-	names := make(map[string]string, len(profiles))
+	byID := make(map[string]profilepkg.Profile, len(profiles))
 	for _, item := range profiles {
-		if item.State == profilepkg.StateArchived {
-			// Archive keeps the durable selection row for fallback provenance, but
-			// public selection reads expose the effective acting profile.
-			names[item.ID] = profileDefaultName
-			continue
-		}
-		names[item.ID] = item.Name
+		byID[item.ID] = item.Profile
 	}
-	return selections, names, nil
+	return selections, byID, nil
 }
 
-func selectionContracts(values []profilepkg.Selection, names map[string]string) []contract.ProfileSelection {
+func selectionContracts(
+	values []profilepkg.Selection,
+	profiles map[string]profilepkg.Profile,
+) []contract.ProfileSelection {
 	result := make([]contract.ProfileSelection, 0, len(values))
 	for _, value := range values {
-		name, found := names[value.ProfileID]
+		profile, found := profiles[value.ProfileID]
 		if !found {
 			continue
 		}
-		result = append(result, contract.ProfileSelection{
-			Scope: contract.ProfileSelectionScope(value.Lens), WorkspaceID: value.WorkspaceID, Profile: name,
-		})
+		selection := contract.ProfileSelection{
+			Scope: contract.ProfileSelectionScope(value.Lens), WorkspaceID: value.WorkspaceID, Profile: profile.Name,
+		}
+		if profile.State == profilepkg.StateArchived {
+			selection.Profile = profileDefaultName
+			selection.Note = string(profilepkg.ResolutionNoteArchivedRememberedFallback)
+		}
+		result = append(result, selection)
 	}
 	return result
 }

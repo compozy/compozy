@@ -206,6 +206,29 @@ func TestRemoteGatewayProfileSelection(t *testing.T) {
 func TestProfileCommandOutputContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should report an archived remembered selection as a default fallback", func(t *testing.T) {
+		t.Parallel()
+		deps := profileTestDeps(t, contract.ProfileSelection{
+			Scope: contract.ProfileSelectionScopeWorkspace, WorkspaceID: "ws-1",
+			Profile: "default", Note: "archived_remembered_fallback",
+		})
+
+		output, _, err := executeRootCommand(t, deps, "profile", "current", "-o", "json")
+		if err != nil {
+			t.Fatalf("profile current error = %v", err)
+		}
+		var current profileCurrentRecord
+		if err := json.Unmarshal([]byte(output), &current); err != nil {
+			t.Fatalf("json.Unmarshal(profile current) error = %v", err)
+		}
+		want := profileCurrentRecord{
+			Profile: "default", Source: "default", Workspace: "my-saas", Note: "archived_remembered_fallback",
+		}
+		if current != want {
+			t.Fatalf("profile current = %#v, want %#v", current, want)
+		}
+	})
+
 	t.Run("Should render list and current JSON exactly [UT-076]", func(t *testing.T) {
 		t.Parallel()
 		deps := profileTestDeps(t)
@@ -388,7 +411,7 @@ func TestProfileStructuredErrorsCoverPublicCodes(t *testing.T) {
 	}
 }
 
-func profileTestDeps(t *testing.T) commandDeps {
+func profileTestDeps(t *testing.T, selections ...contract.ProfileSelection) commandDeps {
 	t.Helper()
 	workspaceClient := &stubClient{getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 		return WorkspaceDetailRecord{
@@ -396,6 +419,7 @@ func profileTestDeps(t *testing.T) commandDeps {
 		}, nil
 	}}
 	profiles := &profileClientStub{
+		selections: selections,
 		profiles: []contract.Profile{
 			{Name: "default", Color: "#8E8EB5", Icon: new("circle"), State: "active", WorkItems: 12},
 			{Name: "marketing", Color: "#FF7F3A", Icon: new("megaphone"), State: "active", WorkItems: 3},

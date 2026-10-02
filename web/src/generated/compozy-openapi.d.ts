@@ -42535,6 +42535,7 @@ export interface operations {
       content: {
         "application/json": {
           activate?: {
+            note?: string;
             profile: string;
             scope: string;
             workspace_id?: string;
@@ -42866,11 +42867,13 @@ export interface operations {
         content: {
           "application/json":
             | {
+                note?: string;
                 profile: string;
                 scope: string;
                 workspace_id?: string;
               }[]
             | {
+                note?: string;
                 profile: string;
                 scope: string;
                 workspace_id?: string;
@@ -42950,6 +42953,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          note?: string;
           profile: string;
           scope: string;
           workspace_id?: string;
@@ -42964,6 +42968,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            note?: string;
             profile: string;
             scope: string;
             workspace_id?: string;
