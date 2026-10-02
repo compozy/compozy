@@ -1244,6 +1244,56 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve discovery schema patterns without exempting secret values", func(t *testing.T) {
+		t.Parallel()
+
+		const pattern = `^vault:extensions/.+$`
+		response := ToolInvokeResponseRecord{
+			ToolID: toolspkg.ToolIDToolInfo,
+			Status: "completed",
+			Result: toolspkg.ToolResult{
+				Structured: json.RawMessage(`{
+					"tool":{"descriptor":{"input_schema":{"type":"object","properties":{
+						"inputs":{"additionalProperties":{"oneOf":[{"type":"string"},{
+							"properties":{"vault_ref":{"type":"string","pattern":"^vault:extensions/.+$",
+								"description":"token=description-secret","default":"vault:extensions/default-secret"}}
+						}]}},
+						"pattern":{"type":"string","default":"vault:extensions/property-secret"}
+					}},"output_schema":{"$defs":{"reference":{"type":"string","pattern":"^vault:extensions/.+$"}}}}},
+					"pattern":"vault:extensions/plain-secret",
+					"payload":{"input_schema":{"pattern":"vault:extensions/payload-secret"}}
+				}`),
+			},
+		}
+		sanitized := sanitizeToolInvokeResponse(response)
+		var structured struct {
+			Tool struct {
+				Descriptor struct {
+					InputSchema  map[string]any `json:"input_schema"`
+					OutputSchema map[string]any `json:"output_schema"`
+				} `json:"descriptor"`
+			} `json:"tool"`
+		}
+		if err := json.Unmarshal(sanitized.Result.Structured, &structured); err != nil {
+			t.Fatalf("decode sanitized descriptor: %v", err)
+		}
+		properties := structured.Tool.Descriptor.InputSchema["properties"].(map[string]any)
+		inputs := properties["inputs"].(map[string]any)["additionalProperties"].(map[string]any)
+		alternative := inputs["oneOf"].([]any)[1].(map[string]any)["properties"].(map[string]any)
+		if got := alternative["vault_ref"].(map[string]any)["pattern"]; got != pattern {
+			t.Fatalf("input validation pattern = %q, want %q", got, pattern)
+		}
+		definitions := structured.Tool.Descriptor.OutputSchema["$defs"].(map[string]any)
+		if got := definitions["reference"].(map[string]any)["pattern"]; got != pattern {
+			t.Fatalf("output validation pattern = %q, want %q", got, pattern)
+		}
+		for _, secret := range []string{"description-secret", "default-secret", "property-secret", "plain-secret", "payload-secret"} {
+			if strings.Contains(string(sanitized.Result.Structured), secret) {
+				t.Fatalf("sanitized discovery leaked %q", secret)
+			}
+		}
+	})
+
 	t.Run("Should cover tool api and raw json redaction edge cases", func(t *testing.T) {
 		t.Parallel()
 
