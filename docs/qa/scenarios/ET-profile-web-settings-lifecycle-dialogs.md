@@ -6,11 +6,11 @@ persona: Ada
 journey: J-operate-profiles
 expected: Settings lists active profiles with identity and work counts, demotes the archived list and the selection map to disclosure, and every lifecycle dialog renders exactly what its plan endpoint returned — rename tiers, archive paused automations and blocked-by-running, delete enumeration or routing to archive, unarchive reactivation — with a stale plan refused and re-asked rather than executed.
 entry_points: Settings → Profiles; create|rename|archive|unarchive|delete dialogs; GET /api/profiles/{name}/rename-plan|archive-plan|delete-plan; POST /api/profiles/{name}/rename|archive|unarchive; DELETE /api/profiles/{name}
-qa_status: fail
+qa_status: untested
 bug_ids: BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner
-fix_status: pending
+fix_status: fixed
 retest_status: pending
-fix_commits:
+fix_commits: 4760da89f
 evidence: .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
@@ -52,3 +52,9 @@ QA 2026-10-03: a CLI-driven archive lost its lifecycle audit and left the open p
 The archive audit repair now delivers the named event and sweeps the live browser to default.
 A separate delete replay persists its event but loses the recovery stream while desktop authority
 reconnects, leaving the removed profile visible. Full Settings/switcher walks remain Pending.
+
+QA 2026-10-03 recovery replay: the global profile stream now survives desktop reconnection.
+A CLI deletion reaches the open browser, which returns to default without reload. UDS confirms
+the event and deleted identity; the original catalog is retained and recovery survives refresh.
+The archive repair is commit 4760da89f. Both recovery defects are verified, while the complete
+Settings/switcher charter remains Pending. See profile-delete-fixed-* and the dated report.

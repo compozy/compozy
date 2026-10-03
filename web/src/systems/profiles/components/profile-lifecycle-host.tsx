@@ -10,17 +10,18 @@ import { ProfileLifecycleDialogs } from "./profile-lifecycle-dialogs";
  * depend on Settings being open, and so the remembered-choice projection stays
  * current whether the switch happened here, in a terminal, or in another
  * browser.
+ *
+ * The global feed must survive desktop reconnection so deleting the viewed
+ * profile can recover the view to the default profile.
  */
 export function ProfileLifecycleHost({
-  enabled = true,
   onSetAutomationEnabled,
 }: {
-  enabled?: boolean;
   onSetAutomationEnabled: (identity: string, profile: string, enabled: boolean) => Promise<void>;
 }) {
   const lens = useProfileLens();
   const profiles = useProfiles();
-  useProfileEventStream({ enabled });
+  useProfileEventStream();
   return (
     <ProfileLifecycleDialogs
       profiles={profiles.data ?? []}

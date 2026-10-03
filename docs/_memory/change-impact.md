@@ -42,6 +42,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   remain refused. No schema, wire, native-tool, hook, config or extension change, and no migration.
   The existing daemon recorder suite uses real SQLite; official profile guidance and QA replay
   document the event's ownership and restored live projection.
+- **Profile view recovery:** The Web shell keeps its global profile lifecycle feed alive while
+  desktop authority reconnects, so externally deleting the viewed profile can sweep the client
+  to default. Other stream budgets remain unchanged. Public CLI, HTTP/UDS, native tools, hooks,
+  configuration, extensions and persisted state retain their contracts; no migration is needed.
+  The official profile workflow remains current. The existing profile E2E suite and fresh
+  browser/CLI/UDS replay cover recovery, refresh persistence and retained neighboring profiles.
 - **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
   workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The

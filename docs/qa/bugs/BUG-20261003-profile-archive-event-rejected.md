@@ -1,6 +1,7 @@
 # BUG-20261003-profile-archive-event-rejected: Archiving a profile drops the event that sweeps open views
 
 - **Status:** verified
+- **Fix commit:** 4760da89f
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora

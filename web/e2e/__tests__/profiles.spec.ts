@@ -238,6 +238,38 @@ async function createDefaultProfileSession(
 }
 
 test.describe("Profiles", () => {
+  // The global lifecycle feed must survive the removed desktop's authority loss.
+  test("E2E-030: external deletion recovers the viewed profile without reloading", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "retained", "#4cb782", "briefcase");
+    await createProfile(runtime, "release-drafts", "#4ea7fc", "notebook-pen");
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherOption("release-drafts").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: release-drafts");
+    await openAppWindow(appPage, "Home", "dashboard");
+
+    const plan = await runtime.requestJSON<{ revision: string }>(
+      "/api/profiles/release-drafts/delete-plan"
+    );
+    const deleted = await runtime.requestJSON<{ deleted: boolean }>(
+      `/api/profiles/release-drafts?plan_revision=${encodeURIComponent(plan.revision)}`,
+      { method: "DELETE" }
+    );
+    expect(deleted.deleted).toBe(true);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await ui.switcher.click();
+    await expect(ui.switcherOption("release-drafts")).toHaveCount(0);
+    await expect(ui.switcherOption("retained")).toBeVisible();
+    expect((await listProfiles(runtime)).map(profile => profile.name)).not.toContain(
+      "release-drafts"
+    );
+  });
+
   test("E2E-013: switcher stays quiet, then carries identity, switch, and per-project memory", async ({
     appPage,
     runtime,

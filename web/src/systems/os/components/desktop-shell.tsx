@@ -88,7 +88,6 @@ function DesktopChrome({
         <DesktopChromeContent
           client={controller.chrome.client}
           firstRun={firstRun}
-          continuityStreamsEnabled={controller.continuityStreamsEnabled}
           model={controller.model}
           clientCommandChannel={controller.chrome.clientCommandChannel}
           updateAvailable={updateAvailable}
@@ -101,7 +100,6 @@ function DesktopChrome({
 }
 
 interface DesktopShellBodyProps {
-  continuityStreamsEnabled: boolean;
   client: WindowManagerRegisteredClientView | null;
   model: DesktopShellModel;
   firstRun: boolean;
@@ -159,7 +157,6 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
 
 /** Wires both workspace lists to the same profile authority and lifecycle dialog targets. */
 function DesktopShellScopedBody({
-  continuityStreamsEnabled,
   client,
   model,
   firstRun,
@@ -439,10 +436,7 @@ function DesktopShellScopedBody({
       />
       {/* Profile lifecycle dialogs live at the shell so a flow started from the
           command palette does not depend on Settings being open. */}
-      <ProfileLifecycleHost
-        enabled={continuityStreamsEnabled}
-        onSetAutomationEnabled={setAutomationEnabled}
-      />
+      <ProfileLifecycleHost onSetAutomationEnabled={setAutomationEnabled} />
     </div>
   );
 }
