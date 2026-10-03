@@ -1,6 +1,6 @@
 # BUG-20261002-resource-manifest-paths: The documented passive extension cannot be built
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -37,7 +37,7 @@ its documented `agents = ["agents"]` declaration before building or publishing a
 - **Root cause:** Profile placement changed static resource declarations from strings to typed
   path/profile objects without a loader translation for the shipped public string format. The
   public authoring and manifest guides still teach the string form.
-- **Fix commit:** Pending.
+- **Fix commit:** `8df0742f9`.
 - **Regression test:** Existing `internal/extension/manifest_test.go` owns TOML/JSON manifest decoding,
   normalized path/profile identity, strict resource fields, and canonical re-encoding.
 - **Compatibility:** Translate the previous input shape only at the decoder boundary, keep canonical
@@ -49,5 +49,5 @@ Both format regressions fail before the change and pass afterward. The focused m
 suite passes. A rebuilt binary completes dev, edit/reload, watch publication, invalid-edit last-good
 retention, explicit profile placement, and removal through CLI with independent HTTP/UDS reads.
 The current-format Batuta hash and copied resource bytes remain unchanged; a real TypeScript
-extension also builds, links, invokes, and removes successfully. Commit and delivery gate pending.
+extension also builds, links, invokes, and removes successfully. `make gate` passes all affected lanes (`gate-passive-manifest.log`); PR CI remains pending.
 See the completed Bruno debrief and `passive-*` evidence in the report.

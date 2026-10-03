@@ -1,6 +1,6 @@
 # BUG-20261002-overview-zero-window: An explicit zero-day overview silently becomes thirty days
 
-- **Status:** fixed
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Ada
@@ -36,7 +36,7 @@ therefore receive a different reporting period without an error.
 - **Root cause:** CLI validation used the numeric value to detect omission; zero is also the
   internal omitted-option sentinel. The boundary now checks whether Cobra received the flag,
   preserving the omitted default while validating every explicit value.
-- **Fix commit:** Pending.
+- **Fix commit:** `46d8b2f07`.
 - **Regression test:** Existing `internal/cli/observe_test.go` owns explicit option validation.
 
 ## Verification

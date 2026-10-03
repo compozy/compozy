@@ -1,6 +1,6 @@
 # BUG-20261002-task-action-profile-scope: Task approval commands lose the selected profile
 
-- **Status:** fixed
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -34,7 +34,7 @@ During CH-untested-066-operate-daemon-schema-ada (Garbage Tour):
 - **Root cause:** The shared publish/start/approve command constructor and the reject command
   omit the existing profile-selection wrapper. Their transport only receives selection from
   command context, so an accepted root flag never reaches the request.
-- **Fix commit:** Pending.
+- **Fix commit:** `8d1e73ab3`.
 - **Regression test:** The existing CLI profile command suite owns action selection at the
   client boundary. No daemon authorization or lookup fallback is needed.
 
