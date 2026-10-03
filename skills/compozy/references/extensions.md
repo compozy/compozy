@@ -326,6 +326,10 @@ plus reloads one change at a time. There is no daemon-side watcher.
 
 Hooks are typed dispatch at the owning state transition. They are not a generic event bus and must not tail event/log tables to infer work.
 
+For `tool.*` hooks, match the canonical `tool_id` (for example `compozy__workspace_info`) and read
+that field from the payload. Use `tool_input` for an input patch. `tool_name` is a permission-event
+matcher; tool events do not accept it or `tool_namespace`.
+
 Hooks may deny, narrow, annotate, or observe. They must not bypass safety primitives such as claim tokens, leases, TTL, lineage, spawn caps, or permission narrowing.
 
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.

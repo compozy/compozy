@@ -54,6 +54,10 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   expiry and single-use enforcement remain at the approval store. No tool ID, schema, route, CLI
   flag, Web control, config key or stored-state change; no migration is required. Official tool
   guidance and the owning boot suite co-ship, with real operator replay in the QA report.
+- **Hook authoring reference:** not applicable — editorial only. Tool-event examples and the
+  official extension skill use the existing `tool_id` matcher/payload field; permission-event
+  `tool_name` remains documented separately. No runtime, wire, config, hook or workspace-state
+  contract changes. Public create/restart/catalog/delete replay confirms authoring recovery.
 - **Agent context runtime identity:** The shared situation projection prefers the session's
   effective model over its configured agent default. Authenticated HTTP/UDS context reads and
   the fresh prompt context share this correction; pending runtime selection remains intent.

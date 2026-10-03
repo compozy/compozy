@@ -221,9 +221,9 @@ the current turn events do not return a user-visible denial error. Message patch
 | `tool.post_call`  | yes  | `ToolPostCallPayload`  | `ToolResultPatch`    | After a tool call succeeds.  |
 | `tool.post_error` | yes  | `ToolPostErrorPayload` | `ToolPostErrorPatch` | After a tool call fails.     |
 
-Tool payloads include `tool_call_id`, `tool_name`, `tool_namespace`, `read_only`, and `tool_input`.
-Pre-call patches can replace the tool name, namespace, read-only flag, or input, and can deny the
-tool call. Post-call and post-error patches can replace `title`, `tool_result`, or `error`; deny
+Tool payloads include `tool_call_id`, the canonical `tool_id`, `read_only`, and `tool_input`.
+Pre-call patches expose `tool_id`, `read_only`, and `tool_input`, plus the common deny fields.
+Post-call and post-error patches can replace `title`, `tool_result`, or `error`; deny
 fields on post events stop the hook chain but do not undo an already completed tool result.
 
 ## Permission Events

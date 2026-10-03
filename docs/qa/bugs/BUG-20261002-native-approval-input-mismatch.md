@@ -50,7 +50,7 @@ subsequent actual approve/invoke pair, not that driver error.
   workspace input becomes canonical on the first pass. Supplied digests are validated before
   binding; digest-only requests retain their bound-input meaning. Approval consumption remains
   after hooks and checks the final input and all existing scope, expiry and single-use fields.
-- **Fix commit:** pending
+- **Fix commit:** `bef9a13b8`
 - **Regression test:** daemon composition owns the invariant in `TestDaemonBootToolRegistry` in
   `internal/daemon/native_tools_test.go`. Four cases reproduced the approval mismatch before repair:
   name, path, omitted workspace and absent input. The suite also covers submitted digests, digest-only
