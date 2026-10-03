@@ -34,6 +34,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The
   existing native tool, CLI, hooks, config, and persistence contracts stay intact. Session lifecycle
   docs and the official runtime skill explain explicit owner selection. No migration is required.
+- **Retained history isolation:** Boot logs typed session-database identity refusals and excludes
+  those stores from subsequent boot history processing, allowing healthy sessions to remain
+  available. CLI, HTTP/UDS, Web, and native history reads retain the existing ownership refusal;
+  no store is adopted or rewritten. Migration failures and cancellation still stop boot. No wire,
+  schema, config, hook, or extension change. The daemon operations guide and official runtime skill
+  document complete-directory recovery; the existing boot suite and isolated runtime own evidence.
 - **Extension manifest compatibility:** TOML and JSON static-resource string paths normalize into
   the current path/profile objects at decode. Current placements, strict unknown-field rejection,
   and canonical build output remain. This SD-013 regime-2 adapter is removed in v0.3.0-beta.31;

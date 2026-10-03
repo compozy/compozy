@@ -112,6 +112,11 @@ Each `events.db` is bound to one exact session and workspace. Session reads and 
 HTTP/UDS, or native tools must match that persisted owner. A missing or mismatched owner refuses the
 open before migration or data mutation; CompozyOS does not adopt, rebind, or repair the database.
 
+At startup, a missing or mismatched owner, or a changed physical database identity, produces a
+warning with the session and workspace IDs. That store is excluded from boot history processing;
+healthy sessions remain available and public reads of the refused store still fail. Migration and
+schema failures remain fatal to startup.
+
 If an owner check fails, stop the daemon and preserve the complete containing `COMPOZY_HOME`, including
 the database and every SQLite sidecar. Restore a matching complete backup, or create a new session when
 discarding the retained state is acceptable. Never edit the owner row, move `events.db` between session

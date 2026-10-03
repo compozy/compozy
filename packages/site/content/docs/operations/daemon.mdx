@@ -206,6 +206,13 @@ session work alone.
 
 See [File Locations](/docs/configuration/file-locations) for the full home directory map.
 
+Each session event database belongs to one session and workspace. If startup finds a missing or
+mismatched owner, or detects a replaced database family, it logs that session's refusal and keeps
+healthy sessions available. Reads of the refused history still fail. Stop the daemon and preserve
+the complete session directory, including SQLite sidecars, before restoring its matching backup.
+Do not edit ownership rows or use transcript repair to reassign a database. Schema migration
+failures still prevent startup.
+
 ## Understand the lock file
 
 CompozyOS acquires `$COMPOZY_HOME/daemon.lock` before opening the global database or starting servers. The lock
