@@ -479,6 +479,7 @@ function desktopFixture(
     focusedId,
     frames: {},
     hydration: "live",
+    loadError: null,
     presentation: "floating",
     projections: {},
     reduceMotion: false,

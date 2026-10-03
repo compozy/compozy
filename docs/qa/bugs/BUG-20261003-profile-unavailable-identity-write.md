@@ -1,7 +1,7 @@
 # BUG-20261003-profile-unavailable-identity-write: A reserved profile still accepts identity changes
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** fe8a644b1
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada

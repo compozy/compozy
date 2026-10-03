@@ -246,6 +246,7 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
         : "floating",
     viewportState: viewportRejected ? "rejected" : "ready",
     hydration,
+    loadError: input.loadError,
     connectionStatus: input.connectionStatus,
     desktopBounds: {
       width: workArea.w,

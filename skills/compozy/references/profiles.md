@@ -80,6 +80,8 @@ compozy profile delete <name> --yes
 Inspect durable lifecycle recovery with `compozy profile ops -o json`; retry a failed operation with
 `compozy profile ops retry <op-id> -o json` after correcting its reported cause.
 An unfinished operation reserves its profile, including identity edits, until it completes.
+If Web opens under that unavailable profile, its layout status explains that recovery is needed.
+Choose an available profile to reach Settings; the status detail retains the operation and CLI remedy.
 
 ## Surfaces And Authority
 

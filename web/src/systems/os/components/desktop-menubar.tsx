@@ -83,11 +83,13 @@ function paletteKeyShortcuts(binding: string | undefined): string | undefined {
 
 function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
   const hydration = useDesktop(state => state.hydration);
+  const loadError = useDesktop(state => state.loadError);
   const connectionStatus = useDesktop(state => state.connectionStatus);
   const diagnostic = useWindowManagerDiagnostic();
   return (
     <OsHydrationStatus
       hydration={hydration}
+      loadError={loadError}
       connectionStatus={connectionStatus}
       diagnostic={diagnostic}
       unbound={unbound}

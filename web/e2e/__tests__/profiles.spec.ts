@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -240,6 +240,81 @@ async function createDefaultProfileSession(
 }
 
 test.describe("Profiles", () => {
+  // Invariant: cold entry exposes the reserved owner's remedy without silently switching it.
+  // Owner: Web profile recovery; canonical suite: Profiles E2E-031.
+  test("E2E-031: unavailable profile entry explains recovery and permits an explicit switch", async ({
+    appPage,
+    runtime,
+  }) => {
+    const homeDir = runtime.paths?.homeDir;
+    if (!homeDir) throw new Error("Profile recovery requires the managed runtime home.");
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "recovery-notes", "#527b67", "notebook-pen");
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherOption("recovery-notes").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: recovery-notes");
+
+    const destination = path.join(homeDir, "profiles", "recovery-guides");
+    await mkdir(destination, { recursive: true });
+    const plan = await runtime.requestJSON<{ revision: string }>(
+      "/api/profiles/recovery-notes/rename-plan?new_name=recovery-guides"
+    );
+    const refused = await fetch(runtime.url("/api/profiles/recovery-notes/rename"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        new_name: "recovery-guides",
+        plan_revision: plan.revision,
+        repos: [],
+      }),
+    });
+    expect(refused.ok).toBe(false);
+    const operations =
+      await runtime.requestJSON<Array<{ id: string; status: string; profile: string }>>(
+        "/api/profiles/ops"
+      );
+    const failed = operations.find(
+      op => op.profile === "recovery-guides" && op.status === "failed"
+    );
+    expect(failed).toBeDefined();
+
+    await appPage.goto(runtime.url("/settings/profiles"));
+    await expect(ui.switcher).toHaveAccessibleName("Profile: recovery-guides");
+    const status = appPage.getByTestId("os-window-manager-status");
+    await expect(status).toContainText(/profile needs recovery/i);
+    await status.hover();
+    const detail = appPage.locator('[data-slot="tooltip-content"]');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText(failed!.id);
+    await expect(detail).toContainText("profile ops");
+    const selections =
+      await runtime.requestJSON<Array<{ profile: string }>>("/api/profiles/selection");
+    expect(selections.some(selection => selection.profile === "recovery-guides")).toBe(true);
+
+    await ui.switcher.click();
+    await ui.switcherOption("default").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await expect(
+      (await openProfilesSettings(appPage)).getByRole("button", { name: "Create profile" })
+    ).toBeVisible();
+
+    await rename(destination, path.join(homeDir, "preserved-import"));
+    await runtime.requestJSON(`/api/profiles/ops/${encodeURIComponent(failed!.id)}/retry`, {
+      method: "POST",
+      body: "{}",
+    });
+    await ui.switcher.click();
+    await ui.switcherOption("recovery-guides").click();
+    await appPage.reload();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: recovery-guides");
+    await expect(
+      (await openProfilesSettings(appPage)).getByRole("button", { name: "Create profile" })
+    ).toBeVisible();
+    await expect(status).toHaveCount(0);
+  });
+
   // The global lifecycle feed must survive the removed desktop's authority loss.
   test("E2E-030: external deletion recovers the viewed profile without reloading", async ({
     appPage,

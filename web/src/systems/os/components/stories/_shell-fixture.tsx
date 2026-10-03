@@ -150,6 +150,7 @@ export function createLiveStoryShell({
     presentation: "floating",
     viewportState: "ready",
     hydration: "live",
+    loadError: null,
     connectionStatus: "connected",
     desktopBounds: { width: 1440, height: 900, origin: { x: 0, y: 0 } },
   };

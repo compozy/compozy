@@ -217,6 +217,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     presentation: "floating",
     viewportState: "ready",
     hydration: authoritative ? "live" : "pending",
+    loadError: null,
     connectionStatus: live ? "connected" : "disconnected",
     desktopBounds: { width: 1280, height: 800, origin: { x: 0, y: 0 } },
   };

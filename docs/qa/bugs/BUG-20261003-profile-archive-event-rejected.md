@@ -1,7 +1,7 @@
 # BUG-20261003-profile-archive-event-rejected: Profile lifecycle events disappear when their subject is unavailable
 
 - **Status:** verified
-- **Fix commit:** 4760da89f; recovery extension pending commit
+- **Fix commit:** 4760da89f; fe8a644b1
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora

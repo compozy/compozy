@@ -51,6 +51,14 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   shape changes; no migration is needed. Web observes the existing event stream and refusal.
   Official profile guidance and the recovery QA scenario co-ship. Existing daemon-recorder and
   profile-availability suites own regression coverage.
+- **Unavailable profile Web entry:** The window-manager HTTP adapter retains typed profile
+  refusals emitted before its handler. The existing desktop projection carries its load error
+  to the menubar, which exposes profile recovery and the server's remedy instead of a generic
+  layout retry. An explicit profile switch provides access to Settings; remembered ownership
+  and the unavailable-owner guard stay intact. No CLI, HTTP/UDS, native-tool, hook, config,
+  extension or workspace-storage shape changes; no migration. The Profiles E2E suite and the
+  existing recovery scenario cover cold entry and subsequent recovery. Official profile guidance
+  names this Web recovery path; site documentation has no separate affected contract.
 - **Profile view recovery:** The Web shell keeps its global profile lifecycle feed alive while
   desktop authority reconnects, so externally deleting the viewed profile can sweep the client
   to default. Other stream budgets remain unchanged. Public CLI, HTTP/UDS, native tools, hooks,
