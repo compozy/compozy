@@ -563,6 +563,22 @@ test.describe("Profiles", () => {
     // Archive destroys nothing, so it reads calm rather than dangerous.
     await expect(ui.archiveDialog).toContainText("Nothing is deleted.");
 
+    // Invariant: browser history dismisses a lifecycle flow without mutating its owner.
+    // Owner: shell/dialog browser composition; canonical suite: E2E-017.
+    await appPage.goBack();
+    await expect(appPage).toHaveURL(/\/settings\/general$/);
+    await expect(ui.archiveDialog).not.toBeVisible();
+    expect((await listProfiles(runtime)).find(profile => profile.name === "finance")).toMatchObject(
+      {
+        state: "active",
+      }
+    );
+    await appPage.goForward();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await expect(ui.archiveDialog).not.toBeVisible();
+    await ui.archiveRow("finance").click();
+    await expect(ui.archiveDialog).toBeVisible();
+
     const archived = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
@@ -587,6 +603,18 @@ test.describe("Profiles", () => {
     await ui.unarchiveConfirm.click();
     expect((await unarchived).ok()).toBe(true);
     await expect(ui.unarchiveDialog).toContainText("finance is back");
+
+    await appPage.goBack();
+    await expect(appPage).toHaveURL(/\/settings\/general$/);
+    await expect(ui.unarchiveDialog).not.toBeVisible();
+    expect((await listProfiles(runtime)).find(profile => profile.name === "finance")).toMatchObject(
+      {
+        state: "active",
+      }
+    );
+    await appPage.goForward();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await expect(ui.unarchiveDialog).not.toBeVisible();
   });
 
   test("E2E-027: the palette Profiles view switches and hands lifecycle to the canonical dialogs", async ({
@@ -629,6 +657,18 @@ test.describe("Profiles", () => {
     await profileArgument.press("Enter");
     await expect(ui.archiveDialog).toBeVisible();
     await expect(ui.archiveDialog).toContainText("marketing");
+
+    // Invariant: a consumed palette flow cannot reopen after cancellation and reload.
+    // Owner: window-route/dialog composition; canonical suite: E2E-027.
+    await ui.archiveDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(ui.archiveDialog).toBeHidden();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await expect(ui.archiveDialog).toBeHidden();
+    expect(
+      (await listProfiles(runtime)).find(profile => profile.name === "marketing")
+    ).toMatchObject({ state: "active" });
   });
 
   test("E2E-015: All profiles labels every row, states the destination, and names the owner", async ({

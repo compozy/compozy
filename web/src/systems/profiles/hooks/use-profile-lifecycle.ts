@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
 import { ProfileApiError } from "../adapters/profiles-api";
@@ -60,6 +60,14 @@ export function useProfileLifecycle(): ProfileLifecycleState {
     setDeclinedRepos([]);
     setUnarchiveResult(null);
   };
+
+  const closeOnHistoryNavigation = useEffectEvent(close);
+  useEffect(() => {
+    if (intent === null) return;
+    const handlePopState = () => closeOnHistoryNavigation();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [intent]);
 
   const toggleRepo = (workspaceId: string) => {
     setDeclinedRepos(current =>

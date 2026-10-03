@@ -7,10 +7,10 @@ journey: J-operate-profiles
 expected: Settings lists active profiles with identity and work counts, demotes the archived list and the selection map to disclosure, and every lifecycle dialog renders exactly what its plan endpoint returned — rename tiers, archive paused automations and blocked-by-running, delete enumeration or routing to archive, unarchive reactivation — with a stale plan refused and re-asked rather than executed.
 entry_points: Settings → Profiles; create|rename|archive|unarchive|delete dialogs; GET /api/profiles/{name}/rename-plan|archive-plan|delete-plan; POST /api/profiles/{name}/rename|archive|unarchive; DELETE /api/profiles/{name}
 qa_status: fail
-bug_ids: BUG-20261003-profile-archive-resource-automations; BUG-20261003-profile-rename-repositories-unchecked; BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
+bug_ids: BUG-20261003-profile-palette-cancel-reopens; BUG-20261003-profile-delete-orphans-automations; BUG-20261003-profile-dialog-survives-back; BUG-20261003-profile-archive-resource-automations; BUG-20261003-profile-rename-repositories-unchecked; BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
 fix_status: pending
 retest_status: pending
-fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; a15b2ea62
+fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; a15b2ea62; b4ed8ca18
 evidence: docs/qa/evidence/2026-10-02-untested/profile-rename-fixed-sol-ended.json; .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
@@ -99,3 +99,30 @@ on archive. Unarchive retains both pauses; per-item keyboard reactivation uses t
 CLI repeat preserves the exact audit list, and a real daemon restart keeps both definitions paused.
 BUG-20261003-profile-archive-resource-automations is verified. Evidence: profile-archive-fixed-sol-*
 and profile-archive-fixed-cli-* in the dated report. The complete lifecycle charter remains Pending.
+
+QA 2026-10-03 deletion walk: a paused canonical job and trigger are omitted from work counts.
+Settings labels their owner Empty and permits deletion, leaving both aggregate automation lists
+broken by an absent owner. BUG-20261003-profile-delete-orphans-automations is open.
+Browser Back also leaves Archive open above General for at least 12 seconds;
+BUG-20261003-profile-dialog-survives-back is open. Invalid color feedback and Escape cancellation pass.
+See profile-delete-navigation-sol-* and the dated report; full lifecycle verdict remains Pending.
+
+QA 2026-10-03 deletion repair: canonical jobs/triggers now count as work, including paused
+definitions. Web omits Delete for their archived owner, and direct CLI deletion refuses it.
+An empty archived profile still deletes successfully with its exact revision; reload and UDS
+confirm it is gone while both aggregate catalogs retain the other owner and its automations.
+BUG-20261003-profile-delete-orphans-automations is verified; see profile-delete-fixed-sol-*
+and the dated report. The full lifecycle charter remains Pending.
+
+QA 2026-10-03 history repair: Archive and unarchive success close on Browser Back and remain
+closed on Forward. Reopening Rename drops an abandoned draft. UDS and reload preserve the intended
+active profile; BUG-20261003-profile-dialog-survives-back is verified. Palette Create and Archive
+hand off to the canonical dialogs, but cancellation retains the flow in the window URL and reload
+reopens Archive. Filed BUG-20261003-profile-palette-cancel-reopens. See profile-dialog-back-fixed-sol-*
+and the dated report; full lifecycle and spoken screen-reader verdicts remain Pending.
+
+QA 2026-10-03 palette replay repair: the Settings window consumes a valid lifecycle URL intent
+when it opens the canonical dialog. Both a retained deep link and a fresh palette invocation stay
+canceled after reload, with UDS retaining the active profile. The final real-daemon E2E-017/027
+and React Doctor 100/100 pass. BUG-20261003-profile-palette-cancel-reopens is verified; evidence
+is profile-palette-cancel-fixed-sol-* and profile-lifecycle-final-*. Full charter remains Pending.

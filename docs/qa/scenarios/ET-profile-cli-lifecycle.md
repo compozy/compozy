@@ -7,10 +7,10 @@ journey: J-operate-profiles
 expected: Create, update, rename, archive, unarchive, and delete use daemon-owned profile state; every planned mutation applies exactly the previewed revision, preserves or removes the documented ownership rows, and returns matching human and structured results.
 entry_points: compozy profile list|current|create|update|rename|archive|unarchive|delete; local HTTP/UDS /api/profiles routes
 qa_status: fail
-bug_ids: BUG-20261003-profile-archive-resource-automations; BUG-20260914-profile-rename-mcp-reference
+bug_ids: BUG-20261003-profile-delete-orphans-automations; BUG-20261003-profile-archive-resource-automations; BUG-20260914-profile-rename-mcp-reference
 fix_status: pending
 retest_status: pending
-fix_commits: c131f5764
+fix_commits: c131f5764; b4ed8ca18
 evidence: docs/qa/reports/2026-09-14-marketplace-review-public.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-selection-precedence; ET-profile-operations-recovery; ET-profile-lifecycle-race-guards; ET-profile-approval-owner-resume
@@ -53,3 +53,15 @@ on archive. Unarchive retains both pauses; per-item keyboard reactivation uses t
 CLI repeat preserves the exact audit list, and a real daemon restart keeps both definitions paused.
 BUG-20261003-profile-archive-resource-automations is verified. Evidence: profile-archive-fixed-sol-*
 and profile-archive-fixed-cli-* in the dated report. The complete lifecycle charter remains Pending.
+
+QA 2026-10-03 deletion walk: a paused canonical job and trigger are omitted from work counts.
+Settings labels their owner Empty and permits deletion, leaving both aggregate automation lists
+broken by an absent owner. BUG-20261003-profile-delete-orphans-automations is open.
+See profile-delete-navigation-sol-* and the dated report; full lifecycle verdict remains Pending.
+
+QA 2026-10-03 deletion repair: canonical jobs/triggers now count as work, including paused
+definitions. Web omits Delete for their archived owner, and direct CLI deletion refuses it.
+An empty archived profile still deletes successfully with its exact revision; reload and UDS
+confirm it is gone while both aggregate catalogs retain the other owner and its automations.
+BUG-20261003-profile-delete-orphans-automations is verified; see profile-delete-fixed-sol-*
+and the dated report. The full lifecycle charter remains Pending.

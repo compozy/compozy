@@ -1422,6 +1422,125 @@ func TestAutomationResourceConfigEnabledChangesUseOperationalOverlays(t *testing
 	}
 }
 
+func TestProfileDeleteResourceAutomations(t *testing.T) {
+	t.Parallel()
+	for _, source := range []JobSource{JobSourceDynamic, JobSourceConfig, JobSourcePackage} {
+		t.Run("Should protect "+string(source)+" automation ownership through deletion", func(t *testing.T) {
+			t.Parallel()
+			h := newManagerResourceHarness(t)
+			profiles, err := profile.NewManager(profile.WithStore(h.db), profile.WithHomePaths(h.homePaths))
+			if err != nil {
+				t.Fatalf("profile.NewManager() error = %v", err)
+			}
+			owner, err := profiles.Create(h.ctx, profile.CreateInput{Name: "release-drafts"})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			job := testJob(AutomationScopeWorkspace, "release-job", h.workspace.ID)
+			job.ProfileID, job.Source, job.Enabled = owner.ID, source, false
+			scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: h.workspace.ID}
+			if _, err := h.jobStore.Put(h.ctx, h.actor, resources.Draft[Job]{
+				ID: job.ID, Scope: scope, Spec: job,
+			}); err != nil {
+				t.Fatalf("Put(job) error = %v", err)
+			}
+			trigger := testTrigger(AutomationScopeWorkspace, "release-trigger", h.workspace.ID)
+			trigger.ProfileID, trigger.Source, trigger.Event = owner.ID, source, "session.stopped"
+			trigger.WebhookID, trigger.EndpointSlug, trigger.WebhookSecretRef = "", "", ""
+			if _, err := h.triggerStore.Put(h.ctx, h.actor, resources.Draft[Trigger]{
+				ID: trigger.ID, Scope: scope, Spec: trigger,
+			}); err != nil {
+				t.Fatalf("Put(trigger) error = %v", err)
+			}
+			other := h.putJobResource(t, "other-profile-job", "other-profile-job")
+			assertProfileAutomationWork(t, h, profiles, owner.Name, 2)
+			if _, err := h.db.CreateJob(h.ctx, job); err != nil {
+				t.Fatalf("CreateJob(legacy shadow) error = %v", err)
+			}
+			if _, err := h.db.CreateTrigger(h.ctx, trigger); err != nil {
+				t.Fatalf("CreateTrigger(legacy shadow) error = %v", err)
+			}
+			assertProfileAutomationWork(t, h, profiles, owner.Name, 2)
+			if err := h.db.DeleteJob(h.ctx, job.ID); err != nil {
+				t.Fatalf("DeleteJob(legacy shadow) error = %v", err)
+			}
+			if err := h.db.DeleteTrigger(h.ctx, trigger.ID); err != nil {
+				t.Fatalf("DeleteTrigger(legacy shadow) error = %v", err)
+			}
+			archive, err := profiles.PrepareArchive(h.ctx, owner.Name)
+			if err != nil {
+				t.Fatalf("PrepareArchive() error = %v", err)
+			}
+			if _, err := profiles.Archive(h.ctx, owner.Name, archive.Revision); err != nil {
+				t.Fatalf("Archive() error = %v", err)
+			}
+			assertProfileAutomationWork(t, h, profiles, owner.Name, 2)
+			persistedJob, err := h.jobStore.Get(h.ctx, h.actor, job.ID)
+			if err != nil {
+				t.Fatalf("Get(job after refused delete) error = %v", err)
+			}
+			if err := h.jobStore.Delete(h.ctx, h.actor, job.ID, persistedJob.Version); err != nil {
+				t.Fatalf("Delete(job resource) error = %v", err)
+			}
+			assertProfileAutomationWork(t, h, profiles, owner.Name, 1)
+			persistedTrigger, err := h.triggerStore.Get(h.ctx, h.actor, trigger.ID)
+			if err != nil {
+				t.Fatalf("Get(trigger after refused delete) error = %v", err)
+			}
+			if err := h.triggerStore.Delete(h.ctx, h.actor, trigger.ID, persistedTrigger.Version); err != nil {
+				t.Fatalf("Delete(trigger resource) error = %v", err)
+			}
+			plan, err := profiles.PrepareDelete(h.ctx, owner.Name)
+			if err != nil {
+				t.Fatalf("PrepareDelete(empty) error = %v", err)
+			}
+			if _, err := profiles.Delete(h.ctx, owner.Name, plan.Revision); err != nil {
+				t.Fatalf("Delete(empty) error = %v", err)
+			}
+			if _, err := profiles.GetByName(h.ctx, owner.Name); !errors.Is(err, profile.ErrNotFound) {
+				t.Fatalf("GetByName(deleted) error = %v, want ErrNotFound", err)
+			}
+			if _, err := h.jobStore.Get(h.ctx, h.actor, other.ID); err != nil {
+				t.Fatalf("Get(other profile job) error = %v", err)
+			}
+		})
+	}
+}
+
+func assertProfileAutomationWork(
+	t *testing.T,
+	h *managerResourceHarness,
+	profiles *profile.Manager,
+	name string,
+	want int,
+) {
+	t.Helper()
+	detail, err := profiles.GetWithCounts(h.ctx, name)
+	if err != nil || detail.WorkItems != want {
+		t.Fatalf("GetWithCounts(%s) = %#v, error = %v, want %d work items", name, detail, err, want)
+	}
+	catalog, err := profiles.List(h.ctx)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	for _, owner := range catalog {
+		wantCount := want
+		if owner.ID == store.DefaultProfileID {
+			wantCount = 1
+		}
+		if owner.WorkItems != wantCount {
+			t.Fatalf("List() profile %s has %d work items, want %d", owner.Name, owner.WorkItems, wantCount)
+		}
+	}
+	plan, err := profiles.PrepareDelete(h.ctx, name)
+	if err != nil {
+		t.Fatalf("PrepareDelete() error = %v", err)
+	}
+	if _, err := profiles.Delete(h.ctx, name, plan.Revision); !errors.Is(err, profile.ErrOwnsWork) {
+		t.Fatalf("Delete(nonempty) error = %v, want ErrOwnsWork", err)
+	}
+}
+
 func TestProfileArchiveResourceAutomations(t *testing.T) {
 	t.Parallel()
 	for _, source := range []JobSource{JobSourceDynamic, JobSourceConfig, JobSourcePackage} {

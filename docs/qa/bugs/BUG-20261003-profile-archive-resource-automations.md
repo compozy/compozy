@@ -1,7 +1,7 @@
 # BUG-20261003-profile-archive-resource-automations: Archive omits enabled resource automations
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** b4ed8ca18
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Sol; Ada
@@ -110,3 +110,7 @@ is restored before the focused profile rerun. All intermediate failed receipts a
 strict lab audit initially reports missing provider-surface and final-report/gate records; a fresh
 native executable probe supplies bounded provider evidence, without claiming generation. The full
 Settings and CLI lifecycle charters remain pending beyond these verified archive/restore legs.
+
+Commit b4ed8ca18 retains current-pass records for every affected gate lane. The final source
+build and owned daemon restart keep both automations disabled; the strict targeted evidence audit
+passes without blockers or warnings. See profile-archive-automations-delivery-proof.json.

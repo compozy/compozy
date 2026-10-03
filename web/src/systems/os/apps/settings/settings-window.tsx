@@ -7,21 +7,17 @@ import {
   type LazyExoticComponent,
 } from "react";
 
-import { runViewTransition, Spinner, viewTransitionName } from "@compozy/ui";
+import { Spinner, viewTransitionName } from "@compozy/ui";
 
 import { useDesktop } from "../../hooks/use-desktop";
-import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
-import { useOsShell } from "../../hooks/use-os-shell";
-import type { OsWindowRoute } from "../../lib/os-types";
 import { SettingsWindowNav } from "./settings-window-nav";
-import { profileFlowFromSearch, type ProfileFlowSearch } from "@/systems/profiles";
+import { useProfileFlowIntent } from "./use-profile-flow-intent";
+import { useSettingsNavigation } from "./use-settings-navigation";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
   focusCommandId?: string;
-  /** Lifecycle flow a palette command navigated here to raise. */
-  profileFlow?: ProfileFlowSearch;
 }
 
 type SectionComponent = ComponentType<SettingsSectionPageProps>;
@@ -158,28 +154,19 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
 }
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const { coordinator } = useOsShell();
   const route = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_SETTINGS_ROUTE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const connection = useDaemonConnectionStatus();
-  const reducedMotion = useOsReducedMotion();
   const activeSlug = sectionSlugFromPathname(route.pathname);
+  const navigate = useSettingsNavigation(next => {
+    // Unloaded sections switch immediately to avoid snapshotting their spinner.
+    const nextSlug = sectionSlugFromPathname(next.pathname);
+    return nextSlug !== activeSlug && loadedSections.has(nextSlug);
+  });
   const SectionPage = SECTION_PAGES[activeSlug];
   const focusCommandId =
     activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
-  const profileFlow = activeSlug === "profiles" ? profileFlowFromSearch(route.search) : undefined;
-
-  // Section switches cross-fade only the content pane. A chunk that has not
-  // loaded yet would snapshot the Suspense spinner, so those switch instantly.
-  const navigate = (next: OsWindowRoute) => {
-    const nextSlug = sectionSlugFromPathname(next.pathname);
-    const animate = nextSlug !== activeSlug && loadedSections.has(nextSlug);
-    if (!animate) {
-      coordinator.userNavigate(next);
-      return;
-    }
-    void runViewTransition(() => coordinator.userNavigate(next), { reduced: reducedMotion });
-  };
+  useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // Window-scoped `/` shortcut: focus the sidebar search unless the user is
   // already typing in a field.
@@ -222,7 +209,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
               </div>
             }
           >
-            <SectionPage focusCommandId={focusCommandId} profileFlow={profileFlow} />
+            <SectionPage focusCommandId={focusCommandId} />
           </Suspense>
         </div>
       </div>

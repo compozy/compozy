@@ -61,7 +61,9 @@ Archive enumerates enabled jobs and triggers, pauses their effective state, and 
 scheduler and trigger runtime before completing. This includes dynamic, configuration and extension
 automations; managed definitions keep their source content and receive a disabled operational override.
 Unarchive restores availability but does not re-enable paused automations, including after daemon restart. Delete succeeds only when the
-profile owns no work, and structured or non-interactive use requires `--yes`.
+profile owns no work, and structured or non-interactive use requires `--yes`. Jobs and triggers
+count as owned work even while paused, including configuration and extension definitions. Remove
+them through their owning automation surface before deleting the profile.
 
 ```bash
 compozy profile rename <old> <new> --repos none

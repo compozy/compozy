@@ -71,6 +71,19 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   synchronization remains unavailable until explicit operation retry. Other profiles remain unchanged.
   No wire, tool ID, hook, config key or schema shape changes. Official profile guidance co-ships.
   Web renders the same existing paused-list fields; both Web and CLI lifecycle scenarios track replay.
+- **Profile deletion ownership:** Public counts and the transactional delete guard include canonical
+  job/trigger resource owners and unshadowed legacy definitions, regardless of enabled state.
+  Web uses the corrected count to withhold deletion of nonempty profiles. CLI, HTTP/UDS and native
+  lifecycle actions share the existing profile_owns_work refusal. No tool ID, wire, hook, config,
+  extension or persisted shape changes; no migration is required. Other owners and resource content
+  remain unchanged. Official profile guidance and the two lifecycle scenarios co-ship.
+- **Profile lifecycle navigation:** Browser Back/Forward uses the existing dialog close operation,
+  including its transient drafts and success state. Palette route intents are consumed by the owning
+  Settings window after raising a canonical dialog, so cancellation cannot be replayed on reload.
+  The existing window-manager route replacement persists the consumed state. Public lifecycle
+  commands, HTTP/UDS/native tool IDs, hooks, extensions, config, workspace content and storage shapes
+  retain their contracts; no migration or official skill command change is needed. Web lifecycle
+  QA and the existing profile E2E suite own the changed behavior.
 - **Profile rename repository offers:** Web derives accepted repository ids from the current
   daemon plan and retains only explicit declines in transient dialog state. Offers start selected,
   name edits preserve declines, and absent candidates cannot enter the request. E2E-016 uses real
