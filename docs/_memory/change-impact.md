@@ -29,6 +29,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   through the existing command wrapper before transport. The daemon retains its existing
   ownership checks, including not-found responses for a foreign profile. No wire, native-tool,
   Web, hook, configuration, or persistence change; official task guidance co-ships.
+- **Approval CLI ownership:** `approvals show` and `approvals cancel` resolve the selected profile
+  through the existing command wrapper before transport, including flag, environment and remembered
+  selection. The daemon's ownership checks remain authoritative. No command, wire, native-tool,
+  Web, hook, configuration, extension or stored-state shape changes; no migration is required.
+  Official native-tool guidance and the existing palette command suite co-ship; the QA report
+  records the real pending-approval replay and profile lifecycle plan readback.
 - **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
   workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The

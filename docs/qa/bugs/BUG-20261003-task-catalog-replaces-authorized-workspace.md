@@ -1,6 +1,7 @@
 # BUG-20261003-task-catalog-replaces-authorized-workspace: Editorial task reads return Studio work
 
 - **Status:** verified
+- **Fix commit:** 7a7780ae3
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada

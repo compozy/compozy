@@ -22,7 +22,7 @@ func newApprovalsCommand(deps commandDeps) *cobra.Command {
 }
 
 func newApprovalShowCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show one tool approval lifecycle",
 		Args:  cobra.ExactArgs(1),
@@ -42,10 +42,12 @@ func newApprovalShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, approvalStatusOutput(status))
 		},
 	}
+	configureSingleProfileCommand(cmd, deps)
+	return cmd
 }
 
 func newApprovalCancelCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cancel <id>",
 		Short: "Cancel one pending tool approval",
 		Args:  cobra.ExactArgs(1),
@@ -65,6 +67,8 @@ func newApprovalCancelCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, approvalStatusOutput(status))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func cmdPaletteClientFromDeps(deps commandDeps) (CmdPaletteClient, error) {

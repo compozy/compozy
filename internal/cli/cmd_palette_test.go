@@ -25,6 +25,7 @@ type cmdPaletteTestClient struct {
 	listWorkspace     string
 	listClient        string
 	approvalStatus    contract.ToolApprovalStatusResponse
+	approvalProfile   string
 	canceledID        string
 	personalization   contract.CmdPalettePersonalizationResponse
 	resetResponse     contract.CmdPalettePersonalizationResetResponse
@@ -112,16 +113,18 @@ func (c *cmdPaletteTestClient) InvokeCmdPaletteCommand(
 }
 
 func (c *cmdPaletteTestClient) GetPendingToolApproval(
-	context.Context,
-	string,
+	ctx context.Context,
+	_ string,
 ) (contract.ToolApprovalStatusResponse, error) {
+	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
 	return c.approvalStatus, nil
 }
 
 func (c *cmdPaletteTestClient) CancelPendingToolApproval(
-	_ context.Context,
+	ctx context.Context,
 	approvalID string,
 ) (contract.ToolApprovalStatusResponse, error) {
+	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
 	c.canceledID = approvalID
 	return c.approvalStatus, nil
 }
@@ -275,6 +278,64 @@ func TestCmdPaletteCommands(t *testing.T) {
 			t.Fatalf("canceled approval = %q, want approval-1", client.canceledID)
 		}
 	})
+
+	for _, action := range []string{"show", "cancel"} {
+		for _, selection := range []string{"flag", "env", "remembered"} {
+			t.Run("Should use the "+selection+" profile for approval "+action, func(t *testing.T) {
+				t.Parallel()
+				remembered, envProfile := "other", ""
+				args := []string{"approvals", action, "approval-1", "-o", "json"}
+				switch selection {
+				case "flag":
+					args = append(args, "--profile", "owner")
+					envProfile = "other"
+				case "env":
+					envProfile = "owner"
+				case "remembered":
+					remembered = "owner"
+				}
+				client := &struct {
+					*cmdPaletteTestClient
+					profileClientAPI
+				}{
+					cmdPaletteTestClient: newClient(),
+					profileClientAPI: &profileClientStub{
+						profiles: []contract.Profile{
+							{ID: "profile-default", Name: configDefaultKey, State: "active"},
+							{ID: "profile-owner", Name: "owner", State: "active"},
+							{ID: "profile-other", Name: "other", State: "active"},
+						},
+						selections: []contract.ProfileSelection{{
+							Scope:       contract.ProfileSelectionScopeWorkspace,
+							WorkspaceID: "/workspace/project", Profile: remembered,
+						}},
+					},
+				}
+				client.approvalStatus.ApprovalStatus = "denied"
+				deps := newTestDeps(t, client)
+				deps.getenv = func(key string) string {
+					if key == profileEnvName {
+						return envProfile
+					}
+					return ""
+				}
+				stdout, _, err := executeRootCommand(t, deps, args...)
+				if err != nil {
+					t.Fatalf("approvals %s error = %v", action, err)
+				}
+				if client.approvalProfile != "owner" {
+					t.Fatalf("approval profile = %q, want owner", client.approvalProfile)
+				}
+				var status contract.ToolApprovalStatusResponse
+				if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+					t.Fatalf("decode approval status: %v", err)
+				}
+				if status.ApprovalStatus != "denied" {
+					t.Fatalf("approval status = %q, want denied", status.ApprovalStatus)
+				}
+			})
+		}
+	}
 
 	t.Run("Should show and reset workspace personalization", func(t *testing.T) {
 		t.Parallel()

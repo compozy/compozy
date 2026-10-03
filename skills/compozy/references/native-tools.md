@@ -48,6 +48,8 @@ Optional `source` filters one provider and optional `client` resolves client-con
 Use `compozy__cmd_palette_invoke` with `id`, optional `args`, and optional `client`. The command's own
 availability, targeting, single-flight, and approval rules still apply. An `approval_pending` result
 returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
+Both commands use the selected profile (flag, environment, then remembered selection). Pass
+`--profile <owner>` when the operator has switched away from the profile that owns the approval.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
 
 Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with
