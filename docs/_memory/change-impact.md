@@ -54,6 +54,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   expiry and single-use enforcement remain at the approval store. No tool ID, schema, route, CLI
   flag, Web control, config key or stored-state change; no migration is required. Official tool
   guidance and the owning boot suite co-ship, with real operator replay in the QA report.
+- **Native workspace identity:** the shared input binder emits the registration key used by
+  session authority and automation/task persistence. Registered IDs, durable IDs, names and paths
+  remain accepted selectors. CLI/HTTP/UDS and hosted native tools now address the same project;
+  aliases for the caller's project no longer trigger foreign-access approval. Persisted memory
+  and configuration identities retain their own resolver paths. This changes no stored shape,
+  public field, permission mode, hook contract or Web control and requires no migration. Official
+  native-tool guidance and the boot/automation owning suites co-ship; the dated report owns replay.
 - **Hook authoring reference:** not applicable — editorial only. Tool-event examples and the
   official extension skill use the existing `tool_id` matcher/payload field; permission-event
   `tool_name` remains documented separately. No runtime, wire, config, hook or workspace-state

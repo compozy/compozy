@@ -13,11 +13,96 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestDaemonNativeAutomationTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should use registration identity for every automation workspace selector", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := workspacepkg.Workspace{ID: "ws-editorial", Name: "Editorial", RootDir: t.TempDir()}
+		for _, tc := range []struct {
+			name string
+			ref  string
+		}{
+			{name: "Should inherit the caller workspace"},
+			{name: "Should resolve the registration id", ref: workspace.ID},
+			{name: "Should resolve the durable identity", ref: "metadata-editorial"},
+			{name: "Should resolve the registered name", ref: workspace.Name},
+			{name: "Should resolve the registered path", ref: workspace.RootDir},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				job := nativeAutomationJobFixture("job-editorial", automationpkg.JobSourceDynamic)
+				job.Scope = automationpkg.AutomationScopeWorkspace
+				job.WorkspaceID = workspace.ID
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Workspaces: apitest.StubWorkspaceService{ResolveFn: func(
+						_ context.Context, ref string,
+					) (workspacepkg.ResolvedWorkspace, error) {
+						switch ref {
+						case workspace.ID, workspace.Name, workspace.RootDir, "metadata-editorial":
+							return workspacepkg.ResolvedWorkspace{
+								Workspace: workspace, WorkspaceID: "metadata-editorial",
+							}, nil
+						default:
+							return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+						}
+					}},
+					Automation: apitest.StubAutomationManager{
+						GetJobFn: func(context.Context, string) (automationpkg.Job, error) { return job, nil },
+						ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
+							if query.WorkspaceID != workspace.ID {
+								t.Errorf("ListJobs workspace = %q, want %q", query.WorkspaceID, workspace.ID)
+							}
+							return automationpkg.JobListPage{Jobs: []automationpkg.Job{job}, Total: 1}, nil
+						},
+						CreateJobFn: func(_ context.Context, created automationpkg.Job) (automationpkg.Job, error) {
+							if created.WorkspaceID != workspace.ID {
+								t.Errorf("CreateJob workspace = %q, want %q", created.WorkspaceID, workspace.ID)
+							}
+							created.ID = job.ID
+							return created, nil
+						},
+					},
+				}, nativeApproveAllPolicyInputs())
+				scope := toolspkg.Scope{Operator: true, WorkspaceID: workspace.ID}
+				for _, call := range []struct {
+					id    toolspkg.ToolID
+					input map[string]any
+				}{
+					{id: toolspkg.ToolIDAutomationJobsGet, input: map[string]any{"job_id": job.ID}},
+					{id: toolspkg.ToolIDAutomationJobsList, input: map[string]any{"scope": "workspace"}},
+					{id: toolspkg.ToolIDAutomationJobsCreate, input: map[string]any{
+						"scope": "workspace", "name": "release-review", "agent_name": "codex", "prompt": "Review the release",
+						"schedule": map[string]any{"mode": "every", "interval": "168h"}, "enabled": false,
+					}},
+				} {
+					if tc.ref != "" {
+						call.input["workspace"] = tc.ref
+					}
+					input, err := json.Marshal(call.input)
+					if err != nil {
+						t.Fatal(err)
+					}
+					result, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: call.id, Input: input},
+					)
+					if err != nil {
+						t.Errorf("Call(%s) error = %v", call.id, err)
+						continue
+					}
+					requireNativeStructuredContains(t, result, []byte(workspace.ID))
+				}
+			})
+		}
+	})
 
 	t.Run("Should route automation lifecycle tools through the automation manager", func(t *testing.T) {
 		t.Parallel()

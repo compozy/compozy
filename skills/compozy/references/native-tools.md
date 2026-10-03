@@ -265,6 +265,10 @@ profile-state writes are forbidden. Read `references/profiles.md` before changin
 
 ## Workspace Boundary
 
+Registered IDs, durable workspace IDs, names and paths resolve to the same registered project before
+policy and dispatch. Naming the current project does not require cross-workspace approval, and
+native automation operations use the same project registration as CLI and HTTP/UDS reads.
+
 A call that names a workspace other than the bound session's is a cross-workspace request. The session's effective permission mode decides it, and there is no separate toggle, grant, or config key:
 
 - `approve-all`: allowed at every seam.

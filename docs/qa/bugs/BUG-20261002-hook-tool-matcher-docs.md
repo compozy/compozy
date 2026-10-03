@@ -30,7 +30,7 @@ The declaration reference, its config example, the event payload/patch reference
 extension skill now use the implemented field names. This is an editorial repair; it adds no runtime
 alias, changes no persisted declaration and needs no migration.
 
-- **Fix commit:** pending
+- **Fix commit:** 65f740194
 
 ## Verified replay
 

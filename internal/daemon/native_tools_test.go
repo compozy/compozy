@@ -3767,8 +3767,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			descriptor,
 			json.RawMessage(`{"workspace":"target-alias"}`),
 		)
-		if err != nil || string(stableInput) != `{"workspace":"ws-target"}` {
-			t.Fatalf("stable workspace input = %s, %v, want durable target id", stableInput, err)
+		if err != nil || string(stableInput) != `{"workspace":"registry-target"}` {
+			t.Fatalf("stable workspace input = %s, %v, want registered target id", stableInput, err)
 		}
 
 		cache := newWorkspaceAccessConsentCache()
@@ -10359,6 +10359,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
 		state.sessions = &fakeSessionManager{infos: []*session.Info{{
 			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
+			State: session.StateActive,
 		}}}
 		daemon := &Daemon{homePaths: homePaths}
 		cleanup := &bootCleanup{}
@@ -10376,7 +10377,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		canonical, err := json.Marshal(map[string]string{"workspace": resolved.WorkspaceID})
+		canonical, err := json.Marshal(map[string]string{"workspace": resolved.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -10398,6 +10399,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			input       json.RawMessage
 			inputDigest string
 			invalid     bool
+			agent       bool
 		}{
 			{name: "Should approve a workspace name", input: json.RawMessage(`{"workspace":"Editorial"}`)},
 			{name: "Should approve a workspace path", input: pathInput},
@@ -10406,6 +10408,10 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			{name: "Should retain digest-only approval", inputDigest: digest},
 			{name: "Should approve input with its matching digest", input: canonical, inputDigest: digest},
 			{name: "Should validate a submitted alias digest before binding", input: alias, inputDigest: aliasDigest},
+			{name: "Should preserve agent access through its workspace name", input: alias, agent: true},
+			{name: "Should preserve agent access through its workspace path", input: pathInput, agent: true},
+			{name: "Should preserve agent access through its workspace id", input: json.RawMessage(`{"workspace":"ws-approval"}`), agent: true},
+			{name: "Should preserve agent access through its inherited workspace", input: json.RawMessage(`{}`), agent: true},
 			{
 				name:  "Should reject a supplied digest that differs from the submitted input",
 				input: json.RawMessage(`{"workspace":"Editorial"}`), inputDigest: digest, invalid: true,
@@ -10414,7 +10420,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				scope := toolspkg.Scope{Operator: true, WorkspaceID: workspace.ID, SessionID: "sess-approval"}
+				scope := toolspkg.Scope{Operator: !tc.agent, WorkspaceID: workspace.ID, SessionID: "sess-approval"}
 				grant, err := state.deps.ToolApprovals.CreateToolApproval(
 					t.Context(),
 					scope,
