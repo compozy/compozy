@@ -54,7 +54,7 @@ with the same cross-workspace denial: `native-identity-red.log`.
 Automation selector regressions fail before the correction for all five selector forms in
 `native-identity-automation-red.log`.
 
-- **Fix commit:** pending
+- **Fix commit:** 563990440
 - **Retest:** passed for the identity repair; the separate hook-dispatch finding remains open.
 
 ## Verified replay

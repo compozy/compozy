@@ -7,7 +7,7 @@ journey: J-operate-workspace-context
 expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
 entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
 qa_status: fail
-bug_ids: BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch; BUG-20261002-hook-tool-matcher-docs; BUG-20261002-native-workspace-identity-boundaries; BUG-20261002-native-hook-dispatch-missing
+bug_ids: BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch; BUG-20261002-hook-tool-matcher-docs; BUG-20261002-native-workspace-identity-boundaries; BUG-20261002-native-hook-dispatch-missing; BUG-20261002-native-task-filter-error
 fix_status: pending
 retest_status:
 fix_commits: 4e81f17
@@ -72,3 +72,7 @@ but the operator could not retrieve the job. An approve-reads session was correc
 job scope, yet incorrectly prompted for access to its own project path. The installed required
 pre-call hook had no runs after native workspace-info execution. Those two failures are filed above;
 all caller sessions are stopped and the owned hook is removed. Full scenario disposition remains Pending.
+
+Identity repair `563990440` is verified: own aliases reach Studio, foreign rejected reads disclose no
+Editorial data, and native/operator automation paths retrieve the same persisted job. The separate
+task-filter error classification finding is linked above; hook and remaining mutation legs stay Pending.

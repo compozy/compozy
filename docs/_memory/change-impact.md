@@ -1411,3 +1411,9 @@ remain unchanged.
   remain valid. Acceptance and verification are recorded in
   `docs/qa/reports/2026-10-03-issue-689-sqlite-contention.md` and the affected terminal-settlement
   and automation scenarios. Related issue 678 is addressed only for shared contention paths.
+
+## Native task filter error classification (2026-10-02 QA)
+
+- Native `compozy__task_list` now preserves task-domain validation as `tool_invalid_input` / `schema_invalid` through its existing error mapper. HTTP/UDS native invocation and the CLI share this dispatch.
+- Extensibility, hooks, configuration and workspace isolation are unchanged; no persisted shape or migration. The accepted task filters and official skill contract remain unchanged.
+- Web task catalogs are unaffected. QA owner: `ET-native-workspace-scope-isolation`, bug `BUG-20261002-native-task-filter-error`; the dated report retains the hosted observation and fresh public replay.

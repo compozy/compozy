@@ -5776,6 +5776,29 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should classify task catalog validation failures as invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeTestSessionManager("ws-1"),
+			Tasks: &apitest.StubTaskManager{
+				ListTaskCatalogFn: func(
+					_ context.Context, query taskpkg.CatalogQuery, _ taskpkg.ActorContext,
+				) (taskpkg.CatalogPage, error) {
+					_, err := taskpkg.NormalizeCatalogQuery(query)
+					return taskpkg.CatalogPage{}, err
+				},
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-actor", WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDTaskList, Input: json.RawMessage(`{"status":"queued"}`)},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+
 	t.Run("Should route bounded task tools through task service boundaries", func(t *testing.T) {
 		t.Parallel()
 
