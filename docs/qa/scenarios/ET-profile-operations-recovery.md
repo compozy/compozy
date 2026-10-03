@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: Interrupted rename, archive, or delete work remains a durable lifecycle operation with a stable step and redacted error; boot recovery converges safe operations, terminal failure remains inspectable, and retry resumes without duplicating committed effects.
 entry_points: compozy profile ops; compozy profile ops retry; GET /api/profiles/ops; POST /api/profiles/ops/{op_id}/retry; profile.lifecycle_op_recovered|failed events
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: fail
+bug_ids: BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-unavailable-identity-write; BUG-20261003-profile-recovery-blank-desktop
+fix_status: pending
+retest_status: pending
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-10-02-untested/profile-recovery-final-ada-ended.json; docs/qa/evidence/2026-10-02-untested/profile-recovery-rename-crash-proof.json; docs/qa/evidence/2026-10-02-untested/profile-recovery-delete-crash-proof.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
 ---
 
@@ -29,3 +29,17 @@ Walk:
 
 Expected evidence: fault-injection transcript, pre/post-restart operation payloads, exact lifecycle
 events, side-effect counts, and the successful retry result.
+
+QA 2026-10-03: a real destination-directory conflict leaves an inspectable failed rename.
+CLI/HTTP/UDS agree, restart leaves the failure untouched, selection and duplicate names refuse,
+and explicit retry after preserving the conflicting import completes without losing content.
+The failure audit is missing from public logs; identity updates also bypass the reservation.
+Both findings are registered. Applied/finalizing crash recovery and the complete scenario remain
+Pending; the bounded failure/retry walk does not establish those branches.
+
+Final repair replay: failure/recovery and archived-identity audits remain durable, and identity
+edits refuse an unfinished operation. Real rename and delete SIGKILL interruptions recover on
+boot; all 2,048 authored files retain their bytes before deletion. Another clean restart preserves
+one recovery event per operation without replaying done work. These two bugs are verified.
+The scenario remains fail/pending for the separate blank desktop finding and the unwalked archive
+interruption. No complete recovery-charter verdict is inferred from these bounded passes.

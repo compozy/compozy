@@ -329,6 +329,9 @@ func (m *Manager) UpdateIdentity(
 		if err != nil {
 			return err
 		}
+		if err := ensureAvailable(ctx, exec, current, false); err != nil {
+			return err
+		}
 		color, icon, emoji := current.Color, current.Icon, current.Emoji
 		if patch.Color != nil {
 			color = *patch.Color

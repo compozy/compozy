@@ -1,7 +1,7 @@
 # BUG-20261003-profile-project-restoration: Switching projects carries the previous profile
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** b915570a8
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Sol

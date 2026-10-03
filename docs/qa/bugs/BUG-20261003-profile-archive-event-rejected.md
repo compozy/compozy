@@ -1,12 +1,12 @@
-# BUG-20261003-profile-archive-event-rejected: Archiving a profile drops the event that sweeps open views
+# BUG-20261003-profile-archive-event-rejected: Profile lifecycle events disappear when their subject is unavailable
 
 - **Status:** verified
-- **Fix commit:** 4760da89f
+- **Fix commit:** 4760da89f; recovery extension pending commit
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
 - **Journey Step:** J-operate-profiles, retire an empty draft profile while its browser stays open
-- **Scenarios:** ET-profile-web-settings-lifecycle-dialogs; ET-profile-switcher-restore
+- **Scenarios:** ET-profile-web-settings-lifecycle-dialogs; ET-profile-switcher-restore; ET-profile-operations-recovery
 - **Found:** 2026-10-03 · **Report:** docs/qa/reports/2026-10-02-untested.md
 
 ## Reproduction
@@ -46,3 +46,60 @@ are restored to studio, and recording profile-archive-fixed is stopped.
 
 Archive repair delivery gate: every affected make gate lane passed; go-lint reported zero issues.
 Receipt: docs/qa/evidence/2026-10-02-untested/profile-archive-event-gate.log.
+
+## Regressed — 2026-10-03, unavailable operation owner
+
+Ada's CH-profile-lifecycle-plan-recovery Interrupt Tour on b915570a8 creates recovery-notes
+beside a preserved, conflicting recovery-guides directory. Rename commits its catalog change
+and records a failed rename_profile step. CLI, HTTP and UDS agree on operation
+op_01M411M8MPXFFNCCF3V73BZXCZ, but the public all-profile log has no
+profile.lifecycle_op_failed event, including after restart. Failed operations correctly remain
+failed until explicit retry; moving the preserved import aside and retrying completes without
+losing content. The session ends before source inspection.
+
+The daemon log confirms that the event insert is rejected by profile_unavailable. The original
+archive/delete special case does not include failure or recovery events, whose subject can still
+be reserved, archived, or deleted. This is the same audit-owner defect under another lifecycle
+transition; the already-verified archive behavior remains intact.
+
+Evidence: profile-recovery-ada-{conflict,failed-ops-cli,failed-ops-http,failed-ops-uds,
+events-after-restart,final-events,ended}.json in this cycle's evidence directory.
+
+Invariant, owner, canonical suite: lifecycle failure/recovery audits remain durable with their
+original subject and operation even when that subject cannot accept ordinary writes. The daemon
+event adapter owns this invariant in TestDaemonProfileEventRecorder,
+internal/daemon/boot_profiles_test.go. Extend its real SQLite failure case and existing terminal
+event-owner coverage; retain the ordinary unavailable-owner write guard. No new test file,
+schema, wire shape, polling, or validation bypass is needed.
+
+## Re-found — 2026-10-03, archived identity audit
+
+The first repair replay verifies durable failure audit and pending-owner identity refusal.
+An adjacent compatibility check edits recovery-guides after archive: the color persists, but
+profile.identity_updated is absent, and the daemon records profile_archived on its audit insert.
+Archived metadata edits are intentionally retained. Carry the subject's known state internally
+to the existing audit-owner decision, without exposing a new wire field or changing active-owner
+event ownership. Extend the same real SQLite archive case in TestDaemonProfileEventRecorder to
+cover this observable; no second suite or new file owns it.
+
+Evidence: profile-recovery-fixed-ada-{archived-identity,archived-identity-read,
+archive-canary-events,ended}.json. The five-frame browser recording is stopped before diagnosis.
+
+## Recovery extension verified
+
+The final Ada replay preserves the failed operation's subject, ID and error in the public audit.
+Archived identity edits also retain a durable operator-owned event, while active identity events
+keep their own owner. The internal subject state is absent from the JSON payload. Ordinary writes
+under unavailable or archived owners remain refused.
+
+Real SIGKILL interruptions after rename and during deletion recover on boot. The rename preserves
+all 2,048 authored configuration files byte-for-byte; deletion finishes removing its remaining tree.
+A further clean restart retains exactly one recovery event per operation, with stable event IDs
+and original subjects, including the deleted subject. CLI, HTTP and UDS readbacks agree.
+
+Evidence: profile-recovery-final-ada-*.json, profile-recovery-{rename,delete}-crash-proof.json,
+and the inspected profile-recovery-final-settings.png. The six-frame recording is stopped before
+source review. The existing recorder/availability/recovery/lifecycle race cohort passes, as do
+both test-shape checks and every affected make gate lane (zero Go lint issues). Gate receipts:
+profile-recovery-{gate,gate-status}.log. Archive interruption and the separate blank-desktop bug
+remain outstanding; they do not reopen this verified audit-owner repair.

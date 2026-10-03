@@ -143,12 +143,17 @@ func (r *daemonProfileEventRecorder) archiveTerminalProfile(event profile.Event)
 }
 
 func profileEventSummaryOwnerID(event profile.Event) string {
-	// These transitions make the subject unavailable for new writes. Keep their
-	// audit under the permanent operator owner, with the subject in the payload.
-	if event.Name == eventspkg.ProfileArchived || event.Name == eventspkg.ProfileDeleted {
+	// Lifecycle audits retain their subject even when it cannot own new writes.
+	if event.ProfileState == profile.StateArchived {
 		return store.DefaultProfileID
 	}
-	return event.ProfileID
+	switch event.Name {
+	case eventspkg.ProfileArchived, eventspkg.ProfileDeleted,
+		eventspkg.ProfileLifecycleOpFailed, eventspkg.ProfileLifecycleOpRecovered:
+		return store.DefaultProfileID
+	default:
+		return event.ProfileID
+	}
 }
 
 func (r *daemonProfileEventRecorder) timestamp() time.Time {

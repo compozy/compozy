@@ -1614,6 +1614,17 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 		) {
 			t.Fatalf("PutSelection(unavailable) error = %v, want ErrUnavailable", err)
 		}
+		patch := IdentityPatch{Color: new("#527b67")}
+		if _, err := manager.UpdateIdentity(ctx, dev.Name, patch); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("UpdateIdentity(unavailable) error = %v, want ErrUnavailable", err)
+		}
+		unchanged, err := getProfileByName(ctx, database.DB(), dev.Name)
+		if err != nil {
+			t.Fatalf("read reserved profile: %v", err)
+		}
+		if unchanged.Color != dev.Color {
+			t.Fatalf("reserved profile color = %q, want unchanged %q", unchanged.Color, dev.Color)
+		}
 		resolver, err := workspacepkg.NewResolver(
 			database,
 			workspacepkg.WithHomePaths(manager.home),
@@ -1642,6 +1653,13 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 			ResolveInput{Flag: "dev", Lens: Lens{Kind: SelectionLensGlobal}},
 		); err != nil {
 			t.Fatalf("Resolve(done operation) error = %v", err)
+		}
+		updated, err := manager.UpdateIdentity(ctx, dev.Name, patch)
+		if err != nil {
+			t.Fatalf("UpdateIdentity(done operation) error = %v", err)
+		}
+		if updated.Color != *patch.Color {
+			t.Fatalf("recovered profile color = %q, want %q", updated.Color, *patch.Color)
 		}
 	})
 }

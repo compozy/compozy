@@ -79,6 +79,7 @@ compozy profile delete <name> --yes
 
 Inspect durable lifecycle recovery with `compozy profile ops -o json`; retry a failed operation with
 `compozy profile ops retry <op-id> -o json` after correcting its reported cause.
+An unfinished operation reserves its profile, including identity edits, until it completes.
 
 ## Surfaces And Authority
 
@@ -99,9 +100,11 @@ Profile failures carry `{error:{code,message,action}}`. Preserve all three field
 `profile.deleted`, and `profile.selection_changed`. Recovery paths use `profile.plan_stale`,
 `profile.lifecycle_op_recovered`, and `profile.lifecycle_op_failed`. Event payloads never carry secret
 references.
-Archive and delete audit summaries use the permanent operator owner because the affected profile
-is unavailable for new writes. Their payload retains the affected `profile_id` and `profile_name`;
-observe the all-profiles event stream when following lifecycle changes across profiles.
+Archive, delete, and lifecycle failure/recovery audit summaries use the permanent operator owner
+because their affected profile may be unavailable for new writes. Their payload retains the affected
+`profile_id` and `profile_name`; observe the all-profiles event stream when following lifecycle changes
+across profiles. Identity edits on archived profiles use that same audit owner; active-profile
+identity events retain their own profile owner.
 
 Profile-scoped Vault refs use `vault:profiles/<profile>/<name>`. Rename rewrites only the Manager's
 explicit rewrite list. Never reconstruct or bulk-edit refs outside the lifecycle surface.

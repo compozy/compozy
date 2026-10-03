@@ -42,6 +42,15 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   remain refused. No schema, wire, native-tool, hook, config or extension change, and no migration.
   The existing daemon recorder suite uses real SQLite; official profile guidance and QA replay
   document the event's ownership and restored live projection.
+- **Profile operation recovery audit and reservation:** Failure/recovery audits use the same
+  permanent operator owner as archive/delete, retaining the affected profile and operation in
+  their existing payload. Archived identity audits follow the same rule using an internal subject
+  state snapshot; active identity event ownership is unchanged. Pending operations block edits inside the
+  canonical manager transaction. CLI, HTTP/UDS and delegated actions share this guard; ordinary
+  unavailable-owner writes remain refused. No wire, tool ID, hook, config, extension or storage
+  shape changes; no migration is needed. Web observes the existing event stream and refusal.
+  Official profile guidance and the recovery QA scenario co-ship. Existing daemon-recorder and
+  profile-availability suites own regression coverage.
 - **Profile view recovery:** The Web shell keeps its global profile lifecycle feed alive while
   desktop authority reconnects, so externally deleting the viewed profile can sweep the client
   to default. Other stream budgets remain unchanged. Public CLI, HTTP/UDS, native tools, hooks,

@@ -26,6 +26,7 @@ type Event struct {
 	Name                string `json:"name"`
 	ProfileID           string `json:"profile_id"`
 	ProfileName         string `json:"profile_name"`
+	ProfileState        State  `json:"-"`
 	PreviousProfileName string `json:"previous_profile_name,omitempty"`
 	OperationID         string `json:"operation_id,omitempty"`
 	Error               string `json:"error,omitempty"`

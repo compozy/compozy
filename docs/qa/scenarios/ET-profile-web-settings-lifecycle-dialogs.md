@@ -6,12 +6,12 @@ persona: Ada
 journey: J-operate-profiles
 expected: Settings lists active profiles with identity and work counts, demotes the archived list and the selection map to disclosure, and every lifecycle dialog renders exactly what its plan endpoint returned — rename tiers, archive paused automations and blocked-by-running, delete enumeration or routing to archive, unarchive reactivation — with a stale plan refused and re-asked rather than executed.
 entry_points: Settings → Profiles; create|rename|archive|unarchive|delete dialogs; GET /api/profiles/{name}/rename-plan|archive-plan|delete-plan; POST /api/profiles/{name}/rename|archive|unarchive; DELETE /api/profiles/{name}
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261003-profile-palette-cancel-reopens; BUG-20261003-profile-delete-orphans-automations; BUG-20261003-profile-dialog-survives-back; BUG-20261003-profile-archive-resource-automations; BUG-20261003-profile-rename-repositories-unchecked; BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
-fix_status: pending
-retest_status: pending
+fix_status: fixed
+retest_status: pass
 fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; a15b2ea62; b4ed8ca18; 74744060b
-evidence: docs/qa/evidence/2026-10-02-untested/profile-rename-fixed-sol-ended.json; .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
+evidence: docs/qa/evidence/2026-10-02-untested/profile-dormant-sol-ended.json; docs/qa/evidence/2026-10-02-untested/profile-dormant-library-refreshed.png; docs/qa/evidence/2026-10-02-untested/profile-rename-fixed-sol-ended.json; .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
 ---
@@ -126,3 +126,15 @@ when it opens the canonical dialog. Both a retained deep link and a fresh palett
 canceled after reload, with UDS retaining the active profile. The final real-daemon E2E-017/027
 and React Doctor 100/100 pass. BUG-20261003-profile-palette-cancel-reopens is verified; evidence
 is profile-palette-cancel-fixed-sol-* and profile-lifecycle-final-*. Full charter remains Pending.
+
+QA 2026-10-03 remaining rename branches: Sol cancels a rename after declining one repository;
+the original identity and both tracked agent definitions remain unchanged, and reopening resets
+both offers to checked. Confirmation quotes the exact plan revision and only the accepted
+repository ID. The accepted and machine folders move without changing content; the declined
+repository retains its old folder. Entering that project through the Workspace picker displays
+the named dormant-content prompt, which survives reload. Extension status independently reports
+the old-name skill placement as dormant, while the renamed profile has no live extension skill.
+The 125-frame profile-dormant-sol recording is stopped; no product source was read during it.
+All lifecycle behavior in this scenario is now verified on b915570a8, reusing the earlier repair
+replays. The charter's remaining spoken VoiceOver requirement belongs to the explicitly blocked
+ET-profile-switcher-restore row; keyboard and accessibility-tree evidence do not establish speech.

@@ -6,11 +6,11 @@ persona: Ada
 journey: J-operate-profiles
 expected: The switcher is a neutral icon button while only default exists, becomes an identity element once a second profile is created, switches through the canonical selection route, answers the boundary question in one sentence, offers the All-profiles state, and restores each project's remembered profile on return without ever force-switching an already-open client.
 entry_points: dock-foot profile switcher; Create profile… dialog; command palette Profiles view; profile.use; GET|PUT /api/profiles/selection; GET /api/logs/stream?component=profile
-qa_status: fail
+qa_status: blocked-verify
 bug_ids: BUG-20261003-profile-project-restoration; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
-fix_status: pending
-retest_status: pending
-fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39
+fix_status: fixed
+retest_status: pass
+fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; b915570a8
 evidence: docs/qa/evidence/2026-10-02-untested/profile-project-entry-final-sol-ended.json; docs/qa/evidence/2026-10-02-untested/profile-selection-cli-updates-map.png; docs/qa/evidence/2026-10-02-untested/profile-global-independent-memory.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/quiet-profile-trigger.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/global-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/workspace-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/all-profiles-layered-mark.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-selection-precedence; ET-profile-palette-view; MS-web-menubar-global-scope-toggle
@@ -94,3 +94,6 @@ Human verification remaining: with VoiceOver running, traverse the quiet/plural 
 profile options and All profiles using Tab/arrow keys, confirm active name/symbol and
 selection announcements without relying on color, then switch projects and confirm the
 restored identity is announced. The existing keyboard evidence does not claim spoken output.
+
+Repair committed as b915570a8. Keyboard/public-interface retest passes; the current verdict is
+blocked-verify solely for the spoken VoiceOver checks listed above.
