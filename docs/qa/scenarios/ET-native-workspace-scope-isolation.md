@@ -76,3 +76,10 @@ all caller sessions are stopped and the owned hook is removed. Full scenario dis
 Identity repair `563990440` is verified: own aliases reach Studio, foreign rejected reads disclose no
 Editorial data, and native/operator automation paths retrieve the same persisted job. The separate
 task-filter error classification finding is linked above; hook and remaining mutation legs stay Pending.
+
+The native hook repair now passes a fresh hosted replay: an own-project memory mutation is refused
+when its pre-call hook tries to redirect it to Editorial, and a separate explicit Editorial mutation
+is refused after the operator rejects canonical cross-workspace access. Each hook runs exactly once
+with durable session lifecycle events. Both public memory catalogs remain unchanged; sessions are
+stopped and the hook removed. See `native-hook-fixed-*` and the dated report. Remaining allowed
+foreign-mutation and `all`-scope evidence still needs reconciliation before this full row is closed.

@@ -101,3 +101,11 @@ func hookDispatchContext(ctx context.Context, manager *Manager, session *Session
 
 	return hookspkg.WithHookRunWriter(ctx, writer)
 }
+
+// ToolHookContext attaches the active session's canonical hook audit writers to registry calls.
+func (m *Manager) ToolHookContext(ctx context.Context, sessionID string) context.Context {
+	if active, ok := m.Get(sessionID); ok {
+		return hookDispatchContext(ctx, m, active)
+	}
+	return ctx
+}

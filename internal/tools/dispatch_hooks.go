@@ -9,13 +9,14 @@ import (
 
 func (r *RuntimeRegistry) runPreCallHook(
 	ctx context.Context,
+	scope Scope,
 	target *dispatchTarget,
 	req CallRequest,
 ) (CallRequest, error) {
 	if r.hooks == nil {
 		return req, nil
 	}
-	patched, decision, err := r.hooks.PreCall(ctx, req)
+	patched, decision, err := r.hooks.PreCall(ctx, scope, target.descriptor, req)
 	if err != nil {
 		return req, normalizeHookError(target.descriptor.ID, err)
 	}

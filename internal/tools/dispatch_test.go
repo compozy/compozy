@@ -24,6 +24,8 @@ var _ HookRunner = (*recordingHookRunner)(nil)
 
 func (h *recordingHookRunner) PreCall(
 	ctx context.Context,
+	_ Scope,
+	_ Descriptor,
 	call CallRequest,
 ) (CallRequest, EffectiveToolDecision, error) {
 	if h.pre != nil {
@@ -34,6 +36,8 @@ func (h *recordingHookRunner) PreCall(
 
 func (h *recordingHookRunner) PostCall(
 	ctx context.Context,
+	_ Scope,
+	_ Descriptor,
 	call CallRequest,
 	result ToolResult,
 ) (ToolResult, error) {
@@ -43,11 +47,17 @@ func (h *recordingHookRunner) PostCall(
 	return result, nil
 }
 
-func (h *recordingHookRunner) PostError(ctx context.Context, call CallRequest, err error) error {
+func (h *recordingHookRunner) PostError(
+	ctx context.Context,
+	_ Scope,
+	_ Descriptor,
+	call CallRequest,
+	err error,
+) (error, error) {
 	if h.postError != nil {
-		return h.postError(ctx, call, err)
+		return err, h.postError(ctx, call, err)
 	}
-	return nil
+	return err, nil
 }
 
 type recordingToolEventSink struct {

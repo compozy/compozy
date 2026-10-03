@@ -90,7 +90,10 @@ func hookSessionContext(sess *session.Session) hookspkg.SessionContext {
 		return hookspkg.SessionContext{}
 	}
 
-	info := sess.Info()
+	return hookSessionInfoContext(sess.Info())
+}
+
+func hookSessionInfoContext(info *session.Info) hookspkg.SessionContext {
 	if info == nil {
 		return hookspkg.SessionContext{}
 	}

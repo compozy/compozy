@@ -363,6 +363,13 @@ binding semantics.
 
 Config tools live under `compozy__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `compozy__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
+Native `tool.pre_call` hooks run before the handler and may deny or amend input, but cannot change
+the tool identity, read-only classification or bound workspace. Patched input still passes schema,
+policy and approval checks. Native `tool.post_call` receives the canonical tool-result envelope
+(`content`, `structured`, `preview`, and result metadata) in `tool_result`; a replacement uses that
+same shape. `tool.post_error` may annotate the error while retaining its classification. Hosted
+native calls record hook runs and lifecycle events in the owning session.
+
 Background-role inspection has no `compozy__roles_*` native tool. Use `compozy roles list|show -o json` or
 the HTTP/UDS `GET /api/roles` reads. Scalar `roles.<role>.*` routing and role-policy keys are exposed
 through the live `compozy__config_set`/`compozy__config_unset` descriptors, including coordinator limits and

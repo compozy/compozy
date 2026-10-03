@@ -1417,3 +1417,11 @@ remain unchanged.
 - Native `compozy__task_list` now preserves task-domain validation as `tool_invalid_input` / `schema_invalid` through its existing error mapper. HTTP/UDS native invocation and the CLI share this dispatch.
 - Extensibility, hooks, configuration and workspace isolation are unchanged; no persisted shape or migration. The accepted task filters and official skill contract remain unchanged.
 - Web task catalogs are unaffected. QA owner: `ET-native-workspace-scope-isolation`, bug `BUG-20261002-native-task-filter-error`; the dated report retains the hosted observation and fresh public replay.
+
+## Native hook dispatch repair (2026-10-02 QA)
+
+- Native tools now execute configured typed pre-call, post-call and post-error hooks at registry dispatch. Public CLI/HTTP/UDS invocation and hosted MCP share the repair; configuration keys and DTOs stay unchanged.
+- Hook input patches retain the canonical workspace and immutable tool metadata, then pass the existing schema, workspace policy and approval gates. ACP observations do not repeat native lifecycle dispatch.
+- Active session hook runs and lifecycle events use the existing session-owned recorder. No storage migration, workspace data movement, new worker or process owner is introduced.
+- The internal HookRunner contract and its consumers change together. External MCP/extension registry backends retain their existing behavior; this adapter handles native tools only.
+- Official skill impact is documented in `skills/compozy/references/native-tools.md`. Web hook/session views consume the same existing audit records. QA owner: `ET-native-workspace-scope-isolation`; bug `BUG-20261002-native-hook-dispatch-missing` and the dated report retain replay evidence.

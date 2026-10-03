@@ -59,6 +59,11 @@ func (d *Daemon) bootToolRegistry(
 			state.toolArtifacts,
 		)),
 	}
+	if state.hooks != nil {
+		registryOptions = append(registryOptions, toolspkg.WithHookRunner(&nativeToolHookRunner{
+			hooks: state.hooks, binder: workspaceBinder, now: d.now,
+		}))
+	}
 	if state.toolProjectionEpoch != nil {
 		registryOptions = append(
 			registryOptions,

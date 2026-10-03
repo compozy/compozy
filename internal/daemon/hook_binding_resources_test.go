@@ -16,6 +16,38 @@ import (
 func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should leave hosted native lifecycle dispatch to the registry", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		runtime := &fakeHookRuntime{
+			onToolPreCall:   func(context.Context, hookspkg.ToolPreCallPayload) error { calls++; return nil },
+			onToolPostCall:  func(context.Context, hookspkg.ToolPostCallPayload) error { calls++; return nil },
+			onToolPostError: func(context.Context, hookspkg.ToolPostErrorPayload) error { calls++; return nil },
+		}
+		for _, name := range []string{"compozy__workspace_info", "mcp.compozy-hosted-tools.compozy__workspace_info"} {
+			for _, phase := range []struct{ update, status string }{
+				{"tool_call", ""}, {"tool_call_update", "completed"}, {"tool_call_update", "failed"},
+			} {
+				raw := toolEventRaw(phase.update, phase.status, map[string]any{"ok": true})
+				raw["_meta"] = map[string]any{"claudeCode": map[string]any{"toolName": name}}
+				dispatchACPAgentHookEvent(
+					t.Context(),
+					discardLogger(),
+					runtime,
+					hookspkg.SessionContext{},
+					acp.AgentEvent{
+						Type: acp.EventTypeToolCall, Raw: mustMarshalJSON(t, raw),
+					},
+					time.Date(2026, 10, 3, 7, 0, 0, 0, time.UTC),
+				)
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("observational native dispatches = %d, want 0", calls)
+		}
+	})
+
 	sessionCtx := hookspkg.SessionContext{
 		SessionID:   "sess-1",
 		AgentName:   "codex",

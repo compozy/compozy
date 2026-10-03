@@ -30,7 +30,7 @@ native dispatch. Owning layer and canonical suite: daemon adapter, `TestDaemonNa
 service I/O boundary and fails before the production edit: `task-filter-red-runtime.log`.
 The earlier `task-filter-red.log` is a corrected test compilation mistake, not behavioral proof.
 
-- **Fix commit:** pending
+- **Fix commit:** 244020cfd
 - **Retest:** passed for the corrected error classification
 
 ## Verified replay

@@ -1,6 +1,6 @@
 # BUG-20261002-native-hook-dispatch-missing: Configured hooks do not run around hosted native tools
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -36,4 +36,56 @@ The bounded repair must connect the typed hook runtime to registry dispatch, pre
 workspace authority after patches, and avoid duplicate lifecycle dispatch.
 
 - **Fix commit:** pending
-- **Retest:** pending
+- **Retest:** passed
+
+## Repair in progress
+
+Daemon boot now supplies a native hook adapter to registry dispatch. It uses the existing typed
+runtime and the authoritative descriptor, binds patched input again, refuses a changed workspace
+(including global scope), and leaves final schema, policy and approval checks in place. Native
+post-call hooks receive the canonical tool result envelope; post-error annotations preserve the
+original error classification. Active sessions attach their existing hook audit writers so both
+hook runs and lifecycle events reach the normal session ledger. ACP observations of native calls
+are excluded from a second lifecycle dispatch; provider-native observations retain their path.
+
+The internal `HookRunner` signatures now carry scope and descriptor, with separate post-error
+annotation and hook failure returns. All consumers move together. This is an internal contract
+change; no public DTO, selector, configuration shape or stored schema changes.
+
+Owning invariants and suites: `TestDaemonBootToolRegistry` covers configured dispatch, input
+revalidation, workspace preservation and pre/post/error behavior; the existing ACP hook suite owns
+observational duplication; the existing hosted MCP integration test owns the real daemon,
+subprocess hook and session audit path. The boot regression first executes a denied call incorrectly
+(`native-hook-boot-red.log`), and the observational regression first fires six duplicate hooks
+(`native-hook-duplicate-red.log`). The focused suites pass in `native-hook-focused.log`.
+
+The hosted MCP integration already demonstrates the persisted input patch, required-hook refusal,
+post-call dispatch and post-error classification (`native-hook-hosted-integration-retry.log`). Its
+initial failure was a corrected CLI-array decoding mistake in the new assertion, not a runtime
+failure. A final extension also checks session lifecycle events. The test-shape comparison records
+zero new findings and the unchanged legacy findings in the touched canonical files:
+`native-hook-test-conventions.json`. A fresh original-persona replay and delivery gate remain pending.
+
+## Verified original-persona replay
+
+Ada installs the narrowly matched workspace hook `studio-memory-route` through the public native
+interface and restarts the isolated daemon. Fresh hosted operations session `sess-19742af258c1d89a`
+submits `memory_propose` for Studio note `release_handoff_guard.md`. The hook runs exactly once and
+tries to change only the workspace to Editorial. Dispatch refuses the rewrite with `hook_denied`;
+the agent reports the unfinished save and does not bypass it.
+
+Fresh approve-reads reviewer `sess-4539d1947d1b6a4c` submits an explicit Editorial mutation for
+`studio_editorial_brief.md`. The hook preserves that already-bound target. The shared workspace
+policy prompts for Editorial; Ada rejects the request, and the actual mutating call returns
+`workspace_access_denied`. Both complete hook events and one persisted hook run per session are
+visible through public reads. Studio and Editorial memory catalogs exactly match their independent
+before snapshots. Both caller sessions are stopped, the owned hook is removed, and another daemon
+restart confirms an empty pre-call catalog.
+
+Receipts: `native-hook-fixed-*`. The first cleanup delete supplied an unsupported `source` field;
+the public descriptor identified that driver mistake, and the corrected request succeeded. No
+product workaround was used. The final focused race suites pass in `native-hook-focused-final.log`,
+the hosted MCP integration including session lifecycle events passes in
+`native-hook-hosted-events-integration.log` (15.054s), and all affected `make gate` lanes pass in
+`native-hook-gate.log`. The broader native-boundary scenario remains Pending until its remaining
+allowed foreign-mutation and all-scope legs are reconciled.

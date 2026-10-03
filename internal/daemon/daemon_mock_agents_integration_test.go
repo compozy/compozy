@@ -776,6 +776,44 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 					AgentName:    "mock-hosted-native",
 				},
 			},
+			Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
+				".compozy/config.toml": `[[hooks.declarations]]
+name = "native-create-input"
+event = "tool.pre_call"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{"tool_input":{"id":"hostednative-created","scope":"workspace","title":"Hook approved native task"}}']
+matcher = {tool_id = "compozy__task_create"}
+
+[[hooks.declarations]]
+name = "native-create-output"
+event = "tool.post_call"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{}']
+matcher = {tool_id = "compozy__task_create"}
+
+[[hooks.declarations]]
+name = "native-read-denial"
+event = "tool.pre_call"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{"deny":true,"deny_reason":"Use the workspace catalog"}']
+matcher = {tool_id = "compozy__workspace_info"}
+
+[[hooks.declarations]]
+name = "native-list-error"
+event = "tool.post_error"
+mode = "sync"
+required = true
+command = "/bin/echo"
+args = ['{"error":"Choose a supported task status"}']
+matcher = {tool_id = "compozy__task_list"}
+`,
+			}},
 		})
 
 		registration, ok := harness.MockAgentRegistration("mock-hosted-native")
@@ -830,8 +868,58 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		if err != nil {
 			t.Fatalf("GetTask(%q) error = %v", taskID, err)
 		}
-		if task.Task.ID != taskID || task.Task.Title != "Runtime E2E hosted native tool access" {
-			t.Fatalf("GetTask(%q) = %#v, want hosted native task", taskID, task)
+		if task.Task.ID != taskID || task.Task.Title != "Hook approved native task" {
+			t.Fatalf("GetTask(%q) = %#v, want hosted native task with the pre-call patch", taskID, task)
+		}
+		for _, call := range []struct {
+			tool   toolspkg.ToolID
+			input  map[string]any
+			reason string
+		}{
+			{tool: toolspkg.ToolIDWorkspaceInfo, input: map[string]any{}, reason: "hook_denied"},
+			{tool: toolspkg.ToolIDTaskList, input: map[string]any{"status": "queued"}, reason: "schema_invalid"},
+		} {
+			result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: call.tool.String(), Arguments: call.input})
+			if err != nil || result == nil || !result.IsError {
+				t.Fatalf("CallTool(%s) = %#v, %v, want a structured refusal", call.tool, result, err)
+			}
+			encoded, err := json.Marshal(result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(encoded), call.reason) {
+				t.Fatalf("CallTool(%s) = %s, want %s", call.tool, encoded, call.reason)
+			}
+		}
+		var hookRuns []compozycontract.HookRunPayload
+		if err := harness.CLI.RunJSON(ctx, &hookRuns, "hooks", "runs", "--session", session.ID,
+			"--workspace", harness.WorkspaceID, "--last", "20", "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		counts := make(map[string]int)
+		for _, run := range hookRuns {
+			counts[run.HookName]++
+		}
+		events, err := harness.SessionEvents(ctx, session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dispatched := make(map[string]int)
+		for _, event := range events.Events {
+			if event.Type == eventspkg.HookDispatchComplete {
+				dispatched[event.HookName]++
+			}
+		}
+		for _, name := range []string{"native-create-input", "native-create-output", "native-read-denial", "native-list-error"} {
+			if counts[name] != 1 || dispatched[name] != 1 {
+				t.Errorf(
+					"persisted %s runs/events = %d/%d, want 1/1; runs = %#v",
+					name,
+					counts[name],
+					dispatched[name],
+					hookRuns,
+				)
+			}
 		}
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 			t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)

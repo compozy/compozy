@@ -90,6 +90,9 @@ func dispatchToolHookEvent(
 	event acp.AgentEvent,
 	defaultTimestamp time.Time,
 ) {
+	if hookAgentToolIsNative(event.ToolName()) || hookAgentToolIsNative(event.Title) {
+		return
+	}
 	raw, ok := decodeHookAgentToolPayload(event.Raw)
 	if !ok {
 		return
@@ -100,6 +103,10 @@ func dispatchToolHookEvent(
 		ToolCallID: firstNonEmpty(strings.TrimSpace(event.ToolCallID), strings.TrimSpace(raw.ToolCallID)),
 		ToolID:     hookAgentToolName(raw, strings.TrimSpace(event.Title)),
 		ReadOnly:   strings.EqualFold(strings.TrimSpace(raw.Kind), "read"),
+	}
+	// Native lifecycle hooks belong to registry dispatch, not its ACP observations.
+	if hookAgentToolIsNative(ref.ToolID) {
+		return
 	}
 
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
@@ -137,6 +144,11 @@ func dispatchToolHookEvent(
 		})
 		warnHookAgentDispatch(ctx, logger, hookspkg.HookToolPostError, err)
 	}
+}
+
+func hookAgentToolIsNative(name string) bool {
+	name = strings.TrimPrefix(strings.TrimSpace(name), "mcp.compozy-hosted-tools.")
+	return strings.HasPrefix(name, "compozy__")
 }
 
 func dispatchPermissionHookEvent(
