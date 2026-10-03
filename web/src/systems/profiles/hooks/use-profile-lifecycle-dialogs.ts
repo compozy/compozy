@@ -15,18 +15,12 @@ import type {
   RenameProfilePlan,
 } from "../types";
 
-type Mutation<TVariables, TData> = {
-  mutate: (variables: TVariables, options?: { onSuccess?: (data: TData) => void }) => void;
-  isPending: boolean;
-  error: unknown;
-};
-
 export interface ProfileLifecycleDialogsModel {
   lifecycle: ProfileLifecycleState;
   target: string;
   profile: ProfilePayload | undefined;
   workItems: number;
-  create: Mutation<Parameters<ReturnType<typeof useCreateProfile>["mutate"]>[0], ProfilePayload>;
+  create: ReturnType<typeof useCreateProfile>;
   rename: ReturnType<typeof useRenameProfile>;
   update: ReturnType<typeof useUpdateProfileIdentity>;
   archive: ReturnType<typeof useArchiveProfile>;

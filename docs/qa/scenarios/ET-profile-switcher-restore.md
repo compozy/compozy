@@ -6,11 +6,11 @@ persona: Ada
 journey: J-operate-profiles
 expected: The switcher is a neutral icon button while only default exists, becomes an identity element once a second profile is created, switches through the canonical selection route, answers the boundary question in one sentence, offers the All-profiles state, and restores each project's remembered profile on return without ever force-switching an already-open client.
 entry_points: dock-foot profile switcher; Create profile… dialog; command palette Profiles view; profile.use; GET|PUT /api/profiles/selection; GET /api/logs/stream?component=profile
-qa_status: untested
-bug_ids: BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner
-fix_status: fixed
+qa_status: fail
+bug_ids: BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
+fix_status: pending
 retest_status: pending
-fix_commits: 4760da89f
+fix_commits: 4760da89f; fb4b8a40a
 evidence: /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/quiet-profile-trigger.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/global-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/workspace-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/all-profiles-layered-mark.png
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-selection-precedence; ET-profile-palette-view; MS-web-menubar-global-scope-toggle
@@ -56,3 +56,15 @@ A CLI deletion reaches the open browser, which returns to default without reload
 the event and deleted identity; the original catalog is retained and recovery survives refresh.
 The archive repair is commit 4760da89f. Both recovery defects are verified, while the complete
 Settings/switcher charter remains Pending. See profile-delete-fixed-* and the dated report.
+
+QA 2026-10-03 keyboard walk: navigation and cancellation preserve focus and leave no partial
+profile. A reserved-name refusal also emits a technical toast beside the inline error; tracked as
+BUG-20261003-profile-dialog-validation-toast. Full lifecycle and spoken screen-reader legs remain Pending.
+
+QA 2026-10-03 feedback replay: reserved and duplicate-name refusals now stay inline without a
+raw error toast. Blank-name and server refusals track the current input, and corrected creation
+is independently read and survives reload. Both feedback bugs are verified. Emoji Enter selection
+works and persists, but arrow navigation stays on the first result;
+BUG-20261003-profile-emoji-keyboard-unreachable remains open. Full lifecycle and spoken
+screen-reader legs remain Pending. See the dated report
+and profile-create-name-error-sol-* receipts.

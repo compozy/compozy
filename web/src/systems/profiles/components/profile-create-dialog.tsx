@@ -8,6 +8,7 @@ import {
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
+  FieldError,
   type SymbolValue,
 } from "@compozy/ui";
 
@@ -25,8 +26,9 @@ export interface ProfileCreateDialogProps {
   existingCount: number;
   lens: ProfileLens;
   isPending: boolean;
-  /** Refusal from the daemon, shown inline against the name field. */
-  nameError?: string | null;
+  /** Name refusal from the daemon, tied to the value it rejected. */
+  nameError?: { name: string; message: string } | null;
+  error?: string | null;
   initialName?: string;
   onCreate: (input: {
     name: string;
@@ -44,6 +46,7 @@ export function ProfileCreateDialog({
   lens,
   isPending,
   nameError = null,
+  error = null,
   initialName = "",
   onCreate,
 }: ProfileCreateDialogProps) {
@@ -61,6 +64,8 @@ export function ProfileCreateDialog({
     };
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  const currentNameError =
+    nameError?.name === name.trim() ? nameError.message : name.trim() === "" ? localError : null;
 
   const submit = () => {
     if (!identity.colorValid) return;
@@ -107,9 +112,10 @@ export function ProfileCreateDialog({
             }
             symbol={identity.symbol}
             onSymbolChange={symbol => setIdentity(current => ({ ...current, symbol }))}
-            nameError={nameError ?? localError}
+            nameError={currentNameError}
             testIdPrefix="profile-create"
           />
+          {error !== null ? <FieldError>{error}</FieldError> : null}
         </EntityDialogBody>
         <EntityDialogFooter
           cancelTestId="profile-create-cancel"

@@ -1,6 +1,7 @@
 # BUG-20261003-profile-delete-live-stream-owner: Deleting the viewed profile disables its own recovery stream
 
 - **Status:** verified
+- **Fix commit:** fb4b8a40a
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora

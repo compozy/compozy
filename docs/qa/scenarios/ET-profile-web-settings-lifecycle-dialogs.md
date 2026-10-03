@@ -6,11 +6,11 @@ persona: Ada
 journey: J-operate-profiles
 expected: Settings lists active profiles with identity and work counts, demotes the archived list and the selection map to disclosure, and every lifecycle dialog renders exactly what its plan endpoint returned — rename tiers, archive paused automations and blocked-by-running, delete enumeration or routing to archive, unarchive reactivation — with a stale plan refused and re-asked rather than executed.
 entry_points: Settings → Profiles; create|rename|archive|unarchive|delete dialogs; GET /api/profiles/{name}/rename-plan|archive-plan|delete-plan; POST /api/profiles/{name}/rename|archive|unarchive; DELETE /api/profiles/{name}
-qa_status: untested
-bug_ids: BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner
-fix_status: fixed
+qa_status: fail
+bug_ids: BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
+fix_status: pending
 retest_status: pending
-fix_commits: 4760da89f
+fix_commits: 4760da89f; fb4b8a40a
 evidence: .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
@@ -58,3 +58,15 @@ A CLI deletion reaches the open browser, which returns to default without reload
 the event and deleted identity; the original catalog is retained and recovery survives refresh.
 The archive repair is commit 4760da89f. Both recovery defects are verified, while the complete
 Settings/switcher charter remains Pending. See profile-delete-fixed-* and the dated report.
+
+QA 2026-10-03 keyboard walk: navigation and cancellation preserve focus and leave no partial
+profile. A reserved-name refusal also emits a technical toast beside the inline error; tracked as
+BUG-20261003-profile-dialog-validation-toast. Full lifecycle and spoken screen-reader legs remain Pending.
+
+QA 2026-10-03 feedback replay: reserved and duplicate-name refusals now stay inline without a
+raw error toast. Blank-name and server refusals track the current input, and corrected creation
+is independently read and survives reload. Both feedback bugs are verified. Emoji Enter selection
+works and persists, but arrow navigation stays on the first result;
+BUG-20261003-profile-emoji-keyboard-unreachable remains open. Full lifecycle and spoken
+screen-reader legs remain Pending. See the dated report
+and profile-create-name-error-sol-* receipts.

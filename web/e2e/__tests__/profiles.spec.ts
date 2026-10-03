@@ -389,6 +389,23 @@ test.describe("Profiles", () => {
     await ui.createConfirm.click();
     await expect(ui.createDialog).toContainText("Give the profile a name.");
 
+    // Server refusals stay in the dialog, without a second error notification.
+    for (const name of ["default", "consulting"]) {
+      const refused = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" && response.url().endsWith("/api/profiles")
+      );
+      await ui.createName.fill(name);
+      await ui.createConfirm.click();
+      expect((await refused).ok()).toBe(false);
+      await expect(ui.createName).toHaveAttribute("aria-invalid", "true");
+      await expect(ui.createDialog.getByRole("alert")).toBeVisible();
+      // Check while the inline refusal is visible, before any toast can expire.
+      expect(await appPage.getByRole("button", { name: "Close toast", exact: true }).count()).toBe(
+        0
+      );
+    }
+
     const created = appPage.waitForResponse(
       response => response.request().method() === "POST" && response.url().endsWith("/api/profiles")
     );

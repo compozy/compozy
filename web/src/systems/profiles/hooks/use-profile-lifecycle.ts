@@ -13,6 +13,19 @@ export function lifecycleErrorMessage(error: unknown): string | null {
   return error instanceof Error ? error.message : null;
 }
 
+/** Bind name refusals to their submitted value; keep other failures at form level. */
+export function createProfileErrors(error: unknown, submittedName: string | undefined) {
+  const message = lifecycleErrorMessage(error);
+  const nameError =
+    message !== null &&
+    submittedName !== undefined &&
+    error instanceof ProfileApiError &&
+    ["profile_name_invalid", "profile_name_reserved", "profile_name_taken"].includes(error.code)
+      ? { name: submittedName, message }
+      : null;
+  return { nameError, error: nameError === null ? message : null };
+}
+
 /** A stale plan is the daemon telling us the world moved; re-read and re-ask. */
 export function isStalePlan(error: unknown): boolean {
   return error instanceof ProfileApiError && error.code === "profile_plan_stale";

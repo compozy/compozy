@@ -48,6 +48,15 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   configuration, extensions and persisted state retain their contracts; no migration is needed.
   The official profile workflow remains current. The existing profile E2E suite and fresh
   browser/CLI/UDS replay cover recovery, refresh persistence and retained neighboring profiles.
+- **Profile dialog feedback:** Lifecycle mutations retain their failed state for their sole dialog
+  consumer instead of also emitting a raw error toast. Inline validation and plan-retry callbacks
+  remain active; existing success notices are preserved. Name refusals bind to the submitted value,
+  while operation failures remain visible at form level and pending mutations retain their lifetime.
+  This changes only Web feedback ownership and the internal create-dialog props/story.
+  CLI, HTTP/UDS, native tools, hooks, configuration, extensions, workspace isolation and persisted
+  shapes are unchanged; no migration or official skill command update is needed. The owning
+  Settings E2E flow covers reserved/duplicate refusals and recovery with a valid name; the existing
+  create-dialog suite covers current-value validity, operation errors and pending submissions.
 - **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
   workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The
