@@ -48,7 +48,7 @@ both transports. The persisted delivered situation also contains the stale defau
   definition and never reads `session.Info.Model`, although the session read model already
   carries the bound runtime model. Both the authenticated API and live prompt augmenter
   consume this projection, so both publish the configured default after an override.
-- **Fix commit:** pending
+- **Fix commit:** 783304f77
 - **Regression invariant:** current context identity uses the bound session model ahead of the
   agent default and pending next-prompt selection. The owning layer is the situation service;
   the canonical suite is `internal/situation/service_test.go`. Existing coverage already owns

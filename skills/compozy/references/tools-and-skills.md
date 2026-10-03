@@ -54,6 +54,13 @@ both boundaries. HTTP/UDS tool and toolset routes accept the `profile` query sel
 one profile and reject `all_profiles=true`. An approval token belongs to its minting profile as well
 as its tool, session, workspace, agent, and input. Keep that scope unchanged when invoking it.
 
+Prefer `tool approve --input <json>` with the same input you will invoke. Approval issuance binds
+native workspace names, paths, and inherited operator workspace selection to the same canonical
+input as dispatch. The returned `input_digest` describes that bound input. If supplying both input
+and `--input-digest`, the supplied digest must match the submitted JSON before binding. Digest-only
+approval requires the digest of the already-bound input. A pre-call hook that changes the final
+input still requires a matching approval; tokens remain single-use.
+
 ## Oversized Tool Results
 
 A truncated tool result can carry a bounded `preview` and an opaque

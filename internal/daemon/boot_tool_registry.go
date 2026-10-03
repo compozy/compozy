@@ -79,10 +79,10 @@ func (d *Daemon) bootToolRegistry(
 	}
 	state.toolRegistry = registry
 	state.toolsets = registry
-	state.toolApprovals = approvalTokens
+	state.toolApprovals = &boundToolApprovalIssuer{tokens: approvalTokens, registry: registry, binder: workspaceBinder}
 	state.deps.ToolRegistry = registry
 	state.deps.Toolsets = registry
-	state.deps.ToolApprovals = approvalTokens
+	state.deps.ToolApprovals = state.toolApprovals
 	return nil
 }
 

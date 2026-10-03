@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-workspace-context
 expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
 entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
-qa_status: untested
-bug_ids: BUG-20260729-nearest-workspace-case-alias
+qa_status: fail
+bug_ids: BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch
 fix_status: fixed
 retest_status:
 fix_commits: 4e81f17
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-workspace-access-mode-matrix; ET-workspace-access-prompt-outcomes; MS-workspace-resolution-chain; ET-workspace-host-api-mcp
 ---
 
@@ -53,3 +53,9 @@ automation and memory tools; operator global scope must remain available.
 
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+QA 2026-10-02: the scoped operator approval mismatch is repaired and replayed through CLI, HTTP
+and UDS, including changed-input and one-shot-token refusals. Operator session selectors do not
+establish agent authority. The real hosted-agent boundary and hook-rewrite legs remain unverified;
+two hook creation attempts were rejected before installation and are under investigation. See the
+dated report for receipts and the explicit Pending matrix disposition.

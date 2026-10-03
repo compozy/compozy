@@ -47,6 +47,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   CLI, HTTP/UDS, and native extension build/dev/install callers share the loader; there are no new
   routes, tools, hooks, config keys, Web controls, or stored-state changes.
 - **Workspace data isolation:** No persistent state or workspace selection changes.
+- **Native invocation approval:** HTTP/UDS approval issuance shares the native input binder with
+  dispatch, so workspace names, paths and inherited operator workspace selection produce matching
+  approval digests. Supplied input digests are checked before binding; digest-only approvals retain
+  their existing bound-input contract. Final post-hook input, profile/session/workspace/agent scope,
+  expiry and single-use enforcement remain at the approval store. No tool ID, schema, route, CLI
+  flag, Web control, config key or stored-state change; no migration is required. Official tool
+  guidance and the owning boot suite co-ship, with real operator replay in the QA report.
 - **Agent context runtime identity:** The shared situation projection prefers the session's
   effective model over its configured agent default. Authenticated HTTP/UDS context reads and
   the fresh prompt context share this correction; pending runtime selection remains intent.

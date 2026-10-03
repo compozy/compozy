@@ -152,6 +152,9 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 		if trusted == "" {
 			return nil
 		}
+		if hasOperatorAuthority {
+			return b.resolveNativeWorkspaceInput(ctx, id, payload, trusted)
+		}
 		return setNativeWorkspaceInput(payload, trusted)
 	}
 	if hasOperatorAuthority {

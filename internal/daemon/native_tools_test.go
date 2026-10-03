@@ -10330,6 +10330,128 @@ func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtif
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bind approvals to the native input dispatched by the booted registry", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
+		workspace := workspacepkg.Workspace{ID: "ws-approval", Name: "Editorial", RootDir: t.TempDir()}
+		registry := openDaemonTestGlobalDB(t)
+		if err := registry.InsertWorkspace(t.Context(), workspace); err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(registry), profilepkg.WithHomePaths(homePaths))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(
+			registry,
+			workspacepkg.WithHomePaths(homePaths),
+			workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+			workspacepkg.WithProfileConfigLoader(
+				func(string, string) (compozyconfig.Config, error) { return cfg, nil },
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
+		state.sessions = &fakeSessionManager{infos: []*session.Info{{
+			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
+		}}}
+		daemon := &Daemon{homePaths: homePaths}
+		cleanup := &bootCleanup{}
+		t.Cleanup(func() {
+			var cleanupErr error
+			cleanup.run(t.Context(), &cleanupErr)
+			if cleanupErr != nil {
+				t.Errorf("boot cleanup error = %v", cleanupErr)
+			}
+		})
+		if err := daemon.bootToolRegistry(t.Context(), state, cleanup); err != nil {
+			t.Fatalf("bootToolRegistry() error = %v", err)
+		}
+		resolved, err := resolver.Resolve(t.Context(), workspace.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		canonical, err := json.Marshal(map[string]string{"workspace": resolved.WorkspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := toolspkg.ApprovalInputDigest(canonical, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		alias := json.RawMessage(`{"workspace":"Editorial"}`)
+		aliasDigest, err := toolspkg.ApprovalInputDigest(alias, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		pathInput, err := json.Marshal(map[string]string{"workspace": workspace.RootDir})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name        string
+			input       json.RawMessage
+			inputDigest string
+			invalid     bool
+		}{
+			{name: "Should approve a workspace name", input: json.RawMessage(`{"workspace":"Editorial"}`)},
+			{name: "Should approve a workspace path", input: pathInput},
+			{name: "Should approve an omitted workspace", input: json.RawMessage(`{}`)},
+			{name: "Should approve an absent input"},
+			{name: "Should retain digest-only approval", inputDigest: digest},
+			{name: "Should approve input with its matching digest", input: canonical, inputDigest: digest},
+			{name: "Should validate a submitted alias digest before binding", input: alias, inputDigest: aliasDigest},
+			{
+				name:  "Should reject a supplied digest that differs from the submitted input",
+				input: json.RawMessage(`{"workspace":"Editorial"}`), inputDigest: digest, invalid: true,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				scope := toolspkg.Scope{Operator: true, WorkspaceID: workspace.ID, SessionID: "sess-approval"}
+				grant, err := state.deps.ToolApprovals.CreateToolApproval(
+					t.Context(),
+					scope,
+					toolspkg.ApprovalTokenRequest{
+						ToolID: toolspkg.ToolIDWorkspaceInfo, Input: tc.input, InputDigest: tc.inputDigest,
+					},
+				)
+				if tc.invalid {
+					if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+						t.Fatalf("CreateToolApproval() error = %v, want ErrToolInvalidInput", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("CreateToolApproval() error = %v", err)
+				}
+				result, err := state.deps.ToolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDWorkspaceInfo, Input: tc.input, ApprovalToken: grant.ApprovalToken,
+				})
+				if err != nil {
+					t.Fatalf("Call(approved workspace) error = %v, cause = %v", err, errors.Unwrap(err))
+				}
+				var payload struct {
+					Workspace struct {
+						ID string `json:"id"`
+					} `json:"workspace"`
+				}
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Workspace.ID != workspace.ID {
+					t.Fatalf("workspace ID = %q, want %q", payload.Workspace.ID, workspace.ID)
+				}
+			})
+		}
+	})
+
 	t.Run("Should wire the native registry during daemon boot", func(t *testing.T) {
 		t.Parallel()
 
