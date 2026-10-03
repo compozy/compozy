@@ -93,6 +93,10 @@ export function ProfileCreateDialog({
         className={dialogShellClass("sm")}
         data-testid="profile-create-dialog"
         showCloseButton={false}
+        onKeyDown={event => {
+          // Frimousse handles arrow navigation at document level.
+          if (event.key.startsWith("Arrow")) event.preventBaseUIHandler();
+        }}
       >
         <EntityDialogHeader
           eyebrow="Profiles"

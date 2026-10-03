@@ -369,15 +369,32 @@ test.describe("Profiles", () => {
 
     await color.fill("4CB782");
     await ui.identityPicker.getByRole("button", { name: "Emojis" }).click();
-    await ui.identityPicker.getByRole("searchbox", { name: "Search emojis" }).fill("seedling");
-    await ui.identityPicker.getByRole("gridcell", { name: "Seedling" }).click();
+    // The composed picker must navigate results and commit identity from the keyboard.
+    const emojiSearch = ui.identityPicker.getByRole("searchbox", { name: "Search emojis" });
+    await emojiSearch.fill("book");
+    await expect(
+      ui.identityPicker.getByRole("gridcell", { name: "Notebook with decorative cover" })
+    ).toHaveAttribute("aria-selected", "true");
+    await emojiSearch.press("ArrowRight");
+    await expect(ui.identityPicker.getByRole("gridcell", { name: "Closed book" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await emojiSearch.press("ArrowRight");
+    await expect(ui.identityPicker.getByRole("gridcell", { name: "Open book" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await emojiSearch.press("Enter");
     const updated = appPage.waitForResponse(
       response =>
         response.request().method() === "PATCH" &&
         response.url().endsWith("/api/profiles/consulting")
     );
     await ui.identityConfirm.click();
-    expect((await updated).ok()).toBe(true);
+    const identityResponse = await updated;
+    expect(identityResponse.ok()).toBe(true);
+    expect(await identityResponse.json()).toMatchObject({ emoji: "📖", icon: null });
     await expect(ui.identityDialog).not.toBeVisible();
 
     await ui.createOpen.click();

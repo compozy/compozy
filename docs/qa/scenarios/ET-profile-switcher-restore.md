@@ -10,8 +10,8 @@ qa_status: fail
 bug_ids: BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
 fix_status: pending
 retest_status: pending
-fix_commits: 4760da89f; fb4b8a40a
-evidence: /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/quiet-profile-trigger.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/global-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/workspace-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/all-profiles-layered-mark.png
+fix_commits: 4760da89f; fb4b8a40a; 8380b94f2
+evidence: /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/quiet-profile-trigger.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/global-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/workspace-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/all-profiles-layered-mark.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-selection-precedence; ET-profile-palette-view; MS-web-menubar-global-scope-toggle
 ---
@@ -68,3 +68,9 @@ works and persists, but arrow navigation stays on the first result;
 BUG-20261003-profile-emoji-keyboard-unreachable remains open. Full lifecycle and spoken
 screen-reader legs remain Pending. See the dated report
 and profile-create-name-error-sol-* receipts.
+
+QA 2026-10-03 emoji repair: both identity dialogs now preserve the picker's arrow navigation.
+Sol chooses Open book, cancels Create without leaving a profile, and saves the emoji on reading-room.
+UDS and reload retain the identity and color. Escape restores focus in both dialogs.
+BUG-20261003-profile-emoji-keyboard-unreachable is verified; the complete lifecycle/restore charter
+and spoken screen-reader output remain Pending. See profile-emoji-fixed-sol-* evidence.

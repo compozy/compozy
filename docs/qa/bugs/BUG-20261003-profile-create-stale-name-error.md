@@ -1,6 +1,7 @@
 # BUG-20261003-profile-create-stale-name-error: Editing a refused profile name leaves the old refusal on the new value
 
 - **Status:** verified
+- **Fix commit:** 8380b94f2
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Sol
@@ -63,4 +64,6 @@ Receipts: profile-create-name-error-{red,green}.log, profile-create-name-error-b
 profile-create-name-error-react-doctor-final.log, profile-create-name-error-sol-*.json and
 profile-create-feedback-e2e-final.log. Screenshots: profile-create-corrected-name.png and
 profile-reading-room-persisted.png. Recording profile-create-name-error-sol is stopped (138 frames).
-No source or database reads occurred during the replay. Commit is recorded after the delivery gate.
+No source or database reads occurred during the replay. Fix commit 8380b94f2 follows current-pass delivery gates; receipts are
+profile-create-feedback-gate-final.log, profile-create-feedback-gate-status.log and
+profile-create-feedback-commit.log.

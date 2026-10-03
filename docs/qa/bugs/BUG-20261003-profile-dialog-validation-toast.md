@@ -1,6 +1,7 @@
 # BUG-20261003-profile-dialog-validation-toast: Profile validation duplicates inline feedback in a technical toast
 
 - **Status:** verified
+- **Fix commit:** 8380b94f2
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Sol
@@ -52,4 +53,6 @@ Regression test: web/e2e/__tests__/profiles.spec.ts, E2E-014.
 Receipts: profile-dialog-validation-{red,green}.log, profile-dialog-validation-red-artifacts/,
 profile-dialogs-sol-fixed-*.json, profile-create-name-error-sol-*.json and
 profile-create-feedback-e2e-final.log in this cycle's evidence directory. The final adjacent
-E2E run passed all three cases in 27.4 seconds. Commit is recorded after the delivery gate.
+E2E run passed all three cases in 27.4 seconds. Fix commit 8380b94f2 follows current-pass delivery gates; receipts are
+profile-create-feedback-gate-final.log, profile-create-feedback-gate-status.log and
+profile-create-feedback-commit.log.

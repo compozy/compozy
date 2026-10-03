@@ -57,6 +57,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   shapes are unchanged; no migration or official skill command update is needed. The owning
   Settings E2E flow covers reserved/duplicate refusals and recovery with a valid name; the existing
   create-dialog suite covers current-value validity, operation errors and pending submissions.
+- **Profile emoji keyboard navigation:** Create and edit-identity dialogs let arrow keys reach
+  Frimousse's existing navigation listener through Base UI's event customization API. Escape,
+  focus containment and all other modal consumers keep their existing behavior. The shared picker
+  and dependencies are unchanged. CLI, HTTP/UDS, native tools, hooks, config, extensions, workspace
+  isolation and persisted shapes retain their contracts; no migration or official skill change.
+  E2E-014 covers keyboard identity selection and the saved public response; fresh keyboard replay
+  covers both dialogs, canceled creation, focus return and reload persistence.
 - **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
   workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The
