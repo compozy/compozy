@@ -1,6 +1,6 @@
 # BUG-20261002-onboarding-skip-keeps-project: Skip to home leaves the previous project active
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -40,9 +40,32 @@ remains valid evidence for its distinct empty-catalog precondition.
 
 ## Fix
 
-Pending investigation after the persona walk. An earlier retry stopped on duplicate recent/catalog
-model labels; it collected no Skip verdict and was replaced by the fresh recorded retry above.
+- **Root cause:** Skip and Finish setup invoke the same wizard action. Completion updates the
+  onboarding status but never carries the explicit Skip choice into the persisted workspace scope.
+- **Repair:** Give Skip a distinct wizard action that enables Global after completion succeeds,
+  using the existing scope store. Normal Finish retains the current scope; a failed completion
+  preserves the draft and project selection. Remembered projects are not cleared or deleted.
+- **Regression owner:** `use-onboarding-wizard.test.tsx`, successful Skip/Finish scope handoff and
+  failed completion, plus existing busy-workspace guards. The browser replay owns button wiring
+  and scope persistence across refresh.
+- **Fix commit:** pending.
+
+An earlier retry stopped on duplicate recent/catalog model labels; it collected no Skip verdict
+and was replaced by the fresh recorded retry above.
 
 ## Verification
 
-Pending repair, original-persona replay, and adjacent normal Finish setup canary.
+- **Retested:** 2026-10-02, Dora through fresh setup and production-page reloads.
+- **Result:** Skip selects Global with three registered projects and retains it after refresh.
+  Disabling Global returns to the remembered Research notes project. A separate normal Finish setup
+  walk preserves that project scope across refresh. Neither path creates/resolves a workspace, and
+  independent UDS reads confirm all three complete project records are unchanged. CLI status confirms
+  completed setup. No model runtime result is claimed from selecting the advertised default.
+- **Checks:** The three affected suites pass 22 tests, including successful Skip/Finish and failed
+  completion. All 693 Web suites / 6,903 tests, typecheck, and production build pass; React Doctor is
+  100/100. `make gate` passes all affected lanes with zero lint warnings/errors.
+- **Evidence:** `onboarding-skip-scope-fixed-replay.json`, `onboarding-skip-global-fixed.png`,
+  `onboarding-normal-finish-canary.json`, `onboarding-skip-scope-final-catalog.json`,
+  `onboarding-skip-scope-final-status.json`, and `onboarding-skip-scope-*.log` under the dated directory.
+- **Recording:** `/Users/pedronauck/.config/browser-harness/agent-workspace/recordings/compozy-onboarding-skip-scope-fixed-20261002`
+  (closed, 15 frames).

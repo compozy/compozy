@@ -45,7 +45,7 @@ the clean page retry. No workspace was submitted; the independent UDS catalog re
   from the parent listing. The query error itself is correct.
 - **Repair scope:** Retain known navigation anchors at the shared browser's navigation event;
   preserve the failed path and error, without reusing another directory's contents as its result.
-- **Fix commit:** pending.
+- **Fix commit:** `ebfb89518`.
 - **Regression test:** Existing `directory-browser.test.tsx`, through the real setup/browser hooks
   and a mocked filesystem adapter boundary; real permission-failure replay is also required.
 

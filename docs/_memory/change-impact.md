@@ -53,6 +53,11 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   are substituted. Filesystem HTTP/UDS responses, CLI/native tools, hooks/config, stored workspace
   state, and official skill commands are unchanged. The directory-browser suite and the existing
   Add project scenario own regression/replay evidence; no compatibility migration is needed.
+- **Onboarding Skip scope:** Explicit Skip enables the existing persisted Global scope only after
+  completion succeeds, retaining the remembered project. Normal Finish and failed completion retain
+  their previous scope. The change is internal Web orchestration: no API/CLI/native-tool, hook,
+  configuration, workspace data, or schema changes. Official structured-surface commands remain
+  unchanged; the owning Add project scenario records the populated-catalog handoff and its replay.
 - **Official skill / Web / Docs:** Profile guidance documents the optional fallback note. Web
   consumers continue using the existing effective profile field; generated DTOs co-ship. Onboarding
   references now match the observed empty workspace catalog and optional Skip-to-Global flow.
