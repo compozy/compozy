@@ -47,7 +47,7 @@ family digests remain unchanged.
   session/workspace refusal, and retain fatal handling for cancellation and migration failures.
 - **Regression owner:** `internal/daemon/daemon_test.go`, `TestBootSessionRepair`; storage ownership
   and physical-family integrity remain owned by the existing SessionDB suites and real lab replay.
-- **Fix commit:** pending.
+- **Fix commit:** `212d9aea1`.
 
 ## Verification
 

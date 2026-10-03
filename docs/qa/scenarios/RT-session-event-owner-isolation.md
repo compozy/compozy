@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20261002-foreign-history-blocks-startup
 fix_status: fixed
 retest_status: pass
-fix_commits: 3e35bf90
+fix_commits: 3e35bf90; 212d9aea1
 evidence: docs/qa/evidence/2026-10-02-untested/session-owner-fixed-refusal-summary.json; docs/qa/evidence/2026-10-02-untested/session-owner-restore-directory.json; docs/qa/evidence/2026-10-02-untested/session-owner-restored-alpha-http.json; docs/qa/evidence/2026-10-02-untested/session-owner-restored-beta-uds.json; docs/qa/evidence/2026-10-02-untested/session-owner-storage-race.log; docs/qa/evidence/2026-10-02-untested/session-owner-strict-audit-final.json; docs/qa/evidence/2026-10-02-untested/session-owner-teardown.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-refuse-legacy-session-database

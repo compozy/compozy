@@ -42,6 +42,13 @@ vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
 
 vi.mock("../use-directory-browser", () => ({
   useDirectoryBrowser: () => ({
+    currentPath: "/Users/operator",
+    parent: null,
+    home: "/Users/operator",
+    roots: ["/"],
+    navigateTo: vi.fn(),
+    goToParent: vi.fn(),
+    goHome: vi.fn(),
     data: {
       path: "/Users/operator",
       parent: null,

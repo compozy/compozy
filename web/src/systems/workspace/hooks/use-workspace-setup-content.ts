@@ -42,12 +42,11 @@ export function useWorkspaceSetupContent({
   onSuccessClose,
 }: UseWorkspaceSetupContentOptions) {
   const createWorkspace = useCreateWorkspace();
-  const [browsePath, setBrowsePath] = useState("");
   const [draft, setDraft] = useState<WorkspaceSetupDraft>(emptyDraft);
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const browse = useDirectoryBrowser({ path: browsePath || undefined, dirsOnly: true });
+  const browse = useDirectoryBrowser({ dirsOnly: true });
   const browseData = browse.data;
 
   /**
@@ -126,22 +125,18 @@ export function useWorkspaceSetupContent({
 
   return {
     browse: {
-      currentPath: browseData?.path ?? browsePath,
-      parentPath: browseData?.parent ?? null,
-      homePath: browseData?.home ?? null,
-      roots: browseData?.roots ?? [],
+      currentPath: browse.currentPath,
+      parentPath: browse.parent,
+      homePath: browse.home,
+      roots: browse.roots,
       entries: browseData?.entries ?? [],
       isBrowsing: browse.isLoading || browse.isFetching,
       browseError: browse.error
         ? getErrorMessage(browse.error, "Failed to browse directory.")
         : null,
-      navigateTo: setBrowsePath,
-      goToParent: () => {
-        if (browseData?.parent) setBrowsePath(browseData.parent);
-      },
-      goHome: () => {
-        if (browseData?.home) setBrowsePath(browseData.home);
-      },
+      navigateTo: browse.navigateTo,
+      goToParent: browse.goToParent,
+      goHome: browse.goHome,
     },
     canSubmit,
     createError,

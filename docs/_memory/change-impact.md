@@ -47,6 +47,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   CLI, HTTP/UDS, and native extension build/dev/install callers share the loader; there are no new
   routes, tools, hooks, config keys, Web controls, or stored-state changes.
 - **Workspace data isolation:** No persistent state or workspace selection changes.
+- **Directory-browser recovery:** The shared Web browser retains known parent/home/root
+  destinations when a directory read fails. Both Add project and first-run onboarding consume
+  that navigation state; the failed path and error remain visible, and no stale directory entries
+  are substituted. Filesystem HTTP/UDS responses, CLI/native tools, hooks/config, stored workspace
+  state, and official skill commands are unchanged. The directory-browser suite and the existing
+  Add project scenario own regression/replay evidence; no compatibility migration is needed.
 - **Official skill / Web / Docs:** Profile guidance documents the optional fallback note. Web
   consumers continue using the existing effective profile field; generated DTOs co-ship. Onboarding
   references now match the observed empty workspace catalog and optional Skip-to-Global flow.
