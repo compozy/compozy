@@ -6,12 +6,12 @@ persona: Ada
 journey: J-operate-workspace-context
 expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
 entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
-qa_status: fail
-bug_ids: BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch; BUG-20261002-hook-tool-matcher-docs; BUG-20261002-native-workspace-identity-boundaries; BUG-20261002-native-hook-dispatch-missing; BUG-20261002-native-task-filter-error
-fix_status: pending
-retest_status:
-fix_commits: 4e81f17
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+qa_status: pass
+bug_ids: BUG-20261003-task-catalog-replaces-authorized-workspace; BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch; BUG-20261002-hook-tool-matcher-docs; BUG-20261002-native-workspace-identity-boundaries; BUG-20261002-native-hook-dispatch-missing; BUG-20261002-native-task-filter-error
+fix_status: fixed
+retest_status: pass
+fix_commits: 4e81f17; bef9a13b8; 65f740194; 563990440; 244020cfd; e127956a3
+evidence: docs/qa/evidence/2026-10-02-untested/native-hook-inherited-summary.json; docs/qa/evidence/2026-10-02-untested/native-hook-fixed-summary.json; docs/qa/evidence/2026-10-02-untested/native-handoff-summary.json; docs/qa/evidence/2026-10-02-untested/task-catalog-replay-summary.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-workspace-access-mode-matrix; ET-workspace-access-prompt-outcomes; MS-workspace-resolution-chain; ET-workspace-host-api-mcp
 ---
@@ -83,3 +83,15 @@ is refused after the operator rejects canonical cross-workspace access. Each hoo
 with durable session lifecycle events. Both public memory catalogs remain unchanged; sessions are
 stopped and the hook removed. See `native-hook-fixed-*` and the dated report. Remaining allowed
 foreign-mutation and `all`-scope evidence still needs reconciliation before this full row is closed.
+
+QA 2026-10-03: allowed Editorial memory mutation by registered name persists, and a bound all-scope
+read is denied while the operator read succeeds. The agent then exposes a separate task catalog
+regression: Editorial name/path queries return Studio records. That finding keeps this row Pending.
+
+Final reconciliation 2026-10-03: Fixed. The fresh empty-input hooks_list caller returns the same five
+hook name/event pairs as the independent CLI, closing the last omitted-workspace catalog leg.
+Workspace, memory, automation and empty task-claim inheritance; own ID/name/path aliases; allowed
+and denied foreign reads/mutations; operator-only global/all; and executed hook rewrite refusal all
+have linked receipts in the dated report. Task target repair returns Editorial's correct empty page
+and preserves Studio's three tasks. All affected gates pass. The empty claim proves boundary
+invocation only, not acquisition of a nonempty queue; dedicated task-lease journeys own that invariant.

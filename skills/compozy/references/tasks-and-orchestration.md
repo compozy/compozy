@@ -34,6 +34,11 @@ Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__
 
 Other filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, title/identifier search, sort (`recent` or `priority`), cursor, and limit. All surfaces accept `worktree` to scope the catalog to tasks whose active run is bound to that worktree; the CLI flag is `--worktree`. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
 
+A bound session inherits its own workspace when the native task catalog target is omitted.
+An explicit foreign workspace must pass the shared workspace-access policy and then selects that
+workspace's records; it never falls back to the caller's inventory. The acting profile still owns
+the read scope. Native `global` and `all` scope remain operator-only for bound sessions.
+
 CLI `task publish`, `task start`, `task approve`, and `task reject` use the selected profile,
 including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
 a foreign profile receives not found, just as it does for the detail read.

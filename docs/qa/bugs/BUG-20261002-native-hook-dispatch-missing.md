@@ -1,6 +1,7 @@
 # BUG-20261002-native-hook-dispatch-missing: Configured hooks do not run around hosted native tools
 
 - **Status:** verified
+- **Fix commit:** `e127956a3`
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada

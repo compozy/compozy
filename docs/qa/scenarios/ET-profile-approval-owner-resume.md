@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: A pending tool or palette approval records the profile that created it and resumes under that owner even after the operator switches, re-running the session-immutability, local-management, availability, and policy checks on resume; archive and delete refuse with profile_approvals_pending while an executable pending approval belongs to the profile, naming the approval ids to resolve or cancel; pending approvals are never counted as work items.
 entry_points: destructive palette or tool invocation awaiting approval; compozy approvals show|resolve; compozy profile archive|delete; GET /api/profiles/{name}/archive-plan|delete-plan; POST /api/profiles/{name}/archive; DELETE /api/profiles/{name}; compozy__cmd_palette_invoke
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261003-approval-cli-profile-owner
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-lifecycle-race-guards; ET-agent-command-invoke; ET-profile-cli-lifecycle
 ---
 
@@ -45,3 +45,6 @@ Expected evidence: the pending record showing its owner; the post-switch resume 
 stamped owner of the produced work; the unavailable, remote, and session-conflict refusals; both
 plan payloads before and after the approval is cleared; the refused mutation bodies naming the
 approval ids; and the work-items count on either side.
+
+QA 2026-10-03: a real pending palette approval blocks archive/delete and is excluded from work counts.
+Owner-selected approval show/cancel fail with not found; remaining lifecycle legs await that repair.

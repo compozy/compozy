@@ -61,6 +61,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   and configuration identities retain their own resolver paths. This changes no stored shape,
   public field, permission mode, hook contract or Web control and requires no migration. Official
   native-tool guidance and the boot/automation owning suites co-ship; the dated report owns replay.
+- **Task catalog workspace selection:** the task service preserves an explicit authorized target
+  through the existing task-resource workspace policy instead of replacing it with the caller.
+  Omitted targets retain caller defaults and the acting profile still fences the catalog. Native
+  dispatch continues to canonicalize aliases and refuse agent global/all scope. CLI/HTTP/UDS
+  operator behavior, Web reads, hooks/config, extensions, stored data and public shapes are
+  unchanged; no migration is required. The existing task integration suite and official task
+  reference co-ship, with a real hosted replay in the owning QA report.
 - **Hook authoring reference:** not applicable — editorial only. Tool-event examples and the
   official extension skill use the existing `tool_id` matcher/payload field; permission-event
   `tool_name` remains documented separately. No runtime, wire, config, hook or workspace-state
