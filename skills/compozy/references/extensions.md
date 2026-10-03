@@ -18,6 +18,11 @@
 
 An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation enables the kit by default. Per-profile enablement and resource placement decide what is published in each profile.
 
+Declare static paths as tables, for example `[[resources.agents]]` with `path = "agents"` and an
+optional `profile`. Previous string arrays are normalized during loading through v0.3.0-beta.30;
+builds emit tables. Convert handwritten strings to `{ path = "..." }` entries before their removal
+in v0.3.0-beta.31. Omit `profile` to retain the previous all-profile visibility.
+
 Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Gateway digest without changing state.
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref> --profile <profile>`, or set a value through stdin or a hidden prompt. Set, bind, list, and unset resolve and transport the selected profile; without `--profile`, they use the normal profile-resolution chain. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. Reads expose bound key, server, and header names only, never values or Vault references.
