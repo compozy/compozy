@@ -35,6 +35,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   Web, hook, configuration, extension or stored-state shape changes; no migration is required.
   Official native-tool guidance and the existing palette command suite co-ship; the QA report
   records the real pending-approval replay and profile lifecycle plan readback.
+- **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
+  owner, matching the existing delete audit convention. The payload retains the affected profile
+  and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives
+  the existing named event and sweeps the unavailable view. Ordinary writes under archived owners
+  remain refused. No schema, wire, native-tool, hook, config or extension change, and no migration.
+  The existing daemon recorder suite uses real SQLite; official profile guidance and QA replay
+  document the event's ownership and restored live projection.
 - **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
   workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The

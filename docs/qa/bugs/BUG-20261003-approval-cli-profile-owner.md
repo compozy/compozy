@@ -1,6 +1,7 @@
 # BUG-20261003-approval-cli-profile-owner: A profile owner cannot inspect or cancel its pending approval
 
 - **Status:** verified
+- **Fix commit:** e9e4a46a6
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora

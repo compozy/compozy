@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: The switcher is a neutral icon button while only default exists, becomes an identity element once a second profile is created, switches through the canonical selection route, answers the boundary question in one sentence, offers the All-profiles state, and restores each project's remembered profile on return without ever force-switching an already-open client.
 entry_points: dock-foot profile switcher; Create profile… dialog; command palette Profiles view; profile.use; GET|PUT /api/profiles/selection; GET /api/logs/stream?component=profile
-qa_status: untested
-bug_ids:
-fix_status: not-needed
-retest_status: pass
+qa_status: fail
+bug_ids: BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner
+fix_status: pending
+retest_status: pending
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/quiet-profile-trigger.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/global-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/workspace-profile-restored.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/all-profiles-layered-mark.png
-last_report: docs/qa/reports/2026-08-26-profile-identity-final.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-selection-precedence; ET-profile-palette-view; MS-web-menubar-global-scope-toggle
 ---
 
@@ -45,3 +45,8 @@ the open browser resisted an external CLI switch, and All profiles returned to a
 re-entry.
 
 qa-impact: 2026-09-30 shell rail v2. The profile switcher moved from the menubar tray to the dock foot (above the theme toggle and Settings). Reset to re-walk switching, creation and restoration from its new home.
+
+QA 2026-10-03: a CLI-driven archive lost its lifecycle audit and left the open profile stale.
+The archive audit repair now delivers the named event and sweeps the live browser to default.
+A separate delete replay persists its event but loses the recovery stream while desktop authority
+reconnects, leaving the removed profile visible. Full Settings/switcher walks remain Pending.

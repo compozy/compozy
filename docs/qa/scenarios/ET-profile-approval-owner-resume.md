@@ -10,7 +10,7 @@ qa_status: untested
 bug_ids: BUG-20261003-approval-cli-profile-owner
 fix_status: fixed
 retest_status: pending
-fix_commits:
+fix_commits: e9e4a46a6
 evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-lifecycle-race-guards; ET-agent-command-invoke; ET-profile-cli-lifecycle

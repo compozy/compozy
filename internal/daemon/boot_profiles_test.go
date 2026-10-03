@@ -3,9 +3,11 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
@@ -14,6 +16,57 @@ import (
 
 func TestDaemonProfileEventRecorder(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retain an archive event after its subject becomes unavailable", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		now := time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC)
+		manager, err := profile.NewManager(
+			profile.WithStore(database), profile.WithHomePaths(home),
+			profile.WithEventRecorder(&daemonProfileEventRecorder{
+				writer: database, now: func() time.Time { return now },
+			}),
+		)
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		created, err := manager.Create(t.Context(), profile.CreateInput{Name: "delivery-review"})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		plan, err := manager.PrepareArchive(t.Context(), created.Name)
+		if err != nil {
+			t.Fatalf("PrepareArchive() error = %v", err)
+		}
+		if _, err := manager.Archive(t.Context(), created.Name, plan.Revision); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		entries, err := database.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Type: eventspkg.ProfileArchived,
+		})
+		if err != nil {
+			t.Fatalf("ListEventSummaries() error = %v", err)
+		}
+		if len(entries) != 1 {
+			t.Fatalf("archive events = %d, want one durable event", len(entries))
+		}
+		var event profile.Event
+		if err := json.Unmarshal(entries[0].ContentValue(), &event); err != nil {
+			t.Fatalf("decode archive event: %v", err)
+		}
+		if event.ProfileID != created.ID || event.ProfileName != created.Name || event.OperationID == "" {
+			t.Fatalf("archive event = %#v, want the archived subject and operation", event)
+		}
+		if err := database.WriteEventSummary(t.Context(), store.EventSummary{
+			ProfileID: created.ID, Type: eventspkg.ProfileIdentityUpdated, Timestamp: now,
+		}); err == nil || !strings.Contains(err.Error(), "profile_archived") {
+			t.Fatalf("ordinary event write error = %v, want profile_archived", err)
+		}
+	})
 
 	t.Run("Should persist deleted profile events under the permanent operator owner", func(t *testing.T) {
 		t.Parallel()

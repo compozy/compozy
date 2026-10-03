@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-profiles
 expected: Settings lists active profiles with identity and work counts, demotes the archived list and the selection map to disclosure, and every lifecycle dialog renders exactly what its plan endpoint returned — rename tiers, archive paused automations and blocked-by-running, delete enumeration or routing to archive, unarchive reactivation — with a stale plan refused and re-asked rather than executed.
 entry_points: Settings → Profiles; create|rename|archive|unarchive|delete dialogs; GET /api/profiles/{name}/rename-plan|archive-plan|delete-plan; POST /api/profiles/{name}/rename|archive|unarchive; DELETE /api/profiles/{name}
-qa_status: untested
-bug_ids: BUG-20260906-settings-nav-stale-open-history
-fix_status: fixed
-retest_status: pass
+qa_status: fail
+bug_ids: BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner
+fix_status: pending
+retest_status: pending
 fix_commits:
 evidence: .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md
-last_report: docs/qa/reports/2026-09-06-sessions-stability.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
 ---
 
@@ -47,3 +47,8 @@ profile list.
 ### 2026-09-06 targeted navigation re-walk
 
 Selected branch: after archiving the active profile and reloading Profiles, open Settings and choose Profiles while the launcher's General navigation is still pending. The latest section click must win; the archived disclosure stays reachable. E2E-014 passed five unchanged daemon-served repetitions against the repaired Web build. The original CI trace preserves the slower response timing that exposed the race; coordinator regressions cover that ordering deterministically. This retest addresses the linked navigation defect and does not claim a new walk of every lifecycle action in this scenario.
+
+QA 2026-10-03: a CLI-driven archive lost its lifecycle audit and left the open profile stale.
+The archive audit repair now delivers the named event and sweeps the live browser to default.
+A separate delete replay persists its event but loses the recovery stream while desktop authority
+reconnects, leaving the removed profile visible. Full Settings/switcher walks remain Pending.

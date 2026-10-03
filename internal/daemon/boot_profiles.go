@@ -142,7 +142,9 @@ func (r *daemonProfileEventRecorder) archiveTerminalProfile(event profile.Event)
 }
 
 func profileEventSummaryOwnerID(event profile.Event) string {
-	if event.Name == "profile.deleted" {
+	// These transitions make the subject unavailable for new writes. Keep their
+	// audit under the permanent operator owner, with the subject in the payload.
+	if event.Name == eventspkg.ProfileArchived || event.Name == eventspkg.ProfileDeleted {
 		return store.DefaultProfileID
 	}
 	return event.ProfileID

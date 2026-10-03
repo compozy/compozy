@@ -89,6 +89,9 @@ Profile failures carry `{error:{code,message,action}}`. Preserve all three field
 `profile.deleted`, and `profile.selection_changed`. Recovery paths use `profile.plan_stale`,
 `profile.lifecycle_op_recovered`, and `profile.lifecycle_op_failed`. Event payloads never carry secret
 references.
+Archive and delete audit summaries use the permanent operator owner because the affected profile
+is unavailable for new writes. Their payload retains the affected `profile_id` and `profile_name`;
+observe the all-profiles event stream when following lifecycle changes across profiles.
 
 Profile-scoped Vault refs use `vault:profiles/<profile>/<name>`. Rename rewrites only the Manager's
 explicit rewrite list. Never reconstruct or bulk-edit refs outside the lifecycle surface.
