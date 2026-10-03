@@ -272,10 +272,21 @@ test.describe("Profiles", () => {
     );
   });
 
+  // Invariant: project entry restores its remembered profile, including after aggregate viewing.
+  // Owner: Web profile selection; canonical suite: Profiles E2E-013.
   test("E2E-013: switcher stays quiet, then carries identity, switch, and per-project memory", async ({
     appPage,
     runtime,
   }) => {
+    const originalId = await activeWorkspaceId(runtime);
+    const { workspaces } = await runtime.requestJSON<{
+      workspaces: Array<{ id: string; name: string }>;
+    }>("/api/workspaces");
+    const originalWorkspace = workspaces.find(workspace => workspace.id === originalId);
+    if (!originalWorkspace) throw new Error("the profile journey requires its initial project");
+    const secondRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-profile-switch-"));
+    const secondWorkspace = await runtime.resolveWorkspace(secondRoot);
+
     // Bundled extensions can create profiles; arrange the single-profile state.
     for (const profile of await listProfiles(runtime)) {
       if (profile.name !== "default" && profile.state === "active") {
@@ -338,9 +349,37 @@ test.describe("Profiles", () => {
       await runtime.requestJSON<Array<{ profile: string }>>("/api/profiles/selection");
     expect(remembered.some(entry => entry.profile === "marketing")).toBe(true);
 
-    // Returning to the project restores it rather than resetting to default.
+    // A different project starts from its own slot, and returning restores this one.
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // Aggregate is an ephemeral view; re-entry uses the remembered real identity.
+    await ui.switcher.click();
+    await ui.switcherAll.click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // A fresh client resolves the same remembered choice.
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // An external choice for an inactive project applies on entry, even with cached data.
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await runtime.requestJSON("/api/profiles/selection", {
+      method: "PUT",
+      body: JSON.stringify({
+        scope: "workspace",
+        workspace_id: originalWorkspace.id,
+        profile: "default",
+      }),
+    });
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
   });
 
   test("E2E-014: settings lists, creates, and edits identity behind disclosure", async ({

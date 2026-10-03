@@ -84,6 +84,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   commands, HTTP/UDS/native tool IDs, hooks, extensions, config, workspace content and storage shapes
   retain their contracts; no migration or official skill command change is needed. Web lifecycle
   QA and the existing profile E2E suite own the changed behavior.
+- **Profile project restoration:** Web transfers the active view only when changing between
+  workspace and Global breadth. Leaving a distinct project releases its ephemeral view; re-entry
+  waits for the remembered selection query to settle before pinning the client view. External
+  updates still leave an already-open client's profile unchanged. CLI, HTTP/UDS, native tools,
+  hooks, extensions, config, workspace files and persisted shapes retain their contracts; no
+  migration is needed. The official profile guidance and switcher QA scenario co-ship with the
+  existing E2E-013, while aggregate breadth and two-client E2Es retain their separate invariants.
 - **Profile rename repository offers:** Web derives accepted repository ids from the current
   daemon plan and retains only explicit declines in transient dialog state. Offers start selected,
   name edits preserve declines, and absent candidates cannot enter the request. E2E-016 uses real

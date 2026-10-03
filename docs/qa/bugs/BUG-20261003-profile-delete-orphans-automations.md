@@ -1,7 +1,7 @@
 # BUG-20261003-profile-delete-orphans-automations: Deleting an apparently empty profile strands its automations
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** 74744060b
 - **Impact (user-side):** Data-Loss
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Sol; Ada

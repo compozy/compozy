@@ -1,7 +1,7 @@
 # BUG-20261003-profile-dialog-survives-back: Browser Back leaves a profile lifecycle dialog on the previous page
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** 74744060b
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Sol

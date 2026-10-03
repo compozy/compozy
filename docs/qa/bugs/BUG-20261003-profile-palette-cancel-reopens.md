@@ -1,7 +1,7 @@
 # BUG-20261003-profile-palette-cancel-reopens: A canceled palette lifecycle dialog reopens on reload
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** 74744060b
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Sol

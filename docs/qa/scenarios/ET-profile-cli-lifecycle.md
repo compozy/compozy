@@ -10,7 +10,7 @@ qa_status: fail
 bug_ids: BUG-20261003-profile-delete-orphans-automations; BUG-20261003-profile-archive-resource-automations; BUG-20260914-profile-rename-mcp-reference
 fix_status: pending
 retest_status: pending
-fix_commits: c131f5764; b4ed8ca18
+fix_commits: c131f5764; b4ed8ca18; 74744060b
 evidence: docs/qa/reports/2026-09-14-marketplace-review-public.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-selection-precedence; ET-profile-operations-recovery; ET-profile-lifecycle-race-guards; ET-profile-approval-owner-resume

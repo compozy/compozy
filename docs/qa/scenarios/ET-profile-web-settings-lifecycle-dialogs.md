@@ -10,7 +10,7 @@ qa_status: fail
 bug_ids: BUG-20261003-profile-palette-cancel-reopens; BUG-20261003-profile-delete-orphans-automations; BUG-20261003-profile-dialog-survives-back; BUG-20261003-profile-archive-resource-automations; BUG-20261003-profile-rename-repositories-unchecked; BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
 fix_status: pending
 retest_status: pending
-fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; a15b2ea62; b4ed8ca18
+fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; a15b2ea62; b4ed8ca18; 74744060b
 evidence: docs/qa/evidence/2026-10-02-untested/profile-rename-fixed-sol-ended.json; .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle

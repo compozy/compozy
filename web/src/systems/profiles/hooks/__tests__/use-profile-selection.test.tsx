@@ -1,5 +1,5 @@
 // Suite: active profile view selection
-// Invariant: changing profile lenses carries the source lens's local view before any consumer
+// Invariant: changing workspace breadth carries the source lens's local view before any consumer
 // commits a destination-scoped read.
 // Owning layer: useActiveProfileView.
 // Boundary IN: profile lens changes and profile-view store entries.

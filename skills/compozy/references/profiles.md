@@ -6,6 +6,11 @@ A profile partitions operator work on one CompozyOS installation. `default` is p
 global identities; workspace and Global lenses only remember a selection. A session binds the resolved
 profile at creation, and later selection changes never move that session.
 
+An open Web client keeps its current view when another client changes the remembered selection.
+Entering a different project restores that project's remembered profile; reloading also resolves
+the remembered choice. All profiles is temporary and is never remembered as a selection.
+Toggling the Global breadth preserves the current viewing profile without rewriting either slot.
+
 ## Resolve And Inspect
 
 Resolution order is root `--profile`, `COMPOZY_PROFILE`, the resolved workspace's remembered choice
