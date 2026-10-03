@@ -4,11 +4,12 @@ import (
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
 // ParseAutomationJobListQuery parses the shared automation job list filters.
-func ParseAutomationJobListQuery(c *gin.Context) (automationpkg.JobListQuery, error) {
+func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (automationpkg.JobListQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return automationpkg.JobListQuery{}, err
@@ -19,6 +20,7 @@ func ParseAutomationJobListQuery(c *gin.Context) (automationpkg.JobListQuery, er
 	}
 
 	query := automationpkg.JobListQuery{
+		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
 		LoopName:    strings.TrimSpace(c.Query("loop")),
 		Enabled:     enabled,
@@ -48,7 +50,10 @@ func ParseAutomationJobListQuery(c *gin.Context) (automationpkg.JobListQuery, er
 }
 
 // ParseAutomationTriggerListQuery parses the shared automation trigger list filters.
-func ParseAutomationTriggerListQuery(c *gin.Context) (automationpkg.TriggerListQuery, error) {
+func ParseAutomationTriggerListQuery(
+	c *gin.Context,
+	readScope store.ReadScope,
+) (automationpkg.TriggerListQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return automationpkg.TriggerListQuery{}, err
@@ -59,6 +64,7 @@ func ParseAutomationTriggerListQuery(c *gin.Context) (automationpkg.TriggerListQ
 	}
 
 	query := automationpkg.TriggerListQuery{
+		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
 		Event:       strings.TrimSpace(c.Query("event")),
 		LoopName:    strings.TrimSpace(c.Query("loop")),

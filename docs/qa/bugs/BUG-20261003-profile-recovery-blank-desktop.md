@@ -1,7 +1,7 @@
 # BUG-20261003-profile-recovery-blank-desktop: An unavailable profile leaves Settings blank with a generic retry notice
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** 664f24775
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Ada

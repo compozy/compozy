@@ -29,12 +29,11 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query, err := ParseAutomationTriggerListQuery(c)
+	query, err := ParseAutomationTriggerListQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	query.ReadScope = readScope
 
 	page, err := manager.ListTriggers(c.Request.Context(), query)
 	if err != nil {

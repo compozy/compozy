@@ -1,12 +1,12 @@
 # BUG-20261003-automation-job-cursor-refused: A jobs cursor cannot read the next page of the same query
 
-- **Status:** open
+- **Status:** verified
 - **Fix commit:** pending
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
 - **Journey Step:** J-24, continue through the automation job catalog
-- **Scenarios:** TA-052
+- **Scenarios:** TA-052; TA-056
 - **Found:** 2026-10-03 · **Report:** docs/qa/reports/2026-10-02-untested.md
 
 ## Reproduction
@@ -35,6 +35,53 @@ complete public plan and documented larger page limit; that does not count as a 
 
 ## Investigation
 
-Pending. Trace cursor query binding across the CLI, transport and canonical automation page owner.
-Preserve opaque-cursor validation and exact query scoping; do not drop the check, synthesize a
-cursor, or label a larger first page as repaired continuation.
+The cursor fingerprint includes the profile ID/all-profiles read scope. CLI query parsing validates
+that fingerprint with a zero read scope before transport selection applies. The shared HTTP/UDS
+parser and native-tool input parser repeat the same ordering error: their caller assigns the
+resolved scope only after validation. Extension Host already supplies the profile before validation.
+The canonical automation catalog and persisted store correctly bind cursors; preserve those checks.
+
+Repair the boundary order: HTTP/UDS and native parsers receive the resolved read scope before full
+query validation. The CLI keeps field parsing and forwards the opaque cursor to the authoritative
+daemon validation instead of deriving an incomplete fingerprint. No cursor format, ordering,
+filter, ownership, or public wire shape changes.
+
+Invariant, owner, canonical suite: CLI jobs/triggers preserve a server-issued profile-bound cursor
+with its selected filters. Existing TestAutomationJobsListAndUpdateCommands and
+TestAutomationAdditionalCommandsAndQueries in internal/cli/automation_test.go own the transport
+boundary. Their cursor fixtures currently omit the real profile scope, hiding this regression; bind
+those fixtures to default and preserve every existing assertion. Real CLI/HTTP/UDS/native/browser
+replays will verify the full query and refusal behavior; no duplicate test file is needed.
+
+The same failure is now independently reproduced over HTTP and native invocation, and in the
+CLI trigger catalog populated with 64 disabled editorial review triggers. Receipts:
+automation-cursor-http-red-{first,second}.json, automation-cursor-native-red-{first,second}.json,
+and automation-cursor-triggers-red-{first,second}.json. The two existing CLI tests fail with
+realistic profile-bound fixture cursors before the repair and pass afterward. The affected
+CLI/core/native/model race cohort passes (automation-cursor-{cli-red,focused-green}.log).
+The test-shape checker reports the same ten pre-existing direct-assertion suites before and
+after the fixture-only change; no new test-shape finding or assertion change is introduced.
+
+## Final source replay
+
+Bruno's fresh CH-038 slice verifies both 64-row catalogs on the rebuilt real daemon. The CLI
+aggregate pages return 50 + 14 exact, unique IDs; HTTP first pages and UDS continuations agree.
+Native jobs/triggers return the same complete populations using their own profile-bound cursors.
+Changed profile/filter reuse is refused; malformed cursors still receive the canonical daemon
+validation error (CLI exit 65). The helper initially expected the former local error exit 1; that
+driver assumption is recorded separately and no production refusal is relaxed.
+
+Profile-scoped combinations of workspace, dynamic source, disabled state, search and trigger event
+continue across four 17-row pages. Chrome's Load more reaches all 64 jobs and triggers; reloading
+restarts at 50 and continues to 64 again. Both screenshots were inspected, the 12-frame recording
+is stopped, and no product source was read during the walk. Evidence:
+automation-cursor-bruno-ended.json, automation-cursor-bruno-*.json,
+automation-cursor-{jobs,triggers}-all.png and automation-cursor-production-build.log.
+
+This verifies the cursor repair, not the entire TA-052/TA-056 contracts. Their remaining CRUD,
+read-only source and Loop binding legs stay Pending in the report. The required gate and commit
+proof are recorded separately before delivery.
+
+The first delivery gate catches formatter drift in the new multi-argument signatures. The owning
+golangci-lint formatter is applied; this is formatting only, with no behavior or expectation change.
+The subsequent gate uses the final formatted source.

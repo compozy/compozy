@@ -35,6 +35,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   Web, hook, configuration, extension or stored-state shape changes; no migration is required.
   Official native-tool guidance and the existing palette command suite co-ship; the QA report
   records the real pending-approval replay and profile lifecycle plan readback.
+- **Automation cursor scope:** CLI transports opaque job/trigger cursors to the daemon. Shared
+  HTTP/UDS and native-tool parsers receive the resolved profile scope before fingerprint validation.
+  Canonical filter/order/count/cursor validation remains authoritative, including refusal after
+  profile or filter changes. Extension Host already binds scope first and is unchanged. Web
+  continuation consumes the repaired HTTP boundary. No DTO, cursor version, route, tool ID,
+  hook, config, workspace storage or migration changes. Existing CLI cursor fixtures now carry
+  real profile identity; public replays cover TA-052/TA-056. Official native-tool guidance co-ships.
 - **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
   owner, matching the existing delete audit convention. The payload retains the affected profile
   and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives

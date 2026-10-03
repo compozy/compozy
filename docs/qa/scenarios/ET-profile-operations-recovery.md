@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-unavailable-identity-write; BUG-20261003-profile-recovery-blank-desktop
 fix_status: fixed
 retest_status: pass
-fix_commits: fe8a644b1
+fix_commits: fe8a644b1; 664f24775
 evidence: docs/qa/evidence/2026-10-02-untested/profile-recovery-final-ada-ended.json; docs/qa/evidence/2026-10-02-untested/profile-recovery-rename-crash-proof.json; docs/qa/evidence/2026-10-02-untested/profile-recovery-delete-crash-proof.json; docs/qa/evidence/2026-10-02-untested/profile-recovery-archive-crash-proof.json; docs/qa/evidence/2026-10-02-untested/profile-recovery-boundary-ada-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle

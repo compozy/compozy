@@ -382,7 +382,8 @@ later invocations.
 
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, search, and event;
-run history stays uncounted and must be bounded. Other `compozy__automation_*` tools cover detail,
+run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
+unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable.
 
