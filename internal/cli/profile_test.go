@@ -150,6 +150,53 @@ func TestSessionCommandUsesTheDaemonSessionOwnerProfile(t *testing.T) {
 	})
 }
 
+func TestTaskExecutionCommandProfileSelection(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{"publish", "start", "approve", "reject"} {
+		t.Run("Should keep the selected profile when executing task "+action, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			checkSelection := func(ctx context.Context, id string) {
+				t.Helper()
+				called = true
+				if id != "task-marketing" {
+					t.Fatalf("task ID = %q, want task-marketing", id)
+				}
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("task %s profile = %q, want marketing", action, got)
+				}
+			}
+			execute := func(ctx context.Context, id string, _ TaskExecutionRequest) (TaskExecutionRecord, error) {
+				checkSelection(ctx, id)
+				return sampleTaskExecutionRecord(), nil
+			}
+			client := &profileTestDaemonClient{
+				DaemonClient: withWorkspaceResolution(&stubClient{
+					publishTaskFn: execute,
+					startTaskFn:   execute,
+					approveTaskFn: execute,
+					rejectTaskFn: func(ctx context.Context, id string) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+				}),
+				profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+					{ID: store.DefaultProfileID, Name: configDefaultKey, State: "active"},
+					{ID: "profile-marketing", Name: "marketing", State: "active"},
+				}},
+			}
+			_, _, err := executeRootCommand(t, newTestDeps(t, client),
+				"task", action, "task-marketing", "--profile", "marketing", "-o", "json")
+			if err != nil {
+				t.Fatalf("task %s error = %v", action, err)
+			}
+			if !called {
+				t.Fatal("task action did not reach the client")
+			}
+		})
+	}
+}
+
 // Invariant: a remote gateway defers implicit profile selection to the remote
 // daemon, while explicit operator selection is transported without requiring
 // the gateway to expose profile-management routes. The canonical profile scope

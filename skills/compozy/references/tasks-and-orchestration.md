@@ -34,6 +34,10 @@ Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__
 
 Other filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, title/identifier search, sort (`recent` or `priority`), cursor, and limit. All surfaces accept `worktree` to scope the catalog to tasks whose active run is bound to that worktree; the CLI flag is `--worktree`. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
 
+CLI `task publish`, `task start`, `task approve`, and `task reject` use the selected profile,
+including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
+a foreign profile receives not found, just as it does for the detail read.
+
 Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, and limit; filtering happens before the limit is applied.
 
 Run payloads carry either an inline `result` or an external `result_ref` plus exact `result_bytes`.

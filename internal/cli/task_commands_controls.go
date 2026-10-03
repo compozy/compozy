@@ -34,6 +34,7 @@ func newTaskRejectCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskBundle(&rejected))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -66,6 +67,7 @@ func newTaskExecutionCommand(
 	}
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional run metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
