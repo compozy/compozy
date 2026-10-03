@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -1418,6 +1420,225 @@ func TestAutomationResourceConfigEnabledChangesUseOperationalOverlays(t *testing
 	if _, err := h.db.GetTriggerEnabledOverlay(h.ctx, trigger.ID); !errors.Is(err, ErrTriggerOverlayNotFound) {
 		t.Fatalf("GetTriggerEnabledOverlay(after removal) error = %v, want overlay GC", err)
 	}
+}
+
+func TestProfileArchiveResourceAutomations(t *testing.T) {
+	t.Parallel()
+	for _, source := range []JobSource{JobSourceDynamic, JobSourceConfig, JobSourcePackage} {
+		t.Run("Should retain explicit pauses across profile restore for "+string(source), func(t *testing.T) {
+			t.Parallel()
+			h := newManagerResourceHarness(t)
+			manager := h.newResourceManager(t)
+			profiles, err := profile.NewManager(
+				profile.WithStore(h.db), profile.WithHomePaths(h.homePaths), profile.WithAutomationReconciler(manager),
+			)
+			if err != nil {
+				t.Fatalf("profile.NewManager() error = %v", err)
+			}
+			owner, err := profiles.Create(h.ctx, profile.CreateInput{Name: "release-drafts"})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			emptyPlan, err := profiles.PrepareArchive(h.ctx, owner.Name)
+			if err != nil {
+				t.Fatalf("PrepareArchive(empty) error = %v", err)
+			}
+			for _, fixture := range []struct {
+				id, profileID string
+				enabled       bool
+			}{
+				{"release-job", owner.ID, true},
+				{"already-paused", owner.ID, false},
+				{"other-profile", store.DefaultProfileID, true},
+			} {
+				_, err := h.jobStore.Put(h.ctx, h.actor, resources.Draft[Job]{
+					ID:    fixture.id,
+					Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: h.workspace.ID},
+					Spec: Job{
+						ProfileID:   fixture.profileID,
+						Scope:       AutomationScopeWorkspace,
+						WorkspaceID: h.workspace.ID,
+						Name:        fixture.id,
+						AgentName:   "reviewer",
+						Prompt:      "Prepare release notes",
+						Schedule:    &ScheduleSpec{Mode: ScheduleModeCron, Expr: "0 9 1 * *"},
+						Enabled:     fixture.enabled,
+						Source:      source,
+						Retry:       DefaultRetryConfig(),
+						FireLimit:   DefaultFireLimitConfig(),
+					},
+				})
+				if err != nil {
+					t.Fatalf("Put(job %s) error = %v", fixture.id, err)
+				}
+			}
+			_, err = h.triggerStore.Put(h.ctx, h.actor, resources.Draft[Trigger]{
+				ID:    "release-trigger",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: h.workspace.ID},
+				Spec: Trigger{
+					ProfileID:   owner.ID,
+					Scope:       AutomationScopeWorkspace,
+					WorkspaceID: h.workspace.ID,
+					Name:        "release-trigger",
+					AgentName:   "reviewer",
+					Prompt:      "Review source notes",
+					Event:       "session.stopped",
+					Enabled:     true,
+					Source:      source,
+					Retry:       DefaultRetryConfig(),
+					FireLimit:   DefaultFireLimitConfig(),
+				},
+			})
+			if err != nil {
+				t.Fatalf("Put(trigger) error = %v", err)
+			}
+			if isOverlayManagedSource(source) {
+				if _, err := h.db.SetJobEnabledOverlay(
+					h.ctx,
+					JobEnabledOverlay{JobID: "already-paused", EnabledOverride: false},
+				); err != nil {
+					t.Fatalf("SetJobEnabledOverlay(already paused) error = %v", err)
+				}
+			}
+			if err := manager.Start(h.ctx); err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Shutdown(context.Background()); err != nil {
+					t.Errorf("Shutdown() error = %v", err)
+				}
+			})
+			plan, err := profiles.PrepareArchive(h.ctx, owner.Name)
+			if err != nil {
+				t.Fatalf("PrepareArchive() error = %v", err)
+			}
+			want := []string{"job:release-job", "trigger:release-trigger"}
+			if !slices.Equal(plan.AutomationsToPause, want) {
+				t.Fatalf("AutomationsToPause = %v, want %v", plan.AutomationsToPause, want)
+			}
+			if _, err := profiles.Archive(
+				h.ctx,
+				owner.Name,
+				emptyPlan.Revision,
+			); !errors.Is(
+				err,
+				profile.ErrPlanStale,
+			) {
+				t.Fatalf("Archive(stale) error = %v, want ErrPlanStale", err)
+			}
+			job, err := manager.GetJob(h.ctx, "release-job")
+			if err != nil || !job.Enabled {
+				t.Fatalf("job after stale archive = %#v, error = %v", job, err)
+			}
+			archived, err := profiles.Archive(h.ctx, owner.Name, plan.Revision)
+			if err != nil || !slices.Equal(archived.PausedAutomations, want) {
+				t.Fatalf("Archive() = %#v, error = %v", archived, err)
+			}
+			assertProfileResourceAutomationsPaused(t, h, manager)
+			persisted, err := h.jobStore.Get(h.ctx, h.actor, "release-job")
+			if err != nil || persisted.Spec.Enabled != isOverlayManagedSource(source) {
+				t.Fatalf("canonical job after archive = %#v, error = %v", persisted, err)
+			}
+			repeated, err := profiles.Archive(h.ctx, owner.Name, plan.Revision)
+			if err != nil || !slices.Equal(repeated.PausedAutomations, want) {
+				t.Fatalf("Archive(repeated) = %#v, error = %v", repeated, err)
+			}
+			restored, err := profiles.Unarchive(h.ctx, owner.Name)
+			if err != nil || !slices.Equal(restored.PausedAutomations, want) {
+				t.Fatalf("Unarchive() = %#v, error = %v", restored, err)
+			}
+			assertProfileResourceAutomationsPaused(t, h, manager)
+			if err := manager.Shutdown(h.ctx); err != nil {
+				t.Fatalf("Shutdown(before restart) error = %v", err)
+			}
+			manager = h.newResourceManager(t)
+			if err := manager.Start(h.ctx); err != nil {
+				t.Fatalf("Start(reopened) error = %v", err)
+			}
+			assertProfileResourceAutomationsPaused(t, h, manager)
+			if _, err := manager.SetJobEnabled(h.ctx, "release-job", true); err != nil {
+				t.Fatalf("SetJobEnabled(explicit) error = %v", err)
+			}
+			if _, err := manager.SetTriggerEnabled(h.ctx, "release-trigger", true); err != nil {
+				t.Fatalf("SetTriggerEnabled(explicit) error = %v", err)
+			}
+			status, err := manager.Status(h.ctx)
+			if err != nil || len(status.ScheduledJobs) != 2 || status.Triggers.Enabled != 1 {
+				t.Fatalf("Status(explicit enable) = %#v, error = %v", status, err)
+			}
+			failure := errors.New("scheduler synchronization unavailable")
+			profiles, err = profile.NewManager(
+				profile.WithStore(h.db),
+				profile.WithHomePaths(h.homePaths),
+				profile.WithAutomationReconciler(
+					profileAutomationReconcilerFunc(func(ctx context.Context, profileID string) error {
+						if failure != nil {
+							return failure
+						}
+						return manager.ReconcileProfileAutomations(ctx, profileID)
+					}),
+				),
+			)
+			if err != nil {
+				t.Fatalf("NewManager(failure boundary) error = %v", err)
+			}
+			plan, err = profiles.PrepareArchive(h.ctx, owner.Name)
+			if err != nil {
+				t.Fatalf("PrepareArchive(second cycle) error = %v", err)
+			}
+			if _, err := profiles.Archive(h.ctx, owner.Name, plan.Revision); !errors.Is(err, failure) {
+				t.Fatalf("Archive(failed sync) error = %v, want %v", err, failure)
+			}
+			if _, err := profiles.Archive(h.ctx, owner.Name, plan.Revision); !errors.Is(err, profile.ErrUnavailable) {
+				t.Fatalf("Archive(incomplete) error = %v, want ErrUnavailable", err)
+			}
+			ops, err := profiles.ListOps(h.ctx)
+			if err != nil {
+				t.Fatalf("ListOps() error = %v", err)
+			}
+			failed := slices.IndexFunc(ops, func(op profile.LifecycleOp) bool { return op.Status == "failed" })
+			if failed < 0 || !strings.Contains(ops[failed].Error, failure.Error()) {
+				t.Fatalf("ListOps() = %#v, want recorded synchronization failure", ops)
+			}
+			failure = nil
+			retried, err := profiles.RetryOp(h.ctx, ops[failed].ID)
+			if err != nil || retried.Status != "done" {
+				t.Fatalf("RetryOp() = %#v, error = %v", retried, err)
+			}
+			assertProfileResourceAutomationsPaused(t, h, manager)
+		})
+	}
+}
+
+func assertProfileResourceAutomationsPaused(t *testing.T, h *managerResourceHarness, manager *Manager) {
+	t.Helper()
+	for _, id := range []string{"release-job", "already-paused", "other-profile"} {
+		job, err := manager.GetJob(h.ctx, id)
+		if err != nil || job.Enabled != (id == "other-profile") {
+			t.Fatalf("GetJob(%s) = %#v, error = %v", id, job, err)
+		}
+	}
+	trigger, err := manager.GetTrigger(h.ctx, "release-trigger")
+	if err != nil || trigger.Enabled {
+		t.Fatalf("GetTrigger() = %#v, error = %v", trigger, err)
+	}
+	status, err := manager.Status(h.ctx)
+	if err != nil || len(status.ScheduledJobs) != 1 || status.ScheduledJobs[0].JobID != "other-profile" {
+		t.Fatalf("Status(paused) = %#v, error = %v", status, err)
+	}
+	result, err := manager.triggerEngineSnapshot().Fire(h.ctx, ActivationEnvelope{
+		Kind: "session.stopped", Scope: AutomationScopeWorkspace, WorkspaceID: h.workspace.ID,
+		Source: ActivationSourceObserver,
+	})
+	if err != nil || result.Matched != 0 {
+		t.Fatalf("Fire(paused) = %#v, error = %v", result, err)
+	}
+}
+
+type profileAutomationReconcilerFunc func(context.Context, string) error
+
+func (f profileAutomationReconcilerFunc) ReconcileProfileAutomations(ctx context.Context, profileID string) error {
+	return f(ctx, profileID)
 }
 
 type managerResourceHarness struct {

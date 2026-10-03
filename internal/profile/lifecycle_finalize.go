@@ -140,18 +140,10 @@ func (m *Manager) pendingSteps(ctx context.Context, opID string) (steps []lifecy
 
 func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleStep) error {
 	switch step.Action {
+	case stepReconcileAutomations:
+		return m.reconcileProfileAutomations(ctx, opID)
 	case stepMkdirProfile:
-		path, err := m.containedProfilePath(step.PathNew)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(path, 0o700); err != nil {
-			return fmt.Errorf("profile: create profile directory %q: %w", path, err)
-		}
-		if err := os.Chmod(path, 0o700); err != nil {
-			return fmt.Errorf("profile: set profile directory permissions %q: %w", path, err)
-		}
-		return nil
+		return m.createProfileDirectory(step.PathNew)
 	case stepWriteDeclaredSeed:
 		return m.writeDeclaredSeed(ctx, opID, step.PathNew)
 	case stepRenameProfile:
@@ -218,6 +210,20 @@ func (m *Manager) removeDesktopPartitions(ctx context.Context, opID string) erro
 	}
 	if err := m.desktops.PurgeDesktopPartitions(ctx, profileID); err != nil {
 		return fmt.Errorf("profile: remove desktop partitions for %q: %w", profileID, err)
+	}
+	return nil
+}
+
+func (m *Manager) createProfileDirectory(profilePath string) error {
+	path, err := m.containedProfilePath(profilePath)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return fmt.Errorf("profile: create profile directory %q: %w", path, err)
+	}
+	if err := os.Chmod(path, 0o700); err != nil {
+		return fmt.Errorf("profile: set profile directory permissions %q: %w", path, err)
 	}
 	return nil
 }

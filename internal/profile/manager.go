@@ -46,18 +46,23 @@ type DesktopPartitionCatalog interface {
 	PurgeDesktopPartitions(ctx context.Context, profileID string) error
 }
 
+type AutomationReconciler interface {
+	ReconcileProfileAutomations(ctx context.Context, profileID string) error
+}
+
 type Manager struct {
-	store      *globaldb.GlobalDB
-	home       compozyconfig.HomePaths
-	now        func() time.Time
-	entropy    io.Reader
-	logger     *slog.Logger
-	events     EventRecorder
-	placements PlacementCatalog
-	desktops   DesktopPartitionCatalog
-	selections *selectionStore
-	vaultRefs  *vault.ProfileRefRewriter
-	opMu       sync.Mutex
+	automations AutomationReconciler
+	store       *globaldb.GlobalDB
+	home        compozyconfig.HomePaths
+	now         func() time.Time
+	entropy     io.Reader
+	logger      *slog.Logger
+	events      EventRecorder
+	placements  PlacementCatalog
+	desktops    DesktopPartitionCatalog
+	selections  *selectionStore
+	vaultRefs   *vault.ProfileRefRewriter
+	opMu        sync.Mutex
 }
 
 type Option func(*Manager) error
@@ -129,6 +134,13 @@ func WithPlacementCatalog(catalog PlacementCatalog) Option {
 func WithDesktopPartitionCatalog(catalog DesktopPartitionCatalog) Option {
 	return func(m *Manager) error {
 		m.desktops = catalog
+		return nil
+	}
+}
+
+func WithAutomationReconciler(reconciler AutomationReconciler) Option {
+	return func(m *Manager) error {
+		m.automations = reconciler
 		return nil
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
@@ -150,6 +149,9 @@ func (m *Manager) PrepareArchive(ctx context.Context, name string) (ArchivePlan,
 	if err := rejectPermanent(profile, "archive"); err != nil {
 		return ArchivePlan{}, err
 	}
+	if err := ensureAvailable(ctx, m.store.DB(), profile, false); err != nil {
+		return ArchivePlan{}, err
+	}
 	if profile.State == StateArchived {
 		plan := ArchivePlan{
 			RunningSessions:    make([]string, 0),
@@ -158,9 +160,6 @@ func (m *Manager) PrepareArchive(ctx context.Context, name string) (ArchivePlan,
 		}
 		plan.Revision, err = fingerprint(profile)
 		return plan, err
-	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, false); err != nil {
-		return ArchivePlan{}, err
 	}
 	return m.archivePlan(ctx, m.store.DB(), profile)
 }
@@ -198,28 +197,10 @@ func (m *Manager) archivePlan(ctx context.Context, q queryer, profile Profile) (
 		Scan(&plan.QueuedRunsToFreeze); err != nil {
 		return ArchivePlan{}, fmt.Errorf("profile: count queued runs to freeze: %w", err)
 	}
-	jobs, err := stringColumn(
-		ctx,
-		q,
-		"enabled automation jobs",
-		`SELECT 'job:' || id FROM automation_jobs WHERE profile_id = ? AND enabled = 1`,
-		profile.ID,
-	)
+	plan.AutomationsToPause, err = enabledProfileAutomations(ctx, q, profile.ID)
 	if err != nil {
 		return ArchivePlan{}, err
 	}
-	triggers, err := stringColumn(
-		ctx,
-		q,
-		"enabled automation triggers",
-		`SELECT 'trigger:' || id FROM automation_triggers WHERE profile_id = ? AND enabled = 1`,
-		profile.ID,
-	)
-	if err != nil {
-		return ArchivePlan{}, err
-	}
-	plan.AutomationsToPause = slices.Concat(jobs, triggers)
-	sort.Strings(plan.AutomationsToPause)
 
 	plan.Revision, err = fingerprint(struct {
 		Profile Profile

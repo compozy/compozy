@@ -57,7 +57,10 @@ one emoji character.
 Rename, archive, and delete are plan-based. The CLI fetches the current plan and submits its
 `plan_revision`; a stale revision must be replanned, never replayed. Rename can include repository
 folders with `--repos all|none|<workspace-ids>`. Archive preserves work and freezes guarded queued work.
-Unarchive restores availability but does not re-enable paused automations. Delete succeeds only when the
+Archive enumerates enabled jobs and triggers, pauses their effective state, and synchronizes the
+scheduler and trigger runtime before completing. This includes dynamic, configuration and extension
+automations; managed definitions keep their source content and receive a disabled operational override.
+Unarchive restores availability but does not re-enable paused automations, including after daemon restart. Delete succeeds only when the
 profile owns no work, and structured or non-interactive use requires `--yes`.
 
 ```bash

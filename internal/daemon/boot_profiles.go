@@ -39,6 +39,7 @@ func (d *Daemon) bootProfiles(
 		profile.WithEventRecorder(recorder),
 		profile.WithPlacementCatalog(extensionpkg.NewRegistry(database.DB())),
 		profile.WithDesktopPartitionCatalog(profileDesktopPartitions{state: state}),
+		profile.WithAutomationReconciler(profileAutomationReconciler{state: state}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create profile manager: %w", err)
@@ -168,4 +169,22 @@ func (r *daemonProfileEventRecorder) warn(event profile.Event, operation string,
 		"operation", operation,
 		"error", err,
 	)
+}
+
+type profileAutomationReconciler struct {
+	state *bootState
+}
+
+var _ profile.AutomationReconciler = profileAutomationReconciler{}
+
+func (r profileAutomationReconciler) ReconcileProfileAutomations(ctx context.Context, profileID string) error {
+	// Boot recovery precedes automation startup, which reads the committed pause state.
+	if r.state == nil || r.state.automation == nil {
+		return nil
+	}
+	reconciler, ok := r.state.automation.(profile.AutomationReconciler)
+	if !ok {
+		return errors.New("daemon: automation runtime cannot reconcile profile state")
+	}
+	return reconciler.ReconcileProfileAutomations(ctx, profileID)
 }

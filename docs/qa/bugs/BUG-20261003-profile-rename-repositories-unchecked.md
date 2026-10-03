@@ -1,6 +1,7 @@
 # BUG-20261003-profile-rename-repositories-unchecked: Rename leaves every repository folder declined by default
 
 - **Status:** verified
+- **Fix commit:** a15b2ea62
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Sol
@@ -96,3 +97,5 @@ The single-pass derivation initially pushes the dialog host over the React compl
 (93/100). It now lives in the existing lifecycle view model beside its plan query; the host only
 consumes acceptedRepos for both rendering and submission. This keeps server-derived state at its
 existing owner. Final proof is recorded in profile-rename-repositories-model-*.log.
+
+Final delivery evidence: profile-rename-repositories-delivery-proof.json (commit a15b2ea62).

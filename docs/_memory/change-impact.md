@@ -64,6 +64,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   isolation and persisted shapes retain their contracts; no migration or official skill change.
   E2E-014 covers keyboard identity selection and the saved public response; fresh keyboard replay
   covers both dialogs, canceled creation, focus return and reload persistence.
+- **Profile archive automation pause:** CLI, HTTP/UDS, Web and native profile actions share a
+  resource-aware archive plan and atomic pause transaction. Dynamic definitions retain their resource
+  identity with a new version; configuration/extension definitions retain their content and receive
+  existing enabled overrides. A journaled runtime synchronization finishes before success; failed
+  synchronization remains unavailable until explicit operation retry. Other profiles remain unchanged.
+  No wire, tool ID, hook, config key or schema shape changes. Official profile guidance co-ships.
+  Web renders the same existing paused-list fields; both Web and CLI lifecycle scenarios track replay.
 - **Profile rename repository offers:** Web derives accepted repository ids from the current
   daemon plan and retains only explicit declines in transient dialog state. Offers start selected,
   name edits preserve declines, and absent candidates cannot enter the request. E2E-016 uses real

@@ -7,10 +7,10 @@ journey: J-operate-profiles
 expected: Settings lists active profiles with identity and work counts, demotes the archived list and the selection map to disclosure, and every lifecycle dialog renders exactly what its plan endpoint returned — rename tiers, archive paused automations and blocked-by-running, delete enumeration or routing to archive, unarchive reactivation — with a stale plan refused and re-asked rather than executed.
 entry_points: Settings → Profiles; create|rename|archive|unarchive|delete dialogs; GET /api/profiles/{name}/rename-plan|archive-plan|delete-plan; POST /api/profiles/{name}/rename|archive|unarchive; DELETE /api/profiles/{name}
 qa_status: fail
-bug_ids: BUG-20261003-profile-rename-repositories-unchecked; BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
+bug_ids: BUG-20261003-profile-archive-resource-automations; BUG-20261003-profile-rename-repositories-unchecked; BUG-20260906-settings-nav-stale-open-history; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
 fix_status: pending
 retest_status: pending
-fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39
+fix_commits: 4760da89f; fb4b8a40a; 8380b94f2; b4ab86b39; a15b2ea62
 evidence: docs/qa/evidence/2026-10-02-untested/profile-rename-fixed-sol-ended.json; .compozy/tasks/sessions-stability/memory/profile-navigation-ci.md; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-settings-persisted.png; docs/qa/evidence/2026-10-02-untested/profile-emoji-fixed-sol-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle
@@ -87,3 +87,15 @@ Sol's CLI color edit provokes HTTP409; the dialog asks for review before a secon
 quotes the new revision. Only the accepted folder moves; UDS, exact notes, Git and reload agree.
 BUG-20261003-profile-rename-repositories-unchecked is verified. The project menu exposed a worktree
 submenu, so the declined-content hint remains unverified. Full lifecycle charter remains Pending.
+
+QA 2026-10-03 archive walk: the enabled resource job is absent from HTTP/UDS plans and remains
+scheduler-registered after Web archive. Unarchive reports no paused automations and retains the
+enabled job. The running-session blocker and cancellation behave correctly. Shared backend defect
+BUG-20261003-profile-archive-resource-automations is open; fresh repair replay is pending. See
+profile-archive-sol-* receipts and the dated report. No actual automation execution is claimed.
+
+QA 2026-10-03 archive repair replay: the enabled job and trigger now appear in the plan and pause
+on archive. Unarchive retains both pauses; per-item keyboard reactivation uses the actual owner.
+CLI repeat preserves the exact audit list, and a real daemon restart keeps both definitions paused.
+BUG-20261003-profile-archive-resource-automations is verified. Evidence: profile-archive-fixed-sol-*
+and profile-archive-fixed-cli-* in the dated report. The complete lifecycle charter remains Pending.
