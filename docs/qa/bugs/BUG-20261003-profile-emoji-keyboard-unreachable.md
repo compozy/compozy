@@ -1,6 +1,7 @@
 # BUG-20261003-profile-emoji-keyboard-unreachable: Arrow navigation stays on the first emoji result
 
 - **Status:** verified
+- **Fix commit:** b4ab86b39
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Sol
@@ -86,4 +87,5 @@ The unchanged regression now passes with adjacent E2E-013 (2 cases, 19.6 seconds
 daemon persistence through the identity response. Root Turbo build/typecheck and React Doctor
 100/100 over 39 changed files also pass. Receipts: profile-emoji-keyboard-e2e-after.log,
 profile-emoji-keyboard-build.log and profile-emoji-keyboard-react-doctor.log. Delivery gate and
-commit receipts follow separately. Full Settings/switcher charters remain Pending.
+commit receipts are profile-emoji-keyboard-gate.log,
+profile-emoji-keyboard-gate-status.log and profile-emoji-keyboard-commit.log (b4ab86b39). Full Settings/switcher charters remain Pending.

@@ -64,6 +64,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   isolation and persisted shapes retain their contracts; no migration or official skill change.
   E2E-014 covers keyboard identity selection and the saved public response; fresh keyboard replay
   covers both dialogs, canceled creation, focus return and reload persistence.
+- **Profile rename repository offers:** Web derives accepted repository ids from the current
+  daemon plan and retains only explicit declines in transient dialog state. Offers start selected,
+  name edits preserve declines, and absent candidates cannot enter the request. E2E-016 uses real
+  repositories to verify accepted-only movement and unchanged declined content. Public CLI,
+  HTTP/UDS, native tools, hooks, configuration, extensions, workspace isolation and persisted
+  shapes retain their contracts; no migration or official skill command change is needed.
 - **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
   workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
   selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The

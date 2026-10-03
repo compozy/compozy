@@ -1,5 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ import {
 } from "../fixtures/os-navigation";
 import { profilesOperatorSelectors } from "../fixtures/selectors";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
+import { createWorktreeRepo } from "../fixtures/worktree-repo";
 import type { BrowserRuntime } from "../fixtures/runtime";
 
 /**
@@ -449,43 +451,100 @@ test.describe("Profiles", () => {
     await expect(after.archivedList).toContainText("research");
   });
 
-  test("E2E-016: rename shows the tiered plan and reports dormant placements", async ({
+  // Invariant: rename offers start selected, preserve explicit declines across
+  // name edits, and move only accepted repository folders.
+  // Owner: profile lifecycle browser composition; canonical suite: E2E-016.
+  test("E2E-016: rename selects repository offers and preserves declined folders", async ({
     appPage,
     runtime,
   }) => {
-    await ensureProjectWorkspace(appPage, runtime);
-    await completeOnboardingIfPrompted(appPage);
-    await createProfile(runtime, "dev", "#4cb782", "wrench");
+    const repos = [await createWorktreeRepo(), await createWorktreeRepo()];
+    try {
+      for (const repo of repos) {
+        const folder = path.join(repo.rootDir, ".compozy", "profiles", "dev");
+        await mkdir(folder, { recursive: true });
+        await writeFile(path.join(folder, "README.md"), "Development notes\n", "utf8");
+        const options = {
+          cwd: repo.rootDir,
+          env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" },
+        };
+        execFileSync("git", ["add", ".compozy/profiles/dev/README.md"], options);
+        execFileSync("git", ["commit", "-m", "add development profile notes"], options);
+      }
+      const workspaces = await Promise.all(
+        repos.map(repo => runtime.resolveWorkspace(repo.rootDir))
+      );
+      await ensureProjectWorkspace(appPage, runtime);
+      await completeOnboardingIfPrompted(appPage);
+      await createProfile(runtime, "dev", "#4cb782", "wrench");
 
-    const settings = await openProfilesSettings(appPage);
-    const ui = profilesOperatorSelectors(appPage, settings);
+      const settings = await openProfilesSettings(appPage);
+      const ui = profilesOperatorSelectors(appPage, settings);
+      await ui.renameRow("dev").click();
+      await expect(ui.renameDialog).toBeVisible();
+      await ui.renameName.fill("eng");
 
-    await ui.renameRow("dev").click();
-    await expect(ui.renameDialog).toBeVisible();
-    await ui.renameName.fill("eng");
+      const plan = await runtime.requestJSON<{
+        machine_folders: string[];
+        repo_candidates: Array<{ workspace_id: string }>;
+        revision: string;
+      }>("/api/profiles/dev/rename-plan?new_name=eng");
+      expect(plan.revision).not.toBe("");
+      expect(plan.repo_candidates.map(candidate => candidate.workspace_id).sort()).toEqual(
+        workspaces.map(workspace => workspace.id).sort()
+      );
+      await expect(ui.renamePlan).toBeVisible();
+      if (plan.machine_folders.length > 0) {
+        await expect(ui.renamePlan).toContainText("Machine folders");
+      }
 
-    // The plan comes from the daemon; the dialog never recomputes it.
-    const plan = await runtime.requestJSON<{
-      machine_folders: string[];
-      revision: string;
-    }>("/api/profiles/dev/rename-plan?new_name=eng");
-    expect(plan.revision).not.toBe("");
-    await expect(ui.renamePlan).toBeVisible();
-    if (plan.machine_folders.length > 0) {
-      await expect(ui.renamePlan).toContainText("Machine folders");
+      const accepted = ui.renameRepo(workspaces[0]!.id).getByRole("checkbox");
+      const declined = ui.renameRepo(workspaces[1]!.id).getByRole("checkbox");
+      await expect(accepted).toBeChecked();
+      await expect(declined).toBeChecked();
+      await declined.uncheck();
+      await ui.renameName.fill("engineering");
+      await expect(ui.renameConfirm).toBeEnabled();
+      await expect(accepted).toBeChecked();
+      await expect(declined).not.toBeChecked();
+      const currentPlan = await runtime.requestJSON<{ revision: string }>(
+        "/api/profiles/dev/rename-plan?new_name=engineering"
+      );
+
+      const renamed = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" &&
+          response.url().endsWith("/api/profiles/dev/rename")
+      );
+      await ui.renameConfirm.click();
+      const response = await renamed;
+      expect(response.ok()).toBe(true);
+      expect(response.request().postDataJSON()).toMatchObject({
+        new_name: "engineering",
+        plan_revision: currentPlan.revision,
+        repos: [workspaces[0]!.id],
+      });
+      const profiles = await listProfiles(runtime);
+      expect(profiles.map(profile => profile.name)).toContain("engineering");
+      expect(profiles.map(profile => profile.name)).not.toContain("dev");
+      await expect(
+        readFile(path.join(repos[0]!.rootDir, ".compozy/profiles/engineering/README.md"), "utf8")
+      ).resolves.toBe("Development notes\n");
+      await expect(
+        access(path.join(repos[0]!.rootDir, ".compozy/profiles/dev"))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(path.join(repos[1]!.rootDir, ".compozy/profiles/dev/README.md"), "utf8")
+      ).resolves.toBe("Development notes\n");
+      await expect(
+        access(path.join(repos[1]!.rootDir, ".compozy/profiles/engineering"))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const reopened = await openProfilesSettings(appPage);
+      await expect(profilesOperatorSelectors(appPage, reopened).row("engineering")).toBeVisible();
+    } finally {
+      for (const repo of repos) await repo.cleanup();
     }
-
-    const renamed = appPage.waitForResponse(
-      response =>
-        response.request().method() === "POST" &&
-        response.url().endsWith("/api/profiles/dev/rename")
-    );
-    await ui.renameConfirm.click();
-    expect((await renamed).ok()).toBe(true);
-
-    const profiles = await listProfiles(runtime);
-    expect(profiles.map(profile => profile.name)).toContain("eng");
-    expect(profiles.map(profile => profile.name)).not.toContain("dev");
   });
 
   test("E2E-017: archive names what pauses, blocks on running work, and unarchive lists reactivation", async ({

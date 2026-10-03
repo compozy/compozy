@@ -106,7 +106,7 @@ export function ProfileLifecycleDialogs({
         onNewNameChange={lifecycle.setRenameName}
         plan={model.renamePlan.data}
         planLoading={model.renamePlan.isFetching}
-        acceptedRepos={lifecycle.acceptedRepos}
+        acceptedRepos={model.acceptedRepos}
         onToggleRepo={lifecycle.toggleRepo}
         isPending={model.rename.isPending}
         error={
@@ -118,7 +118,7 @@ export function ProfileLifecycleDialogs({
               name: target,
               newName: lifecycle.renameName.trim(),
               planRevision,
-              repos: lifecycle.acceptedRepos,
+              repos: model.acceptedRepos,
             },
             {
               onSuccess: lifecycle.close,

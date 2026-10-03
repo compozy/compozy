@@ -36,7 +36,7 @@ export interface ProfileLifecycleState {
   close: () => void;
   renameName: string;
   setRenameName: (next: string) => void;
-  acceptedRepos: string[];
+  declinedRepos: string[];
   toggleRepo: (workspaceId: string) => void;
   unarchiveResult: UnarchiveProfileResult | null;
   setUnarchiveResult: (result: UnarchiveProfileResult | null) => void;
@@ -51,18 +51,18 @@ export interface ProfileLifecycleState {
 export function useProfileLifecycle(): ProfileLifecycleState {
   const intent = useSelector(profileDialogStore, state => state.context.intent);
   const [renameName, setRenameName] = useState("");
-  const [acceptedRepos, setAcceptedRepos] = useState<string[]>([]);
+  const [declinedRepos, setDeclinedRepos] = useState<string[]>([]);
   const [unarchiveResult, setUnarchiveResult] = useState<UnarchiveProfileResult | null>(null);
 
   const close = () => {
     closeProfileDialog();
     setRenameName("");
-    setAcceptedRepos([]);
+    setDeclinedRepos([]);
     setUnarchiveResult(null);
   };
 
   const toggleRepo = (workspaceId: string) => {
-    setAcceptedRepos(current =>
+    setDeclinedRepos(current =>
       current.includes(workspaceId)
         ? current.filter(id => id !== workspaceId)
         : [...current, workspaceId]
@@ -74,7 +74,7 @@ export function useProfileLifecycle(): ProfileLifecycleState {
     close,
     renameName,
     setRenameName,
-    acceptedRepos,
+    declinedRepos,
     toggleRepo,
     unarchiveResult,
     setUnarchiveResult,

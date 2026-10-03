@@ -20,6 +20,7 @@ export interface ProfileLifecycleDialogsModel {
   target: string;
   profile: ProfilePayload | undefined;
   workItems: number;
+  acceptedRepos: string[];
   create: ReturnType<typeof useCreateProfile>;
   rename: ReturnType<typeof useRenameProfile>;
   update: ReturnType<typeof useUpdateProfileIdentity>;
@@ -64,12 +65,19 @@ export function useProfileLifecycleDialogs(
   const renamePlan = useRenamePlan(target, lifecycle.renameName, flow === "rename");
   const archivePlan = useArchivePlan(target, flow === "archive");
   const deletePlan = useDeletePlan(target, flow === "delete" && workItems === 0);
+  // Offers start selected; retain only the operator's explicit declines.
+  const declinedRepos = new Set(lifecycle.declinedRepos);
+  const acceptedRepos: string[] = [];
+  for (const candidate of renamePlan.data?.repo_candidates ?? []) {
+    if (!declinedRepos.has(candidate.workspace_id)) acceptedRepos.push(candidate.workspace_id);
+  }
 
   return {
     lifecycle,
     target,
     profile,
     workItems,
+    acceptedRepos,
     create: useCreateProfile(),
     rename: useRenameProfile(),
     update: useUpdateProfileIdentity(),
