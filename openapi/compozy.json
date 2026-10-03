@@ -79103,6 +79103,22 @@
             }
           },
           {
+            "description": "Resume after this composite log event id",
+            "in": "header",
+            "name": "Last-Event-ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Composite resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+            "in": "query",
+            "name": "last_event_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Read one profile's rows by name",
             "in": "query",
             "name": "profile",
@@ -79120,6 +79136,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
@@ -121549,6 +121568,14 @@
             }
           },
           {
+            "description": "Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+            "in": "query",
+            "name": "last_event_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Read one profile's rows by name",
             "in": "query",
             "name": "profile",
@@ -121566,6 +121593,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
@@ -298529,6 +298559,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -339608,6 +339646,9 @@
       "get": {
         "operationId": "streamWorktreeCatalog",
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {

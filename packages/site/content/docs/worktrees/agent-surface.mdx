@@ -49,6 +49,10 @@ Status accepts `refresh` and `forge` query flags. Per-Worktree SSE resumes with 
 accepts `worktree` or `new_worktree`, and Task policy uses
 `PATCH /api/tasks/{id}/execution-profile/worktree`.
 
+The catalog route also accepts WebSocket upgrades, carrying one complete SSE frame per text
+message. It preserves the same workspace-attributed wake events. Refetch the worktree catalog on
+open and reconnect; catalog wakes have no retained replay cursor. Per-worktree streams retain SSE.
+
 The generated [Worktrees API reference](/docs/api/worktrees) owns exact schemas and status codes.
 
 ## Native tools

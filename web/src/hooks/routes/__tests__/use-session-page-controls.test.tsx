@@ -337,6 +337,8 @@ describe("useSessionPageControls", () => {
     await waitFor(() =>
       expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
         id: "sess-1",
+        workspace_id: WORKSPACE_ID,
+        profile_name: "default",
         wait: false,
       })
     );
@@ -372,6 +374,8 @@ describe("useSessionPageControls", () => {
     act(() => result.current.handleStop());
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
       id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
       wait: true,
     });
     expect(result.current.isStopRetrying).toBe(true);
@@ -423,6 +427,8 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledTimes(2);
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
       id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
       wait: true,
     });
     expect(result.current.isStopRetrying).toBe(true);
@@ -452,6 +458,8 @@ describe("useSessionPageControls", () => {
     await waitFor(() =>
       expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
         id: "sess-1",
+        workspace_id: WORKSPACE_ID,
+        profile_name: "default",
         wait: false,
       })
     );

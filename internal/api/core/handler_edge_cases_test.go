@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -31,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type unpagedSessionManager struct {
@@ -1687,6 +1689,78 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should upgrade a scoped resumable stream and release its subscription on disconnect", func(t *testing.T) {
+		t.Parallel()
+		scopes := make(chan session.CatalogScope, 1)
+		canceled := make(chan struct{})
+		events := make(chan session.CatalogEvent, 1)
+		events <- session.CatalogEvent{
+			Sequence: 18, Kind: session.CatalogEventUpserted,
+			ProfileID: store.DefaultProfileID, WorkspaceID: "ws_beta", SessionID: "sess_beta",
+		}
+		manager := testutil.StubSessionManager{SubscribeCatalogFn: func(
+			_ context.Context, scope session.CatalogScope,
+		) (<-chan session.CatalogEvent, func(), error) {
+			scopes <- scope
+			return events, func() { close(canceled) }, nil
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		server := httptest.NewServer(fixture.Engine)
+		t.Cleanup(server.Close)
+		dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+		connection, response, err := dialer.DialContext(
+			t.Context(),
+			"ws"+strings.TrimPrefix(
+				server.URL,
+				"http",
+			)+"/sessions/catalog-stream?all_workspaces=true&last_event_id=17",
+			nil,
+		)
+		if response != nil && response.Body != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Errorf("close upgrade response: %v", closeErr)
+			}
+		}
+		if err != nil {
+			t.Fatalf("upgrade catalog stream: %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Errorf("close catalog connection: %v", closeErr)
+			}
+		})
+		if response.StatusCode != http.StatusSwitchingProtocols {
+			t.Fatalf("upgrade status = %d", response.StatusCode)
+		}
+		if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{": session catalog stream ready\n\n", "event: session_catalog_changed\n"} {
+			kind, payload, err := connection.ReadMessage()
+			if err != nil || kind != websocket.TextMessage || !strings.Contains(string(payload), want) {
+				t.Fatalf("frame = %d %q, error = %v; want %q", kind, payload, err, want)
+			}
+			if strings.Contains(want, "event:") && (!strings.Contains(string(payload), "id: 18\n") ||
+				!strings.Contains(string(payload), `"workspace_id":"ws_beta"`)) {
+				t.Fatalf("catalog identity or cursor missing: %s", payload)
+			}
+		}
+		scope := <-scopes
+		if !scope.AllWorkspaces || !scope.Replay || scope.ReplayAfter != 17 ||
+			scope.ReadScope.ProfileID != store.DefaultProfileID {
+			t.Fatalf("upgrade lost scope or cursor: %#v", scope)
+		}
+		if err := connection.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-canceled:
+		case <-time.After(time.Second):
+			t.Fatal("disconnected catalog subscription was not released")
+		}
+	})
+
 	t.Run("Should stream workspace-identified catalog wakes through one global endpoint", func(t *testing.T) {
 		t.Parallel()
 
@@ -1791,7 +1865,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/sessions/catalog-stream?workspace_id=repo",
+			"/sessions/catalog-stream?workspace_id=repo&last_event_id=2",
 			nil,
 			map[string]string{"Last-Event-ID": "17"},
 		)
@@ -1840,6 +1914,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			{path: "/sessions/catalog-stream"},
 			{path: "/sessions/catalog-stream?workspace_id=repo&all_workspaces=true"},
 			{path: "/sessions/catalog-stream?all_workspaces=true", headers: map[string]string{"Last-Event-ID": "invalid"}},
+			{path: "/sessions/catalog-stream?all_workspaces=true&last_event_id=invalid"},
 		} {
 			t.Run("Should reject "+test.path, func(t *testing.T) {
 				resp := testutil.PerformRequestWithHeaders(
@@ -1874,6 +1949,54 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 
 func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should resume filtered WebSocket logs after their composite cursor", func(t *testing.T) {
+		t.Parallel()
+		queries := make(chan store.EventSummaryQuery, 1)
+		timestamp := time.Date(2026, 10, 2, 23, 0, 0, 0, time.UTC)
+		observer := testutil.StubObserver{QueryEventsFn: func(
+			_ context.Context, query store.EventSummaryQuery,
+		) ([]store.EventSummary, error) {
+			queries <- query
+			return []store.EventSummary{{
+				ID: "profile-18", Sequence: 18, Type: "profile.renamed", Timestamp: timestamp,
+				Summary: "renamed <memory-context>private context</memory-context>",
+			}}, nil
+		}}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			observer,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		server := httptest.NewServer(fixture.Engine)
+		t.Cleanup(server.Close)
+		connection := dialEventStream(t, server.URL,
+			"/logs/stream?component=profile&replay=false&last_event_id=2026-10-02T23%3A00%3A00Z%7C17")
+		kind, payload, err := connection.ReadMessage()
+		if err != nil || kind != websocket.TextMessage ||
+			!strings.Contains(string(payload), "event: profile.renamed\n") ||
+			!strings.Contains(string(payload), "id: 2026-10-02T23:00:00Z|00000000000000000018\n") ||
+			strings.Contains(string(payload), "private context") ||
+			!strings.Contains(string(payload), "[memory-context redacted]") {
+			t.Fatalf("log frame = %d %q, error = %v", kind, payload, err)
+		}
+		query := <-queries
+		if query.AfterSequence != 17 || !query.Forward || query.Component != "profile" ||
+			query.ReadScope.ProfileID != store.DefaultProfileID || query.Limit != 200 {
+			t.Fatalf("resume changed log scope: %#v", query)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := fixture.Handlers.ShutdownEventStreams(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, payload, err := connection.ReadMessage(); err == nil {
+			t.Fatalf("shutdown did not close socket: %q", payload)
+		}
+	})
 
 	done := make(chan struct{})
 	callCount := 0
@@ -1918,6 +2041,32 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 	if records := testutil.ParseSSE(t, resp.Body.String()); len(records) < 2 {
 		t.Fatalf("observe stream records = %d, want at least 2", len(records))
 	}
+}
+
+func dialEventStream(t *testing.T, origin, path string) *websocket.Conn {
+	t.Helper()
+	dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+	connection, response, err := dialer.DialContext(t.Context(), "ws"+strings.TrimPrefix(origin, "http")+path, nil)
+	if response != nil && response.Body != nil {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close stream upgrade response: %v", closeErr)
+		}
+	}
+	if err != nil {
+		t.Fatalf("upgrade stream: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := connection.Close(); err != nil {
+			t.Errorf("close event stream: %v", err)
+		}
+	})
+	if response.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("upgrade status = %d", response.StatusCode)
+	}
+	if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	return connection
 }
 
 func TestBaseHandlersGetAgentNotFound(t *testing.T) {

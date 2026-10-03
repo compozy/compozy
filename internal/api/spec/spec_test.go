@@ -501,7 +501,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				profileMutations := []struct {
 					path   string
 					method string
-				}{}
+				}{
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/stop", method: http.MethodPost},
+				}
 				for _, endpoint := range profileMutations {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)

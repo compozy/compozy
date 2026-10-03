@@ -1429,7 +1429,13 @@ describe("session lifecycle batches", () => {
 
   it("stops only eligible sessions sequentially and announces verified completion once", async () => {
     const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };
-    const starting = { ...createdSession, id: "starting", state: "starting" as const };
+    const starting = {
+      ...createdSession,
+      id: "starting",
+      workspace_id: "ws_beta",
+      profile_name: "studio",
+      state: "starting" as const,
+    };
     let release!: (value: Awaited<ReturnType<typeof stopSession>>) => void;
     vi.mocked(stopSession)
       .mockImplementationOnce(
@@ -1456,7 +1462,9 @@ describe("session lifecycle batches", () => {
       ])
     );
     await waitFor(() => expect(stopSession).toHaveBeenCalledTimes(1));
-    expect(stopSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, { wait: true });
+    expect(stopSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, "default", {
+      wait: true,
+    });
     await act(async () =>
       release({
         session_id: createdSession.id,
@@ -1470,9 +1478,9 @@ describe("session lifecycle batches", () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledExactlyOnceWith("2 sessions stopped")
     );
-    expect(vi.mocked(stopSession).mock.calls.map(call => call[1])).toEqual([
-      createdSession.id,
-      "starting",
+    expect(vi.mocked(stopSession).mock.calls).toEqual([
+      [WORKSPACE_ID, createdSession.id, "default", { wait: true }],
+      ["ws_beta", "starting", "studio", { wait: true }],
     ]);
   });
 

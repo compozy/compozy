@@ -50,7 +50,7 @@ export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
 }
 
 function defaultEventSourceFactory(url: string): SessionCatalogEventSource {
-  return createStreamEventSource(url);
+  return createStreamEventSource(url, { transport: "websocket", resumeWithLastEventId: true });
 }
 
 function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | undefined {
@@ -299,7 +299,7 @@ export function useSessionCatalogStreams({
   const canConnect =
     enabled &&
     typeof window !== "undefined" &&
-    (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
+    (eventSourceFactory !== undefined || typeof WebSocket !== "undefined");
   const store = useStore(sessionCatalogStreamsLogic);
   const status = useSelector(store, snapshot => snapshot.context.status);
   // The URL carries the profile scope, so it doubles as the reconnect identity:

@@ -560,6 +560,9 @@ delivery ownership and freshness. `--turns -o toon` emits separate `session_usag
 archive fields stay structured rather than being embedded in display text.
 
 `compozy session stop <id>` requests asynchronous termination and returns the updated session resource.
+For a named profile, pass the session owner's `--profile <name>`; HTTP/UDS callers pass
+`?profile=<name>` on the stop route. Web stop controls retain the selected session's workspace and
+profile, including mixed-owner bulk selections.
 Use `--wait -o json` for the stop outcome (`state`, `verified`, `escalated`, `stop_cause`, `phase`,
 `stopped_after`). Session resources retain the unverified-stop diagnostic as `attention: "stop_verification_failed"` and badge `needs-attention` across reconnects. `session status` adds `lifecycle_state` alongside its existing health `state`, plus `verified`, `escalated`, and `attention`. A verified stop retry clears the diagnostic. `verified:false` with `attention:"stop_verification_failed"` means exit remains
 unproven; the state stays `stopping`. Inspect diagnostics and retry instead of assuming the process died.
@@ -629,6 +632,13 @@ for active, stopped, and archived user sessions without starting or replacing AC
 session ID, transcript, archive state, and lineage.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
+
+For document-wide subscriptions, the session catalog, worktree catalog, and `/api/logs/stream`
+also accept WebSocket upgrades. Each text message is one complete SSE frame, preserving named
+events and redaction while leaving HTTP/1.1 connections free for commands across browser tabs.
+Resume session catalog/log streams with the exact prior event id in `last_event_id`; the
+`Last-Event-ID` header takes precedence. Preserve the original scope and filters, and mint a fresh
+stream ticket on every remote gateway reconnect. Worktree catalog wakes require refetch on reconnect.
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically.
 

@@ -253,6 +253,7 @@ func streamWorktreeCatalogOperationSpec() OperationSpec {
 		Summary: "Stream worktree catalog changes across workspaces", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
+			{Status: 101, Description: specEventStreamUpgrade},
 			{Status: 200, Description: "Workspace-identified worktree catalog event stream",
 				Body: contract.WorktreeCatalogEventPayload{}, ContentType: specContentTypeEventStream},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

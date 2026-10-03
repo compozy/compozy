@@ -65,6 +65,9 @@ func (s *Server) shutdownGeneration(ctx context.Context, generation *serverGener
 		}
 
 		if s.handlers != nil {
+			if err := s.handlers.ShutdownEventStreams(ctx); err != nil {
+				shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: shutdown event streams: %w", err))
+			}
 			if err := s.handlers.ShutdownWindowManagerStreams(ctx); err != nil {
 				shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: shutdown window-manager streams: %w", err))
 			}

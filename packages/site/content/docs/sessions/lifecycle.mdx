@@ -599,6 +599,10 @@ compozy session stop sess-1234
 compozy session stop sess-1234 --wait -o json
 ```
 
+For a session in a named profile, add `--profile <name>` to the CLI command or
+`?profile=<name>` to the HTTP/UDS stop route. Web controls use the selected session's own
+workspace and profile, including each target in a bulk selection.
+
 The default command returns the updated session resource. `--wait` returns the stop outcome:
 `state`, `verified`, `escalated`, `stop_cause`, `phase`, and `stopped_after`. A verified result has
 `state: "stopped"` and `verified: true`. If process exit cannot be verified after the final kill,

@@ -11,9 +11,35 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   frame for both empty and populated pages; aggregate frames and trailing page metadata remain.
   Profile selection reads retain the effective `profile` and add optional `note` for archived
   remembered fallback; CLI resolution preserves that provenance. No route, tool ID, or command changes.
+- **Document-wide streams:** `/api/sessions/catalog-stream`, `/api/worktrees/catalog-stream`,
+  and `/api/logs/stream` add WebSocket upgrades with one existing SSE frame per text message.
+  HTTP/UDS SSE remains supported. Session/log upgrades resume through `last_event_id`, preserving
+  header precedence and leaving existing numeric log query filters unchanged. Stream scopes,
+  redaction, event names, payloads, and gateway tickets retain their owners. Upgraded connections
+  join transport shutdown through the existing stream lifecycle primitive. Three Web consumers
+  opt in so background notifications and profile lifecycle sweeps stay live across documents.
+  Official runtime guidance, generated OpenAPI/Web types, and session/worktree docs co-ship.
 - **Extensibility / hooks / config:** The shared redactor recognizes the public metadata field;
   nested secret fields and secret-shaped free text retain their existing protection. No new
   configuration, hook, or extension capability.
+- **Overview CLI validation:** An explicitly supplied `--usage-window=0` now receives the same
+  accepted-value validation as other invalid numbers. Omission retains the 30-day default; HTTP,
+  UDS, native tools, and generated contracts already express 7, 30, or 90. No migration is needed.
+- **Task execution CLI:** Publish, start, approve, and reject now resolve the selected profile
+  through the existing command wrapper before transport. The daemon retains its existing
+  ownership checks, including not-found responses for a foreign profile. No wire, native-tool,
+  Web, hook, configuration, or persistence change; official task guidance co-ships.
+- **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
+  workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
+  selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The
+  existing native tool, CLI, hooks, config, and persistence contracts stay intact. Session lifecycle
+  docs and the official runtime skill explain explicit owner selection. No migration is required.
+- **Extension manifest compatibility:** TOML and JSON static-resource string paths normalize into
+  the current path/profile objects at decode. Current placements, strict unknown-field rejection,
+  and canonical build output remain. This SD-013 regime-2 adapter is removed in v0.3.0-beta.31;
+  authoring/manifest guides, official extension guidance, and a migration release note co-ship.
+  CLI, HTTP/UDS, and native extension build/dev/install callers share the loader; there are no new
+  routes, tools, hooks, config keys, Web controls, or stored-state changes.
 - **Workspace data isolation:** No persistent state or workspace selection changes.
 - **Official skill / Web / Docs:** Profile guidance documents the optional fallback note. Web
   consumers continue using the existing effective profile field; generated DTOs co-ship. Onboarding

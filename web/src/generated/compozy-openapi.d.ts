@@ -33958,17 +33958,29 @@ export interface operations {
         limit?: number;
         /** @description Replay bounded retained logs before live polling */
         replay?: boolean;
+        /** @description Composite resume cursor when Last-Event-ID cannot be set; the header takes precedence */
+        last_event_id?: string;
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
         all_profiles?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description Resume after this composite log event id */
+        "Last-Event-ID"?: string;
+      };
       path?: never;
       cookie?: never;
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Log event stream */
       200: {
         headers: {
@@ -50343,6 +50355,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Subscribe to the explicit all-workspaces aggregate */
         all_workspaces?: boolean;
+        /** @description Resume cursor when Last-Event-ID cannot be set; the header takes precedence */
+        last_event_id?: string;
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
@@ -50357,6 +50371,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Profile-scoped session catalog event stream for the selected workspace or explicit owner-labeled all-workspaces aggregate */
       200: {
         headers: {
@@ -118802,7 +118823,10 @@ export interface operations {
   };
   stopSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -134836,6 +134860,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Workspace-identified worktree catalog event stream */
       200: {
         headers: {

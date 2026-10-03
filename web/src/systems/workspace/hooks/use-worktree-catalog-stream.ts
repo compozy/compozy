@@ -33,7 +33,7 @@ export function worktreeCatalogStreamURL(): string {
 }
 
 function defaultEventSourceFactory(url: string): WorktreeCatalogEventSource {
-  return createStreamEventSource(url);
+  return createStreamEventSource(url, { transport: "websocket" });
 }
 
 function parseWorktreeCatalogEvent(event: Event): WorktreeCatalogEventPayload | undefined {
@@ -136,7 +136,7 @@ export function useWorktreeCatalogStream(
     // serializes to a non-empty string.
     workspaceIds.length > 0 &&
     typeof window !== "undefined" &&
-    (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
+    (eventSourceFactory !== undefined || typeof WebSocket !== "undefined");
   const store = useStore(worktreeCatalogStreamLogic);
   const status = useSelector(store, snapshot => snapshot.context.status);
 

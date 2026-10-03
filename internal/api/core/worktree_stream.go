@@ -31,12 +31,13 @@ func (h *BaseHandlers) StreamWorktreeCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	defer cancel()
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+	writer, closeStream, ok := h.prepareEventStream(c)
+	if !ok {
+		cancel()
 		return
 	}
+	defer closeStream()
+	defer cancel()
 	if err := WriteSSEComment(writer, "worktree catalog stream ready"); err != nil {
 		h.logSSEWriteFailure(worktreeCatalogChangedEvent, err)
 		return

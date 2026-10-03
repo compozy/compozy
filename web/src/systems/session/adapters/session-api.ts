@@ -168,12 +168,13 @@ export interface StopSessionOptions {
 export async function stopSession(
   workspaceId: string,
   id: string,
+  profile: string,
   options: StopSessionOptions = {}
 ): Promise<SessionStopResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       body: { wait: options.wait === true },
       signal: options.signal,
     }

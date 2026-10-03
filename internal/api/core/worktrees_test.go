@@ -20,6 +20,7 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type worktreeServiceStub struct {
@@ -1280,6 +1281,54 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 
 func TestWorktreeStreams(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve worktree attribution on upgraded catalog streams", func(t *testing.T) {
+		t.Parallel()
+		events := make(chan worktree.CatalogEvent, 1)
+		events <- worktree.CatalogEvent{Kind: worktree.CatalogEventUpserted, WorkspaceID: "registry-a", WorktreeID: "wt-a"}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{Worktrees: worktreeServiceStub{catalogEvents: events}})
+		router := gin.New()
+		router.GET("/worktrees/catalog-stream", handlers.StreamWorktreeCatalog)
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+		dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+		connection, response, err := dialer.DialContext(t.Context(),
+			"ws"+strings.TrimPrefix(server.URL, "http")+"/worktrees/catalog-stream", nil)
+		if response != nil && response.Body != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Errorf("close upgrade response: %v", closeErr)
+			}
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := connection.Close(); err != nil {
+				t.Errorf("close catalog connection: %v", err)
+			}
+		})
+		if response.StatusCode != http.StatusSwitchingProtocols {
+			t.Fatalf("upgrade status = %d", response.StatusCode)
+		}
+		if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{": worktree catalog stream ready\n\n", "event: worktree_catalog_changed\n"} {
+			kind, payload, err := connection.ReadMessage()
+			if err != nil || kind != websocket.TextMessage || !strings.Contains(string(payload), want) {
+				t.Fatalf("catalog frame = %d %q, error = %v", kind, payload, err)
+			}
+			if strings.Contains(want, "event:") && (!strings.Contains(string(payload), `"workspace_id":"registry-a"`) ||
+				!strings.Contains(string(payload), `"worktree_id":"wt-a"`)) {
+				t.Fatalf("worktree attribution missing: %s", payload)
+			}
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := handlers.ShutdownEventStreams(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	t.Run("Should replay canonical worktree events by name in order after the requested sequence", func(t *testing.T) {
 		t.Parallel()
