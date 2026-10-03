@@ -47,6 +47,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   CLI, HTTP/UDS, and native extension build/dev/install callers share the loader; there are no new
   routes, tools, hooks, config keys, Web controls, or stored-state changes.
 - **Workspace data isolation:** No persistent state or workspace selection changes.
+- **Agent context runtime identity:** The shared situation projection prefers the session's
+  effective model over its configured agent default. Authenticated HTTP/UDS context reads and
+  the fresh prompt context share this correction; pending runtime selection remains intent.
+  There is no DTO, tool ID, CLI, Web, hook/config, or persistence change. Existing startup
+  snapshots remain historical. The owning situation suite, real provider replay, RT-031 and
+  official runtime guidance cover the change; no migration or compatibility adapter is needed.
 - **Directory-browser recovery:** The shared Web browser retains known parent/home/root
   destinations when a directory read fails. Both Add project and first-run onboarding consume
   that navigation state; the failed path and error remain visible, and no stale directory entries

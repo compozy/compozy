@@ -56,6 +56,9 @@ object from `session status -o json` (or any session read), rather than inferrin
 the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
 `selection_revision`, `effective`, ACP session ID, and advertised ACP capabilities. `selected` is
 durable next-prompt intent; `effective` is the runtime already bound to the current process.
+Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
+the session's effective model when present, ahead of the configured agent default. A pending
+next-prompt selection does not replace that identity before it is applied.
 `runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
 and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 

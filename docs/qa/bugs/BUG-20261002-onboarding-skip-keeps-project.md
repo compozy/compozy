@@ -48,7 +48,7 @@ remains valid evidence for its distinct empty-catalog precondition.
 - **Regression owner:** `use-onboarding-wizard.test.tsx`, successful Skip/Finish scope handoff and
   failed completion, plus existing busy-workspace guards. The browser replay owns button wiring
   and scope persistence across refresh.
-- **Fix commit:** pending.
+- **Fix commit:** `a5a70342a`.
 
 An earlier retry stopped on duplicate recent/catalog model labels; it collected no Skip verdict
 and was replaced by the fresh recorded retry above.

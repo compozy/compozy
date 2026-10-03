@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20261002-directory-error-traps-navigation; BUG-20261002-onboarding-skip-keeps-project
 fix_status: fixed
 retest_status: pass
-fix_commits: ebfb89518
+fix_commits: ebfb89518; a5a70342a
 evidence: docs/qa/evidence/2026-10-02-untested/directory-recovery-real-replay.json; docs/qa/evidence/2026-10-02-untested/workspace-browser-fixed-draft-catalog.json; docs/qa/evidence/2026-10-02-untested/workspace-browser-fixed-advanced-layout.json; docs/qa/evidence/2026-10-02-untested/workspace-browser-single-registration.json; docs/qa/evidence/2026-10-02-untested/workspace-browser-created-http.json; docs/qa/evidence/2026-10-02-untested/workspace-browser-created-uds.json; docs/qa/evidence/2026-10-02-untested/workspace-browser-created-refresh.json; docs/qa/evidence/2026-10-02-untested/onboarding-skip-scope-fixed-replay.json; docs/qa/evidence/2026-10-02-untested/onboarding-normal-finish-canary.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-entity-modal-shell

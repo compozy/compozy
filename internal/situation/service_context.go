@@ -116,7 +116,7 @@ func (s *Service) ContextForSession(
 			SessionID: strings.TrimSpace(info.ID),
 			AgentName: strings.TrimSpace(info.AgentName),
 			Provider:  firstTrimmed(info.Provider, resolvedAgent.Provider, agentDef.Provider),
-			Model:     firstTrimmed(resolvedAgent.Model, agentDef.Model),
+			Model:     firstTrimmed(info.Model, resolvedAgent.Model, agentDef.Model),
 		},
 		Workspace:    workspaceSection,
 		Session:      sessionPayload(info),
