@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: A 28px Globe toggle sits between the CompozyOS mark and the workspace chip, outside `role="menubar"`. Off is muted like the bell; on is pressed fill plus accent globe (`aria-pressed`). ON sets the chip to Global (`~`) and keeps the remembered project id; OFF restores that project when it still exists. ⇧⌘G toggles the same control and is skipped on editable targets. With zero project folders the toggle stays on and is `aria-disabled` (not `disabled`) with tooltip "Add a workspace to scope down"; with project folders but no remembered selection it stays on with tooltip "Pick a workspace to scope down" (never the add-a-workspace copy). While the workspace catalog is still loading the toggle claims nothing — no locked reason. A polite live region announces the mode. The workspace menu lists project folders only; while Global is on it shows no check and no info or warning notice; picking a folder turns Global off. Compact viewports keep logo · globe · chip leading after app menus hide.
 entry_points: web desktop menubar; ⇧⌘G; command palette Turn on/off Global scope
-qa_status: untested
-bug_ids: BUG-20261003-background-windows-forget-global
+qa_status: pass
+bug_ids: BUG-20261003-background-windows-forget-global; BUG-20260906-stopped-history-schema-upgrade
 fix_status: fixed
 retest_status: pass
 fix_commits: 62b58628b62a03048967a91543323d3cb427bb7b; 3f53932aa35300c32e92bb6a84d469e1d89f367c
-evidence: docs/qa/evidence/2026-10-02-untested/workspace-background-scope-bruno-ended.json; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-project-tmp.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
+evidence: docs/qa/evidence/2026-10-02-untested/scope-legacy-crossdoc-bruno-confirm.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-delivery-gate-retry.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-evidence-audit-final.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-menubar-menu-set; ET-web-command-palette-shortcuts; MS-web-workspace-lists-hide-home; MS-global-scope-no-workspace-work; ET-profile-switcher-restore
 ---
@@ -84,3 +84,24 @@ failed Job dispatch and reload. Explicit foreground Loop navigation still adopts
 Evidence: catalog-loop-scope-green-corrected.json and catalog-recovery-replay-global.json in this
 cycle's evidence directory. The bug is verified; the full scenario retains its pending-resolution,
 zero/no-remembered-selection and session-deep-link obligations.
+
+QA 2026-10-04 remaining legs: fresh Bruno sessions confirm the zero-project and unremembered-
+project reasons, keyboard reachability, unchecked project menu and project restoration after
+Global/reload. With the real workspace request delayed, cold entry mounts no scope controls and
+the shortcut cannot change the eventual project. The historical Global-session link remains
+Pending pending a real pre-profile fixture; no current session creation bypass is used.
+Evidence: scope-completion-zero-toggle.json, scope-completion-project-restore.json and
+scope-completion-catalog-latency-bruno-ended.json under this cycle evidence directory.
+
+QA 2026-10-04: a genuine released home-owned history upgraded to the current daemon cannot
+resolve the desktop or session owner. The retained-history upgrade bug is reopened; current
+scope-control repairs remain verified, while this historical link path requires repair and
+fresh replay. See the dated report and scope-legacy evidence.
+
+QA 2026-10-04 verified: the genuine beta.19 history upgrades losslessly and opens read-only through
+both links after Global confirmation. Decline, reload, remembered-project restoration, a concurrent
+project document and editable-target shortcut suppression all pass. HTTP/UDS/CLI preserve the
+original three lifecycle events and physical database owner. Current affected gates and strict
+lab evidence audit pass; both exact-manifest Global labs have clean teardown receipts. The fixture
+has no authored provider narrative, and no such rendering claim is made. See the final Global
+closure in the cycle report for the complete earlier scope-control legs and evidence.

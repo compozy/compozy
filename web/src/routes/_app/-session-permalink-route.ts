@@ -4,7 +4,7 @@ import { redirect } from "@tanstack/react-router";
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 
 import type { TopbarRouteContext } from "@/types/topbar";
-import { resolveDesktopWorkspaceId } from "./-route-preload";
+import { resolveActiveWorkspaceSelection } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -91,13 +91,17 @@ export async function resolveSessionPermalink({
   // Global data scope still renders inside the remembered project's desktop.
   // Session windows belong to that durable layout partition, not to the
   // workspace-free catalog lens used by global listings.
-  const workspaceId = await resolveDesktopWorkspaceId(queryClient);
+  const selection = await resolveActiveWorkspaceSelection(queryClient);
+  const workspaceId = selection.desktopWorkspaceId;
   if (!workspaceId) {
     throw new SessionNotFoundError(sessionId);
   }
 
   const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, workspaceId);
   if (knownOwner) {
+    if (knownOwner.workspaceId === "" && selection.scope === "global") {
+      return resolveForeignPermalink(queryClient, sessionId, workspaceId, true);
+    }
     return { status: "foreign", owner: knownOwner };
   }
 
@@ -112,7 +116,12 @@ export async function resolveSessionPermalink({
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
-      return resolveForeignPermalink(queryClient, sessionId, workspaceId);
+      return resolveForeignPermalink(
+        queryClient,
+        sessionId,
+        workspaceId,
+        selection.scope === "global"
+      );
     }
     throw error;
   }
@@ -130,16 +139,17 @@ export async function resolveSessionPermalink({
 async function resolveForeignPermalink(
   queryClient: QueryClient,
   sessionId: string,
-  activeWorkspaceId: string
+  activeWorkspaceId: string,
+  globalScope: boolean
 ): Promise<SessionPermalinkResolution> {
   const owner = await resolveSessionOwner(queryClient, sessionId);
   if (!owner) {
     throw new SessionNotFoundError(sessionId);
   }
-  if (owner.workspaceId === activeWorkspaceId) {
+  if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
     const session = await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
     await Promise.allSettled([
-      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(activeWorkspaceId, sessionId)),
+      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
     return { status: "resolved", session };
   }

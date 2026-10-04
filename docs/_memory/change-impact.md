@@ -4,6 +4,22 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Retained Global history upgrades:** Catalog and health readers accept the workspace-free
+  scope written by the existing home-to-Global migration. Creation profile versions 3–5 retain
+  their original sandbox/Network fields solely as hash-bound provenance; current creation still
+  writes version 6. The catalog's logical scope and the immutable events.db owner are resolved
+  separately, with the original creation witness proving Global ownership. Metadata, database
+  owner rows and historical hashes are not rewritten; no new schema or migration is introduced.
+  HTTP/UDS add read-only `/api/sessions/{session_id}/transcript`, `/transcript/search` and
+  `/transcript/outline` routes for Global history, enforcing both Global ownership and profile
+  read scope. Existing project routes and mutation boundaries stay intact. CLI transcript,
+  search and outline reads select the owning route; native session tools keep their existing
+  project/caller scope and IDs. No hook, extension SDK or configuration changes. Web links ask
+  to enable Global without replacing the remembered project and render retained history read-only.
+  Out-of-scope documents hide a session locally without retiring its shared window; only
+  confirmed deletion or an explicit delete retires it. Existing presence and content guards remain.
+  Generated OpenAPI/Web types, official runtime guidance and session control-plane docs co-ship.
+  The retained-history bug and Global scope scenarios own the released-binary upgrade replay.
 - **Native tools / CLI / HTTP / UDS:** Generic CLI tool invocation preserves public
   `credential_requirements` metadata and its discovery schema, matching the existing daemon
   contract. Validation patterns retain their exact syntax only inside discovery schemas; descriptions,

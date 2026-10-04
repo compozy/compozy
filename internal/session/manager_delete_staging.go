@@ -393,7 +393,11 @@ func (m *Manager) stageSessionDirectoryDeleteWithAttachmentStaging(
 		m.homePaths.SessionsDir,
 		sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, target, deletionID),
 	)
-	owner, err := m.resolveStoredSessionOwner(ctx, target, info.WorkspaceID)
+	meta, err := m.readSessionMetaReadOnly(ctx, target)
+	if err != nil {
+		return stagedSessionDelete{}, fmt.Errorf("session: read deletion metadata for %q: %w", target, err)
+	}
+	owner, err := meta.DatabaseOwner()
 	if err != nil {
 		return stagedSessionDelete{}, fmt.Errorf("session: resolve catalog owner for delete %q: %w", target, err)
 	}

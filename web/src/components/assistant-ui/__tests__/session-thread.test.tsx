@@ -5549,7 +5549,7 @@ describe("SessionThread pending quote ownership", () => {
     holdPendingTerminalQuote(quote);
     renderThreadState({ status: "success", readOnly: true });
 
-    await screen.findByText(/to get started/i);
+    await screen.findByTestId("chat-view");
     expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
     expect(peekSessionTerminalQuote(primarySessionFixture.id)).toBeNull();
     expect(screen.queryByTestId("terminal-quote-block")).not.toBeInTheDocument();

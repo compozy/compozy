@@ -1,16 +1,12 @@
-import { Suspense } from "react";
-
-import { Spinner } from "@compozy/ui";
-
 import {
   ProfileOwnerBanner,
   useProfileLens,
   useSwitchProfile,
   type ProfileOwner,
 } from "@/systems/profiles";
-import { SessionChatRuntimeProvider, type SessionPayload } from "@/systems/session";
+import { type SessionPayload } from "@/systems/session";
 
-import { SessionThread } from "./session-thread-lazy";
+import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
 
 export interface SessionProfileOwnerNoticeProps {
   owner: ProfileOwner;
@@ -43,7 +39,6 @@ export function SessionProfileOwnerNotice({
 }: SessionProfileOwnerNoticeProps) {
   const lens = useProfileLens();
   const switchProfile = useSwitchProfile(lens);
-  const workspaceId = session.workspace_id?.trim() ?? "";
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
@@ -58,31 +53,11 @@ export function SessionProfileOwnerNotice({
           onSwitch={() => switchProfile.mutate({ kind: "profile", profile: owner.name })}
         />
       </div>
-      <SessionChatRuntimeProvider
-        sessionId={session.id}
-        workspaceId={workspaceId}
+      <SessionReadOnlyTranscript
+        session={session}
+        agentName={agentName}
         liveTailEnabled={liveTailEnabled}
-      >
-        <Suspense
-          fallback={
-            <div className="flex min-h-0 flex-1 items-center justify-center">
-              <Spinner className="size-5 text-subtle" />
-            </div>
-          }
-        >
-          <SessionThread
-            readOnly
-            canPrompt={false}
-            liveDataEnabled={liveTailEnabled}
-            sessionId={session.id}
-            workspaceId={workspaceId}
-            agentName={session.agent_name || agentName}
-            acpSessionId={session.runtime.acp_session_id}
-            sessionState={session.state}
-            failure={session.failure}
-          />
-        </Suspense>
-      </SessionChatRuntimeProvider>
+      />
     </div>
   );
 }

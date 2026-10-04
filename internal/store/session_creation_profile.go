@@ -37,6 +37,9 @@ type SessionCreationProfile struct {
 	RuntimeMode     string   `json:"runtime_mode,omitempty"`
 	PromptOverlay   string   `json:"prompt_overlay,omitempty"`
 	ContractOverlay string   `json:"contract_overlay,omitempty"`
+
+	legacySandboxMode string
+	legacySandboxRef  string
 }
 
 // SessionCreationOptions are deterministic per-session options excluded from
@@ -46,6 +49,9 @@ type SessionCreationOptions struct {
 	Name      string `json:"name,omitempty"`
 
 	SessionType string `json:"session_type"`
+
+	legacyNetworkOwnerKey      string
+	legacyNetworkParticipation json.RawMessage
 }
 
 // NormalizeSessionCreationProfile produces the only canonical digest input.
@@ -63,6 +69,8 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 	profile.WorkspaceID = strings.TrimSpace(profile.WorkspaceID)
 	profile.CWD = strings.TrimSpace(profile.CWD)
 	profile.WorktreeRef = strings.TrimSpace(profile.WorktreeRef)
+	profile.legacySandboxMode = strings.ToLower(strings.TrimSpace(profile.legacySandboxMode))
+	profile.legacySandboxRef = strings.TrimSpace(profile.legacySandboxRef)
 	profile.Permissions = strings.TrimSpace(profile.Permissions)
 	profile.RuntimeMode = strings.ToLower(strings.TrimSpace(profile.RuntimeMode))
 	profile.PromptOverlay = strings.TrimSpace(profile.PromptOverlay)
@@ -77,8 +85,13 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 // Validate enforces the complete immutable profile contract.
 func (p SessionCreationProfile) Validate() error {
 	p = NormalizeSessionCreationProfile(p)
-	if p.Version != SessionCreationProfileVersion {
+	if p.Version < 3 || p.Version > SessionCreationProfileVersion {
 		return fmt.Errorf("store: unsupported session creation profile version %d", p.Version)
+	}
+	if p.Version < SessionCreationProfileVersion {
+		if err := p.validateLegacyWitness(); err != nil {
+			return err
+		}
 	}
 	if _, err := speedpkg.Parse(string(p.Speed)); err != nil {
 		return fmt.Errorf("store: session creation profile: %w", err)
@@ -92,7 +105,6 @@ func (p SessionCreationProfile) Validate() error {
 	}{
 		{name: "agent_name", value: p.AgentName},
 		{name: "provider", value: p.Provider},
-		{name: "profile_id", value: p.ProfileID},
 		{name: "workspace_id", value: p.WorkspaceID},
 		{name: "cwd", value: p.CWD},
 	}
@@ -100,6 +112,9 @@ func (p SessionCreationProfile) Validate() error {
 		if field.value == "" {
 			return fmt.Errorf("store: session creation profile %s is required", field.name)
 		}
+	}
+	if p.Version >= 4 && p.ProfileID == "" {
+		return fmt.Errorf("store: session creation profile profile_id is required")
 	}
 	return nil
 }
@@ -146,6 +161,12 @@ func (p SessionCreationProfile) CreationDigest(opts SessionCreationOptions) (str
 	opts.SessionType = strings.TrimSpace(opts.SessionType)
 	if opts.SessionID == "" || opts.SessionType == "" {
 		return "", fmt.Errorf("store: session creation digest requires session_id and session_type")
+	}
+	if p.Version < SessionCreationProfileVersion {
+		opts.legacyNetworkOwnerKey = strings.TrimSpace(opts.legacyNetworkOwnerKey)
+		if opts.legacyNetworkOwnerKey == "" || len(opts.legacyNetworkParticipation) == 0 {
+			return "", fmt.Errorf("store: legacy session creation options require the retained network witness")
+		}
 	}
 	creationJSON, err := json.Marshal(opts)
 	if err != nil {

@@ -46,7 +46,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
   }
   if (crossesWorkspace) {
-    return <SessionWindowNotice title={PROJECT_UNAVAILABLE} detail={error?.message} />;
+    return <SessionWindowNotice title="This session is outside the current project" />;
   }
   if (foreign.status === "found") {
     return (

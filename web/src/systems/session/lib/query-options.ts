@@ -297,7 +297,7 @@ export function sessionTranscriptSearchOptions(
   return queryOptions({
     queryKey: sessionKeys.transcriptSearch(workspace, id, q, limit),
     queryFn: ({ signal }) => searchSessionTranscript(workspace, id, { limit, q }, signal),
-    enabled: !!workspace && !!id && q.length > 0,
+    enabled: !!id && q.length > 0,
     placeholderData: keepPreviousData,
     staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
     retry: false,
@@ -309,7 +309,7 @@ export function sessionTranscriptOutlineOptions(workspace: string, id: string, e
   return queryOptions({
     queryKey: sessionKeys.transcriptOutline(workspace, id),
     queryFn: ({ signal }) => fetchSessionTranscriptOutline(workspace, id, signal),
-    enabled: !!workspace && !!id && enabled,
+    enabled: !!id && enabled,
     placeholderData: keepPreviousData,
     staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
   });

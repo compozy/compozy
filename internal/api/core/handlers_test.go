@@ -217,6 +217,52 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	t.Parallel()
 
+	// The Global transcript transport requires both workspace-free ownership and
+	// the requested profile before the materialized history reader can run.
+	for _, tc := range []struct {
+		name        string
+		workspaceID string
+		profileID   string
+		wantStatus  int
+	}{
+		{"Should read retained Global history", "", store.DefaultProfileID, http.StatusOK},
+		{"Should refuse project history on the Global route", "ws-project", store.DefaultProfileID, http.StatusNotFound},
+		{"Should refuse another profile on the Global route", "", "profile-other", http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var reads atomic.Int32
+			manager := testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					info := testutil.NewSessionInfo(id)
+					info.WorkspaceID, info.ProfileID = tc.workspaceID, tc.profileID
+					return info, nil
+				},
+				TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+					reads.Add(1)
+					if id != "sess-global" || query.Limit != 2 {
+						t.Fatalf("transcript request = %s %+v", id, query)
+					}
+					return transcript.Page{Generation: 7, MaxSequence: 12}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/sessions/sess-global/transcript?limit=2",
+				nil,
+			)
+			if response.Code != tc.wantStatus {
+				t.Fatalf("Global transcript = %d %s, want %d", response.Code, response.Body, tc.wantStatus)
+			}
+			if (reads.Load() == 1) != (tc.wantStatus == http.StatusOK) {
+				t.Fatalf("history reader calls = %d", reads.Load())
+			}
+		})
+	}
+
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
 	var attachCalls atomic.Int32
@@ -1141,6 +1187,32 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should return Global ownership without resolving a removed project", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				t.Fatal("owner lookup must not repair the session")
+				return nil, nil
+			},
+			SessionOwnerFn: func(_ context.Context, id string) (store.SessionOwner, error) {
+				return store.SessionOwner{SessionID: id, ProfileID: store.DefaultProfileID}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{}, errors.New("Global has no workspace to resolve")
+			},
+		}, nil, nil)
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-global/owner", nil)
+		var owner contract.SessionOwner
+		if err := json.Unmarshal(response.Body.Bytes(), &owner); err != nil || response.Code != http.StatusOK {
+			t.Fatalf("Global owner status = %d body = %s (%v), want 200", response.Code, response.Body.String(), err)
+		}
+		if owner.SessionID != "sess-global" || owner.WorkspaceID != "" || owner.WorkspaceName != "Global" {
+			t.Fatalf("Global owner = %+v", owner)
+		}
+	})
+
 	t.Run("Should resolve the owner through the non-repairing owner read", func(t *testing.T) {
 		t.Parallel()
 
@@ -1149,8 +1221,8 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 				t.Fatal("Status() called: an owner lookup must not repair the session")
 				return nil, nil
 			},
-			SessionOwnerFn: func(_ context.Context, id string) (store.SessionDBOwner, error) {
-				return store.SessionDBOwner{SessionID: id, WorkspaceID: "ws-workspace"}, nil
+			SessionOwnerFn: func(_ context.Context, id string) (store.SessionOwner, error) {
+				return store.SessionOwner{SessionID: id, WorkspaceID: "ws-workspace"}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{

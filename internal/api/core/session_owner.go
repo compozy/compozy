@@ -12,9 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SessionOwnerReader resolves the workspace that owns a session without repairing it.
+// SessionOwnerReader resolves the catalog scope that owns a session without repairing it.
 type SessionOwnerReader interface {
-	SessionOwner(ctx context.Context, sessionID string) (store.SessionDBOwner, error)
+	SessionOwner(ctx context.Context, sessionID string) (store.SessionOwner, error)
 }
 
 // GetSessionOwner returns the minimal workspace ownership projection for one session.
@@ -38,6 +38,10 @@ func (h *BaseHandlers) GetSessionOwner(c *gin.Context) {
 		return
 	}
 
+	if owner.WorkspaceID == "" {
+		c.JSON(http.StatusOK, contract.SessionOwner{SessionID: owner.SessionID, WorkspaceName: "Global"})
+		return
+	}
 	workspace, err := h.Workspaces.Get(c.Request.Context(), owner.WorkspaceID)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("resolve session owner workspace: %w", err))

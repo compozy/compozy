@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1067,6 +1068,32 @@ func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
 			}
 		})
 		assertPhase0HomeWorkspaceDisposition(ctx, t, reopened)
+		healthRepo := &HeartbeatRepo{repoBase: newRepoBase(reopened, nil, new(atomic.Int32))}
+		health, err := healthRepo.GetSessionHealth(ctx, "home-session")
+		if err != nil {
+			t.Fatalf("GetSessionHealth(migrated Global session) error = %v", err)
+		}
+		if health.SessionID != "home-session" || health.WorkspaceID != "" || health.AgentName != "default" {
+			t.Fatalf("migrated session health = %#v, want the preserved Global owner", health)
+		}
+		recovery, err := healthRepo.ListSessionHealthRecoveryInputs(ctx, 0)
+		if err != nil {
+			t.Fatalf("ListSessionHealthRecoveryInputs(migrated Global session) error = %v", err)
+		}
+		if len(recovery) != 1 || recovery[0].SessionID != health.SessionID || recovery[0].WorkspaceID != "" {
+			t.Fatalf("recovery inputs = %#v, want the migrated Global session", recovery)
+		}
+		health.UpdatedAt = health.UpdatedAt.Add(time.Minute)
+		if _, err := healthRepo.UpsertSessionHealth(ctx, health); err != nil {
+			t.Fatalf("UpsertSessionHealth(migrated Global session) error = %v", err)
+		}
+		updated, err := healthRepo.GetSessionHealth(ctx, health.SessionID)
+		if err != nil {
+			t.Fatalf("GetSessionHealth(updated Global session) error = %v", err)
+		}
+		if updated.WorkspaceID != "" || !updated.UpdatedAt.Equal(health.UpdatedAt) {
+			t.Fatalf("updated health = %#v, want preserved ownership and the new timestamp", updated)
+		}
 	})
 
 	t.Run("Should abort atomically when the home workspace owns a worktree", func(t *testing.T) {
@@ -2563,6 +2590,52 @@ func TestRepositoryCheckReady(t *testing.T) {
 }
 
 func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
+	t.Run("Should retain Global sessions without exposing them in project listings", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "project", t.TempDir())
+		createdAt := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+		for _, entry := range []struct{ id, workspaceID string }{
+			{id: "sess-global-retained"},
+			{id: "sess-project-retained", workspaceID: workspaceID},
+		} {
+			if err := globalDB.RegisterSession(ctx, SessionInfo{
+				ID: entry.id, WorkspaceID: entry.workspaceID, ProfileID: store.DefaultProfileID,
+				AgentName: "general", Provider: "codex", RuntimeStatus: store.SessionRuntimeUnbound,
+				State: "stopped", CreatedAt: createdAt, UpdatedAt: createdAt,
+			}); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", entry.id, err)
+			}
+		}
+		path := globalDB.Path()
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(before Global session reopen) error = %v", err)
+		}
+		globalDB = openGlobalDBForTest(t, path)
+		sessions, err := globalDB.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if err != nil {
+			t.Fatalf("ListSessions(Global) error = %v", err)
+		}
+		if len(sessions) != 2 || !slices.ContainsFunc(sessions, func(info SessionInfo) bool {
+			return info.ID == "sess-global-retained" && info.WorkspaceID == "" &&
+				info.ProfileID == store.DefaultProfileID
+		}) {
+			t.Fatalf("Global sessions = %#v, want the retained unscoped session and project session", sessions)
+		}
+		projectSessions, err := globalDB.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("ListSessions(project) error = %v", err)
+		}
+		if len(projectSessions) != 1 || projectSessions[0].ID != "sess-project-retained" {
+			t.Fatalf("project sessions = %#v, want only the project-owned session", projectSessions)
+		}
+	})
+
 	t.Run("Should persist recovery state and preserve workspace-scoped listing", func(t *testing.T) {
 		t.Parallel()
 

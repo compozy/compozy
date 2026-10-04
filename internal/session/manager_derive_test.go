@@ -254,7 +254,7 @@ func TestContinueSession(t *testing.T) {
 					t.Fatalf("session.derived payload = %v, missing %q", payload, key)
 				}
 			}
-			if _, err := store.LookupSessionDBOwner(testutil.Context(t), h.db, child.ID); err != nil {
+			if _, err := store.LookupSessionOwner(testutil.Context(t), h.db, h.db, child.ID); err != nil {
 				t.Fatalf("catalog row for child: %v", err)
 			}
 
@@ -1008,7 +1008,7 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 				gotInfo, gotIdentity, gotReceipt = info, identity, receipt
 				_, statErr := os.Stat(filepath.Join(h.homePaths.SessionsDir, info.ID, store.SessionMetaName))
 				metaExisted = statErr == nil
-				_, lookupErr := store.LookupSessionDBOwner(testutil.Context(t), h.db, info.ID)
+				_, lookupErr := store.LookupSessionOwner(testutil.Context(t), h.db, h.db, info.ID)
 				catalogRow = lookupErr == nil
 				ledgerRows = len(h.derivedLedgerRows(t, info.ID))
 				h.notifier.mu.Lock()
@@ -1058,7 +1058,7 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(h.homePaths.SessionsDir, failedID)); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("failed child directory stat error = %v, want swept", err)
 		}
-		if _, err := store.LookupSessionDBOwner(testutil.Context(t), h.db, failedID); err == nil {
+		if _, err := store.LookupSessionOwner(testutil.Context(t), h.db, h.db, failedID); err == nil {
 			t.Fatal("failed child left a catalog row")
 		}
 		if _, found, err := h.db.SessionDerivationReceipt(
@@ -1109,7 +1109,12 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 				if _, statErr := os.Stat(metaPath); statErr != nil {
 					t.Fatalf("%s: committed child meta stat error = %v, want it kept", stage, statErr)
 				}
-				if _, lookupErr := store.LookupSessionDBOwner(testutil.Context(t), h.db, childID); lookupErr != nil {
+				if _, lookupErr := store.LookupSessionOwner(
+					testutil.Context(t),
+					h.db,
+					h.db,
+					childID,
+				); lookupErr != nil {
 					t.Fatalf("%s: committed child catalog row error = %v, want it kept", stage, lookupErr)
 				}
 			}

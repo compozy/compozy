@@ -60,6 +60,7 @@ const PRIMARY_WORKSPACE_ID = "ws_06366aad69887872";
 const PRIMARY_WORKSPACE_NAME = "primary";
 const SIBLING_PROFILE_SESSION_ID = "sess-83c389e7e46274aa";
 const UNKNOWN_SESSION_ID = "sess-000000000000dead";
+const GLOBAL_SESSION_ID = "sess-retained-global";
 
 interface TestRouterContext {
   queryClient: QueryClient;
@@ -311,16 +312,21 @@ function buildSessionDeepLinkRouter({
       return (
         <SessionWorkspaceSwitchDialog
           open={workspaceSwitch === "confirm"}
+          isGlobal={data.owner.workspaceId === ""}
           workspaceName={data.owner.workspaceName}
           onConfirm={() =>
-            confirmSessionWorkspaceSwitch(data.owner, { isGlobal: false }, () => {
-              void navigate({
-                to: "/agents/$name/sessions/$id",
-                params,
-                search: {},
-                replace: true,
-              });
-            })
+            confirmSessionWorkspaceSwitch(
+              data.owner,
+              { isGlobal: data.owner.workspaceId === "" },
+              () => {
+                void navigate({
+                  to: "/agents/$name/sessions/$id",
+                  params,
+                  search: {},
+                  replace: true,
+                });
+              }
+            )
           }
           onCancel={() => {
             void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
@@ -362,9 +368,10 @@ function buildSessionDeepLinkRouter({
     return (
       <SessionWorkspaceSwitchDialog
         open={workspaceSwitch === "confirm"}
+        isGlobal={owner.workspaceId === ""}
         workspaceName={owner.workspaceName}
         onConfirm={() =>
-          confirmSessionWorkspaceSwitch(owner, { isGlobal: false }, () => {
+          confirmSessionWorkspaceSwitch(owner, { isGlobal: owner.workspaceId === "" }, () => {
             void navigate({ to: "/session/$id", params, search: {}, replace: true });
           })
         }
@@ -566,6 +573,61 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
+
+  it.each(["/session", "/agents/general/sessions"])(
+    "Should confirm Global history from %s without replacing the remembered project",
+    async prefix => {
+      const retained = { ...makeSession(GLOBAL_SESSION_ID, "", "Global"), state: "stopped" };
+      vi.mocked(globalThis.fetch).mockImplementation(request => {
+        const pathname = requestPathname(request);
+        if (pathname === `/api/sessions/${GLOBAL_SESSION_ID}/owner`) {
+          return Promise.resolve(
+            Response.json({
+              session_id: GLOBAL_SESSION_ID,
+              workspace_id: "",
+              workspace_name: "Global",
+            })
+          );
+        }
+        if (pathname === `/api/sessions/${GLOBAL_SESSION_ID}`) {
+          return Promise.resolve(Response.json({ session: retained }));
+        }
+        if (pathname === `/api/sessions/${GLOBAL_SESSION_ID}/transcript`) {
+          return Promise.resolve(
+            Response.json({
+              entries: [],
+              epoch: 1,
+              generation: 1,
+              max_sequence: 0,
+              has_older: false,
+              limit: 200,
+            })
+          );
+        }
+        return Promise.resolve(new Response(null, { status: 404 }));
+      });
+      const { queryClient, router } = buildSessionDeepLinkRouter({
+        initialEntry: `${prefix}/${GLOBAL_SESSION_ID}`,
+      });
+      renderRouter(router);
+
+      await screen.findByTestId("session-workspace-switch-dialog");
+      expect(fetchedPathnames()).not.toContain(`/api/sessions/${GLOBAL_SESSION_ID}`);
+      expect(fetchedPathnames()).not.toContain(`/api/sessions/${GLOBAL_SESSION_ID}/transcript`);
+      fireEvent.click(screen.getByTestId("session-workspace-switch-confirm"));
+
+      await screen.findByText(`Loaded session: ${GLOBAL_SESSION_ID}`);
+      expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
+        scope: "global",
+        selectedWorkspaceId: BENCH_WORKSPACE_ID,
+      });
+      expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
+      expect(fetchedPathnames()).toContain(`/api/sessions/${GLOBAL_SESSION_ID}/transcript`);
+      expect(
+        queryClient.getQueryData(sessionKeys.detail(BENCH_WORKSPACE_ID, GLOBAL_SESSION_ID))
+      ).toBeUndefined();
+    }
+  );
 
   it("Should keep an external permalink on today's not-found rendering when declined", async () => {
     stubForeignSessionBackend();

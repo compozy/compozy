@@ -4,6 +4,7 @@ import { AlertCircle } from "lucide-react";
 import { Empty, Spinner } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
+import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
 import {
   canPromptSession,
   SessionChatRuntimeProvider,
@@ -36,7 +37,7 @@ export function SessionWindowView({
   error: Error | null;
   onDeleteSuccess: () => void;
 }) {
-  const sessionWorkspaceId = session?.workspace_id?.trim();
+  const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
   if (isLoading) {
     return (
@@ -53,6 +54,15 @@ export function SessionWindowView({
   }
 
   const resolvedAgentName = session.agent_name || name;
+  if (sessionWorkspaceId === "") {
+    return (
+      <SessionReadOnlyTranscript
+        session={session}
+        agentName={resolvedAgentName}
+        liveTailEnabled={false}
+      />
+    );
+  }
   return (
     <SessionPromptRuntimeProvider key={id} canPrompt={canPromptSession(session)} session={session}>
       <SessionChatRuntimeProvider

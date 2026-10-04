@@ -30,7 +30,7 @@ type StubSessionManager struct {
 	) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn          func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn                func(context.Context, string) (*session.Info, error)
-	SessionOwnerFn          func(context.Context, string) (store.SessionDBOwner, error)
+	SessionOwnerFn          func(context.Context, string) (store.SessionOwner, error)
 	ActivePromptRunFn       func(context.Context, string) (session.PromptRunIdentity, error)
 	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
@@ -240,15 +240,15 @@ func (s StubSessionManager) Status(ctx context.Context, id string) (*session.Inf
 }
 
 // SessionOwner delegates to SessionOwnerFn, else derives the owner from Status.
-func (s StubSessionManager) SessionOwner(ctx context.Context, id string) (store.SessionDBOwner, error) {
+func (s StubSessionManager) SessionOwner(ctx context.Context, id string) (store.SessionOwner, error) {
 	if s.SessionOwnerFn != nil {
 		return s.SessionOwnerFn(ctx, id)
 	}
 	info, err := s.Status(ctx, id)
 	if err != nil {
-		return store.SessionDBOwner{}, err
+		return store.SessionOwner{}, err
 	}
-	return store.SessionDBOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
+	return store.SessionOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
 }
 
 func (s StubSessionManager) ActivePromptRun(

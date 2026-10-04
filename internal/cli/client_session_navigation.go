@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/transcript"
@@ -17,7 +19,7 @@ func (c *daemonClient) SearchSessionTranscript(
 	query transcript.SearchQuery,
 ) (contract.SessionTranscriptSearchResponse, error) {
 	var result contract.SessionTranscriptSearchResponse
-	path, err := c.sessionScopedPath(ctx, id, "/transcript/search")
+	path, err := c.sessionTranscriptPath(ctx, id, "/transcript/search")
 	if err != nil {
 		return result, err
 	}
@@ -36,10 +38,28 @@ func (c *daemonClient) GetSessionOutline(
 	id string,
 ) (contract.SessionTranscriptOutlineResponse, error) {
 	var result contract.SessionTranscriptOutlineResponse
-	path, err := c.sessionScopedPath(ctx, id, "/transcript/outline")
+	path, err := c.sessionTranscriptPath(ctx, id, "/transcript/outline")
 	if err != nil {
 		return result, err
 	}
 	err = c.doJSON(ctx, http.MethodGet, path, nil, nil, &result)
 	return result, err
+}
+
+// sessionTranscriptPath selects a read-only history route from the authorized
+// by-id record. Mutations retain sessionScopedPath's project requirement.
+func (c *daemonClient) sessionTranscriptPath(ctx context.Context, id, suffix string) (string, error) {
+	sessionID, err := requirePathValue("session_id", id)
+	if err != nil {
+		return "", err
+	}
+	record, err := c.GetSession(ctx, sessionID)
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve session %q history owner: %w", sessionID, err)
+	}
+	base := "/api"
+	if workspaceID := strings.TrimSpace(record.WorkspaceID); workspaceID != "" {
+		base += "/workspaces/" + url.PathEscape(workspaceID)
+	}
+	return base + "/sessions/" + url.PathEscape(sessionID) + suffix, nil
 }

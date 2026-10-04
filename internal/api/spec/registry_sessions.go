@@ -113,7 +113,7 @@ func getSessionOwnerOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/{session_id}/owner",
 		OperationID: "getSessionOwner",
-		Summary:     "Get a session workspace owner projection",
+		Summary:     "Get a session owner; Global history has an empty workspace id",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{

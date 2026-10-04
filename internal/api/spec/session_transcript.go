@@ -1,6 +1,8 @@
 package spec
 
 import (
+	"strings"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -8,7 +10,7 @@ import (
 const specTranscriptIncompatibleDescription = "Transcript projection is incompatible"
 
 func sessionTranscriptOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
@@ -75,6 +77,23 @@ func sessionTranscriptOperations() []OperationSpec {
 			},
 		},
 	}
+	return append(operations, globalSessionHistoryOperation(operations[0]))
+}
+
+// Global history keeps the same paging/navigation contract, scoped by profile
+// and an explicitly workspace-free owner instead of a removed synthetic project.
+func globalSessionHistoryOperation(operation OperationSpec) OperationSpec {
+	operation.Path = strings.Replace(operation.Path, "/workspaces/{workspace_id}", "", 1)
+	operation.OperationID = strings.Replace(operation.OperationID, "Session", "GlobalSession", 1)
+	operation.Summary += " for a Global session"
+	parameters := make([]ParameterSpec, 0, len(operation.Parameters))
+	for _, parameter := range operation.Parameters {
+		if parameter.In != "path" || parameter.Name != "workspace_id" {
+			parameters = append(parameters, parameter)
+		}
+	}
+	operation.Parameters = withProfileScope(parameters...)
+	return operation
 }
 
 func transcriptFenceQueryParam(name string, description string) ParameterSpec {

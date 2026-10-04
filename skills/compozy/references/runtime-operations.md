@@ -115,6 +115,17 @@ Each `events.db` is bound to one exact session and workspace. Session reads and 
 HTTP/UDS, or native tools must match that persisted owner. A missing or mismatched owner refuses the
 open before migration or data mutation; CompozyOS does not adopt, rebind, or repair the database.
 
+History migrated from the former operator-home registration appears in the catalog as Global
+(`workspace_id` is empty). Its database still belongs to the original workspace recorded in the
+immutable creation witness. CompozyOS validates that witness and the physical owner together;
+the empty catalog scope is not permission to adopt another database. Retained version 3–5
+creation profiles preserve their original hashes without enabling retired runtime policies.
+
+Read Global history through `GET /api/sessions/{session_id}/transcript`, with the same paging
+parameters and profile read scope as project history. The corresponding owner lookup reports
+an empty workspace ID and the name `Global`. Web links enable Global after confirmation while
+preserving the remembered project; the recovered transcript is read-only.
+
 At startup, a missing or mismatched owner, or a changed physical database identity, produces a
 warning with the session and workspace IDs. That store is excluded from boot history processing;
 healthy sessions remain available and public reads of the refused store still fail. Migration and
@@ -1006,6 +1017,10 @@ operator trail: `entries: [{sequence, turn_id, preview, reply_preview, at}]`, wi
 previews. HTTP/UDS routes are `/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search`
 and `/transcript/outline`; CLI twins are `compozy session search <id> <query> --limit 50 -o json`
 and `compozy session outline <id> -o json`.
+For retained Global history, CLI selects `/api/sessions/{session_id}/transcript/search` or
+`/transcript/outline` automatically. These HTTP/UDS routes accept only Global-owned sessions
+and enforce profile read scope. Native session tools retain their project/caller workspace
+boundary; use the operator CLI or HTTP/UDS Global routes to inspect migrated home history.
 After compaction/rewind/clear, re-read navigation against the current transcript fences.
 
 Session resource reads include `stop_cause` with the existing `stop_reason`,

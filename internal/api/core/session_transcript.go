@@ -1,9 +1,12 @@
 package core
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +18,7 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	sessionID, info, ok := h.routeSessionTranscript(c)
 	if !ok {
 		return
 	}
@@ -35,4 +38,32 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 		NextBeforeSequence: page.NextBeforeSequence,
 		Limit:              query.Limit,
 	})
+}
+
+// routeSessionTranscript authorizes the existing project route or the read-only
+// Global route. A workspace-free route never widens to a project's history.
+func (h *BaseHandlers) routeSessionTranscript(c *gin.Context) (string, *session.Info, bool) {
+	if strings.TrimSpace(c.Param("workspace_id")) != "" {
+		_, id, info, ok := h.routeSessionInWorkspace(c)
+		return id, info, ok
+	}
+	id := strings.TrimSpace(c.Param("session_id"))
+	if id == "" {
+		h.respondError(c, http.StatusBadRequest, errors.New("session_id path is required"))
+		return "", nil, false
+	}
+	info, err := h.requireSessionInWorkspace(c.Request.Context(), "", id)
+	if err != nil {
+		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
+		return "", nil, false
+	}
+	scope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return "", nil, false
+	}
+	if !h.requireSessionInProfile(c, info, scope) {
+		return "", nil, false
+	}
+	return id, info, true
 }

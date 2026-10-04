@@ -267,7 +267,7 @@ func (c *daemonClient) GetSessionTranscript(
 	id string,
 ) (SessionTranscriptRecord, error) {
 	var response SessionTranscriptRecord
-	path, err := c.sessionScopedPath(ctx, id, "/transcript")
+	path, err := c.sessionTranscriptPath(ctx, id, "/transcript")
 	if err != nil {
 		return SessionTranscriptRecord{}, err
 	}

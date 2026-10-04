@@ -166,7 +166,7 @@ func (m *Manager) resolveRecorderOpenTarget(
 	}
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
-	owner, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, &meta)
 	if err != nil {
 		return recorderOpenTarget{}, fmt.Errorf("session: resolve catalog owner for %q: %w", target, err)
 	}
