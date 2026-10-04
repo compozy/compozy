@@ -191,7 +191,7 @@ func testLoopActionSettlementIntegration(
 	for _, setup := range configure {
 		setup(db, runtime)
 	}
-	executeErr := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued)
+	executeErr := runtime.executeQueuedRun(runtime.root, taskRecord, worker, loopActionRuntimeReasonEnqueued)
 	if wantFailure {
 		if executeErr == nil || !errors.Is(executeErr, looppkg.ErrActionResultTooLarge) {
 			t.Fatalf(
@@ -673,7 +673,7 @@ func (oversizedLoopActionExecutor) Harvest(
 	return looppkg.ActionOutput{Value: raw.Value}, nil
 }
 
-func testLoopActionPersistenceContention(t *testing.T, oversized, duringExecution bool) {
+func testLoopActionPersistenceContention(t *testing.T, oversized, duringExecution bool, lifecycle ...string) {
 	t.Helper()
 	executor := &contendedLoopActionExecutor{t: t, oversized: oversized, duringExecution: duringExecution}
 	suffix := "contended-complete"
@@ -688,6 +688,14 @@ func testLoopActionPersistenceContention(t *testing.T, oversized, duringExecutio
 			if duringExecution {
 				runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 			}
+			if len(lifecycle) > 0 && lifecycle[0] == "shutdown" {
+				executor.duringContention = runtime.cancel
+			}
+			if len(lifecycle) > 0 && lifecycle[0] == "expiry" {
+				var offset atomic.Int64
+				runtime.now = func() time.Time { return time.Now().UTC().Add(time.Duration(offset.Load())) }
+				executor.duringContention = func() { offset.Store(int64(10 * time.Minute)) }
+			}
 		})
 	if calls := executor.calls.Load(); calls != 1 {
 		t.Fatalf("action executions = %d, want one", calls)
@@ -695,11 +703,12 @@ func testLoopActionPersistenceContention(t *testing.T, oversized, duringExecutio
 }
 
 type contendedLoopActionExecutor struct {
-	t               *testing.T
-	db              *globaldb.GlobalDB
-	oversized       bool
-	duringExecution bool
-	calls           atomic.Int32
+	t                *testing.T
+	db               *globaldb.GlobalDB
+	oversized        bool
+	duringExecution  bool
+	calls            atomic.Int32
+	duringContention func()
 }
 
 func (e *contendedLoopActionExecutor) Execute(
@@ -714,6 +723,14 @@ func (e *contendedLoopActionExecutor) Execute(
 		defer close(unlocked)
 		done <- store.ExecuteWriteOperation(e.t.Context(), e.db.DB(), "hold action settlement writer", func(ctx context.Context, _ *store.WriteTx) error {
 			close(locked)
+			if e.duringContention != nil {
+				select {
+				case <-time.After(200 * time.Millisecond):
+					e.duringContention()
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
 			timer := time.NewTimer(2200 * time.Millisecond)
 			defer timer.Stop()
 			select {

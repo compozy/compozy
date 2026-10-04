@@ -175,7 +175,7 @@ func (r *loopActionRuntime) executeClaimedRun(
 	cancelRun()
 	heartbeatErr := <-heartbeatErrC
 	usage.retryPendingSessionBinding()
-	if ctx.Err() != nil {
+	if ctx.Err() != nil && runErr != nil {
 		return taskpkg.RunResult{}, false, ctx.Err()
 	}
 	if tokensUsed := usage.TokensUsed(); tokensUsed > result.TokensUsed {

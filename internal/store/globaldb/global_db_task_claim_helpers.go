@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -64,12 +65,17 @@ func requeueLeasedRun(ctx context.Context, exec taskSQLExecutor, runID string) e
 	return nil
 }
 
-func expiredLeaseRunIDs(
+func (g *TaskRunRepo) expiredLeaseRunIDs(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	recovery taskpkg.ExpiredLeaseRecovery,
 ) ([]string, error) {
+	reserved, err := json.Marshal(g.leaseSettlements)
+	if err != nil {
+		return nil, fmt.Errorf("store: encode reserved task run leases: %w", err)
+	}
 	rows, err := sqlcgen.New(exec).ListExpiredTaskRunLeaseIDs(ctx, sqlcgen.ListExpiredTaskRunLeaseIDsParams{
+		ReservedLeases: string(reserved),
 		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
 		StartingStatus: taskpkg.TaskRunStatusStarting.String(),
 		RunningStatus:  taskpkg.TaskRunStatusRunning.String(),

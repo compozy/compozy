@@ -621,6 +621,8 @@ func TestGlobalDBSessionHealthStore(t *testing.T) {
 }
 
 func TestGlobalDBHeartbeatWakeAuditStore(t *testing.T) {
+	t.Parallel()
+
 	// Invariant: retention with no expired events does not reserve the writer; heartbeat storage owns it.
 	t.Run("Should skip the writer when heartbeat retention has no expired events", func(t *testing.T) {
 		t.Parallel()
@@ -652,8 +654,6 @@ func TestGlobalDBHeartbeatWakeAuditStore(t *testing.T) {
 			t.Fatalf("empty retention = %d, %v", count, err)
 		}
 	})
-
-	t.Parallel()
 
 	t.Run("Should select profile wake status and events before applying limits", func(t *testing.T) {
 		t.Parallel()

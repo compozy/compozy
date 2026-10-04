@@ -351,6 +351,12 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		t.Parallel()
 		testLoopActionPersistenceContention(t, false, true)
 	})
+	for _, lifecycle := range []string{"shutdown", "expiry"} {
+		t.Run("Should retain a completed result through "+lifecycle, func(t *testing.T) {
+			t.Parallel()
+			testLoopActionPersistenceContention(t, false, false, lifecycle)
+		})
+	}
 
 	t.Run("Should keep a quiet action alive without an inherited deadline", func(t *testing.T) {
 		testLoopActionLivenessIntegration(t)

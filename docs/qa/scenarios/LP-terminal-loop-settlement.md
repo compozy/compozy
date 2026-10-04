@@ -31,5 +31,10 @@ an empty orphan sweep and provenance backfill. Both reads must finish without ac
 Hold the writer across multiple action completion/failure write deadlines: release it and verify
 one action invocation, a terminal task run, released lease, and settled generation output. Repeat
 with contention during the action heartbeat and completed tool-event persistence. Empty heartbeat
-retention must also remain read-only. See the owning
+retention must also remain read-only. Repeat completion with shutdown during the blocked write
+and with the clock advancing past the lease deadline; preserve the result and one invocation.
+Automatic lease recovery must skip a reserved settlement while continuing to recover unrelated
+expired runs, and resume eligibility after an abandoned reservation is released. Multiple
+coordinator histories for one task must backfill one aligned, deterministic provenance row.
+See the owning
 [contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).

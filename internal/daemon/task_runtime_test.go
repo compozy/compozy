@@ -741,6 +741,16 @@ type loopActionCapacityTestManager struct {
 	run        taskpkg.Run
 }
 
+func (*loopActionCapacityTestManager) ReserveRunLeaseSettlement(
+	context.Context,
+	string,
+	string,
+	time.Time,
+	taskpkg.ActorContext,
+) (func(), error) {
+	return func() {}, nil
+}
+
 func (m *loopActionCapacityTestManager) ClaimNextRun(
 	context.Context,
 	taskpkg.ClaimCriteria,
@@ -818,6 +828,16 @@ type loopActionLivenessTestManager struct {
 	boundSessionID     string
 	failure            taskpkg.LeaseFailure
 	run                taskpkg.Run
+}
+
+func (*loopActionLivenessTestManager) ReserveRunLeaseSettlement(
+	context.Context,
+	string,
+	string,
+	time.Time,
+	taskpkg.ActorContext,
+) (func(), error) {
+	return func() {}, nil
 }
 
 func (m *loopActionLivenessTestManager) ClaimNextRun(

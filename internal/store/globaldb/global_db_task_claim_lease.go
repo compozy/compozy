@@ -109,11 +109,22 @@ func (g *TaskRunRepo) RecoverExpiredRunLeases(
 	}
 
 	recovered := make([]taskpkg.ExpiredLeaseRecoveryResult, 0)
+	reservationsLocked := false
+	defer func() {
+		if reservationsLocked {
+			g.leaseRecoveryVersion.Add(1)
+			g.leaseSettlementsMu.Unlock()
+		}
+	}()
 	if err := g.tasks.withTaskImmediateTransaction(
 		ctx,
 		"recover expired task run leases",
 		func(exec taskSQLExecutor) error {
-			runIDs, err := expiredLeaseRunIDs(ctx, exec, normalized)
+			if !reservationsLocked {
+				g.leaseSettlementsMu.Lock()
+				reservationsLocked = true
+			}
+			runIDs, err := g.expiredLeaseRunIDs(ctx, exec, normalized)
 			if err != nil {
 				return err
 			}

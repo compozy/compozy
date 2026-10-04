@@ -22,11 +22,16 @@ func (q *Queries) GetLoopReconciliationStatus(ctx context.Context, id string) (s
 }
 
 const listLoopProvenance = `-- name: ListLoopProvenance :many
-SELECT DISTINCT t.id, t.workspace_id, t.metadata_json, tr.loop_run_id, lr.loop_name
+WITH coordinators AS (
+    SELECT task_id, workspace_id, loop_run_id,
+        ROW_NUMBER() OVER (PARTITION BY task_id, workspace_id ORDER BY queued_at DESC, id DESC) AS precedence
+    FROM task_runs
+    WHERE run_kind = 'coordinator' AND loop_run_id IS NOT NULL AND trim(loop_run_id) <> ''
+)
+SELECT t.id, t.workspace_id, t.metadata_json, tr.loop_run_id, lr.loop_name
 FROM tasks t
-JOIN task_runs tr ON tr.task_id = t.id AND tr.workspace_id = t.workspace_id AND tr.run_kind = 'coordinator'
+JOIN coordinators tr ON tr.task_id = t.id AND tr.workspace_id = t.workspace_id AND tr.precedence = 1
 LEFT JOIN loop_runs lr ON lr.id = tr.loop_run_id AND lr.workspace_id = t.workspace_id
-WHERE tr.loop_run_id IS NOT NULL AND trim(tr.loop_run_id) <> ''
 `
 
 type ListLoopProvenanceRow struct {
@@ -104,6 +109,8 @@ func (q *Queries) ListLoopReconciliationCandidates(ctx context.Context) ([]sql.N
 }
 
 const updateLoopProvenance = `-- name: UpdateLoopProvenance :execrows
+;
+
 UPDATE tasks SET metadata_json = ?1
 WHERE id = ?2 AND metadata_json IS ?3
 `

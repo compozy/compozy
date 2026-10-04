@@ -169,6 +169,47 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 		}
 	})
 
+	// Invariant: each task has one deterministic provenance source; backfill owns this repair.
+	t.Run("Should select the latest coordinator provenance once per task", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Now().UTC()
+		older := testLoopRun("provenance-old", now, looppkg.StatusRunning)
+		newer := testLoopRun("provenance-new", now.Add(time.Minute), looppkg.StatusRunning)
+		newer.LoopName = "newer-loop"
+		for _, run := range []looppkg.Run{older, newer} {
+			if _, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+				t.Fatal(err)
+			}
+		}
+		taskID := loopCoordinatorTaskID(older.ID)
+		if _, err := db.db.ExecContext(ctx, `UPDATE task_runs SET task_id = ?, queued_at = ? WHERE loop_run_id = ?`,
+			taskID, now.Add(time.Minute).Format(time.RFC3339Nano), newer.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE tasks SET metadata_json = '{}' WHERE id = ?`, taskID); err != nil {
+			t.Fatal(err)
+		}
+		if repaired, err := db.BackfillLoopProvenance(ctx); err != nil || repaired != 1 {
+			t.Fatalf("backfill = %d, %v, want one consistent update", repaired, err)
+		}
+		record, err := db.GetTask(ctx, taskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var metadata map[string]any
+		if err := json.Unmarshal(record.Metadata, &metadata); err != nil {
+			t.Fatal(err)
+		}
+		if metadata["loop_run_id"] != string(newer.ID) || metadata["loop_name"] != newer.LoopName {
+			t.Fatalf("provenance = %#v, want aligned latest Loop id and name", metadata)
+		}
+		if repaired, err := db.BackfillLoopProvenance(ctx); err != nil || repaired != 0 {
+			t.Fatalf("second backfill = %d, %v, want idempotent repair", repaired, err)
+		}
+	})
+
 	const terminalOrphanCase = "Should repair a terminal orphan once and project backfilled coordinator provenance UT-030 UT-031 UT-033 IT-005 IT-006 IT-025"
 	t.Run(terminalOrphanCase, func(t *testing.T) {
 		t.Parallel()
