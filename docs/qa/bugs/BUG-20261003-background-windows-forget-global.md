@@ -98,7 +98,7 @@ under the same user-visible background-window symptom.
   Global scope choices. Uses real daemon reads and a pure transform Loop; no agent runs.
 - **Repair:** LoopsWindow adopts a known route owner when foreground route ownership/focus
   resolves. The effect no longer responds to later active-workspace changes, and a retained
-  background window cannot adopt a project. Current source is verified; commit stamp pending.
+  background window cannot adopt a project. Fix commit: 3f53932aa35300c32e92bb6a84d469e1d89f367c.
 - **Regression:** the focused real-daemon Loops E2E fails before the repair and passes afterward.
   An initial post-fix run used home instead of the registered dashboard app identity; its
   screenshot already shows Home with Global active. Correcting that selector preserves the

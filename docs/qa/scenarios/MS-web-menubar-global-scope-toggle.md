@@ -10,7 +10,7 @@ qa_status: untested
 bug_ids: BUG-20261003-background-windows-forget-global
 fix_status: fixed
 retest_status: pass
-fix_commits: 62b58628b62a03048967a91543323d3cb427bb7b
+fix_commits: 62b58628b62a03048967a91543323d3cb427bb7b; 3f53932aa35300c32e92bb6a84d469e1d89f367c
 evidence: docs/qa/evidence/2026-10-02-untested/workspace-background-scope-bruno-ended.json; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-project-tmp.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-menubar-menu-set; ET-web-command-palette-shortcuts; MS-web-workspace-lists-hide-home; MS-global-scope-no-workspace-work; ET-profile-switcher-restore

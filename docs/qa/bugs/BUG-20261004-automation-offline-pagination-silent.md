@@ -43,7 +43,7 @@ The corrected receipt records navigator.onLine=false before and after the bounde
   view-model inputs. Reuse the existing Button and Query state; do not fabricate an error.
 - **Regression test:** existing automation-catalog.test.tsx; paused pagination retains content,
   exposes its connection wait and refuses another activation.
-- **Fix commit:** pending.
+- **Fix commit:** 3f53932aa35300c32e92bb6a84d469e1d89f367c.
 
 ## Verification
 
@@ -61,4 +61,5 @@ All paths are under docs/qa/evidence/2026-10-02-untested/.
 
 The first replay probe assumed 100 initial rows and stopped before enabling offline mode;
 the corrected probe measures the actual loaded page. It is retained as a driver error.
-The current source is verified; the commit stamp follows the required delivery gate.
+The required gate passes all affected lanes, including 693 Web files / 6,915 tests.
+catalog-recovery-commit-proof.json confirms the committed tree equals the checked staged tree.

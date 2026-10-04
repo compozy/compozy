@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20261004-automation-offline-pagination-silent; BUG-20261003-background-windows-forget-global; BUG-20260713-workspace-trigger-loop-submit-inert; BUG-20261003-loop-mapping-example-rejected; BUG-20261003-webhook-sample-invalid-json
 fix_status: fixed
 retest_status: pass
-fix_commits: 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
+fix_commits: 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0; 3f53932aa35300c32e92bb6a84d469e1d89f367c
 evidence: docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-global-failed-history.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-jobs-offline-observed.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-triggers-offline.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-pending-route-node.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-trigger-route-back.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: TA-052; TA-056; TA-automation-crud-loop-target; LP-033
@@ -76,4 +76,4 @@ restores controls. Two different Loop seeds are consumed once in both editors, c
 do not return, and unseeded creation retains its default target. Route/project changes clear old
 editor data; a pending Job does not disable another Job detail. Prior unchanged CRUD, managed
 source, row/card and concurrency evidence is reused from this cycle. The scenario is Fixed;
-the new repair commit stamp follows its required gate.
+the required gate passes and commit 3f53932aa contains the checked source tree.
