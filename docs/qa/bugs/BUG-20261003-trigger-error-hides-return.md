@@ -39,7 +39,7 @@ The transient native-history URL observation is retained without asserting its r
 - **Root cause:** TriggerDetailPanel supplies its existing Back to Triggers action only when the
   record is absent without an error. A real missing-id response takes the preceding error branch,
   which omits that action; loaded-only topbar navigation is also absent.
-- **Fix commit:** self (the commit that records this verified repair)
+- **Fix commit:** 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
 - **Regression test:** The existing trigger-detail-panel.test.tsx suite owns error presentation
   and the onBack action. Extend its error case to prove that users can invoke catalog navigation.
 

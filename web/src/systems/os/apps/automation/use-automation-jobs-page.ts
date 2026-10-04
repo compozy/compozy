@@ -70,6 +70,7 @@ export function useAutomationJobsPage(
     hasActiveFilters: page.hasActiveFilters,
     hasNextPage: jobsQuery.hasNextPage,
     isFetchingNextPage: jobsQuery.isFetchingNextPage,
+    isPaused: jobsQuery.isPaused,
     isLoading: jobsQuery.isLoading && jobs.length === 0,
     jobs,
     loadMore: () => void jobsQuery.fetchNextPage(),

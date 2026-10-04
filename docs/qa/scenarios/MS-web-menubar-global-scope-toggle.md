@@ -75,3 +75,12 @@ regressions; keyboard/palette toggles, editable-target suppression, profile inde
 390px compact leading controls also pass. Full scenario status remains untested until the
 pending-resolution, zero/no-remembered selection and Global-session deep-link legs are complete.
 Evidence: workspace-background-scope-bruno-ended.json and its inspected final/compact screenshots.
+
+QA 2026-10-04: a retained scoped Loop run immediately reverses an explicit Global choice. The background-window bug is reopened for the route-adoption path. Catalog concurrency and runtime-off controls have current live evidence, but this scenario remains Pending for repair and the remaining charter legs.
+
+QA 2026-10-04 repaired replay: the focused real-daemon regression and fresh Bruno session now
+preserve explicit Global selection with a scoped Loop run retained, through Home/Jobs navigation,
+failed Job dispatch and reload. Explicit foreground Loop navigation still adopts its known owner.
+Evidence: catalog-loop-scope-green-corrected.json and catalog-recovery-replay-global.json in this
+cycle's evidence directory. The bug is verified; the full scenario retains its pending-resolution,
+zero/no-remembered-selection and session-deep-link obligations.

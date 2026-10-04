@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
 - **Journey Step:** Keep Global selected while another desktop document is open, then reload
-- **Scenarios:** MS-web-menubar-global-scope-toggle
+- **Scenarios:** MS-web-menubar-global-scope-toggle; ET-web-jobs-triggers-catalog
 - **Found:** 2026-10-03 · **Report:** docs/qa/reports/2026-10-02-untested.md
 
 ## Summary
@@ -76,3 +76,40 @@ Receipt: workspace-background-scope-delivery-gate.json/.log. The full scope scen
 zero/no-remembered selection and Global-session deep-link legs; its matrix row remains Pending.
 
 Final delivery receipts: workspace-background-scope-{final-gate,final-gate-status,audit}.json.
+
+## Regressed (2026-10-04)
+
+Bruno cannot enable Global while a scoped Loop run remains open in another OS tab. Unlike
+the earlier cross-document storage overwrite, this path immediately restores the project
+inside the same document. A clean browser document reproduces it. Closing only the owned
+Loop run window makes Global and Home navigation work on the unchanged build.
+
+The remaining writer is LoopsWindow: its layout effect adopts the route workspace whenever
+the active workspace changes, including explicit Global selection and background mounts.
+The earlier persistence correction remains valid; this is a separate route-adoption path
+under the same user-visible background-window symptom.
+
+- **Discovery:** CH-automation-catalog-recovery, Interrupt Tour, Bruno desktop en-US.
+- **Evidence:** docs/qa/evidence/2026-10-02-untested/catalog-recovery-bruno-retry-global.json;
+  catalog-global-retry.png; catalog-global-loop-window-diagnostic.json.
+- **Owning invariant:** explicit Loop navigation may adopt its known workspace once; retained
+  windows cannot undo a later shell scope choice or change another window's destination.
+- **Canonical regression:** web/e2e/__tests__/loops.spec.ts, scoped Loop windows preserve later
+  Global scope choices. Uses real daemon reads and a pure transform Loop; no agent runs.
+- **Repair:** LoopsWindow adopts a known route owner when foreground route ownership/focus
+  resolves. The effect no longer responds to later active-workspace changes, and a retained
+  background window cannot adopt a project. Current source is verified; commit stamp pending.
+- **Regression:** the focused real-daemon Loops E2E fails before the repair and passes afterward.
+  An initial post-fix run used home instead of the registered dashboard app identity; its
+  screenshot already shows Home with Global active. Correcting that selector preserves the
+  assertions and passes the complete case.
+- **Original-persona replay:** a fresh Bruno document opens the saved scoped Loop run, adopts
+  Recovery Editorial, then explicitly selects Global. Home, Jobs and reload preserve Global
+  with the Loop still retained. A failed global job also preserves its detail and scope, agreeing
+  with CLI history. Later explicit scoped Loop navigation still selects its owner.
+- **Evidence:** catalog-loop-scope-{red,green,green-corrected}.json/.log;
+  catalog-recovery-replay-{global,global-failed-job,global-failed-history,loop-seed-entry,
+  bruno-ended}.json; catalog-recovery-global-fixed.png. Evidence paths use this cycle's directory.
+
+The full Global toggle scenario remains Pending for its separate pending-resolution,
+zero/no-remembered-selection and session-deep-link legs; the repaired defect is verified.

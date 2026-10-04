@@ -62,6 +62,18 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   extension, hook, configuration, profile/workspace isolation or stored-state contract changes;
   no migration is needed. Official skill and site interfaces remain current. TA-052 and the
   existing job detail/form suites own the regression and fresh browser replay.
+- **Retained Loop window scope:** A foreground scoped Loop route adopts its known project;
+  retained background windows and later shell scope choices no longer trigger that adoption.
+  Route ownership validation and persisted scope formats stay unchanged. No native-tool,
+  CLI/HTTP/UDS, extension, hook, config or workspace-storage contract changes; no migration.
+  Official skill and site commands remain current. The existing Loops E2E suite owns the
+  regression, with fresh Bruno replay shared by the Global toggle and automation catalog scenarios.
+- **Offline automation pagination:** Jobs and Triggers carry Query's paused state to their
+  shared pagination control. Loaded rows remain usable while the disabled control explains that
+  continuation is waiting for connectivity. Existing reconnect, focus and invalidation policies
+  remain authoritative. No native-tool, CLI/HTTP/UDS, extension, hook, config, profile/workspace
+  isolation or stored-state changes; no migration. Official skill and site contracts remain
+  current. The existing catalog component suite and both live catalogs own verification.
 - **Trigger submission feedback:** The Web trigger editor keeps server submission errors beside
   its persistent actions in both form and preview views. Existing request validation, mutation
   ownership and draft recovery remain authoritative. No native-tool, CLI/HTTP/UDS, extension,

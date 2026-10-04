@@ -37,7 +37,7 @@ as a JSON failure. trigger-rule-webhook-inspect.png shows the independent correc
 
 - **Root cause:** SampleEventCard surrounds raw strings with quote characters instead of
   serializing labels, keys and values as JSON strings.
-- **Fix commit:** self (the commit that records this verified repair)
+- **Fix commit:** 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
 - **Regression test:** Existing automation-trigger-form.test.tsx owns the rendered preview.
   Parse the actual rendered envelope and its nested payload to prove valid, preserved JSON.
 

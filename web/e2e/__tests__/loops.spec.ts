@@ -9,7 +9,7 @@ import type {
   LoopRunGenerationOutput,
   RunLoopResult,
 } from "@/systems/loops";
-import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { openAppWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
@@ -587,6 +587,52 @@ function rosterRow(appPage: Page, nodeId: string) {
 function editorNode(appPage: Page, nodeId: string) {
   return appPage.locator(`[data-testid="loop-editor-node"][data-node-id="${nodeId}"]`);
 }
+
+// Invariant: a scoped Loop navigation may select its project, but retained Loop
+// windows cannot overwrite later shell choices. Owner: LoopsWindow route adoption.
+test("scoped Loop windows preserve later Global scope choices", async ({ appPage, runtime }) => {
+  if (!runtime.paths) throw new Error("Loop scope test requires launch-mode runtime paths");
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopWatchCursorSeedDefinition }),
+  });
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopWatchCursorSeedName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop scope test did not create a run");
+
+  await setGlobalScope(appPage, true);
+  await appPage.goto(
+    runtime.url(
+      `/loop-runs/${encodeURIComponent(started.run.id)}?workspace=${encodeURIComponent(workspace.id)}`
+    ),
+    { waitUntil: "domcontentloaded" }
+  );
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+
+  await setGlobalScope(appPage, true);
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await openAppWindow(appPage, "Home", "dashboard");
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await openAppWindow(appPage, "Jobs", "jobs");
+  await expect(appPage).toHaveURL(runtime.url("/jobs"));
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(appPage.getByRole("searchbox", { name: "Search jobs" })).toBeVisible();
+});
 
 test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({
   appPage,

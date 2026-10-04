@@ -38,7 +38,7 @@ trigger-rule-bruno-webhook-delivery.json and trigger-rule-bruno-open-loop.json.
 
 - **Root cause:** LoopInputMapping hard-codes a bare path as its placeholder and comment,
   although the existing mapping grammar requires a braced template expression.
-- **Fix commit:** self (the commit that records this verified repair)
+- **Fix commit:** 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
 - **Regression test:** A fresh rendered-form replay will follow the corrected example through
   save and independent readback. A prose-only placeholder assertion would freeze copy without
   proving the accepted mapping, so no new automated test is required for this copy repair.

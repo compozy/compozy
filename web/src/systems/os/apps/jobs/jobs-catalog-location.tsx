@@ -130,6 +130,7 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
           pagination={{
             hasNextPage: page.hasNextPage,
             isFetchingNextPage: page.isFetchingNextPage,
+            isPaused: page.isPaused,
             onLoadMore: page.loadMore,
           }}
           runDisabled={page.runDisabled}

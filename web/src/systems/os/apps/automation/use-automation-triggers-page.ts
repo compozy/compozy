@@ -45,6 +45,7 @@ export function useAutomationTriggersPage(
     hasActiveFilters: page.hasActiveFilters,
     hasNextPage: triggersQuery.hasNextPage,
     isFetchingNextPage: triggersQuery.isFetchingNextPage,
+    isPaused: triggersQuery.isPaused,
     isLoading: triggersQuery.isLoading && triggers.length === 0,
     loadMore: () => void triggersQuery.fetchNextPage(),
     runtimeUnavailableMessage,

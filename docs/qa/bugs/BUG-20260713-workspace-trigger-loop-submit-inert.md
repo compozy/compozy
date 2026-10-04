@@ -85,5 +85,5 @@ trigger-preview-error-{visible,compact}.png and trigger-rule-bruno-webhook-deliv
 The canonical form test fails before the display repair and passes afterward; the final adjacent
 form/detail/editor cohort passes 66 tests. Required delivery evidence is recorded in the report.
 
-- **Regression fix commit:** self (the commit that records this verified repair)
+- **Regression fix commit:** 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
 - **Retested:** 2026-10-03, Bruno, CH-trigger-detail-rule-page.

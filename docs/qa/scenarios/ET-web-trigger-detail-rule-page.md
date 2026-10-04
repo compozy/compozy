@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260815-trigger-detail-duplicate-key; BUG-20261003-trigger-error-hides-return
 fix_status: fixed
 retest_status: pass
-fix_commits: self (the commit that records this fixed verdict)
+fix_commits: 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
 evidence: docs/qa/evidence/2026-10-02-untested/trigger-preview-error-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-catalog-return-ready.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-managed-disabled-readback.json; docs/qa/evidence/2026-10-02-untested/trigger-rule-runs.png; docs/qa/evidence/2026-10-02-untested/trigger-rule-webhook-inspect.png; docs/qa/evidence/2026-10-02-untested/trigger-rule-compact-inspect.png; docs/qa/evidence/2026-10-02-untested/trigger-recovery-back-action.png; docs/qa/evidence/2026-10-02-untested/trigger-native-zoom-bruno.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-jobs-triggers-catalog; TA-automation-crud-loop-target
