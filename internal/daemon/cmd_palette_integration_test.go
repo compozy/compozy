@@ -537,11 +537,9 @@ func (cmdPaletteIntegrationBindings) Bindings(
 	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (map[cmdpalette.CommandID][]string, map[cmdpalette.CommandID]string, error) {
-	return map[cmdpalette.CommandID][]string{
-			"ext.notes.capture": {"meta+shift+KeyN"},
-		}, map[cmdpalette.CommandID]string{
-			"ext.notes.capture": "capture-note",
-		}, nil
+	bindings := map[cmdpalette.CommandID][]string{"ext.notes.capture": {"meta+shift+KeyN"}}
+	aliases := map[cmdpalette.CommandID]string{"ext.notes.capture": "capture-note"}
+	return bindings, aliases, nil
 }
 
 func (p cmdPaletteIntegrationStaticProvider) ProvideCommands(

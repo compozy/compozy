@@ -1,6 +1,6 @@
 # BUG-20261004-profile-palette-navigation-stall: Opening profile creation can leave the desktop unresponsive
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -58,6 +58,8 @@ race and is not retained.
 
 ## Fix
 
+- **Fix commit:** 259d7142c
+
 The runtime refuses commands at admission during a known conflict, without publishing optimistic
 route state or replacing the conflict diagnostic. After an accepted open, RoutingCoordinator
 uses the window's current route before falling back to the original requested route. Existing
@@ -81,4 +83,4 @@ remain responsive. Independent UDS reads prove both abandoned names absent. The 
 and browser Back leg passes. Evidence: profile-navigation-fixed-*.json and the inspected
 profile-navigation-fixed-create.png. The 25-frame recording is stopped before source work.
 The corrected replay explicitly dismisses the Command palette returned after Cancel; the first
-wait for the inert main button was a driver assumption. Delivery gate and fix commit remain pending.
+wait for the inert main button was a driver assumption. Production repair: 259d7142c. The gate passed before commit; a hook-only formatter disagreement in the integration fixture is being normalized separately.

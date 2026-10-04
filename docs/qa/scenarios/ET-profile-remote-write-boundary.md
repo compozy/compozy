@@ -6,11 +6,11 @@ persona: Ada
 journey: J-operate-profiles
 expected: Enabled remote HTTP tiers expose only scoped profile reads; every profile-state write returns 403 profile_remote_management_forbidden with the canonical action, while the same mutation succeeds through local HTTP, UDS, CLI, and delegated command-palette flows.
 entry_points: remote and local /api/profiles routes; compozy profile; profile.use|create|update|rename|archive|unarchive|delete palette actions
-qa_status: fail
+qa_status: blocked-verify
 bug_ids: BUG-20261004-profile-palette-drops-arguments; BUG-20261004-profile-palette-navigation-stall; BUG-20261004-profile-switch-loses-command-result
-fix_status: pending
-retest_status:
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: 34028edad; 259d7142c
 evidence: docs/qa/evidence/2026-10-02-untested/profile-local-boundary-ada-ended.json; docs/qa/evidence/2026-10-02-untested/profile-local-retry-ada-ended.json; docs/qa/evidence/2026-10-02-untested/profile-palette-lifecycle-fixed-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle; ET-agent-command-invoke; ET-profile-palette-view
@@ -45,3 +45,12 @@ the final delete is independently absent after reload, with the original selecti
 The argument-loss and switching-result bugs are verified. This row remains Fail because the
 separate earlier navigation stall has no established cause; the paired remote leg also remains
 unverified for the already recorded external prerequisite.
+
+
+Final local replay 2026-10-04: the two-client navigation failure is repaired in 259d7142c.
+Both clients preserve and consume the dialog intent, cancellation survives reload, and the
+Tasks/Back canary passes. E2E-017 and E2E-027 each pass three repetitions. All local write and
+delegated handoff legs are complete. The scenario is blocked only on the paired remote leg:
+an operator must configure the installed Tailscale provider with its required TS_AUTHKEY binding,
+enable and pair a remote Gateway listener, then walk scoped reads and all eight forbidden writes.
+No remote refusal is inferred from a disabled listener or loopback-only requests.

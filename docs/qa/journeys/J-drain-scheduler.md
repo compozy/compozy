@@ -23,7 +23,7 @@ journey:
   entry_points:
     - url: "CLI: compozy scheduler status; compozy scheduler drain; compozy scheduler resume"
       origin: direct
-    - url: "HTTP/UDS: GET /api/scheduler/status; POST /api/scheduler/drain"
+    - url: "HTTP/UDS: GET /api/scheduler; POST /api/scheduler/drain"
       origin: direct
   actions:
     - step: 1

@@ -8,9 +8,9 @@ expected: The Profiles view opens from the Views group and from root search, lis
 entry_points: Command-K root search; Views group; palette.view.profiles; profile.use|create|update|rename|archive|unarchive|delete actions; compozy cmd-palette list|inspect; GET /api/cmd-palette/catalog and views routes over HTTP and UDS
 qa_status: untested
 bug_ids: BUG-20261004-profile-palette-drops-arguments; BUG-20261004-profile-palette-navigation-stall; BUG-20261004-profile-switch-loses-command-result
-fix_status: open
-retest_status:
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: 34028edad; 259d7142c
 evidence: docs/qa/evidence/2026-10-02-untested/profile-palette-lifecycle-fixed-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-palette-lens-isolation; ET-profile-web-settings-lifecycle-dialogs; ET-palette-registry-driven-root; ET-palette-domain-views
@@ -53,3 +53,8 @@ confirmation, plus current/archived rows in the Profiles view. Needs-setup/unava
 stale-plan behavior in this view, and hosted native discovery still require the full charter.
 This scenario remains untested as a whole; the linked argument and result repairs do not close
 the separate navigation stall or those remaining legs.
+
+
+The linked argument, result and navigation defects are verified in the local handoff replay.
+The complete Profiles-view charter remains untested for its remaining state/native-discovery
+legs; those successful shared repairs do not settle the entire scenario.

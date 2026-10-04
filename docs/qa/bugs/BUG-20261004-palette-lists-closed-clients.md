@@ -1,6 +1,6 @@
 # BUG-20261004-palette-lists-closed-clients: Closed tabs remain command destinations
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -51,7 +51,7 @@ The directory now reads active command endpoints through the existing WindowMana
 Registered views remain the authority for context and reconnect authorization. No timer,
 best-effort unload request, registration deletion or swallowed disconnection error is used.
 
-- **Fix commit:** pending
+- **Fix commit:** 259d7142c
 - **Regression test:** existing IT-031 in internal/daemon/cmd_palette_integration_test.go;
   existing E2E-027 in web/e2e/__tests__/profiles.spec.ts provides real-tab lifecycle coverage.
 
@@ -64,5 +64,5 @@ the same identity, and zero-client refusal after closing both tabs. The first im
 post-reload read observes the disconnected interval; the later independent read and invocation
 prove recovery without another reload. The screenshot is inspected and the 11-frame recording
 is stopped. Receipts: palette-client-lifetime-fixed-*.json, integration-{red,green}.json and
-real-e2e.json in the cycle directory. Delivery gate and fix commit remain pending. The wider
+real-e2e.json in the cycle directory. Production repair: 259d7142c. The gate passed before commit; a hook-only formatter disagreement in the integration fixture is being normalized separately. The wider
 structured invocation/approval/native matrix is not settled by this adjacent lifetime probe.
