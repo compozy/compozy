@@ -1,6 +1,6 @@
 # BUG-20261004-archive-race-storage-error: An archived automation owner produces an internal storage error
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -35,6 +35,23 @@ All receipts are under docs/qa/evidence/2026-10-02-untested/:
 
 ## Fix
 
-Initial tracing follows the rejected session registration through accepted-start persistence to the
-automation run error. The existing database ownership guard must remain authoritative; classify its
-error at the owning boundary instead of retrying or bypassing it. No production repair yet.
+Session registration exposed two known SQLite trigger failures as unclassified storage errors.
+The repository now recognizes their exact trigger code/message and returns a typed profile
+admission refusal. Shared HTTP/UDS responses reuse the existing conflict payload; failed automation
+history stores the refusal and recovery action. The database guards, transaction ordering and
+dispatch policy are unchanged. Unknown SQLite failures keep their original diagnostics.
+
+The existing global_db_session_test.go exercises archived/unavailable owners through ordinary and
+identity-bound registration against real SQLite; profiles_errors_test.go owns HTTP classification;
+dispatch_test.go owns durable history and no session/prompt on refused admission. All cases fail
+before repair and pass with the race detector afterward. No new test file or migration is added.
+
+## Verification
+
+Dora's first simultaneous trigger loses before admission, leaving no run. A second overlap starts
+archive 10ms later and reaches the insertion guard: CLI returns profile_archived with recovery
+guidance, and independent UDS/CLI history shows one failed attempt without raw SQLite/wrapper text
+or a created session. Unarchive retains the disabled job. A new active-owner session succeeds,
+blocks archive, and stops cleanly. Evidence: profile-owner-admission-replay-ended.json,
+profile-admission-red.json and profile-owner-admission-green.json. The build identity pins the
+repair diff; its commit is recorded in the report after the delivery gate.

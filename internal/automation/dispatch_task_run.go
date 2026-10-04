@@ -9,6 +9,7 @@ import (
 
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -122,6 +123,9 @@ func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStat
 		run.EndedAt = timePointer(now)
 		if runErr != nil {
 			run.Error = runErr.Error()
+			if refusal, ok := errors.AsType[*store.ProfileAdmissionError](runErr); ok {
+				run.Error = refusal.Error()
+			}
 			return
 		}
 		run.Error = ""

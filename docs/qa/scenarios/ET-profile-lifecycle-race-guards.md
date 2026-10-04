@@ -6,12 +6,12 @@ persona: Dora
 journey: J-operate-profiles
 expected: Archiving a profile against a concurrent claim, trigger, or spawn never produces work for an archived owner or half-applies. Queued runs freeze with the profile and become claimable again on unarchive without duplication. A pending lifecycle operation reserves old and new names and derived paths, so competing create or rename fails profile_name_taken without moving another profile. Extension mutation respects the same lifecycle gate.
 entry_points: compozy profile archive|unarchive|create|rename; HTTP/UDS profile lifecycle routes; concurrent automation trigger, task claim, session spawn, extension install
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261004-task-owner-response-omissions; BUG-20261004-archive-race-storage-error; BUG-20261002-task-action-profile-scope; BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
-fix_status: pending
-retest_status:
-fix_commits: e9e4a46a6; 831436907
-evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
+fix_status: fixed
+retest_status: pass
+fix_commits: e9e4a46a6; 831436907; 0b9c79779
+evidence: docs/qa/evidence/2026-10-02-untested/profile-owner-admission-replay-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle; ET-profile-operations-recovery; ET-profile-approval-owner-resume; ET-declared-profile-install
 ---
@@ -56,3 +56,12 @@ and one failed attempt remains. Scheduler and profile availability are restored.
 recurrence is verified. Missing backlog ownership fields and a raw storage diagnostic keep this
 scenario fail until their independent findings are repaired and re-walked.
 Evidence: profile-work-race-replay-ended.json.
+
+QA 2026-10-04 final repair replay: fresh queued work retains its profile in backlog and update
+responses, through archive/unarchive and independent HTTP/UDS reads. The losing automation trigger
+reaches the insertion guard and reports profile_archived with recovery guidance; one failed run
+remains, no session is admitted, and history contains no raw SQLite error. Active-owner session
+creation still succeeds and blocks archive. The scheduler, owner and sessions are restored to
+their baseline availability. Combined with the retained claim/spawn, pending-name and extension
+races, the current scenario passes. The charter's pre-retirement notification-permit leg is excluded
+by the September 27 scope change, as documented in the report, rather than counted as verified.

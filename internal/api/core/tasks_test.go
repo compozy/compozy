@@ -701,7 +701,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 					Runs: []taskpkg.SchedulerBacklogRun{{
 						Task: taskpkg.Task{
 							ID:        "task-paused",
-							ProfileID: store.DefaultProfileID,
+							ProfileID: "profile-marketing",
 							Scope:     taskpkg.ScopeWorkspace,
 							Title:     "Paused task",
 							Status:    taskpkg.TaskStatusReady,
@@ -711,12 +711,13 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 							UpdatedAt: now,
 						},
 						Run: taskpkg.Run{
-							ID:       "run-paused",
-							TaskID:   "task-paused",
-							Status:   taskpkg.TaskRunStatusQueued,
-							Attempt:  1,
-							Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start"},
-							QueuedAt: now,
+							ProfileID: "profile-marketing",
+							ID:        "run-paused",
+							TaskID:    "task-paused",
+							Status:    taskpkg.TaskRunStatusQueued,
+							Attempt:   1,
+							Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start"},
+							QueuedAt:  now,
 						},
 						EffectivePaused: true,
 						PausedByTaskID:  "task-root",
@@ -734,6 +735,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			nil,
 		)
 
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/scheduler", nil)
 		if statusResp.Code != http.StatusOK {
 			t.Fatalf("scheduler status response status = %d body = %s", statusResp.Code, statusResp.Body.String())
@@ -826,6 +828,13 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			!backlog.Backlog.Runs[0].Task.EffectivePaused ||
 			backlog.Backlog.Runs[0].Task.PausedByTaskID != "task-root" {
 			t.Fatalf("backlog response = %#v, want inherited pause metadata", backlog.Backlog)
+		}
+		item := backlog.Backlog.Runs[0]
+		if item.Task.ProfileID != "profile-marketing" || item.Task.ProfileName != "marketing" ||
+			item.Task.ProfileColor != "#E8572A" || item.Task.ProfileIcon != "megaphone" ||
+			item.Run.ProfileID != "profile-marketing" || item.Run.ProfileName != "marketing" ||
+			item.Run.ProfileColor != "#E8572A" || item.Run.ProfileIcon != "megaphone" {
+			t.Fatalf("backlog owners = %#v, want archived marketing profile", item)
 		}
 	})
 
@@ -1155,6 +1164,47 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		resp = performRequest(t, fixture.Engine, http.MethodPost, "/task-runs/run-1/start", []byte(`{}`))
 		if resp.Code != http.StatusConflict {
 			t.Fatalf("start conflict status = %d, want %d; body=%s", resp.Code, http.StatusConflict, resp.Body.String())
+		}
+	})
+}
+
+func TestBaseHandlersTaskUpdateOwner(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the selected task owner in an update response", func(t *testing.T) {
+		t.Parallel()
+		tasks := &testutil.StubTaskManager{
+			UpdateTaskFn: func(_ context.Context, id string, patch taskpkg.Patch, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+				if actor.ReadScope.ProfileID != "profile-marketing" {
+					t.Fatalf("update profile = %q, want marketing", actor.ReadScope.ProfileID)
+				}
+				return &taskpkg.Task{ID: id, ProfileID: "profile-marketing", Title: *patch.Title}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/tasks/task-marketing?profile=marketing",
+			[]byte(`{"title":"Publication plan"}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("update status = %d, body = %s, want success", response.Code, response.Body)
+		}
+		var payload contract.TaskResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if payload.Task.Title != "Publication plan" || payload.Task.ProfileID != "profile-marketing" ||
+			payload.Task.ProfileName != "marketing" || payload.Task.ProfileColor != "#E8572A" || payload.Task.ProfileIcon != "megaphone" {
+			t.Fatalf("updated task = %#v, want requested title and marketing owner", payload.Task)
 		}
 	})
 }

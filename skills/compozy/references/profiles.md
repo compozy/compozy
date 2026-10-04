@@ -80,6 +80,10 @@ compozy profile delete <name> --yes
 Inspect durable lifecycle recovery with `compozy profile ops -o json`; retry a failed operation with
 `compozy profile ops retry <op-id> -o json` after correcting its reported cause.
 An unfinished operation reserves its profile, including identity edits, until it completes.
+If archive or a pending lifecycle operation wins a race with session creation, admission returns
+`profile_archived` or `profile_unavailable` with a recovery action. A failed automation attempt
+keeps that guidance in its history. Follow the action, then inspect the profile and job before
+triggering work again; unarchive leaves paused automations disabled.
 If Web opens under that unavailable profile, its layout status explains that recovery is needed.
 Choose an available profile to reach Settings; the status detail retains the operation and CLI remedy.
 

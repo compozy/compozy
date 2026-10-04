@@ -489,5 +489,10 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+	payload := TaskPayloadFromTask(record)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: payload})
 }

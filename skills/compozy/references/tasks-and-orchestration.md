@@ -46,6 +46,10 @@ release, forced failure, retry, and review request/submit,
 including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
 a foreign profile receives not found, just as it does for the detail read.
 
+Task update responses retain the owner's profile identity. Scheduler backlog JSON labels both
+the task and run with the same profile ID, name, color and icon, including queued work frozen by
+an archived profile. Use `scheduler backlog --include-paused` to inspect that frozen work.
+
 Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, and limit; filtering happens before the limit is applied.
 
 Run payloads carry either an inline `result` or an external `result_ref` plus exact `result_bytes`.

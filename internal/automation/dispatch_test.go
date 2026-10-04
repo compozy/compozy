@@ -728,6 +728,34 @@ func TestDispatchStopsCreatedSessionWhenRunCompletes(t *testing.T) {
 	}
 }
 
+func TestDispatchProfileAdmissionFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain actionable profile refusal in failed run history", func(t *testing.T) {
+		t.Parallel()
+		runs := newMemoryRunStore()
+		refusal := &store.ProfileAdmissionError{ProfileID: "profile-editorial", Archived: true}
+		creator := newRecordingSessionCreator(sessionAttemptPlan{
+			createErr: fmt.Errorf("session: persist accepted start: %w", refusal),
+		})
+		dispatcher := newTestDispatcher(t, creator, runs)
+		job := testJob(AutomationScopeGlobal, "job-profile-archive", "")
+		run, err := dispatcher.Dispatch(t.Context(), DispatchRequest{Kind: DispatchKindManual, Job: &job})
+		if !errors.Is(err, refusal) {
+			t.Fatalf("Dispatch() error = %v, want profile admission refusal", err)
+		}
+		if run == nil || run.Status != RunFailed || run.SessionID != "" || run.Error != refusal.Error() {
+			t.Fatalf("run = %#v, want failed attempt with recovery guidance", run)
+		}
+		if len(creator.createCalls()) != 1 || len(creator.promptCalls()) != 0 {
+			t.Fatal("profile admission refusal should not retry or send a prompt")
+		}
+		stored, err := runs.GetRun(t.Context(), run.ID)
+		if err != nil || stored.Error != refusal.Error() {
+			t.Fatalf("stored run = %#v, error = %v, want durable recovery guidance", stored, err)
+		}
+	})
+}
+
 func TestDispatchStopsCreatedSessionWhenRunFails(t *testing.T) {
 	t.Parallel()
 

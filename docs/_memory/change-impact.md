@@ -4,6 +4,20 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Profile owner response completeness:** Scheduler backlog runs inherit the owning task's
+  stable profile ID, and shared handlers decorate backlog task/run owners and task-update owners.
+  Existing HTTP/UDS fields now contain their promised identity; CLI and Web consume those same
+  fields. No route, DTO, native-tool ID, Host API method, hook, configuration, workspace boundary
+  or storage shape changes. Existing task-service and handler suites own the regressions;
+  official task guidance and the profile lifecycle scenario carry the public replay.
+- **Profile admission race diagnostics:** Session insertion translates only the two known SQLite
+  profile availability guards into a typed store refusal, including identity-bound registration.
+  Shared HTTP/UDS error handling returns the existing profile conflict payload and recovery action;
+  failed automation history retains that guidance. Native session/automation tool IDs and extension
+  methods are unchanged; their session admission guard remains authoritative. No new hook, config,
+  DTO, schema, migration or workspace/profile ownership rule. Web uses the existing error/history
+  fields. Store registration, transport error and automation history suites own their respective
+  invariants; official profile guidance and the lifecycle race scenario own operational recovery.
 - **Task run and operator action profile selection:** Run lifecycle and recovery, single/bulk
   force controls, fan-out, task update/delete, dependencies and review request/submit now use the
   existing CLI mutation selection boundary. HTTP/UDS routes and DTOs, native task tool IDs,

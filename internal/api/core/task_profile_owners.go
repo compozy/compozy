@@ -132,3 +132,24 @@ func (h *BaseHandlers) decorateTaskRunOwners(ctx context.Context, runs []contrac
 	}
 	return nil
 }
+
+func (h *BaseHandlers) decorateSchedulerBacklogOwners(
+	ctx context.Context,
+	payload *contract.SchedulerBacklogPayload,
+) error {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return err
+	}
+	useDefaultID := h == nil || h.Profiles == nil
+	for index := range payload.Runs {
+		item := &payload.Runs[index]
+		if err := setTaskSummaryProfileOwner(owners, &item.Task, useDefaultID); err != nil {
+			return err
+		}
+		if err := setTaskRunProfileOwner(owners, &item.Run, useDefaultID); err != nil {
+			return err
+		}
+	}
+	return nil
+}

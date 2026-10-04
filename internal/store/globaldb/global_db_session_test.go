@@ -607,6 +607,92 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 	})
 }
 
+func TestGlobalDBRegisterSessionProfileAdmission(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		archived bool
+		identity bool
+	}{
+		{"Should classify an archived profile at session insertion", true, false},
+		{"Should classify an unavailable profile at session insertion", false, false},
+		{"Should classify an archived profile at identity registration", true, true},
+		{"Should classify an unavailable profile at identity registration", false, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspace := registerWorkspaceForGlobalTests(
+				t,
+				db,
+				"profile-admission",
+				filepath.Join(t.TempDir(), "workspace"),
+			)
+			const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+			now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+			if _, err := db.db.ExecContext(
+				ctx,
+				`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'editorial','#8E8EB5','circle','active',?)`,
+				profileID,
+				formatTimestamp(now),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if test.archived {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`UPDATE profiles SET state='archived',archived_at=? WHERE id=?`,
+					formatTimestamp(now),
+					profileID,
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`INSERT INTO profile_lifecycle_ops (id,kind,profile_id,old_name,new_name,plan_revision,status,created_at,updated_at)
+					VALUES ('op_admission','rename',?,'editorial','publication','revision','failed',?,?)`,
+					profileID,
+					formatTimestamp(now),
+					formatTimestamp(now),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			info := sessionInfoForWorkspaceStateIndexTest(
+				"session-refused",
+				workspace,
+				globalDBSessionStateStarting,
+				now,
+			)
+			info.ProfileID = profileID
+			var err error
+			if test.identity {
+				_, err = db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{
+					CreationProfileRef: "profile-v1", PolicySpecDigest: "policy-v1", CreationDigest: "creation-v1",
+				})
+			} else {
+				err = db.RegisterSession(ctx, info)
+			}
+			refusal, ok := errors.AsType[*store.ProfileAdmissionError](err)
+			if !ok || refusal.ProfileID != profileID || refusal.Archived != test.archived {
+				t.Fatalf("register session error = %v, want profile admission refusal", err)
+			}
+			if strings.Contains(err.Error(), "constraint failed") || !strings.Contains(err.Error(), "compozy profile") {
+				t.Fatalf("register session error = %v, want recovery guidance without SQLite internals", err)
+			}
+			sessions, err := db.ListSessions(
+				ctx,
+				store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: profileID}, ID: info.ID},
+			)
+			if err != nil || len(sessions) != 0 {
+				t.Fatalf("sessions = %#v, error = %v, want no admitted session", sessions, err)
+			}
+		})
+	}
+}
+
 func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,6 @@
 # BUG-20261004-task-owner-response-omissions: Scheduler backlog loses task ownership labels
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -36,6 +36,20 @@ All receipts are under docs/qa/evidence/2026-10-02-untested/:
 
 ## Fix
 
-The saved work retains the correct owner. Initial diagnosis identifies missing ownership projection
-in the scheduler's compact task mapper and handler decoration. The update response is being traced
-through its owning mapper. No production repair or final verdict is claimed yet.
+The scheduler service omitted the run's inherited profile ID, its compact task mapper omitted
+the task profile ID, and backlog/update handlers skipped the existing owner decoration. The repair
+uses the same service inheritance and handler decorators already used by detail/run responses.
+No storage or contract shape changes are needed.
+
+Existing scheduler_controls_test.go owns run identity; tasks_test.go owns response owner fields.
+The new cases reproduce the omissions before repair. The update case uses a non-default profile
+and verifies the title and owner together. Race-enabled affected checks pass.
+
+## Verification
+
+Dora creates a fresh task, updates its title and independently reads it over HTTP. Archive freezes
+one queued run whose CLI backlog carries matching task/run owner fields. Unarchive exposes the same
+run exactly once through the HTTP backlog with the same identity. Cancellation persists through UDS.
+Evidence: profile-owner-admission-replay-ended.json, task-owner-projection-red.json and
+profile-owner-admission-green.json. The build identity records the current repair diff; its commit
+is recorded in the enclosing report after the delivery gate.

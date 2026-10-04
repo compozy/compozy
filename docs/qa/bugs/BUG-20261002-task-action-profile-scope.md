@@ -99,3 +99,6 @@ task-operator-profile-green3.json, task-operator-profile-delivery-gate.json, and
 profile-work-race-replay-ended.json. Test conventions pass with zero findings. The gate passes
 codegen, zero-issue Go lint, affected race suites and cached Web evidence (693 files, 6,927 tests).
 The new queue-owner projection and archive-race diagnostic findings have separate registry IDs.
+
+The run-control extension is committed as 0b9c79779 after the current-fingerprint final gate;
+see task-operator-profile-final-gate-status.json and task-operator-profile-commit.json.
