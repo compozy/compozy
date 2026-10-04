@@ -111,16 +111,22 @@ function sameProfileView(left: ProfileView | undefined, right: ProfileView): boo
  */
 export function useSwitchProfile(lens: ProfileLens) {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (view: ProfileView) => {
-      if (view.kind === "aggregate") return view;
-      await putProfileSelection({
-        scope: lens.scope,
-        profile: view.profile,
-        ...(lens.scope === "workspace" ? { workspace_id: lens.workspaceId } : {}),
-      });
-      return view;
-    },
+  const remember = async (view: ProfileView) => {
+    if (view.kind === "aggregate") return view;
+    await putProfileSelection({
+      scope: lens.scope,
+      profile: view.profile,
+      ...(lens.scope === "workspace" ? { workspace_id: lens.workspaceId } : {}),
+    });
+    return view;
+  };
+  const invalidateSelection = (view: ProfileView) => {
+    if (view.kind === "profile") {
+      void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
+    }
+  };
+  const mutation = useMutation({
+    mutationFn: remember,
     onMutate: (view: ProfileView) => {
       const previous = localProfileView(lens);
       setProfileView(lens, view);
@@ -134,11 +140,21 @@ export function useSwitchProfile(lens: ProfileLens) {
       });
     },
     onSettled: (_data, _error, view) => {
-      if (view.kind === "profile") {
-        void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
-      }
+      invalidateSelection(view);
     },
   });
+  return {
+    ...mutation,
+    // A delegated command must return its persisted result before activation
+    // replaces the connection carrying that command.
+    prepare: async (view: ProfileView) => {
+      await remember(view);
+      return () => {
+        setProfileView(lens, view);
+        invalidateSelection(view);
+      };
+    },
+  };
 }
 
 export { PROFILE_AGGREGATE };

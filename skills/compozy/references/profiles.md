@@ -97,6 +97,11 @@ do not weaken the Gateway tier.
 Stable palette actions are `profile.use`, `profile.create`, `profile.update`, `profile.rename`,
 `profile.archive`, `profile.unarchive`, and `profile.delete`. They delegate to the same selection and
 lifecycle surfaces and never replace the plan protocol.
+An attached `profile.use` saves the choice and returns its result before switching the client
+to the requested profile. Other lifecycle commands open the canonical
+Settings dialog: `name` suggests the create name, and `profile` plus `new_name` prefill rename.
+Review the dialog's current plan and confirm there; invoking a command alone does not confirm a
+destructive mutation. Canceling consumes the intent, so reloading does not reopen the action.
 
 ## Errors And Events
 

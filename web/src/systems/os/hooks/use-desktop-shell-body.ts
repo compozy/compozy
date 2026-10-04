@@ -252,8 +252,17 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     toggleSessions: () => overlays.toggleOverlay("sessions"),
     toggleSidebar: toggleSessionSidebar,
     toggleGlobalScope: model.toggleGlobalScope,
-    useProfile: profile => {
-      if (profile !== "") switchProfile.mutate({ kind: "profile", profile });
+    useProfile: (profile, beforeSwitch) => {
+      if (profile === "") return;
+      const view = { kind: "profile", profile } as const;
+      if (beforeSwitch === undefined) {
+        switchProfile.mutate(view);
+        return;
+      }
+      return switchProfile.prepare(view).then(activate => {
+        beforeSwitch();
+        activate();
+      });
     },
     cycleWorkspace: direction => {
       const target = adjacentShortcutItem(model.workspaces, model.activeWorkspaceId, direction);
@@ -344,7 +353,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   // channel; they enter the same table as ⌘W and the palette row (SI-17).
   const executeClientOp = useEffectEvent(paletteDispatch.executeClientOp);
   useEffect(
-    () => options.clientCommandChannel.connect((op, payload) => executeClientOp(op, payload)),
+    () =>
+      options.clientCommandChannel.connect((op, payload, reply) =>
+        executeClientOp(op, payload, reply)
+      ),
     [options.clientCommandChannel]
   );
 

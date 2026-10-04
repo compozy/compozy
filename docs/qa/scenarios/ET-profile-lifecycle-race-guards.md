@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20261004-task-owner-response-omissions; BUG-20261004-archive-race-storage-error; BUG-20261002-task-action-profile-scope; BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
 fix_status: fixed
 retest_status: pass
-fix_commits: e9e4a46a6; 831436907; 0b9c79779
+fix_commits: e9e4a46a6; 831436907; 0b9c79779; 7d30fa3e2
 evidence: docs/qa/evidence/2026-10-02-untested/profile-owner-admission-replay-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle; ET-profile-operations-recovery; ET-profile-approval-owner-resume; ET-declared-profile-install

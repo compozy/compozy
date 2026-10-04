@@ -1,6 +1,7 @@
 # BUG-20261004-archive-race-storage-error: An archived automation owner produces an internal storage error
 
 - **Status:** verified
+- **Fix commit:** 7d30fa3e2
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora

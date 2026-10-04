@@ -183,6 +183,17 @@ describe("cmd-palette client-op table — absorbed palette rows", () => {
 });
 
 describe("cmd-palette client-op table — daemon view/navigate/url", () => {
+  it("Should switch to the profile supplied by a daemon client command", () => {
+    // Invariant: delegated profile selection uses the daemon's merged arguments.
+    // Owner: client-command dispatch; canonical suite: this client-op table suite.
+    const context = opContext(null, null);
+    void run("profile.use", context, {
+      action: { kind: "client_op", op: "profile.use" },
+      args: { profile: "  research  " },
+    });
+    expect(context.shell.useProfile).toHaveBeenCalledExactlyOnceWith("research");
+  });
+
   it("Should open a palette view from the daemon view.open payload [RD0022]", () => {
     const context = opContext(null, null);
     void run("view.open", context, {
@@ -193,12 +204,17 @@ describe("cmd-palette client-op table — daemon view/navigate/url", () => {
   });
 
   it("Should navigate through the same port local dispatch uses [RD0022]", () => {
+    // Invariant: daemon navigation preserves the command's lifecycle intent and arguments.
+    // Owner: client-command dispatch; canonical suite: this existing navigation case.
     const context = opContext(null, null);
     void run("navigate", context, {
-      action: { kind: "navigate", app: "tasks" },
-      args: { pathname: "/tasks" },
+      action: { kind: "navigate", app: "settings" },
+      args: { pathname: "/settings/profiles", flow: "create", name: "dispatch-palette" },
     });
-    expect(context.navigate).toHaveBeenCalledExactlyOnceWith("tasks", "/tasks");
+    expect(context.navigate).toHaveBeenCalledExactlyOnceWith("settings", "/settings/profiles", {
+      flow: "create",
+      name: "dispatch-palette",
+    });
   });
 
   it("Should open a URL through the same port local dispatch uses [RD0022]", () => {

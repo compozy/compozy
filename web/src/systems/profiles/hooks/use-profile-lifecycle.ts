@@ -50,13 +50,13 @@ export interface ProfileLifecycleState {
  */
 export function useProfileLifecycle(): ProfileLifecycleState {
   const intent = useSelector(profileDialogStore, state => state.context.intent);
-  const [renameName, setRenameName] = useState("");
+  const [renameName, setRenameName] = useState<string | undefined>();
   const [declinedRepos, setDeclinedRepos] = useState<string[]>([]);
   const [unarchiveResult, setUnarchiveResult] = useState<UnarchiveProfileResult | null>(null);
 
   const close = () => {
     closeProfileDialog();
-    setRenameName("");
+    setRenameName(undefined);
     setDeclinedRepos([]);
     setUnarchiveResult(null);
   };
@@ -80,7 +80,7 @@ export function useProfileLifecycle(): ProfileLifecycleState {
   return {
     intent,
     close,
-    renameName,
+    renameName: renameName ?? (intent?.flow === "rename" ? (intent.newName ?? "") : ""),
     setRenameName,
     declinedRepos,
     toggleRepo,

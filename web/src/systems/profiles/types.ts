@@ -58,4 +58,5 @@ export type ProfileLifecycleTargetFlow = Exclude<ProfileLifecycleFlow, "create">
 /** Create may carry a suggestion; every other lifecycle flow requires its target. */
 export type ProfileDialogIntent =
   | { flow: "create"; profile?: string }
-  | { flow: ProfileLifecycleTargetFlow; profile: string };
+  | { flow: "rename"; profile: string; newName?: string }
+  | { flow: Exclude<ProfileLifecycleTargetFlow, "rename">; profile: string };

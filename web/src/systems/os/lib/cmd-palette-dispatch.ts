@@ -1,6 +1,8 @@
 import { commandNeedsArguments } from "./cmd-palette-args";
+import type { WindowManagerClientCommandReply } from "./window-manager-client-command-frames";
 import { paletteClientOp, type PaletteClientOpContext } from "./cmd-palette-client-ops";
 import { resolvePaletteCopyContent } from "./cmd-palette-copy";
+import { paletteNavigationTarget } from "./cmd-palette-navigation";
 import type { CmdPaletteInvokeResult, ResolvedPaletteCommand } from "./cmd-palette-types";
 import type { OsAppId, OsWindowRoute } from "./os-types";
 
@@ -52,7 +54,11 @@ export interface CmdPaletteDispatch {
   /** Runs a command by id — the keyboard and menubar entry point. */
   runById(commandId: string, options?: CmdPaletteRunOptions): Promise<PaletteDispatchOutcome>;
   /** Executes a `client_op` pushed over the window-manager channel. */
-  executeClientOp(op: string, payload: unknown): Promise<unknown>;
+  executeClientOp(
+    op: string,
+    payload: unknown,
+    reply: WindowManagerClientCommandReply
+  ): Promise<unknown>;
   /** The action panel's Pin/Unpin meta-action. */
   setPinned(command: ResolvedPaletteCommand, pinned: boolean): Promise<void>;
 }
@@ -104,27 +110,6 @@ function argsFor(
   overrides: Readonly<Record<string, unknown>> | undefined
 ): Readonly<Record<string, unknown>> {
   return { ...command.action.args, ...overrides };
-}
-
-function pathnameFrom(args: Readonly<Record<string, unknown>>): string | null {
-  const pathname = args.pathname;
-  return typeof pathname === "string" && pathname.trim() !== "" ? pathname : null;
-}
-
-/**
- * Everything the action declared except the destination itself, as route search.
- *
- * Only scalars survive: a route search is a URL, and a value that cannot be
- * spelled in one has no business being pushed into it.
- */
-function searchFrom(args: Readonly<Record<string, unknown>>): Record<string, string> {
-  const search: Record<string, string> = {};
-  for (const [key, value] of Object.entries(args)) {
-    if (key === "pathname") continue;
-    if (typeof value === "string" && value.trim() !== "") search[key] = value;
-    else if (typeof value === "number" || typeof value === "boolean") search[key] = String(value);
-  }
-  return search;
 }
 
 /**
@@ -224,7 +209,8 @@ export async function dispatchPaletteCommand({
   if (action.kind === "navigate") {
     const app = action.app?.trim() ?? "";
     if (app === "") return refuse(ports, command, UNSUPPORTED_CLIENT_OP_REASON);
-    ports.navigate(app, pathnameFrom(resolvedArgs), searchFrom(resolvedArgs));
+    const route = paletteNavigationTarget(resolvedArgs);
+    ports.navigate(app, route.pathname, route.search);
     return ran();
   }
   if (action.kind === "view") {

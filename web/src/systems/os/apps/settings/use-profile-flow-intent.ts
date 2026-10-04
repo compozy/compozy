@@ -36,26 +36,37 @@ export function useProfileFlowIntent(windowId: string, route: OsWindowRoute | un
   const { manager } = useOsShell();
   const tier = useGatewayAccessTier();
   const intent = route === undefined ? undefined : profileFlowFromSearch(route.search);
-  const raise = useEffectEvent((flow: ProfileLifecycleFlow, profile?: string) => {
+  const raise = useEffectEvent((flow: ProfileLifecycleFlow) => {
     if (route === undefined) return;
-    const target = profile?.trim() ?? "";
+    const target = intent?.profile ?? "";
     if (flow === "create") {
-      openProfileDialog({ flow, ...(target !== "" ? { profile: target } : {}) });
+      const name = intent?.name ?? target;
+      openProfileDialog({ flow, ...(name !== "" ? { profile: name } : {}) });
     } else {
       if (target === "") return;
-      openProfileDialog({ flow, profile: target } satisfies ProfileDialogIntent);
+      openProfileDialog({
+        flow,
+        profile: target,
+        ...(flow === "rename" && intent?.new_name !== undefined
+          ? { newName: intent.new_name }
+          : {}),
+      } satisfies ProfileDialogIntent);
     }
     const search = { ...route.search };
     delete search.flow;
     delete search.profile;
+    delete search.name;
+    delete search.new_name;
     manager.navigateWindow(windowId, { ...route, search });
   });
   const flow = intent?.flow ?? "";
   const profile = intent?.profile ?? "";
+  const name = intent?.name ?? "";
+  const newName = intent?.new_name ?? "";
 
   useEffect(() => {
     const resolved = asFlow(flow);
     if (resolved === null || tier !== "local") return;
-    raise(resolved, profile === "" ? undefined : profile);
-  }, [flow, profile, tier]);
+    raise(resolved);
+  }, [flow, profile, name, newName, tier]);
 }

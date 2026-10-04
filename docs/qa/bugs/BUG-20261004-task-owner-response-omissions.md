@@ -1,6 +1,7 @@
 # BUG-20261004-task-owner-response-omissions: Scheduler backlog loses task ownership labels
 
 - **Status:** verified
+- **Fix commit:** 7d30fa3e2
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora

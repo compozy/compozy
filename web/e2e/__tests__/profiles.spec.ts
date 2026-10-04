@@ -783,6 +783,67 @@ test.describe("Profiles", () => {
     expect(
       (await listProfiles(runtime)).find(profile => profile.name === "marketing")
     ).toMatchObject({ state: "active" });
+
+    // Invariant: supplied lifecycle names reach the canonical form and are consumed on cancel.
+    // Owner: palette/window/dialog composition; canonical suite: E2E-027.
+    const createPalette = await openCommandPalette(appPage);
+    await createPalette.getByRole("combobox").fill("Create profile");
+    await createPalette.getByTestId("os-palette-command-profile.create").click();
+    const nameArgument = appPage.getByTestId("os-palette-arg-name");
+    await nameArgument.fill("dispatch-notes");
+    await nameArgument.press("Enter");
+    await expect(ui.createDialog).toBeVisible();
+    await expect(ui.createName).toHaveValue("dispatch-notes");
+    await ui.createDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+
+    const renamePalette = await openCommandPalette(appPage);
+    await renamePalette.getByRole("combobox").fill("Rename profile");
+    await renamePalette.getByTestId("os-palette-command-profile.rename").click();
+    await appPage.getByTestId("os-palette-arg-profile").fill("marketing");
+    const newNameArgument = appPage.getByTestId("os-palette-arg-new_name");
+    await newNameArgument.fill("dispatch-team");
+    await newNameArgument.press("Enter");
+    await expect(ui.renameDialog).toBeVisible();
+    await expect(ui.renameName).toHaveValue("dispatch-team");
+    await expect(ui.renameConfirm).toBeEnabled();
+    await ui.renameName.fill("");
+    await expect(ui.renameName).toHaveValue("");
+    await expect(ui.renameConfirm).toBeDisabled();
+    await ui.renameDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await expect(ui.createDialog).toBeHidden();
+    await expect(ui.renameDialog).toBeHidden();
+    expect((await listProfiles(runtime)).some(profile => profile.name === "dispatch-notes")).toBe(
+      false
+    );
+
+    // Invariant: delegated profile selection returns its result before rebinding the client.
+    // Owner: real client-command/selection composition; canonical suite: E2E-027.
+    await createProfile(runtime, "dispatch-client", "#22c55e", "folder");
+    const workspace = await activeWorkspaceId(runtime);
+    const attached = await runtime.requestJSON<Array<{ client_id: string }>>(
+      `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
+    );
+    expect(attached).toHaveLength(1);
+    if (!runtime.requestOperatorJSON) throw new Error("delegated selection requires operator UDS");
+    const invoked = await runtime.requestOperatorJSON<{ status: string }>(
+      "/api/cmd-palette/commands/profile.use/invoke?profile=marketing",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          workspace,
+          client: attached[0]!.client_id,
+          args: { profile: "dispatch-client" },
+        }),
+      }
+    );
+    expect(invoked.status).toBe("ok");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: dispatch-client");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(ui.switcher).toHaveAccessibleName("Profile: dispatch-client");
   });
 
   test("E2E-015: All profiles labels every row, states the destination, and names the owner", async ({

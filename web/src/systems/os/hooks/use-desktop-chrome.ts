@@ -188,8 +188,8 @@ export function useDesktopChrome(
         });
       }
     },
-    onClientCommand: command => {
-      return clientCommandChannel.execute(command.op, command.payload);
+    onClientCommand: (command, reply) => {
+      return clientCommandChannel.execute(command.op, command.payload, reply);
     },
     onClientInvalidated: client.reregister,
     onError: error => manager.setLoadError(streamError(error)),

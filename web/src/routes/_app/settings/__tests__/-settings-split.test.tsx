@@ -54,14 +54,21 @@ function PolicyHarness() {
 
 describe("Settings route split", () => {
   it("Should normalize the profile lifecycle search contract", () => {
+    // Invariant: names declared by profile commands survive the owning route decoder.
+    // Owner: Profiles search normalization; canonical suite: this existing route case.
     const search = validateProfilesSettingsSearch({
       flow: " rename ",
       profile: " marketing ",
+      new_name: " growth ",
       ignored: "value",
     });
 
-    expect(search).toEqual({ flow: "rename", profile: "marketing" });
-    expect(profileFlowFromSearch(search)).toEqual({ flow: "rename", profile: "marketing" });
+    expect(search).toEqual({ flow: "rename", profile: "marketing", new_name: "growth" });
+    expect(profileFlowFromSearch(search)).toEqual(search);
+    expect(profileFlowFromSearch({ flow: "create", name: " dispatch-palette " })).toEqual({
+      flow: "create",
+      name: "dispatch-palette",
+    });
   });
 
   it("Should omit invalid profile lifecycle search values", () => {

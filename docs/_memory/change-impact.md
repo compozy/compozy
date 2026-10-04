@@ -4,6 +4,22 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Delegated profile selection result:** Web persists the canonical selection, returns the
+  client-command result over its original connection, then activates the new profile. Direct
+  UI selection keeps its optimistic behavior. The internal reply continuation is carried through
+  every consumer together; public CLI/HTTP/UDS/native command shapes, WebSocket frames, extension
+  contracts, hooks, configuration, storage and workspace/profile authority are unchanged. The
+  existing channel/stream suites and E2E-027 own verification; official profile guidance describes
+  the persisted result, and the same palette/remote-write scenarios own public replay.
+- **Profile palette argument handoff:** Attached CLI/HTTP/UDS/native command invocations retain
+  their existing action/args envelope; Web now reads the supplied profile and preserves scalar
+  navigation arguments through the same route builder as direct palette dispatch. Settings
+  carries create/rename suggestions into the canonical dialogs and consumes their route intent.
+  The existing profile selection, lifecycle plan revisions, destructive confirmation and local
+  authority remain unchanged. No native-tool ID, extension, hook, config, storage shape, migration
+  or workspace boundary changes. Official profile guidance explains the handoff. Existing
+  client-op, route and profile E2E suites own validation; the palette and remote-write scenarios
+  retain the public replay and the separate unresolved navigation stall.
 - **Profile owner response completeness:** Scheduler backlog runs inherit the owning task's
   stable profile ID, and shared handlers decorate backlog task/run owners and task-update owners.
   Existing HTTP/UDS fields now contain their promised identity; CLI and Web consume those same

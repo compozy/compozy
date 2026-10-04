@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import type { WindowManagerClientCommandReply } from "../lib/window-manager-client-command-frames";
 
 import { notifyUser } from "@/lib/user-feedback";
 
@@ -221,10 +222,14 @@ export function useCmdPaletteDispatch({
     return await runCommand(command, options);
   };
 
-  const executeClientOp = async (op: string, payload: unknown) => {
+  const executeClientOp = async (
+    op: string,
+    payload: unknown,
+    reply: WindowManagerClientCommandReply
+  ) => {
     const handler = paletteClientOp(op);
     if (handler === null) throw new Error(`Unsupported client operation: ${op}`);
-    return await handler(clientOps, payload);
+    return await handler({ ...clientOps, reply }, payload);
   };
 
   const setPinned = async (command: ResolvedPaletteCommand, pinned: boolean) => {
