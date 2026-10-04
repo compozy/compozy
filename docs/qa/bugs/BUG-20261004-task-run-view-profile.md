@@ -1,6 +1,6 @@
 # BUG-20261004-task-run-view-profile: An owned run opens as Run not found
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -45,7 +45,7 @@ or synthetic UI state was used to bypass the failed page.
   A cold entry also launched parallel loaders before recovering the remembered profile. The
   application beforeLoad now hydrates the workspace lens and fetches its selection first,
   preserving any explicit local view. Failure uses the existing route error/retry boundary.
-- **Fix commit:** pending
+- **Fix commit:** 8d630a7f0
 - **Regression test:** the existing run-page hook suite reproduces the omitted scope and
   exercises a scoped-to-default-to-aggregate switch without cache leakage. Existing adapter and
   route suites cover the wire/preload boundaries; the canonical public-schema suite reproduces
@@ -70,3 +70,10 @@ zero active/queued runs. All three screenshots were inspected and the nine-frame
 was stopped. Receipts: profile-cold-entry-dora-{open,reload,independent,ended}.json and
 profile-cold-entry-dora-reload-network.json. The existing route suite passes all 49 cases;
 delivery gate and fix-commit recording remain pending.
+
+## Delivery closure — 2026-10-04
+
+Commit 8d630a7f0 records the repaired behavior. The original-persona replays above and all selected
+local gate lanes pass. scheduler-profile-final-delivery-gate.json, final-delivery-gate-status.json
+and commit-proof.json retain current-input verification; the committed tree exactly matches
+the checked tree 93e4b5183de281b741b373fc93ab802bc89c27f5. Broader QA and PR/CI remain separate.

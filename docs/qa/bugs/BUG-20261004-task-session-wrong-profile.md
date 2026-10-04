@@ -1,6 +1,6 @@
 # BUG-20261004-task-session-wrong-profile: Starting a task creates its session in another profile
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -49,7 +49,7 @@ a fresh CLI and confirms paused=false through UDS without canceling or nudging t
   The automatic role and starvation paths also omit the same identity, and role-session reuse
   does not compare profile ownership. Existing canonical cases reproduce all three omissions
   and the reuse error before repair.
-- **Fix commit:** pending
+- **Fix commit:** 8d630a7f0
 - **Regression test:** extend the existing dedicated-system-session cases in
   internal/daemon/task_runtime_test.go; the daemon bridge owns task-to-session profile propagation.
 
@@ -63,3 +63,10 @@ owner-profile session detail succeeds and a default-profile read refuses the dir
 The real pool worker claims and completes natively, delivering a readable workspace artifact.
 Evidence: task-start-owner-final-focused.json and scheduler-drain-dora-replay-ended.json.
 The original symptom is verified; delivery gate and commit are still pending.
+
+## Delivery closure — 2026-10-04
+
+Commit 8d630a7f0 records the repaired behavior. The original-persona replays above and all selected
+local gate lanes pass. scheduler-profile-final-delivery-gate.json, final-delivery-gate-status.json
+and commit-proof.json retain current-input verification; the committed tree exactly matches
+the checked tree 93e4b5183de281b741b373fc93ab802bc89c27f5. Broader QA and PR/CI remain separate.

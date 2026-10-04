@@ -1,6 +1,6 @@
 # BUG-20261004-scheduler-controls-stale: Queue controls keep showing Running after dispatch pauses
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -41,7 +41,7 @@ Receipts in docs/qa/evidence/2026-10-02-untested/:
 - **Root cause:** scheduler status/backlog had a freshness window but no refresh cadence or
   external event subscription. Only local mutations invalidated them. They now reuse the
   Dashboard's 30-second cadence and its existing inactive-window admission flag.
-- **Fix commit:** pending
+- **Fix commit:** 8d630a7f0
 - **Regression test:** use-tasks-page.test.tsx observes changed adapter responses without
   remount/reload and confirms no reads after deactivation. It fails before and passes after repair.
 
@@ -54,3 +54,10 @@ UDS read reports paused=false with zero active claims and zero queued runs. A fi
 shows Running. scheduler-projection-fixed-dora-live-controls.png and restored.png were inspected;
 the 14-frame recording is closed in scheduler-projection-fixed-dora-ended.json. Delivery gate
 and commit are pending. The remaining initial profile-preload defect is tracked separately.
+
+## Delivery closure — 2026-10-04
+
+Commit 8d630a7f0 records the repaired behavior. The original-persona replays above and all selected
+local gate lanes pass. scheduler-profile-final-delivery-gate.json, final-delivery-gate-status.json
+and commit-proof.json retain current-input verification; the committed tree exactly matches
+the checked tree 93e4b5183de281b741b373fc93ab802bc89c27f5. Broader QA and PR/CI remain separate.

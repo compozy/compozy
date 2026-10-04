@@ -1,7 +1,7 @@
 # BUG-20261004-task-owner-response-omissions: Scheduler backlog loses task ownership labels
 
-- **Status:** open
-- **Fix commit:** 7d30fa3e2
+- **Status:** verified
+- **Fix commit:** 7d30fa3e2; 8d630a7f0
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -94,3 +94,10 @@ task inspection through CLI and run inspection through UDS. The Web Inspect dial
 for that run. Receipts: scheduler-projection-fixed-dora-{task-inspect,run-inspect,run-inspect-web}.json.
 The original natural-completion replay already verified the repaired start responses and session
 owners. Delivery gate and commit remain pending for this response batch.
+
+## Delivery closure — 2026-10-04
+
+Commit 8d630a7f0 records the repaired behavior. The original-persona replays above and all selected
+local gate lanes pass. scheduler-profile-final-delivery-gate.json, final-delivery-gate-status.json
+and commit-proof.json retain current-input verification; the committed tree exactly matches
+the checked tree 93e4b5183de281b741b373fc93ab802bc89c27f5. Broader QA and PR/CI remain separate.
