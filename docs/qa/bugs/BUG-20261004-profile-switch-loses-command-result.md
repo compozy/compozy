@@ -48,7 +48,8 @@ once and preserves rejected-command results. Stream command framing is extracted
 module to keep the production hook below 500 lines. No timer, reconnect retry, wire-shape change,
 policy exception, or guessed success result is introduced.
 
-Commit pending delivery gate.
+Fix commit: 34028edad. The affected delivery gate passed, including 6,929 Web tests;
+profile-palette-delivery-gate-status.json records all four required lanes as CURRENT-PASS.
 
 ## Verification
 

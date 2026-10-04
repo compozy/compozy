@@ -573,6 +573,25 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[settings.id]?.route).toEqual(profiles);
   });
 
+  it("Should preserve a consumed window route when its opening command completes", async () => {
+    // Invariant: an accepted open reflects the current window route, including consumed intents.
+    // Owner: the URL/window-manager bridge; canonical suite: RoutingCoordinator.
+    const settings = windowFixture("settings", "/settings/profiles");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    coordinator.completeHydration();
+    const consumed = route("/settings/profiles");
+
+    const pending = coordinator.userOpen({
+      app: "settings",
+      route: route("/settings/profiles", { flow: "create", name: "dispatch-notes" }),
+    });
+    store.setAuthoritativeFocus(settings.id, consumed);
+    await expect(pending).resolves.toBe(settings.id);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(consumed);
+  });
+
   it("Should let a newer user navigation supersede a pending open's history write", async () => {
     const settings = windowFixture("settings", "/settings/profiles");
     const { coordinator, router, store } = createCoordinator([settings]);

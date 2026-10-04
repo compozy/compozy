@@ -4,6 +4,20 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Attached command client lifetime:** HTTP/UDS and CLI client discovery, plus native
+  command invocation targeting, use the WindowManager's active command channels. Closed tabs no
+  longer cause multiple_clients or remain targetable. Registered presentation/context and attachment
+  authorization survive disconnection for reconnect; workspace scope and profile ownership remain
+  unchanged. No DTO, route, native-tool ID, hook, extension API, configuration or storage change.
+  The official native-tools reference explains live targeting. Existing daemon integration IT-031
+  owns disconnect/reconnect behavior; Web E2E-027 and the structured targeting scenario own real replay.
+- **Multi-client profile navigation:** the Web runtime refuses admission during a known conflict
+  before publishing an optimistic route. Completion of an accepted open uses the window's current
+  route, preserving an already consumed dialog intent. Existing conflict recovery and newer-intent
+  fences remain authoritative. No public surface, persisted state, native tool, hook, extension,
+  configuration or workspace/profile boundary change. Runtime/routing suites own the two races;
+  the profile palette and remote-write scenarios retain original-flow and adjacent Back evidence.
+
 - **Delegated profile selection result:** Web persists the canonical selection, returns the
   client-command result over its original connection, then activates the new profile. Direct
   UI selection keeps its optimistic behavior. The internal reply continuation is carried through

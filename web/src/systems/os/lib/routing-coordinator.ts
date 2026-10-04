@@ -203,9 +203,10 @@ export class RoutingCoordinator {
     // A newer navigation arrived while the daemon held this open; it owns the
     // URL now and the window already follows it.
     if (intentToken !== this.nextUserIntentToken) return id;
+    // A window can consume its route intent before the opening command completes.
     const route =
-      target.route ??
       this.manager.getState().windows[id]?.route ??
+      target.route ??
       defaultOsWindowRoute(target.app);
     this.pushRoute(route);
     return id;

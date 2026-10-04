@@ -194,12 +194,26 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Execute(desktop.create) error = %v", err)
 		}
-		if _, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
+		registeredB, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
 			WorkspaceID: "workspace-acme", ClientID: clientB, Kind: windowmanager.ClientKindBrowser,
 			ActiveDesktopID: "desktop-empty",
 			Context:         windowmanager.ClientContextInput{WorkspaceTrusted: true},
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("RegisterClient(B) error = %v", err)
+		}
+		connections := make(map[windowmanager.ClientID]windowmanager.ClientCommandConnection)
+		for _, clientID := range []windowmanager.ClientID{clientA, clientB} {
+			connection, err := manager.AttachClientCommands(t.Context(), "workspace-acme", clientID)
+			if err != nil {
+				t.Fatalf("AttachClientCommands(%s) error = %v", clientID, err)
+			}
+			connections[clientID] = connection
+			t.Cleanup(func() {
+				if err := connection.Close(); err != nil {
+					t.Errorf("ClientCommandConnection.Close() error = %v", err)
+				}
+			})
 		}
 
 		executor := &cmdPaletteIntegrationExecutor{result: json.RawMessage(`{"closed":true}`)}
@@ -252,8 +266,8 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 			t.Fatal("client A registration did not mint an attachment token")
 		}
 
-		if err := manager.UnregisterClient(t.Context(), "workspace-acme", clientB); err != nil {
-			t.Fatalf("UnregisterClient(B) error = %v", err)
+		if err := connections[clientB].Close(); err != nil {
+			t.Fatalf("ClientCommandConnection.Close(B) error = %v", err)
 		}
 		clients := performCmdPaletteIntegrationRequest(
 			t,
@@ -268,9 +282,45 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		stale := invokeCmdPaletteIntegration(t, engine, "client-b", "")
 		var stalePayload contract.CmdPaletteError
 		decodeCmdPaletteIntegrationResponse(t, stale, &stalePayload)
-		if len(listed) != 1 || listed[0].ClientID != "client-a" ||
+		if clients.Code != http.StatusOK || len(listed) != 1 || listed[0].ClientID != "client-a" ||
 			stale.Code != http.StatusPreconditionFailed || stalePayload.Error != "no_attached_shell" {
 			t.Fatalf("stale client = listed %#v status %d payload %#v", listed, stale.Code, stalePayload)
+		}
+		automatic := invokeCmdPaletteIntegration(t, engine, "", "")
+		if automatic.Code != http.StatusOK || executor.last().ClientID != "client-a" {
+			t.Fatalf("remaining client = status %d request %#v", automatic.Code, executor.last())
+		}
+		if err := manager.AuthorizeClient(
+			t.Context(), "workspace-acme", clientB, registeredB.AttachmentToken,
+		); err != nil {
+			t.Fatalf("AuthorizeClient(disconnected B) error = %v", err)
+		}
+		reconnected, err := manager.AttachClientCommands(t.Context(), "workspace-acme", clientB)
+		if err != nil {
+			t.Fatalf("AttachClientCommands(reconnected B) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reconnected.Close(); err != nil {
+				t.Errorf("ClientCommandConnection.Close(reconnected B) error = %v", err)
+			}
+		})
+		multiple = invokeCmdPaletteIntegration(t, engine, "", "")
+		decodeCmdPaletteIntegrationResponse(t, multiple, &multiplePayload)
+		if multiple.Code != http.StatusConflict || multiplePayload.Error != "multiple_clients" ||
+			len(multiplePayload.Clients) != 2 {
+			t.Fatalf("reconnected clients = status %d payload %#v", multiple.Code, multiplePayload)
+		}
+		if err := manager.UnregisterClient(t.Context(), "workspace-acme", clientB); err != nil {
+			t.Fatalf("UnregisterClient(B) error = %v", err)
+		}
+		if err := connections[clientA].Close(); err != nil {
+			t.Fatalf("ClientCommandConnection.Close(A) error = %v", err)
+		}
+		empty := invokeCmdPaletteIntegration(t, engine, "", "")
+		var emptyPayload contract.CmdPaletteError
+		decodeCmdPaletteIntegrationResponse(t, empty, &emptyPayload)
+		if empty.Code != http.StatusPreconditionFailed || emptyPayload.Error != "no_attached_shell" {
+			t.Fatalf("no connected clients = status %d payload %#v", empty.Code, emptyPayload)
 		}
 	})
 
@@ -639,6 +689,13 @@ func newCmdPaletteIntegrationWindowManager(t *testing.T) *windowmanager.Manager 
 
 type cmdPaletteIntegrationWindowManagers struct {
 	manager *windowmanager.Manager
+}
+
+func (d cmdPaletteIntegrationWindowManagers) CommandClientsInWorkspace(
+	ctx context.Context,
+	workspaceID windowmanager.WorkspaceID,
+) ([]windowmanager.ClientView, error) {
+	return d.manager.CommandClients(ctx, workspaceID)
 }
 
 func (d cmdPaletteIntegrationWindowManagers) ClientsInWorkspace(

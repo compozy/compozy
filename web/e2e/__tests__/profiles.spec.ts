@@ -784,6 +784,24 @@ test.describe("Profiles", () => {
       (await listProfiles(runtime)).find(profile => profile.name === "marketing")
     ).toMatchObject({ state: "active" });
 
+    // Invariant: consuming a profile intent keeps both attached clients responsive.
+    // Owner: window-route/dialog composition; canonical suite: E2E-027.
+    const workspace = await activeWorkspaceId(runtime);
+    const observer = await appPage.context().newPage();
+    await observer.goto(appPage.url(), { waitUntil: "domcontentloaded" });
+    await expect(profilesOperatorSelectors(observer).switcher).toHaveAccessibleName(
+      "Profile: marketing"
+    );
+    await expect(observer.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await expect
+      .poll(async () => {
+        const clients = await runtime.requestJSON<Array<{ client_id: string }>>(
+          `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
+        );
+        return clients.length;
+      })
+      .toBe(2);
+
     // Invariant: supplied lifecycle names reach the canonical form and are consumed on cancel.
     // Owner: palette/window/dialog composition; canonical suite: E2E-027.
     const createPalette = await openCommandPalette(appPage);
@@ -796,6 +814,10 @@ test.describe("Profiles", () => {
     await expect(ui.createName).toHaveValue("dispatch-notes");
     await ui.createDialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await expect(ui.createDialog).toBeHidden();
+    await expect(observer).toHaveURL(/\/settings\/profiles$/);
+    await expect(observer.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await observer.close();
 
     const renamePalette = await openCommandPalette(appPage);
     await renamePalette.getByRole("combobox").fill("Rename profile");
@@ -823,7 +845,6 @@ test.describe("Profiles", () => {
     // Invariant: delegated profile selection returns its result before rebinding the client.
     // Owner: real client-command/selection composition; canonical suite: E2E-027.
     await createProfile(runtime, "dispatch-client", "#22c55e", "folder");
-    const workspace = await activeWorkspaceId(runtime);
     const attached = await runtime.requestJSON<Array<{ client_id: string }>>(
       `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
     );

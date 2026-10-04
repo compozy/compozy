@@ -57,6 +57,10 @@ HTTP/UDS clients use `POST /api/tools/approvals/{id}/resolve?profile=<owner>` wi
 `decision`. The request rechecks profile availability and session binding; HTTP decisions require
 a loopback listener. Foreign-profile and already-terminal approvals remain refused.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
+The clients list contains only currently connected command channels. Closing a tab removes it
+from targeting; reconnecting the tab restores eligibility. Refresh this list before choosing an
+explicit client. With one connected client, UI commands can select it automatically; with none,
+they return no_attached_shell.
 
 Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with
 `compozy cmd-palette alias set|clear`. Conflicts name the current owner; `--overwrite` transfers the

@@ -15,6 +15,7 @@ type cmdPaletteClientDirectory struct {
 
 type cmdPaletteClientDirectorySource interface {
 	ClientsInWorkspace(context.Context, windowmanager.WorkspaceID) ([]windowmanager.ClientView, error)
+	CommandClientsInWorkspace(context.Context, windowmanager.WorkspaceID) ([]windowmanager.ClientView, error)
 	ManagerForClient(context.Context, windowmanager.WorkspaceID, windowmanager.ClientID) (*windowmanager.Manager, error)
 }
 
@@ -28,7 +29,7 @@ func (d *cmdPaletteClientDirectory) Clients(
 	if d == nil || d.windowManagers == nil {
 		return []cmdpalette.Client{}, nil
 	}
-	views, err := d.windowManagers.ClientsInWorkspace(ctx, windowmanager.WorkspaceID(workspaceID))
+	views, err := d.windowManagers.CommandClientsInWorkspace(ctx, windowmanager.WorkspaceID(workspaceID))
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: list window-manager clients: %w", err)
 	}

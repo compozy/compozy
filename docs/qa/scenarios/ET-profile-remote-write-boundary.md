@@ -8,7 +8,7 @@ expected: Enabled remote HTTP tiers expose only scoped profile reads; every prof
 entry_points: remote and local /api/profiles routes; compozy profile; profile.use|create|update|rename|archive|unarchive|delete palette actions
 qa_status: fail
 bug_ids: BUG-20261004-profile-palette-drops-arguments; BUG-20261004-profile-palette-navigation-stall; BUG-20261004-profile-switch-loses-command-result
-fix_status: open
+fix_status: pending
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-10-02-untested/profile-local-boundary-ada-ended.json; docs/qa/evidence/2026-10-02-untested/profile-local-retry-ada-ended.json; docs/qa/evidence/2026-10-02-untested/profile-palette-lifecycle-fixed-ended.json

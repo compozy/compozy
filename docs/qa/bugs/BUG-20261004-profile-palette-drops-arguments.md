@@ -70,7 +70,8 @@ The daemon navigation handler shares the local scalar route builder. The profile
 and dialog bridge carry create name and rename new_name, then consume all intent fields. The
 profile.use handler reads the daemon args envelope while retaining local flat arguments. Rename
 draft fallback preserves a supplied suggestion without preventing the operator from clearing it.
-Commit pending delivery gate.
+Fix commit: 34028edad. The affected delivery gate passed, including 6,929 Web tests;
+profile-palette-delivery-gate-status.json records all four required lanes as CURRENT-PASS.
 
 ## Verification
 
