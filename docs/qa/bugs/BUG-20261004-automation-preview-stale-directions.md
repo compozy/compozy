@@ -1,6 +1,6 @@
 # BUG-20261004-automation-preview-stale-directions: Preview guidance points to an absent pane
 
-- **Status:** open
+- **Status:** fixed — verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Dora
@@ -48,11 +48,11 @@ Both screenshots were inspected. The original recording stopped with 144 frames 
 - **Repair:** name the existing footer actions; preserve draft, validation and submission behavior.
 - **Regression proof:** before/after real Dora replay. No prose-only automated assertion is added;
   existing automation job/trigger form and editor-dialog suites own behavior coverage.
-- **Fix commit:** pending verification.
+- **Fix commit:** a2917318c96359b507b0e0a0fc06ad410f7dd648.
 
 ## Verification
 
 Fresh Dora replay confirms all three corrected directions in the rendered UI, task preview,
 webhook endpoint/curl and template hover help. The original draft-retention walk remains valid.
 Evidence: automation-preview-replay-directions-ended.json and the inspected replay screenshots.
-Root Turbo build, the affected delivery gate and existing form suites pass. Local fix SHA pending.
+Root Turbo build, the affected delivery gate and existing form suites pass. Fix SHA: a2917318c96359b507b0e0a0fc06ad410f7dd648.

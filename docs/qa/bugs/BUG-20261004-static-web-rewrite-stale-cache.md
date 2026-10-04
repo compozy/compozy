@@ -1,6 +1,6 @@
 # BUG-20261004-static-web-rewrite-stale-cache: Rebuilt local Web bundle leaves a blank page
 
-- **Status:** open
+- **Status:** fixed — verified
 - **Impact (user-side):** Blocked
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -42,7 +42,7 @@ the first document but did not repair the underlying HTTP behavior.
   standard conditional/range handling remain owned by the existing handler.
 - **Regression invariant:** TestStaticRoutesObserveLocalWebDistRewrite in static_test.go covers
   unchanged 304 and changed 200 responses for root HTML, a deep link and a JavaScript asset.
-- **Fix commit:** pending verification.
+- **Fix commit:** a2917318c96359b507b0e0a0fc06ad410f7dd648.
 
 ## Verification
 
@@ -50,6 +50,6 @@ The regression fails before repair and the static suite passes afterward with th
 The test-shape checker retains the same three untouched legacy findings as HEAD; the changed
 suite has none. Same-daemon HTTP requests prove unchanged 304, changed 200, then unchanged 304
 for real copied bundle files, plus changed HTML on a deep link. Fresh Chrome entry and ordinary
-reload recover without a cache bypass. The required gate passes. Evidence: automation-static-
-live-revalidation.json, automation-preview-final-dora-entry.json, automation-preview-final-
-dora-ended.json and automation-static-gate-replay.json. Local fix SHA pending.
+reload recover without a cache bypass. The required gate passes. Evidence: automation-static-live-revalidation.json,
+automation-preview-final-dora-entry.json, automation-preview-final-dora-ended.json and
+automation-static-gate-replay.json. Fix SHA: a2917318c96359b507b0e0a0fc06ad410f7dd648.

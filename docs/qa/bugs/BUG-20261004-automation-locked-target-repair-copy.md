@@ -1,6 +1,6 @@
 # BUG-20261004-automation-locked-target-repair-copy: Blocked edit suggests a locked target picker
 
-- **Status:** open
+- **Status:** fixed — verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Dora
@@ -43,7 +43,7 @@ with 53 frames at /Users/pedronauck/.config/browser-harness/agent-workspace/reco
 - **Owning layer:** shared Loop target availability presentation, consumed by both form and preview.
 - **Regression proof:** real before/after Dora replay; existing job/trigger form suites own
   preserved target and blocked submission. No prose-only automated assertion is added.
-- **Fix commit:** pending verification.
+- **Fix commit:** a2917318c96359b507b0e0a0fc06ad410f7dd648.
 
 ## Verification
 
@@ -51,4 +51,4 @@ Fresh Dora replay verifies incompatible and unavailable targets in both editors,
 preview. Saving stays blocked; immutable targets and drafts survive, and Cancel preserves the
 saved definitions as independently confirmed by HTTP readback. Four warning screenshots were
 inspected. Evidence: automation-preview-final-dora-ended.json, the final round-trip receipts
-and automation-preview-final-readback-*.json. The affected gate passes; local fix SHA pending.
+and automation-preview-final-readback-*.json. The affected gate passes; fix SHA: a2917318c96359b507b0e0a0fc06ad410f7dd648.
