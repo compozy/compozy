@@ -117,6 +117,58 @@ func functionCallsAnyIdentifier(function *ast.FuncDecl, names map[string]struct{
 func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should scan settled history without acquiring the SQLite writer", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Date(2026, time.October, 3, 12, 0, 0, 0, time.UTC)
+		run, err := db.CreateLoopRunForStart(ctx,
+			testLoopRun("looprun-settled-history", now, looppkg.StatusRunning), dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'failed' WHERE id = ?`, run.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SweepLoopRunOrphans(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `WITH RECURSIVE history(n) AS (
+			SELECT 1 UNION ALL SELECT n + 1 FROM history WHERE n < 12000
+		) INSERT INTO task_runs (id, task_id, workspace_id, status, attempt, origin_kind, origin_ref,
+			queued_at, run_kind, loop_run_id)
+		SELECT 'history-' || n, task_id, workspace_id, 'failed', 1, origin_kind, origin_ref,
+			queued_at, 'worker', loop_run_id FROM task_runs, history WHERE run_kind = 'coordinator'`); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		scanCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		started := time.Now()
+		report, err := db.SweepLoopRunOrphans(scanCtx)
+		if err != nil || report != (looppkg.SweepReport{}) {
+			t.Fatalf("settled history sweep = %#v, %v", report, err)
+		}
+		t.Logf("12000 settled task runs scanned in %s", time.Since(started))
+		if count, err := db.BackfillLoopProvenance(scanCtx); err != nil || count != 0 {
+			t.Fatalf("settled provenance backfill = %d, %v", count, err)
+		}
+	})
+
 	const terminalOrphanCase = "Should repair a terminal orphan once and project backfilled coordinator provenance UT-030 UT-031 UT-033 IT-005 IT-006 IT-025"
 	t.Run(terminalOrphanCase, func(t *testing.T) {
 		t.Parallel()

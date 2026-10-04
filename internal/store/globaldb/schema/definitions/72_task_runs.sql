@@ -285,3 +285,9 @@ CREATE UNIQUE INDEX uq_task_runs_active_loop_coordinator
 CREATE UNIQUE INDEX uq_task_runs_review_id
 		ON task_runs(review_id)
 		WHERE review_id IS NOT NULL;
+
+CREATE INDEX idx_task_runs_loop_status ON task_runs(loop_run_id, status, task_id)
+    WHERE loop_run_id IS NOT NULL;
+
+CREATE INDEX idx_task_runs_coordinator_provenance ON task_runs(task_id, workspace_id, loop_run_id)
+    WHERE run_kind = 'coordinator';

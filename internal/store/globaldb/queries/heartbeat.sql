@@ -120,6 +120,9 @@ SELECT id, workspace_id, agent_name, session_id, policy_snapshot_id, source, res
        synthetic_prompt_id, created_at, expires_at
 FROM agent_heartbeat_wake_events WHERE id = sqlc.arg(id);
 
+-- name: HasExpiredHeartbeatWakeEvents :one
+SELECT EXISTS (SELECT 1 FROM agent_heartbeat_wake_events WHERE expires_at < sqlc.arg(cutoff));
+
 -- name: SweepHeartbeatWakeEvents :execrows
 DELETE FROM agent_heartbeat_wake_events
 WHERE id IN (

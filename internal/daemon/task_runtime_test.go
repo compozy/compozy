@@ -38,52 +38,60 @@ import (
 
 func TestLoopReconcilerRuntimeShouldWaitForReadinessAndNeverOverlapCycles(t *testing.T) {
 	t.Parallel()
+	t.Run("Should backfill once after readiness and serialize periodic sweeps", func(t *testing.T) {
+		t.Parallel()
 
-	reconciler := &blockingRunReconciler{
-		backfillCalled: make(chan struct{}, 1),
-		firstSweep:     make(chan struct{}, 1),
-		releaseFirst:   make(chan struct{}),
-		secondSweep:    make(chan struct{}, 1),
-	}
-	runtime := newLoopReconcilerRuntime(
-		reconciler, 10*time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)),
-	)
-	ctx, cancel := context.WithCancel(testutil.Context(t))
-	defer cancel()
-	ready := make(chan struct{})
-	if err := runtime.Start(ctx, ready); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	select {
-	case <-reconciler.backfillCalled:
-		t.Fatal("BackfillProvenance() ran before readiness")
-	case <-time.After(20 * time.Millisecond):
-	}
-	close(ready)
-	select {
-	case <-reconciler.backfillCalled:
-	case <-time.After(time.Second):
-		t.Fatal("BackfillProvenance() did not run after readiness")
-	}
-	select {
-	case <-reconciler.firstSweep:
-	case <-time.After(time.Second):
-		t.Fatal("first SweepOnce() did not start")
-	}
-	select {
-	case <-reconciler.secondSweep:
-		t.Fatal("SweepOnce() overlapped a blocked cycle")
-	case <-time.After(40 * time.Millisecond):
-	}
-	close(reconciler.releaseFirst)
-	select {
-	case <-reconciler.secondSweep:
-	case <-time.After(time.Second):
-		t.Fatal("SweepOnce() did not retry on the next interval")
-	}
-	if err := runtime.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
+		reconciler := &blockingRunReconciler{
+			backfillCalled: make(chan struct{}, 1),
+			firstSweep:     make(chan struct{}, 1),
+			releaseFirst:   make(chan struct{}),
+			secondSweep:    make(chan struct{}, 1),
+		}
+		runtime := newLoopReconcilerRuntime(
+			reconciler, 10*time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
+		ready := make(chan struct{})
+		if err := runtime.Start(ctx, ready); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		select {
+		case <-reconciler.backfillCalled:
+			t.Fatal("BackfillProvenance() ran before readiness")
+		case <-time.After(20 * time.Millisecond):
+		}
+		close(ready)
+		select {
+		case <-reconciler.backfillCalled:
+		case <-time.After(time.Second):
+			t.Fatal("BackfillProvenance() did not run after readiness")
+		}
+		select {
+		case <-reconciler.firstSweep:
+		case <-time.After(time.Second):
+			t.Fatal("first SweepOnce() did not start")
+		}
+		select {
+		case <-reconciler.secondSweep:
+			t.Fatal("SweepOnce() overlapped a blocked cycle")
+		case <-time.After(40 * time.Millisecond):
+		}
+		close(reconciler.releaseFirst)
+		select {
+		case <-reconciler.secondSweep:
+		case <-time.After(time.Second):
+			t.Fatal("SweepOnce() did not retry on the next interval")
+		}
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		select {
+		case <-reconciler.backfillCalled:
+			t.Fatal("settled provenance was scanned again during periodic reconciliation")
+		default:
+		}
+	})
 }
 
 type blockingRunReconciler struct {

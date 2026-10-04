@@ -45,15 +45,16 @@ type loopActionRuntime struct {
 	logger   *slog.Logger
 	now      func() time.Time
 
-	root                 context.Context
-	cancel               context.CancelFunc
-	sem                  chan struct{}
-	spawnMu              sync.Mutex
-	wg                   sync.WaitGroup
-	stopping             atomic.Bool
-	heartbeatInterval    func(time.Duration) time.Duration
-	livenessPollInterval func(time.Duration) time.Duration
-	claimRetryInterval   time.Duration
+	root                      context.Context
+	cancel                    context.CancelFunc
+	sem                       chan struct{}
+	spawnMu                   sync.Mutex
+	wg                        sync.WaitGroup
+	stopping                  atomic.Bool
+	heartbeatInterval         func(time.Duration) time.Duration
+	livenessPollInterval      func(time.Duration) time.Duration
+	claimRetryInterval        time.Duration
+	persistenceAttemptTimeout time.Duration
 }
 
 var _ taskRunEnqueuedObserver = (*loopActionRuntime)(nil)
@@ -235,19 +236,25 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
 	}
-	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTaskCancelGrace)
-	defer cancel()
-	completed, err := r.manager.CompleteRunLease(settleCtx, taskpkg.LeaseCompletion{
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-		Result:     result,
-		TokensUsed: result.TokensUsed,
-		Now:        r.now().UTC(),
-	}, actor)
-	if err == nil || completed != nil {
-		return err
+	var completed *taskpkg.Run
+	var completionErr error
+	err = retrySQLitePersistence(ctx, r.persistenceAttemptTimeout, func(settleCtx context.Context) error {
+		completed, completionErr = r.manager.CompleteRunLease(settleCtx, taskpkg.LeaseCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Result: result,
+			TokensUsed: result.TokensUsed, Now: r.now().UTC(),
+		}, actor)
+		if completed != nil {
+			return nil
+		}
+		return completionErr
+	})
+	if completed != nil {
+		return completionErr
 	}
-	return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
+	if err != nil && ctx.Err() == nil {
+		return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
+	}
+	return err
 }
 
 func (r *loopActionRuntime) failClaimedRun(
@@ -265,19 +272,20 @@ func (r *loopActionRuntime) failClaimedRun(
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTaskCancelGrace)
-	defer cancel()
-	_, failErr := r.manager.FailRunLease(settleCtx, taskpkg.LeaseFailure{
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-		Failure: taskpkg.RunFailure{
-			Error:    cause.Error(),
-			Metadata: metadata,
-		},
-		TokensUsed: tokensUsed,
-		Now:        r.now().UTC(),
-	}, actor)
-	return errors.Join(cause, failErr)
+	var failureErr error
+	retryErr := retrySQLitePersistence(ctx, r.persistenceAttemptTimeout, func(settleCtx context.Context) error {
+		failed, err := r.manager.FailRunLease(settleCtx, taskpkg.LeaseFailure{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Failure:    taskpkg.RunFailure{Error: cause.Error(), Metadata: metadata},
+			TokensUsed: tokensUsed, Now: r.now().UTC(),
+		}, actor)
+		failureErr = err
+		if failed != nil {
+			return nil
+		}
+		return err
+	})
+	return errors.Join(cause, failureErr, retryErr)
 }
 
 func (r *loopActionRuntime) shutdown(ctx context.Context) error {

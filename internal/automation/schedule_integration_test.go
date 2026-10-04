@@ -5,7 +5,9 @@ package automation
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -430,4 +432,84 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a busy SQLite claim backs off without advancing or duplicating the scheduled fire.
+func TestSchedulerIntegrationSQLiteContention(t *testing.T) {
+	t.Run("Should back off failed claims and dispatch the original fire once after unlock", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openAutomationIntegrationDB(t, ctx)
+		base := time.Date(2026, time.October, 3, 12, 0, 0, 0, time.UTC)
+		clock := clockwork.NewFakeClockAt(base)
+		creator := newRecordingSessionCreator()
+		dispatcher := newTestDispatcher(t, creator, db, WithDispatcherNow(clock.Now))
+		logCounter := &schedulerFailureLogCounter{}
+		scheduler := newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock),
+			WithSchedulerLogger(slog.New(slog.NewTextHandler(logCounter, &slog.HandlerOptions{Level: slog.LevelWarn}))))
+		job := testJob(AutomationScopeGlobal, "contended-fire", "")
+		fireAt := base.Add(time.Second)
+		job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: fireAt.Format(time.RFC3339)}
+		job, err := db.CreateJob(ctx, job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := scheduler.Register(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		locked := true
+		t.Cleanup(func() {
+			if locked {
+				if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+					t.Error(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		if err := scheduler.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		waitForTimers(t, clock, 1)
+		clock.Advance(time.Second)
+		waitUntil(t, 2*time.Second, time.Millisecond, func() bool { return logCounter.count.Load() >= 1 })
+		waitForTimers(t, clock, 1)
+		if count := logCounter.count.Load(); count != 1 {
+			t.Fatalf("failed claims before backoff = %d", count)
+		}
+		clock.Advance(time.Second)
+		waitUntil(t, 2*time.Second, time.Millisecond, func() bool { return logCounter.count.Load() >= 2 })
+		waitForTimers(t, clock, 1)
+		if count := logCounter.count.Load(); count != 2 {
+			t.Fatalf("failed claims after one retry = %d", count)
+		}
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		locked = false
+		clock.Advance(2 * time.Second)
+		waitUntil(t, 2*time.Second, time.Millisecond, func() bool { return len(creator.createCalls()) == 1 })
+		runs, err := db.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(runs) != 1 || runs[0].ID != scheduledRunID(job.ID, fireAt) {
+			t.Fatalf("scheduled runs = %#v, want original fire exactly once", runs)
+		}
+	})
+}
+
+type schedulerFailureLogCounter struct{ count atomic.Int32 }
+
+func (w *schedulerFailureLogCounter) Write(data []byte) (int, error) {
+	w.count.Add(1)
+	return len(data), nil
 }
