@@ -312,6 +312,52 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should persist canceled permissions and clear their attention without restart", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+		event := acp.AgentEvent{
+			Type: acp.EventTypePermission, TurnID: "turn-canceled", Title: "Stop the review queue", Timestamp: at,
+		}.WithRequestID("request-canceled")
+		if err := h.manager.recordEvent(ctx, target, event); err != nil {
+			t.Fatal(err)
+		}
+		if got := BadgeForInfo(target.Info()); got != BadgeWaitingForAuth {
+			t.Fatalf("pending badge = %q, want waiting-for-auth", got)
+		}
+		event.Decision = "canceled"
+		event.Timestamp = at.Add(time.Second)
+		event = event.WithResolvedBy("system")
+		if err := h.manager.recordEvent(ctx, target, event); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := catalog.ListPendingInteractions(ctx, target.ID, []string{store.PendingInteractionStatusCanceled})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("canceled permissions = %#v, %v, want one durable record", rows, err)
+		}
+		if rows[0].ProviderRequestID != "request-canceled" || rows[0].Resolution != "canceled" ||
+			rows[0].ResolvedBy != "system" || rows[0].ResolvedAt == nil {
+			t.Fatalf("cancellation attribution = %#v", rows[0])
+		}
+		attention, err := catalog.GetSessionAttention(ctx, target.ID)
+		if err != nil || attention.PendingPermissionCount != 0 {
+			t.Fatalf("durable attention = %#v, %v, want no pending permission", attention, err)
+		}
+		if got := BadgeForInfo(target.Info()); got == BadgeWaitingForAuth {
+			t.Fatal("canceled permission retained the live approval badge")
+		}
+	})
+
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
 		t.Parallel()
 

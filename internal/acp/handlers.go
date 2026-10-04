@@ -269,14 +269,13 @@ func (p *AgentProcess) resolvePermissionRequest(
 		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	case <-p.permissionConnectionDone():
-		return acpsdk.RequestPermissionResponse{
-			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
-		}, nil
 	case <-ctx.Done():
-		return acpsdk.RequestPermissionResponse{
-			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
-		}, nil
 	}
+	raw = buildPermissionEventRaw(requestID, decisionCanceled, request)
+	p.emitPermissionEvent(
+		sessionID, turnID, requestID, title, toolCallID, resource, decisionCanceled, "system", raw,
+	)
+	return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 }
 
 func permissionRequestDisplay(request acpsdk.RequestPermissionRequest) (string, string) {

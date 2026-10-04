@@ -58,7 +58,7 @@ export function settingsRestartPresentation(
       triggerPending: state.isTriggerPending,
     };
   }
-  if (isSuccessfulRestart(state.status)) {
+  if (isSuccessfulRestart(state.status) && !state.isRestartRequired) {
     return {
       phase: "successful",
       tone: "success",

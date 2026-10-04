@@ -27,6 +27,7 @@ type permissionDecision = PermissionDecision
 
 const (
 	decisionPending      = PermissionDecisionPending
+	decisionCanceled     = PermissionDecisionCanceled
 	decisionAllowOnce    = PermissionDecisionAllowOnce
 	decisionAllowAlways  = PermissionDecisionAllowAlways
 	decisionRejectOnce   = PermissionDecisionRejectOnce

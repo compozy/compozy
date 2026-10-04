@@ -343,6 +343,11 @@ winning decision or answer. `queue-full` leaves the interaction untouched and is
 `compozy session status <session-id> -o json` returns both the canonical badge and this same bounded
 pending-interaction projection.
 
+When a permission's caller cancels or its provider connection closes, the runtime cancels that
+interaction and clears its pending attention without a daemon restart. A hosted native tool whose
+approval deadline expires reports `approval_timed_out`; its canceled permission cannot be approved
+later. Read interactions again before answering a request retained in an older client view.
+
 Operator clients acquire a per-client visibility lease with
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A first request with
 `{"visible":true}` returns `lease_id`; renew or release only that lease by sending the ID back.

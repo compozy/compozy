@@ -230,14 +230,14 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 			Options: toolApprovalOptions(remember),
 		},
 	)
+	if errors.Is(context.Cause(approvalCtx), context.DeadlineExceeded) &&
+		(err != nil || response.Outcome.Cancelled != nil) { //nolint:misspell // ACP SDK field uses British spelling.
+		return acp.RequestPermissionResponse{}, toolApprovalError(
+			toolID, "tool approval timed out", toolspkg.ReasonApprovalTimedOut,
+		)
+	}
 	if err != nil {
 		switch {
-		case errors.Is(context.Cause(approvalCtx), context.DeadlineExceeded):
-			return acp.RequestPermissionResponse{}, toolApprovalError(
-				toolID,
-				"tool approval timed out",
-				toolspkg.ReasonApprovalTimedOut,
-			)
 		case errors.Is(ctx.Err(), context.Canceled), errors.Is(err, context.Canceled):
 			return acp.RequestPermissionResponse{}, toolApprovalError(
 				toolID,

@@ -4,6 +4,26 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Settings restart truth:** Web reads the daemon's existing configuration status for current
+  restart requirements, including writes from CLI/HTTP/UDS and other documents. The settings apply
+  owner retains restart-required scoped writes outside the global hash until the next daemon boot;
+  unrelated live writes cannot erase that requirement. Existing status payloads carry this truth
+  across CLI/HTTP/UDS without a shape change or persistence migration. The latest apply
+  record identifies the notice dismissed by the operator; it does not decide whether a restart is
+  required. A previous successful operation cannot hide a later requirement. Settings mutations
+  and terminal restart observations invalidate the canonical status/apply queries. The existing
+  session-storage envelope upgrades losslessly from version 0 to 1, retaining operation identity
+  and pending mutation while adding the dismissed apply-record ID. No daemon schema, public route,
+  native-tool ID, hook, extension, configuration key or workspace/profile ownership changes.
+  Official configuration guidance, MS-037 and its existing hook/presentation suites own verification.
+- **Native permission cancellation:** ACP emits a terminal system cancellation when its caller or
+  connection closes; session persistence marks the interaction canceled and clears derived pending
+  attention. The existing native approval deadline reports `approval_timed_out` even when ACP
+  returns its normal canceled outcome. Operator allow/reject choices, tool IDs, HTTP/UDS routes,
+  authorization, hooks, configuration and workspace/profile ownership stay unchanged. The existing
+  interaction status accepts cancellation, so no schema migration is needed. Web consumes the
+  canonical projection; official runtime guidance and the profile/attention scenarios co-ship.
+  Existing ACP, session transition and daemon bridge suites own the regressions.
 - **Extension-declared profile provenance:** Global migration 00126 preserves every declaration
   marker and adds nullable creation provenance: existing rows remain unknown; new profile creation
   records true and binding records false. Creation claims also require the current profile ID, so

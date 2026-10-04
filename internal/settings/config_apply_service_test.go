@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1171,6 +1172,69 @@ cost_reasoning_per_million = 30
 
 func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: a scoped restart requirement survives unrelated live writes until daemon boot.
+	// Owner: Settings config-apply coordinator; canonical suite: this real-repository lifecycle suite.
+	t.Run("Should retain profile restart requirements until a new runtime starts", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		deps := Dependencies{ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil)}
+		svc := testService(t, homePaths, deps)
+		initial, err := svc.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		skills := initial.Skills
+		skills.PollInterval += time.Second
+		pending, err := svc.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeProfile, ProfileName: "marketing"},
+			Skills:         &skills,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pending.Record.WriteTarget != WriteTargetProfileConfig || !pending.RestartRequired ||
+			pending.Record.DesiredHash != pending.Record.ActiveHash {
+			t.Fatalf("profile change should require restart without global hash drift: %#v", pending)
+		}
+		if required, err := svc.HasPendingConfigRestart(ctx); err != nil || !required {
+			t.Fatalf("profile restart requirement = %t, error = %v", required, err)
+		}
+		live, err := svc.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionShell, Scope: ScopeUser},
+			Shell: &compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+				Sort:  compozyconfig.ShellSessionSortAttention,
+				Scope: compozyconfig.ShellSessionScopeAllWorkspaces,
+			}},
+		})
+		if err != nil || !live.Applied || live.RestartRequired {
+			t.Fatalf("unrelated live write = %#v, error = %v", live, err)
+		}
+		if required, err := svc.HasPendingConfigRestart(ctx); err != nil || !required {
+			t.Fatalf("live write lost profile restart requirement: %t, error = %v", required, err)
+		}
+		restarted := testService(t, homePaths, deps)
+		if required, err := restarted.HasPendingConfigRestart(ctx); err != nil || required {
+			t.Fatalf("new runtime retained an applied profile restart requirement: %t, error = %v", required, err)
+		}
+		section, err := restarted.GetSection(ctx, SectionRequest{
+			Section: SectionSkills, Scope: ScopeProfile, ProfileName: "marketing",
+		})
+		if err != nil || section.Skills == nil || section.Skills.Config.PollInterval != skills.PollInterval {
+			t.Fatalf("profile value did not survive new runtime: %#v, error = %v", section, err)
+		}
+	})
 
 	t.Run("Should persist blocked record for restart-required change", func(t *testing.T) {
 		t.Parallel()
