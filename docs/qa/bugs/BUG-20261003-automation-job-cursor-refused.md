@@ -1,7 +1,7 @@
 # BUG-20261003-automation-job-cursor-refused: A jobs cursor cannot read the next page of the same query
 
 - **Status:** verified
-- **Fix commit:** pending
+- **Fix commit:** f38ee2ec19e738f6f27836d7c19c9fc34f1d7d40
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno

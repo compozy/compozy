@@ -42,6 +42,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   continuation consumes the repaired HTTP boundary. No DTO, cursor version, route, tool ID,
   hook, config, workspace storage or migration changes. Existing CLI cursor fixtures now carry
   real profile identity; public replays cover TA-052/TA-056. Official native-tool guidance co-ships.
+- **Global automation details:** The Web detail boundary recognizes the resolved Global lens
+  and retains refusal for a different concrete project. Project-owned edit forms resolve agent
+  and Loop catalogs from the returned definition's workspace. Server profile authorization,
+  mutation ownership and managed-source restrictions remain authoritative. No native-tool, CLI,
+  HTTP/UDS, extension, hook, config or stored-state contract changes; no migration is needed.
+  Official skill commands and site API guidance remain current. TA-052/TA-056 and the existing
+  detail-hook suite own the repair evidence; fresh Chrome/CLI/UDS replay covers saved behavior.
 - **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
   owner, matching the existing delete audit convention. The payload retains the affected profile
   and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives

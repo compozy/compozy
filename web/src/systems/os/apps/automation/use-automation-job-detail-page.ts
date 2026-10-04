@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { automationUnavailableMessage } from "./use-automation-page-base";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  automationMatchesActiveWorkspace,
+  automationEditorWorkspaceId,
   type AutomationRun,
   automationWorkspaceAccessError,
   useAutomationJob,
@@ -29,14 +29,17 @@ export function useAutomationJobDetailPage(jobId: string) {
     enabled: liveDataEnabled && Boolean(jobId),
   });
   const loadedJob = jobDetailQuery.data;
-  const canAccessJob =
-    loadedJob !== undefined &&
-    !workspaceLoading &&
-    automationMatchesActiveWorkspace(loadedJob, activeWorkspaceId);
+  const accessError = automationWorkspaceAccessError(
+    "job",
+    loadedJob,
+    activeWorkspaceId,
+    workspaceLoading
+  );
+  const job = workspaceLoading || accessError ? undefined : loadedJob;
   const jobRunsQuery = useAutomationJobRuns(
     jobId,
     { limit: 10 },
-    { enabled: liveDataEnabled && Boolean(jobId) && canAccessJob }
+    { enabled: liveDataEnabled && Boolean(jobId) && Boolean(job) }
   );
   const settingsQuery = useSettingsAutomation();
   const runtimeUnavailableMessage = automationUnavailableMessage(
@@ -49,13 +52,6 @@ export function useAutomationJobDetailPage(jobId: string) {
   const deleteMutation = useDeleteAutomationJob();
   const triggerMutation = useTriggerAutomationJob();
 
-  const job = canAccessJob ? loadedJob : undefined;
-  const accessError = automationWorkspaceAccessError(
-    "job",
-    loadedJob,
-    activeWorkspaceId,
-    workspaceLoading
-  );
   const persistedRuns = job ? (jobRunsQuery.data ?? []) : [];
   const runs =
     job && queuedRun && !persistedRuns.some(run => run.id === queuedRun.id)
@@ -63,7 +59,7 @@ export function useAutomationJobDetailPage(jobId: string) {
       : persistedRuns;
 
   const editor = useAutomationJobEditor({
-    activeWorkspaceId,
+    activeWorkspaceId: automationEditorWorkspaceId(job, activeWorkspaceId),
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 

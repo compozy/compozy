@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  automationMatchesActiveWorkspace,
+  automationEditorWorkspaceId,
   automationWorkspaceAccessError,
   projectAutomationTarget,
   useAutomationTrigger,
@@ -24,29 +24,24 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     enabled: liveDataEnabled && Boolean(triggerId),
   });
   const loadedTrigger = triggerDetailQuery.data;
-  const canAccessTrigger =
-    loadedTrigger !== undefined &&
-    !workspaceLoading &&
-    automationMatchesActiveWorkspace(loadedTrigger, activeWorkspaceId);
-  const triggerRunsQuery = useAutomationTriggerRuns(
-    triggerId,
-    { limit: 10 },
-    { enabled: liveDataEnabled && Boolean(triggerId) && canAccessTrigger }
-  );
-
-  const updateMutation = useUpdateAutomationTrigger();
-  const deleteMutation = useDeleteAutomationTrigger();
-
-  const trigger = canAccessTrigger ? loadedTrigger : undefined;
   const accessError = automationWorkspaceAccessError(
     "trigger",
     loadedTrigger,
     activeWorkspaceId,
     workspaceLoading
   );
+  const trigger = workspaceLoading || accessError ? undefined : loadedTrigger;
+  const triggerRunsQuery = useAutomationTriggerRuns(
+    triggerId,
+    { limit: 10 },
+    { enabled: liveDataEnabled && Boolean(triggerId) && Boolean(trigger) }
+  );
+
+  const updateMutation = useUpdateAutomationTrigger();
+  const deleteMutation = useDeleteAutomationTrigger();
 
   const editor = useAutomationTriggerEditor({
-    activeWorkspaceId,
+    activeWorkspaceId: automationEditorWorkspaceId(trigger, activeWorkspaceId),
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 
