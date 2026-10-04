@@ -80,6 +80,24 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   hook, configuration, workspace isolation or stored-state contract changes; no migration.
   Official skill and site interfaces remain current. ET-web-jobs-triggers-catalog and the
   existing trigger form suite own the hidden-error regression and fresh recovery replay.
+- **Automation preview directions:** Job schedule recovery and Trigger webhook/template guidance
+  name the existing form/preview footer actions after the permanent preview rail was removed.
+  This is a presentation-only correction; draft, validation and submission behavior are unchanged.
+  No native tools, CLI/HTTP/UDS, extension, hook, config, workspace isolation or stored-state changes;
+  no migration. Official skill and site interfaces remain current. TA-web-automation-preview-toggle
+  owns the before/after real replay; existing form/editor suites retain behavior coverage.
+- **Saved Loop target recovery copy:** Incompatible and unavailable automation targets give
+  edit-mode remedies that preserve the immutable target; creation keeps its picker remedy.
+  The existing mode and availability projection remain authoritative. No native-tool,
+  CLI/HTTP/UDS, extension, hook, config, isolation, stored-state or migration changes. Official
+  skill/site interfaces remain current; both real editors and existing form suites own proof.
+- **Local Web bundle revalidation:** Static HTTP responses use the opened file's modification
+  time, so COMPOZY_WEB_DIST_DIR rewrites invalidate prior HTML and asset validators without a
+  daemon restart. Embedded zero-time assets retain the existing start-time fallback. Routes,
+  CSP, range handling, native tools, CLI/UDS contracts, extensions, hooks, configuration keys,
+  workspace data and persisted shapes stay unchanged; no migration. Official skill/site
+  contracts remain current. The existing HTTP static suite and real entry/rewrite replay in
+  TA-web-automation-preview-toggle own regression evidence.
 - **Trigger authoring and error recovery:** The Loop mapping example follows the existing
   accepted template grammar; the preview serializes strings as valid sample JSON. Failed
   Trigger detail reads expose the existing catalog-return action alongside the daemon error.

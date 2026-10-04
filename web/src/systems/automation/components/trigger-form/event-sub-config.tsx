@@ -83,7 +83,8 @@ export function EventSubConfig({ family, values, onChange }: EventSubConfigProps
     return (
       <div className={BOX}>
         <p className="mb-2.5 text-form-hint leading-snug text-subtle">
-          External callers POST to a signed endpoint. The URL and curl example are on the right.
+          External callers POST to a signed endpoint. Choose Show live preview for the URL and curl
+          example.
         </p>
         <div className="mb-3 grid grid-cols-2 gap-3">
           <Field>
