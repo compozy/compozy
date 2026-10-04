@@ -6,13 +6,13 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (Back to app closes the window; search with `/` shortcut filters sections; Workspace/Runtime/Personal/System groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
 entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261004-settings-search-shortcut-inactive
+fix_status: pending
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa; docs/qa/reports/2026-08-20-ui-normies-retry.md
-last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+evidence: docs/qa/evidence/2026-10-02-untested/settings-navigation-dora-ended.json; docs/qa/reports/2026-10-02-untested.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-026; MS-037; ET-012; ET-044; ET-045
 ---
 
@@ -36,3 +36,9 @@ rewrote raw failure strings into plain sentences, so a settings failure should n
 happen and what to do, without a Go error string as the primary text.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-04 Dora navigation walk: `/` does not focus the visible search after fresh entry or a
+neutral content click. The three retired-word aliases, browser Back and the compact chip strip
+work. BUG-20261004-settings-search-shortcut-inactive owns the failure; complete save-model and
+visual-reference legs remain pending. Evidence: settings-navigation-dora-ended.json and the linked
+receipts under docs/qa/evidence/2026-10-02-untested/; all four screenshots inspected.

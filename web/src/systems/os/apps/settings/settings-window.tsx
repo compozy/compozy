@@ -1,14 +1,9 @@
-import {
-  Suspense,
-  lazy,
-  useRef,
-  type ComponentType,
-  type KeyboardEvent,
-  type LazyExoticComponent,
-} from "react";
+import { Suspense, lazy, type ComponentType, type LazyExoticComponent } from "react";
 
 import { Spinner, viewTransitionName } from "@compozy/ui";
+import { shallowEqual } from "@xstate/store";
 
+import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { useDesktop } from "../../hooks/use-desktop";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
@@ -143,7 +138,6 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
  * window's WM location (not router matches) so an unfocused settings window
  * keeps showing its own section (ADR-002 rule 6).
  */
-const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
 const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
 
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
@@ -154,8 +148,21 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
 }
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const route = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_SETTINGS_ROUTE);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { route, searchEnabled } = useDesktop(state => {
+    const win = state.windows[windowId];
+    return {
+      route: win?.route ?? DEFAULT_SETTINGS_ROUTE,
+      searchEnabled:
+        !!win &&
+        state.focusedId === windowId &&
+        win.desktopId === state.activeDesktopId &&
+        !win.minimized &&
+        win.stackActive,
+    };
+  }, shallowEqual);
+  // Neutral content clicks focus the desktop ancestor, outside this window's
+  // bubbling path. Reuse the document shortcut while this window owns focus.
+  const searchInputRef = useListingSearchShortcut(searchEnabled);
   const connection = useDaemonConnectionStatus();
   const activeSlug = sectionSlugFromPathname(route.pathname);
   const navigate = useSettingsNavigation(next => {
@@ -168,24 +175,11 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
     activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
   useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
-  // Window-scoped `/` shortcut: focus the sidebar search unless the user is
-  // already typing in a field.
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "/" || event.defaultPrevented) return;
-    const target = event.target as HTMLElement | null;
-    if (target && (TYPING_TAGS.test(target.tagName) || target.isContentEditable)) return;
-    event.preventDefault();
-    searchInputRef.current?.focus();
-  };
-
   // The container declaration lives on the outer wrapper: an element cannot
   // resolve a container query against itself, so the flex switch sits one
   // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
-    <div
-      className="@container flex min-h-0 flex-1 flex-col overflow-hidden"
-      onKeyDown={handleKeyDown}
-    >
+    <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
         data-testid="settings-shell"

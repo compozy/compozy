@@ -1752,3 +1752,15 @@ remain unchanged.
 - Active session hook runs and lifecycle events use the existing session-owned recorder. No storage migration, workspace data movement, new worker or process owner is introduced.
 - The internal HookRunner contract and its consumers change together. External MCP/extension registry backends retain their existing behavior; this adapter handles native tools only.
 - Official skill impact is documented in `skills/compozy/references/native-tools.md`. Web hook/session views consume the same existing audit records. QA owner: `ET-native-workspace-scope-isolation`; bug `BUG-20261002-native-hook-dispatch-missing` and the dated report retain replay evidence.
+
+## Settings search focus repair (2026-10-04 QA)
+
+- Web Settings connects its advertised `/` search shortcut to the existing document keyboard
+  boundary, scoped to the active visible Settings window. Fields, dialogs, modified chords and
+  already-handled keys retain ownership. Shared listing-search consumers are adjacent canaries.
+- Native tools, HTTP/UDS/CLI contracts, hooks, extensibility, config and workspace data isolation
+  are unchanged. No persisted shape or migration; the official `skills/compozy/` contract is
+  unaffected. Product wording and shortcut labels remain unchanged.
+- QA/docs owner: `MS-web-settings-takeover-redesign`, bug
+  `BUG-20261004-settings-search-shortcut-inactive`, and the 2026-10-02 untested report. Owning
+  navigation-suite regression proof and fresh Chrome replay are required before verification.
