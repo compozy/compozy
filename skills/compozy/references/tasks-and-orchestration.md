@@ -39,7 +39,8 @@ An explicit foreign workspace must pass the shared workspace-access policy and t
 workspace's records; it never falls back to the caller's inventory. The acting profile still owns
 the read scope. Native `global` and `all` scope remain operator-only for bound sessions.
 
-CLI `task publish`, `task start`, `task approve`, and `task reject` use the selected profile,
+CLI `task publish`, `task start`, `task approve`, `task reject`, pause/resume/cancel, block/unblock,
+block listing and task recovery use the selected profile,
 including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
 a foreign profile receives not found, just as it does for the detail read.
 

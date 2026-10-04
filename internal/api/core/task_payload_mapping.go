@@ -157,9 +157,6 @@ func needsAttentionBy(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity 
 
 // TaskBlockPayloadsFromBlocks converts task-block records into shared payloads.
 func TaskBlockPayloadsFromBlocks(blocks []taskpkg.TaskBlock) []contract.TaskBlockPayload {
-	if len(blocks) == 0 {
-		return nil
-	}
 	payloads := make([]contract.TaskBlockPayload, 0, len(blocks))
 	for _, block := range blocks {
 		payloads = append(payloads, TaskBlockPayloadFromBlock(block))

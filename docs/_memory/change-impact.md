@@ -4,6 +4,23 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Empty task block lists:** The shared mapper returns an allocated empty array to honor the
+  existing non-nullable response schema. HTTP/UDS and native `compozy__task_blocks` share this
+  boundary; CLI reads preserve it. No new route, tool ID, schema, hooks, configuration or workspace
+  ownership change. The existing HTTP task-block response suite owns regression coverage.
+- **Task CLI control profile selection:** Pause/resume/cancel, block/unblock/recover and block reads
+  use the existing single-profile boundary before transport. Task routes, native tools, extension
+  methods, hooks, configuration, workspace storage and Web behavior do not change; no migration
+  is needed. The existing CLI profile suite and the adjacent TA-010 walk own verification. The
+  original overview approval repair remains verified. Approval-pending CLI copy is made neutral
+  because source policy can require approval for read-only commands too.
+- **Extension task response state:** Host API task payloads derive draft from the canonical status
+  and copy the persisted creator notification flag, cursor, current run, pause inheritance, block
+  reasons and attention metadata, including detail summaries. Free-text state stays redacted. Existing task
+  methods, SDK/OpenAPI shapes, native-tool IDs, hooks, configuration, workspace/profile ownership
+  and storage remain unchanged; no migration or generated-contract change is required. The task
+  serialization suite and TA-001's adjacent extension-command replay own verification. Official
+  extension guidance documents the fields; Web already displays the correctly persisted state.
 - **Extension Host API workspace/profile binding:** The shared boundary recognizes the existing
   workspace_profile process scope and retains its workspace for domain calls and actor derivation.
   Own-workspace task creation keeps the bound profile; global and foreign workspace requests remain

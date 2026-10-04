@@ -1,11 +1,11 @@
-# BUG-20261002-task-action-profile-scope: Task approval commands lose the selected profile
+# BUG-20261002-task-action-profile-scope: Task control commands lose the selected profile
 
 - **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
 - **Journey Step:** J-operate-daemon-schema, act on the overview's pending task approval
-- **Scenarios:** RT-observe-overview-cli
+- **Scenarios:** RT-observe-overview-cli; TA-010
 - **Found:** 2026-10-02 · **Report:** docs/qa/reports/2026-10-02-untested.md
 - **Origin:** Isolated primary QA lab
 
@@ -45,3 +45,28 @@ detector. The rebuilt CLI approves a fresh Studio task and rejects the previousl
 independent UDS reads persist both decisions. Explicit default-profile approval still refuses the
 Studio task before mutation. Evidence: `task-action-profile-{red,green,build}.log` and
 `task-profile-fixed-*.json`. Other task command families retain their own QA walks.
+
+## Reopened for adjacent control commands — 2026-10-04
+
+The earlier publish/start/approve/reject repair remains verified. A fresh public pause command
+under resume-editorial returns task not found while task get with the same ID/profile succeeds.
+Evidence: extension-task-state-replay-pause-with-reason.json and
+extension-task-state-replay-task-get.json. The same missing context wrapper remains on pause,
+resume, cancel, block, unblock, blocks and recover. The existing CLI profile boundary suite
+reproduces all seven omissions in extension-task-full-state-and-controls-red.json. Apply the
+established mutation wrapper, and the existing single-profile read wrapper for blocks; leave
+authorization and daemon task lookup unchanged. Fresh public replay is required for this extension.
+
+The same replay observes an unrelated CLI description error: source policy asks approval for
+a read-only command, but its pending message says destructive. Use the generic approval message;
+no prose-only regression test is added.
+
+## Control-family verification — 2026-10-04
+
+The seven existing control commands now establish their selected profile before transport.
+The profile regression suite passes with the race detector. In the rebuilt app, a real owned
+task supports CLI pause/resume/block/blocks/unblock/recover/cancel; independent HTTP/UDS reads
+persist every mutation. A foreign-profile resume still returns not found without effect. Web
+reload/deep-link observations confirm paused and canceled states. Evidence:
+extension-task-full-state-replay-ended-summary.json. This closes the adjacent control-family
+recurrence without broadening the original overview scenario's verdict.

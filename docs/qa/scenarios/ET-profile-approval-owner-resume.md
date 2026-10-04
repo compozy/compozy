@@ -8,9 +8,9 @@ expected: A pending tool or palette approval records the profile that created it
 entry_points: destructive palette or tool invocation awaiting approval; compozy approvals show|resolve; compozy profile archive|delete; GET /api/profiles/{name}/archive-plan|delete-plan; POST /api/profiles/{name}/archive; DELETE /api/profiles/{name}; compozy__cmd_palette_invoke
 qa_status: untested
 bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-native-approval-timeout-pending; BUG-20261004-palette-approval-cannot-resume; BUG-20261004-extension-workspace-profile-host-binding
-fix_status: pending
+fix_status: fixed
 retest_status: pending
-fix_commits: e9e4a46a6; 9f1457296
+fix_commits: e9e4a46a6; 9f1457296; 073b1705b
 evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json; docs/qa/evidence/2026-10-02-untested/palette-decision-replay3-ended-summary.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-lifecycle-race-guards; ET-agent-command-invoke; ET-profile-cli-lifecycle

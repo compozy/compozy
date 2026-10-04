@@ -40,6 +40,12 @@ calls such as `tasks/create` inherit the workspace and profile; an explicit glob
 workspace is refused. Resource calls retain their complete `workspace_profile` scope for resource
 kernel authorization. A tool approval authorizes the pending command without widening these scopes.
 
+Task create and detail responses preserve `draft` and the saved `wake_creator` setting. Draft tasks
+require publication before execution; `wake_creator` describes whether completion should notify
+their creator. Omitting that creation option keeps its default of `true`. Fresh detail reads also
+carry the persisted event cursor, current run, direct/inherited pause, block reasons and attention
+state. Read the fresh detail when following events; the creation result can precede its audit append.
+
 ## Packaged Inputs And Server Auth
 
 Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`,

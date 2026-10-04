@@ -70,3 +70,5 @@ palette-decision-replay3-unavailable.png and palette-decision-replay3-task-refre
 cycle evidence directory. The affected gate passes Go lint, race tests and 6,927 Web tests
 (palette-host-binding-delivery-gate.json). The complete profile scenario still needs its separate
 pending-lifecycle, remote and authenticated-session refusal legs; this bug is verified independently.
+
+Fix commit: `073b1705b`.

@@ -40,3 +40,5 @@ draft-inclusive UDS reads, HTTP detail and a refreshed Web deep link confirm the
 Evidence: palette-decision-replay3-ended-summary.json. The affected gate passes Go lint, race tests
 and 6,927 Web tests (palette-host-binding-delivery-gate.json). The convention checker reports no new
 findings against HEAD; existing unrelated findings remain in extension-host-binding-test-conventions-comparison.json.
+
+Fix commit: `073b1705b`.

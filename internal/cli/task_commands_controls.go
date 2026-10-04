@@ -157,6 +157,7 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional cancellation reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional cancellation metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -212,6 +213,7 @@ func newTaskBlockCommand(deps commandDeps) *cobra.Command {
 	)
 	mustMarkFlagRequired(cmd, taskKindKey)
 	mustMarkFlagRequired(cmd, taskReasonKey)
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -257,6 +259,7 @@ func newTaskUnblockCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&note, "note", "", "Optional clear note")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current CompozyOS-managed agent session identity")
 	mustMarkFlagRequired(cmd, "block")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -279,6 +282,7 @@ func newTaskBlocksCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&includeCleared, "all", false, "Include cleared blocks")
+	configureSingleProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -305,5 +309,6 @@ func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&note, "note", "", "Optional recovery note")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }

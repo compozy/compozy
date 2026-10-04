@@ -153,6 +153,9 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 		Runs:                 taskRunPayloadsFromRuns(view.Runs),
 		Events:               taskEventPayloadsFromEvents(view.Events),
 	}
+	payload.Task.EffectivePaused = payload.Summary.EffectivePaused
+	payload.Task.PausedByTaskID = payload.Summary.PausedByTaskID
+	payload.Task.BlockedReasons = payload.Summary.BlockedReasons
 	payload.Task.Loop = apicontract.LoopProvenanceFromView(view)
 	return payload
 }

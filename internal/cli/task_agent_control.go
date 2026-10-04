@@ -86,6 +86,7 @@ func newTaskPauseCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&reason, "reason", "", "Task-pause reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-pause metadata JSON")
 	mustMarkFlagRequired(cmd, "reason")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -121,6 +122,7 @@ func newTaskResumeCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-resume metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

@@ -152,7 +152,13 @@ func TestSessionCommandUsesTheDaemonSessionOwnerProfile(t *testing.T) {
 
 func TestTaskExecutionCommandProfileSelection(t *testing.T) {
 	t.Parallel()
-	for _, action := range []string{"publish", "start", "approve", "reject"} {
+	for _, args := range [][]string{
+		{"publish"}, {"start"}, {"approve"}, {"reject"},
+		{"pause", "--reason", "Operator review"}, {"resume"}, {"cancel"},
+		{"block", "--kind", "needs_input", "--reason", "Operator review"},
+		{"unblock", "--block", "block-review"}, {"blocks"}, {"recover"},
+	} {
+		action := args[0]
 		t.Run("Should keep the selected profile when executing task "+action, func(t *testing.T) {
 			t.Parallel()
 			called := false
@@ -179,14 +185,44 @@ func TestTaskExecutionCommandProfileSelection(t *testing.T) {
 						checkSelection(ctx, id)
 						return TaskRecord{ID: id}, nil
 					},
+					pauseTaskFn: func(ctx context.Context, id string, _ PauseTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					resumeTaskFn: func(ctx context.Context, id string, _ ResumeTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					cancelTaskFn: func(ctx context.Context, id string, _ CancelTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					blockTaskFn: func(ctx context.Context, id string, _ CreateTaskBlockRequest) (TaskBlockRecord, error) {
+						checkSelection(ctx, id)
+						return TaskBlockRecord{TaskID: id}, nil
+					},
+					clearTaskBlockFn: func(ctx context.Context, id, _ string, _ ClearTaskBlockRequest) (TaskBlockRecord, error) {
+						checkSelection(ctx, id)
+						return TaskBlockRecord{TaskID: id}, nil
+					},
+					listTaskBlocksFn: func(ctx context.Context, id string, _ bool) ([]TaskBlockRecord, error) {
+						checkSelection(ctx, id)
+						return []TaskBlockRecord{}, nil
+					},
+					recoverTaskFn: func(ctx context.Context, id string, _ RecoverTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
 				}),
 				profileClientAPI: &profileClientStub{profiles: []contract.Profile{
 					{ID: store.DefaultProfileID, Name: configDefaultKey, State: "active"},
 					{ID: "profile-marketing", Name: "marketing", State: "active"},
 				}},
 			}
-			_, _, err := executeRootCommand(t, newTestDeps(t, client),
-				"task", action, "task-marketing", "--profile", "marketing", "-o", "json")
+			commandArgs := append(
+				[]string{"task", action, "task-marketing", "--profile", "marketing", "-o", "json"},
+				args[1:]...)
+			_, _, err := executeRootCommand(t, newTestDeps(t, client), commandArgs...)
 			if err != nil {
 				t.Fatalf("task %s error = %v", action, err)
 			}
