@@ -1,6 +1,6 @@
 # BUG-20261004-settings-search-shortcut-inactive: Settings search ignores its advertised shortcut
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -50,7 +50,7 @@ browser actions; its corrected receipt is separately retained.
 - **Root cause:** Settings registers a React bubbling handler on its own content wrapper. The
   focusable desktop ancestor receives neutral-content clicks, so those keyboard events never
   descend into Settings. Its search ref and ordinary search behavior work.
-- **Fix commit:** Pending.
+- **Fix commit:** b4166a6c2.
 - **Regression test:** The existing settings-window-nav.test.tsx mounts the real Settings window,
   Query client and window-manager runtime. Three focus assertions fail before repair. All nine
   navigation cases pass after repair; the adjacent Marketplace suite also passes (72 tests total).
@@ -79,4 +79,15 @@ ignored its simulated focus change. Advancing fixture revisions repairs the inpu
 weakening an assertion. Browser setup rejected an already-active locale override; locale and
 timezone were read before continuing. A premature reopen and a post-Escape key preceded focus
 settlement; semantic waits resolved both. Those driver attempts remain in their own receipts.
-Delivery gate and commit are pending; the full Settings scenario has other unfinished legs.
+The first delivery gate exposed the component's five-hook limit. Route and focus eligibility now
+share one selector with the repository's shallow comparison, retaining the same behavior. Dora's
+fresh final-bundle entry, content focus, slash typing and reload replay pass; its 12-frame recording
+is closed and screenshot inspected. Evidence: settings-shortcut-final-dora-ended.json and
+settings-shortcut-final-build-identity.json. Unchanged dialog and Marketplace observations above
+remain valid.
+
+The final gate passes all selected lanes, including 693 Web files / 6,949 tests, zero-issue lint
+and affected Go race suites. React Doctor remains 93/100. Commit b4166a6c2 preserves gated tree
+f5bdc9d2a3be7ce61439cd37a9a566a0a7e20f8b exactly. Evidence:
+settings-shortcut-final-selector-gate.json, settings-shortcut-staged-gate-status.json and
+settings-shortcut-commit-proof.json. The full Settings scenario has other unfinished legs.
