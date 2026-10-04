@@ -7,12 +7,12 @@ journey: J-operate-desktop-shell
 expected: A 28px Globe toggle sits between the CompozyOS mark and the workspace chip, outside `role="menubar"`. Off is muted like the bell; on is pressed fill plus accent globe (`aria-pressed`). ON sets the chip to Global (`~`) and keeps the remembered project id; OFF restores that project when it still exists. ⇧⌘G toggles the same control and is skipped on editable targets. With zero project folders the toggle stays on and is `aria-disabled` (not `disabled`) with tooltip "Add a workspace to scope down"; with project folders but no remembered selection it stays on with tooltip "Pick a workspace to scope down" (never the add-a-workspace copy). While the workspace catalog is still loading the toggle claims nothing — no locked reason. A polite live region announces the mode. The workspace menu lists project folders only; while Global is on it shows no check and no info or warning notice; picking a folder turns Global off. Compact viewports keep logo · globe · chip leading after app menus hide.
 entry_points: web desktop menubar; ⇧⌘G; command palette Turn on/off Global scope
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+bug_ids: BUG-20261003-background-windows-forget-global
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-project-tmp.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
-last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
+evidence: docs/qa/evidence/2026-10-02-untested/workspace-background-scope-bruno-ended.json; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-project-tmp.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-menubar-menu-set; ET-web-command-palette-shortcuts; MS-web-workspace-lists-hide-home; MS-global-scope-no-workspace-work; ET-profile-switcher-restore
 ---
 
@@ -62,3 +62,16 @@ src: web/src/systems/os/components/global-scope-toggle.tsx; web/src/systems/os/c
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
 
 2026-08-13 re-walk: Bruno switched from project `tmp` to Global through the globe, confirmed the project stayed available, then used the command palette action "Switch to tmp turns Global scope off". Refresh preserved `tmp`; the project menu never exposed the operator-home registration.
+
+QA 2026-10-03: a background document in a project overwrites the saved Global scope when its
+window catalog changes. The foreground still displays Global until reload, which then restores
+the other project's scope/profile. The new bug owns the repair; the full charter stays Pending.
+Evidence: automation-global-detail-config-trigger-reload-state.json/.png and
+engineering automation-scope-persistence-two-document-{setup,observed}.json.
+
+The bounded repair is verified by a fresh two-document Bruno replay: background window additions
+and removals no longer erase Global on refresh. The existing persistence suite passes both
+regressions; keyboard/palette toggles, editable-target suppression, profile independence and
+390px compact leading controls also pass. Full scenario status remains untested until the
+pending-resolution, zero/no-remembered selection and Global-session deep-link legs are complete.
+Evidence: workspace-background-scope-bruno-ended.json and its inspected final/compact screenshots.

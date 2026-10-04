@@ -10,7 +10,11 @@ import { statusFixture } from "@/systems/status/mocks";
 
 import { useActiveWorkspace } from "../use-active-workspace";
 import { activeWorkspaceStore, rehydrateActiveWorkspaceStore } from "../use-active-workspace-store";
-import { setActiveWorkspaceId } from "../../stores/active-workspace-store";
+import {
+  pruneWorktreeScopes,
+  setActiveWorkspaceId,
+  setActiveWorktreeId,
+} from "../../stores/active-workspace-store";
 import { useUserHomeDir } from "../use-user-home-dir";
 import {
   useDeleteWorkspace,
@@ -297,6 +301,43 @@ describe("useActiveWorkspace", () => {
     act(() => queryClient.setQueryData(workspaceKeys.list(), [beta]));
     await waitFor(() => expect(restored.result.current.desktopWorkspaceId).toBe(beta.id));
     expect(restored.result.current.scope).toBe("global");
+  });
+
+  it.each([
+    ["added", ["window:editorial", "window:home"]],
+    ["removed", []],
+  ])("Should retain another tab's saved Global scope when windows are %s", async (_, liveIds) => {
+    const alpha = makeWorkspace();
+    setActiveWorktreeId("window:editorial", alpha.id, "wt_review");
+    activeWorkspaceStore.trigger.desktopWorkspaceObserved({
+      workspaceId: alpha.id,
+      selectedWorkspaceId: alpha.id,
+      previousDesktopWorkspaceId: null,
+    });
+    // Another document explicitly chose Global; this open document keeps its project view.
+    const remembered = JSON.stringify({
+      context: { ...activeWorkspaceStore.getSnapshot().context, scope: "global" },
+      version: 1,
+    });
+    window.localStorage.setItem(ACTIVE_WORKSPACE_PERSIST_KEY, remembered);
+
+    pruneWorktreeScopes(liveIds);
+    expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toBe(remembered);
+
+    vi.mocked(fetchWorkspaces).mockResolvedValue([alpha]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    queryClient.setQueryData(workspaceKeys.list(), [alpha]);
+    const { result } = renderHook(() => useActiveWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+    await waitFor(() => expect(result.current.desktopWorkspaceId).toBe(alpha.id));
+    expect(result.current.scope).toBe("workspace");
+    expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toBe(remembered);
+
+    await act(async () => rehydrateActiveWorkspaceStore());
+    expect(result.current.scope).toBe("global");
+    expect(result.current.desktopWorkspaceId).toBe(alpha.id);
   });
 
   it("uses the persisted selected workspace after rehydration", async () => {

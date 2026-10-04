@@ -49,6 +49,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   HTTP/UDS, extension, hook, config or stored-state contract changes; no migration is needed.
   Official skill commands and site API guidance remain current. TA-052/TA-056 and the existing
   detail-hook suite own the repair evidence; fresh Chrome/CLI/UDS replay covers saved behavior.
+- **Global scope persistence:** Daemon-derived window-scope cleanup no longer persists a stale
+  document's navigation snapshot. Workspace readers skip observations for an already retained
+  desktop. Explicit selection and first desktop resolution still persist with the same v4 key,
+  version 1 envelope and lossless version 0 migration. Open documents retain their own view;
+  reload uses the saved selection. No native tools, CLI/HTTP/UDS, hooks, configuration, extension,
+  workspace-file or daemon-storage change. Official skill and site commands remain current.
+  The workspace persistence suite and MS-web-menubar-global-scope-toggle own the repair evidence.
 - **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
   owner, matching the existing delete audit convention. The payload retains the affected profile
   and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives

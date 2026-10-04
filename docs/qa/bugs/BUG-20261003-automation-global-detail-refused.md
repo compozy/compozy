@@ -48,7 +48,7 @@ All artifacts are in docs/qa/evidence/2026-10-02-untested/:
   concrete workspace match, but treats the Global lens (null workspace) as a mismatch. Both detail
   view models suppress the server-returned item and its run history. Editors also need the loaded
   definition's workspace for their target catalog when the containing view is Global.
-- **Fix commit:** pending
+- **Fix commit:** 61181c15d562a44651b4a8a406d5c9e99231a179
 - **Regression test:** existing use-automation-trigger-detail-page.test.tsx; Global projection and
   concrete foreign-project refusal. The original Chrome job/trigger legs must be replayed.
 
