@@ -10,7 +10,7 @@ qa_status: fail
 bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-native-approval-timeout-pending; BUG-20261004-palette-approval-cannot-resume
 fix_status: pending
 retest_status: pending
-fix_commits: e9e4a46a6
+fix_commits: e9e4a46a6; 9f1457296
 evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-lifecycle-race-guards; ET-agent-command-invoke; ET-profile-cli-lifecycle
@@ -58,3 +58,7 @@ QA 2026-10-04: an owned durable palette approval can be inspected and canceled, 
 approval decision path is available before its timeout. BUG-20261004-palette-approval-cannot-resume
 blocks the owner-resume walk. A separate hosted native permission timeout leaves stale attention;
 BUG-20261004-native-approval-timeout-pending owns that independent lifecycle repair.
+
+The native cancellation slice is verified after 9f1457296: the real deadline clears pending
+attention, a late allow cannot execute, and a fresh timely approval stops its target under the
+original owner. The durable palette resume defect still keeps this full scenario at fail.

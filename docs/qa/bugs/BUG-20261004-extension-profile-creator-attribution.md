@@ -69,6 +69,6 @@ those results. The replay is closed in extension-creator-replay-ended.json.
 
 The delivery gate passes code generation, Go lint with zero issues, race-enabled affected Go
 tests (1,736 seconds), and the unchanged cached Web lane. Receipt:
-extension-creator-delivery-gate.json. Fix commit is recorded after the enclosing commit. The full
+extension-creator-delivery-gate.json. Fix commit: `831436907`. The full
 profile race scenario remains untested for its independent claim, trigger, spawn, reservation and
 delivery legs; this finding is verified without promoting the entire charter.

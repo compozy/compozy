@@ -7,12 +7,12 @@ journey: J-15
 expected: CLI, HTTP, and UDS return the same workspace-scoped attention catalog, exact badge filters, stable attention ordering, and operator-wide summary totals across all profiles; operator-only cross-workspace catalog reads succeed while agent identity is confined to same-workspace interaction discovery.
 entry_points: compozy session list --attention/--badge/--all-workspaces/--summary; compozy session interactions <session-id>; GET /api/sessions/attention-summary (all profiles) over HTTP and UDS; GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions over HTTP and UDS
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
+bug_ids: BUG-20261004-native-approval-timeout-pending
+fix_status: fixed
+retest_status: pending
+fix_commits: 9f1457296
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-021; RT-session-clarification-roundtrip
 ---
 
@@ -42,3 +42,15 @@ through the explicit labeled aggregate, which `ET-profile-aggregate-owner-labels
 Issue #595 acceptance: a self-directed Goal with a current action lease must not gain stale `loop_run` attention solely because no coordinator has completed yet. Expired leases and overdue waits still surface staleness; real quarantine, intervention, and approval remain attention even with fresh agent progress. Reread after recovery and terminal cancellation to confirm derived attention clears without editing stored badges.
 
 Targeted #595 retest evidence and limits: [Goal lifecycle report](../reports/2026-09-10-issue-595-goal-lifecycle.md). This slice does not replace earlier evidence or claim an unrun full-scenario sweep.
+
+QA impact 2026-10-04: a hosted native approval timed out while its interaction and waiting-for-auth
+badge remained pending until daemon restart. BUG-20261004-native-approval-timeout-pending owns the
+cancellation repair and focused replay; the full catalog, filter and cross-scope charter remains
+untested until its remaining legs are walked.
+
+
+QA 2026-10-04 targeted cancellation replay: CLI/UDS pending interactions and authorization attention
+clear after the real 120-second native deadline without a daemon restart; a late decision reports
+already-resolved/canceled and does not stop the target. A separate timely approval executes and
+preserves the original owner. The full multi-workspace/catalog scenario remains untested; evidence:
+docs/qa/evidence/2026-10-02-untested/native-cancel-replay-ended.json.

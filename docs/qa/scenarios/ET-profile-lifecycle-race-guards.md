@@ -10,7 +10,7 @@ qa_status: untested
 bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
 fix_status: fixed
 retest_status: pending
-fix_commits: e9e4a46a6
+fix_commits: e9e4a46a6; 831436907
 evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle; ET-profile-operations-recovery; ET-profile-approval-owner-resume; ET-declared-profile-install
