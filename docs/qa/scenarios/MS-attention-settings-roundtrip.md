@@ -6,11 +6,11 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: Settings → Notifications, config.toml, and compozy config get/set agree on the global toasts, sound, and system values; HTTP, UDS, and Web read and replace muted_workspaces for the selected profile without changing another profile; valid changes apply live without a daemon restart, concurrent writes preserve a complete candidate, and deleting a workspace removes every profile-owned mute row.
 entry_points: web Settings → Notifications; config.toml [attention]; compozy config get/set attention.toasts|sound|system; GET/PATCH /api/settings/attention?scope=user or ?scope=profile&profile=<name> over HTTP and UDS; workspace deletion
-qa_status: fail
+qa_status: untested
 bug_ids: BUG-20261004-attention-default-profile-refused; BUG-20261004-attention-deleted-workspace-stale
-fix_status: pending
-retest_status:
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: 84f02d6b2
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json; docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps:
@@ -80,3 +80,15 @@ completion toast; custom notification acknowledgement alone is not claimed as vi
 Evidence: attention-tabs-dora-ended.json, attention-delivery-dora-ended.json, and
 attention-permission-dora-ended.json. No simultaneous writer, unsupported platform, channel/mute
 suppression or actual OS notification delivery is claimed. The full charter remains pending.
+
+The real suppression continuation now passes both workspace and channel legs. While Studio
+Operations is muted, the managed session's native notification returns muted-workspace and the
+continuous browser observation records no published notification, toast or media event. Its
+Finished row remains visible with the mute marker and survives reload. With mutes cleared and
+all channels disabled, native delivery succeeds and one matching notification reaches the browser,
+but no toast or media event appears; the Finished row remains. Restoring the baseline causes no
+old-toast replay in the observed eight-second window. Independent reads and refresh confirm the
+original policy, and the owned session is verified stopped. Evidence: attention-suppression-dora-ended.json.
+Commit 84f02d6b2 closes the deletion defect after real replay and the current-tree delivery gate.
+The tracker remains untested for the full charter's simultaneous-writer and platform-delivery legs;
+fix/retest fields describe the linked repaired defect only.

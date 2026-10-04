@@ -1,6 +1,6 @@
 # BUG-20261004-attention-deleted-workspace-stale: Notifications retain a deleted project until reload
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -48,7 +48,7 @@ reproduction below establishes the save failure.
   preserve it when omitted. Workspace catalog removal does not invalidate the separate attention
   read until its normal refresh. The mute repository also returns a raw foreign-key failure for
   an unknown workspace instead of the existing typed missing-workspace error.
-- **Fix commit:** Pending.
+- **Fix commit:** 84f02d6b2.
 - **Regression test:** The existing attention page suite now uses real query/mutation/profile
   hooks with adapter and browser-permission I/O mocks. Its original four cases still pass; three
   channel cases fail against a stale deleted mute, and a catalog-removal case fails to reconcile.
@@ -66,8 +66,10 @@ the existing typed 404 mapping and full rollback. No migration or API shape chan
 
 The original-persona repair replay passes on the rebuilt daemon and Web bundle recorded in
 attention-deletion-build-identity.json. The delivery gate passes codegen-check, Go lint, affected
-Go suites with the race detector, and all 693 Web files / 6,942 tests. Commit reference and final
-tree fingerprint refresh remain pending. Evidence: attention-deletion-delivery-gate.json.
+Go suites with the race detector, and all 693 Web files / 6,942 tests. The refreshed gate and hooks
+pass for commit 84f02d6b2 and tree c60157930737484aa2f8a0c0be7ae74fa2e3b86c. Evidence:
+attention-deletion-final-delivery-gate.json, attention-deletion-staged-gate-status.json, and
+attention-deletion-commit-proof.json. The complete parent charter retains separate unverified legs.
 
 The open page removes Archive desk in 3.817 seconds after CLI deletion, retaining Review desk.
 A second newly registered Archive desk is muted through Web and removed through CLI. While it
