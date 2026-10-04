@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -228,6 +229,85 @@ func TestTaskExecutionCommandProfileSelection(t *testing.T) {
 			}
 			if !called {
 				t.Fatal("task action did not reach the client")
+			}
+		})
+	}
+}
+
+func TestTaskOperatorCommandProfileSelection(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		args   []string
+		method string
+		path   string
+	}{
+		{"Should scope task updates", []string{"update", "task-marketing", "--title", "Editorial plan"}, http.MethodPatch, "/api/tasks/task-marketing"},
+		{"Should scope task deletion", []string{"delete", "task-marketing"}, http.MethodDelete, "/api/tasks/task-marketing"},
+		{"Should scope dependency creation", []string{"dependency", "add", "task-marketing", "--depends-on", "task-notes"}, http.MethodPost, "/api/tasks/task-marketing/dependencies"},
+		{"Should scope dependency removal", []string{"dependency", "remove", "task-marketing", "task-notes"}, http.MethodDelete, "/api/tasks/task-marketing/dependencies/task-notes"},
+		{"Should scope run enqueue", []string{"run", "enqueue", "task-marketing"}, http.MethodPost, "/api/tasks/task-marketing/runs"},
+		{"Should scope run start", []string{"run", "start", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/start"},
+		{"Should scope session attachment", []string{"run", "attach-session", "run-marketing", "--session", "sess-editor"}, http.MethodPost, "/api/task-runs/run-marketing/attach-session"},
+		{"Should scope run completion", []string{"run", "complete", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/complete"},
+		{"Should scope run failure", []string{"run", "fail", "run-marketing", "--error", "Publication deferred"}, http.MethodPost, "/api/task-runs/run-marketing/fail"},
+		{"Should scope run cancellation", []string{"run", "cancel", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/cancel"},
+		{"Should scope run recovery", []string{"run", "recover", "run-marketing"}, http.MethodPost, "/api/runs/run-marketing/recover"},
+		{"Should scope run fan out", []string{"fan-out", "task-marketing", "--designation", "Review copy", "--idempotency-key", "copy-review"}, http.MethodPost, "/api/tasks/task-marketing/runs/fan-out"},
+		{"Should scope forced release", []string{"release", "run-marketing"}, http.MethodPost, "/api/runs/run-marketing/release"},
+		{"Should scope bulk release", []string{"release", "run-marketing", "run-notes"}, http.MethodPost, "/api/runs/bulk/release"},
+		{"Should scope forced failure", []string{"fail", "run-marketing", "--reason", "Publication deferred"}, http.MethodPost, "/api/runs/run-marketing/fail"},
+		{"Should scope bulk failure", []string{"fail", "run-marketing", "run-notes", "--reason", "Publication deferred"}, http.MethodPost, "/api/runs/bulk/fail"},
+		{"Should scope run retry", []string{"retry", "run-marketing"}, http.MethodPost, "/api/runs/run-marketing/retry"},
+		{"Should scope review requests", []string{"review", "request", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/reviews"},
+		{"Should scope review verdicts", []string{"review", "submit", "review-marketing", "--run", "run-marketing", "--outcome", "approved", "--confidence", "0.9", "--reason", "Ready for publication", "--delivery-id", "editorial-review"}, http.MethodPost, "/api/task-reviews/review-marketing/verdict"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			reached := errors.New("task action reached transport")
+			calls := 0
+			transport := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{
+					Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+						if request.Method == http.MethodGet && request.URL.Path == "/api/workspaces" {
+							return newHTTPResponse(http.StatusOK, `{"workspaces":[]}`), nil
+						}
+						if strings.HasPrefix(request.URL.Path, "/api/workspaces/") {
+							return newHTTPResponse(http.StatusNotFound, `{"error":"workspace not registered"}`), nil
+						}
+						calls++
+						if request.Method != test.method || request.URL.Path != test.path {
+							t.Fatalf(
+								"request = %s %s, want %s %s",
+								request.Method,
+								request.URL.Path,
+								test.method,
+								test.path,
+							)
+						}
+						if got := request.URL.Query().Get(profileFlagName); got != "marketing" {
+							t.Errorf("request profile = %q, want marketing", got)
+						}
+						return nil, reached
+					}),
+				},
+			}
+			client := &profileTestDaemonClient{
+				DaemonClient: transport,
+				profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+					{ID: store.DefaultProfileID, Name: configDefaultKey, State: "active"},
+					{ID: "profile-marketing", Name: "marketing", State: "active"},
+				}},
+			}
+			args := append([]string{"task"}, test.args...)
+			args = append(args, "--profile", "marketing", "-o", "json")
+			deps := newTestDeps(t, client)
+			workspace := t.TempDir()
+			deps.getwd = func() (string, error) { return workspace, nil }
+			_, _, err := executeRootCommand(t, deps, args...)
+			if !errors.Is(err, reached) || calls != 1 {
+				t.Fatalf("action error = %v, calls = %d, want one transport call", err, calls)
 			}
 		})
 	}

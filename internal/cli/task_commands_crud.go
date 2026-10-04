@@ -197,6 +197,7 @@ func newTaskDeleteCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskDeleteBundle(args[0]))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

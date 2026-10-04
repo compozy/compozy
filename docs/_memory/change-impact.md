@@ -4,6 +4,13 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Task run and operator action profile selection:** Run lifecycle and recovery, single/bulk
+  force controls, fan-out, task update/delete, dependencies and review request/submit now use the
+  existing CLI mutation selection boundary. HTTP/UDS routes and DTOs, native task tool IDs,
+  extension methods, hooks, configuration and workspace storage are unchanged; no migration.
+  Session-bound branches retain their authenticated identity. The existing CLI profile suite
+  owns request selection; the profile lifecycle and task-control journeys own real replay.
+  Official task guidance documents the affected commands. Web already sends the correct profile.
 - **Empty task block lists:** The shared mapper returns an allocated empty array to honor the
   existing non-nullable response schema. HTTP/UDS and native `compozy__task_blocks` share this
   boundary; CLI reads preserve it. No new route, tool ID, schema, hooks, configuration or workspace

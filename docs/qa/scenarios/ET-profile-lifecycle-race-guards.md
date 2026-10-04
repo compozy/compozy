@@ -6,10 +6,10 @@ persona: Dora
 journey: J-operate-profiles
 expected: Archiving a profile against a concurrent claim, trigger, or spawn never produces work for an archived owner or half-applies. Queued runs freeze with the profile and become claimable again on unarchive without duplication. A pending lifecycle operation reserves old and new names and derived paths, so competing create or rename fails profile_name_taken without moving another profile. Extension mutation respects the same lifecycle gate.
 entry_points: compozy profile archive|unarchive|create|rename; HTTP/UDS profile lifecycle routes; concurrent automation trigger, task claim, session spawn, extension install
-qa_status: untested
-bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
-fix_status: fixed
-retest_status: pending
+qa_status: fail
+bug_ids: BUG-20261004-task-owner-response-omissions; BUG-20261004-archive-race-storage-error; BUG-20261002-task-action-profile-scope; BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
+fix_status: pending
+retest_status:
 fix_commits: e9e4a46a6; 831436907
 evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
 last_report: docs/qa/reports/2026-10-02-untested.md
@@ -40,3 +40,19 @@ QA 2026-10-04 repair replay: extension-created, operator-bound, legacy-unknown a
 recreated profile identities now retain correct public attribution across a normal restart.
 The affected delivery gate passes. BUG-20261004-extension-profile-creator-attribution is verified;
 the remaining independent concurrency legs keep the full scenario untested.
+
+QA 2026-10-04 continuation: an interrupted real rename reserves both names. Create and a competing
+profile rename onto either name return profile_name_taken; the old-name refusal names the holding
+operation and the new-name refusal names the held profile. Public retry succeeds after removing the
+owned empty destination obstruction. The original name is restored, and the competing profile keeps
+its identity. Evidence: approval-unavailable-owner2-ended.json. Claim/trigger/spawn, delivery, and
+queued-run lifecycle legs remain pending.
+
+QA 2026-10-04 continuation: corrected CLI run enqueue succeeds. Archive freezes exactly one
+queued run; unarchive restores the same run without duplication. Authenticated acquisition and
+a real bounded Codex child spawn retain the active owner while concurrent archive refuses.
+In a separate job-trigger overlap, archive wins; session admission refuses, the job is disabled,
+and one failed attempt remains. Scheduler and profile availability are restored. The CLI control
+recurrence is verified. Missing backlog ownership fields and a raw storage diagnostic keep this
+scenario fail until their independent findings are repaired and re-walked.
+Evidence: profile-work-race-replay-ended.json.

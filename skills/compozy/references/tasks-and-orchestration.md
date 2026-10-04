@@ -40,7 +40,9 @@ workspace's records; it never falls back to the caller's inventory. The acting p
 the read scope. Native `global` and `all` scope remain operator-only for bound sessions.
 
 CLI `task publish`, `task start`, `task approve`, `task reject`, pause/resume/cancel, block/unblock,
-block listing and task recovery use the selected profile,
+block listing and task recovery use the selected profile. The same selection applies to task
+update/delete, dependencies, run enqueue/start/attach/complete/fail/cancel/recover, fan-out,
+release, forced failure, retry, and review request/submit,
 including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
 a foreign profile receives not found, just as it does for the detail read.
 

@@ -45,6 +45,7 @@ func newTaskRunRecoverCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&reason, "reason", "", "Optional recovery reason recorded in the audit event")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional recovery metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -166,6 +167,7 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&input.WorktreePerRun, "worktree-per-run", false, "Create a dedicated worktree for each run")
 	mustMarkFlagRequired(cmd, "designation")
 	mustMarkFlagRequired(cmd, "idempotency-key")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

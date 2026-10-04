@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
 - **Journey Step:** J-operate-daemon-schema, act on the overview's pending task approval
-- **Scenarios:** RT-observe-overview-cli; TA-010
+- **Scenarios:** RT-observe-overview-cli; TA-010; ET-profile-lifecycle-race-guards
 - **Found:** 2026-10-02 · **Report:** docs/qa/reports/2026-10-02-untested.md
 - **Origin:** Isolated primary QA lab
 
@@ -70,3 +70,32 @@ persist every mutation. A foreign-profile resume still returns not found without
 reload/deep-link observations confirm paused and canceled states. Evidence:
 extension-task-full-state-replay-ended-summary.json. This closes the adjacent control-family
 recurrence without broadening the original overview scenario's verdict.
+
+## Reopened for run and related operator actions — 2026-10-04
+
+Dora creates a ready task under publishing-queue, then task run enqueue with that explicit profile
+returns task not found. The concurrency session ends before source diagnosis. Its retained
+profile-work-race-enqueue.json is the public reproduction; scheduler resume restores baseline.
+
+The same missing command context wrapper remains in run enqueue/start/attach/complete/fail/cancel/
+recover, force release/fail (single and bulk), retry, fan-out, task update/delete, dependencies, and
+review request/submit. Nineteen transport-boundary cases in the existing profile_test.go fail
+with an empty outgoing profile before repair (task-operator-profile-red.json). The fix registers
+the existing mutation wrapper at those constructors; daemon routes, ownership validation and
+session-bound identity remain authoritative. The separate task execution-profile payload flag
+has its own pre-existing --profile naming collision and is outside this run-control repair.
+
+The previous approval and pause/block/control-family replays remain valid for their unchanged
+actions. This extension requires affected race checks and a fresh public run-control walk.
+
+## Run-control verification — 2026-10-04
+
+The existing profile suite proves all nineteen added entry points stamp the selected profile.
+The fresh frozen-build Dora walk enqueues under publishing-queue, freezes/unfreezes the same run,
+acquires it through an authenticated session, refuses a foreign force-fail, and persists owner
+force-fail, retry and cancellation through independent HTTP/UDS reads. Task update, dependency
+add/remove and deletion also succeed under the selected owner. Evidence:
+task-operator-profile-green3.json, task-operator-profile-delivery-gate.json, and
+profile-work-race-replay-ended.json. Test conventions pass with zero findings. The gate passes
+codegen, zero-issue Go lint, affected race suites and cached Web evidence (693 files, 6,927 tests).
+The new queue-owner projection and archive-race diagnostic findings have separate registry IDs.
