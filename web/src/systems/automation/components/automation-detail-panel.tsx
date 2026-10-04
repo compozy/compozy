@@ -21,6 +21,7 @@ import {
   formatRelativeTime,
 } from "../lib/automation-formatters";
 import { automationTargetLabel, projectAutomationTarget } from "../lib/automation-target";
+import { buildJobRunDigest } from "../lib/job-preview";
 import type { AutomationJob, AutomationRun, AutomationRunStatus } from "../types";
 import { AutomationRunHistory } from "./automation-run-history";
 import { AutomationDeleteAction } from "./automation-delete-action";
@@ -31,6 +32,7 @@ import {
 import {
   AutomationTargetSection,
   JobAdvancedDetails,
+  JobTaskSection,
   PromptSection,
 } from "./automation-detail-sections";
 import { AutomationEnableSwitch } from "./automation-enable-switch";
@@ -260,6 +262,8 @@ function AutomationDetailLoadedPanel({
   const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
   const isDynamic = item.source === "dynamic";
   const target = projectAutomationTarget(item);
+  const task = buildJobRunDigest(item).task;
+  const targetLabel = task ? `Task: ${task.title}` : automationTargetLabel(target);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const showRunNow = Boolean(onTriggerNow);
   const detailActions = showRunNow ? (
@@ -308,7 +312,7 @@ function AutomationDetailLoadedPanel({
             {describeSchedule(item.schedule)}
           </p>
           <p className="mt-1 text-form-label text-subtle" data-testid="automation-detail-meta">
-            {`${automationTargetLabel(target)} · ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+            {`${targetLabel} · ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
           </p>
         </div>
         <AutomationEnableSwitch
@@ -335,7 +339,8 @@ function AutomationDetailLoadedPanel({
         <JobStatsSection job={item} runs={runs} />
 
         {target.kind === "loop" ? <AutomationTargetSection target={target} /> : null}
-        {target.kind === "agent" ? <PromptSection prompt={target.prompt} /> : null}
+        {task ? <JobTaskSection task={task} /> : null}
+        {target.kind === "agent" && !task ? <PromptSection prompt={target.prompt} /> : null}
 
         <AutomationRunHistory
           emptyDescription="Runs show up here after the job runs for the first time."

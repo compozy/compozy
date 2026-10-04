@@ -56,6 +56,12 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   reload uses the saved selection. No native tools, CLI/HTTP/UDS, hooks, configuration, extension,
   workspace-file or daemon-storage change. Official skill and site commands remain current.
   The workspace persistence suite and MS-web-menubar-global-scope-toggle own the repair evidence.
+- **Task-backed job detail:** The Web job read surface reuses the form preview's pure run digest
+  to display the persisted task title, description and owner, including the existing job-default
+  fallback. Agent and Loop destinations retain their presentation. No native-tool, CLI/HTTP/UDS,
+  extension, hook, configuration, profile/workspace isolation or stored-state contract changes;
+  no migration is needed. Official skill and site interfaces remain current. TA-052 and the
+  existing job detail/form suites own the regression and fresh browser replay.
 - **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
   owner, matching the existing delete audit convention. The payload retains the affected profile
   and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives

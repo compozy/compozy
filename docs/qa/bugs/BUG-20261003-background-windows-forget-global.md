@@ -49,7 +49,7 @@ browser tabs were closed; the cleanup receipts identify only this lab's previous
   set changes. The persisted workspace store writes a full snapshot for every event, including
   unchanged transitions. A stale document therefore republishes its navigation choice during
   housekeeping. A newly mounted workspace reader also dispatches a redundant desktop observation.
-- **Fix commit:** pending
+- **Fix commit:** 62b58628b62a03048967a91543323d3cb427bb7b
 - **Regression test:** existing workspace hook/persistence suite, use-workspaces.test.tsx. Cover
   window additions and removals while another document has saved Global, then rehydrate.
 

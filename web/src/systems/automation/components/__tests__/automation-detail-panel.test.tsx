@@ -294,6 +294,37 @@ describe("AutomationDetailPanel", () => {
     );
   });
 
+  it.each([
+    {
+      name: "authored intent and an assigned owner",
+      task: {
+        title: "Prepare the publication checklist",
+        description: "Review the final copy and release notes.",
+        owner: { kind: "human" as const, ref: "editor" },
+      },
+      title: "Prepare the publication checklist",
+      description: "Review the final copy and release notes.",
+      owner: "human:editor",
+    },
+    {
+      name: "job defaults and an unassigned owner",
+      task: { title: " ", description: " " },
+      title: jobFixture.name,
+      description: jobFixture.prompt,
+      owner: "unassigned",
+    },
+  ])("Should render persisted task work with $name", ({ task, title, description, owner }) => {
+    renderPanel({ item: { ...jobFixture, agent_name: "", task } });
+
+    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent(`Task: ${title}`);
+    const details = screen.getByTestId("automation-task-details");
+    expect(details).toHaveTextContent(title);
+    expect(details).toHaveTextContent(description);
+    expect(details).toHaveTextContent(owner);
+    expect(screen.queryByRole("heading", { name: "Prompt" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Agent:/)).not.toBeInTheDocument();
+  });
+
   it("Should toggle a managed job from the head switch and explain the lock", () => {
     const { onToggleEnabled } = renderPanel({
       item: { ...jobFixture, source: "config", enabled: false },
