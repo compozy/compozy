@@ -52,7 +52,7 @@ behavior passes the adjacent current walk; this finding is the separate task out
 - **Approach:** reuse that pure run digest in the detail, compose the existing Section/PropertyRow
   primitives for its task body, and retain Agent/Loop behavior.
 - **Governor:** a few Web files; no API, schema, data, permission or product-policy change.
-- **Fix commit:** pending
+- **Fix commit:** 4c447e45e8cda069bde67869e2a61760efbeed7e
 - **Regression invariant:** persisted task intent and owner are readable without opening Edit.
 - **Owning layer/suite:** Web job detail presentation, existing automation-detail-panel.test.tsx.
   Existing automation-job-form.test.tsx retains shared preview coverage; no standalone test file.

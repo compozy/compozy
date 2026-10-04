@@ -62,6 +62,19 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   extension, hook, configuration, profile/workspace isolation or stored-state contract changes;
   no migration is needed. Official skill and site interfaces remain current. TA-052 and the
   existing job detail/form suites own the regression and fresh browser replay.
+- **Trigger submission feedback:** The Web trigger editor keeps server submission errors beside
+  its persistent actions in both form and preview views. Existing request validation, mutation
+  ownership and draft recovery remain authoritative. No native-tool, CLI/HTTP/UDS, extension,
+  hook, configuration, workspace isolation or stored-state contract changes; no migration.
+  Official skill and site interfaces remain current. ET-web-jobs-triggers-catalog and the
+  existing trigger form suite own the hidden-error regression and fresh recovery replay.
+- **Trigger authoring and error recovery:** The Loop mapping example follows the existing
+  accepted template grammar; the preview serializes strings as valid sample JSON. Failed
+  Trigger detail reads expose the existing catalog-return action alongside the daemon error.
+  No native-tool, CLI/HTTP/UDS, extension, hook, configuration, workspace isolation or stored-state
+  contract changes; no migration. Official skill and site contracts remain current. The existing
+  trigger form/detail suites and fresh Bruno replays own verification, including mapping save
+  and independent readback. The mapping copy uses replay evidence rather than a prose assertion.
 - **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
   owner, matching the existing delete audit convention. The payload retains the affected profile
   and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives

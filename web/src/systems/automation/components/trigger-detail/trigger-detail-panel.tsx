@@ -79,6 +79,11 @@ export function TriggerDetailPanel({
   if (error) {
     return (
       <TriggerDetailUnavailable
+        action={
+          <Button onClick={onBack} size="sm" type="button" variant="neutral">
+            Back to Triggers
+          </Button>
+        }
         description={error.message || "Failed to load this trigger."}
         reason="error"
       />

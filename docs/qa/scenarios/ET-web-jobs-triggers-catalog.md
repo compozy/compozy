@@ -7,12 +7,12 @@ journey: J-24
 expected: `/jobs` and `/triggers` render as ListingPage catalogs (PageHead + ListingToolbar search/filters/view + rows/cards) instead of SplitPane master-detail; row click opens `/jobs/$jobId` or `/triggers/$triggerId` with breadcrumb parent link; Create CTA stays in topbar actions; `?create=loop&loop=` from Loop detail still opens the create editor seeded at that Loop; dynamic Edit/Delete remain source-gated detail actions, and Run now is available only for Jobs.
 entry_points: web `/jobs`; web `/triggers`; Loop detail Add schedule/trigger CTAs
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-08-15-triggers-ui/catalog.png; docs/qa/evidence/2026-08-15-triggers-ui/jobs-canary.png; docs/qa/evidence/2026-08-15-triggers-ui/managed-disabled-after-reload.png
-last_report: docs/qa/reports/2026-08-15-triggers-ui.md
+bug_ids: BUG-20260713-workspace-trigger-loop-submit-inert; BUG-20261003-loop-mapping-example-rejected; BUG-20261003-webhook-sample-invalid-json
+fix_status: fixed
+retest_status: pass
+fix_commits: self (the commit that records the authoring repairs)
+evidence: docs/qa/evidence/2026-10-02-untested/trigger-preview-error-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-mapping-readback.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-sample-json.png
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: TA-052; TA-056; TA-automation-crud-loop-target; LP-033
 ---
 
@@ -62,3 +62,7 @@ trigger controls, and the Jobs canary. Run now appeared only on the Job detail.
 
 QA impact 2026-08-20: catalog ListingToolbar search height now uses `--height-search`
 (28px) to match RouteNav / Filter / view pills. Reset the listing chrome walk.
+
+QA 2026-10-03: catalog search/Cards and Loop detail entry pass, but submitting a webhook from the live preview hides a server validation error. The existing silent-submit issue is reopened; repair and fresh replay are pending. Evidence: trigger-rule-bruno-ended.json and trigger-rule-retry-bruno-ended.json in this cycle.
+
+QA 2026-10-03: hidden preview submission errors, rejected mapping examples and invalid sample JSON are repaired and re-walked. The full catalog verdict remains untested/Pending until its separately listed concurrency, refetch-failure and runtime-disable obligations are walked. Trigger detail closure lives in ET-web-trigger-detail-rule-page.

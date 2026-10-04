@@ -10,7 +10,7 @@ interface LoopInputMappingProps {
 
 /**
  * Event-payload -> input mapping table (triggers/webhooks only). Each declared
- * input gets a path field (`trigger.payload.slug`) resolved from the activation
+ * input gets an expression (`{{ .trigger.payload.slug }}`) resolved from the activation
  * envelope at fire time. A mapped input overrides its static value.
  */
 export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMappingProps) {
@@ -33,7 +33,7 @@ export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMapping
             <Input
               className="font-mono"
               data-testid={`loop-mapping-field-${name}`}
-              placeholder="trigger.payload.field"
+              placeholder="{{ .trigger.payload.field }}"
               value={mapping[name] ?? ""}
               onChange={event => onChange(name, event.target.value)}
             />
