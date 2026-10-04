@@ -27,6 +27,7 @@ export const STALE_TARGET_REASON = "no longer exists";
 export type PaletteDispatchOutcome =
   | { readonly status: "ran" }
   | { readonly status: "invoked"; readonly result: CmdPaletteInvokeResult }
+  | { readonly status: "needs_approval"; readonly result: CmdPaletteInvokeResult }
   | { readonly status: "refused"; readonly reason: string; readonly code?: string }
   /** The command needs its declared arguments before it can run. */
   | { readonly status: "needs_args" }
@@ -171,7 +172,7 @@ async function runInvoke(
     // Daemon-executed commands are recorded daemon-side; reporting here would
     // double-count (Key Decisions).
     ports.onCompleted(command, result);
-    return { status: "invoked", result };
+    return { status: result.status === "approval_pending" ? "needs_approval" : "invoked", result };
   } catch (error) {
     const reason = error instanceof Error ? error.message : STALE_TARGET_REASON;
     const code = errorCode(error);

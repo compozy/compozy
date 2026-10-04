@@ -4,6 +4,25 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Extension Host API workspace/profile binding:** The shared boundary recognizes the existing
+  workspace_profile process scope and retains its workspace for domain calls and actor derivation.
+  Own-workspace task creation keeps the bound profile; global and foreign workspace requests remain
+  refused. Resource methods retain their full compound scope for kernel authorization. Host API
+  method names, SDK shapes, native-tool IDs, hooks, configuration, database and workspace placements
+  do not change. Existing resource and task handler suites own coverage; the profile approval
+  scenario owns the real command replay. Official extension guidance and site permissions docs
+  explain the binding. Web consumes the existing execution result without a new contract.
+- **Pending palette decisions:** Add `approvals resolve <id> --decision approved|denied` and
+  `POST /api/tools/approvals/{id}/resolve` on HTTP/UDS. Existing show/cancel behavior remains;
+  OpenAPI now documents their existing profile selector as well. The shared profile resolver
+  rechecks availability and session immutability before the coordinator enforces recorded ownership,
+  expiry and the single-decision fence. HTTP uses the existing privileged loopback mutation guard.
+  Deferred tools retain current policy checks and single-use authorization under the original
+  workspace/profile. Web keeps a pending invocation open, exposes an explicit decision, and reads
+  asynchronous execution state through a profile-keyed canonical query. Public contracts, generated
+  Web types, CLI/site documentation and official native-tool guidance co-ship. No new native-tool
+  ID, hook, extension contract, configuration key, database shape or workspace placement; existing
+  `compozy__cmd_palette_invoke` callers receive the same approval ticket. No migration is required.
 - **Settings restart truth:** Web reads the daemon's existing configuration status for current
   restart requirements, including writes from CLI/HTTP/UDS and other documents. The settings apply
   owner retains restart-required scoped writes outside the global hash until the next daemon boot;

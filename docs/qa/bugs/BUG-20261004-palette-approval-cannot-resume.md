@@ -1,6 +1,6 @@
 # BUG-20261004-palette-approval-cannot-resume: Pending palette commands cannot be approved
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -38,4 +38,35 @@ callers expose only status, cancellation, and expiry. No production caller selec
 outcome. This differs from the earlier owner-filtering bug: inspection/cancellation now work,
 while approval remains unreachable. Restore the public operator decision path through the
 existing coordinator and recheck profile ownership, availability, session binding, and local
-management at the authorized resume boundary. No implementation change has been made yet.
+management at the authorized resume boundary. The repair exposes the existing coordinator through explicit HTTP/UDS and CLI decisions and
+keeps a Web-initiated pending invocation open for approval. Focused API/CLI and Web suites pass;
+real-service replay is still pending, so the finding remains open.
+
+## Repair replay — 2026-10-04
+
+The new Web approval opens under resume-editorial. Deny resolves the approval without executing;
+UDS status is denied and the independent task query stays empty. The dialog nevertheless closes
+before showing the terminal result, so a decision error could also disappear. The replay ends
+with fail; repair dismissal before a fresh session. Evidence: palette-decision-replay-ended-summary.json
+and palette-decision-replay-denial-closed.png in the cycle evidence directory.
+
+The second replay fixes denial feedback, with independent no-effect readback. Approval now reaches
+approved, then failed in the extension backend; no task is created. Web shows Command failed but
+omits the error.message available through approvals show. The walk ends before engineering
+diagnosis. Evidence: docs/qa/evidence/2026-10-02-untested/palette-decision-replay2-ended-summary.json;
+recording: /Users/pedronauck/.config/browser-harness/agent-workspace/recordings/palette-decision-replay2.
+
+## Verification — 2026-10-04
+
+The third fresh Dora replay approves a command in Web, then resolves a second command through CLI
+after switching the operator to another profile. Both create exactly one task under resume-editorial.
+Foreign ownership, malformed decisions, duplicate in-flight invocations and repeated terminal
+decisions are refused. Disabling the extension before approval makes the policy recheck fail without
+creating its task; the dialog displays the persisted reason. UDS task reads, direct HTTP detail and a
+refreshed Web deep link confirm the saved work. Denial feedback is covered by the second replay.
+
+Evidence: palette-decision-replay3-ended-summary.json, palette-decision-replay3-approved.png,
+palette-decision-replay3-unavailable.png and palette-decision-replay3-task-refreshed.png under the
+cycle evidence directory. The affected gate passes Go lint, race tests and 6,927 Web tests
+(palette-host-binding-delivery-gate.json). The complete profile scenario still needs its separate
+pending-lifecycle, remote and authenticated-session refusal legs; this bug is verified independently.

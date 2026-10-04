@@ -1,12 +1,14 @@
 // Suite: command palette dispatch targeting
 // Invariant: daemon invokes carry the bound client, navigation preserves route
 // intent, a stale runById target is announced, and host-target copy writes the
-// clipboard after seam policy gates.
+// clipboard after seam policy gates. Pending approvals keep the decision surface
+// open, preserve its recorded profile, and require a server result before success.
+// Owning layer: OS dispatch and approval hooks; this is their canonical suite.
 // Boundary IN: resolveInvokeClientId and useCmdPaletteDispatch.run.
 // Boundary OUT: OpenAPI invoke transport, app navigation, catalog cache, and
 // navigator.clipboard.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,8 +17,17 @@ import { notifyUser } from "@/lib/user-feedback";
 import { paletteCommand, shellFixture } from "../../lib/__tests__/cmd-palette-dispatch-fixtures";
 import { CLIPBOARD_UNAVAILABLE_REASON } from "../../lib/cmd-palette-copy";
 import { STALE_TARGET_REASON } from "../../lib/cmd-palette-dispatch";
-import type { PaletteRegistry } from "../../lib/cmd-palette-types";
-import { invokeCmdPaletteCommand } from "../../adapters/cmd-palette-api";
+import type { CmdPaletteApprovalStatus, PaletteRegistry } from "../../lib/cmd-palette-types";
+import {
+  getPendingToolApproval,
+  invokeCmdPaletteCommand,
+  resolvePendingToolApproval,
+} from "../../adapters/cmd-palette-api";
+import {
+  cmdPaletteExecutionStore,
+  resetPaletteExecutionEntry,
+} from "../../stores/cmd-palette-execution-store";
+import { useCmdPaletteApproval } from "../use-cmd-palette-approval";
 import {
   resolveInvokeAttachmentToken,
   resolveInvokeClientId,
@@ -27,6 +38,8 @@ vi.mock("@/lib/user-feedback", () => ({ notifyUser: vi.fn() }));
 
 vi.mock("../../adapters/cmd-palette-api", () => ({
   invokeCmdPaletteCommand: vi.fn(),
+  getPendingToolApproval: vi.fn(),
+  resolvePendingToolApproval: vi.fn(),
   recordCmdPaletteUsage: vi.fn(async () => undefined),
   setCmdPalettePin: vi.fn(),
 }));
@@ -54,6 +67,142 @@ function wrapper() {
 }
 
 describe("command palette dispatch targeting", () => {
+  it("Should present the pending approval under its recorded profile without approving it", async () => {
+    resetPaletteExecutionEntry();
+    vi.mocked(invokeCmdPaletteCommand).mockResolvedValue({
+      status: "approval_pending",
+      approval_id: "apr_owner",
+      invocation_id: "inv_owner",
+      profile_lens: { profile_lens_id: "profile-owner", profile_name: "editorial" },
+    });
+    const shell = shellFixture();
+    const command = paletteCommand({
+      id: "ext.notes.publish",
+      action: { kind: "tool", tool: "ext.notes.publish" },
+    });
+    const { result } = renderHook(
+      () =>
+        useCmdPaletteDispatch({
+          registry: emptyRegistry,
+          workspaceId: "ws_home",
+          shell,
+          openApp: vi.fn(),
+        }),
+      { wrapper: wrapper() }
+    );
+
+    await expect(result.current.run(command)).resolves.toMatchObject({ status: "needs_approval" });
+
+    expect(cmdPaletteExecutionStore.getSnapshot().context.entry).toMatchObject({
+      kind: "approval",
+      commandId: "ext.notes.publish",
+      approval: { id: "apr_owner", profile: "editorial" },
+    });
+    expect(shell.openPaletteExecution).toHaveBeenCalled();
+    resetPaletteExecutionEntry();
+  });
+
+  it("Should wait for the recorded owner's execution result after approval", async () => {
+    const pending: CmdPaletteApprovalStatus = {
+      approval_status: "pending",
+      expires_at: "2026-10-04T15:00:00Z",
+    };
+    const approved: CmdPaletteApprovalStatus = {
+      ...pending,
+      approval_status: "approved",
+      execution_status: "dispatching",
+    };
+    let complete!: (status: CmdPaletteApprovalStatus) => void;
+    const execution = new Promise<CmdPaletteApprovalStatus>(resolve => {
+      complete = resolve;
+    });
+    vi.mocked(getPendingToolApproval)
+      .mockReset()
+      .mockResolvedValueOnce(pending)
+      .mockImplementation(() => execution);
+    vi.mocked(resolvePendingToolApproval).mockReset().mockResolvedValue(approved);
+    const { result } = renderHook(
+      () => useCmdPaletteApproval({ id: "apr_owner", profile: "editorial" }),
+      {
+        wrapper: wrapper(),
+      }
+    );
+    await waitFor(() => expect(result.current.canDecide).toBe(true));
+
+    act(() => result.current.decide("approved"));
+
+    await waitFor(() =>
+      expect(resolvePendingToolApproval).toHaveBeenCalledExactlyOnceWith(
+        "editorial",
+        "apr_owner",
+        "approved"
+      )
+    );
+    await waitFor(() => expect(result.current.message).toContain("Waiting"));
+    expect(result.current.canDecide).toBe(false);
+    expect(result.current.isPending).toBe(true);
+    expect(getPendingToolApproval).toHaveBeenLastCalledWith(
+      "editorial",
+      "apr_owner",
+      expect.any(AbortSignal)
+    );
+
+    act(() => complete({ ...approved, execution_status: "completed" }));
+
+    await waitFor(() => expect(result.current.message).toBe("Command finished."));
+    expect(result.current.isPending).toBe(false);
+    expect(result.current.canDecide).toBe(false);
+  });
+
+  it("Should keep a denied approval terminal without reporting command success", async () => {
+    const pending: CmdPaletteApprovalStatus = {
+      approval_status: "pending",
+      expires_at: "2026-10-04T15:00:00Z",
+    };
+    const denied: CmdPaletteApprovalStatus = { ...pending, approval_status: "denied" };
+    vi.mocked(getPendingToolApproval)
+      .mockReset()
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValue(denied);
+    vi.mocked(resolvePendingToolApproval).mockReset().mockResolvedValue(denied);
+    const { result } = renderHook(
+      () => useCmdPaletteApproval({ id: "apr_owner", profile: "editorial" }),
+      {
+        wrapper: wrapper(),
+      }
+    );
+    await waitFor(() => expect(result.current.canDecide).toBe(true));
+
+    act(() => result.current.decide("denied"));
+
+    await waitFor(() => expect(result.current.message).toContain("did not run"));
+    expect(result.current.canDecide).toBe(false);
+    expect(resolvePendingToolApproval).toHaveBeenCalledExactlyOnceWith(
+      "editorial",
+      "apr_owner",
+      "denied"
+    );
+  });
+
+  it("Should show the persisted execution failure from the approval response", async () => {
+    vi.mocked(getPendingToolApproval)
+      .mockReset()
+      .mockResolvedValue({
+        approval_status: "approved",
+        execution_status: "failed",
+        error: { message: "Tool backend failed" },
+      });
+    const { result } = renderHook(
+      () => useCmdPaletteApproval({ id: "apr_owner", profile: "editorial" }),
+      {
+        wrapper: wrapper(),
+      }
+    );
+    await waitFor(() => expect(result.current.error).toBe("Tool backend failed"));
+    expect(result.current.canDecide).toBe(false);
+    expect(result.current.isPending).toBe(false);
+  });
+
   it("Should prefer an explicit client id over the bound window-manager client [RD0082]", () => {
     expect(resolveInvokeClientId(" client-a ", "client-b")).toBe("client-a");
     expect(resolveInvokeClientId("  ", "client-b")).toBe("client-b");

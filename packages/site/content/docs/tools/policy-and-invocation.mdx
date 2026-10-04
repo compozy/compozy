@@ -93,6 +93,28 @@ compozy tool invoke <tool-id> \
 Do not persist approval tokens in memory, docs, logs, or task descriptions. Treat
 them as short-lived credentials.
 
+### Pending command-palette approvals
+
+A palette invocation can return `approval_pending` with an `approval_id`. In the Web palette,
+choose **Approve** or **Deny** and wait for the displayed execution result. For an invocation from
+the CLI or API, use the profile that originally created the approval:
+
+```bash
+compozy approvals show <approval-id> --profile <owner> -o json
+compozy approvals resolve <approval-id> --decision approved --profile <owner> -o json
+compozy approvals show <approval-id> --profile <owner> -o json
+```
+
+Use `--decision denied` to refuse execution, or `compozy approvals cancel <approval-id>` with the
+same profile to cancel. A successful decision can still report `execution_status: dispatching`;
+only the later status read confirms completion or failure. Expired and resolved approvals cannot
+run again. Selecting another profile does not transfer ownership.
+
+HTTP and UDS expose `POST /api/tools/approvals/{id}/resolve?profile=<owner>` with
+`{"decision":"approved"}` or `{"decision":"denied"}`. HTTP decisions require a loopback listener.
+The daemon checks profile availability and session binding again before accepting the decision,
+and the deferred tool call rechecks current tool policy under the recorded owner.
+
 ### Remembered native-tool decisions
 
 When a managed session answers a native-tool approval prompt with `allow-always` or

@@ -93,6 +93,70 @@ func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
 func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: workspace-profile calls retain both owners and reject scope widening.
+	// Owner: Host API workspace binding; canonical suite: Host API handler integration.
+	t.Run("Should bind task creation to the extension workspace and profile", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		const extensionName = "ext-profile-workspace"
+		env.grant(extensionName, []string{"tasks/create"}, []string{"task.write"})
+		key := ProfileInstanceKey(extensionName, env.marketingID, env.workspace.ID)
+		ctx := withHostAPIInstanceKey(t.Context(), key)
+		ctx = withHostAPIResourceSession(ctx, &hostAPIResourceSession{
+			Actor: resources.MutationActor{
+				Kind: resources.MutationActorKindExtension,
+				ID:   key.runtimeID(),
+				MaxScope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile,
+					ID:   profileWorkspaceScopeID(env.workspace.ID, "marketing"),
+				},
+			},
+		})
+		result, err := env.callWithContext(ctx, t, extensionName, "tasks/create", map[string]any{
+			"title": "Profile workspace task",
+			"draft": true,
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/create omitted scope) error = %v", err)
+		}
+		var created apicontract.TaskPayload
+		decodeResult(t, result, &created)
+		stored, err := env.registry.GetTask(t.Context(), created.ID)
+		if err != nil {
+			t.Fatalf("GetTask(%q) error = %v", created.ID, err)
+		}
+		if stored.Scope != taskpkg.ScopeWorkspace || stored.WorkspaceID != env.workspace.ID ||
+			stored.ProfileID != env.marketingID {
+			t.Fatalf("stored task ownership = %#v, want bound workspace and marketing profile", stored)
+		}
+
+		foreignWorkspace := env.addForeignWorkspace(t)
+		for _, tc := range []struct {
+			name   string
+			params map[string]any
+		}{
+			{
+				name: "Should reject a foreign workspace",
+				params: map[string]any{
+					"title": "Foreign task", "scope": "workspace", "workspace": foreignWorkspace.ID,
+				},
+			},
+			{
+				name:   "Should reject global scope",
+				params: map[string]any{"title": "Global task", "scope": "global"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := env.callWithContext(ctx, t, extensionName, "tasks/create", tc.params)
+				assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+				assertErrorContains(t, err, "conflicts with the bound workspace")
+			})
+		}
+	})
+
 	t.Run("Should bind workspace-scoped extension calls", func(t *testing.T) {
 		t.Parallel()
 
@@ -1179,6 +1243,59 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 
 func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: resource calls preserve the complete workspace-profile scope for kernel authorization.
+	// Owner: Host API resource boundary; canonical suite: resource handler integration.
+	t.Run("Should preserve workspace-profile resource scope", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		const extensionName, nonce = "ext-profile-resources", "nonce-profile-resources"
+		env.grantWithResources(t, extensionName,
+			[]string{"resources/list", "resources/snapshot"}, nil,
+			[]string{"tools"}, resources.ResourceScopeKindWorkspaceProfile)
+		env.activateResourceSession(t, extensionName, nonce)
+		scope := resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   profileWorkspaceScopeID(env.workspace.ID, "marketing"),
+		}
+		ctx := env.resourceContext(t, extensionName, nonce)
+		resourceSession, ok := hostAPIResourceSessionFromContext(ctx)
+		if !ok {
+			t.Fatal("resource session is missing")
+		}
+		resourceSession.Actor.MaxScope = scope
+		ctx = withHostAPIResourceSession(ctx, resourceSession)
+		ctx = withHostAPIInstanceKey(ctx, ProfileInstanceKey(extensionName, env.marketingID, env.workspace.ID))
+		params := map[string]any{
+			"source_version": 1,
+			"records": []map[string]any{{
+				"kind": "tool", "id": "profile-search", "scope": scope,
+				"spec": hostAPITestToolSpec("profile_search", "Search profile", toolspkg.ToolSourceExtension.String()),
+			}},
+		}
+		if _, err := env.callWithContext(ctx, t, extensionName, "resources/snapshot", params); err != nil {
+			t.Fatalf("Handle(resources/snapshot profile) error = %v, data = %v", err, decodeRPCData(t, err))
+		}
+		result, err := env.callWithContext(ctx, t, extensionName, "resources/list", map[string]any{
+			"kind": "tool", "scope": scope,
+		})
+		if err != nil {
+			t.Fatalf("Handle(resources/list profile) error = %v", err)
+		}
+		var listed []hostAPIResourceRecord
+		decodeResult(t, result, &listed)
+		if len(listed) != 1 || listed[0].Scope != scope {
+			t.Fatalf("resources/list = %#v, want one resource under %#v", listed, scope)
+		}
+		params["source_version"] = 2
+		params["records"].([]map[string]any)[0]["scope"] = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   profileWorkspaceScopeID(env.workspace.ID, "other-profile"),
+		}
+		_, err = env.callWithContext(ctx, t, extensionName, "resources/snapshot", params)
+		assertRPCErrorCode(t, err, 403)
+	})
 
 	env := newHostAPITestEnv(t)
 	env.grantWithResources(

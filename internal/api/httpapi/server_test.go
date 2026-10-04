@@ -1154,6 +1154,12 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			body:   []byte(`{}`),
 		},
 		{
+			name:   "Should block pending approval decisions",
+			method: http.MethodPost,
+			path:   "/api/tools/approvals/approval-1/resolve",
+			body:   []byte(`{"decision":"approved"}`),
+		},
+		{
 			name:   "Should block tool invocation",
 			method: http.MethodPost,
 			path:   "/api/tools/compozy__skill_view/invoke",

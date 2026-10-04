@@ -154,6 +154,10 @@ type CmdPaletteViewSessionClosed struct {
 
 type ViewFrame = cmdpalette.ViewFrame
 
+type ResolveToolApprovalRequest struct {
+	Decision toolspkg.ApprovalOutcome `json:"decision"`
+}
+
 type ToolApprovalStatusResponse struct {
 	ApprovalStatus  toolspkg.ApprovalOutcome         `json:"approval_status"`
 	ExecutionStatus toolspkg.ApprovalExecutionStatus `json:"execution_status,omitempty"`

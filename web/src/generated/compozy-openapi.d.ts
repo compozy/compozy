@@ -4553,6 +4553,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tools/approvals/{id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve or deny one pending tool approval */
+    post: operations["resolvePendingToolApproval"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tools/search": {
     parameters: {
       query?: never;
@@ -79483,7 +79500,10 @@ export interface operations {
   };
   getPendingToolApproval: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile that owns the approval */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Stable approval id */
@@ -79547,7 +79567,10 @@ export interface operations {
   };
   cancelPendingToolApproval: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile that owns the approval */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Stable approval id */
@@ -79570,6 +79593,145 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             result?: unknown;
+          };
+        };
+      };
+      /** @description Approval not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Approval already terminal */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Tool approval unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  resolvePendingToolApproval: {
+    parameters: {
+      query?: {
+        /** @description Profile that owns the approval */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Stable approval id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          decision: "approved" | "denied";
+        };
+      };
+    };
+    responses: {
+      /** @description Decision recorded; execution may still be running */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_status: string;
+            error?: unknown;
+            execution_status?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            result?: unknown;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Local operator surface required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };

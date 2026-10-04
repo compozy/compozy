@@ -12,6 +12,12 @@ import (
 )
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
+	reflect.TypeFor[contract.ResolveToolApprovalRequest](): func(schema *openapi3.Schema) {
+		customizeClosedObjectSchema(schema)
+		schema.Properties["decision"] = &openapi3.SchemaRef{
+			Value: openapi3.NewStringSchema().WithEnum("approved", "denied"),
+		}
+	},
 	reflect.TypeFor[extensioninput.Value]():             customizeExtensionInputValueSchema,
 	reflect.TypeFor[contract.InstallExtensionRequest](): customizeExtensionInstallRequestSchema,
 	reflect.TypeFor[contract.UpdateExtensionRequest]():  customizeExtensionUpdateRequestSchema,

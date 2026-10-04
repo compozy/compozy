@@ -26,6 +26,7 @@ import { cmdPaletteKeys } from "../lib/cmd-palette-query-keys";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
 import {
   cmdPaletteExecutionStore,
+  requestPaletteApproval,
   requestPaletteArgs,
   requestPaletteConfirmation,
 } from "../stores/cmd-palette-execution-store";
@@ -191,7 +192,17 @@ export function useCmdPaletteDispatch({
           }),
         onPendingSettle: target =>
           cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: target.id }),
-        onCompleted: (target, result) => announce(invokeCompletedFeedback(target, result)),
+        onCompleted: (target, result) => {
+          if (result.status === "approval_pending" && result.approval_id) {
+            shell.openPaletteExecution();
+            requestPaletteApproval(target, {
+              id: result.approval_id,
+              profile: result.profile_lens.profile_name ?? destination,
+            });
+            return;
+          }
+          announce(invokeCompletedFeedback(target, result));
+        },
       },
     });
   };

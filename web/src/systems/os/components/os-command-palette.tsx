@@ -1,8 +1,14 @@
 import { useLayoutEffect, useRef } from "react";
+import { useSelector } from "@xstate/store-react";
 
-import { CommandDialog } from "@compozy/ui";
+import { CommandDialog, ConfirmDialog } from "@compozy/ui";
 
 import type { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
+import { useCmdPaletteApproval } from "../hooks/use-cmd-palette-approval";
+import {
+  cmdPaletteExecutionStore,
+  type CmdPaletteApprovalIntent,
+} from "../stores/cmd-palette-execution-store";
 import { useOsPaletteSurface } from "../hooks/use-os-palette-surface";
 import { paletteViewDefinition } from "../lib/palette-view-registry";
 import { paletteBreadcrumb } from "../lib/palette-view-stack";
@@ -49,7 +55,12 @@ export function OsCommandPalette({
   onOpenChange,
   dispatch,
 }: OsCommandPaletteProps) {
-  const surface = useOsPaletteSurface({ open, onOpenChange, dispatch });
+  const entry = useSelector(cmdPaletteExecutionStore, snapshot => snapshot.context.entry);
+  const surface = useOsPaletteSurface({
+    open: open && entry?.kind !== "approval",
+    onOpenChange,
+    dispatch,
+  });
   const { root, execution, viewStack } = surface;
   const activeFrameRef = useRef<HTMLDivElement | null>(null);
   const activeView =
@@ -151,6 +162,20 @@ export function OsCommandPalette({
     );
   };
 
+  if (entry?.kind === "approval" && entry.approval && entry.confirmation) {
+    return (
+      <PaletteApprovalDialog
+        key={entry.approval.id}
+        approval={entry.approval}
+        title={entry.confirmation.title}
+        description={entry.confirmation.body}
+        destructive={entry.destructive}
+        open={open}
+        onOpenChange={onOpenChange}
+      />
+    );
+  }
+
   return (
     <CommandDialog
       className="top-[9vh] shell-wide:top-[16vh] sm:max-w-(--width-modal-sm)"
@@ -166,5 +191,47 @@ export function OsCommandPalette({
     >
       {body()}
     </CommandDialog>
+  );
+}
+
+function PaletteApprovalDialog({
+  approval,
+  title,
+  description,
+  destructive,
+  open,
+  onOpenChange,
+}: {
+  approval: CmdPaletteApprovalIntent;
+  title: string;
+  description?: string;
+  destructive: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const model = useCmdPaletteApproval(approval);
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(next, details) => {
+        if (!next && details.reason === "close-press" && model.canDecide) {
+          details.cancel();
+          model.decide("denied");
+          return;
+        }
+        onOpenChange(next);
+      }}
+      title={title}
+      description={description}
+      footNote={`Profile: ${approval.profile}`}
+      note={model.message}
+      error={model.error}
+      tone={destructive && model.canDecide ? "danger" : "neutral"}
+      confirmLabel="Approve"
+      confirmButtonProps={{ disabled: !model.canDecide }}
+      cancelLabel={model.canDecide ? "Deny" : "Close"}
+      isPending={model.isPending}
+      onConfirm={() => model.decide("approved")}
+    />
   );
 }

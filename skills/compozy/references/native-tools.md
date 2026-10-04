@@ -47,9 +47,15 @@ Optional `source` filters one provider and optional `client` resolves client-con
 
 Use `compozy__cmd_palette_invoke` with `id`, optional `args`, and optional `client`. The command's own
 availability, targeting, single-flight, and approval rules still apply. An `approval_pending` result
-returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
-Both commands use the selected profile (flag, environment, then remembered selection). Pass
-`--profile <owner>` when the operator has switched away from the profile that owns the approval.
+returns `approval_id`. Operators inspect it with `compozy approvals show <id>`, decide with
+`compozy approvals resolve <id> --decision approved|denied`, or cancel with
+`compozy approvals cancel <id>`. These commands use the selected profile (flag, environment, then
+remembered selection). Pass `--profile <owner>` after switching away from the approval's owner.
+Approval admits asynchronous execution; inspect `execution_status` before claiming completion.
+The Web palette presents Approve/Deny for its pending invocation and reads the terminal result.
+HTTP/UDS clients use `POST /api/tools/approvals/{id}/resolve?profile=<owner>` with an explicit
+`decision`. The request rechecks profile availability and session binding; HTTP decisions require
+a loopback listener. Foreign-profile and already-terminal approvals remain refused.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
 
 Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with

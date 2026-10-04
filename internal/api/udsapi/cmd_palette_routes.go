@@ -23,5 +23,6 @@ func registerCmdPaletteRoutes(api gin.IRouter, handlers *Handlers) {
 
 	approvals := api.Group("/tools/approvals")
 	approvals.GET("/:id", handlers.GetPendingToolApproval)
+	approvals.POST("/:id/resolve", handlers.ResolvePendingToolApproval)
 	approvals.POST("/:id/cancel", handlers.CancelPendingToolApproval)
 }

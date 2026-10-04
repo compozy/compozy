@@ -5,7 +5,7 @@ title: Invoke a discovered command through structured surfaces
 persona: Ada
 journey: J-operate-command-palette
 expected: CLI, HTTP/UDS, and native-tool discovery, inspection, client targeting, invocation, and approval status return one workspace-bound terminal result without duplicate execution; every refusal (unknown id, invalid arguments, unavailable context, no attached shell, multiple clients, already running) is a structured error carrying the same reason text the UI shows.
-entry_points: compozy cmd-palette list|inspect|invoke|clients; compozy approvals show|cancel; compozy__cmd_palette_list|invoke; GET /api/cmd-palette/commands|clients (HTTP + UDS); POST /api/cmd-palette/commands/{id}/invoke (HTTP + UDS); GET /api/tools/approvals/{id} (HTTP + UDS); POST /api/tools/approvals/{id}/cancel (HTTP + UDS); GET /api/cmd-palette/stream (HTTP + UDS)
+entry_points: compozy cmd-palette list|inspect|invoke|clients; compozy approvals show|resolve|cancel; compozy__cmd_palette_list|invoke; GET /api/cmd-palette/commands|clients (HTTP + UDS); POST /api/cmd-palette/commands/{id}/invoke (HTTP + UDS); GET /api/tools/approvals/{id} (HTTP + UDS); POST /api/tools/approvals/{id}/resolve|cancel (HTTP + UDS); GET /api/cmd-palette/stream (HTTP + UDS)
 qa_status: untested
 bug_ids:
 fix_status:

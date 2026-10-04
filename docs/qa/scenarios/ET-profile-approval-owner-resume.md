@@ -6,12 +6,12 @@ persona: Ada
 journey: J-operate-profiles
 expected: A pending tool or palette approval records the profile that created it and resumes under that owner even after the operator switches, re-running the session-immutability, local-management, availability, and policy checks on resume; archive and delete refuse with profile_approvals_pending while an executable pending approval belongs to the profile, naming the approval ids to resolve or cancel; pending approvals are never counted as work items.
 entry_points: destructive palette or tool invocation awaiting approval; compozy approvals show|resolve; compozy profile archive|delete; GET /api/profiles/{name}/archive-plan|delete-plan; POST /api/profiles/{name}/archive; DELETE /api/profiles/{name}; compozy__cmd_palette_invoke
-qa_status: fail
-bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-native-approval-timeout-pending; BUG-20261004-palette-approval-cannot-resume
+qa_status: untested
+bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-native-approval-timeout-pending; BUG-20261004-palette-approval-cannot-resume; BUG-20261004-extension-workspace-profile-host-binding
 fix_status: pending
 retest_status: pending
 fix_commits: e9e4a46a6; 9f1457296
-evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
+evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json; docs/qa/evidence/2026-10-02-untested/palette-decision-replay3-ended-summary.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-lifecycle-race-guards; ET-agent-command-invoke; ET-profile-cli-lifecycle
 ---
@@ -62,3 +62,13 @@ BUG-20261004-native-approval-timeout-pending owns that independent lifecycle rep
 The native cancellation slice is verified after 9f1457296: the real deadline clears pending
 attention, a late allow cannot execute, and a fresh timely approval stops its target under the
 original owner. The durable palette resume defect still keeps this full scenario at fail.
+
+The palette repair replay reaches the decision, then exposes a separate Host API binding defect:
+a workspace-profile extension cannot create its own task. The owning Host API regression is repaired
+in source; the scenario remains fail until a fresh command completes under its recorded owner.
+
+The third fresh Dora replay verifies both palette and Host API repairs: approved commands produce
+persisted work under the recorded owner after an operator profile switch. Foreign, malformed,
+repeated and concurrent decisions are refused; current extension policy is rechecked. The complete
+scenario returns to untested for its remaining pending-lifecycle, non-loopback and authenticated
+session refusal legs. No full-scenario pass is claimed.

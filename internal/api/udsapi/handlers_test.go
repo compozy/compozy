@@ -476,6 +476,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/cmd-palette/views/:id/open",
 			"POST /api/cmd-palette/usage",
 			"POST /api/tools/approvals/:id/cancel",
+			"POST /api/tools/approvals/:id/resolve",
 			"PUT /api/cmd-palette/pins/:id",
 			"POST /api/tools/:id/approvals",
 			"POST /api/tools/:id/invoke",

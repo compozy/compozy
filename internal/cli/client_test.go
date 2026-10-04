@@ -237,6 +237,17 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 				wantMethod = http.MethodPost
 				wantPath += "/cancel"
 			}
+			if calls == 3 {
+				wantMethod = http.MethodPost
+				wantPath += "/resolve"
+				var body contract.ResolveToolApprovalRequest
+				if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+					t.Fatalf("decode resolution request: %v", err)
+				}
+				if body.Decision != "approved" {
+					t.Fatalf("approval decision = %q, want approved", body.Decision)
+				}
+			}
 			if request.Method != wantMethod || request.URL.Path != wantPath {
 				t.Fatalf(
 					"request %d = %s %s, want %s %s",
@@ -257,6 +268,10 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 		}
 		if _, err := client.CancelPendingToolApproval(t.Context(), "approval-1"); err != nil {
 			t.Fatalf("CancelPendingToolApproval() error = %v", err)
+		}
+		if _, err := client.ResolvePendingToolApproval(t.Context(), "approval-1",
+			contract.ResolveToolApprovalRequest{Decision: "approved"}); err != nil {
+			t.Fatalf("ResolvePendingToolApproval() error = %v", err)
 		}
 	})
 }

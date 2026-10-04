@@ -35,6 +35,11 @@ If a candidate extension changes its normalized gateway permission requirement, 
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
 
+Workspace-bound subprocesses keep that binding when running under a named profile. Domain Host API
+calls such as `tasks/create` inherit the workspace and profile; an explicit global scope or foreign
+workspace is refused. Resource calls retain their complete `workspace_profile` scope for resource
+kernel authorization. A tool approval authorizes the pending command without widening these scopes.
+
 ## Packaged Inputs And Server Auth
 
 Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`,

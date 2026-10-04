@@ -518,6 +518,66 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		}
 	})
 
+	for _, decision := range []toolspkg.ApprovalOutcome{toolspkg.ApprovalApproved, toolspkg.ApprovalDenied} {
+		t.Run("Should resolve a pending approval as "+string(decision), func(t *testing.T) {
+			t.Parallel()
+			coordinator := &approvalCoordinatorStub{status: toolspkg.ApprovalStatus{
+				ApprovalID: "apr_test", ApprovalStatus: toolspkg.ApprovalPending,
+			}}
+			handlers := newCmdPaletteHandlers(nil, coordinator)
+			engine := gin.New()
+			engine.POST("/api/tools/approvals/:id/resolve", handlers.ResolvePendingToolApproval)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/api/tools/approvals/apr_test/resolve?profile=default",
+				strings.NewReader(`{"decision":"`+string(decision)+`"}`)))
+			var status contract.ToolApprovalStatusResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+				t.Fatalf("decode approval resolution: %v", err)
+			}
+			if response.Code != http.StatusOK || status.ApprovalStatus != decision ||
+				coordinator.resolvedID != "apr_test" || coordinator.resolveProfile != store.DefaultProfileID {
+				t.Fatalf("resolve = status %d body %s coordinator %#v", response.Code, response.Body, coordinator)
+			}
+		})
+	}
+	for _, testCase := range []struct {
+		name string
+		body string
+	}{
+		{name: "Should reject a missing approval decision", body: `{}`},
+		{name: "Should reject a runtime timeout as an operator decision", body: `{"decision":"timeout"}`},
+		{name: "Should reject cancellation through the decision endpoint", body: `{"decision":"canceled"}`},
+		{name: "Should reject a wrong-type approval decision", body: `{"decision":true}`},
+		{name: "Should reject extra fields in an approval decision", body: `{"decision":"approved","args":{}}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			coordinator := &approvalCoordinatorStub{status: toolspkg.ApprovalStatus{
+				ApprovalID: "apr_test", ApprovalStatus: toolspkg.ApprovalPending,
+			}}
+			handlers := newCmdPaletteHandlers(nil, coordinator)
+			engine := gin.New()
+			engine.POST("/api/tools/approvals/:id/resolve", handlers.ResolvePendingToolApproval)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/api/tools/approvals/apr_test/resolve", strings.NewReader(testCase.body)))
+			var failure contract.CmdPaletteError
+			if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+				t.Fatalf("decode approval refusal: %v", err)
+			}
+			if response.Code != http.StatusBadRequest || failure.Error != "invalid_request" ||
+				coordinator.resolvedID != "" || coordinator.status.ApprovalStatus != toolspkg.ApprovalPending {
+				t.Fatalf(
+					"invalid decision = status %d body %s coordinator %#v",
+					response.Code,
+					response.Body,
+					coordinator,
+				)
+			}
+		})
+	}
+
 	t.Run("Should reconcile the catalog revision when an SSE stream opens", func(t *testing.T) {
 		t.Parallel()
 		updates := make(chan cmdpalette.Event)
@@ -1051,10 +1111,12 @@ func (s *cmdPaletteRegistryStub) InvalidateInstance(
 }
 
 type approvalCoordinatorStub struct {
-	status        toolspkg.ApprovalStatus
-	canceled      string
-	statusProfile string
-	cancelProfile string
+	status         toolspkg.ApprovalStatus
+	canceled       string
+	statusProfile  string
+	cancelProfile  string
+	resolveProfile string
+	resolvedID     string
 }
 
 func (s *approvalCoordinatorStub) Begin(
@@ -1064,8 +1126,18 @@ func (s *approvalCoordinatorStub) Begin(
 	return toolspkg.ApprovalTicket{}, errors.New("unexpected Begin call")
 }
 
-func (s *approvalCoordinatorStub) Resolve(context.Context, string, toolspkg.ApprovalOutcome) error {
-	return errors.New("unexpected Resolve call")
+func (s *approvalCoordinatorStub) Resolve(ctx context.Context, id string, outcome toolspkg.ApprovalOutcome) error {
+	profileID, err := toolspkg.ApprovalProfile(ctx)
+	if err != nil {
+		return err
+	}
+	s.resolveProfile = profileID
+	if id != s.status.ApprovalID {
+		return toolspkg.ErrApprovalNotFound
+	}
+	s.resolvedID = id
+	s.status.ApprovalStatus = outcome
+	return nil
 }
 
 func (s *approvalCoordinatorStub) Status(ctx context.Context, id string) (toolspkg.ApprovalStatus, error) {

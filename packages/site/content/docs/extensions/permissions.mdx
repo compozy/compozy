@@ -78,6 +78,12 @@ compozy extension validate ./dist/gen-<hash> -o json
 Consent areas are a display and policy projection. Enforcement always runs against the declared
 method list, per call.
 
+A subprocess bound to a workspace and named profile retains both owners for domain Host API calls.
+For example, `tasks/create` can omit the workspace and scope: the daemon binds them to the process's
+workspace and stamps the task with its profile. Explicit global or foreign workspace requests are
+refused. Resource methods retain the complete `workspace_profile` scope for kernel authorization;
+approving a palette command does not expand the extension's scope.
+
 ## Permission catalog
 
 Twenty-six consent areas cover the cataloged methods.

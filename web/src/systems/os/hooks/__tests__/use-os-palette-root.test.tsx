@@ -7,7 +7,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // own filters, and a keyboard selection that survives the catalog moving.
 // Owning layer: palette root/surface view-model and presentation boundary.
 // This canonical suite also owns automatic surface selection and action-panel
-// continuity; its shared registry/ranking setup exercises those hooks together.
+// continuity and pending-decision dialogs that keep transport failures visible;
+// its shared registry/ranking setup exercises those hooks together.
 // Boundary OUT: the dispatch seam and client-op table (cmd-palette-dispatch),
 // availability evaluation (cmd-palette-availability), overlay lifetime
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
@@ -42,6 +43,7 @@ import {
 
 import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsAppId, OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
+import * as cmdPaletteAPI from "../../adapters/cmd-palette-api";
 import { OsCommandPalette } from "../../components/os-command-palette";
 import type { CmdPaletteRunOptions } from "../use-cmd-palette-dispatch";
 import { useOsPaletteSurface } from "../use-os-palette-surface";
@@ -49,6 +51,7 @@ import { useOsPaletteRoot } from "../use-os-palette-root";
 import {
   cmdPaletteExecutionStore,
   requestPaletteArgs,
+  requestPaletteApproval,
   requestPaletteConfirmation,
   resetPaletteExecutionEntry,
 } from "../../stores/cmd-palette-execution-store";
@@ -1937,6 +1940,36 @@ describe("palette execution surfaces", () => {
       resetPaletteExecutionEntry();
       cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
     });
+  });
+
+  it("Should keep an approval dialog open when denying fails", async () => {
+    const user = userEvent.setup();
+    const getApproval = vi
+      .spyOn(cmdPaletteAPI, "getPendingToolApproval")
+      .mockResolvedValue({ approval_status: "pending" });
+    const resolveApproval = vi
+      .spyOn(cmdPaletteAPI, "resolvePendingToolApproval")
+      .mockRejectedValue(new Error("Decision unavailable"));
+    const onOpenChange = vi.fn();
+    requestPaletteApproval(CAPTURE_COMMAND, { id: "apr_editorial", profile: "editorial" });
+    try {
+      render(
+        <PaletteHarness>
+          <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={onOpenChange} />
+        </PaletteHarness>
+      );
+      await waitFor(() => expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled());
+
+      await user.click(screen.getByRole("button", { name: "Deny" }));
+
+      expect(await screen.findByText("Decision unavailable")).toBeInTheDocument();
+      expect(onOpenChange).not.toHaveBeenCalledWith(false, expect.anything());
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
+      expect(screen.getByRole("dialog", { name: CAPTURE_COMMAND.title })).toBeInTheDocument();
+    } finally {
+      getApproval.mockRestore();
+      resolveApproval.mockRestore();
+    }
   });
 
   it("Should retain an automatically selected row and its actions when async ranking arrives", () => {

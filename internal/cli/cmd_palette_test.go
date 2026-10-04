@@ -27,6 +27,8 @@ type cmdPaletteTestClient struct {
 	approvalStatus    contract.ToolApprovalStatusResponse
 	approvalProfile   string
 	canceledID        string
+	resolvedID        string
+	approvalDecision  contract.ResolveToolApprovalRequest
 	personalization   contract.CmdPalettePersonalizationResponse
 	resetResponse     contract.CmdPalettePersonalizationResetResponse
 	resetWorkspace    string
@@ -126,6 +128,17 @@ func (c *cmdPaletteTestClient) CancelPendingToolApproval(
 ) (contract.ToolApprovalStatusResponse, error) {
 	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
 	c.canceledID = approvalID
+	return c.approvalStatus, nil
+}
+
+func (c *cmdPaletteTestClient) ResolvePendingToolApproval(
+	ctx context.Context,
+	approvalID string,
+	request contract.ResolveToolApprovalRequest,
+) (contract.ToolApprovalStatusResponse, error) {
+	c.approvalProfile = profileQueryValues(ctx, nil).Get(profileFlagName)
+	c.resolvedID = approvalID
+	c.approvalDecision = request
 	return c.approvalStatus, nil
 }
 
@@ -279,12 +292,34 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
-	for _, action := range []string{"show", "cancel"} {
+	t.Run("Should resolve the exact approval with an explicit decision", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.approvalStatus.ApprovalStatus = "approved"
+		stdout, _, err := executeRootCommand(t, newTestDeps(t, client),
+			"approvals", "resolve", "approval-1", "--decision", "approved", "-o", "json")
+		if err != nil {
+			t.Fatalf("approvals resolve error = %v", err)
+		}
+		var status contract.ToolApprovalStatusResponse
+		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+			t.Fatalf("decode approval status: %v", err)
+		}
+		if client.resolvedID != "approval-1" || client.approvalDecision.Decision != "approved" ||
+			status.ApprovalStatus != "approved" {
+			t.Fatalf("resolved approval = %q %#v; status = %#v", client.resolvedID, client.approvalDecision, status)
+		}
+	})
+
+	for _, action := range []string{"show", "cancel", "resolve"} {
 		for _, selection := range []string{"flag", "env", "remembered"} {
 			t.Run("Should use the "+selection+" profile for approval "+action, func(t *testing.T) {
 				t.Parallel()
 				remembered, envProfile := "other", ""
 				args := []string{"approvals", action, "approval-1", "-o", "json"}
+				if action == "resolve" {
+					args = append(args, "--decision", "denied")
+				}
 				switch selection {
 				case "flag":
 					args = append(args, "--profile", "owner")
