@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260906-stopped-history-schema-upgrade
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 7a9d15e2f
 evidence: docs/qa/evidence/2026-10-02-untested/scope-legacy-crossdoc-bruno-confirm.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-delivery-gate-retry.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-evidence-audit-final.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-menubar-global-scope-toggle; RT-missing-workspace-pruned

@@ -4,6 +4,17 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Extension-declared profile provenance:** Global migration 00126 preserves every declaration
+  marker and adds nullable creation provenance: existing rows remain unknown; new profile creation
+  records true and binding records false. Creation claims also require the current profile ID, so
+  deleting/recreating a name cannot transfer authorship. Existing create-once markers still prevent
+  reseeding. Install/apply results consult persisted provenance before emitting the existing
+  `extension.profile_created` event when creation races with the operator. CLI, HTTP/UDS and native
+  extension detail retain the boolean `created_by_extension`; true confirms authorship, while false
+  includes binding and unknown historical origin. No verb, route, native-tool ID, configuration,
+  resource placement or authorization changes; workspace/profile ownership remains enforced by the
+  existing extension and profile boundaries. Web already reads the shared payload and needs no new
+  control. Official extension guidance and site installation docs explain the historical limit.
 - **Retained Global history upgrades:** Catalog and health readers accept the workspace-free
   scope written by the existing home-to-Global migration. Creation profile versions 3–5 retain
   their original sandbox/Network fields solely as hash-bound provenance; current creation still

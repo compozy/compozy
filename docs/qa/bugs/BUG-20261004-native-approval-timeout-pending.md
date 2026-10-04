@@ -29,3 +29,20 @@ profile-approval-resume-stale-interaction-uds.json and profile-approval-resume-w
 
 Root cause and repair are pending. The diagnostic difference between operator CLI tool-info and
 the hosted session's permission mode is not yet classified and is not asserted as this bug's cause.
+
+## Root cause confirmed
+
+The ACP interactive permission handler emits the pending event, then removes its in-memory request
+on return. Its connection-close and caller-cancellation branches return the canceled ACP outcome
+without a terminal permission event. The native tool approval bridge cancels that caller context
+after 120 seconds. Session attention therefore never receives a terminal transition; status and
+interaction reads remain pending until restart recovery later expires the record. The main lab's
+normal restart cleared the stale badge, confirming recovery but not repairing live cancellation.
+
+The owning repair must emit the cancellation from the ACP permission owner and carry it through
+the existing durable interaction transition. Operator approval choices remain distinct from
+runtime cancellation. The existing ACP permission bounds/connection-death suite owns event closure;
+the existing session attention/transition suite owns persisted terminal status. The bridge also
+currently classifies an ACP canceled response after its own deadline as generic approval_canceled;
+its timeout suite should retain the actual timeout reason. No production or test edit is made for
+this defect while the extension provenance gate is still running.

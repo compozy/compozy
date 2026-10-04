@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20261003-background-windows-forget-global; BUG-20260906-stopped-history-schema-upgrade
 fix_status: fixed
 retest_status: pass
-fix_commits: 62b58628b62a03048967a91543323d3cb427bb7b; 3f53932aa35300c32e92bb6a84d469e1d89f367c
+fix_commits: 62b58628b62a03048967a91543323d3cb427bb7b; 3f53932aa35300c32e92bb6a84d469e1d89f367c; 7a9d15e2f
 evidence: docs/qa/evidence/2026-10-02-untested/scope-legacy-crossdoc-bruno-confirm.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-delivery-gate-retry.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-evidence-audit-final.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-menubar-menu-set; ET-web-command-palette-shortcuts; MS-web-workspace-lists-hide-home; MS-global-scope-no-workspace-work; ET-profile-switcher-restore

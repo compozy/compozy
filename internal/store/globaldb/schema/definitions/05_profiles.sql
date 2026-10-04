@@ -90,6 +90,7 @@ CREATE TABLE extension_profile_markers (
 	profile_name TEXT NOT NULL CHECK (trim(profile_name) <> ''),
 	created_profile_id TEXT NOT NULL CHECK (trim(created_profile_id) <> ''),
 	created_at TEXT NOT NULL,
+	created_by_extension INTEGER CHECK (created_by_extension IN (0, 1)),
 	PRIMARY KEY (extension_name, profile_name)
 );
 

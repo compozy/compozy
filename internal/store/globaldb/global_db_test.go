@@ -461,6 +461,79 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve legacy profile markers without inventing creation provenance", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00127_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		priorClosed := false
+		t.Cleanup(func() {
+			if !priorClosed {
+				if err := prior.Close(); err != nil {
+					t.Errorf("Close(prior) error = %v", err)
+				}
+			}
+		})
+		const timestamp = "2026-10-04T10:00:00Z"
+		if _, err := prior.ExecContext(ctx, `
+			INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('retained-kit', '1.0.0', 'user', '/kit/extension.toml', ?, 'checksum')`, timestamp); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"retained", "deleted"} {
+			if _, err := prior.ExecContext(ctx, `
+				INSERT INTO extension_profile_markers (extension_name, profile_name, created_profile_id, created_at)
+				VALUES ('retained-kit', ?, ?, ?)`, name, name+"-profile-id", timestamp); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		priorClosed = true
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			closed := false
+			t.Cleanup(func() {
+				if !closed {
+					if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+						t.Errorf("Close(upgraded) error = %v", err)
+					}
+				}
+			})
+			for _, name := range []string{"retained", "deleted"} {
+				var id, createdAt string
+				var creator sql.NullBool
+				if err := upgraded.db.QueryRowContext(ctx, `
+					SELECT created_profile_id, created_at, created_by_extension FROM extension_profile_markers
+					WHERE extension_name = 'retained-kit' AND profile_name = ?`, name).
+					Scan(&id, &createdAt, &creator); err != nil {
+					t.Fatal(err)
+				}
+				if id != name+"-profile-id" || createdAt != timestamp || creator.Valid {
+					t.Fatalf("marker %s = %q, %q, %#v, want preserved identity and unknown provenance",
+						name, id, createdAt, creator)
+				}
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			closed = true
+		}
+	})
+
 	// Invariant: feature retirement preserves retained runtime state and authored context across upgrades.
 	// Owner: global persistence; canonical suite: reopen and migration preservation.
 	t.Run("Should retire remote features while preserving local runtime and authored context", func(t *testing.T) {

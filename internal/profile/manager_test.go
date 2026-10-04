@@ -136,6 +136,10 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CreateDeclared(first) error = %v", err)
 			}
+			confirmed, err := manager.HasDeclaredCreation(ctx, "growth-kit", created.Name, created.ID)
+			if err != nil || !confirmed {
+				t.Fatalf("HasDeclaredCreation(created) = %v, %v, want true", confirmed, err)
+			}
 			plan, err := manager.PrepareDelete(ctx, created.Name)
 			if err != nil {
 				t.Fatalf("PrepareDelete() error = %v", err)
@@ -219,6 +223,10 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			if bound.ID != existing.ID || bound.Color != existing.Color || bound.Icon != existing.Icon {
 				t.Fatalf("CreateDeclared(%s bind) = %#v, want untouched %#v", extensionName, bound, existing)
 			}
+			confirmed, err := manager.HasDeclaredCreation(ctx, extensionName, bound.Name, bound.ID)
+			if err != nil || confirmed {
+				t.Fatalf("HasDeclaredCreation(%s bind) = %v, %v, want false", extensionName, confirmed, err)
+			}
 		}
 		var markerCount int
 		if err := database.DB().QueryRowContext(
@@ -229,6 +237,42 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if markerCount != 2 {
 			t.Fatalf("shared marker count = %d, want 2", markerCount)
+		}
+	})
+
+	t.Run("Should keep declared creation provenance attached to the original profile identity", func(t *testing.T) {
+		t.Parallel()
+		manager, database, _ := newTestManager(t)
+		ctx := t.Context()
+		if _, err := database.DB().ExecContext(ctx, `
+			INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('kit', '1.0.0', 'user', '/kit/extension.toml', '2026-10-04T10:00:00Z', 'checksum')`); err != nil {
+			t.Fatal(err)
+		}
+		created, err := manager.CreateDeclared(ctx, DeclaredInput{Extension: "kit", Name: "shared"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := manager.PrepareDelete(ctx, created.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Delete(ctx, created.Name, plan.Revision); err != nil {
+			t.Fatal(err)
+		}
+		replacement, err := manager.Create(ctx, CreateInput{Name: created.Name, Color: "#112233", Icon: "briefcase"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		bound, err := manager.CreateDeclared(ctx, DeclaredInput{Extension: "kit", Name: created.Name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bound.ID != replacement.ID || bound.ID == created.ID || bound.Color != replacement.Color {
+			t.Fatalf("CreateDeclared(replacement) = %#v, want unchanged replacement %#v", bound, replacement)
+		}
+		if confirmed, err := manager.HasDeclaredCreation(ctx, "kit", bound.Name, bound.ID); err != nil || confirmed {
+			t.Fatalf("HasDeclaredCreation(replacement) = %v, %v, want false", confirmed, err)
 		}
 	})
 

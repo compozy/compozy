@@ -12,6 +12,7 @@ type declaredProfileManager interface {
 	CreateDeclared(context.Context, profilepkg.DeclaredInput) (profilepkg.Profile, error)
 	GetByName(context.Context, string) (profilepkg.Profile, error)
 	HasDeclaredMarker(context.Context, string, string) (bool, error)
+	HasDeclaredCreation(context.Context, string, string, string) (bool, error)
 }
 
 var _ declaredProfileManager = (*profilepkg.Manager)(nil)
@@ -94,10 +95,17 @@ func ApplyDeclaredProfiles(
 		if err != nil {
 			return nil, fmt.Errorf("extension: apply declared profile %q: %w", declaration.Name, err)
 		}
+		createdNow := plan.Profiles[index].Create
+		if createdNow {
+			createdNow, err = manager.HasDeclaredCreation(ctx, manifest.Name, declaration.Name, created.ID)
+			if err != nil {
+				return nil, fmt.Errorf("extension: inspect declared profile creation %q: %w", declaration.Name, err)
+			}
+		}
 		results = append(results, DeclaredProfileApplyResult{
 			Profile: created,
-			Created: plan.Profiles[index].Create && !created.CreatedAt.IsZero(),
-			Bound:   !plan.Profiles[index].Create,
+			Created: createdNow,
+			Bound:   !createdNow,
 		})
 	}
 	return results, nil

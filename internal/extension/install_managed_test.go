@@ -28,6 +28,29 @@ func TestDeclaredProfileInstallPlanAndApply(t *testing.T) {
 		t.Parallel()
 		testDeclaredProfileInstallPlanAndApply(t)
 	})
+	t.Run("Should report binding when an operator creates the profile after planning", func(t *testing.T) {
+		t.Parallel()
+		manager := &declaredProfileManagerStub{
+			profiles: make(map[string]profilepkg.Profile),
+			markers:  make(map[string]bool),
+			beforeCreate: func(profiles map[string]profilepkg.Profile) {
+				profiles["shared"] = profilepkg.Profile{
+					ID: "operator-profile", Name: "shared", Color: "#112233",
+					State: profilepkg.StateActive, CreatedAt: time.Unix(1, 0).UTC(),
+				}
+			},
+		}
+		results, err := ApplyDeclaredProfiles(t.Context(), manager, &Manifest{
+			Name: "kit", Profiles: []ManifestProfile{{Name: "shared", Color: "#445566"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(results) != 1 || results[0].Created || !results[0].Bound ||
+			results[0].Profile.ID != "operator-profile" || results[0].Profile.Color != "#112233" {
+			t.Fatalf("ApplyDeclaredProfiles(concurrent create) = %#v, want unchanged bound profile", results)
+		}
+	})
 }
 
 func testDeclaredProfileInstallPlanAndApply(t *testing.T) {
@@ -77,15 +100,20 @@ func testDeclaredProfileInstallPlanAndApply(t *testing.T) {
 }
 
 type declaredProfileManagerStub struct {
-	profiles map[string]profilepkg.Profile
-	markers  map[string]bool
-	lastSeed profilepkg.DeclaredSeed
+	profiles     map[string]profilepkg.Profile
+	markers      map[string]bool
+	creations    map[string]string
+	lastSeed     profilepkg.DeclaredSeed
+	beforeCreate func(map[string]profilepkg.Profile)
 }
 
 func (s *declaredProfileManagerStub) CreateDeclared(
 	_ context.Context,
 	in profilepkg.DeclaredInput,
 ) (profilepkg.Profile, error) {
+	if s.beforeCreate != nil {
+		s.beforeCreate(s.profiles)
+	}
 	key := in.Extension + "\x00" + in.Name
 	if s.markers[key] {
 		return s.profiles[in.Name], nil
@@ -100,7 +128,18 @@ func (s *declaredProfileManagerStub) CreateDeclared(
 		State: profilepkg.StateActive, CreatedAt: time.Now().UTC(),
 	}
 	s.profiles[in.Name] = created
+	if s.creations == nil {
+		s.creations = make(map[string]string)
+	}
+	s.creations[key] = created.ID
 	return created, nil
+}
+
+func (s *declaredProfileManagerStub) HasDeclaredCreation(
+	_ context.Context,
+	extension, name, profileID string,
+) (bool, error) {
+	return profileID != "" && s.creations[extension+"\x00"+name] == profileID, nil
 }
 
 func (s *declaredProfileManagerStub) GetByName(_ context.Context, name string) (profilepkg.Profile, error) {

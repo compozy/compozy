@@ -6,9 +6,9 @@ persona: Dora
 journey: J-operate-profiles
 expected: Archiving a profile against a concurrent claim, trigger, or spawn never produces work for an archived owner or half-applies. Queued runs freeze with the profile and become claimable again on unarchive without duplication. A pending lifecycle operation reserves old and new names and derived paths, so competing create or rename fails profile_name_taken without moving another profile. Extension mutation respects the same lifecycle gate.
 entry_points: compozy profile archive|unarchive|create|rename; HTTP/UDS profile lifecycle routes; concurrent automation trigger, task claim, session spawn, extension install
-qa_status: fail
+qa_status: untested
 bug_ids: BUG-20261003-approval-cli-profile-owner; BUG-20261004-extension-profile-creator-attribution
-fix_status: pending
+fix_status: fixed
 retest_status: pending
 fix_commits: e9e4a46a6
 evidence: docs/qa/evidence/2026-10-02-untested/approval-owner-replay-ended.json
@@ -35,3 +35,8 @@ An overlapping extension install and operator create also preserve one operator-
 but extension detail falsely claims created_by_extension=true. The attribution bug owns that
 repair; claim/trigger/spawn, delivery and remaining reservation legs are still pending. Evidence:
 profile-race-namespace-*.json and profile-race-extension-replay-*.json in this cycle's report.
+
+QA 2026-10-04 repair replay: extension-created, operator-bound, legacy-unknown and manually
+recreated profile identities now retain correct public attribution across a normal restart.
+The affected delivery gate passes. BUG-20261004-extension-profile-creator-attribution is verified;
+the remaining independent concurrency legs keep the full scenario untested.
