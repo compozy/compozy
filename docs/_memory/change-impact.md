@@ -4,6 +4,15 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Attention policy after workspace deletion:** Channel-only Web writes omit the optional
+  profile mute replacement, preserving the server's current list. The canonical policy query
+  rereads after workspace-catalog removal; it never filters or rewrites daemon-owned mute rows.
+  SQLite replacement retains its transaction and rollback while reporting the existing typed
+  missing-workspace error, consumed by the shared HTTP/UDS 404 mapping. CLI/native config controls,
+  route/DTO/tool IDs, hooks, config keys, storage shape and profile/workspace ownership are unchanged.
+  Official configuration guidance and MS-attention-settings-roundtrip co-ship. The existing Web
+  page and SQLite repository suites own their separate write/reconciliation and atomic-error
+  invariants; the same public scenario owns the real replay.
 - **Task session and start-response ownership:** Dedicated and automatic task workers carry
   the task's stable profile into session admission, and role reuse refuses a different profile.
   Nominal run transitions and task execution retries retain inherited profile identity; shared

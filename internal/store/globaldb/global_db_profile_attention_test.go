@@ -79,8 +79,8 @@ func TestAttentionWorkspaceMutes(t *testing.T) {
 			store.DefaultProfileID,
 			[]string{"ws_abcdef0123456789", "ws_1111111111111111"},
 		)
-		if err == nil {
-			t.Fatal("ReplaceAttentionWorkspaceMutes(unknown) error = nil")
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			t.Fatalf("ReplaceAttentionWorkspaceMutes(unknown) error = %v, want ErrWorkspaceNotFound", err)
 		}
 		mutes, listErr := db.ListAttentionWorkspaceMutes(ctx, store.DefaultProfileID)
 		if listErr != nil {

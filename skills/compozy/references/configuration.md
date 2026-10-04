@@ -331,8 +331,16 @@ profile's mute set with `GET/PATCH /api/settings/attention?scope=user`; use
 event, but its attention rows and counts remain unchanged. Workspace removal deletes every profile's
 mute row through the workspace foreign key.
 
-Use `compozy config get|set attention.toasts|sound|system` for global delivery controls, or the typed
-Settings route above for the complete view. The title count is always on and is not a config key.
+Omit `config.muted_workspaces` when changing only delivery channels; this preserves the selected
+profile's current mute set. An explicit array replaces that set, and an empty array clears it.
+A replacement referencing a removed or unknown workspace is refused with 404 and preserves the
+previous complete policy. The open Web policy rereads after the workspace catalog observes deletion.
+
+Use `compozy config get attention.toasts|sound|system --profile default` to read global delivery
+controls and `compozy config set attention.toasts|sound|system <value> --scope user` to change them.
+An omitted write scope selects the active owner, which can be a profile overlay rather than the
+global policy. The typed Settings route above provides the complete view. The title count is always
+on and is not a config key.
 
 ## Terminal
 

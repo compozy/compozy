@@ -70,18 +70,23 @@ export function useSettingsAttentionPage(): SettingsAttentionPageModel {
       }
     : (query.data?.config ?? null);
   const isSaving = mutation.isPending || requestingSystemPermission;
+  const channels = config && {
+    toasts: config.toasts,
+    sound: config.sound,
+    system: config.system,
+  };
 
-  const apply = (next: AttentionConfig) => {
+  const apply = (next: SettingsUpdateAttentionRequest["config"]) => {
     if (isSaving) return;
     const body: SettingsUpdateAttentionRequest = { config: next };
     mutation.mutate({ body, filter });
   };
 
   const setSystem = (enabled: boolean) => {
-    if (config === null || isSaving) return;
+    if (channels === null || isSaving) return;
     if (!enabled) {
       setSystemState(systemNotificationState());
-      apply({ ...config, system: false });
+      apply({ ...channels, system: false });
       return;
     }
     if (permissionRequestRef.current) return;
@@ -92,7 +97,7 @@ export function useSettingsAttentionPage(): SettingsAttentionPageModel {
         setSystemState(state);
         // A refused permission leaves the setting off; the chip explains why.
         if (state === "granted") {
-          mutation.mutate({ body: { config: { ...config, system: true } }, filter });
+          mutation.mutate({ body: { config: { ...channels, system: true } }, filter });
         }
       })
       .finally(() => {
@@ -114,8 +119,8 @@ export function useSettingsAttentionPage(): SettingsAttentionPageModel {
           ? mutation.error.message
           : null,
     restart: page.restart,
-    setToasts: enabled => config && apply({ ...config, toasts: enabled }),
-    setSound: enabled => config && apply({ ...config, sound: enabled }),
+    setToasts: enabled => channels && apply({ ...channels, toasts: enabled }),
+    setSound: enabled => channels && apply({ ...channels, sound: enabled }),
     setSystem,
     muteWorkspace: workspaceId =>
       config &&

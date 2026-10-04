@@ -55,3 +55,28 @@ retaining another mute. The open Web page retains the deleted workspace ID until
 separate observed defect is linked above. All original settings are restored and both owned
 workspace registrations removed. Two-tab writes and actual delivery remain Pending. Evidence:
 docs/qa/evidence/2026-10-02-untested/attention-mutes-dora-ended.json.
+
+A fresh deletion walk confirms a channel write from the stale page fails with HTTP 500 and a
+visible Internal Server Error; independent UDS proves the prior complete policy survived.
+The repair separates channel writes from optional mute replacement, rereads the canonical policy
+after catalog removal, and classifies unknown workspace replacements through the existing 404
+boundary. Owning red/green checks pass; real replay and delivery verification remain pending.
+Evidence: attention-delete-dora-ended.json and attention-deletion-{web,store}-green.json.
+
+The rebuilt original-persona deletion replay now passes: the open page prunes only the removed
+mute in 3.817 seconds; a channel change from a still-stale page returns 200 without replacing
+mutes; explicit missing-workspace replacements return 404 over HTTP and UDS with full rollback.
+Refresh and independent reads preserve the remaining mute and saved sound value. Baseline values
+and empty lists are restored and all owned registrations removed. Six screenshots are inspected
+and the 14-frame recording is closed. Evidence: attention-repair-dora-ended.json. Gate/commit,
+two-tab complete writes and actual channel delivery remain pending; the full row is not promoted.
+
+Further walks prove sequential two-tab complete candidates survive independent reads and reload,
+and actual Chrome denied/granted permissions display Blocked/Allowed truthfully. A denied toggle
+does not write; global system intent saved through HTTP and UDS agrees with the other surfaces,
+while the blocked browser does not claim delivery. The original Ask (default) permission, global
+true/true/false and empty mutes are restored. A real session also produces a guide and a visible
+completion toast; custom notification acknowledgement alone is not claimed as visual delivery.
+Evidence: attention-tabs-dora-ended.json, attention-delivery-dora-ended.json, and
+attention-permission-dora-ended.json. No simultaneous writer, unsupported platform, channel/mute
+suppression or actual OS notification delivery is claimed. The full charter remains pending.
