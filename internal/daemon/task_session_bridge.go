@@ -123,6 +123,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
+		ProfileID: spec.Task.ProfileID,
 		AgentName: taskSessionAgentName(spec.Task),
 		Provider:  "",
 		Name:      taskSessionName(spec),

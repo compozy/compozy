@@ -80,7 +80,13 @@ describe("useTaskRunResult", () => {
 
     act(() => result.current.onOpenChange(true));
     await waitFor(() => expect(result.current.page?.offset).toBe(0));
-    expect(readTaskRunResult).toHaveBeenCalledWith(RUN_ID, 0, PAGE_BYTES, expect.any(AbortSignal));
+    expect(readTaskRunResult).toHaveBeenCalledWith(
+      RUN_ID,
+      0,
+      PAGE_BYTES,
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
 
     await act(async () => result.current.onCopy());
 
@@ -90,6 +96,7 @@ describe("useTaskRunResult", () => {
       RUN_ID,
       PAGE_BYTES,
       PAGE_BYTES,
+      { profile: "default" },
       expect.any(AbortSignal)
     );
   });

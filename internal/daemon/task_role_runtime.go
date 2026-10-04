@@ -69,6 +69,7 @@ type taskRoleRuntime struct {
 type taskRoleActivation struct {
 	TaskID        string
 	RunID         string
+	ProfileID     string
 	Scope         taskpkg.Scope
 	WorkspaceID   string
 	WorkspacePath string
@@ -289,6 +290,7 @@ func (r *taskRoleRuntime) activationForRun(
 	activation := taskRoleActivation{
 		TaskID:      strings.TrimSpace(taskRecord.ID),
 		RunID:       strings.TrimSpace(run.ID),
+		ProfileID:   strings.TrimSpace(taskRecord.ProfileID),
 		Scope:       taskRecord.Scope.Normalize(),
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		AgentName:   agentName,

@@ -89,6 +89,7 @@ func (m *Service) executeTaskBoundary(
 	if err := m.store.WithTaskExecutionTransaction(ctx, command); err != nil {
 		return nil, err
 	}
+	result.execution.Run.ProfileID = result.execution.Task.ProfileID
 	m.publishTaskEventsAfterCommand(ctx, result.events)
 	if result.enqueued {
 		m.dispatchTaskRunEnqueued(

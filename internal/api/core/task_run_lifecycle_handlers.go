@@ -170,7 +170,12 @@ func (h *BaseHandlers) StartTaskRun(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
+	payloads := []contract.TaskRunPayload{TaskRunPayloadFromRun(run)}
+	if err := h.decorateTaskRunOwners(c.Request.Context(), payloads); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: payloads[0]})
 }
 
 // AttachTaskRunSession binds one existing session to a run.

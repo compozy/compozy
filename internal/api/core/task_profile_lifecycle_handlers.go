@@ -183,7 +183,12 @@ func (h *BaseHandlers) PublishTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TaskExecutionResponseFromExecution(execution))
+	payload := TaskExecutionResponseFromExecution(execution)
+	if err := h.decorateTaskExecutionOwners(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, payload)
 }
 
 // StartTask explicitly enqueues one executable run for an existing task.
@@ -227,7 +232,12 @@ func (h *BaseHandlers) StartTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, TaskExecutionResponseFromExecution(execution))
+	payload := TaskExecutionResponseFromExecution(execution)
+	if err := h.decorateTaskExecutionOwners(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusCreated, payload)
 }
 
 // CancelTask requests cancellation for one task tree.

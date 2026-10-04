@@ -4,6 +4,28 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Task session and start-response ownership:** Dedicated and automatic task workers carry
+  the task's stable profile into session admission, and role reuse refuses a different profile.
+  Nominal run transitions and task execution retries retain inherited profile identity; shared
+  start/publish/approve handlers decorate the existing task/run fields. Task and run inspection
+  label their existing task summary through the same owner map. CLI, HTTP/UDS, Web and
+  hosted agent start consume that identity without changing routes, DTOs, tool IDs, hooks,
+  extension methods, configuration, workspace placement or stored schema. Existing sessions are
+  preserved; no history is reassigned. The official task guidance and TA-048 own public replay;
+  daemon bridge/role, task service and handler suites own their separate boundary invariants.
+- **Scheduler and run-page reads:** Active Dashboard scheduler status/backlog queries refresh at
+  the existing dashboard cadence and stop while its window is inactive. The scheduler remains
+  daemon-wide. Task/run detail, inspection, history, review lists, result pages and streams carry
+  the current profile read scope; route preloads share the same scoped cache identities.
+  Application entry hydrates the workspace lens and resolves its remembered profile before
+  parallel loaders and shell consumers start; an explicit local view retains precedence.
+  A failed identity read reaches the existing route retry boundary without default-profile work.
+  Missing OpenAPI selectors are restored from the existing task actor contract, including
+  single-profile writes and explicit aggregate reads; generated JSON/TypeScript co-ship.
+  This is additive public documentation of accepted parameters, with no renamed surface,
+  storage migration, config/hook change or native-tool ID change. Workspace authorization
+  remains server-owned. Official task guidance and TA-048 record the visible behavior;
+  handler, public-schema, query-controller, adapter and route suites own their distinct invariants.
 - **Attached command client lifetime:** HTTP/UDS and CLI client discovery, plus native
   command invocation targeting, use the WindowManager's active command channels. Closed tabs no
   longer cause multiple_clients or remain targetable. Registered presentation/context and attachment

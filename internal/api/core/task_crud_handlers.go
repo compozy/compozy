@@ -361,62 +361,6 @@ func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View
 	return payload, nil
 }
 
-// InspectTask returns a diagnostic snapshot for one task.
-func (h *BaseHandlers) InspectTask(c *gin.Context) {
-	manager, ok := h.requireTaskManager(c)
-	if !ok {
-		return
-	}
-
-	taskID, err := requiredPathID(c.Param("id"), "task id")
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	actor, err := h.taskActorContext(c, taskActionInspect)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	view, err := manager.InspectTask(c.Request.Context(), taskID, actor)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskInspectResponse{Inspect: TaskInspectPayloadFromView(view)})
-}
-
-// InspectRun returns a diagnostic snapshot rooted at one run.
-func (h *BaseHandlers) InspectRun(c *gin.Context) {
-	manager, ok := h.requireTaskManager(c)
-	if !ok {
-		return
-	}
-
-	runID, err := requiredPathID(c.Param("id"), "run id")
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	actor, err := h.taskActorContext(c, taskActionInspect)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	view, err := manager.InspectRun(c.Request.Context(), runID, actor)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskInspectResponse{Inspect: TaskInspectPayloadFromView(view)})
-}
-
 // DeleteTask removes one task record and any cascade-owned child rows.
 func (h *BaseHandlers) DeleteTask(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)

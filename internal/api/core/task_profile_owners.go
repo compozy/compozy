@@ -95,6 +95,18 @@ func (h *BaseHandlers) decorateTaskOwner(ctx context.Context, payload *contract.
 	return setTaskPayloadProfileOwner(owners, payload, h == nil || h.Profiles == nil)
 }
 
+func (h *BaseHandlers) decorateTaskExecutionOwners(ctx context.Context, payload *contract.TaskExecutionResponse) error {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return err
+	}
+	useDefaultID := h == nil || h.Profiles == nil
+	if err := setTaskPayloadProfileOwner(owners, &payload.Task, useDefaultID); err != nil {
+		return err
+	}
+	return setTaskRunProfileOwner(owners, &payload.Run, useDefaultID)
+}
+
 func (h *BaseHandlers) decorateTaskDetailOwners(ctx context.Context, payload *contract.TaskDetailPayload) error {
 	if payload == nil {
 		return nil

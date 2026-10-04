@@ -91,6 +91,8 @@ export async function listTaskRunReviews(
     params: {
       path: { id: runId },
       query: {
+        profile: filters.profile,
+        all_profiles: filters.all_profiles,
         status: filters.status,
         reviewer_session_id: normalizeOptionalText(filters.reviewer_session_id),
         limit: filters.limit,
@@ -118,6 +120,8 @@ export async function listTaskReviews(
     params: {
       path: { id: taskId },
       query: {
+        profile: filters.profile,
+        all_profiles: filters.all_profiles,
         status: filters.status,
         reviewer_session_id: normalizeOptionalText(filters.reviewer_session_id),
         limit: filters.limit,

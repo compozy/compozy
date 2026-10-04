@@ -47,6 +47,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent")
+		taskRecord.ProfileID = "profile-editorial"
 		run := taskRoleRuntimeRun("run-frontend", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -61,6 +62,9 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			t.Fatalf("create count = %d, want %d", got, want)
 		}
 		call := sessions.createCall(0)
+		if got, want := call.ProfileID, taskRecord.ProfileID; got != want {
+			t.Fatalf("CreateOpts.ProfileID = %q, want task owner %q", got, want)
+		}
 		if !strings.Contains(call.Name, run.ID) {
 			t.Fatalf("CreateOpts.Name = %q, want owning run identity %q", call.Name, run.ID)
 		}
@@ -327,6 +331,26 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a role session from another profile", func(t *testing.T) {
+		t.Parallel()
+		activation := taskRoleActivation{
+			TaskID: "task-editorial", RunID: "run-editorial", ProfileID: "profile-editorial",
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-editorial", AgentName: "writer",
+		}
+		info := &session.Info{
+			ID: "sess-old-role", ProfileID: store.DefaultProfileID, State: session.StateActive,
+			AgentName: activation.AgentName, WorkspaceID: activation.WorkspaceID,
+			Name: taskRoleSessionName(activation),
+		}
+		if taskRoleSessionMatches(info, activation) {
+			t.Fatal("foreign profile role session matched the task owner")
+		}
+		info.ProfileID = activation.ProfileID
+		if !taskRoleSessionMatches(info, activation) {
+			t.Fatal("matching owner role session was not reusable")
+		}
+	})
+
 	t.Run("Should fingerprint worktree placement and structurally reject per-run reuse", func(t *testing.T) {
 		t.Parallel()
 
@@ -480,6 +504,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent")
+		taskRecord.ProfileID = "profile-editorial"
 		run := taskRoleRuntimeRun("run-starved", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -497,6 +522,9 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			t.Fatalf("create count = %d, want %d", got, want)
 		}
 		call := sessions.createCall(0)
+		if got, want := call.ProfileID, taskRecord.ProfileID; got != want {
+			t.Fatalf("CreateOpts.ProfileID = %q, want task owner %q", got, want)
+		}
 		if got, want := call.AgentName, "frontend-engineer-agent"; got != want {
 			t.Fatalf("CreateOpts.AgentName = %q, want %q", got, want)
 		}
@@ -1075,6 +1103,7 @@ func (s *taskRoleRuntimeSessions) Create(_ context.Context, opts session.CreateO
 	id := fmt.Sprintf("role-%d", len(s.createCalls))
 	info := &session.Info{
 		ID:          id,
+		ProfileID:   opts.ProfileID,
 		Name:        opts.Name,
 		AgentName:   opts.AgentName,
 		Provider:    opts.Provider,
@@ -1088,6 +1117,7 @@ func (s *taskRoleRuntimeSessions) Create(_ context.Context, opts session.CreateO
 	s.infos = append(s.infos, info)
 	return &session.Session{
 		ID:          info.ID,
+		ProfileID:   info.ProfileID,
 		Name:        info.Name,
 		AgentName:   info.AgentName,
 		Provider:    info.Provider,

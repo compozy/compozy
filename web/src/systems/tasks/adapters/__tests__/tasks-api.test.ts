@@ -291,16 +291,18 @@ describe("inspectTask", () => {
   it("fetches task inspect snapshots by id", async () => {
     mockJsonResponse({ inspect: inspectFixture });
 
-    const result = await inspectTask("task_001");
+    const result = await inspectTask("task_001", { profile: "marketing" });
 
     expect(result).toEqual(inspectFixture);
-    await expectFetchRequest({ path: "/api/tasks/task_001/inspect" });
+    await expectFetchRequest({ path: "/api/tasks/task_001/inspect?profile=marketing" });
   });
 
   it("throws not-found for missing task inspect targets", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(inspectTask("missing")).rejects.toThrow("Task not found: missing");
+    await expect(inspectTask("missing", { profile: "marketing" })).rejects.toThrow(
+      "Task not found: missing"
+    );
   });
 });
 
@@ -516,19 +518,20 @@ describe("task runs", () => {
   it("fetches task tree", async () => {
     mockJsonResponse({ tree: treeFixture });
 
-    const result = await getTaskTree("task_001");
+    const result = await getTaskTree("task_001", { profile: "marketing" });
 
     expect(result).toEqual(treeFixture);
-    await expectFetchRequest({ path: "/api/tasks/task_001/tree" });
+    await expectFetchRequest({ path: "/api/tasks/task_001/tree?profile=marketing" });
   });
 
-  it("fetches task-run detail", async () => {
+  it.each([
+    { scope: { profile: "marketing" } as const, query: "profile=marketing" },
+    { scope: { all_profiles: true } as const, query: "all_profiles=true" },
+  ])("fetches task-run detail with $query", async ({ scope, query }) => {
     mockJsonResponse({ run: runDetailFixture });
-
-    const result = await getTaskRun("run_001");
-
+    const result = await getTaskRun("run_001", scope);
     expect(result).toEqual(runDetailFixture);
-    await expectFetchRequest({ path: "/api/task-runs/run_001" });
+    await expectFetchRequest({ path: `/api/task-runs/run_001?${query}` });
   });
 
   it("Should fetch an exact task-run result byte page", async () => {
@@ -543,17 +546,21 @@ describe("task runs", () => {
     };
     mockJsonResponse(page);
 
-    await expect(readTaskRunResult("run_001", 16_384, 4)).resolves.toEqual(page);
-    await expectFetchRequest({ path: "/api/task-runs/run_001/result?offset=16384&limit=4" });
+    await expect(
+      readTaskRunResult("run_001", 16_384, 4, { profile: "marketing" })
+    ).resolves.toEqual(page);
+    await expectFetchRequest({
+      path: "/api/task-runs/run_001/result?offset=16384&limit=4&profile=marketing",
+    });
   });
 
   it("fetches run inspect snapshots", async () => {
     mockJsonResponse({ inspect: { ...inspectFixture, target: "run" } });
 
-    const result = await inspectRun("run_001");
+    const result = await inspectRun("run_001", { profile: "marketing" });
 
     expect(result.target).toBe("run");
-    await expectFetchRequest({ path: "/api/runs/run_001/inspect" });
+    await expectFetchRequest({ path: "/api/runs/run_001/inspect?profile=marketing" });
   });
 
   it("runs lifecycle commands against /api/task-runs/{id}/*", async () => {

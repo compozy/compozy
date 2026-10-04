@@ -4749,11 +4749,11 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 		execute func(*Service, context.Context, string, ExecutionRequest, ActorContext) (*Execution, error)
 	}{
 		{
-			name: "start",
+			name: "Should retain start ownership on an idempotent retry",
 			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
 				t.Helper()
-				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-					ProfileID: storepkg.DefaultProfileID,
+				taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
+					ProfileID: "profile-editorial",
 					Scope:     ScopeGlobal,
 					Title:     "Start boundary",
 				}, actor)
@@ -4765,11 +4765,11 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 			execute: (*Service).StartTask,
 		},
 		{
-			name: "publish",
+			name: "Should retain publish ownership on an idempotent retry",
 			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
 				t.Helper()
-				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-					ProfileID: storepkg.DefaultProfileID,
+				taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
+					ProfileID: "profile-editorial",
 					Scope:     ScopeGlobal,
 					Title:     "Publish boundary",
 					Draft:     true,
@@ -4782,11 +4782,11 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 			execute: (*Service).PublishTask,
 		},
 		{
-			name: "approval",
+			name: "Should retain approval ownership on an idempotent retry",
 			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
 				t.Helper()
-				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-					ProfileID:      storepkg.DefaultProfileID,
+				taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
+					ProfileID:      "profile-editorial",
 					Scope:          ScopeGlobal,
 					Title:          "Approval boundary",
 					ApprovalPolicy: ApprovalPolicyManual,
@@ -4811,9 +4811,9 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 
 			first, err := tc.execute(
 				manager,
-				context.Background(),
+				t.Context(),
 				taskID,
-				ExecutionRequest{},
+				ExecutionRequest{IdempotencyKey: "same-start-request"},
 				actor,
 			)
 			if err != nil {
@@ -4821,13 +4821,18 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 			}
 			second, err := tc.execute(
 				manager,
-				context.Background(),
+				t.Context(),
 				taskID,
-				ExecutionRequest{},
+				ExecutionRequest{IdempotencyKey: "same-start-request"},
 				actor,
 			)
 			if err != nil {
 				t.Fatalf("%s second execution error = %v", tc.name, err)
+			}
+			for _, execution := range []*Execution{first, second} {
+				if execution.Run.ProfileID != "profile-editorial" {
+					t.Fatalf("execution run owner = %q, want editorial", execution.Run.ProfileID)
+				}
 			}
 			if !second.ExistingRun {
 				t.Fatalf("%s second execution ExistingRun = false, want true", tc.name)
@@ -4836,7 +4841,7 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 				t.Fatalf("%s second run = %q, want %q", tc.name, got, want)
 			}
 
-			runs, err := store.ListTaskRuns(context.Background(), RunQuery{TaskID: taskID})
+			runs, err := store.ListTaskRuns(t.Context(), RunQuery{TaskID: taskID})
 			if err != nil {
 				t.Fatalf("ListTaskRuns() error = %v", err)
 			}
@@ -11619,7 +11624,7 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				ProfileID: storepkg.DefaultProfileID,
+				ProfileID: "profile-editorial",
 				Scope:     ScopeGlobal,
 				Title:     "Profiled start run",
 			}, actor)
@@ -11655,8 +11660,12 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 				t.Fatalf("ClaimNextRun() error = %v", err)
 			}
 
-			if _, err := manager.StartRun(context.Background(), run.ID, StartRun{}, actor); err != nil {
+			started, err := manager.StartRun(t.Context(), run.ID, StartRun{}, actor)
+			if err != nil {
 				t.Fatalf("StartRun() error = %v", err)
+			}
+			if started.ProfileID != taskRecord.ProfileID {
+				t.Fatalf("started.ProfileID = %q, want task owner %q", started.ProfileID, taskRecord.ProfileID)
 			}
 			if got, want := len(executor.startCalls), 1; got != want {
 				t.Fatalf("len(startCalls) = %d, want %d", got, want)

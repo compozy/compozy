@@ -155,7 +155,7 @@ describe("review hooks", () => {
 
     expect(listTaskRunReviews).toHaveBeenCalledWith(
       "run_001",
-      { status: "in_review" },
+      { status: "in_review", profile: "default" },
       expect.any(AbortSignal)
     );
   });
@@ -188,7 +188,11 @@ describe("review hooks", () => {
       expect(reviewDetail.result.current.data?.review_id).toBe("review_001");
     });
 
-    expect(listTaskReviews).toHaveBeenCalledWith("task_001", {}, expect.any(AbortSignal));
+    expect(listTaskReviews).toHaveBeenCalledWith(
+      "task_001",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
     expect(getTaskRunReview).toHaveBeenCalledWith("review_001", expect.any(AbortSignal));
   });
 

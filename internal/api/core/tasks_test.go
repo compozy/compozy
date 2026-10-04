@@ -1168,7 +1168,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 	})
 }
 
-func TestBaseHandlersTaskUpdateOwner(t *testing.T) {
+func TestBaseHandlersTaskMutationOwners(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve the selected task owner in an update response", func(t *testing.T) {
 		t.Parallel()
@@ -1207,6 +1207,104 @@ func TestBaseHandlersTaskUpdateOwner(t *testing.T) {
 			t.Fatalf("updated task = %#v, want requested title and marketing owner", payload.Task)
 		}
 	})
+	for _, tc := range []struct {
+		name       string
+		path       string
+		wantStatus int
+		withTask   bool
+	}{
+		{"Should preserve owners when starting a task", "/tasks/task-marketing/start", http.StatusCreated, true},
+		{"Should preserve owners when publishing a task", "/tasks/task-marketing/publish", http.StatusOK, true},
+		{"Should preserve owners when approving a task", "/tasks/task-marketing/approve", http.StatusCreated, true},
+		{"Should preserve the owner when starting a run", "/task-runs/run-marketing/start", http.StatusOK, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			run := taskpkg.Run{
+				ID: "run-marketing", TaskID: "task-marketing", ProfileID: "profile-marketing",
+				Status: taskpkg.TaskRunStatusQueued,
+			}
+			if !tc.withTask {
+				run.Status = taskpkg.TaskRunStatusRunning
+			}
+			startTask := func(_ context.Context, id string, _ taskpkg.ExecutionRequest, actor taskpkg.ActorContext) (*taskpkg.Execution, error) {
+				if actor.ReadScope.ProfileID != run.ProfileID {
+					t.Fatalf("execution profile = %q, want marketing", actor.ReadScope.ProfileID)
+				}
+				return &taskpkg.Execution{Task: taskpkg.Task{ID: id, ProfileID: run.ProfileID}, Run: run}, nil
+			}
+			tasks := &testutil.StubTaskManager{
+				StartTaskFn:   startTask,
+				PublishTaskFn: startTask,
+				ApproveTaskFn: startTask,
+				StartRunFn: func(_ context.Context, id string, _ taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
+					if id != run.ID || actor.ReadScope.ProfileID != run.ProfileID {
+						t.Fatalf("start run = %q, profile = %q, want marketing run", id, actor.ReadScope.ProfileID)
+					}
+					return &run, nil
+				},
+			}
+			fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+				tasks, testutil.StubWorkspaceService{}, nil, nil)
+			fixture.Handlers.Profiles = sessionProfileServiceStub{}
+			response := performRequest(t, fixture.Engine, http.MethodPost, tc.path+"?profile=marketing", []byte(`{}`))
+			if response.Code != tc.wantStatus {
+				t.Fatalf("status = %d, body = %s, want %d", response.Code, response.Body, tc.wantStatus)
+			}
+			var payload contract.TaskExecutionResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if payload.Run.ProfileID != run.ProfileID || payload.Run.ProfileName != "marketing" ||
+				payload.Run.ProfileColor != "#E8572A" || payload.Run.ProfileIcon != "megaphone" {
+				t.Fatalf("run owner = %#v, want marketing identity", payload.Run)
+			}
+			if tc.withTask && (payload.Task.ProfileID != run.ProfileID || payload.Task.ProfileName != "marketing" ||
+				payload.Task.ProfileColor != "#E8572A" || payload.Task.ProfileIcon != "megaphone") {
+				t.Fatalf("task owner = %#v, want marketing identity", payload.Task)
+			}
+		})
+	}
+}
+
+func TestBaseHandlersTaskInspectOwners(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{"Should label the owner in task inspection", "/tasks/task-marketing/inspect"},
+		{"Should label the owner in run inspection", "/runs/run-marketing/inspect"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			inspect := func(_ context.Context, _ string, actor taskpkg.ActorContext) (*taskpkg.InspectView, error) {
+				if actor.ReadScope.ProfileID != "profile-marketing" {
+					t.Fatalf("inspect profile = %q, want marketing", actor.ReadScope.ProfileID)
+				}
+				return &taskpkg.InspectView{
+					Target: taskpkg.InspectTargetTask,
+					Task: taskpkg.Summary{
+						ID: "task-marketing", ProfileID: "profile-marketing", Title: "Publication plan",
+						Status: taskpkg.TaskStatusReady,
+					},
+				}, nil
+			}
+			fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+				&testutil.StubTaskManager{InspectTaskFn: inspect, InspectRunFn: inspect},
+				testutil.StubWorkspaceService{}, nil, nil)
+			fixture.Handlers.Profiles = sessionProfileServiceStub{}
+			response := performRequest(t, fixture.Engine, http.MethodGet, tc.path+"?profile=marketing", nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("inspect status = %d, body = %s, want success", response.Code, response.Body)
+			}
+			var payload contract.TaskInspectResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			owner := payload.Inspect.Task
+			if owner.ProfileID != "profile-marketing" || owner.ProfileName != "marketing" ||
+				owner.ProfileColor != "#E8572A" || owner.ProfileIcon != "megaphone" {
+				t.Fatalf("inspected owner = %#v, want marketing identity", owner)
+			}
+		})
+	}
 }
 
 func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {

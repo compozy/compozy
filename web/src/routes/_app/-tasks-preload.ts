@@ -77,7 +77,7 @@ export async function preloadTaskDetailRoute(queryClient: QueryClient, id: strin
   const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   await settleRouteQueries([
     queryClient.ensureQueryData(taskDetailOptions(id, profileScope)).catch(() => null),
-    queryClient.ensureQueryData(taskRunsOptions(id)),
+    queryClient.ensureQueryData(taskRunsOptions(id, profileScope)),
   ]);
 }
 
@@ -88,8 +88,9 @@ export async function preloadTaskRunRoute(
   runId: string
 ): Promise<void> {
   if (!runId) return;
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   await settleRouteQueries([
-    queryClient.ensureQueryData(taskRunDetailOptions(runId)).catch(() => null),
+    queryClient.ensureQueryData(taskRunDetailOptions(runId, profileScope)).catch(() => null),
     preloadTaskDetailRoute(queryClient, taskId),
   ]);
 }

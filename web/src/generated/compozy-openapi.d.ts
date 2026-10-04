@@ -45791,7 +45791,10 @@ export interface operations {
   };
   bulkForceFailTaskRuns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -46067,7 +46070,10 @@ export interface operations {
   };
   bulkForceReleaseTaskRuns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -46343,7 +46349,10 @@ export interface operations {
   };
   forceFailTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -46655,7 +46664,12 @@ export interface operations {
   };
   inspectRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -47101,7 +47115,10 @@ export interface operations {
   };
   recoverTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -47483,7 +47500,10 @@ export interface operations {
   };
   forceReleaseTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -47795,7 +47815,10 @@ export interface operations {
   };
   retryTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -64943,7 +64966,12 @@ export interface operations {
   };
   getTaskRunReview: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Review id */
@@ -65117,7 +65145,10 @@ export interface operations {
   };
   submitTaskRunReviewVerdict: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Review id */
@@ -65440,7 +65471,12 @@ export interface operations {
   };
   getTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -65725,7 +65761,10 @@ export interface operations {
   };
   attachTaskRunSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -65976,7 +66015,10 @@ export interface operations {
   };
   cancelTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -66228,7 +66270,10 @@ export interface operations {
   };
   completeTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -66480,7 +66525,10 @@ export interface operations {
   };
   failTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -66737,6 +66785,10 @@ export interface operations {
         offset?: number;
         /** @description Page size in bytes; defaults to and is capped at 65536 */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -66930,6 +66982,10 @@ export interface operations {
         reviewer_session_id?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -67134,7 +67190,10 @@ export interface operations {
   };
   requestTaskRunReview: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -67456,7 +67515,10 @@ export interface operations {
   };
   startTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -69635,7 +69697,10 @@ export interface operations {
   };
   approveTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -70625,7 +70690,10 @@ export interface operations {
   };
   cancelTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -70910,7 +70978,10 @@ export interface operations {
   };
   createChildTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Parent task id */
@@ -71244,7 +71315,10 @@ export interface operations {
   };
   addTaskDependency: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -72049,7 +72123,10 @@ export interface operations {
   };
   removeTaskDependency: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -74192,7 +74269,10 @@ export interface operations {
   };
   pauseTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -74537,7 +74617,10 @@ export interface operations {
   };
   publishTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -75179,7 +75262,10 @@ export interface operations {
   };
   rejectTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -75456,7 +75542,10 @@ export interface operations {
   };
   resumeTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76030,6 +76119,10 @@ export interface operations {
         session_id?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -76244,7 +76337,10 @@ export interface operations {
   };
   enqueueTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76496,7 +76592,10 @@ export interface operations {
   };
   fanOutTaskRuns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76754,7 +76853,10 @@ export interface operations {
   };
   startTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -77112,6 +77214,10 @@ export interface operations {
       query?: {
         /** @description Replay events after the supplied task stream sequence */
         after_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -77371,6 +77477,10 @@ export interface operations {
         after_sequence?: number;
         /** @description Maximum number of timeline items to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -77622,7 +77732,12 @@ export interface operations {
   };
   getTaskTree: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -77940,7 +78055,10 @@ export interface operations {
   };
   archiveTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -78099,7 +78217,10 @@ export interface operations {
   };
   dismissTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -78258,7 +78379,10 @@ export interface operations {
   };
   markTaskRead: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */

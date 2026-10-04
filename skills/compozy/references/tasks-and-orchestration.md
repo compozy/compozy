@@ -46,7 +46,10 @@ release, forced failure, retry, and review request/submit,
 including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
 a foreign profile receives not found, just as it does for the detail read.
 
-Task update responses retain the owner's profile identity. Scheduler backlog JSON labels both
+Task inspection, update, start, publish and approval responses retain the owner's profile identity, including
+the returned run. Run start preserves that identity too. Dedicated and automatically activated
+task sessions belong to the task's profile; inspect them with that same profile selection.
+Scheduler backlog JSON labels both
 the task and run with the same profile ID, name, color and icon, including queued work frozen by
 an archived profile. Use `scheduler backlog --include-paused` to inspect that frozen work.
 
@@ -125,6 +128,12 @@ A parent task stays nonterminal while any direct child is not completed. The suc
 `compozy scheduler status -o json` reports pause state, active claims, queued runs, and paused-task pressure. `compozy scheduler pause --reason <reason>` stops new dispatch while active claims continue. `compozy scheduler resume` reopens dispatch.
 
 `compozy scheduler drain` pauses dispatch and waits for active claims to finish. Its default timeout is `60s`; `--timeout` accepts whole-second durations from `0s` through `9223372036s`, and `0s` returns immediately after pausing. `compozy scheduler backlog --last 50 -o json` lists queued runs visible to dispatch; `--include-paused` includes runs blocked by task pause.
+
+Scheduler controls are daemon-wide. The active Web Dashboard refreshes externally changed pause
+state and backlog automatically. Run detail, inspection, history and result reads retain the selected
+profile; the explicit all-profiles view remains a separate read scope.
+Opening or reloading the Web app restores the remembered profile before reading work. A failure
+to recover that selection uses the route's Retry action rather than querying the default profile.
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
 

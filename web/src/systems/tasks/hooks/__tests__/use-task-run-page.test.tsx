@@ -31,6 +31,7 @@ import {
 } from "@/systems/tasks/adapters/tasks-api";
 
 import { useTaskRunPage } from "../use-task-run-page";
+import { readProfileLens, resetProfileViews, setProfileView } from "@/systems/profiles";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -59,16 +60,71 @@ const taskDetailFixture = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetProfileViews();
   vi.mocked(getTaskRun).mockResolvedValue(runDetailFixture as never);
   vi.mocked(getTask).mockResolvedValue(taskDetailFixture as never);
   vi.mocked(listTaskRunReviews).mockResolvedValue([] as never);
 });
 
 afterEach(() => {
+  act(() => resetProfileViews());
   vi.restoreAllMocks();
 });
 
 describe("useTaskRunPage", () => {
+  it("Should scope every run-page read and isolate cached results after a profile switch", async () => {
+    const lens = readProfileLens();
+    setProfileView(lens, { kind: "profile", profile: "marketing" });
+    const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.run?.run.id).toBe("run_001"));
+    expect(getTaskRun).toHaveBeenLastCalledWith(
+      "run_001",
+      { profile: "marketing" },
+      expect.any(AbortSignal)
+    );
+    expect(inspectRun).toHaveBeenLastCalledWith(
+      "run_001",
+      { profile: "marketing" },
+      expect.any(AbortSignal)
+    );
+    expect(listTaskRunReviews).toHaveBeenLastCalledWith(
+      "run_001",
+      { profile: "marketing" },
+      expect.any(AbortSignal)
+    );
+
+    vi.mocked(getTaskRun).mockRejectedValue(new Error("Task run not found: run_001"));
+    act(() => setProfileView(lens, { kind: "profile", profile: "default" }));
+    await waitFor(() => expect(result.current.notFound).toBe(true));
+    expect(result.current.run).toBeNull();
+    expect(getTaskRun).toHaveBeenLastCalledWith(
+      "run_001",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
+
+    vi.mocked(getTaskRun).mockResolvedValue(runDetailFixture as never);
+    act(() => setProfileView(lens, { kind: "aggregate" }));
+    await waitFor(() => expect(result.current.run?.run.id).toBe("run_001"));
+    expect(getTaskRun).toHaveBeenLastCalledWith(
+      "run_001",
+      { all_profiles: true },
+      expect.any(AbortSignal)
+    );
+    expect(inspectRun).toHaveBeenLastCalledWith(
+      "run_001",
+      { all_profiles: true },
+      expect.any(AbortSignal)
+    );
+    expect(listTaskRunReviews).toHaveBeenLastCalledWith(
+      "run_001",
+      { all_profiles: true },
+      expect.any(AbortSignal)
+    );
+  });
+
   it("loads run detail and task detail together", async () => {
     const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
       wrapper: createWrapper(),
