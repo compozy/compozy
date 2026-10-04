@@ -67,6 +67,10 @@ FROM task_runs
 WHERE status IN (sqlc.arg(claimed_status), sqlc.arg(starting_status), sqlc.arg(running_status))
   AND lease_until IS NOT NULL
   AND lease_until <= sqlc.arg(now)
+  AND NOT EXISTS (
+    SELECT 1 FROM json_each(sqlc.arg(reserved_leases))
+    WHERE key = task_runs.id AND value = task_runs.claim_token_hash
+  )
 ORDER BY lease_until ASC, id ASC
 LIMIT sqlc.arg(result_limit);
 

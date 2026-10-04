@@ -8,6 +8,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -61,6 +62,7 @@ func testLoopActionSettlementIntegration(
 	executor looppkg.ActionExecutor,
 	actionResultMaxBytes int64,
 	wantFailure bool,
+	configure ...func(*globaldb.GlobalDB, *loopActionRuntime),
 ) {
 	t.Helper()
 
@@ -186,7 +188,10 @@ func testLoopActionSettlementIntegration(
 
 	runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 	runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
-	executeErr := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued)
+	for _, setup := range configure {
+		setup(db, runtime)
+	}
+	executeErr := runtime.executeQueuedRun(runtime.root, taskRecord, worker, loopActionRuntimeReasonEnqueued)
 	if wantFailure {
 		if executeErr == nil || !errors.Is(executeErr, looppkg.ErrActionResultTooLarge) {
 			t.Fatalf(
@@ -226,8 +231,8 @@ func testLoopActionSettlementIntegration(
 		!strings.Contains(outputs[0].OutputRef, "65536-byte result limit")) {
 		t.Fatalf("oversized generation output = %#v, want bounded node-aware diagnostic", outputs[0])
 	}
-	if !wantFailure && outputs[0].Status == "failed" {
-		t.Fatalf("quiet generation outputs = %#v, want no liveness failure", outputs)
+	if !wantFailure && outputs[0].Status != "succeeded" {
+		t.Fatalf("completed generation outputs = %#v, want succeeded", outputs)
 	}
 	if !wantFailure && strings.Contains(suffix, "within-budget") {
 		if len(settled.ResultValue()) != 0 || settled.ResultReference() == "" ||
@@ -661,6 +666,108 @@ func (e oversizedLoopActionExecutor) Execute(
 }
 
 func (oversizedLoopActionExecutor) Harvest(
+	_ context.Context,
+	raw looppkg.ActionRawResult,
+	_ loopdsl.Node,
+) (looppkg.ActionOutput, error) {
+	return looppkg.ActionOutput{Value: raw.Value}, nil
+}
+
+func testLoopActionPersistenceContention(t *testing.T, oversized, duringExecution bool, lifecycle ...string) {
+	t.Helper()
+	executor := &contendedLoopActionExecutor{t: t, oversized: oversized, duringExecution: duringExecution}
+	suffix := "contended-complete"
+	if oversized {
+		suffix = "contended-fail"
+	}
+	testLoopActionSettlementIntegration(t, suffix, executor, taskpkg.MaxResultBytes, oversized,
+		func(db *globaldb.GlobalDB, runtime *loopActionRuntime) {
+			executor.db = db
+			runtime.persistenceAttemptTimeout = time.Second
+			runtime.heartbeatInterval = func(time.Duration) time.Duration { return time.Minute }
+			if duringExecution {
+				runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+			}
+			if len(lifecycle) > 0 && lifecycle[0] == "shutdown" {
+				executor.duringContention = runtime.cancel
+			}
+			if len(lifecycle) > 0 && lifecycle[0] == "expiry" {
+				var offset atomic.Int64
+				runtime.now = func() time.Time { return time.Now().UTC().Add(time.Duration(offset.Load())) }
+				executor.duringContention = func() { offset.Store(int64(10 * time.Minute)) }
+			}
+		})
+	if calls := executor.calls.Load(); calls != 1 {
+		t.Fatalf("action executions = %d, want one", calls)
+	}
+}
+
+type contendedLoopActionExecutor struct {
+	t                *testing.T
+	db               *globaldb.GlobalDB
+	oversized        bool
+	duringExecution  bool
+	calls            atomic.Int32
+	duringContention func()
+}
+
+func (e *contendedLoopActionExecutor) Execute(
+	ctx context.Context,
+	_ loopdsl.Node,
+	_ looppkg.ActionExecutionInput,
+) (looppkg.ActionRawResult, error) {
+	e.calls.Add(1)
+	locked, done := make(chan struct{}), make(chan error, 1)
+	unlocked := make(chan struct{})
+	go func() {
+		defer close(unlocked)
+		done <- store.ExecuteWriteOperation(e.t.Context(), e.db.DB(), "hold action settlement writer", func(ctx context.Context, _ *store.WriteTx) error {
+			close(locked)
+			if e.duringContention != nil {
+				select {
+				case <-time.After(200 * time.Millisecond):
+					e.duringContention()
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			timer := time.NewTimer(2200 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+	}()
+	select {
+	case <-locked:
+	case err := <-done:
+		return looppkg.ActionRawResult{}, err
+	case <-ctx.Done():
+		return looppkg.ActionRawResult{}, ctx.Err()
+	}
+	e.t.Cleanup(func() {
+		if err := <-done; err != nil {
+			e.t.Error(err)
+		}
+	})
+	if e.duringExecution {
+		select {
+		case <-unlocked:
+		case <-ctx.Done():
+			return looppkg.ActionRawResult{}, ctx.Err()
+		}
+	}
+	value := map[string]any{"status": "complete"}
+	if e.oversized {
+		value["data"] = strings.Repeat("x", taskpkg.MaxResultBytes)
+	}
+	return looppkg.ActionRawResult{Value: value}, nil
+}
+
+func (*contendedLoopActionExecutor) Harvest(
 	_ context.Context,
 	raw looppkg.ActionRawResult,
 	_ loopdsl.Node,

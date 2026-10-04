@@ -1290,3 +1290,30 @@ remain unchanged.
   authoring references agree with the strict importer. Existing scenarios gain the changed public
   acceptance walks. Test, live-runtime, platform and current-head CI receipts remain separate
   claims in the owning report and PR; implementation alone is not delivery evidence.
+
+## Issue 689 — Loop reconciliation and result persistence under SQLite contention
+
+- **Native tools / CLI / HTTP / UDS:** existing Loop and task reads converge after an action
+  returns even when SQLite temporarily rejects terminal writes. The daemon retries persistence
+  while retaining the result; a transient SQLite persistence error does not become a transport failure that
+  re-executes a side-effecting tool. Tool event summaries and action lease heartbeats use the
+  same cancellable persistence retry boundary. No command, route, DTO or tool ID changes.
+  Pending terminal writes reserve their existing ownership in the task service and retain the
+  original command timestamp; automatic lease recovery excludes those reservations. Explicit
+  ownership changes still invalidate the claim token. Shutdown allows a bounded settlement grace.
+- **Extensibility / hooks / configuration:** extension tool invocation and post-call hooks run
+  once. Only the subsequent event/result write is retried. Automation claim failures use
+  capped exponential backoff, preserving the original fire identity. Existing scheduler clocks
+  and daemon lifetimes own waiting and shutdown; no new operator setting is needed.
+- **Workspace data / compatibility:** global migration 00126 adds reconciliation indexes
+  without changing rows. Candidate discovery is read-only and starts from live execution records
+  or unsettled tasks. Each orphan repair rechecks terminal status under its own transaction.
+  Provenance repair runs after readiness until successful, with conditional per-record writes
+  that preserve concurrent metadata edits and select the latest coordinator per task, breaking
+  timestamp ties by run ID. Empty heartbeat retention avoids writer admission.
+  Existing profile/workspace filters, claim tokens and ownership fences remain authoritative.
+- **Web / docs / official skill:** existing Web views receive the corrected persisted task/Loop
+  state; no Web component or public skill syntax changes. The official `skills/compozy/` commands
+  remain valid. Acceptance and verification are recorded in
+  `docs/qa/reports/2026-10-03-issue-689-sqlite-contention.md` and the affected terminal-settlement
+  and automation scenarios. Related issue 678 is addressed only for shared contention paths.

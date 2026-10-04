@@ -226,3 +226,6 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_workspace ON tasks(workspace_id);
 
 CREATE UNIQUE INDEX uq_task_events_event_seq ON task_events(event_seq);
+
+CREATE INDEX idx_tasks_unsettled ON tasks(id)
+    WHERE status NOT IN ('completed','failed','canceled');

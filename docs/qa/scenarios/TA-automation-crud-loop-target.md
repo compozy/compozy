@@ -47,3 +47,9 @@ QA 2026-09-10: The existing store integration verifies that deleting either dyna
 QA 2026-09-10 follow-up: Scheduler shutdown cannot cancel an in-progress durable finalization. The existing deferred-fire restart integration passed 15 repetitions after reproducing the stale deferred cursor. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
 
 QA support 2026-09-10: the existing real automation trigger/history/run integration passed 20 repetitions after repairing identity persistence when shutdown cancels session startup. The session lifecycle suite separately verifies the stopped identity against SQLite. Evidence and cross-surface impact: `docs/qa/reports/2026-09-10-release-integration-repair.md`.
+
+Issue 689 acceptance: hold the SQLite writer while a scheduled fire becomes due. Failed claims
+must wait with capped exponential backoff; they must not advance the durable fire cursor or flood
+the log. After releasing the writer, exactly one run must retain the original scheduled fire ID.
+The existing real-store scheduler integration owns this backend scenario; see the
+[contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).

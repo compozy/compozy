@@ -25,6 +25,7 @@ const (
 )
 
 type loopActionTaskManager interface {
+	ReserveRunLeaseSettlement(context.Context, string, string, time.Time, taskpkg.ActorContext) (func(), error)
 	ClaimNextRun(context.Context, taskpkg.ClaimCriteria, taskpkg.ActorContext) (*taskpkg.ClaimResult, error)
 	HeartbeatRunLease(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
 	BindLeasedRunSession(context.Context, taskpkg.LeaseSessionBinding, taskpkg.ActorContext) (*taskpkg.Run, error)
@@ -45,15 +46,16 @@ type loopActionRuntime struct {
 	logger   *slog.Logger
 	now      func() time.Time
 
-	root                 context.Context
-	cancel               context.CancelFunc
-	sem                  chan struct{}
-	spawnMu              sync.Mutex
-	wg                   sync.WaitGroup
-	stopping             atomic.Bool
-	heartbeatInterval    func(time.Duration) time.Duration
-	livenessPollInterval func(time.Duration) time.Duration
-	claimRetryInterval   time.Duration
+	root                      context.Context
+	cancel                    context.CancelFunc
+	sem                       chan struct{}
+	spawnMu                   sync.Mutex
+	wg                        sync.WaitGroup
+	stopping                  atomic.Bool
+	heartbeatInterval         func(time.Duration) time.Duration
+	livenessPollInterval      func(time.Duration) time.Duration
+	claimRetryInterval        time.Duration
+	persistenceAttemptTimeout time.Duration
 }
 
 var _ taskRunEnqueuedObserver = (*loopActionRuntime)(nil)
@@ -226,28 +228,68 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if controlled {
 		return err
 	}
+	return r.settleExecutedRun(ctx, claim, actor, reason, result, err)
+}
+
+func (r *loopActionRuntime) settleExecutedRun(
+	ctx context.Context,
+	claim *taskpkg.ClaimResult,
+	actor taskpkg.ActorContext,
+	reason string,
+	result taskpkg.RunResult,
+	err error,
+) error {
+	if err != nil && ctx.Err() != nil {
+		return err
+	}
+	settleCtx, cancel := loopActionSettlementContext(ctx)
+	defer cancel()
+	settledAt := r.now().UTC()
+	var release func()
+	reserveErr := retrySQLitePersistence(
+		settleCtx,
+		r.persistenceAttemptTimeout,
+		func(attemptCtx context.Context) error {
+			var reserveErr error
+			release, reserveErr = r.manager.ReserveRunLeaseSettlement(
+				attemptCtx,
+				claim.Run.ID,
+				claim.ClaimToken,
+				settledAt,
+				actor,
+			)
+			return reserveErr
+		},
+	)
+	if reserveErr != nil {
+		return errors.Join(err, reserveErr)
+	}
+	defer release()
 	if err == nil {
 		err = looppkg.ValidateActionRunResult(claim.Run, result)
 	}
 	if err != nil {
-		if ctx.Err() != nil {
-			return err
+		return r.failClaimedRun(settleCtx, claim, actor, reason, result.TokensUsed, settledAt, err)
+	}
+	var completed *taskpkg.Run
+	var completionErr error
+	err = retrySQLitePersistence(settleCtx, r.persistenceAttemptTimeout, func(settleCtx context.Context) error {
+		completed, completionErr = r.manager.CompleteRunLease(settleCtx, taskpkg.LeaseCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Result: result,
+			TokensUsed: result.TokensUsed, Now: settledAt,
+		}, actor)
+		if completed != nil {
+			return nil
 		}
-		return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
+		return completionErr
+	})
+	if completed != nil {
+		return completionErr
 	}
-	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTaskCancelGrace)
-	defer cancel()
-	completed, err := r.manager.CompleteRunLease(settleCtx, taskpkg.LeaseCompletion{
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-		Result:     result,
-		TokensUsed: result.TokensUsed,
-		Now:        r.now().UTC(),
-	}, actor)
-	if err == nil || completed != nil {
-		return err
+	if err != nil && settleCtx.Err() == nil {
+		return r.failClaimedRun(settleCtx, claim, actor, reason, result.TokensUsed, settledAt, err)
 	}
-	return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
+	return err
 }
 
 func (r *loopActionRuntime) failClaimedRun(
@@ -256,6 +298,7 @@ func (r *loopActionRuntime) failClaimedRun(
 	actor taskpkg.ActorContext,
 	reason string,
 	tokensUsed int64,
+	settledAt time.Time,
 	cause error,
 ) error {
 	if claim == nil {
@@ -265,19 +308,20 @@ func (r *loopActionRuntime) failClaimedRun(
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTaskCancelGrace)
-	defer cancel()
-	_, failErr := r.manager.FailRunLease(settleCtx, taskpkg.LeaseFailure{
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-		Failure: taskpkg.RunFailure{
-			Error:    cause.Error(),
-			Metadata: metadata,
-		},
-		TokensUsed: tokensUsed,
-		Now:        r.now().UTC(),
-	}, actor)
-	return errors.Join(cause, failErr)
+	var failureErr error
+	retryErr := retrySQLitePersistence(ctx, r.persistenceAttemptTimeout, func(settleCtx context.Context) error {
+		failed, err := r.manager.FailRunLease(settleCtx, taskpkg.LeaseFailure{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Failure:    taskpkg.RunFailure{Error: cause.Error(), Metadata: metadata},
+			TokensUsed: tokensUsed, Now: settledAt,
+		}, actor)
+		failureErr = err
+		if failed != nil {
+			return nil
+		}
+		return err
+	})
+	return errors.Join(cause, failureErr, retryErr)
 }
 
 func (r *loopActionRuntime) shutdown(ctx context.Context) error {

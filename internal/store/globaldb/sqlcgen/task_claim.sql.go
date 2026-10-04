@@ -449,8 +449,12 @@ FROM task_runs
 WHERE status IN (?1, ?2, ?3)
   AND lease_until IS NOT NULL
   AND lease_until <= ?4
+  AND NOT EXISTS (
+    SELECT 1 FROM json_each(?5)
+    WHERE key = task_runs.id AND value = task_runs.claim_token_hash
+  )
 ORDER BY lease_until ASC, id ASC
-LIMIT ?5
+LIMIT ?6
 `
 
 type ListExpiredTaskRunLeaseIDsParams struct {
@@ -458,6 +462,7 @@ type ListExpiredTaskRunLeaseIDsParams struct {
 	StartingStatus string         `json:"starting_status"`
 	RunningStatus  string         `json:"running_status"`
 	Now            sql.NullString `json:"now"`
+	ReservedLeases any            `json:"reserved_leases"`
 	ResultLimit    int64          `json:"result_limit"`
 }
 
@@ -467,6 +472,7 @@ func (q *Queries) ListExpiredTaskRunLeaseIDs(ctx context.Context, arg ListExpire
 		arg.StartingStatus,
 		arg.RunningStatus,
 		arg.Now,
+		arg.ReservedLeases,
 		arg.ResultLimit,
 	)
 	if err != nil {

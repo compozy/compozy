@@ -75,6 +75,7 @@ func (s *Scheduler) startJobLoopLocked(jobID string) {
 
 func (s *Scheduler) runJobLoop(ctx context.Context, cancel context.CancelFunc, jobID string) {
 	defer cancel()
+	retryDelay := time.Duration(0)
 
 	for {
 		registration, ok := s.registrationSnapshot(jobID)
@@ -102,8 +103,29 @@ func (s *Scheduler) runJobLoop(ctx context.Context, cancel context.CancelFunc, j
 		case <-timer.Chan():
 		}
 
-		if err := s.executeScheduledJob(ctx, jobID); err != nil && !errors.Is(err, context.Canceled) {
-			s.logger.Warn("automation.scheduler.dispatch_failed", "job_id", jobID, "error", err)
+		if err := s.executeScheduledJob(ctx, jobID); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			retryDelay = min(max(2*retryDelay, time.Second), 30*time.Second)
+			s.logger.Warn(
+				"automation.scheduler.dispatch_failed",
+				"job_id",
+				jobID,
+				"error",
+				err,
+				"retry_after",
+				retryDelay,
+			)
+			retry := s.clock.NewTimer(retryDelay)
+			select {
+			case <-ctx.Done():
+				retry.Stop()
+				return
+			case <-retry.Chan():
+			}
+		} else {
+			retryDelay = 0
 		}
 	}
 }

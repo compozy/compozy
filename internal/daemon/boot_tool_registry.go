@@ -67,6 +67,7 @@ func (d *Daemon) bootToolRegistry(
 		)
 	}
 	registryOptions = appendToolEventSinkOption(
+		ctx,
 		registryOptions,
 		state.registry,
 		d.now,

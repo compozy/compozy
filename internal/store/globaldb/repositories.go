@@ -72,7 +72,10 @@ type TaskRepo struct {
 
 type TaskRunRepo struct {
 	*repoBase
-	tasks *TaskRepo
+	tasks                *TaskRepo
+	leaseSettlementsMu   sync.Mutex
+	leaseSettlements     map[string]string
+	leaseRecoveryVersion atomic.Uint64
 }
 type AutomationRepo struct{ *repoBase }
 

@@ -336,6 +336,28 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}
 		},
 	)
+	// Invariant: SQLite contention retries terminal persistence without repeating the action; the real runtime suite owns it.
+	for _, oversized := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should retain an executed action through SQLite contention oversized=%t", oversized),
+			func(t *testing.T) {
+				t.Parallel()
+				testLoopActionPersistenceContention(t, oversized, false)
+			},
+		)
+	}
+
+	t.Run("Should retain action ownership while a heartbeat write is contended", func(t *testing.T) {
+		t.Parallel()
+		testLoopActionPersistenceContention(t, false, true)
+	})
+	for _, lifecycle := range []string{"shutdown", "expiry"} {
+		t.Run("Should retain a completed result through "+lifecycle, func(t *testing.T) {
+			t.Parallel()
+			testLoopActionPersistenceContention(t, false, false, lifecycle)
+		})
+	}
+
 	t.Run("Should keep a quiet action alive without an inherited deadline", func(t *testing.T) {
 		testLoopActionLivenessIntegration(t)
 	})

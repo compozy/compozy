@@ -25,3 +25,16 @@ defects. After their focused fixes, the seeded terminal boundary settled three r
 one orphan before readiness. Public task reads showed all three records canceled with
 `reconciled_run_terminal`; the second boot settled zero records, emitted no duplicate repair event,
 and left zero ready rows for the run. Public cancel and kill paths were also walked.
+
+Issue 689 acceptance: with at least 12,000 settled task runs, hold another SQLite writer and run
+an empty orphan sweep and provenance backfill. Both reads must finish without acquiring the writer.
+Hold the writer across multiple action completion/failure write deadlines: release it and verify
+one action invocation, a terminal task run, released lease, and settled generation output. Repeat
+with contention during the action heartbeat and completed tool-event persistence. Empty heartbeat
+retention must also remain read-only. Repeat completion with shutdown during the blocked write
+and with the clock advancing past the lease deadline; preserve the result and one invocation.
+Automatic lease recovery must skip a reserved settlement while continuing to recover unrelated
+expired runs, and resume eligibility after an abandoned reservation is released. Multiple
+coordinator histories for one task must backfill one aligned, deterministic provenance row.
+See the owning
+[contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).

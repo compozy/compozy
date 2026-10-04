@@ -1315,6 +1315,54 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		}
 	})
 
+	// Invariant: pending settlement excludes only its owner from automatic lease recovery.
+	// Owner: task service lease reservation; canonical task manager integration suite.
+	t.Run("Should fence pending settlement from recovery and release an abandoned reservation", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveDaemonActorContext("settlement", "daemon.settlement")
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		claims := make([]*taskpkg.ClaimResult, 0, 2)
+		for _, title := range []string{"Pending result", "Unrelated expired worker"} {
+			record, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: title,
+			}, actor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+				TaskID: record.ID, IdempotencyKey: "enqueue-" + record.ID,
+			}, actor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID: run.ID, Scope: taskpkg.ScopeGlobal, ClaimedBy: &actor.Actor,
+				LeaseDuration: time.Minute, Now: now,
+			}, actor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			claims = append(claims, claim)
+		}
+		recovery := taskpkg.ExpiredLeaseRecovery{Now: now.Add(2 * time.Minute), Reason: "expired during persistence"}
+		release, results := testReserveDuringBlockedRecovery(t, manager, db, claims[0], actor, recovery)
+		defer release()
+		if len(results) != 1 || results[0].Run.ID != claims[1].Run.ID {
+			t.Fatalf("recovery during settlement = %#v, want only unrelated run", results)
+		}
+		release()
+		results, err = manager.RecoverExpiredRunLeases(ctx, recovery, actor)
+		if err != nil || len(results) != 1 || results[0].Run.ID != claims[0].Run.ID {
+			t.Fatalf("recovery after reservation release = %#v, %v, want abandoned run", results, err)
+		}
+	})
+
 	t.Run("Should stop a repeated expired-lease recovery loop at max attempts", func(t *testing.T) {
 		t.Parallel()
 
@@ -5700,4 +5748,89 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 			t.Fatalf("terminal needs_attention event count = %d, want 0", len(events))
 		}
 	})
+}
+
+// Invariant: a recovery already waiting for SQLite observes a newly reserved result.
+func testReserveDuringBlockedRecovery(
+	t *testing.T,
+	manager *taskpkg.Service,
+	db *globaldb.GlobalDB,
+	claim *taskpkg.ClaimResult,
+	actor taskpkg.ActorContext,
+	recovery taskpkg.ExpiredLeaseRecovery,
+) (func(), []taskpkg.ExpiredLeaseRecoveryResult) {
+	t.Helper()
+	ctx := t.Context()
+	writer, err := db.DB().Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := writer.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		t.Fatal(err)
+	}
+	locked := true
+	defer func() {
+		if locked {
+			if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+		}
+	}()
+	recoveryCtx, cancelRecovery := context.WithTimeout(ctx, 3*time.Second)
+	defer cancelRecovery()
+	type outcome struct {
+		results []taskpkg.ExpiredLeaseRecoveryResult
+		err     error
+	}
+	done := make(chan outcome, 1)
+	received := false
+	t.Cleanup(func() {
+		if !received {
+			cancelRecovery()
+			<-done
+		}
+	})
+	go func() {
+		results, err := manager.RecoverExpiredRunLeases(recoveryCtx, recovery, actor)
+		done <- outcome{results: results, err: err}
+	}()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for db.DB().Stats().InUse < 2 {
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			t.Fatal("recovery did not reach the held SQLite writer")
+		}
+	}
+	attemptCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	release, err := manager.ReserveRunLeaseSettlement(
+		attemptCtx,
+		claim.Run.ID,
+		claim.ClaimToken,
+		claim.Run.ClaimedAt,
+		actor,
+	)
+	if err != nil {
+		t.Fatalf("reserve while recovery waits for SQLite: %v", err)
+	}
+	t.Cleanup(release)
+	if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+		t.Fatal(err)
+	}
+	locked = false
+	result := <-done
+	received = true
+	if result.err != nil {
+		t.Fatal(result.err)
+	}
+	return release, result.results
 }

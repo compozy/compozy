@@ -14,9 +14,11 @@ import (
 )
 
 type daemonToolEventSink struct {
-	writer            store.EventSummaryStore
-	now               func() time.Time
-	profileForSession func(context.Context, string) (string, error)
+	writer                    store.EventSummaryStore
+	lifetime                  context.Context
+	persistenceAttemptTimeout time.Duration
+	now                       func() time.Time
+	profileForSession         func(context.Context, string) (string, error)
 }
 
 var _ toolspkg.ToolEventSink = (*daemonToolEventSink)(nil)
@@ -55,7 +57,7 @@ func (s *daemonToolEventSink) EmitToolEvent(ctx context.Context, event toolspkg.
 			return errors.New("daemon: tool event session profile is required")
 		}
 	}
-	return s.writer.WriteEventSummary(context.WithoutCancel(ctx), daemonEventSummary(store.EventSummary{
+	summary := daemonEventSummary(store.EventSummary{
 		ProfileID:   profileID,
 		Type:        eventType,
 		WorkspaceID: event.WorkspaceID,
@@ -69,5 +71,12 @@ func (s *daemonToolEventSink) EmitToolEvent(ctx context.Context, event toolspkg.
 		Outcome:   string(eventspkg.OutcomeFor(eventType)),
 		Summary:   fmt.Sprintf("%s %s", event.ToolID, event.Kind),
 		Timestamp: timestamp,
-	}, content))
+	}, content)
+	lifetime := s.lifetime
+	if lifetime == nil {
+		lifetime = ctx
+	}
+	return retrySQLitePersistence(lifetime, s.persistenceAttemptTimeout, func(persistCtx context.Context) error {
+		return s.writer.WriteEventSummary(persistCtx, summary)
+	})
 }

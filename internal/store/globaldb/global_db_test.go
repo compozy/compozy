@@ -406,6 +406,60 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: reconciliation indexes upgrade existing task history losslessly; the reopen suite owns it.
+	t.Run("Should preserve settled task history while adding reconciliation indexes", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00126_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO tasks (id, profile_id, scope, title, status, created_by_kind, created_by_ref,
+    origin_kind, origin_ref, created_at, updated_at, metadata_json)
+    VALUES ('history-task', '00000000000000000000000000', 'global', 'Retained task', 'completed',
+    'daemon', 'fixture', 'daemon', 'fixture', '2026-10-03T12:00:00Z', '2026-10-03T12:00:00Z', '{"keep":true}')`,
+			`INSERT INTO task_runs (id, task_id, status, attempt, origin_kind, origin_ref, queued_at, loop_run_id, result_json)
+    VALUES ('history-run', 'history-task', 'completed', 1, 'daemon', 'fixture', '2026-10-03T12:00:00Z',
+    'retained-loop', '{"value":{"answer":42}}')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var metadata, result string
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT t.metadata_json, r.result_json FROM tasks t
+    JOIN task_runs r ON r.task_id = t.id WHERE r.id = 'history-run'`).Scan(&metadata, &result); err != nil {
+				t.Fatal(err)
+			}
+			if metadata != `{"keep":true}` || result != `{"value":{"answer":42}}` {
+				t.Fatalf("history changed: %s %s", metadata, result)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	// Invariant: feature retirement preserves retained runtime state and authored context across upgrades.
 	// Owner: global persistence; canonical suite: reopen and migration preservation.
 	t.Run("Should retire remote features while preserving local runtime and authored context", func(t *testing.T) {

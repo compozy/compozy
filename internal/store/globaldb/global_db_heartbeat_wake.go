@@ -354,8 +354,15 @@ func (g *HeartbeatRepo) SweepHeartbeatWakeEvents(ctx context.Context, cutoff tim
 	if limit <= 0 {
 		return 0, fmt.Errorf("%w: retention limit must be positive", heartbeat.ErrInvalidWakeEvent)
 	}
+	expired, err := g.queries.HasExpiredHeartbeatWakeEvents(ctx, store.FormatTimestamp(cutoff))
+	if err != nil {
+		return 0, fmt.Errorf("store: find expired heartbeat wake events: %w", err)
+	}
+	if !expired {
+		return 0, nil
+	}
 	var affected int64
-	err := store.ExecuteWriteOperation(
+	err = store.ExecuteWriteOperation(
 		ctx,
 		g.db,
 		"sweep heartbeat wake events",

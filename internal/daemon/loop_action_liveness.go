@@ -175,7 +175,7 @@ func (r *loopActionRuntime) executeClaimedRun(
 	cancelRun()
 	heartbeatErr := <-heartbeatErrC
 	usage.retryPendingSessionBinding()
-	if ctx.Err() != nil {
+	if ctx.Err() != nil && runErr != nil {
 		return taskpkg.RunResult{}, false, ctx.Err()
 	}
 	if tokensUsed := usage.TokensUsed(); tokensUsed > result.TokensUsed {
@@ -184,7 +184,7 @@ func (r *loopActionRuntime) executeClaimedRun(
 	if result.TokensUsed <= 0 {
 		result.TokensUsed = r.sessionProjectedTokens(ctx, usage.snapshot().sessionID)
 	}
-	if deadlineExceeded {
+	if deadlineExceeded && runErr != nil {
 		return result, false, errors.Join(newLoopActionTimeoutError(timeoutReason), heartbeatErr, runErr)
 	}
 	if runErr != nil {
@@ -338,13 +338,13 @@ func (r *loopActionRuntime) extendActionLease(
 	leaseDuration time.Duration,
 	tokensUsed int64,
 ) error {
-	_, err := r.manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
-		RunID:         claim.Run.ID,
-		ClaimToken:    claim.ClaimToken,
-		LeaseDuration: leaseDuration,
-		Now:           r.now().UTC(),
-		TokensUsed:    tokensUsed,
-	}, actor)
+	err := retrySQLitePersistence(ctx, r.persistenceAttemptTimeout, func(heartbeatCtx context.Context) error {
+		_, err := r.manager.HeartbeatRunLease(heartbeatCtx, taskpkg.LeaseHeartbeat{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, LeaseDuration: leaseDuration,
+			Now: r.now().UTC(), TokensUsed: tokensUsed,
+		}, actor)
+		return err
+	})
 	if err != nil && ctx.Err() != nil {
 		return nil
 	}

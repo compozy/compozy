@@ -180,6 +180,7 @@ func validateNativeToolBindings(
 }
 
 func appendToolEventSinkOption(
+	lifetime context.Context,
 	options []toolspkg.RegistryOption,
 	registry extensionLifecycleEventWriter,
 	now func() time.Time,
@@ -190,7 +191,7 @@ func appendToolEventSinkOption(
 		return options
 	}
 	return append(options, toolspkg.WithToolEventSink(&daemonToolEventSink{
-		writer: writer, now: now, profileForSession: profileForSession,
+		writer: writer, lifetime: lifetime, now: now, profileForSession: profileForSession,
 	}))
 }
 
