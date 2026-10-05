@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-01
 expected: Running implement-tasks with mode=orchestrated and implementer=custom_implementer uses the bundled orchestrator in one continuous Goal session, starts every worker with that exact Agent and its Agent-local sentinel skill, gives every task its category-selected runtime, proves completed task frontmatter on disk, stops every spawned worker, marks the per-task branch not_taken, and settles done. Omitting implementer selects code_implementer.
 entry_points: compozy loop run --name implement-tasks --input slug=<slug> --input mode=orchestrated --input implementer=custom_implementer; compozy loop status; compozy session list --parent <goal-session> --agent custom_implementer; web /loop-runs/:run_id detail
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20260826-optional-runtime-run-fails; BUG-20261005-loop-staged-task-id-literal; BUG-20261005-goal-result-loses-fields
-fix_status: pending
-retest_status: pending
-fix_commits: 16096e1e706261c30e112995c0cbe457c27014ce; d4df0df8adbb73896b2cd33243db98f4037b00c3; 5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1; be2ca774e0ea4c5f1a3aa30fe73bb9110d451735
-evidence: /tmp/compozy-pr-542-worker-report.md; internal/daemon/loop_runtime_adapters_test.go; internal/session/manager_test.go
+fix_status: fixed
+retest_status: pass
+fix_commits: 16096e1e706261c30e112995c0cbe457c27014ce; d4df0df8adbb73896b2cd33243db98f4037b00c3; 5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1; be2ca774e0ea4c5f1a3aa30fe73bb9110d451735; 4dc707c76eb93e9587cbc6e3fedea3e66236377e
+evidence: /tmp/compozy-pr-542-worker-report.md; internal/daemon/loop_runtime_adapters_test.go; internal/session/manager_test.go; docs/qa/evidence/2026-10-02-untested/loops-orchestrated-fixed-goal-web-verified.json; docs/qa/evidence/2026-10-02-untested/loops-orchestrated-fixed-workspace-proof.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: LP-003; LP-goal-command-judge; ET-spec-cycle-skill-bundle
 ---
@@ -107,3 +107,7 @@ Then verify task completion, the selected Agent/Profile/runtime and stopped work
 
 2026-10-05: the live orchestrated walk exposed literal task_id templates in the staged
 outputs. See BUG-20261005-loop-staged-task-id-literal and the current report. The delivery walk and repair are in progress.
+
+2026-10-05 verified: the current report records the fresh real-provider runs, exact
+result preservation, independent task/artifact checks, and verified worker cleanup.
+Native sentinel calls, exact Agent/Profile/category runtimes, and one delegating conductor are proven.

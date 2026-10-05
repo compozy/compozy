@@ -1,6 +1,6 @@
 # BUG-20261005-goal-result-loses-fields: A completed Goal loses the conductor's result fields
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Data-Loss
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -48,7 +48,7 @@ remain intact; no task implementation was lost.
 
 ## Fix
 
-- **Fix commit:** pending
+- **Fix commit:** 4dc707c76eb93e9587cbc6e3fedea3e66236377e
 - **Regression test:** existing internal/daemon/loop_goal_executor_test.go, normal and recovery output reconstruction.
 
 ## Verification
@@ -65,4 +65,11 @@ Evidence: loops-orchestrated-regressions-{red,green}.json;
 loops-orchestrated-fixed-{status-third,final-http,final-uds,final-import,workspace-proof}.json;
 loops-orchestrated-fixed-goal-web-verified.json and the inspected
 loops-orchestrated-fixed-goal-result-reloaded.png. The 14-frame recording is closed.
-The final delivery commit is pending.
+Committed closure is recorded below.
+
+## Verified closure
+
+Committed in 4dc707c76eb93e9587cbc6e3fedea3e66236377e. The final make gate passed all affected lanes
+(loops-results-final-delivery-gate.json); the commit hook preserved all nine frozen
+production/test/site hashes. The real-provider and independent public read evidence above
+own this verification. No PR or current-head CI readiness is claimed.

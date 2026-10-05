@@ -1,6 +1,6 @@
 # BUG-20261005-loop-staged-task-id-literal: Staged task outputs retain the template instead of the task ID
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -47,7 +47,7 @@ belongs to that definition, preserving literal transform semantics for existing 
 
 ## Fix
 
-- **Fix commit:** pending
+- **Fix commit:** 4dc707c76eb93e9587cbc6e3fedea3e66236377e
 - **Regression test:** existing TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts,
   executing the shipped transform for three distinct task identities.
 - The bundled YAML and its copyable site example use from: item.id. No transform engine
@@ -61,4 +61,11 @@ CLI, HTTP/UDS and the Web Details view agree; the concrete first ID survives a r
 Both workers are independently stopped / verified=true and the active child list is empty.
 Evidence: loops-orchestrated-regressions-{red,green}.json;
 loops-orchestrated-fixed-{status-third,staged-web,final-http,final-uds}.json;
-loops-orchestrated-fixed-staged-id-reloaded.png. The final delivery commit is pending.
+loops-orchestrated-fixed-staged-id-reloaded.png. Committed closure is recorded below.
+
+## Verified closure
+
+Committed in 4dc707c76eb93e9587cbc6e3fedea3e66236377e. The final make gate passed all affected lanes
+(loops-results-final-delivery-gate.json); the commit hook preserved all nine frozen
+production/test/site hashes. The real-provider and independent public read evidence above
+own this verification. No PR or current-head CI readiness is claimed.

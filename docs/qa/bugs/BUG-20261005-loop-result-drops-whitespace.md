@@ -1,6 +1,6 @@
 # BUG-20261005-loop-result-drops-whitespace: Loop result readers drop whitespace-only message chunks
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Ada
@@ -50,7 +50,7 @@ Goal reconstruction paths are covered separately by BUG-20261005-goal-result-los
 
 ## Fix
 
-- **Fix commit:** pending
+- **Fix commit:** 4dc707c76eb93e9587cbc6e3fedea3e66236377e
 - **Regression test:** existing internal/daemon/loop_runtime_adapters_test.go action and judge collector cases.
 
 ## Verification
@@ -79,4 +79,11 @@ loops-native-default-fixed-{status-third,worker-final-history,final-http,final-u
 loops-native-default-fixed-unobstructed-web-verified.json;
 loops-native-default-corrected-{workspace-proof,worker-history,worker-stopped,final-import,
 final-http,final-uds,final-web}.json. The 18-frame recording is closed and the terminal
-and corrected-result PNGs were inspected. Final delivery commit pending.
+and corrected-result PNGs were inspected. Committed closure is recorded below.
+
+## Verified closure
+
+Committed in 4dc707c76eb93e9587cbc6e3fedea3e66236377e. The final make gate passed all affected lanes
+(loops-results-final-delivery-gate.json); the commit hook preserved all nine frozen
+production/test/site hashes. The real-provider and independent public read evidence above
+own this verification. No PR or current-head CI readiness is claimed.
