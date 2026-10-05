@@ -97,7 +97,7 @@ function renderDialog(
   const open = props.open ?? true;
 
   const utils = render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <WorkspaceSetupDialogHarness
         defaults={props.defaults ?? mockDefaults}
         open={open}

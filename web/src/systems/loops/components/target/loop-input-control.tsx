@@ -1,4 +1,5 @@
 import type { LoopInputSchemaField } from "../../types";
+import { useId } from "react";
 import { Pill } from "@compozy/ui";
 import { LoopTypedInputControl } from "../input/loop-typed-input-control";
 
@@ -18,10 +19,13 @@ export function LoopInputControl({
   onChange,
 }: LoopInputControlProps) {
   const controlId = `loop-input-${name}`;
+  const labelId = useId();
   return (
     <div className="flex flex-col gap-1.5" data-testid="loop-input-control" data-input={name}>
       <label htmlFor={controlId} className="flex items-center gap-1.5">
-        <span className="font-mono text-mono-id text-fg-strong">{name}</span>
+        <span id={labelId} className="font-mono text-mono-id text-fg-strong">
+          {name}
+        </span>
         {field.required ? (
           <span className="font-semibold text-muted" aria-label="required">
             *
@@ -33,6 +37,7 @@ export function LoopInputControl({
       </label>
       <LoopTypedInputControl
         controlId={controlId}
+        labelledBy={labelId}
         disabled={disabled}
         field={field}
         onChange={onChange}

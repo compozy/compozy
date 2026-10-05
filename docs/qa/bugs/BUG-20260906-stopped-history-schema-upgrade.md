@@ -1,10 +1,10 @@
 # BUG-20260906-stopped-history-schema-upgrade: Upgraded daemon cannot read retained stopped histories
 
-- **Status:** fixed — verified 2026-10-04
+- **Status:** fixed — original-persona CLI replay passed; delivery/audit pending
 - **Impact (user-side):** Data-Loss
 - **Severity:** High · **Priority:** P1
 - **Persona:** Théo · **Journey:** J-14 read a finished transcript
-- **Scenarios:** RT-session-context-rebuild; ET-web-session-transcript-calm-grammar; MS-web-session-deeplink-global-confirm; MS-web-menubar-global-scope-toggle
+- **Scenarios:** RT-session-context-rebuild; ET-web-session-transcript-calm-grammar; MS-web-session-deeplink-global-confirm; MS-web-menubar-global-scope-toggle; RT-home-workspace-not-registrable
 - **Found:** 2026-09-06 · **Report:** docs/qa/reports/2026-09-06-sessions-stability.md
 
 After upgrading the isolated lab from session migration 7 to 8 and restarting the daemon, both Release notes and Operator handbook returned HTTP 500 for retained transcript reads. The daemon log reports ErrSchemaBehind: read-only session databases remained at version 7. Completed sessions bypassed the mutable crash-repair path, leaving their valid forward migrations unapplied.
@@ -114,3 +114,47 @@ with no blockers. Both Global labs are torn down by their exact manifests with c
 survivors. The two affected Global Web scenarios are verified; earlier failed receipts remain.
 Evidence: scope-legacy-history-delivery-gate-retry.json, scope-legacy-history-evidence-audit-final.json,
 scope-legacy-history-teardown.json and scope-completion-final-teardown.json in this cycle directory.
+
+
+## Re-found (2026-10-04): Global CLI status and raw history
+
+Lea upgrades another genuine beta.19 home under CH-profile-global-phase-zero. HTTP and UDS
+preserve Archived research notes (sess-1371667a35387e1f), its Global owner and three lifecycle
+entries. Both public workspace catalogs are empty. Current CLI session status, events and
+history all return exit 1 with "has no workspace_id"; the previous correction covered transcript,
+search and outline, not these distinct read paths. This reopens the retained-history access
+finding without invalidating the earlier Web replay.
+
+Root cause: these read clients still call the mutation-oriented project resolver. HTTP/UDS
+likewise register their status/events/history/stream handlers only beneath workspace routes.
+The existing read-only Global authorization already verifies both empty workspace ownership
+and the selected profile; reuse it for these reads. Keep project mutation/derive requirements.
+The public addition preserves existing routes, payloads, bounds and cursor semantics.
+
+Evidence: home-migration-current-cli-{session,events,history}.json and the independent
+home-migration-current-{http,uds}-{workspaces,owner,session,transcript}.json in the current
+cycle evidence directory. The persona session ends in home-migration-lea-finding-ended.json
+before engineering starts. The owned lab remains available for the repair replay.
+
+Before changing tests: CLI route selection belongs to
+internal/cli/client_test.go::TestSessionWorkspaceRefUsesDirectLookup. The API invariant is
+that each Global read succeeds only for a Global session in the authorized profile, and rejected
+owners never reach its reader; extend internal/api/core/handlers_test.go::
+TestBaseHandlersSessionEndpoints. Existing transport route inventories and spec checks own
+registration parity; existing stream suites continue to own replay/fence mechanics.
+All new stubs stay at those unit-test I/O boundaries. The real released-home replay remains
+the final validation, including two restarts and exact-manifest cleanup.
+
+The first repaired CLI replay reaches the Global status route but reveals a second boundary:
+optional Heartbeat enrichment requires an authored project target. The fresh persona session ends
+in home-migration-replay-lea-ended-failure.json. Global retained history has no runnable project
+and must omit this enrichment while preserving its durable status; project Heartbeat failures
+remain errors. Extend the existing shared Global-read case with the real enrichment dependency
+present, asserting no wake state or Heartbeat call. Existing deleted-agent/read-failure cases
+remain the adjacent owning checks; no new test file or error-swallowing fallback is needed.
+
+The final Lea replay passes CLI status/events/history/follow, independent HTTP/UDS reads,
+two ordinary restarts and a project canary with opposite-scope refusals. Original identity, lineage
+and all three raw event contents remain intact. Evidence: home-migration-final-lea-ended.json
+and home-migration-final-{initial-complete,restart-one,restart-two,restored}-verified.json.
+Owning red/green checks pass; delivery gate, commit and targeted audit remain pending.

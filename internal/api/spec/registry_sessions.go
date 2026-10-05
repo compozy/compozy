@@ -34,6 +34,8 @@ func registrySessionOperations() []OperationSpec {
 		repairSessionOperationSpec(),
 		listSessionEventsOperationSpec(),
 		getSessionHistoryOperationSpec(),
+		globalSessionHistoryOperation(listSessionEventsOperationSpec()),
+		globalSessionHistoryOperation(getSessionHistoryOperationSpec()),
 		approveSessionOperationSpec(),
 	}
 }

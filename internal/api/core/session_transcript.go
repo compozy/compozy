@@ -18,7 +18,7 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	sessionID, info, ok := h.routeSessionTranscript(c)
+	sessionID, info, ok := h.routeSessionRead(c)
 	if !ok {
 		return
 	}
@@ -40,9 +40,8 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 	})
 }
 
-// routeSessionTranscript authorizes the existing project route or the read-only
-// Global route. A workspace-free route never widens to a project's history.
-func (h *BaseHandlers) routeSessionTranscript(c *gin.Context) (string, *session.Info, bool) {
+// routeSessionRead keeps Global reads fenced by workspace-free ownership and profile.
+func (h *BaseHandlers) routeSessionRead(c *gin.Context) (string, *session.Info, bool) {
 	if strings.TrimSpace(c.Param("workspace_id")) != "" {
 		_, id, info, ok := h.routeSessionInWorkspace(c)
 		return id, info, ok

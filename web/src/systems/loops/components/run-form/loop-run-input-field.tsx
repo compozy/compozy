@@ -1,4 +1,5 @@
 import { AlertCircle } from "lucide-react";
+import { useId } from "react";
 
 import { RequiredMark } from "@compozy/ui";
 
@@ -25,6 +26,7 @@ export function LoopRunInputField({
   onChange,
 }: LoopRunInputFieldProps) {
   const controlId = `loop-run-input-${name}`;
+  const labelId = useId();
   const isBoolean = field.type === "boolean";
   const errorId = `loop-run-field-error-${name}`;
   const label = loopInputLabel(name, field);
@@ -63,11 +65,14 @@ export function LoopRunInputField({
       ) : (
         <>
           <label htmlFor={controlId} className="flex items-center gap-1.5" title={name}>
-            <span className="text-form-label font-medium text-fg-strong">{label}</span>
+            <span id={labelId} className="text-form-label font-medium text-fg-strong">
+              {label}
+            </span>
             {field.required ? <RequiredMark /> : null}
           </label>
           <LoopTypedInputControl
             controlId={controlId}
+            labelledBy={labelId}
             describedBy={error ? errorId : undefined}
             disabled={disabled}
             field={field}

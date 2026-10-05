@@ -70,7 +70,7 @@ export interface UseAgentDetailResult {
 
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const { openForAgent } = useSessionCreateActions();
   const hasRuntimeWorkspace = runtimeWorkspaceId !== null;
   const isCreating = useSessionCreateIsCreating();
@@ -82,7 +82,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isLoading: agentLoading,
     error: agentError,
   } = useAgent(name, runtimeWorkspaceId);
-  const metrics = useAgentCatalogMetrics(runtimeWorkspaceId, name);
+  const metrics = useAgentCatalogMetrics(runtimeWorkspaceId, name, { enabled: !pending });
   const {
     sessions,
     archivedSessions,
@@ -96,7 +96,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isLoading: sessionsLoading,
     isError: sessionsError,
     retry: onRetrySessions,
-  } = useAgentSessions(runtimeWorkspaceId, name);
+  } = useAgentSessions(runtimeWorkspaceId, name, { enabled: !pending });
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: runtimeWorkspaceId });
 
   const deleteFlow = useAgentDeleteFlow({

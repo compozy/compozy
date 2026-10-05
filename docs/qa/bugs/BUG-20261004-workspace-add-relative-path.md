@@ -1,6 +1,6 @@
 # BUG-20261004-workspace-add-relative-path: Relative workspace registration misses path resolution
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Lea
@@ -46,7 +46,7 @@ Registry search found no existing owner for this symptom.
   contract requires an absolute root. Other CLI workspace entry points resolve their path boundary.
 - **Correction:** Resolve relative registration roots against the injected CLI working directory;
   leave absolute roots and daemon-owned validation unchanged. Reuse currentWorkingDirectory.
-- **Fix commit:** pending.
+- **Fix commit:** 52ed8d1bc92939c92793940c3302028b0d24064e.
 - **Regression test:** internal/cli/workspace_test.go, TestWorkspaceAddBuildsRequest.
   Invariant: relative registration roots reach the daemon as the same absolute candidate and a
   working-directory failure prevents registration. The CLI command owns this conversion; the
@@ -73,4 +73,6 @@ The collector's literal Dev/dev path comparison is recorded separately: filesyst
 confirms the same directory and all public representations agree. No path/case failure is
 established. Evidence: workspace-relative-root-{red,green,build,build-identity}.json and
 home-guard-replay-lea-ended.json with its linked replay receipts.
-Required delivery gate and fix commit remain pending.
+The affected delivery gate passes and commit 52ed8d1bc exactly matches gated tree
+c889ecab9168fcc5463c8b7c56edae8f07ea0f79. Receipts: workspace-relative-root-delivery-gate.json
+and workspace-relative-root-commit-identity.json. The broader legacy-boot scenario remains open.

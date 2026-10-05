@@ -1,12 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Slider } from "../slider";
 
 describe("Slider", () => {
-  it("Should label the control that carries the value, not the group around it", () => {
-    render(<Slider aria-label="History steps" defaultValue={50} max={500} min={1} />);
+  it("Should label the control that carries the value, not the group around it", async () => {
+    await act(async () =>
+      render(<Slider aria-label="History steps" defaultValue={50} max={500} min={1} />)
+    );
 
     const control = screen.getByLabelText("History steps");
     expect(control).toHaveAttribute("type", "range");
@@ -15,16 +17,18 @@ describe("Slider", () => {
     expect(control).toHaveValue("50");
   });
 
-  it("Should render one thumb for a single value and one per entry for a range", () => {
-    const { container, rerender } = render(<Slider aria-label="History steps" defaultValue={50} />);
+  it("Should render one thumb for a single value and one per entry for a range", async () => {
+    const { container, rerender } = await act(async () =>
+      render(<Slider aria-label="History steps" value={50} />)
+    );
     expect(container.querySelectorAll("[data-slot=slider-thumb]")).toHaveLength(1);
 
-    rerender(<Slider aria-label="Bounds" defaultValue={[20, 80]} />);
+    await act(async () => rerender(<Slider aria-label="Bounds" value={[20, 80]} />));
     expect(container.querySelectorAll("[data-slot=slider-thumb]")).toHaveLength(2);
   });
 
-  it("Should give every range thumb a distinct accessible name", () => {
-    render(<Slider aria-label="Bounds" defaultValue={[20, 80]} />);
+  it("Should give every range thumb a distinct accessible name", async () => {
+    await act(async () => render(<Slider aria-label="Bounds" defaultValue={[20, 80]} />));
 
     expect(screen.getByLabelText("Bounds: Minimum")).toBeInTheDocument();
     expect(screen.getByLabelText("Bounds: Maximum")).toBeInTheDocument();
@@ -43,7 +47,9 @@ describe("Slider", () => {
       />
     );
 
-    screen.getByLabelText("History steps").focus();
+    // jsdom has no layout, so Base UI keeps the unmeasured thumb out of tab order.
+    await act(async () => screen.getByLabelText("History steps").focus());
+    expect(screen.getByLabelText("History steps")).toHaveFocus();
 
     await user.keyboard("{ArrowRight}");
     expect(onValueChange).toHaveBeenLastCalledWith(51, expect.anything());
@@ -77,8 +83,10 @@ describe("Slider", () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
-  it("Should carry the data-slot contract for every part", () => {
-    const { container } = render(<Slider aria-label="History steps" defaultValue={50} />);
+  it("Should carry the data-slot contract for every part", async () => {
+    const { container } = await act(async () =>
+      render(<Slider aria-label="History steps" defaultValue={50} />)
+    );
 
     expect(container.querySelector("[data-slot=slider]")).not.toBeNull();
     expect(container.querySelector("[data-slot=slider-track]")).not.toBeNull();
@@ -86,9 +94,9 @@ describe("Slider", () => {
     expect(container.querySelector("[data-slot=slider-thumb]")).not.toBeNull();
   });
 
-  it("Should mark a quiet fill as a neutral tone", () => {
-    const { container } = render(
-      <Slider aria-label="Playback position" defaultValue={20} tone="neutral" />
+  it("Should mark a quiet fill as a neutral tone", async () => {
+    const { container } = await act(async () =>
+      render(<Slider aria-label="Playback position" defaultValue={20} tone="neutral" />)
     );
 
     expect(container.querySelector("[data-slot=slider-range]")).toHaveAttribute(

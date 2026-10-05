@@ -3376,7 +3376,9 @@ func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 	for _, workspaceID := range []string{"ws-target", ""} {
 		t.Run("Should read retained history for owner "+workspaceID, func(t *testing.T) {
 			t.Parallel()
-			for _, method := range []string{"transcript", "transcript/search", "transcript/outline"} {
+			for _, method := range []string{
+				"transcript", "transcript/search", "transcript/outline", "status", "events", "history", "stream",
+			} {
 				t.Run("Should load "+method, func(t *testing.T) {
 					t.Parallel()
 					base := "/api/sessions/sess-target"
@@ -3425,6 +3427,22 @@ func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 						)
 					case "transcript/outline":
 						_, err = client.GetSessionOutline(t.Context(), "sess-target")
+					case "status":
+						_, err = client.GetSessionStatus(t.Context(), "sess-target")
+					case "events":
+						_, err = client.SessionEvents(t.Context(), "sess-target", SessionEventQuery{})
+					case "history":
+						_, err = client.SessionHistory(t.Context(), "sess-target", SessionEventQuery{})
+					case "stream":
+						err = client.StreamSessionEvents(
+							t.Context(),
+							"sess-target",
+							SessionEventQuery{},
+							"",
+							func(SSEEvent) error {
+								return nil
+							},
+						)
 					}
 					if err != nil || len(paths) != 2 {
 						t.Fatalf("read %s: paths=%v error=%v", method, paths, err)

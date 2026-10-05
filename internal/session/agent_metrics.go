@@ -19,8 +19,7 @@ type AgentSessionMetrics struct {
 	LastActivityAt time.Time
 }
 
-// AggregateSessionsByAgent returns workspace-scoped durable metrics overlaid with
-// the manager's current live-session snapshots.
+// AggregateSessionsByAgent overlays live sessions on durable metrics; an empty workspace selects Global.
 func (m *Manager) AggregateSessionsByAgent(
 	ctx context.Context,
 	readScope store.ReadScope,
@@ -30,8 +29,8 @@ func (m *Manager) AggregateSessionsByAgent(
 		return nil, errors.New("session: aggregate sessions by agent context is required")
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return nil, errors.New("session: aggregate sessions by agent workspace id is required")
+	if err := readScope.Validate(); err != nil {
+		return nil, err
 	}
 	reader, ok := m.sessionCatalog.(store.SessionAgentMetricsReader)
 	if !ok || reader == nil {

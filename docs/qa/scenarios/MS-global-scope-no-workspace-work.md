@@ -6,13 +6,13 @@ persona: Lea
 journey: J-scope-global-across-workspaces
 expected: Global reads as a view across the registered project folders rather than a workspace; work created while it is on has no workspace, is owned by the acting profile, and reads back that way on every surface; the session catalog and its live stream apply the workspace boundary on the server and send nothing when scope is indeterminate; user-layer resources stay visible in every workspace and in Global alike.
 entry_points: web first run with zero folders; menubar globe toggle; shared creation surfaces while Global is on; compozy session list; GET /api/sessions and /api/sessions/catalog-stream over HTTP and UDS
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261004-task-execution-switches-unnamed; BUG-20261004-global-agents-project-gate
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-10-02-untested/global-work-fixed-lea-ended.json; docs/qa/evidence/2026-10-02-untested/global-work-stream-boundary-verified.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-menubar-global-scope-toggle; RT-home-workspace-not-registrable; RT-web-session-all-workspaces; ET-profile-stream-isolation
 ---
 

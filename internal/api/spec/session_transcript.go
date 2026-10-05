@@ -77,7 +77,11 @@ func sessionTranscriptOperations() []OperationSpec {
 			},
 		},
 	}
-	return append(operations, globalSessionHistoryOperation(operations[0]))
+	return append(
+		operations,
+		globalSessionHistoryOperation(operations[0]),
+		globalSessionHistoryOperation(operations[1]),
+	)
 }
 
 // Global history keeps the same paging/navigation contract, scoped by profile

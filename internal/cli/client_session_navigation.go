@@ -19,7 +19,7 @@ func (c *daemonClient) SearchSessionTranscript(
 	query transcript.SearchQuery,
 ) (contract.SessionTranscriptSearchResponse, error) {
 	var result contract.SessionTranscriptSearchResponse
-	path, err := c.sessionTranscriptPath(ctx, id, "/transcript/search")
+	path, err := c.sessionReadPath(ctx, id, "/transcript/search")
 	if err != nil {
 		return result, err
 	}
@@ -38,7 +38,7 @@ func (c *daemonClient) GetSessionOutline(
 	id string,
 ) (contract.SessionTranscriptOutlineResponse, error) {
 	var result contract.SessionTranscriptOutlineResponse
-	path, err := c.sessionTranscriptPath(ctx, id, "/transcript/outline")
+	path, err := c.sessionReadPath(ctx, id, "/transcript/outline")
 	if err != nil {
 		return result, err
 	}
@@ -46,9 +46,8 @@ func (c *daemonClient) GetSessionOutline(
 	return result, err
 }
 
-// sessionTranscriptPath selects a read-only history route from the authorized
-// by-id record. Mutations retain sessionScopedPath's project requirement.
-func (c *daemonClient) sessionTranscriptPath(ctx context.Context, id, suffix string) (string, error) {
+// sessionReadPath preserves Global ownership for reads without widening project mutations.
+func (c *daemonClient) sessionReadPath(ctx context.Context, id, suffix string) (string, error) {
 	sessionID, err := requirePathValue("session_id", id)
 	if err != nil {
 		return "", err

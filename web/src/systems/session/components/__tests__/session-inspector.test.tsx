@@ -20,7 +20,7 @@ function installMatchMedia(matches: boolean): void {
     writable: true,
     configurable: true,
     value: (query: string) => ({
-      matches,
+      matches: query.includes("min-width") && matches,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),

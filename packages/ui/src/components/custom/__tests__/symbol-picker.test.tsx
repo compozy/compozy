@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { identityColorsFor } from "../../../lib/identity-palette";
 import {
@@ -85,6 +85,15 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  // jsdom has no canvas renderer; exercise frimousse's supported no-context path.
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 interface HarnessProps {
@@ -245,7 +254,7 @@ describe("SymbolPicker", () => {
     try {
       render(<Harness symbol={{ kind: "emoji", value: "🌱" }} />);
       await screen.findByLabelText("Search emojis");
-      await vi.waitFor(() => {
+      await waitFor(() => {
         const list = document.querySelector<HTMLElement>("[frimousse-list]");
         expect(list?.style.getPropertyValue("--frimousse-list-columns")).toBe("17");
       });

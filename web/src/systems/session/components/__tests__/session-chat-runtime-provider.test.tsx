@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { StrictMode, use, useEffect, useLayoutEffect, useState } from "react";
@@ -990,6 +990,7 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     resetGatewayStreamAuth();
     vi.unstubAllGlobals();

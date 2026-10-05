@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -965,7 +965,7 @@ describe("LoopQuarantineSheet", () => {
     expect(screen.queryByTestId("loop-quarantine-cancel")).not.toBeInTheDocument();
   });
 
-  it("Should keep the entry readable but withdraw the verbs once the run has ended", () => {
+  it("Should keep the entry readable but withdraw the verbs once the run has ended", async () => {
     const quarantined = loopNodeLifecycleFixture({
       state: "quarantined",
       parked: true,
@@ -973,12 +973,14 @@ describe("LoopQuarantineSheet", () => {
       quarantineEntry: entry,
     });
     const props = { onOpenChange: vi.fn(), onVerb: vi.fn(), open: true, runId: "r-1" };
-    const { rerender } = render(<LoopQuarantineSheet {...props} node={quarantined} />);
+    const { rerender } = await act(async () =>
+      render(<LoopQuarantineSheet {...props} node={quarantined} />)
+    );
     // Live: the verbs are on offer and the foot says the run is still going.
     expect(screen.getByTestId("loop-quarantine-requeue")).toBeInTheDocument();
     expect(screen.getByTestId("loop-quarantine-foot")).toHaveTextContent("The run keeps working");
 
-    rerender(<LoopQuarantineSheet {...props} node={quarantined} runEnded />);
+    await act(async () => rerender(<LoopQuarantineSheet {...props} node={quarantined} runEnded />));
     // Ended: the daemon rejects requeue and cancel, so neither is offered, while
     // the hint, the facts and the attempt chain stay exactly as retained.
     expect(screen.queryByTestId("loop-quarantine-requeue")).not.toBeInTheDocument();

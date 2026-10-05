@@ -89,17 +89,26 @@ describe("LoopRunInputField", () => {
     enumRender.unmount();
 
     const onRuntimeChange = vi.fn();
+    // Invariant: typed runtime fields expose their caption and selected value.
+    // Owner: Loop input composition; canonical suite: LoopRunInputField.
     render(
-      <LoopRunInputField
-        name="runtime"
-        field={field({ type: "runtime" })}
-        value={{ provider: "codex", model: "gpt-5.6", speed: "normal" }}
-        onChange={onRuntimeChange}
-      />
+      <>
+        <LoopRunInputField
+          name="backend_runtime"
+          field={field({ type: "runtime" })}
+          value={{ provider: "codex", model: "gpt-5.6", speed: "normal" }}
+          onChange={onRuntimeChange}
+        />
+        <LoopRunInputField
+          name="default_runtime"
+          field={field({ type: "runtime" })}
+          value={{ provider: "codex", model: "gpt-5.6", speed: "normal" }}
+          onChange={vi.fn()}
+        />
+      </>
     );
-    expect(screen.getByTestId("loop-run-field-input-runtime").tagName).toBe("BUTTON");
-    expect(screen.getByTestId("loop-run-field-runtime")).toHaveTextContent("Runtime");
-    fireEvent.click(screen.getByTestId("loop-run-field-input-runtime"));
+    expect(screen.getByRole("button", { name: /Default runtime.*gpt-5\.6/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Backend runtime.*gpt-5\.6/ }));
     fireEvent.click(screen.getByTestId("runtime-selector-speed"));
     expect(onRuntimeChange).toHaveBeenCalledWith({
       provider: "codex",

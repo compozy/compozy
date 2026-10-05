@@ -621,6 +621,10 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 				catalog.lastAgentMetricsQuery,
 			)
 		}
+		globalMetrics, err := h.manager.AggregateSessionsByAgent(t.Context(), store.ReadScope{AllProfiles: true}, "")
+		if err != nil || globalMetrics["coder"] != coder || catalog.lastAgentMetricsQuery.WorkspaceID != "" {
+			t.Fatalf("Global live overlay = %#v, error %v, want the same exact aggregate", globalMetrics, err)
+		}
 	})
 }
 

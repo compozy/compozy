@@ -85,7 +85,7 @@ func (h *BaseHandlers) sessionHealthPayloadForRoute(
 		h.respondError(c, StatusForHeartbeatError(errSessionHealthMissing), errSessionHealthMissing)
 		return contract.SessionHealthPayload{}, "", nil, false
 	}
-	scope, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	sessionID, info, ok := h.routeSessionRead(c)
 	if !ok {
 		return contract.SessionHealthPayload{}, "", nil, false
 	}
@@ -94,7 +94,7 @@ func (h *BaseHandlers) sessionHealthPayloadForRoute(
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return contract.SessionHealthPayload{}, "", nil, false
 	}
-	if strings.TrimSpace(health.WorkspaceID) != scope.SessionWorkspaceID() {
+	if strings.TrimSpace(health.WorkspaceID) != strings.TrimSpace(info.WorkspaceID) {
 		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
 		return contract.SessionHealthPayload{}, "", nil, false
 	}

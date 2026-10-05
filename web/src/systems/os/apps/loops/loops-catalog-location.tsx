@@ -19,7 +19,7 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   const loopCount = page.loopsQuery.total;
 
   const toolbar =
-    page.workspaceId === "" || page.loopsQuery.isLoading ? undefined : (
+    page.workspaceId === "" ? undefined : (
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search
@@ -31,8 +31,9 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
           />
           <ListingToolbar.Filters>
             <LoopCatalogFilters
-              onStatusFilterChange={page.setStatusFilter}
-              statusFilter={page.filter.status}
+              categoryOptions={page.categoryOptions}
+              filter={page.filter}
+              onFiltersChange={page.setFilters}
             />
           </ListingToolbar.Filters>
         </ListingToolbar.Leading>

@@ -30,7 +30,7 @@ export function useAgentSessions(
   agentName: string | undefined,
   options?: UseAgentSessionsOptions
 ): UseAgentSessionsResult {
-  const enabled = (options?.enabled ?? true) && Boolean(workspaceId) && Boolean(agentName);
+  const enabled = (options?.enabled ?? true) && Boolean(agentName);
   // This window's scope. `undefined` when the scope is the workspace root or the
   // selection fell back, which drops the filter instead of sending an empty one.
   const scopeId = useWorktreeScopeId();

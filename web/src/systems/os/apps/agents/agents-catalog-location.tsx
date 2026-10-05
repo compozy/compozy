@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw, Users2 } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 import { Button, Empty, ListingPage } from "@compozy/ui";
 
@@ -38,21 +38,6 @@ function AgentFleetErrorState({ onRetry }: { onRetry: () => void }) {
 export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch }) {
   const page = useAgentsFleetPage(search);
   useAgentsCatalogTopbar(page);
-
-  if (page.workspaceId === "") {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="agents-no-workspace"
-      >
-        <Empty
-          description="Choose a project to see its agents."
-          icon={Users2}
-          title="No project selected"
-        />
-      </div>
-    );
-  }
 
   return (
     <ListingPage data-testid="agent-fleet-page">

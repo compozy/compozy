@@ -200,6 +200,7 @@ export interface LoopTypedInputControlProps {
   disabled?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  labelledBy?: string;
   onChange: (value: unknown) => void;
 }
 
@@ -285,6 +286,7 @@ export function LoopTypedInputControl({
   disabled,
   invalid,
   describedBy,
+  labelledBy,
   onChange,
 }: LoopTypedInputControlProps) {
   const shared = { controlId, testId, disabled, invalid, describedBy };
@@ -312,7 +314,14 @@ export function LoopTypedInputControl({
     );
   }
   if (field.type === "runtime") {
-    return <LoopRuntimeValueControl {...shared} onChange={onChange} value={value} />;
+    return (
+      <LoopRuntimeValueControl
+        {...shared}
+        labelledBy={labelledBy}
+        onChange={onChange}
+        value={value}
+      />
+    );
   }
   if (field.type === "boolean") {
     return (

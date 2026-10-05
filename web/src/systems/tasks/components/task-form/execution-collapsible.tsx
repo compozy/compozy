@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import {
   Disclosure,
   Field,
@@ -27,6 +29,8 @@ export function ExecutionCollapsible({
   onAutoEnqueue,
 }: ExecutionCollapsibleProps) {
   const badge = saveAsDraft ? "Saved as draft" : "Starts on create";
+  const draftLabelId = useId();
+  const autoEnqueueLabelId = useId();
 
   return (
     <Disclosure
@@ -43,13 +47,14 @@ export function ExecutionCollapsible({
     >
       <Field orientation="horizontal">
         <Switch
+          aria-labelledby={draftLabelId}
           checked={saveAsDraft}
           data-testid="task-save-draft-toggle"
           onCheckedChange={onSaveAsDraft}
         />
         <FieldContent>
           <FieldHeader>
-            <FieldTitle>Save as draft</FieldTitle>
+            <FieldTitle id={draftLabelId}>Save as draft</FieldTitle>
             <HelpTip label="About save as draft">
               Create the task without starting it. Start it later from the task page.
             </HelpTip>
@@ -59,13 +64,14 @@ export function ExecutionCollapsible({
 
       <Field orientation="horizontal">
         <Switch
+          aria-labelledby={autoEnqueueLabelId}
           checked={autoEnqueueOnReady}
           data-testid="task-auto-enqueue-toggle"
           onCheckedChange={onAutoEnqueue}
         />
         <FieldContent>
           <FieldHeader>
-            <FieldTitle>Start automatically when ready</FieldTitle>
+            <FieldTitle id={autoEnqueueLabelId}>Start automatically when ready</FieldTitle>
             <HelpTip label="About starting automatically">
               Once the tasks it waits on finish, start it without you doing anything.
             </HelpTip>

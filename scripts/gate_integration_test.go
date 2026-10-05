@@ -321,6 +321,7 @@ exit 0
 			{path: "go.mod", want: "go scopes: ./..."},
 			{path: ".goreleaser.yml", want: "go scopes: ./..."},
 			{path: "bun.lock", want: "js lane: all workspaces"},
+			{path: "patches/swr@2.5.1.patch", want: "js lane: all workspaces"},
 			{path: "Makefile", want: "tooling lanes"},
 			{path: ".air.toml", want: "go scopes: ./scripts/devreadiness"},
 			{path: "scripts/dev.sh", want: "go scopes: ./scripts/devreadiness"},

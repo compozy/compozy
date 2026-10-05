@@ -7,26 +7,24 @@ import { AgentFleetToolbar } from "@/systems/agent";
 
 /** Publishes the fleet count, create action, and search toolbar into the window topbar. */
 export function useAgentsCatalogTopbar(page: AgentsFleetPage) {
-  const noWorkspace = page.workspaceId === "";
   useTopbarSlot({
     glyph: <Users2 />,
     count: agentsFleetHeadCount(page),
-    actions:
-      page.isFirstRunEmpty || noWorkspace ? undefined : (
-        <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
-          <Button
-            data-testid="agents-topbar-create"
-            onClick={page.openCreate}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Plus aria-hidden="true" />
-            New agent
-          </Button>
-        </div>
-      ),
-    toolbar: noWorkspace ? undefined : (
+    actions: page.isFirstRunEmpty ? undefined : (
+      <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
+        <Button
+          data-testid="agents-topbar-create"
+          onClick={page.openCreate}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Plus aria-hidden="true" />
+          New agent
+        </Button>
+      </div>
+    ),
+    toolbar: (
       <AgentFleetToolbar
         categoryOptions={page.categoryOptions}
         draftQuery={page.draftQuery}

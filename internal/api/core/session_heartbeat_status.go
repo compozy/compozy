@@ -4,19 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 )
 
-// availableHeartbeatStatusForHealth omits enrichment for a deleted agent and preserves other read failures.
+// availableHeartbeatStatusForHealth requires a project and a retained agent for wake enrichment.
 func (h *BaseHandlers) availableHeartbeatStatusForHealth(
 	ctx context.Context,
 	health contract.SessionHealthPayload,
 	info *session.Info,
 	includeHealth bool,
 ) (*contract.HeartbeatStatusResponse, error) {
+	if strings.TrimSpace(info.WorkspaceID) == "" {
+		return nil, nil
+	}
 	status, err := h.heartbeatStatusForHealth(ctx, health, info, includeHealth)
 	if errors.Is(err, heartbeat.ErrAuthoringAgentNotFound) {
 		return nil, nil

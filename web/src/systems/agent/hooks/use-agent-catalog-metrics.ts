@@ -5,9 +5,9 @@ interface UseAgentCatalogMetricsOptions {
 }
 
 export interface AgentCatalogMetrics {
-  /** Workspace-scoped session total for this agent. */
+  /** Session total within the selected workspace or Global view. */
   total: number;
-  /** Workspace-scoped active session count. */
+  /** Active session count within the selected workspace or Global view. */
   active: number;
   /** Null when the catalog reports sessions unavailable. */
   failed: number | null;
@@ -30,7 +30,7 @@ const EMPTY_METRICS = {
 } as const;
 
 /**
- * Exact workspace-scoped agent metrics from `listAgentCatalog` item.sessions.
+ * Exact scoped agent metrics from `listAgentCatalog` item.sessions.
  * Never derive Failed/Runtime/Last activity from loaded session pages.
  */
 export function useAgentCatalogMetrics(
@@ -38,7 +38,7 @@ export function useAgentCatalogMetrics(
   agentName: string | undefined,
   options?: UseAgentCatalogMetricsOptions
 ): AgentCatalogMetrics {
-  const enabled = (options?.enabled ?? true) && Boolean(workspaceId) && Boolean(agentName);
+  const enabled = (options?.enabled ?? true) && Boolean(agentName);
   const catalogQuery = useAgentCatalog(
     workspaceId ?? "",
     { name: agentName, limit: 1 },

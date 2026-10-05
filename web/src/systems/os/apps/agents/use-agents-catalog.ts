@@ -19,7 +19,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 const SEARCH_DEBOUNCE_MS = 200;
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const workspaceId = runtimeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/agents" });
@@ -38,7 +38,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
   });
 
-  const agentsEnabled = liveDataEnabled && workspaceId !== "";
+  const agentsEnabled = liveDataEnabled && !pending;
   const catalogQuery = useAgentCatalog(
     workspaceId,
     {
@@ -81,7 +81,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   });
 
   const filtersActive = hasActiveAgentFleetFilters(search);
-  const isLoading = catalogQuery.isLoading;
+  const isLoading = pending || catalogQuery.isLoading;
   const overallTotal = catalogQuery.facets?.total ?? 0;
   const isFirstRunEmpty =
     !isLoading && !catalogQuery.isError && overallTotal === 0 && !filtersActive;

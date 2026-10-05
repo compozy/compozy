@@ -6,11 +6,11 @@ persona: Dora
 journey: J-scope-global-across-workspaces
 expected: Registering the operator home directory is refused deterministically on CLI, HTTP, and UDS with a typed reason and creates no workspace row; the daemon no longer auto-registers it at boot; on an install that previously carried the home row that row is gone and the work it held reads back as no-workspace work rather than disappearing.
 entry_points: compozy workspace add ~/; compozy workspace list; POST /api/workspaces over HTTP and UDS; GET /api/workspaces; daemon boot on a pre-existing home-workspace install
-qa_status: fail
-bug_ids: BUG-20261004-workspace-add-relative-path
-fix_status: pending
-retest_status:
-fix_commits:
+qa_status: untested
+bug_ids: BUG-20261004-workspace-add-relative-path; BUG-20260906-stopped-history-schema-upgrade
+fix_status: fixed
+retest_status: pass
+fix_commits: 52ed8d1bc
 evidence:
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-workspace-lists-hide-home; MS-global-scope-no-workspace-work; MS-web-workspace-add-directory-browser
@@ -56,3 +56,17 @@ The original-persona replay and owning race-enabled suite pass. Gate/commit rema
 The earlier beta.19-origin session and three retained events prove lossless Global migration,
 but the explicit catalog read after the second restart is not yet established; do not infer
 that read from a Global owner response or the Web's hidden-home presentation.
+
+2026-10-04 delivery: the relative CLI defect is verified at 52ed8d1bc after the exact-tree gate
+passes. Fix/retest fields describe that repair; keep the full scenario untested while the remaining
+legacy boot/catalog leg is executed in the new home-migration targeted lab.
+
+2026-10-04 migration continuation: HTTP/UDS retain the Global session and three entries, but
+CLI status/events/history refuse its empty workspace owner. The retained-history finding is
+reopened; the session ended before repair. The relative-root fix remains verified.
+
+2026-10-04 final functional replay: beta.19 history remains intact after the repaired startup
+and two ordinary restarts. HTTP/UDS catalogs stay empty. CLI status/events/history/follow and
+independent transport reads agree; the owned project canary passes and is removed. Evidence:
+home-migration-final-lea-ended.json. Delivery gate, new fix SHA and targeted audit/teardown
+remain before this row's final closure.

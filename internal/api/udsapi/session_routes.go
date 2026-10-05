@@ -11,7 +11,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
 		sessions.GET("/:session_id", handlers.GetSessionByID)
 		sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
-		registerSessionTranscriptRoutes(sessions, handlers)
+		registerSessionReadRoutes(sessions, handlers)
 		sessions.POST("", handlers.CreateSession)
 	}
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
@@ -23,7 +23,6 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/commands", handlers.GetSessionCommands)
 		workspaceSessions.POST("/:session_id/soul/refresh", handlers.RefreshSessionSoul)
 		workspaceSessions.GET("/:session_id/health", handlers.GetSessionHealth)
-		workspaceSessions.GET("/:session_id/status", handlers.GetSessionStatus)
 		workspaceSessions.POST("/:session_id/wait", handlers.SessionWait)
 		workspaceSessions.POST("/:session_id/presence", handlers.SessionPresence)
 		workspaceSessions.GET("/:session_id/interactions", handlers.ListSessionInteractions)
@@ -53,20 +52,21 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.PUT("/:session_id/prompt/queue/:queue_entry_id", handlers.replaceSessionInput)
 		workspaceSessions.POST("/:session_id/prompt/queue/:queue_entry_id/steer", handlers.promoteSessionInput)
 		workspaceSessions.DELETE("/:session_id/prompt/queue/:queue_entry_id", handlers.cancelQueuedSessionPrompt)
-		workspaceSessions.GET("/:session_id/events", handlers.SessionEvents)
-		workspaceSessions.GET("/:session_id/history", handlers.SessionHistory)
-		registerSessionTranscriptRoutes(workspaceSessions, handlers)
+		registerSessionReadRoutes(workspaceSessions, handlers)
 		workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
 		workspaceSessions.GET("/:session_id/usage", handlers.SessionUsage)
 		workspaceSessions.GET("/:session_id/usage/turns", handlers.SessionUsageTurns)
-		workspaceSessions.GET("/:session_id/stream", handlers.StreamSession)
 		workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 		workspaceSessions.GET("/:session_id/clarifications", handlers.ListSessionClarifications)
 		workspaceSessions.POST("/:session_id/clarifications/:request_id/answer", handlers.AnswerSessionClarification)
 	}
 }
 
-func registerSessionTranscriptRoutes(sessions gin.IRouter, handlers *Handlers) {
+func registerSessionReadRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/:session_id/stream", handlers.StreamSession)
+	sessions.GET("/:session_id/history", handlers.SessionHistory)
+	sessions.GET("/:session_id/events", handlers.SessionEvents)
+	sessions.GET("/:session_id/status", handlers.GetSessionStatus)
 	sessions.GET("/:session_id/transcript", handlers.SessionTranscript)
 	sessions.GET("/:session_id/transcript/search", handlers.SessionTranscriptSearch)
 	sessions.GET("/:session_id/transcript/outline", handlers.SessionTranscriptOutline)

@@ -115,7 +115,7 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 		}
 	}
 
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	sessionID, info, ok := h.routeSessionRead(c)
 	if !ok {
 		return
 	}
@@ -165,7 +165,7 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 		return
 	}
 
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	sessionID, info, ok := h.routeSessionRead(c)
 	if !ok {
 		return
 	}

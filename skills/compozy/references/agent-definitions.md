@@ -94,7 +94,12 @@ Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp
 
 Use `GET /api/agents/catalog?workspace=<ref>&profile=<name>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
 
-When `sessions_available` is true, each result's `sessions` object covers every visible retained session for that workspace and agent. It reports `total`, currently `active`, terminal `failed`, summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for active sessions and creation to the last persisted update for stopped sessions. Failed includes stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason. `last_activity_at` follows the session catalog's canonical activity timestamp.
+Omit `workspace` for Global. Definitions use the acting profile's shared resource resolution;
+session metrics aggregate visible sessions by agent name across all projects and no-workspace
+work. Project-local definitions are not merged into the Global list. A workspace selector still
+narrows both effective definitions and metrics. Keep the same profile while following a cursor.
+
+When `sessions_available` is true, each result's `sessions` object covers every visible retained session for that scope and agent name. It reports `total`, currently `active`, terminal `failed`, summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for active sessions and creation to the last persisted update for stopped sessions. Failed includes stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason. `last_activity_at` follows the session catalog's canonical activity timestamp.
 
 `facets.total` and `facets.categories` describe the complete workspace-visible fleet before filters. `facets.active` and `facets.idle` are exact only when `sessions_available` is true. Otherwise, treat every omitted `sessions` value and metric as unavailable; do not infer zero, idle state, runtime, failure count, or last activity, and do not apply a client-side status filter.
 

@@ -4,6 +4,14 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Loop runtime field names:** Run and automation input wrappers pass their visible caption
+  IDs through the existing typed control to RuntimeSelector's caption-plus-value accessible
+  name. No shared selector behavior changes. CLI/HTTP/UDS/native tools, extension/hook/config
+  contracts, workspace/profile isolation, storage and official skill commands are unchanged.
+  LP-002 records the Web impact; no site contract changes. The existing LoopRunInputField
+  runtime case owns field distinction and value selection; fresh run/automation form walks
+  own real UI proof. Bug: `BUG-20261005-loop-runtime-labels-generic`.
+
 - **Vault name correction:** the existing validator keeps the namespace/path grammar and
   `ErrUnsupportedSecretRef` identity, but reports a usable format correction without echoing the
   rejected ref. CLI/HTTP/UDS/native callers retain their current status and DTO contracts. Web
@@ -177,10 +185,13 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   writes version 6. The catalog's logical scope and the immutable events.db owner are resolved
   separately, with the original creation witness proving Global ownership. Metadata, database
   owner rows and historical hashes are not rewritten; no new schema or migration is introduced.
-  HTTP/UDS add read-only `/api/sessions/{session_id}/transcript`, `/transcript/search` and
-  `/transcript/outline` routes for Global history, enforcing both Global ownership and profile
-  read scope. Existing project routes and mutation boundaries stay intact. CLI transcript,
-  search and outline reads select the owning route; native session tools keep their existing
+  HTTP/UDS add read-only `/api/sessions/{session_id}/transcript`, `/transcript/search`,
+  `/transcript/outline`, `/status`, `/events`, `/history` and `/stream` routes for Global history,
+  enforcing both Global ownership and profile read scope. Existing project routes and mutation
+  boundaries stay intact. CLI transcript, search, outline, status, events (including follow) and
+  history reads select the owning route; filters, archive selection, bounds and SSE cursors
+  retain their existing semantics. Global status omits project-only Heartbeat wake enrichment;
+  project Heartbeat failures still propagate. Native session tools keep their existing
   project/caller scope and IDs. No hook, extension SDK or configuration changes. Web links ask
   to enable Global without replacing the remembered project and render retained history read-only.
   Out-of-scope documents hide a session locally without retiring its shared window; only
@@ -1866,3 +1877,67 @@ remain unchanged.
 - QA owner: RT-home-workspace-not-registrable and BUG-20261004-workspace-add-relative-path.
   TestWorkspaceAddBuildsRequest owns relative-root conversion and directory-resolution failure;
   fresh CLI/HTTP/UDS replay owns canonical refusal, project persistence and baseline restoration.
+
+
+## Task execution switch labels (2026-10-04 QA)
+
+- Web task creation connects the existing execution switches to their visible labels. The shared
+  Switch and FieldTitle primitives, copy, draft values and task execution policy are unchanged.
+- Native tools, CLI/HTTP/UDS routes/DTOs, hooks, extensibility, config, profile/workspace isolation,
+  persisted data and official skills/compozy/ behavior are unchanged; no migration is needed.
+- QA owner: MS-global-scope-no-workspace-work and BUG-20261004-task-execution-switches-unnamed.
+  The existing task editor component suite owns name-based operation; a fresh browser walk
+  confirms the real accessible tree, saved Global draft and adjacent project draft behavior.
+
+
+## Global agent fleet visibility (2026-10-04 QA)
+
+- HTTP/UDS GET /api/agents/catalog accepts an omitted workspace for the existing Global
+  definition population. Profile resolution remains authoritative; server filters, facets,
+  ordering and cursor pagination apply before the page cut. Existing workspace requests and
+  cursor fingerprints retain their shape and behavior; Web cache keys retain profile identity.
+- Session Manager and the durable aggregate accept Global breadth with an explicit profile
+  read scope. Exact metrics count visible sessions by agent name across projects and no-workspace
+  work, preserving live overlays and existing internal/archive exclusions. No schema migration.
+- Web catalog, route preload, detail metrics and session rows accept resolved Global scope;
+  unresolved scope still gates reads. No fabricated workspace, client filtering or totals.
+  Existing project-required session mutations retain their admission rules.
+- Native tools, CLI agent list/info, extension contracts, hooks and config keys are unchanged.
+  No workspace/profile data movement occurs. The owning OpenAPI source, generated types, site
+  agent guide and official skills/compozy/references/agent-definitions.md co-ship the additive read.
+- QA owner: MS-global-scope-no-workspace-work and BUG-20261004-global-agents-project-gate.
+  Existing core fleet, Session Manager, SQLite aggregate and route preload suites own the
+  changed boundaries. The global-agents-* receipts record the completed Global/project replay,
+  independent HTTP/UDS counts and cursor boundaries, reload persistence and owned-object cleanup.
+
+## QA delivery diagnostics (2026-10-04)
+
+- The bounded SWR 2.5.1 package patch preserves deferred focus/reconnect revalidation while
+  preventing a DOM event from becoming the timer delay. It changes no API, native tool,
+  extension/hook/config contract or persisted workspace data. Its removal condition and owning
+  visibility/focus checks are recorded in the 2026-10-02 untested QA report.
+- Component fixtures preserve their behavioral checks while settling asynchronous work and
+  unmounting before shared state resets. UIProvider still verifies both OS motion preferences.
+  Official skill and site content need no additional behavior change for these test repairs.
+- Dependency patch edits now select all JS workspace validation in make gate, with full PR CI
+  still required. The existing gate integration classification suite owns this delivery contract.
+- The React SDK test configuration uses an explicit .mjs extension and both invocation
+  paths follow it. This fixes the ESM-as-CommonJS loader diagnostic while preserving the
+  SDK's published dual-module package. The existing renderer suite validates the runner.
+
+
+## Loop catalog controls (2026-10-05 QA)
+
+- Web keeps the existing search toolbar mounted during catalog loading and exposes the
+  existing kind/category filters through shared filter chips. One route update commits
+  all selected facets; the daemon continues to filter, sort, count and page results.
+- Search uses the existing debounced draft/commit owner so pending navigation cannot
+  replace new keystrokes. A selected category remains labeled when other facets exclude
+  it; the UI does not fabricate a count for that selection.
+- Native tools, CLI/HTTP/UDS DTOs, hooks, extensions and config are unchanged. Query
+  workspace/profile isolation and persisted data retain their existing owners. No
+  migration or official skills/compozy/ behavior change is needed.
+- QA/docs owner: LP-001, BUG-20261005-loop-catalog-filters-missing and
+  BUG-20261005-loop-search-loses-focus. The existing chip projection suite owns filter
+  values; the existing Loop E2E suite owns focus across real daemon responses. The
+  persona replay verifies counted Rows/Cards continuation and filters from server facets.

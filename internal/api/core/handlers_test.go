@@ -217,8 +217,6 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	t.Parallel()
 
-	// The Global transcript transport requires both workspace-free ownership and
-	// the requested profile before the materialized history reader can run.
 	for _, tc := range []struct {
 		name        string
 		workspaceID string
@@ -231,34 +229,99 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			var reads atomic.Int32
-			manager := testutil.StubSessionManager{
-				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-					info := testutil.NewSessionInfo(id)
-					info.WorkspaceID, info.ProfileID = tc.workspaceID, tc.profileID
-					return info, nil
-				},
-				TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
-					reads.Add(1)
-					if id != "sess-global" || query.Limit != 2 {
-						t.Fatalf("transcript request = %s %+v", id, query)
+			for _, endpoint := range []struct {
+				path string
+				body string
+			}{
+				{"transcript?limit=2", `"max_sequence":12`},
+				{"status", `"session_id":"sess-global"`},
+				{"events?limit=2", `"id":"ev-global"`},
+				{"history?limit=2", `"id":"ev-global"`},
+				{"stream?frames=raw&limit=2", `"id":"ev-global"`},
+			} {
+				t.Run("Should authorize "+endpoint.path, func(t *testing.T) {
+					t.Parallel()
+					var reads atomic.Int32
+					event := store.SessionEvent{
+						ID: "ev-global", SessionID: "sess-global", Sequence: 12,
+						Type: session.EventTypeSessionStopped,
 					}
-					return transcript.Page{Generation: 7, MaxSequence: 12}, nil
-				},
-			}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
-			response := performRequest(
-				t,
-				fixture.Engine,
-				http.MethodGet,
-				"/sessions/sess-global/transcript?limit=2",
-				nil,
-			)
-			if response.Code != tc.wantStatus {
-				t.Fatalf("Global transcript = %d %s, want %d", response.Code, response.Body, tc.wantStatus)
-			}
-			if (reads.Load() == 1) != (tc.wantStatus == http.StatusOK) {
-				t.Fatalf("history reader calls = %d", reads.Load())
+					manager := testutil.StubSessionManager{
+						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+							info := testutil.NewSessionInfo(id)
+							info.WorkspaceID, info.ProfileID, info.State = tc.workspaceID, tc.profileID, session.StateStopped
+							return info, nil
+						},
+						TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+							reads.Add(1)
+							if id != "sess-global" || query.Limit != 2 {
+								t.Fatalf("transcript request = %s %+v", id, query)
+							}
+							return transcript.Page{Generation: 7, MaxSequence: 12}, nil
+						},
+						EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+							reads.Add(1)
+							return []store.SessionEvent{event}, nil
+						},
+						HistoryFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
+							reads.Add(1)
+							return []store.TurnHistory{
+								{TurnID: "turn-global", Events: []store.SessionEvent{event}},
+							}, nil
+						},
+					}
+					fixture := newHandlerFixture(
+						t,
+						manager,
+						testutil.StubObserver{},
+						testutil.StubWorkspaceService{},
+						nil,
+						nil,
+					)
+					fixture.Handlers.SessionHealth = sessionHealthReaderFunc(
+						func(context.Context, string) (heartbeat.SessionHealth, error) {
+							reads.Add(1)
+							return heartbeat.SessionHealth{
+								SessionID: "sess-global", WorkspaceID: tc.workspaceID,
+								State: heartbeat.SessionHealthStateStopped, Health: heartbeat.SessionHealthDead,
+							}, nil
+						},
+					)
+					statusSpy := &heartbeatStatusSpy{
+						err: errors.New("project Heartbeat must not run for Global history"),
+					}
+					fixture.Handlers.HeartbeatStatus = statusSpy
+					response := performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/sessions/sess-global/"+endpoint.path,
+						nil,
+					)
+					if response.Code != tc.wantStatus {
+						t.Fatalf(
+							"Global %s = %d %s, want %d",
+							endpoint.path,
+							response.Code,
+							response.Body,
+							tc.wantStatus,
+						)
+					}
+					if statusSpy.calls != 0 || strings.Contains(response.Body.String(), "wake_state") {
+						t.Fatalf(
+							"Global read attempted project wake enrichment: calls=%d body=%s",
+							statusSpy.calls,
+							response.Body,
+						)
+					}
+					if tc.wantStatus == http.StatusOK {
+						if reads.Load() == 0 || !strings.Contains(response.Body.String(), endpoint.body) {
+							t.Fatalf("Global read = %d reader calls, body=%s", reads.Load(), response.Body)
+						}
+					} else if reads.Load() != 0 || !strings.Contains(response.Body.String(), "not found") {
+						t.Fatalf("unauthorized read = %d reader calls, body=%s", reads.Load(), response.Body)
+					}
+				})
 			}
 		})
 	}
@@ -4516,6 +4579,23 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		if listed.Agents[0].Origin != contract.AgentOriginGlobal || listed.Agents[0].DefinitionDigest == "" ||
 			listed.Agents[0].Skills == nil || len(listed.Agents[0].Skills.Disabled) != 1 {
 			t.Fatalf("listed alpha read shape = %#v", listed.Agents[0])
+		}
+		firstResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/catalog?limit=1", nil)
+		var first contract.AgentCatalogResponse
+		decodeJSON(t, firstResp.Body.Bytes(), &first)
+		if firstResp.Code != http.StatusOK || first.Page.Total != 3 || !first.Page.HasMore ||
+			len(first.Agents) != 1 || first.Agents[0].Agent.Name != "alpha" ||
+			first.Agents[0].Agent.Origin != contract.AgentOriginGlobal ||
+			first.Agents[0].Agent.DefinitionDigest != listed.Agents[0].DefinitionDigest {
+			t.Fatalf("Global fleet = status %d payload %#v", firstResp.Code, first)
+		}
+		secondResp := performRequest(t, fixture.Engine, http.MethodGet,
+			"/agents/catalog?limit=1&cursor="+first.Page.NextCursor, nil)
+		var second contract.AgentCatalogResponse
+		decodeJSON(t, secondResp.Body.Bytes(), &second)
+		if secondResp.Code != http.StatusOK || len(second.Agents) != 1 ||
+			second.Agents[0].Agent.Name != "onboarding" || second.Page.Total != 3 {
+			t.Fatalf("Global fleet continuation = status %d payload %#v", secondResp.Code, second)
 		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)

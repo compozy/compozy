@@ -2,7 +2,7 @@
 // Invariant: the pane binds the browser theme preference (light/dark/system) to the theme runtime,
 // wallpaper/reduce-motion to the OS controller with APG radio-group semantics, and states the
 // system reduced-motion precedence truthfully (US-015.EC-1).
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -51,6 +51,7 @@ function renderPane({ systemReducedMotion = false } = {}) {
 
 describe("AppearanceSettingsPane", () => {
   afterEach(() => {
+    cleanup();
     for (const manager of managers.splice(0)) manager.destroy();
     themePreferenceStore.trigger.preferenceSet({ preference: "dark" });
     window.localStorage.clear();

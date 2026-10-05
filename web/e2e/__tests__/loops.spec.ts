@@ -588,6 +588,37 @@ function editorNode(appPage: Page, nodeId: string) {
   return appPage.locator(`[data-testid="loop-editor-node"][data-node-id="${nodeId}"]`);
 }
 
+// Invariant: a new server search keeps the input focused so typing can continue.
+// Owner: Loops catalog route/toolbar lifetime across the real query boundary.
+test.describe("Loop catalog", () => {
+  test.use({ runtimeOptions: {} });
+  test("Loop catalog search retains focus across daemon responses", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths) throw new Error("Loop search test requires launch-mode runtime paths");
+    await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+    await openAppWindow(appPage, "Loops", "loops");
+    const search = appPage.getByRole("searchbox", { name: "Search loops" });
+    await search.click();
+
+    for (const [text, query] of [
+      ["l", "l"],
+      ["oop", "loop"],
+    ]) {
+      const response = appPage.waitForResponse(candidate => {
+        const url = new URL(candidate.url());
+        return url.pathname.endsWith("/loops") && url.searchParams.get("q") === query;
+      });
+      await appPage.keyboard.type(text);
+      expect((await response).ok()).toBe(true);
+      await expect(appPage.getByTestId("loops-loading")).toHaveCount(0);
+      await expect(search).toHaveValue(query);
+      await expect(search).toBeFocused();
+    }
+  });
+});
+
 // Invariant: a scoped Loop navigation may select its project, but retained Loop
 // windows cannot overwrite later shell choices. Owner: LoopsWindow route adoption.
 test("scoped Loop windows preserve later Global scope choices", async ({ appPage, runtime }) => {

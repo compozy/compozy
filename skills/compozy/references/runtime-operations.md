@@ -122,7 +122,11 @@ the empty catalog scope is not permission to adopt another database. Retained ve
 creation profiles preserve their original hashes without enabling retired runtime policies.
 
 Read Global history through `GET /api/sessions/{session_id}/transcript`, with the same paging
-parameters and profile read scope as project history. The corresponding owner lookup reports
+parameters and profile read scope as project history. The same Global prefix exposes `/status`,
+`/events`, `/history` and `/stream`, preserving event filters, archive selection, bounds and
+resume cursors. CLI `session status`, `events` (including `--follow`) and `history` resolve that
+owner automatically. Project mutation routes and native-tool workspace requirements remain unchanged.
+The corresponding owner lookup reports
 an empty workspace ID and the name `Global`. Web links enable Global after confirmation while
 preserving the remembered project; the recovered transcript is read-only.
 

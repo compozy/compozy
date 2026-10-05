@@ -919,6 +919,27 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it("Should preload and reuse the Global agent catalog without a project", async () => {
+    const queryClient = createQueryClient();
+    enableGlobalScope();
+    await invokeLoader(AgentsRoute, {
+      ...context(queryClient),
+      deps: { q: "reading", limit: 50 },
+    });
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ profile: "default", q: "reading", limit: 50 }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.fetchAgentCatalog.mock.calls[0]?.[0].workspace).toBeUndefined();
+    const unmount = mountQueries(queryClient, () => {
+      useAgentCatalog("", { q: "reading", limit: 50 });
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
+  });
+
   it("Should preload pending suggestions only for an unfiltered zero-inventory catalog", async () => {
     const queryClient = createQueryClient();
 

@@ -113,7 +113,7 @@ describe("SplitPane", () => {
 
   it("Should swap to the detail body when a detail node is provided", async () => {
     const { rerender, container } = render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <SplitPane
           list={<div>list</div>}
           detail={null}
@@ -125,7 +125,7 @@ describe("SplitPane", () => {
     expect(container.querySelector("[data-slot=split-pane-detail-empty]")).not.toBeNull();
 
     rerender(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <SplitPane
           list={<div>list</div>}
           detail={<div data-testid="body">body</div>}
