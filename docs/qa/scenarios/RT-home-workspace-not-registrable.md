@@ -6,13 +6,13 @@ persona: Dora
 journey: J-scope-global-across-workspaces
 expected: Registering the operator home directory is refused deterministically on CLI, HTTP, and UDS with a typed reason and creates no workspace row; the daemon no longer auto-registers it at boot; on an install that previously carried the home row that row is gone and the work it held reads back as no-workspace work rather than disappearing.
 entry_points: compozy workspace add ~/; compozy workspace list; POST /api/workspaces over HTTP and UDS; GET /api/workspaces; daemon boot on a pre-existing home-workspace install
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261004-workspace-add-relative-path
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-workspace-lists-hide-home; MS-global-scope-no-workspace-work; MS-web-workspace-add-directory-browser
 ---
 
@@ -40,3 +40,19 @@ Walk:
 Expected evidence: CLI, HTTP, and UDS refusal payloads side by side; the workspace listing before
 and after each attempt; the successful project-folder registration; and pre-boot versus post-boot
 counts for every family of work the legacy row used to hold.
+
+2026-10-04 structured walk: absolute/trailing/symlink and shell-expanded home spellings refuse
+workspace_home_forbidden on the public surfaces and preserve the full catalog. Relative CLI
+registration instead fails with an untyped absolute-path error; the linked bug owns this missing
+CLI resolution. A real absolute project registers successfully and is removed after independent
+HTTP/UDS readback. Baseline and current runtime are restored. Evidence: home-guard-lea-ended.json
+in the current report directory. Legacy-preservation evidence is being reconciled separately.
+
+
+2026-10-04 repaired relative-path replay: three relative home spellings now reach the same typed
+daemon refusal. A relative project registers and reads identically through HTTP/UDS; its absolute
+spelling is refused as a duplicate, preserving the same row. Cleanup restores the full baseline.
+The original-persona replay and owning race-enabled suite pass. Gate/commit remain pending.
+The earlier beta.19-origin session and three retained events prove lossless Global migration,
+but the explicit catalog read after the second restart is not yet established; do not infer
+that read from a Global owner response or the Web's hidden-home presentation.

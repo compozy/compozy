@@ -1853,3 +1853,16 @@ remain unchanged.
 - QA/docs owner: MS-web-settings-takeover-redesign and BUG-20261004-settings-offline-save-stuck.
   The existing Settings mutation suite owns offline settlement and explicit retry after
   reconnect; fresh browser error/discard/retry/reload walks verify draft recovery and restoration.
+
+## Relative CLI workspace registration (2026-10-04 QA)
+
+- The workspace add positional root is resolved against the invoking CLI directory before the
+  existing create request. Absolute roots retain their behavior. The daemon still owns symlink
+  canonicalization, home refusal and registration; the CLI adds no lookup or home-policy copy.
+- Native tools, HTTP/UDS DTOs and validation, Web registration, hooks, extensibility and config
+  are unchanged. No migration, workspace/profile data movement or permission change is needed.
+  The official skills/compozy/ native registration contract is unchanged; site resolver guidance
+  documents the CLI-relative versus transport-absolute input boundary.
+- QA owner: RT-home-workspace-not-registrable and BUG-20261004-workspace-add-relative-path.
+  TestWorkspaceAddBuildsRequest owns relative-root conversion and directory-resolution failure;
+  fresh CLI/HTTP/UDS replay owns canonical refusal, project persistence and baseline restoration.

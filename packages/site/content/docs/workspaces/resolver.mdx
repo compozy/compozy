@@ -142,6 +142,10 @@ stable name:
 compozy workspace add /Users/you/src/checkout-api --name checkout-api
 ```
 
+The CLI resolves a relative root such as `.` or `../checkout-api` from your current directory.
+Direct HTTP and UDS registration requests still require an absolute `root_dir`; the daemon
+canonicalizes the path and enforces the home-folder restriction for every caller.
+
 Add a workspace-local default agent when this project should start a different agent from your
 global default:
 
