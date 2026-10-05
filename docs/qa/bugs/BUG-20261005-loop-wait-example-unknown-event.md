@@ -1,6 +1,6 @@
 # BUG-20261005-loop-wait-example-unknown-event: The documented wait event cannot be validated
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -35,7 +35,7 @@ example is stale. The existing early-rejection bug remains fixed.
 
 ## Fix
 
-- **Fix commit:** pending
+- **Fix commit:** 24c704df17ed3237540063fc546f4fad9c080e5a
 - Use a catalog-backed task completion event in the example and link the authoritative
   event catalog. Preserve the existing runtime validator and explicit rejection behavior.
 - **Regression evidence:** validate the exact revised YAML snippet through the public CLI;
@@ -49,5 +49,7 @@ includes task.run.completed. The production validator remains unchanged; no pros
 snapshot test was added.
 
 Evidence: loops-wait-doc-example-extracted.json and loops-wait-doc-example-validated.json
-under docs/qa/evidence/2026-10-02-untested. Required site delivery checks and commit closure
-remain pending.
+under docs/qa/evidence/2026-10-02-untested. The required make gate passed all affected
+lanes, including site generation, lint, typecheck and 302 tests in 55 suites. The commit
+hook retained every frozen file unchanged (loops-wait-doc-delivery-gate.json and
+loops-wait-doc-commit.json).

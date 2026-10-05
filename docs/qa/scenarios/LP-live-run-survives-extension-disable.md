@@ -6,11 +6,11 @@ persona: Bruno
 journey: J-04
 expected: Disabling an extension after a Loop run starts resolves the run's pinned profile and does not make an unrelated wait impossible to resume. The resume reads the run's pinned executed definition and accepts the wait payload while leaving other profiles unchanged; any later unavailable extension action fails through the node lifecycle instead of turning the resume request into an internal server error.
 entry_points: compozy --profile <name> extension disable; POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/resume; compozy loop status
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260803-disabled-extension-blocks-wait-resume; BUG-20261005-loop-wait-example-unknown-event
 fix_status: fixed
 retest_status: pass
-fix_commits: Task 08 checkpoint
+fix_commits: Task 08 checkpoint; 24c704df17ed3237540063fc546f4fad9c080e5a
 evidence: docs/qa/evidence/2026-10-02-untested/loops-pinned-wait-final-http.json; docs/qa/evidence/2026-10-02-untested/loops-pinned-wait-final-uds.json; docs/qa/evidence/2026-10-02-untested/loops-pinned-wait-final-web.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: LP-operator-lifecycle-ui; ET-021
@@ -36,4 +36,5 @@ extension and requeuing only read_tasks, the original Run completed in generatio
 the same wait output reference, zero pending tasks and no open waits. Public events show
 one wait start/resume. Web and reload preserve the result; both extension inventories
 match their pre-walk name/enabled/version baselines. The stale DSL event example found
-during setup is repaired and publicly validated; commit/delivery closure is pending.
+during setup is repaired and publicly validated. The required gate passed; the correction
+is committed as 24c704df17ed3237540063fc546f4fad9c080e5a.
