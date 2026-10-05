@@ -44,10 +44,51 @@ This differs from the false operator-attribution bug on already completed worker
 
 ## Fix
 
-Root cause investigation pending. The persona session ended before implementation inspection.
-Repair is within the authorized bug-fix scope; add regression coverage in the existing owning
-suite after locating the boundary, then repeat the original public journey.
+The durable transcript records ACP prompt_stop_reason=cancelled at sequence 134, a stopped
+session at sequence 136, and a new schema-repair user prompt at sequence 138. The provider
+resumes at 09:44:58Z. Cleanup did stop the process; the action collector incorrectly accepted
+the canceled turn as a successful response. Output validation then retried the incomplete JSON,
+which caused the ordinary prompt path to reactivate the stopped session.
+
+The adapter now maps the typed ACP canceled stop reason to the existing safe cancellation
+failure and preserves context.Canceled identity and measured usage. The run-agent executor
+already stops on prompt errors, so canceled output never reaches schema validation or repair.
+No session restart policy, public DTO, persisted enum or configuration is changed.
+
+Invariant: a canceled provider turn cannot become an action answer, whether its text is absent,
+partial JSON or complete JSON; its recorded usage is retained. Owner: daemon prompt adapter.
+Canonical suite: TestCollectLoopPromptResultProviderFailures in loop_runtime_adapters_test.go.
+The three added cases fail with a nil error before the production repair and pass afterward.
+The first attempt used a nonexistent constant name and only proved a compile error; the second
+attempt is the behavioral red. Receipts: loops-cancel-regression-red-2.json and
+loops-cancel-regression-green.json. The original-persona first-turn replay passes; fix commit is pending.
 
 ## Verification
 
-Original failure confirmed through public surfaces. Repair and fresh-persona replay remain pending.
+The fresh CH-012 Bruno replay uses the same desktop, locale and network conditions with
+the real Codex/GPT-6.1-Sol runtime selected from the public live catalog. Binary SHA:
+d51bb3b8494bceeacc1d5672caddf3f1d1b880a6790c8468dc58662ce7cef340.
+Run looprun-62035a5882bc823b is canceled in Web at 10:06:46.095085Z while its first prompt
+is active. Worker sess_a131f1fc9f0c86425a3582acf123d0bb records ACP cancelled at sequence 7
+and session_stopped at sequence 9, 10:06:48.278779Z. Final history contains exactly one user
+prompt and one canceled provider turn. Independent UDS status confirms stopped, verified=true,
+active_prompt=false; no separate session-stop action was needed. CLI why, HTTP and a fresh
+Web reload retain canceled/operator_cancel. The loaded screenshot was visually inspected.
+
+The preceding replay looprun-2632862b79577dbd also stays stopped, but it canceled an already
+running schema-repair turn after the provider rejected the selected gpt-6-luna model. That
+limited observation is retained and excluded from first-turn regression proof. A pre-existing
+successful implement-tasks run still reads Done in Web. Its initial extra wait targeted the
+wrong accessibility role and timed out; the subsequent outcome capture succeeds.
+
+- **Regression test:** TestCollectLoopPromptResultProviderFailures (three canceled-output cases).
+- **Race suites:** daemon prompt collectors and policy-gate judge, Loop run-agent/transform
+  executors and action timeout all pass; see loops-cancel-owning-suites.json.
+- **Replay receipts:** loops-cancel-first-turn-bruno-{prompt-0,cancel,history,history-final,
+  worker-uds,worker-final,why,run-http,reload}.json.
+- **Screenshot:** loops-cancel-first-turn-bruno-reloaded.png.
+- **Recording:** /Users/pedronauck/.config/browser-harness/agent-workspace/recordings/loops-cancel-first-turn-bruno
+  (closed, seven frames). The earlier limited replay is closed with ten frames.
+- **Ownership:** loops-cancel-first-turn-owned.json and loops-cancel-replay-owned.json retain
+  the terminal runs and stopped session histories for evidence.
+- **Fix commit:** pending delivery gate and commit.

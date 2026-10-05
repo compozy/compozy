@@ -1958,3 +1958,17 @@ remain unchanged.
   BUG-20261005-loop-search-loses-focus. The existing chip projection suite owns filter
   values; the existing Loop E2E suite owns focus across real daemon responses. The
   persona replay verifies counted Rows/Cards continuation and filters from server facets.
+
+## Loop prompt cancellation (2026-10-05 QA)
+
+- The daemon action adapter preserves the ACP canceled outcome as the existing safe cancellation
+  failure. Run-agent output validation cannot restart a canceled turn as a schema-repair prompt.
+  Measured usage survives the error. The real Manager stop and binding owners remain unchanged.
+- Native loop_cancel and loop_node_cancel, CLI/HTTP/UDS cancellation, Goal command judges and Web
+  Cancel run retain their current contracts. No tool ID, DTO, extension/hook/config key, persisted
+  enum or schema changes. Workspace/profile authorization and owned-session isolation are unchanged.
+- The official skills/compozy/references/loops.md cancellation contract already requires fencing
+  new work and stopping owned sessions; this repair restores that promise. Site cancellation
+  guidance remains accurate. QA owner: LP-003 and BUG-20261005-loop-cancel-leaves-worker-running.
+  The canonical prompt-adapter suite covers the canceled outcome; existing run-agent and judge
+  suites are adjacent canaries. A fresh Bruno Web cancellation replay supplies real provider proof.

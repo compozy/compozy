@@ -1798,6 +1798,42 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	t.Parallel()
 
+	for _, response := range []struct {
+		name string
+		text string
+	}{
+		{name: "Should reject a canceled prompt with no output"},
+		{name: "Should reject a canceled prompt with partial output", text: `{"status":`},
+		{name: "Should reject a canceled prompt with complete output", text: `{"status":"ok"}`},
+	} {
+		t.Run(response.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &loopActionBinderSessionManager{
+				events: []acp.AgentEvent{
+					{Type: acp.EventTypeAgentMessage, Text: response.text},
+					{
+						Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonCancelled,
+						Usage: &acp.TokenUsage{TotalTokens: new(int64(27))},
+					},
+				},
+			}
+			result, err := collectLoopPromptResult(
+				t.Context(), sessions, "sess-canceled", looppkg.ActionPromptRequest{Message: "Write the handoff"},
+			)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled prompt error = %v, want context.Canceled", err)
+			}
+			if result.Text != "" || result.TokensUsed != 27 || !result.TokensReported {
+				t.Fatalf("canceled result = %#v, want retained usage without an action answer", result)
+			}
+			safe, ok := errors.AsType[looppkg.SafeActionFailureProvider](err)
+			if !ok || safe.SafeActionFailure().Code != string(store.FailureCanceled) {
+				t.Fatalf("canceled prompt error = %v, want safe cancellation failure", err)
+			}
+		})
+	}
+
 	t.Run("Should return normal text without error on successful model output", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
