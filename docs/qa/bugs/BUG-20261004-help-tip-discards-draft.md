@@ -1,6 +1,6 @@
 # BUG-20261004-help-tip-discards-draft: Dismissing a hovered help tip discards the task draft
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Data-Loss
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Dora
@@ -54,7 +54,7 @@ is retained separately and is not evidence of missing guidance.
   on the enclosing dialog's React event path before the tooltip's document listener. The two
   composed roots do not coordinate that dismissal, so the dialog unmounts the form first.
   Focus/click works because the tooltip trigger receives and consumes the key first.
-- **Fix commit:** Pending.
+- **Fix commit:** 6aec027349214211c68315607d9ad7b4c5b93276.
 - **Regression test:** packages/ui/src/components/custom/__tests__/help-tip.test.tsx. The existing
   suite composes the real Dialog and HelpTip, enters a title, opens guidance by hover/focus/click,
   and requires the first Escape to preserve the dialog, value and focus. A second Escape closes
@@ -79,4 +79,9 @@ only the tip; second Escape explicitly closes the form. The Job canary retains n
 caret, with continued typing. No drafts are saved, confirmed by independent CLI queries.
 All five screenshots are inspected and the 20-frame recording is closed. Evidence:
 help-tip-touch-dora-task-paths.json, help-tip-touch-dora-job-ended.json and the paired
-help-tip-touch-dora-*-after.json receipts. Gate completion and commit linkage remain pending.
+help-tip-touch-dora-*-after.json receipts. The frozen staged gate and commit proof confirm delivery of this repair locally.
+
+Verified at 6aec02734: all affected local gate lanes are CURRENT-PASS for tree
+8cc4147cbf9e055535073ccc95237cb8a3f77e37, exactly preserved by the commit. See
+help-tip-frozen-staged-delivery-gate.json, help-tip-frozen-staged-gate-status.json and
+help-tip-preserve-guidance-commit-proof.json. Current-head PR CI remains outside this local claim.

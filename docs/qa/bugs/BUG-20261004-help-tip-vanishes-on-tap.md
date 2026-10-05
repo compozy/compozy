@@ -1,6 +1,6 @@
 # BUG-20261004-help-tip-vanishes-on-tap: Help guidance disappears immediately after tapping
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -49,7 +49,7 @@ task and job forms; this finding concerns activation, not dismissal of their enc
   compatibility `mouseleave` after the tap; the explicit controlled opener does not tell Base UI's
   hover interaction that touch owns this open lifetime. That mouse event then closes the tip.
   The original test asserted transient mounting before the exit animation finished.
-- **Fix commit:** Pending.
+- **Fix commit:** 6aec027349214211c68315607d9ad7b4c5b93276.
 - **Regression test:** Existing shared HelpTip suite; require mouse/touch activation to retain
   prose through a one-second reading interval, and retain ordinary Escape dismissal. The touch
   case fails before repair (nine pass / one fail); ordinary mouse is clean in jsdom, while its
@@ -96,4 +96,9 @@ only the tip; second Escape explicitly closes the form. The Job canary retains n
 caret, with continued typing. No drafts are saved, confirmed by independent CLI queries.
 All five screenshots are inspected and the 20-frame recording is closed. Evidence:
 help-tip-touch-dora-task-paths.json, help-tip-touch-dora-job-ended.json and the paired
-help-tip-touch-dora-*-after.json receipts. Gate completion and commit linkage remain pending.
+help-tip-touch-dora-*-after.json receipts. The frozen staged gate and commit proof confirm delivery of this repair locally.
+
+Verified at 6aec02734: all affected local gate lanes are CURRENT-PASS for tree
+8cc4147cbf9e055535073ccc95237cb8a3f77e37, exactly preserved by the commit. See
+help-tip-frozen-staged-delivery-gate.json, help-tip-frozen-staged-gate-status.json and
+help-tip-preserve-guidance-commit-proof.json. Current-head PR CI remains outside this local claim.
