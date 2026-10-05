@@ -1,6 +1,6 @@
 # BUG-20261005-loop-cancel-leaves-worker-running: Cancel run leaves its worker executing
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -61,7 +61,7 @@ Canonical suite: TestCollectLoopPromptResultProviderFailures in loop_runtime_ada
 The three added cases fail with a nil error before the production repair and pass afterward.
 The first attempt used a nonexistent constant name and only proved a compile error; the second
 attempt is the behavioral red. Receipts: loops-cancel-regression-red-2.json and
-loops-cancel-regression-green.json. The original-persona first-turn replay passes; fix commit is pending.
+loops-cancel-regression-green.json. The original-persona first-turn replay passes; the fix commit is 5216cbba009d3ae6fb693e3cf801f2ae5484c66f.
 
 ## Verification
 
@@ -91,4 +91,6 @@ wrong accessibility role and timed out; the subsequent outcome capture succeeds.
   (closed, seven frames). The earlier limited replay is closed with ten frames.
 - **Ownership:** loops-cancel-first-turn-owned.json and loops-cancel-replay-owned.json retain
   the terminal runs and stopped session histories for evidence.
-- **Fix commit:** pending delivery gate and commit.
+- **Fix commit:** 5216cbba009d3ae6fb693e3cf801f2ae5484c66f. All required gate lanes are CURRENT-PASS for
+  tree a565b13760f0f1b73855b2f1bad11a56830b14e1; the commit preserves that exact tree.
+  See loops-cancel-delivery-gate.json, loops-cancel-gate-status.json and loops-cancel-fix-commit.json.
