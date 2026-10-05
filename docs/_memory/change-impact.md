@@ -1764,3 +1764,20 @@ remain unchanged.
 - QA/docs owner: `MS-web-settings-takeover-redesign`, bug
   `BUG-20261004-settings-search-shortcut-inactive`, and the 2026-10-02 untested report. Owning
   navigation-suite regression proof and fresh Chrome replay are required before verification.
+
+## Help-tip dismissal preserves editor drafts (2026-10-04 QA)
+
+- Shared Web UI Tooltip/Dialog composition gives an open descendant tooltip the first Escape,
+  including hover while a sibling field retains focus. The nearest dialog defers its dismissal
+  through Base UI's public event API; the tooltip keeps its existing dismissal lifecycle.
+  Peer dialogs remain independent, and a subsequent Escape can close the enclosing dialog.
+- HelpTip opts out of the trigger's click-to-close policy because its existing click handler opens
+  explanatory content for touch. Touch activation retains the open lifetime across compatibility
+  mouseleave events; outside press, blur and Escape still dismiss it. Generic Tooltip triggers
+  retain their current click policy.
+- Native tools, HTTP/UDS/CLI contracts, hooks, extensibility, config and workspace data isolation
+  are unchanged. No persisted shape, migration or official `skills/compozy/` change is needed.
+- QA/docs owners: `MS-web-modal-help-tips` and `MS-web-entity-modal-shell`, bug
+  `BUG-20261004-help-tip-discards-draft` and `BUG-20261004-help-tip-vanishes-on-tap`.
+  The existing shared HelpTip suite owns stable pointer activation, draft/focus and
+  dialog-isolation coverage; real task and adjacent editor replays verify the production bundle.

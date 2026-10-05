@@ -4,15 +4,15 @@ area: MS
 title: Entity editor modals share one header, host token, and footer
 persona: Dora
 journey: J-administer-runtime-settings
-expected: Every migrated entity editor renders the shared ruled chrome — the 26px mint identity well (`KindIcon` well; a semantic warning/danger tint only for a dialog whose tone is warning or danger) beside a muted eyebrow, the dialog title, and an optional description; the body is the sole scroll owner; the footer is 52px with an optional consequence hint on the leading edge, Cancel, and exactly one verb+object primary action that shows a spinner and blocks duplicate submit while saving. Host width comes from `--width-modal-{sm,md,lg,xl}` via `dialogShellClass`, never an ad-hoc `max-w-*`. Simple/Advanced is one disclosure tier that never hides a required field, and leaving Advanced snaps unsupported advanced-only selections back to a Simple-valid default. Secret controls are write-only: create shows a single password input, edit shows presence plus an explicit Replace, and cancelling a rotation preserves the existing binding without exposing plaintext. Fields an update contract cannot mutate render as readable summary rows, never as disabled inputs. The body grammar is shared too: one 20px gutter across header, mode toolbar, body, feedback strip, and footer (`modal-system.css:170,194,218,395`); one monotonic type ladder (dialog title 14/500, section title 13/600, field label 13/500, hint 12/425) so a label never outranks the value it names; sections are hairline-ruled `FormSection` blocks flush with the body gutter, with no card surface and no competing row rules; explanatory prose sits behind a `HelpTip` `(?)` beside its label, reachable by pointer, keyboard, and touch, while runtime truth, errors, and warnings stay visible; and the footer may carry one ghost `leading` command (reset, view toggle) without gaining a second primary.
+expected: Every migrated entity editor renders the shared ruled chrome — the 26px mint identity well (`KindIcon` well; a semantic warning/danger tint only for a dialog whose tone is warning or danger) beside a muted eyebrow, the dialog title, and an optional description; the body is the sole scroll owner; the footer has a 52px minimum with an optional consequence hint on the leading edge, Cancel, and exactly one verb+object primary action that shows a spinner and blocks duplicate submit while saving. Host width comes from `--width-modal-{sm,md,lg,xl}` via `dialogShellClass`, never an ad-hoc `max-w-*`. Simple/Advanced is one disclosure tier that never hides a required field, and leaving Advanced snaps unsupported advanced-only selections back to a Simple-valid default. Secret controls are write-only: create shows a single password input, edit shows presence plus an explicit Replace, and cancelling a rotation preserves the existing binding without exposing plaintext. Fields an update contract cannot mutate render as readable summary rows, never as disabled inputs. The body grammar is shared too: one 20px gutter across header, mode toolbar, body, feedback strip, and footer (`modal-system.css:170,194,218,395`); one monotonic type ladder (dialog title 14/500, section title 13/600, field label 13/500, hint 12/425) so a label never outranks the value it names; sections are hairline-ruled `FormSection` blocks flush with the body gutter, with no card surface and no competing row rules; explanatory prose sits behind a `HelpTip` `(?)` beside its label, reachable by pointer, keyboard, and touch, while runtime truth, errors, and warnings stay visible; and the footer may carry one ghost `leading` command (reset, view toggle) without gaining a second primary.
 entry_points: web task editor modal; web automation job/trigger editor; web vault create via SettingsEditorDialog; web marketplace MCP install secret fields; web agent create; web provider detail; web loop configure modal
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261004-help-tip-discards-draft; BUG-20261004-help-tip-vanishes-on-tap
+fix_status: pending
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_01/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_01/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_01/VC-03;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-vault-opendesign-listing; TA-task-template-preserves-draft; MS-provider-detail-modal; MS-web-session-simple-advanced-launch; MS-web-workspace-add-directory-browser; MS-web-knowledge-edit-immutable-identity; ET-web-vault-overwrite-confirmation; MS-web-task-editor-window-modal
 ---
 
@@ -48,3 +48,20 @@ those current tokens when evaluating title hierarchy; the remaining chrome and i
 remain in force. The historical `.compozy/tasks/modals-redesign/` spec and visual bundles are
 absent from both the isolated worktree and the owner checkout; they are provenance, not current
 visual proof. Functional modal walks continue independently of a fresh named-reference comparison.
+
+2026-10-04: The task editor's hovered HelpTip lets Escape close the enclosing form and lose the
+unsaved title (BUG-20261004-help-tip-discards-draft). The keyboard-focus path retains the dialog.
+Evidence: docs/qa/evidence/2026-10-02-untested/shared-modals-dora-draft-reopen-keyboard.json.
+The broader shared-chrome, disclosure, secret/immutable and visual-reference legs remain pending.
+
+2026-10-04 footer preflight: EntityDialogFooter explicitly defines the 52px token as a minimum,
+composing the ruled DialogFooter padding and current button height. The measured 55px desktop
+footer satisfies that floor; the scenario now states the minimum rather than a fixed height.
+No production style changes or named-reference parity verdict follow from this clarification.
+
+2026-10-04 final repair replay: task and job guidance pass on the rebuilt pointerdown-ownership
+bundle. Narrow touch stays readable until outside touch or Escape; desktop hover/focus/click and
+draft retention pass. The 20-frame help-tip-touch-dora recording is closed, five screenshots are
+inspected, and CLI reads confirm no unintended task/job save. Broader entry-point coverage remains
+pending. Evidence: docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-task-paths.json and
+docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-job-ended.json.

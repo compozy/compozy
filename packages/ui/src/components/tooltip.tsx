@@ -6,6 +6,7 @@ import { AnimatePresence, m } from "motion/react";
 
 import { MOTION_DURATION_BASE, MOTION_EASE_OUT } from "../lib/motion";
 import { cn } from "../lib/utils";
+import { DialogContext } from "./hooks/use-dialog-context";
 import {
   TooltipMotionContext,
   type TooltipMotionContextValue,
@@ -30,6 +31,12 @@ function Tooltip({
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
+  const registerOpenTooltip = React.use(DialogContext)?.registerOpenTooltip;
+  const disabled = props.disabled;
+
+  React.useEffect(() => {
+    if (open && !disabled) return registerOpenTooltip?.();
+  }, [open, disabled, registerOpenTooltip]);
 
   const handleOpenChange: NonNullable<TooltipRootProps["onOpenChange"]> = (next, details) => {
     if (!isControlled) setUncontrolledOpen(next);

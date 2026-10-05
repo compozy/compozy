@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { Field, FieldHeader, FieldLabel } from "../../field";
+import { Dialog, DialogContent, DialogTitle } from "../../dialog";
 import { Input } from "../../input";
 import { TooltipProvider } from "../../tooltip";
 import { HelpTip } from "../help-tip";
@@ -21,31 +22,92 @@ describe("HelpTip", () => {
     expect(screen.getByRole("button", { name: "About category path" })).toHaveFocus();
   });
 
-  it("Should reveal the prose on click so touch users can reach it", async () => {
+  it.each(["mouse", "touch"] as const)(
+    "Should keep prose readable after %s activation until dismissal",
+    async pointer => {
+      const user = userEvent.setup();
+      renderTip(<HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>);
+      const trigger = screen.getByRole("button", { name: "About category path" });
+      expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument();
+
+      if (pointer === "mouse") await user.click(trigger);
+      else {
+        await user.pointer({ keys: "[TouchA]", target: trigger });
+        // Chrome can leave the emulated mouse hover after a completed touch tap.
+        fireEvent.mouseLeave(trigger, { relatedTarget: document.body });
+      }
+      // Observe a readable interval: an exit-retained node must not make a flash pass.
+      await act(() => new Promise<void>(resolve => setTimeout(resolve, 1000)));
+      expect(screen.getByText("Slash-separated catalog grouping.")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument()
+      );
+    }
+  );
+
+  it("Should retain outside and hover dismissal after touch guidance", async () => {
     const user = userEvent.setup();
-    renderTip(<HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>);
+    renderTip(
+      <>
+        <HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>
+        <button type="button">Continue editing</button>
+      </>
+    );
+    const trigger = screen.getByRole("button", { name: "About category path" });
 
-    expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument();
+    await user.pointer({ keys: "[TouchA]", target: trigger });
+    await screen.findByText("Slash-separated catalog grouping.");
+    await user.click(screen.getByRole("button", { name: "Continue editing" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument()
+    );
 
-    await user.click(screen.getByRole("button", { name: "About category path" }));
-
-    expect(screen.getByText("Slash-separated catalog grouping.")).toBeInTheDocument();
+    await user.hover(trigger);
+    await screen.findByText("Slash-separated catalog grouping.");
+    await user.unhover(trigger);
+    await waitFor(() =>
+      expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument()
+    );
   });
 
-  it("Should dismiss the prose on Escape", async () => {
-    const user = userEvent.setup();
-    renderTip(<HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>);
+  it.each(["hover", "focus", "click"] as const)(
+    "Should preserve the dialog draft when Escape dismisses a tip opened by %s",
+    async opening => {
+      const user = userEvent.setup();
+      renderTip(
+        <Dialog defaultOpen>
+          <DialogContent showCloseButton={false}>
+            <DialogTitle>Create task</DialogTitle>
+            <Input aria-label="Title" />
+            <HelpTip label="About title">Describe the work to hand to an agent.</HelpTip>
+          </DialogContent>
+        </Dialog>
+      );
+      await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+      const title = screen.getByRole("textbox", { name: "Title" });
+      const tip = screen.getByRole("button", { name: "About title" });
+      await user.type(title, "Prepare release notes");
 
-    await user.click(screen.getByRole("button", { name: "About category path" }));
-    expect(screen.getByText("Slash-separated catalog grouping.")).toBeInTheDocument();
+      if (opening === "hover") await user.hover(tip);
+      else if (opening === "focus") await user.tab();
+      else await user.click(tip);
+      await screen.findByText("Describe the work to hand to an agent.");
 
-    // WCAG 1.4.13: content shown on hover or focus must be dismissible without
-    // moving the pointer. Inside a dialog this also has to land before the
-    // dialog's own Escape handler.
-    await user.keyboard("{Escape}");
+      await user.keyboard("{Escape}");
 
-    expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument();
-  });
+      await waitFor(() =>
+        expect(screen.queryByText("Describe the work to hand to an agent.")).not.toBeInTheDocument()
+      );
+      expect(screen.getByRole("dialog", { name: "Create task" })).toBeInTheDocument();
+      expect(title).toHaveValue("Prepare release notes");
+      expect(opening === "hover" ? title : tip).toHaveFocus();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    }
+  );
 
   it("Should keep the trigger out of the label's accessible name", () => {
     renderTip(
@@ -61,6 +123,38 @@ describe("HelpTip", () => {
     // Nesting the trigger inside the `<label>` would fold "About agent name"
     // into the input's name-from-content computation.
     expect(screen.getByLabelText("Agent name")).toBe(screen.getByRole("textbox"));
+  });
+
+  it("Should preserve Escape ownership in a peer dialog", async () => {
+    const user = userEvent.setup();
+    renderTip(
+      <>
+        <Dialog defaultOpen modal={false} disablePointerDismissal>
+          <DialogContent showCloseButton={false}>
+            <DialogTitle>Task editor</DialogTitle>
+            <Input aria-label="Task title" />
+            <HelpTip label="About title">Describe the work to hand to an agent.</HelpTip>
+          </DialogContent>
+        </Dialog>
+        <Dialog defaultOpen modal={false} disablePointerDismissal>
+          <DialogContent showCloseButton={false}>
+            <DialogTitle>Peer editor</DialogTitle>
+            <Input aria-label="Peer title" />
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Peer editor" })).toHaveFocus());
+    await user.type(screen.getByRole("textbox", { name: "Peer title" }), "Other work");
+    await user.hover(screen.getByRole("button", { name: "About title" }));
+    await screen.findByText("Describe the work to hand to an agent.");
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Peer editor" })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole("dialog", { name: "Task editor" })).toBeInTheDocument();
   });
 
   it("Should raise the trigger to the touch target below 760px", () => {
