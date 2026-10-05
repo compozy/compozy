@@ -1,6 +1,6 @@
 # BUG-20261004-vault-name-recovery-missing: Vault rejects a secret name without explaining how to correct it
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -56,7 +56,7 @@ The validator now returns the supported namespace/path rules while preserving it
 rejection status and accepted grammar. It does not echo the rejected ref. The Web field uses the
 existing HelpTip slot. No client-side parser, namespace remapping, or redaction exception is added.
 
-- **Fix commit:** pending local gate/commit.
+- **Fix commit:** baec8d019cd6113ce7db0c2811118724eebd94a7.
 - **Regression test:** internal/api/core/vault_test.go,
   TestVaultHandlersRejectInvalidRequests/Should explain the supported format when a secret name has no supported namespace.
 - **Before/after:** vault-name-guidance-regression-red.json fails on the old redacted-only error;
@@ -69,3 +69,12 @@ existing HelpTip slot. No client-side parser, namespace remapping, or redaction 
 The original symptom is corrected in the live bundle identified by vault-name-guidance-build-identity.json.
 The subsequent warning layout repair changes only Web composition; its separate replay preserves
 the consent behavior. Broader scenario and PR-readiness claims remain separate from this bug.
+
+## Verified delivery — 2026-10-04
+
+The original-persona replay documented above passes. The final affected gate exits 0, including
+Go race suites, 6,951 Web tests, UI checks, generation, lint and types. Commit baec8d019cd6113ce7db0c2811118724eebd94a7
+contains exactly the tested tree 1db800a634d9066def935863fe3e62a6013c7df9.
+Receipts: docs/qa/evidence/2026-10-02-untested/settings-vault-final-delivery-gate.json and
+docs/qa/evidence/2026-10-02-untested/settings-vault-final-commit-identity.json. Earlier pending
+checkpoint wording records history; this section closes this defect, not the overall QA scope.

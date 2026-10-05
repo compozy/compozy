@@ -1,6 +1,6 @@
 # BUG-20261004-vault-help-name-generic: Vault naming help does not identify its field
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -28,7 +28,7 @@ to the existing row contract and supply `About name` in Vault. Preserve the visi
 marker, input association, separate help button, validation and write-only behavior. Do not
 infer labels by traversing arbitrary React children or change the shared HelpTip lifecycle.
 
-- **Fix commit:** pending local gate/commit.
+- **Fix commit:** baec8d019cd6113ce7db0c2811118724eebd94a7.
 - **Regression test:** existing settings-field-row.test.tsx, decorated-label help naming in both
   row presentations. It asserts the specific button name, separate label ownership, and exact
   field name. settings-help-decorated-label-red.json fails on the original generic name.
@@ -43,3 +43,12 @@ infer labels by traversing arbitrary React children or change the shared HelpTip
   the following help-complete-state and restored-ended receipts finish the session. This lookup
   is not a help failure. All screenshot checkpoints are inspected. The final focused suite passes
   all 12 tests; Web typecheck/build pass. Gate and fix-commit recording remain outstanding.
+
+## Verified delivery — 2026-10-04
+
+The original-persona replay documented above passes. The final affected gate exits 0, including
+Go race suites, 6,951 Web tests, UI checks, generation, lint and types. Commit baec8d019cd6113ce7db0c2811118724eebd94a7
+contains exactly the tested tree 1db800a634d9066def935863fe3e62a6013c7df9.
+Receipts: docs/qa/evidence/2026-10-02-untested/settings-vault-final-delivery-gate.json and
+docs/qa/evidence/2026-10-02-untested/settings-vault-final-commit-identity.json. Earlier pending
+checkpoint wording records history; this section closes this defect, not the overall QA scope.

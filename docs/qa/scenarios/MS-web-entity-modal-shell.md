@@ -4,14 +4,14 @@ area: MS
 title: Entity editor modals share one header, host token, and footer
 persona: Dora
 journey: J-administer-runtime-settings
-expected: Every migrated entity editor renders the shared ruled chrome — the 26px mint identity well (`KindIcon` well; a semantic warning/danger tint only for a dialog whose tone is warning or danger) beside a muted eyebrow, the dialog title, and an optional description; the body is the sole scroll owner; the footer has a 52px minimum with an optional consequence hint on the leading edge, Cancel, and exactly one verb+object primary action that shows a spinner and blocks duplicate submit while saving. Host width comes from `--width-modal-{sm,md,lg,xl}` via `dialogShellClass`, never an ad-hoc `max-w-*`. Simple/Advanced is one disclosure tier that never hides a required field, and leaving Advanced snaps unsupported advanced-only selections back to a Simple-valid default. Secret controls are write-only: create shows a single password input, edit shows presence plus an explicit Replace, and cancelling a rotation preserves the existing binding without exposing plaintext. Fields an update contract cannot mutate render as readable summary rows, never as disabled inputs. The body grammar is shared too: one 20px gutter across header, mode toolbar, body, feedback strip, and footer (`modal-system.css:170,194,218,395`); one monotonic type ladder (dialog title 14/500, section title 13/600, field label 13/500, hint 12/425) so a label never outranks the value it names; sections are hairline-ruled `FormSection` blocks flush with the body gutter, with no card surface and no competing row rules; explanatory prose sits behind a `HelpTip` `(?)` beside its label, reachable by pointer, keyboard, and touch, while runtime truth, errors, and warnings stay visible; and the footer may carry one ghost `leading` command (reset, view toggle) without gaining a second primary.
+expected: Every migrated entity editor renders the shared ruled chrome — the 26px mint identity well (`KindIcon` well; a semantic warning/danger tint only for a dialog whose tone is warning or danger) beside an optional muted eyebrow (omitted when the title already identifies the entity), the dialog title, and an optional description; the body is the sole scroll owner; the footer has a 52px minimum with an optional consequence hint on the leading edge, Cancel, and exactly one verb+object primary action that shows a spinner and blocks duplicate submit while saving. Host width comes from `--width-modal-{sm,md,lg,xl}` via `dialogShellClass`, never an ad-hoc `max-w-*`. Simple/Advanced is one disclosure tier that never hides a required field, and leaving Advanced snaps unsupported advanced-only selections back to a Simple-valid default. Secret controls are write-only: create shows a single password input, edit shows presence plus an explicit Replace, and cancelling a rotation preserves the existing binding without exposing plaintext. Fields an update contract cannot mutate render as readable summary rows, never as disabled inputs. The body grammar is shared too: one 20px gutter across header, mode toolbar, body, feedback strip, and footer (`modal-system.css:170,194,218,395`); one monotonic type ladder (dialog title 14/500, section title 13/600, field label 13/500, hint 12/425) so a label never outranks the value it names; sections are hairline-ruled `FormSection` blocks flush with the body gutter, with no card surface and no competing row rules; explanatory prose sits behind a `HelpTip` `(?)` beside its label, reachable by pointer, keyboard, and touch, while runtime truth, errors, and warnings stay visible; and the footer may carry one ghost `leading` command (reset, view toggle) without gaining a second primary.
 entry_points: web task editor modal; web automation job/trigger editor; web vault create via SettingsEditorDialog; web marketplace MCP install secret fields; web agent create; web provider detail; web loop configure modal
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20261004-help-tip-discards-draft; BUG-20261004-help-tip-vanishes-on-tap; BUG-20261004-vault-name-recovery-missing; BUG-20261004-vault-warning-covered; BUG-20261004-vault-help-name-generic
-fix_status: pending
-retest_status:
-fix_commits: 6aec02734
-evidence: docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-task-paths.json; docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-job-ended.json; docs/qa/evidence/2026-10-02-untested/help-tip-preserve-guidance-commit-proof.json
+fix_status: fixed
+retest_status: pass
+fix_commits: 6aec02734; baec8d019
+evidence: docs/qa/evidence/2026-10-02-untested/settings-vault-final-commit-identity.json; docs/qa/evidence/2026-10-02-untested/settings-vault-final-delivery-gate.json; docs/qa/reports/2026-10-02-untested.md; docs/qa/evidence/2026-10-02-untested/qa/visual-contract/entity-modal-shell/contract.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-vault-opendesign-listing; TA-task-template-preserves-draft; MS-provider-detail-modal; MS-web-session-simple-advanced-launch; MS-web-workspace-add-directory-browser; MS-web-knowledge-edit-immutable-identity; ET-web-vault-overwrite-confirmation; MS-web-task-editor-window-modal
 ---
@@ -77,3 +77,9 @@ for other named entry points and visual-reference comparison. See the dated repo
 and Vault debriefs rather than inferring a full pass from the two repaired findings.
 
 2026-10-04 continuation: Vault help needs an explicit field-specific accessible name for its decorated Name label. The remaining Loop configure and Marketplace secret-control abandonment legs pass; the dated report carries their receipts and precise scope.
+
+2026-10-04 closure: the recorded original-persona walks and affected gate pass at baec8d019.
+All shared entry points have current functional evidence, and six named-reference bundles
+are inspected and validated. Existing TA automation and MS Agent/Provider contracts explicitly
+own their changed layouts. EntityDialogHeader permits omitting a redundant eyebrow; its neutral
+tone uses the mint identity well. This shared-shell verdict does not settle separate domain flows.

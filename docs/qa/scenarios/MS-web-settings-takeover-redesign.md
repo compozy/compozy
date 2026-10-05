@@ -6,12 +6,12 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (the host's Close Settings action closes the window; search with `/` shortcut filters sections; Basics/Personal/Agents/Advanced groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
 entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
-qa_status: untested
-bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window
+qa_status: fail
+bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display
 fix_status: pending
 retest_status:
 fix_commits: b4166a6c2
-evidence: docs/qa/evidence/2026-10-02-untested/settings-shortcut-final-dora-ended.json; docs/qa/reports/2026-10-02-untested.md
+evidence: docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-reload-observed.json; docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-save.json; docs/qa/reports/2026-10-02-untested.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-026; MS-037; ET-012; ET-044; ET-045
 ---
@@ -63,3 +63,9 @@ behavior walks Unsaved, Discard, Saving and Saved; independent API reads and rel
 the changed value and restoration of the complete baseline. The native timeout-select attempt
 did not change its value and remains unverified. Other Settings pages and error/restart legs
 remain pending; clean General parity and its successful save do not settle the full scenario.
+
+2026-10-04 fresh Dora timeout walk: choosing 4 hours and saving persists 4h0m0s, but the
+save bar remains dirty and reload shows Never. BUG-20261004-settings-idle-timeout-display owns
+this divergence. The typed Restart needed notice is visible. Public PATCH cleanup restores the
+entire baseline after the closed session. The compact-choice repair is verified at baec8d019;
+other Settings-page/error/restart legs remain separate from this failed General save.
