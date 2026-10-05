@@ -92,13 +92,11 @@ func (r ApprovalGrantSetRequest) BuildGrant(profileID string, workspaceID string
 		return ApprovalGrant{}, fmt.Errorf("%w: scope must be agent or tool", ErrApprovalGrantInvalid)
 	}
 	grant := ApprovalGrant{
-		ApprovalGrantKey: ApprovalGrantKey{
-			ProfileID:   profileID,
-			WorkspaceID: workspaceID,
-			AgentName:   r.AgentName,
-			ToolID:      r.ToolID,
-		},
-		Decision: r.Decision,
+		ProfileID:   profileID,
+		WorkspaceID: workspaceID,
+		AgentName:   r.AgentName,
+		ToolID:      r.ToolID,
+		Decision:    r.Decision,
 	}
 	if err := grant.ValidateForPut(); err != nil {
 		return ApprovalGrant{}, err

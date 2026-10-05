@@ -54,7 +54,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
 
@@ -130,7 +130,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		returned := make(chan struct{})
 		go func() {
 			runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+				TaskID: taskRecord.ID, RunID: run.ID,
 			})
 			close(returned)
 		}()
@@ -170,7 +170,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := newShutdownOrderingSessionManager()
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 
 		select {
@@ -188,9 +188,8 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		var shutdownErrs []error
-		d.shutdownRuntimeWorkers(shutdownCtx, &shutdownTargets{daemonRuntimeState: daemonRuntimeState{
-			tasks: tasks, sessions: sessions,
-		}}, &shutdownErrs)
+		d.shutdownRuntimeWorkers(shutdownCtx, &shutdownTargets{
+			tasks: tasks, sessions: sessions}, &shutdownErrs)
 		if err := errors.Join(shutdownErrs...); err != nil {
 			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
 		}
@@ -222,7 +221,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
 
@@ -257,10 +256,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: firstTask.ID, RunID: firstRun.ID},
+			TaskID: firstTask.ID, RunID: firstRun.ID,
 		})
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
+			TaskID: secondTask.ID, RunID: secondRun.ID,
 		})
 		runtime.wg.Wait()
 
@@ -314,10 +313,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: firstTask.ID, RunID: firstRun.ID},
+			TaskID: firstTask.ID, RunID: firstRun.ID,
 		})
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
+			TaskID: secondTask.ID, RunID: secondRun.ID,
 		})
 		runtime.wg.Wait()
 
@@ -408,7 +407,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
 

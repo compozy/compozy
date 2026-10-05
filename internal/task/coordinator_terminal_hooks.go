@@ -32,29 +32,25 @@ func (m *Service) dispatchCoordinatorTerminal(
 	}
 	runKind := result.Run.RunKind.Normalize().String()
 	payload := hookspkg.LoopTerminalPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopTerminal,
-			Timestamp: m.now().UTC(),
-		},
-		LoopContext: hookspkg.LoopContext{
-			ProfileID:       strings.TrimSpace(result.Run.ProfileID),
-			LoopRunID:       strings.TrimSpace(result.LoopRunID),
-			ParentLoopRunID: strings.TrimSpace(loopContext.ParentRunID),
-			WorkspaceID:     strings.TrimSpace(loopContext.WorkspaceID),
-			LoopName:        strings.TrimSpace(loopContext.Name),
-			Generation:      loopContext.Generation,
-			TaskID:          strings.TrimSpace(result.Run.TaskID),
-			RunID:           strings.TrimSpace(result.Run.ID),
-			RunKind:         runKind,
-			WorkflowID:      taskRunMetadataString(result.Run.Metadata, "workflow_id"),
-			AgentName:       taskRunHookAgentName(result.Run, actor),
-			SessionID:       strings.TrimSpace(result.Run.SessionID),
-			ActorKind:       string(actor.Actor.Kind.Normalize()),
-			ActorID:         strings.TrimSpace(actor.Actor.Ref),
-			OriginKind:      string(actor.Origin.Kind.Normalize()),
-			OriginRef:       strings.TrimSpace(actor.Origin.Ref),
-		},
-		Status: strings.TrimSpace(loopStatus),
+		Event:           hookspkg.HookLoopTerminal,
+		Timestamp:       m.now().UTC(),
+		ProfileID:       strings.TrimSpace(result.Run.ProfileID),
+		LoopRunID:       strings.TrimSpace(result.LoopRunID),
+		ParentLoopRunID: strings.TrimSpace(loopContext.ParentRunID),
+		WorkspaceID:     strings.TrimSpace(loopContext.WorkspaceID),
+		LoopName:        strings.TrimSpace(loopContext.Name),
+		Generation:      loopContext.Generation,
+		TaskID:          strings.TrimSpace(result.Run.TaskID),
+		RunID:           strings.TrimSpace(result.Run.ID),
+		RunKind:         runKind,
+		WorkflowID:      taskRunMetadataString(result.Run.Metadata, "workflow_id"),
+		AgentName:       taskRunHookAgentName(result.Run, actor),
+		SessionID:       strings.TrimSpace(result.Run.SessionID),
+		ActorKind:       string(actor.Actor.Kind.Normalize()),
+		ActorID:         strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:      string(actor.Origin.Kind.Normalize()),
+		OriginRef:       strings.TrimSpace(actor.Origin.Ref),
+		Status:          strings.TrimSpace(loopStatus),
 	}
 	hookCtx, cancel := taskRunObservationHookContext(ctx)
 	defer cancel()

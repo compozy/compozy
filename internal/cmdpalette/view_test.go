@@ -352,8 +352,8 @@ func TestViewService(t *testing.T) {
 		events := make(chan ViewPatchEvent)
 		close(events)
 		provider := &viewPatchSubscriberStub{
-			viewSourceProviderStub: viewSourceProviderStub{payload: validListViewPayload()},
-			events:                 events,
+			payload: validListViewPayload(),
+			events:  events,
 		}
 		service := &Service{
 			viewStreamEpoch: "vse_test",
@@ -463,8 +463,8 @@ func TestViewService(t *testing.T) {
 		}
 
 		failing := &viewPatchSubscriberStub{
-			viewSourceProviderStub: viewSourceProviderStub{payload: ViewPayload{View: ViewContractVersion}},
-			events:                 events,
+			payload: ViewPayload{View: ViewContractVersion},
+			events:  events,
 		}
 		broken := &Service{viewProviders: []ViewProviderRegistration{{
 			Descriptor: ViewDescriptor{

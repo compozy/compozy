@@ -36,7 +36,7 @@ func TestMultiRegistryContractNotFound(t *testing.T) {
 		lower := &stubRegistrySource{
 			name: "local",
 			infoFunc: func(_ context.Context, slug string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: slug, Source: "local"}}, nil
+				return &Detail{Slug: slug, Source: "local"}, nil
 			},
 			downloadFunc: func(_ context.Context, slug string, _ DownloadOpts) (*DownloadResult, error) {
 				return &DownloadResult{

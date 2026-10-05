@@ -39,7 +39,7 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 				gotRequestID = requestID
 				gotRequest = request
 				return toolspkg.ClarifyAnswerResult{
-					ClarifyAnswer:  toolspkg.ClarifyAnswer{Text: "safe"},
+					Text:           "safe",
 					Outcome:        store.PendingInteractionOutcomeResolvedAfterRestart,
 					InteractionID:  "interaction-one",
 					RequestID:      requestID,

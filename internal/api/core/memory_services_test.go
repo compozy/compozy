@@ -345,7 +345,7 @@ func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engi
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", RootDir: "/workspace", Name: "Workspace"},
+					ID: "ws-workspace", RootDir: "/workspace", Name: "Workspace",
 					WorkspaceID: "ws-workspace",
 				}, nil
 			},

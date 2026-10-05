@@ -244,7 +244,7 @@ func (m *Manager) emitStreamDiagnostic(
 	}
 	m.notifyAgentEventFromInfo(ctx, info, acp.AgentEvent{
 		Type: eventType, TurnID: turnID,
-		EventCorrelation: store.EventCorrelation{ActorKind: sessionSystemActorKind, ActorID: sessionDaemonActorID},
-		Raw:              raw,
+		ActorKind: sessionSystemActorKind, ActorID: sessionDaemonActorID,
+		Raw: raw,
 	})
 }

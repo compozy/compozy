@@ -415,21 +415,21 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		store, manager := newIngressTestManager(t, true, nil)
 		for _, subject := range []IngressSubject{
 			{
-				IngressSubjectRef: IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-global"},
-				Scope:             IngressScopeGlobal,
-				Path:              "/api/webhooks/global/global--wbh_global",
+				Kind: IngressSubjectWebhookTrigger, ID: "trigger-global",
+				Scope: IngressScopeGlobal,
+				Path:  "/api/webhooks/global/global--wbh_global",
 			},
 			{
-				IngressSubjectRef: IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-a"},
-				Scope:             IngressScopeWorkspace,
-				WorkspaceID:       "workspace-a",
-				Path:              "/api/webhooks/workspaces/workspace-a/a--wbh_a",
+				Kind: IngressSubjectWebhookTrigger, ID: "trigger-a",
+				Scope:       IngressScopeWorkspace,
+				WorkspaceID: "workspace-a",
+				Path:        "/api/webhooks/workspaces/workspace-a/a--wbh_a",
 			},
 			{
-				IngressSubjectRef: IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-b"},
-				Scope:             IngressScopeWorkspace,
-				WorkspaceID:       "workspace-b",
-				Path:              "/api/webhooks/workspaces/workspace-b/b--wbh_b",
+				Kind: IngressSubjectWebhookTrigger, ID: "trigger-b",
+				Scope:       IngressScopeWorkspace,
+				WorkspaceID: "workspace-b",
+				Path:        "/api/webhooks/workspaces/workspace-b/b--wbh_b",
 			},
 		} {
 			store.subjects[subject.IngressSubjectRef] = subject

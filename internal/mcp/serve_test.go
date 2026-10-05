@@ -343,11 +343,11 @@ func (mcpBindingWorkspaceResolver) Resolve(
 	switch strings.TrimSpace(ref) {
 	case "alpha", "ws-1", "/workspace":
 		return workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "alpha", RootDir: "/workspace"},
+			ID: "ws-1", Name: "alpha", RootDir: "/workspace",
 		}, nil
 	case "beta", "ws-2", "/foreign":
 		return workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-2", Name: "beta", RootDir: "/foreign"},
+			ID: "ws-2", Name: "beta", RootDir: "/foreign",
 		}, nil
 	default:
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound

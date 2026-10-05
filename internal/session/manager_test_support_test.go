@@ -125,12 +125,10 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 		h.cfg.Providers[name] = provider
 	}
 	h.resolver = newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{
 			{
 				Name:     compozyconfig.DefaultAgentName,
@@ -845,13 +843,11 @@ func (r *fakeWorkspaceResolver) ResolveOrRegister(
 
 	r.nextID++
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      fmt.Sprintf("ws-auto-%d", r.nextID),
-			RootDir: target,
-			Name:    filepath.Base(target),
-		},
-		Config: r.autoRegisterConfig,
-		Agents: append([]compozyconfig.AgentDef(nil), r.autoRegisterAgents...),
+		ID:      fmt.Sprintf("ws-auto-%d", r.nextID),
+		RootDir: target,
+		Name:    filepath.Base(target),
+		Config:  r.autoRegisterConfig,
+		Agents:  append([]compozyconfig.AgentDef(nil), r.autoRegisterAgents...),
 	}
 	r.upsert(&resolved)
 	return cloneResolvedWorkspaceForTests(&resolved), nil

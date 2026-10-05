@@ -2012,13 +2012,11 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	rootDir := t.TempDir()
 	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "marketing", "brief")
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:        "ws_alpha",
-			RootDir:   rootDir,
-			Name:      "alpha",
-			CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		},
+		ID:          "ws_alpha",
+		RootDir:     rootDir,
+		Name:        "alpha",
+		CreatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		WorkspaceID: "ws_alpha",
 		Config: compozyconfig.Config{
 			Providers: map[string]compozyconfig.ProviderConfig{
@@ -2208,13 +2206,11 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 				t.Fatalf("ResolveOrRegister() path = %q, want %q", path, rootDir)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:        "ws_alpha",
-					RootDir:   rootDir,
-					Name:      "alpha",
-					CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-					UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-				},
+				ID:          "ws_alpha",
+				RootDir:     rootDir,
+				Name:        "alpha",
+				CreatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				UpdatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 				WorkspaceID: "ws_alpha",
 			}, nil
 		},

@@ -104,13 +104,11 @@ func (sessionProfileServiceStub) Resolve(
 
 func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts, error) {
 	return []profilepkg.WithCounts{
-		{Profile: profilepkg.Profile{
-			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
-		}},
-		{Profile: profilepkg.Profile{
+		{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		{
 			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone", Emoji: "📣",
-			State: profilepkg.StateArchived,
-		}},
+			State: profilepkg.StateArchived},
 	}, nil
 }
 
@@ -154,10 +152,8 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 		)
 		var calls atomic.Int32
 		manager := sessionCommandCatalogManagerStub{
-			StubSessionManager: testutil.StubSessionManager{
-				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-					return &session.Info{ID: id, WorkspaceID: "ws-command", AgentName: "coder"}, nil
-				},
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, WorkspaceID: "ws-command", AgentName: "coder"}, nil
 			},
 			catalog: catalog,
 			calls:   &calls,
@@ -165,7 +161,7 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: ref, Name: ref},
+					ID: ref, Name: ref,
 					WorkspaceID: ref,
 				}, nil
 			},
@@ -3004,11 +3000,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 						t.Fatalf("ResolveForProfile() profile = %q, want marketing", profileName)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-alpha",
-							Name:    "alpha",
-							RootDir: workspaceRoot,
-						},
+						ID:          "ws-alpha",
+						Name:        "alpha",
+						RootDir:     workspaceRoot,
 						WorkspaceID: "01DURABLEWORKSPACEIDENTITY",
 						ProfileName: profileName,
 						Config: compozyconfig.Config{
@@ -3488,7 +3482,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 						t.Fatalf("workspace resolution = %q, %q", ref, profile)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						ID: "ws-1", RootDir: workspaceRoot,
 						ProfileID: "profile-marketing", ProfileName: "marketing",
 					}, nil
 				},
@@ -3959,7 +3953,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						ID: "ws-registry", RootDir: workspaceRoot,
 						WorkspaceID: "ws-identity",
 						Agents:      []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
@@ -4037,8 +4031,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
-						Agents:    []compozyconfig.AgentDef{workspaceAgent},
+						ID: "ws-alpha", RootDir: workspaceRoot,
+						Agents: []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
@@ -4088,7 +4082,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						ID: "ws-registry", RootDir: workspaceRoot,
 						WorkspaceID: "ws-identity",
 						Agents:      []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
@@ -4136,8 +4130,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
-						Agents:    []compozyconfig.AgentDef{workspaceAgent},
+						ID: "ws-registry", RootDir: workspaceRoot,
+						Agents: []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
@@ -4318,7 +4312,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						ID: "ws-1", RootDir: workspaceRoot,
 						WorkspaceID: "ws-identity",
 						Agents:      []compozyconfig.AgentDef{source},
 					}, nil
@@ -4638,9 +4632,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
-						},
+						ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
 						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
@@ -4829,7 +4821,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						ID: "ws-1", Name: workspaceRef,
 						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
@@ -4950,8 +4942,8 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 		t.Parallel()
 
 		profiles := &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{
-			{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
-			{Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}},
+			{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+			{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
 		}}
 		fixture := newHandlerFixture(
 			t,
@@ -4960,7 +4952,7 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-team", Name: "team", RootDir: "/workspace/team"},
+						ID: "ws-team", Name: "team", RootDir: "/workspace/team",
 						ProfileDeclarations: []workspacepkg.ProfileDeclaration{
 							{Name: "dev", Path: "/workspace/team/.compozy/profiles/dev"},
 							{Name: "marketing", Path: "/workspace/team/.compozy/profiles/marketing"},
@@ -4987,9 +4979,8 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 			t.Fatalf("workspace profile hints = %#v, want dev create hint only", detail.ProfileHints)
 		}
 
-		profiles.profiles = append(profiles.profiles, profilepkg.WithCounts{Profile: profilepkg.Profile{
-			ID: "profile-dev", Name: "dev", State: profilepkg.StateActive,
-		}})
+		profiles.profiles = append(profiles.profiles, profilepkg.WithCounts{
+			ID: "profile-dev", Name: "dev", State: profilepkg.StateActive})
 		response = performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-team", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("workspace hints after adoption status = %d, want 200", response.Code)
@@ -5066,7 +5057,7 @@ func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {
 			nil,
 		)
 		fixture.Handlers.Profiles = &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{{
-			Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
 		}}}
 		orphanDir := filepath.Join(fixture.HomePaths.ProfilesDir, "ghost")
 		if err := os.MkdirAll(orphanDir, 0o755); err != nil {
@@ -5162,13 +5153,11 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 		t.Parallel()
 
 		manager := subprocessHealthSessionManager{
-			StubSessionManager: testutil.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{
-						{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
-						{ID: "sess-health-b", WorkspaceID: "ws-b", State: session.StateActive},
-					}, nil
-				},
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{
+					{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
+					{ID: "sess-health-b", WorkspaceID: "ws-b", State: session.StateActive},
+				}, nil
 			},
 			snapshots: []session.SubprocessHealthSnapshot{
 				{
@@ -5276,10 +5265,8 @@ func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
 					t.Fatalf("Resolve() ref = %q, want ws-a", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      "ws-a",
-						RootDir: "/workspaces/ws-a",
-					},
+					ID:          "ws-a",
+					RootDir:     "/workspaces/ws-a",
 					WorkspaceID: "ws-a",
 				}, nil
 			},

@@ -275,11 +275,9 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logCoordinatorError("daemon: load task for coordinator recovery", err, hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{
-					ProfileID: strings.TrimSpace(run.ProfileID),
-					RunID:     run.ID,
-					TaskID:    run.TaskID,
-				},
+				ProfileID: strings.TrimSpace(run.ProfileID),
+				RunID:     run.ID,
+				TaskID:    run.TaskID,
 			})
 			continue
 		}
@@ -291,12 +289,10 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 				"daemon: recover coordinator for executable run",
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
-					TaskRunContext: hookspkg.TaskRunContext{
-						ProfileID:   strings.TrimSpace(run.ProfileID),
-						RunID:       run.ID,
-						TaskID:      run.TaskID,
-						WorkspaceID: taskRecord.WorkspaceID,
-					},
+					ProfileID:   strings.TrimSpace(run.ProfileID),
+					RunID:       run.ID,
+					TaskID:      run.TaskID,
+					WorkspaceID: taskRecord.WorkspaceID,
 				},
 			)
 		}

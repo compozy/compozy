@@ -14,10 +14,8 @@ func (m *Service) dispatchTaskRunLeaseExtended(
 	actor ActorContext,
 ) {
 	payload := hookspkg.TaskRunLeaseExtendedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunLeaseExtended,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunLeaseExtended,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
 	hookCtx, cancel := taskRunObservationHookContext(ctx)
@@ -40,10 +38,8 @@ func (m *Service) dispatchTaskRunLeaseExpired(
 	contextPayload.ReleaseReason = strings.TrimSpace(recovery.Reason)
 	contextPayload.LeaseUntil = recovery.PreviousLeaseUntil
 	payload := hookspkg.TaskRunLeaseExpiredPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunLeaseExpired,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookTaskRunLeaseExpired,
+		Timestamp:         m.now().UTC(),
 		TaskRunContext:    contextPayload,
 		PreviousRunStatus: recovery.PreviousRunStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(recovery.PreviousSessionID),
@@ -66,10 +62,8 @@ func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
 		return
 	}
 	payload := hookspkg.TaskRunLeaseRecoveredPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunLeaseRecovered,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookTaskRunLeaseRecovered,
+		Timestamp:         m.now().UTC(),
 		TaskRunContext:    m.taskRunHookContext(run, taskRecord, actor),
 		PreviousRunStatus: recovery.PreviousRunStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(recovery.PreviousSessionID),
@@ -93,10 +87,8 @@ func (m *Service) dispatchTaskRunReleased(
 	contextPayload := m.taskRunHookContext(run, taskRecord, actor)
 	contextPayload.ReleaseReason = strings.TrimSpace(reason)
 	payload := hookspkg.TaskRunReleasedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunReleased,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookTaskRunReleased,
+		Timestamp:         m.now().UTC(),
 		TaskRunContext:    contextPayload,
 		PreviousRunStatus: previous.Status.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(previous.SessionID),
@@ -115,10 +107,8 @@ func (m *Service) dispatchTaskRunCompleted(
 	actor ActorContext,
 ) {
 	payload := hookspkg.TaskRunCompletedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunCompleted,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunCompleted,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
 	hookCtx, cancel := taskRunObservationHookContext(ctx)
@@ -134,10 +124,8 @@ func (m *Service) dispatchTaskRunFailed(
 	actor ActorContext,
 ) {
 	payload := hookspkg.TaskRunFailedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunFailed,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunFailed,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
 	hookCtx, cancel := taskRunObservationHookContext(ctx)

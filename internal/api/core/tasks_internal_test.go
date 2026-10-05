@@ -197,12 +197,12 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 				switch ref {
 				case "/workspace/subdir":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace"},
+						ID: "ws-1", RootDir: "/workspace",
 						WorkspaceID: "01J10000000000000000000000",
 					}, nil
 				case "/foreign/subdir":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-2", RootDir: "/foreign"},
+						ID: "ws-2", RootDir: "/foreign",
 						WorkspaceID: "01J10000000000000000000001",
 					}, nil
 				default:

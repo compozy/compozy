@@ -226,7 +226,7 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 					t.Fatalf("Resolve() ref = %q, want %q", ref, targetWorkspaceID)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"},
+					ID: targetWorkspaceID, Name: "target",
 					WorkspaceID: targetWorkspaceID,
 				}, nil
 			},

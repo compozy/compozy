@@ -13,20 +13,20 @@
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src remotion.config.ts"
     },
     "dependencies": {
-        "@remotion/cli": "4.0.516",
-        "@remotion/google-fonts": "4.0.516",
-        "@remotion/media": "4.0.516",
-        "@remotion/transitions": "4.0.516",
-        "@remotion/zod-types": "4.0.516",
+        "@remotion/cli": "4.0.533",
+        "@remotion/google-fonts": "4.0.533",
+        "@remotion/media": "4.0.533",
+        "@remotion/transitions": "4.0.533",
+        "@remotion/zod-types": "4.0.533",
         "culori": "4.0.2",
-        "react": "19.2.0",
-        "react-dom": "19.2.0",
-        "remotion": "4.0.516",
-        "zod": "4.4.3"
+        "react": "19.3.0",
+        "react-dom": "19.3.0",
+        "remotion": "4.0.533",
+        "zod": "4.6.5"
     },
     "devDependencies": {
         "@types/culori": "4.0.1",
-        "@types/react": "19.2.0",
-        "typescript": "5.9.3"
+        "@types/react": "19.3.0",
+        "typescript": "7.0.2"
     }
 }

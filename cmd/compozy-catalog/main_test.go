@@ -128,6 +128,30 @@ func TestPublishCatalog(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should publish changed package content instead of retaining old artifact bytes", func(t *testing.T) {
+		t.Parallel()
+
+		changedSource := t.TempDir()
+		if err := os.CopyFS(changedSource, os.DirFS(source)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(changedSource, "packages", "batuta", "README.md"),
+			[]byte("Changed publication content.\n"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		changedOutput := t.TempDir()
+		if err := run(t.Context(), []string{"publish", changedSource, changedOutput}, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		before := readPublishedExtensions(t, source)["batuta"]
+		after := readPublishedExtensions(t, changedOutput)["batuta"]
+		if after.DigestSHA256 == "" || after.DigestSHA256 == before.DigestSHA256 {
+			t.Fatal("changed package did not publish a new artifact digest")
+		}
+	})
 	t.Run("Should reject a root-only catalog without falling back [UT-055]", func(t *testing.T) {
 		t.Parallel()
 		rootOnly := t.TempDir()

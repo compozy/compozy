@@ -17,12 +17,10 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		h := newHarness(t)
 		h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: h.workspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{
 				{
 					Name:     compozyconfig.DefaultAgentName,

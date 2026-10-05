@@ -54,10 +54,10 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 		}
 
 		statusPayload := hookspkg.TaskStatusChangedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskStatusChanged},
-			TaskContext: hookspkg.TaskContext{TaskID: taskRecord.ID},
-			FromStatus:  string(TaskStatusReady),
-			ToStatus:    string(TaskStatusInProgress),
+			Event:      hookspkg.HookTaskStatusChanged,
+			TaskID:     taskRecord.ID,
+			FromStatus: string(TaskStatusReady),
+			ToStatus:   string(TaskStatusInProgress),
 		}
 		gotStatus, err := noopTaskRunHooks{}.DispatchTaskStatusChanged(context.Background(), statusPayload)
 		if err != nil {

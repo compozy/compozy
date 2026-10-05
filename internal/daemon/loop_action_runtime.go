@@ -361,11 +361,9 @@ func isQueuedLoopActionRun(run taskpkg.Run) bool {
 
 func loopActionPayload(run taskpkg.Run) hookspkg.TaskRunEnqueuedPayload {
 	return hookspkg.TaskRunEnqueuedPayload{
-		TaskRunContext: hookspkg.TaskRunContext{
-			ProfileID: strings.TrimSpace(run.ProfileID),
-			TaskID:    run.TaskID,
-			RunID:     run.ID,
-		},
+		ProfileID: strings.TrimSpace(run.ProfileID),
+		TaskID:    run.TaskID,
+		RunID:     run.ID,
 	}
 }
 

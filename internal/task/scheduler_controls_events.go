@@ -120,16 +120,14 @@ func (m *Service) recordSchedulerEventBestEffort(
 		return
 	}
 	summary := store.EventSummary{
-		ProfileID: store.DefaultProfileID,
-		Type:      eventType,
-		Outcome:   string(eventspkg.OutcomeFor(eventType)),
-		Summary:   schedulerEventSummary(eventType, payload),
-		Timestamp: m.now().UTC(),
-		EventCorrelation: store.EventCorrelation{
-			ActorKind:       string(actor.Actor.Kind.Normalize()),
-			ActorID:         actor.Actor.Ref,
-			SchedulerReason: payload.Reason,
-		},
+		ProfileID:       store.DefaultProfileID,
+		Type:            eventType,
+		Outcome:         string(eventspkg.OutcomeFor(eventType)),
+		Summary:         schedulerEventSummary(eventType, payload),
+		Timestamp:       m.now().UTC(),
+		ActorKind:       string(actor.Actor.Kind.Normalize()),
+		ActorID:         actor.Actor.Ref,
+		SchedulerReason: payload.Reason,
 	}
 	summary.SetContent(content)
 	eventCtx := context.WithoutCancel(ctx)

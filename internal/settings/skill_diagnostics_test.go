@@ -190,7 +190,7 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 			"[skills]\nsources = [\"claude\"]\n",
 		)
 		resolved := workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "ws-sources", RootDir: workspaceRoot},
+			ID: "ws-sources", RootDir: workspaceRoot,
 			WorkspaceID: "ws-sources",
 		}
 		service := testService(t, homePaths, Dependencies{

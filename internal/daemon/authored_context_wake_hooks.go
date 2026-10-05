@@ -46,17 +46,13 @@ func (s hookedHeartbeatWakeService) dispatchWakeBefore(ctx context.Context, req 
 		return
 	}
 	payload := hookspkg.AgentHeartbeatWakeBeforePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookAgentHeartbeatWakeBefore,
-			Timestamp: s.hooks.timestamp(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   strings.TrimSpace(req.SessionID),
-			AgentName:   strings.TrimSpace(req.AgentName),
-			WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		},
-		Source: string(req.Source),
-		DryRun: req.DryRun,
+		Event:       hookspkg.HookAgentHeartbeatWakeBefore,
+		Timestamp:   s.hooks.timestamp(),
+		SessionID:   strings.TrimSpace(req.SessionID),
+		AgentName:   strings.TrimSpace(req.AgentName),
+		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
+		Source:      string(req.Source),
+		DryRun:      req.DryRun,
 	}
 	if _, err := s.hooks.DispatchAgentHeartbeatWakeBefore(ctx, payload); err != nil {
 		logAuthoredContextDependencyError(s.hooks.logger, "daemon: dispatch heartbeat wake before hook", err)
@@ -72,15 +68,11 @@ func (s hookedHeartbeatWakeService) dispatchWakeAfter(
 		return
 	}
 	payload := hookspkg.AgentHeartbeatWakeAfterPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookAgentHeartbeatWakeAfter,
-			Timestamp: s.hooks.timestamp(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   strings.TrimSpace(req.SessionID),
-			AgentName:   strings.TrimSpace(req.AgentName),
-			WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		},
+		Event:             hookspkg.HookAgentHeartbeatWakeAfter,
+		Timestamp:         s.hooks.timestamp(),
+		SessionID:         strings.TrimSpace(req.SessionID),
+		AgentName:         strings.TrimSpace(req.AgentName),
+		WorkspaceID:       strings.TrimSpace(req.WorkspaceID),
 		WakeEventID:       strings.TrimSpace(decision.WakeEventID),
 		Result:            string(decision.Result),
 		Reason:            string(decision.Reason),
@@ -107,23 +99,19 @@ func dispatchHeartbeatPolicyResolved(
 		return
 	}
 	payload := hookspkg.AgentHeartbeatPolicyResolvedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookAgentHeartbeatPolicyResolved,
-			Timestamp: hooks.timestamp(),
-		},
-		AuthoredContextProvenance: hookspkg.AuthoredContextProvenance{
-			WorkspaceID:      strings.TrimSpace(workspaceID),
-			AgentName:        strings.TrimSpace(agentName),
-			SourcePath:       strings.TrimSpace(policy.SourcePath),
-			SnapshotID:       strings.TrimSpace(snapshotID),
-			Digest:           strings.TrimSpace(policy.Digest),
-			ConfigDigest:     strings.TrimSpace(policy.ConfigDigest),
-			ValidationStatus: authoredValidationStatus(policy.Present, policy.Active, policy.Valid),
-			Valid:            policy.Valid,
-			Active:           policy.Active,
-			Reason:           firstHeartbeatDiagnosticCode(policy.Diagnostics),
-		},
-		Summary: strings.TrimSpace(policy.Summary),
+		Event:            hookspkg.HookAgentHeartbeatPolicyResolved,
+		Timestamp:        hooks.timestamp(),
+		WorkspaceID:      strings.TrimSpace(workspaceID),
+		AgentName:        strings.TrimSpace(agentName),
+		SourcePath:       strings.TrimSpace(policy.SourcePath),
+		SnapshotID:       strings.TrimSpace(snapshotID),
+		Digest:           strings.TrimSpace(policy.Digest),
+		ConfigDigest:     strings.TrimSpace(policy.ConfigDigest),
+		ValidationStatus: authoredValidationStatus(policy.Present, policy.Active, policy.Valid),
+		Valid:            policy.Valid,
+		Active:           policy.Active,
+		Reason:           firstHeartbeatDiagnosticCode(policy.Diagnostics),
+		Summary:          strings.TrimSpace(policy.Summary),
 	}
 	if _, err := hooks.DispatchAgentHeartbeatPolicyResolved(ctx, payload); err != nil {
 		logAuthoredContextDependencyError(hooks.logger, "daemon: dispatch heartbeat policy hook", err)

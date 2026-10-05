@@ -2299,7 +2299,7 @@ func terminalErrorCode(err error) string {
 
 func resolvedTestWorkspace(root string) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: root}, WorkspaceID: "workspace-a",
+		ID: "workspace-a", RootDir: root, WorkspaceID: "workspace-a",
 	}
 }
 

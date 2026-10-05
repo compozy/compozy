@@ -15,7 +15,7 @@ func TestWorkspaceResolvedSkillRoots(t *testing.T) {
 		t.Parallel()
 
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "ws-registered", RootDir: t.TempDir()},
+			ID: "ws-registered", RootDir: t.TempDir(),
 			WorkspaceID: "runtime-workspace-identity",
 		}
 		roots := workspaceResolvedSkillRoots(resolved)

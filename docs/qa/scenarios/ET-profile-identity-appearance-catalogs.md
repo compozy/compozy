@@ -41,6 +41,12 @@ Expected evidence: screenshots of the searched grid, the emoji tab with a non-de
 color popover open over an unchanged dialog, the updated glyph on all four surfaces, the local-only
 network log, and the terminal transcript for the rejected and accepted slugs.
 
+Dependency upgrade replay (2026-10-05): read a pre-upgrade profile whose icon is `trash-2`,
+confirm the API and UI resolve it to `trash`, then edit only its color and confirm the same
+profile ID and icon survive. Repeat the boundary check for `album`, `book-marked`, `building-2`,
+`flip-horizontal-2` and `flip-vertical-2`. Current evidence and pending checks are tracked in
+`docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
 QA 2026-08-26: Passed in an isolated lab. The full Lucide and local Emojibase catalogs, skin tone,
 free color popover, switcher-row edit, cross-surface rendering, and daemon slug validation all matched
 the contract.

@@ -134,24 +134,20 @@ func newBenchmarkHooksRuntime(
 
 func benchmarkInputPayload() InputPreSubmitPayload {
 	return InputPreSubmitPayload{
-		PayloadBase: PayloadBase{
-			Event:     HookInputPreSubmit,
-			Timestamp: time.Unix(1, 0).UTC(),
-		},
-		SessionContext: SessionContext{
-			SessionID:             "session-bench",
-			SessionType:           "interactive",
-			AgentName:             "codex",
-			WorkspaceID:           "workspace-bench",
-			Workspace:             "/tmp/workspace-bench",
-			CreatedAt:             time.Unix(1, 0).UTC(),
-			UpdatedAt:             time.Unix(2, 0).UTC(),
-			SessionRuntimeContext: NewSessionRuntimeContext("", "acp-bench"),
-			State:                 "running",
-		},
-		TurnContext: TurnContext{TurnID: "turn-bench"},
-		InputClass:  "chat",
-		Message:     "hello benchmark",
+		Event:                 HookInputPreSubmit,
+		Timestamp:             time.Unix(1, 0).UTC(),
+		SessionID:             "session-bench",
+		SessionType:           "interactive",
+		AgentName:             "codex",
+		WorkspaceID:           "workspace-bench",
+		Workspace:             "/tmp/workspace-bench",
+		CreatedAt:             time.Unix(1, 0).UTC(),
+		UpdatedAt:             time.Unix(2, 0).UTC(),
+		SessionRuntimeContext: NewSessionRuntimeContext("", "acp-bench"),
+		State:                 "running",
+		TurnID:                "turn-bench",
+		InputClass:            "chat",
+		Message:               "hello benchmark",
 		ContextBlocks: []ContextBlock{
 			{
 				Kind: "note",
@@ -203,13 +199,11 @@ func benchmarkAsyncResolvedHook(name string) *ResolvedHook {
 	)
 
 	return &ResolvedHook{
-		RegisteredHook: RegisteredHook{
-			Name:     name,
-			Event:    HookInputPreSubmit,
-			Source:   HookSourceNative,
-			Mode:     HookModeAsync,
-			Executor: executor,
-		},
+		Name:     name,
+		Event:    HookInputPreSubmit,
+		Source:   HookSourceNative,
+		Mode:     HookModeAsync,
+		Executor: executor,
 		Decl: HookDecl{
 			Name:         name,
 			Event:        HookInputPreSubmit,

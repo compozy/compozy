@@ -250,17 +250,15 @@ func approvalGrantFromRow(row sqlcgen.ToolApprovalGrant) (toolspkg.ApprovalGrant
 		)
 	}
 	grant := toolspkg.ApprovalGrant{
-		ID: row.ID,
-		ApprovalGrantKey: toolspkg.ApprovalGrantKey{
-			ProfileID:   row.ProfileID,
-			WorkspaceID: row.WorkspaceID,
-			AgentName:   row.AgentName,
-			ToolID:      toolspkg.ToolID(row.ToolID),
-			InputDigest: row.InputDigest,
-		},
-		Decision:   toolspkg.ApprovalGrantDecision(row.Decision),
-		CreatedAt:  createdAt,
-		LastUsedAt: lastUsedAt,
+		ID:          row.ID,
+		ProfileID:   row.ProfileID,
+		WorkspaceID: row.WorkspaceID,
+		AgentName:   row.AgentName,
+		ToolID:      toolspkg.ToolID(row.ToolID),
+		InputDigest: row.InputDigest,
+		Decision:    toolspkg.ApprovalGrantDecision(row.Decision),
+		CreatedAt:   createdAt,
+		LastUsedAt:  lastUsedAt,
 	}.Normalize()
 	if err := grant.Validate(); err != nil {
 		return toolspkg.ApprovalGrant{}, fmt.Errorf("store: decode tool approval grant row: %w", err)

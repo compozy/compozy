@@ -52,8 +52,12 @@ export const sessionComposerSyncLogic = createStoreLogic<
       };
     },
     composerObserved: (context, event, enqueue) => {
-      if (context.suppressedComposerText === event.composerText) {
-        return { ...context, suppressedComposerText: null };
+      // assistant-ui publishes setText on its next commit; stale observations must not
+      // overwrite the persisted draft while that hydration is still pending.
+      if (context.suppressedComposerText !== null) {
+        return context.suppressedComposerText === event.composerText
+          ? { ...context, suppressedComposerText: null }
+          : undefined;
       }
       if (event.composerText === event.draftText) {
         return context.suppressedComposerText === null

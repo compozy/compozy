@@ -22,46 +22,38 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		firstMarkedAt := deadEntityTestTime()
 
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: workspaceA,
-				Kind:        store.DeadEntityKindMCPSidecar,
-				EntityID:    "github",
-			},
-			Reason:   "process exited permanently",
-			MarkedAt: firstMarkedAt,
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceA,
+			Kind:        store.DeadEntityKindMCPSidecar,
+			EntityID:    "github",
+			Reason:      "process exited permanently",
+			MarkedAt:    firstMarkedAt,
 		})
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: workspaceB,
-				Kind:        store.DeadEntityKindMCPSidecar,
-				EntityID:    "github",
-			},
-			Reason:   "workspace-b failure",
-			MarkedAt: firstMarkedAt.Add(time.Minute),
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceB,
+			Kind:        store.DeadEntityKindMCPSidecar,
+			EntityID:    "github",
+			Reason:      "workspace-b failure",
+			MarkedAt:    firstMarkedAt.Add(time.Minute),
 		})
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: workspaceA,
-				Kind:        store.DeadEntityKindExtension,
-				EntityID:    "adapter",
-			},
-			Reason:   "extension credentials rejected",
-			MarkedAt: firstMarkedAt.Add(2 * time.Minute),
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceA,
+			Kind:        store.DeadEntityKindExtension,
+			EntityID:    "adapter",
+			Reason:      "extension credentials rejected",
+			MarkedAt:    firstMarkedAt.Add(2 * time.Minute),
 		})
 
 		refreshedAt := firstMarkedAt.Add(3 * time.Minute)
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: workspaceA,
-				Kind:        store.DeadEntityKindMCPSidecar,
-				EntityID:    "github",
-			},
-			Reason:   "configuration remains invalid",
-			MarkedAt: refreshedAt,
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceA,
+			Kind:        store.DeadEntityKindMCPSidecar,
+			EntityID:    "github",
+			Reason:      "configuration remains invalid",
+			MarkedAt:    refreshedAt,
 		})
 
 		got, found, err := globalDB.FindDeadEntity(
@@ -110,10 +102,8 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 			t.Fatalf("insert foreign profile error = %v", err)
 		}
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID: foreignProfileID, WorkspaceID: workspaceA,
-				Kind: store.DeadEntityKindMCPSidecar, EntityID: "github",
-			},
+			ProfileID: foreignProfileID, WorkspaceID: workspaceA,
+			Kind: store.DeadEntityKindMCPSidecar, EntityID: "github",
 			Reason: "foreign profile failure", MarkedAt: firstMarkedAt.Add(4 * time.Minute),
 		})
 		if _, err := globalDB.db.ExecContext(ctx, `UPDATE profiles
@@ -149,14 +139,12 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "dead-entity-clear", t.TempDir())
 		entity := store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: workspaceID,
-				Kind:        store.DeadEntityKindExtension,
-				EntityID:    "audit-extension",
-			},
-			Reason:   "extension startup failed",
-			MarkedAt: deadEntityTestTime(),
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceID,
+			Kind:        store.DeadEntityKindExtension,
+			EntityID:    "audit-extension",
+			Reason:      "extension startup failed",
+			MarkedAt:    deadEntityTestTime(),
 		}
 		markDeadEntityForTest(t, globalDB, entity)
 
@@ -221,14 +209,12 @@ func TestGlobalDBDeadEntityMigration(t *testing.T) {
 		}
 		ctx := testutil.Context(t)
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
-			DeadEntityKey: store.DeadEntityKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: workspaceID,
-				Kind:        store.DeadEntityKindMCPSidecar,
-				EntityID:    "upgrade-sidecar",
-			},
-			Reason:   "post-upgrade mark",
-			MarkedAt: deadEntityTestTime(),
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceID,
+			Kind:        store.DeadEntityKindMCPSidecar,
+			EntityID:    "upgrade-sidecar",
+			Reason:      "post-upgrade mark",
+			MarkedAt:    deadEntityTestTime(),
 		})
 		if err := globalDB.Close(ctx); err != nil {
 			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)

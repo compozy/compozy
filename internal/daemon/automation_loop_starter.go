@@ -168,14 +168,12 @@ func (s *automationLoopStarter) StartLoop(
 	workspaceID := looppkg.WorkspaceID(strings.TrimSpace(req.WorkspaceID))
 	loopName := strings.TrimSpace(req.LoopName)
 	values, err := looppkg.ResolveStartTargetInputs(ctx, s.resolver, looppkg.StartTargetResolution{
-		StartTargetValidation: looppkg.StartTargetValidation{
-			WorkspaceID:  workspaceID,
-			ProfileID:    strings.TrimSpace(req.ProfileID),
-			LoopName:     loopName,
-			Kind:         kind,
-			Inputs:       req.Inputs,
-			InputMapping: req.InputMapping,
-		},
+		WorkspaceID:    workspaceID,
+		ProfileID:      strings.TrimSpace(req.ProfileID),
+		LoopName:       loopName,
+		Kind:           kind,
+		Inputs:         req.Inputs,
+		InputMapping:   req.InputMapping,
 		TriggerPayload: req.TriggerPayload,
 	})
 	if err != nil {

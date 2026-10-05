@@ -128,19 +128,17 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 
 		definition := dsl.Definition{
 			Contract: dsl.Contract{ContractLifecycleState: &dsl.ContractLifecycleState{
-				TerminalEffects: dsl.TerminalEffects{OnFailed: []dsl.EffectSpec{{
+				OnFailed: []dsl.EffectSpec{{
 					Emit: &dsl.EmitSpec{Kind: "loop_failed", Payload: map[string]any{
 						"scope": "{{ .effect.identity.scope }}",
 					}},
-				}}},
+				}},
 			}},
 			Graph: dsl.Graph{Nodes: []dsl.Node{{
 				ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
 				NodeLifecycleState: &dsl.NodeLifecycleState{
-					TriggerEffects: dsl.TriggerEffects{
-						OnRetry:   []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_retrying"}}},
-						OnTimeout: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_timed_out"}}},
-					},
+					OnRetry:   []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_retrying"}}},
+					OnTimeout: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "fetch_timed_out"}}},
 					OnError: &dsl.ErrorPolicy{AllowFail: true, Effects: []dsl.EffectSpec{{
 						Tool: "known__notify", With: map[string]any{
 							"disposition": "{{ .effect.attempt.disposition }}",
@@ -226,12 +224,11 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 		}
 		quarantineDefinition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
 			ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
-			NodeLifecycleState: &dsl.NodeLifecycleState{TriggerEffects: dsl.TriggerEffects{
+			NodeLifecycleState: &dsl.NodeLifecycleState{
 				OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{
 					Kind:    "fetch_quarantined",
 					Payload: map[string]any{"node_id": "{{ .effect.quarantine.node_id }}"},
-				}}},
-			}},
+				}}}},
 		}}}}
 		if err := attachCoordinatorEffectIntents(
 			effectTestRun(),
@@ -288,11 +285,9 @@ func TestCoordinatorEffectsShouldAttachEveryDeclaredTerminalOutcome(t *testing.T
 		return []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: kind}}}
 	}
 	definition := dsl.Definition{Contract: dsl.Contract{ContractLifecycleState: &dsl.ContractLifecycleState{
-		TerminalEffects: dsl.TerminalEffects{
-			OnDone: emit("done"), OnNoOp: emit("noop"), OnBlocked: emit("blocked"),
-			OnFailed: emit("failed"), OnExhausted: emit("exhausted"), OnStalled: emit("stalled"),
-			OnCanceled: emit("canceled"),
-		},
+		OnDone: emit("done"), OnNoOp: emit("noop"), OnBlocked: emit("blocked"),
+		OnFailed: emit("failed"), OnExhausted: emit("exhausted"), OnStalled: emit("stalled"),
+		OnCanceled: emit("canceled"),
 	}}}
 	cases := []struct {
 		status  Status

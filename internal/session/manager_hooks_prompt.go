@@ -27,12 +27,10 @@ func (m *Manager) dispatchInputPreSubmit(
 	ctx = hookDispatchContext(ctx, m, session)
 
 	payload, err := m.hooks.prompt().DispatchInputPreSubmit(ctx, hookspkg.InputPreSubmitPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookInputPreSubmit,
-			Timestamp: m.now(),
-		},
+		Event:          hookspkg.HookInputPreSubmit,
+		Timestamp:      m.now(),
 		SessionContext: hookSessionContext(session),
-		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(turnID)},
+		TurnID:         strings.TrimSpace(turnID),
 		InputClass:     inputClassForTurnSource(turnSource),
 		Message:        message,
 		Attachments:    hookAttachmentMetadata(attachments),
@@ -67,10 +65,8 @@ func (m *Manager) dispatchPromptPostAssemble(
 	}
 
 	payload, err := m.hooks.prompt().DispatchPromptPostAssemble(ctx, hookspkg.PromptPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookPromptPostAssemble,
-			Timestamp: m.now(),
-		},
+		Event:          hookspkg.HookPromptPostAssemble,
+		Timestamp:      m.now(),
 		SessionContext: sessionCtx,
 		InputClass:     hookInputClassStartup,
 		Prompt:         prompt,
@@ -89,12 +85,10 @@ func (m *Manager) dispatchTurnStart(ctx context.Context, state *promptTurnDispat
 	ctx = hookDispatchContext(ctx, m, state.session)
 
 	_, err := m.hooks.conversation().DispatchTurnStart(ctx, hookspkg.TurnStartPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTurnStart,
-			Timestamp: m.now(),
-		},
+		Event:          hookspkg.HookTurnStart,
+		Timestamp:      m.now(),
 		SessionContext: hookSessionContext(state.session),
-		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		TurnID:         state.turnID,
 		InputClass:     state.inputClass,
 		UserMessage:    state.userMessage,
 	})
@@ -116,12 +110,10 @@ func (m *Manager) dispatchTurnEnd(ctx context.Context, state *promptTurnDispatch
 	ctx = hookDispatchContext(ctx, m, state.session)
 
 	_, err := m.hooks.conversation().DispatchTurnEnd(ctx, hookspkg.TurnEndPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTurnEnd,
-			Timestamp: hookTimestamp(m.now(), eventTime),
-		},
+		Event:          hookspkg.HookTurnEnd,
+		Timestamp:      hookTimestamp(m.now(), eventTime),
 		SessionContext: hookSessionContext(state.session),
-		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		TurnID:         state.turnID,
 		InputClass:     state.inputClass,
 		UserMessage:    state.userMessage,
 	})
@@ -181,12 +173,10 @@ func (m *Manager) dispatchMessageStart(
 	ctx = hookDispatchContext(ctx, m, state.session)
 
 	payload, err := m.hooks.conversation().DispatchMessageStart(ctx, hookspkg.MessageStartPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookMessageStart,
-			Timestamp: hookTimestamp(m.now(), event.Timestamp),
-		},
+		Event:          hookspkg.HookMessageStart,
+		Timestamp:      hookTimestamp(m.now(), event.Timestamp),
 		SessionContext: hookSessionContext(state.session),
-		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		TurnID:         state.turnID,
 		MessageID:      message.id,
 		Role:           message.role,
 		DeltaType:      hookMessageDeltaTypeFull,
@@ -215,12 +205,10 @@ func (m *Manager) dispatchMessageDelta(
 	ctx = hookDispatchContext(ctx, m, state.session)
 
 	_, err := m.hooks.conversation().DispatchMessageDelta(ctx, hookspkg.MessageDeltaPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookMessageDelta,
-			Timestamp: hookTimestamp(m.now(), event.Timestamp),
-		},
+		Event:          hookspkg.HookMessageDelta,
+		Timestamp:      hookTimestamp(m.now(), event.Timestamp),
 		SessionContext: hookSessionContext(state.session),
-		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		TurnID:         state.turnID,
 		MessageID:      state.openMessage.id,
 		Role:           state.openMessage.role,
 		DeltaType:      strings.TrimSpace(deltaType),
@@ -245,12 +233,10 @@ func (m *Manager) finishPromptMessage(ctx context.Context, state *promptTurnDisp
 	ctx = hookDispatchContext(ctx, m, state.session)
 
 	_, err := m.hooks.conversation().DispatchMessageEnd(ctx, hookspkg.MessageEndPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookMessageEnd,
-			Timestamp: hookTimestamp(m.now(), eventTime),
-		},
+		Event:          hookspkg.HookMessageEnd,
+		Timestamp:      hookTimestamp(m.now(), eventTime),
 		SessionContext: hookSessionContext(state.session),
-		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		TurnID:         state.turnID,
 		MessageID:      message.id,
 		Role:           message.role,
 		DeltaType:      hookMessageDeltaTypeFull,

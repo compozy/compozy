@@ -69,19 +69,15 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 	}
 
 	request := hookspkg.SessionPreCreatePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPreCreate,
-			Timestamp: m.now(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			ProfileID:   normalizeCreateProfileID(opts.ProfileID),
-			SessionName: strings.TrimSpace(opts.Name),
-			SessionType: string(normalizeSessionType(opts.Type)),
-			AgentName:   strings.TrimSpace(opts.AgentName),
-			WorkspaceID: strings.TrimSpace(opts.Workspace),
-			Workspace:   strings.TrimSpace(opts.WorkspacePath),
-			State:       string(StateStarting),
-		},
+		Event:       hookspkg.HookSessionPreCreate,
+		Timestamp:   m.now(),
+		ProfileID:   normalizeCreateProfileID(opts.ProfileID),
+		SessionName: strings.TrimSpace(opts.Name),
+		SessionType: string(normalizeSessionType(opts.Type)),
+		AgentName:   strings.TrimSpace(opts.AgentName),
+		WorkspaceID: strings.TrimSpace(opts.Workspace),
+		Workspace:   strings.TrimSpace(opts.WorkspacePath),
+		State:       string(StateStarting),
 	}
 	payload, err := m.hooks.session().DispatchSessionPreCreate(ctx, request)
 	if err != nil {
@@ -124,24 +120,20 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta *store.Sess
 	}
 
 	request := hookspkg.SessionPreResumePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPreResume,
-			Timestamp: m.now(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			ProfileID:   strings.TrimSpace(meta.ProfileID),
-			SessionID:   strings.TrimSpace(meta.ID),
-			SessionName: strings.TrimSpace(meta.Name),
-			SessionType: string(normalizeSessionType(Type(meta.SessionType))),
-			AgentName:   strings.TrimSpace(meta.AgentName),
-			WorkspaceID: strings.TrimSpace(meta.WorkspaceID),
-			SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(
-				meta.WorktreeIDValue(), derefString(meta.ACPSessionID),
-			),
-			State:     strings.TrimSpace(meta.State),
-			CreatedAt: meta.CreatedAt,
-			UpdatedAt: meta.UpdatedAt,
-		},
+		Event:       hookspkg.HookSessionPreResume,
+		Timestamp:   m.now(),
+		ProfileID:   strings.TrimSpace(meta.ProfileID),
+		SessionID:   strings.TrimSpace(meta.ID),
+		SessionName: strings.TrimSpace(meta.Name),
+		SessionType: string(normalizeSessionType(Type(meta.SessionType))),
+		AgentName:   strings.TrimSpace(meta.AgentName),
+		WorkspaceID: strings.TrimSpace(meta.WorkspaceID),
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(
+			meta.WorktreeIDValue(), derefString(meta.ACPSessionID),
+		),
+		State:     strings.TrimSpace(meta.State),
+		CreatedAt: meta.CreatedAt,
+		UpdatedAt: meta.UpdatedAt,
 	}
 	payload, err := m.hooks.session().DispatchSessionPreResume(ctx, request)
 	if err != nil {

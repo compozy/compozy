@@ -202,7 +202,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 	t.Run("Should default branch returns value", func(t *testing.T) {
 		t.Parallel()
 
-		original := SessionPreCreatePayload{SessionContext: SessionContext{SessionID: "session-default"}}
+		original := SessionPreCreatePayload{SessionID: "session-default"}
 		cloned := cloneAsyncPayload(original)
 		if cloned.SessionID != original.SessionID {
 			t.Fatalf("cloned session id = %q, want %q", cloned.SessionID, original.SessionID)
@@ -220,7 +220,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 				name: "Should clone input pre-submit session soul context",
 				clone: func(soul *SessionSoulContext) *SessionSoulContext {
 					cloned := cloneAsyncPayload(InputPreSubmitPayload{
-						SessionContext: SessionContext{SessionSoulContext: soul},
+						SessionSoulContext: soul,
 					})
 					return cloned.SessionSoulContext
 				},
@@ -229,7 +229,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 				name: "Should clone session pre-create soul context",
 				clone: func(soul *SessionSoulContext) *SessionSoulContext {
 					cloned := cloneAsyncPayload(SessionPreCreatePayload{
-						SessionContext: SessionContext{SessionSoulContext: soul},
+						SessionSoulContext: soul,
 					})
 					return cloned.SessionSoulContext
 				},
@@ -238,7 +238,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 				name: "Should clone session lifecycle soul context",
 				clone: func(soul *SessionSoulContext) *SessionSoulContext {
 					cloned := cloneAsyncPayload(SessionLifecyclePayload{
-						SessionContext: SessionContext{SessionSoulContext: soul},
+						SessionSoulContext: soul,
 					})
 					return cloned.SessionSoulContext
 				},
@@ -298,9 +298,9 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 	t.Run("Should task value payloads", func(t *testing.T) {
 		t.Parallel()
 
-		enqueued := cloneAsyncPayload(TaskRunEnqueuedPayload{TaskRunContext: TaskRunContext{TaskID: "task-enqueued"}})
-		postClaim := cloneAsyncPayload(TaskRunPostClaimPayload{TaskRunContext: TaskRunContext{TaskID: "task-claim"}})
-		lease := cloneAsyncPayload(TaskRunLeasePayload{TaskRunContext: TaskRunContext{TaskID: "task-lease"}})
+		enqueued := cloneAsyncPayload(TaskRunEnqueuedPayload{TaskID: "task-enqueued"})
+		postClaim := cloneAsyncPayload(TaskRunPostClaimPayload{TaskID: "task-claim"})
+		lease := cloneAsyncPayload(TaskRunLeasePayload{TaskID: "task-lease"})
 
 		if enqueued.TaskID != "task-enqueued" {
 			t.Fatalf("enqueued task id = %q, want task-enqueued", enqueued.TaskID)

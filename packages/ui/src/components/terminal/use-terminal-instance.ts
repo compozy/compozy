@@ -78,13 +78,11 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
   const emitLoadError = useEffectEvent((cause: unknown) => {
     options.onLoadError(cause);
   });
-  const readViewOptions = useEffectEvent(
-    (): TerminalViewOptions => ({
-      readOnly: options.readOnly,
-      screenReaderMode: options.screenReaderMode,
-      scrollbackLines: options.scrollbackLines,
-    })
-  );
+  const readViewOptions = useEffectEvent((): TerminalViewOptions => ({
+    readOnly: options.readOnly,
+    screenReaderMode: options.screenReaderMode,
+    scrollbackLines: options.scrollbackLines,
+  }));
 
   useEffect(() => {
     const container = containerRef.current;

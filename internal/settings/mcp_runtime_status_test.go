@@ -59,7 +59,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			t.Fatal("collection exposed mutable backing state")
 		}
 		_, err = service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers}, Name: "github.github",
+			Collection: CollectionMCPServers, Name: "github.github",
 			MCPServer: &compozyconfig.MCPServer{Name: "github.github", Command: "manual-mcp"},
 		})
 		if !errors.Is(err, ErrUnprocessable) || !errors.Is(err, ErrMCPServerNameTaken) {

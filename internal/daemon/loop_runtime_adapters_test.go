@@ -1642,10 +1642,8 @@ func loopActionBinderWorkspace(t *testing.T, agents []compozyconfig.AgentDef) wo
 	cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
 
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-loop",
-			RootDir: t.TempDir(),
-		},
+		ID:          "ws-loop",
+		RootDir:     t.TempDir(),
 		WorkspaceID: "ws-loop",
 		Config:      cfg,
 		Agents:      append([]compozyconfig.AgentDef(nil), agents...),

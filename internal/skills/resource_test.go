@@ -481,7 +481,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	}
 
 	skills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace:   workspacepkg.Workspace{ID: "/workspace/project"},
+		ID:          "/workspace/project",
 		WorkspaceID: "runtime-workspace-identity",
 		ProfileID:   store.DefaultProfileID, ProfileName: "default",
 	})
@@ -501,7 +501,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 		t.Fatal("ForWorkspace() missing workspace-profile-skill")
 	}
 	defaultSkills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "/workspace/project"},
+		ID: "/workspace/project",
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace(default profile) error = %v", err)
@@ -512,7 +512,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	}
 
 	other, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "/workspace/other"},
+		ID:        "/workspace/other",
 		ProfileID: store.DefaultProfileID, ProfileName: "default",
 	})
 	if err != nil {
@@ -527,13 +527,13 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 
 	if err := registry.SetEnabled(
 		"workspace-skill",
-		&workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "/workspace/project"}},
+		&workspacepkg.ResolvedWorkspace{ID: "/workspace/project"},
 		false,
 	); err != nil {
 		t.Fatalf("SetEnabled(workspace-skill) error = %v", err)
 	}
 	updated, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "/workspace/project"},
+		ID: "/workspace/project",
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace(updated) error = %v", err)
@@ -561,7 +561,7 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 	discovered, snapshots, err := registry.DiscoverWorkspace(
 		context.Background(),
 		&workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "ws-discover", RootDir: root},
+			ID: "ws-discover", RootDir: root,
 			WorkspaceID: "ws-discover",
 		},
 	)

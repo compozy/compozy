@@ -32,16 +32,12 @@ func TestRuntime(t *testing.T) {
 		fake := newFakeExtractor()
 		runtime := newTestRuntime(t, t.TempDir(), fake, nil)
 		rootPayload := hooks.SessionMessagePersistedPayload{
-			PayloadBase: hooks.PayloadBase{
-				Event:     hooks.HookSessionMessagePersisted,
-				Timestamp: time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC),
-			},
-			SessionContext: hooks.SessionContext{
-				ProfileID:   "profile-engineering",
-				SessionID:   "sess-root",
-				WorkspaceID: "ws-1",
-			},
-			TurnContext:   hooks.TurnContext{TurnID: "turn-1"},
+			Event:         hooks.HookSessionMessagePersisted,
+			Timestamp:     time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC),
+			ProfileID:     "profile-engineering",
+			SessionID:     "sess-root",
+			WorkspaceID:   "ws-1",
+			TurnID:        "turn-1",
 			MessageSeq:    7,
 			Role:          "assistant",
 			Text:          "Remember that Pedro prefers concise updates.",
@@ -966,14 +962,10 @@ func testTurn(sessionID string, seq int64) memcontract.TurnRecord {
 
 func testPersistedPayload(sessionID string, seq int64) hooks.SessionMessagePersistedPayload {
 	return hooks.SessionMessagePersistedPayload{
-		PayloadBase: hooks.PayloadBase{
-			Event:     hooks.HookSessionMessagePersisted,
-			Timestamp: testClock(),
-		},
-		SessionContext: hooks.SessionContext{
-			SessionID:   sessionID,
-			WorkspaceID: "ws-1",
-		},
+		Event:         hooks.HookSessionMessagePersisted,
+		Timestamp:     testClock(),
+		SessionID:     sessionID,
+		WorkspaceID:   "ws-1",
 		MessageSeq:    seq,
 		Role:          "assistant",
 		Text:          "message " + strconv.FormatInt(seq, 10),

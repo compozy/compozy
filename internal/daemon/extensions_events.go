@@ -73,7 +73,7 @@ func (s extensionLifecycleEventStoreSink) summary(
 		ProfileID: profileID,
 		Type:      event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)),
 		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
-		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},
+		ActorKind: s.actorKind, ActorID: s.actorID,
 	}, content), nil
 }
 
@@ -331,7 +331,7 @@ func (s *daemonExtensionService) extensionEventSummary(
 		ProfileID: store.DefaultProfileID,
 		Type:      eventType, Outcome: string(outcome),
 		Summary: summary, Timestamp: s.now().UTC(),
-		EventCorrelation: store.EventCorrelation{ActorKind: actorKind, ActorID: actorID},
+		ActorKind: actorKind, ActorID: actorID,
 	}, content), nil
 }
 

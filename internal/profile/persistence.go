@@ -13,7 +13,7 @@ import (
 
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 )
 
 type queryer interface {
@@ -72,7 +72,7 @@ func scanProfile(scanner interface{ Scan(...any) error }) (Profile, error) {
 	); err != nil {
 		return Profile{}, err
 	}
-	profile.Icon = icon.String
+	profile.Icon = canonicalIcon(icon.String)
 	profile.Emoji = emoji.String
 	profile.State = State(state)
 	parsedCreatedAt, err := parseTimestamp(createdAt)

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 )
 
 // ProfileLensID partitions personalization by one real profile or the explicit aggregate lens.

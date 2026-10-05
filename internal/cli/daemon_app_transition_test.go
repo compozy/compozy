@@ -125,10 +125,8 @@ func TestExecuteDaemonAppTransition(t *testing.T) {
 			RequestedBy: compozyupdate.ActorShell,
 			Targets:     []compozyupdate.Target{compozyupdate.TargetApp},
 			App: &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{
-					FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-					Asset: "app.zip", Digest: "sha256:" + hex.EncodeToString(digest[:]),
-				},
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+				Asset: "app.zip", Digest: "sha256:" + hex.EncodeToString(digest[:]),
 				AttemptID: "attempt-1", Phase: compozyupdate.PhasePending,
 			},
 			Holder: compozyupdate.Holder{

@@ -37,9 +37,7 @@ func TestRegistryForWorkspaceDisabledOverlay(t *testing.T) {
 			)
 
 			resolved := &workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID: "ws-disabled-" + strings.ReplaceAll(tt.name, " ", "-"),
-				},
+				ID: "ws-disabled-" + strings.ReplaceAll(tt.name, " ", "-"),
 				Config: compozyconfig.Config{
 					Skills: compozyconfig.SkillsConfig{
 						DisabledSkills: []string{"global"},

@@ -79,7 +79,12 @@ func (r *Registry) removalProfileMarkers(ctx context.Context, name string) ([]re
 	var result []removalProfileMarker
 	for rows.Next() {
 		var marker removalProfileMarker
-		if err := rows.Scan(&marker.name, &marker.profileID, &marker.createdAt, &marker.createdByExtension); err != nil {
+		if err := rows.Scan(
+			&marker.name,
+			&marker.profileID,
+			&marker.createdAt,
+			&marker.createdByExtension,
+		); err != nil {
 			return nil, err
 		}
 		result = append(result, marker)

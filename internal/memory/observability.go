@@ -174,12 +174,10 @@ func scanMemoryEventSummary(scanner memoryEventSummaryScanner, sourceID string) 
 		SessionID:   strings.TrimSpace(sessionID),
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(agentName),
-		EventCorrelation: storepkg.EventCorrelation{
-			ActorKind: strings.TrimSpace(actorKind),
-			ActorID:   strings.TrimSpace(actorID),
-		},
-		Summary:   strings.TrimSpace(metadata[memoryEventMetadataSummaryKey]),
-		Timestamp: timeFromUnixMillis(tsMillis),
+		ActorKind:   strings.TrimSpace(actorKind),
+		ActorID:     strings.TrimSpace(actorID),
+		Summary:     strings.TrimSpace(metadata[memoryEventMetadataSummaryKey]),
+		Timestamp:   timeFromUnixMillis(tsMillis),
 	}, nil
 }
 

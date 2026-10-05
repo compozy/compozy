@@ -151,7 +151,7 @@ func TestMultiRegistryDoesNotMutateSourceOwnedValues(t *testing.T) {
 		t.Parallel()
 
 		shared := &Detail{
-			Listing:    Listing{Slug: "pkg"},
+			Slug:       "pkg",
 			MCPServers: []string{"server"},
 			Tags:       []string{"tag"},
 			Versions:   []string{"1.0.0"},
@@ -400,13 +400,13 @@ func TestMultiRegistryInfoResolvesHighestPrioritySource(t *testing.T) {
 		&stubRegistrySource{
 			name: "low",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "pkg", Version: "1.0.0"}}, nil
+				return &Detail{Slug: "pkg", Version: "1.0.0"}, nil
 			},
 		},
 		&stubRegistrySource{
 			name: "high",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "pkg", Version: "2.0.0"}}, nil
+				return &Detail{Slug: "pkg", Version: "2.0.0"}, nil
 			},
 		},
 	)
@@ -433,7 +433,7 @@ func TestMultiRegistryInfoHonorsCancellationAfterPartialResults(t *testing.T) {
 		&stubRegistrySource{
 			name: "healthy",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "pkg", Version: "1.0.0"}}, nil
+				return &Detail{Slug: "pkg", Version: "1.0.0"}, nil
 			},
 		},
 		&stubRegistrySource{
@@ -489,7 +489,7 @@ func TestMultiRegistryDownloadDelegatesToResolvedSource(t *testing.T) {
 	high := &stubRegistrySource{
 		name: "high",
 		infoFunc: func(context.Context, string) (*Detail, error) {
-			return &Detail{Listing: Listing{Slug: "pkg"}}, nil
+			return &Detail{Slug: "pkg"}, nil
 		},
 		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
 			return sharedResult, nil
@@ -525,7 +525,7 @@ func TestMultiRegistryCheckUpdate(t *testing.T) {
 		return NewMultiRegistry(testLogger(), &stubRegistrySource{
 			name: "registry",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "pkg", Version: version, Source: "registry"}}, nil
+				return &Detail{Slug: "pkg", Version: version, Source: "registry"}, nil
 			},
 		})
 	}
@@ -615,7 +615,7 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 		registry := NewMultiRegistry(testLogger(), &stubRegistrySource{
 			name: "source",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "pkg"}}, nil
+				return &Detail{Slug: "pkg"}, nil
 			},
 			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
 				return nil, nil

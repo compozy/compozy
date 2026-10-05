@@ -404,12 +404,12 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				if ref == "workspace-alias" {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "registry-workspace"},
+						ID:          "registry-workspace",
 						WorkspaceID: "workspace-durable",
 					}, nil
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-other"},
+					ID:          "registry-other",
 					WorkspaceID: "workspace-other",
 				}, nil
 			},
@@ -1109,11 +1109,9 @@ func TestSessionToolHandlersUseResolvedRouteScope(t *testing.T) {
 				switch ref {
 				case "ws-alias", "ws-stable":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-registry",
-							RootDir: "/workspace",
-							Name:    "alias",
-						},
+						ID:          "ws-registry",
+						RootDir:     "/workspace",
+						Name:        "alias",
 						WorkspaceID: "ws-stable",
 					}, nil
 				default:

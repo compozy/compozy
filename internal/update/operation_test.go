@@ -930,18 +930,14 @@ func operationTestRequest(now time.Time) OperationRequest {
 		RequestedBy: ActorCLI,
 		Targets:     []Target{TargetRuntime, TargetApp},
 		Runtime: &RuntimeOperationState{
-			ArtifactIdentity: ArtifactIdentity{
-				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-				Asset: "compozy_darwin_arm64.tar.gz", Digest: "sha256:runtime",
-			},
+			FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+			Asset: "compozy_darwin_arm64.tar.gz", Digest: "sha256:runtime",
 			InstallMethod: InstallMethodDirectBinary,
 			Phase:         PhasePending,
 		},
 		App: &AppOperationState{
-			ArtifactIdentity: ArtifactIdentity{
-				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-				Asset: "CompozyOS-1.1.0-arm64.dmg", Digest: "sha256:app",
-			},
+			FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+			Asset: "CompozyOS-1.1.0-arm64.dmg", Digest: "sha256:app",
 			AttemptID: "attempt-1",
 			Phase:     PhasePending,
 		},

@@ -255,7 +255,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 				if ref != "alpha" {
 					t.Fatalf("Resolve() ref = %q, want alpha", ref)
 				}
-				return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-canonical"}}, nil
+				return workspacepkg.ResolvedWorkspace{ID: "ws-canonical"}, nil
 			}},
 		})
 		recorder := performModelCatalogRequest(
@@ -333,7 +333,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 				_ context.Context,
 				_ string,
 			) (workspacepkg.ResolvedWorkspace, error) {
-				return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-foreign"}}, nil
+				return workspacepkg.ResolvedWorkspace{ID: "ws-foreign"}, nil
 			}},
 			WorkspaceAccess: modelCatalogWorkspaceAccessStub{authorize: func(
 				_ context.Context,

@@ -491,7 +491,7 @@ func TestManagerCheck(t *testing.T) {
 		archived := &Operation{
 			LastError: "installer exited before relaunch",
 			App: &AppOperationState{
-				ArtifactIdentity:    ArtifactIdentity{ToVersion: "v1.2.0"},
+				ToVersion:           "v1.2.0",
 				AttemptID:           "attempt-2",
 				Phase:               PhaseFailed,
 				ConsecutiveFailures: 2,

@@ -190,10 +190,8 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			DesignationGroupID: "designation-group",
 			RunResultState: &taskpkg.RunResultState{
-				RunResultDescriptor: taskpkg.RunResultDescriptor{
-					ResultRef:   "sha256:external-result",
-					ResultBytes: 70000,
-				},
+				ResultRef:   "sha256:external-result",
+				ResultBytes: 70000,
 			},
 			Metadata: json.RawMessage(`{"designation":{"index":0,"brief":"Coordinate the group"}}`),
 			QueuedAt: now.Add(-10 * time.Minute),

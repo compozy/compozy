@@ -94,21 +94,17 @@ func (s hookedSoulAuthoringService) dispatchSoulSnapshotResolved(
 		logAuthoredContextDependencyError(s.hooks.logger, "daemon: resolve soul hook config provenance", configErr)
 	}
 	payload := hookspkg.AgentSoulSnapshotResolvedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookAgentSoulSnapshotResolved,
-			Timestamp: s.hooks.timestamp(),
-		},
-		AuthoredContextProvenance: hookspkg.AuthoredContextProvenance{
-			WorkspaceID:      strings.TrimSpace(target.WorkspaceID),
-			AgentName:        strings.TrimSpace(target.AgentName),
-			SourcePath:       strings.TrimSpace(result.Soul.SourcePath),
-			Digest:           strings.TrimSpace(result.Soul.Digest),
-			ConfigDigest:     strings.TrimSpace(config.Digest),
-			ValidationStatus: authoredValidationStatus(result.Soul.Present, result.Soul.Active, result.Soul.Valid),
-			Valid:            result.Soul.Valid,
-			Active:           result.Soul.Active,
-			Reason:           firstSoulDiagnosticCode(result.Soul.Diagnostics),
-		},
+		Event:            hookspkg.HookAgentSoulSnapshotResolved,
+		Timestamp:        s.hooks.timestamp(),
+		WorkspaceID:      strings.TrimSpace(target.WorkspaceID),
+		AgentName:        strings.TrimSpace(target.AgentName),
+		SourcePath:       strings.TrimSpace(result.Soul.SourcePath),
+		Digest:           strings.TrimSpace(result.Soul.Digest),
+		ConfigDigest:     strings.TrimSpace(config.Digest),
+		ValidationStatus: authoredValidationStatus(result.Soul.Present, result.Soul.Active, result.Soul.Valid),
+		Valid:            result.Soul.Valid,
+		Active:           result.Soul.Active,
+		Reason:           firstSoulDiagnosticCode(result.Soul.Diagnostics),
 	}
 	if _, err := s.hooks.DispatchAgentSoulSnapshotResolved(ctx, payload); err != nil {
 		logAuthoredContextDependencyError(s.hooks.logger, "daemon: dispatch soul snapshot hook", err)
@@ -121,31 +117,25 @@ func (s hookedSoulAuthoringService) dispatchSoulMutationAfter(ctx context.Contex
 	}
 	revision := result.Revision
 	payload := hookspkg.AgentSoulMutationAfterPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookAgentSoulMutationAfter,
-			Timestamp: s.hooks.timestamp(),
-		},
-		AuthoredContextProvenance: hookspkg.AuthoredContextProvenance{
-			WorkspaceID:      strings.TrimSpace(revision.WorkspaceID),
-			AgentName:        strings.TrimSpace(revision.AgentName),
-			SourcePath:       strings.TrimSpace(revision.SourcePath),
-			SnapshotID:       strings.TrimSpace(result.Snapshot.ID),
-			Digest:           strings.TrimSpace(result.Soul.Digest),
-			ValidationStatus: authoredValidationStatus(result.Soul.Present, result.Soul.Active, result.Soul.Valid),
-			Valid:            result.Soul.Valid,
-			Active:           result.Soul.Active,
-			Reason:           firstSoulDiagnosticCode(result.Soul.Diagnostics),
-		},
-		AuthoredMutationProvenance: hookspkg.AuthoredMutationProvenance{
-			ActorKind:  strings.TrimSpace(revision.ActorKind),
-			ActorID:    strings.TrimSpace(revision.ActorID),
-			OriginKind: strings.TrimSpace(revision.OriginKind),
-			OriginRef:  strings.TrimSpace(revision.OriginRef),
-		},
-		RevisionID:     strings.TrimSpace(revision.ID),
-		Action:         string(revision.Action),
-		PreviousDigest: strings.TrimSpace(revision.PreviousDigest),
-		NewDigest:      strings.TrimSpace(revision.NewDigest),
+		Event:            hookspkg.HookAgentSoulMutationAfter,
+		Timestamp:        s.hooks.timestamp(),
+		WorkspaceID:      strings.TrimSpace(revision.WorkspaceID),
+		AgentName:        strings.TrimSpace(revision.AgentName),
+		SourcePath:       strings.TrimSpace(revision.SourcePath),
+		SnapshotID:       strings.TrimSpace(result.Snapshot.ID),
+		Digest:           strings.TrimSpace(result.Soul.Digest),
+		ValidationStatus: authoredValidationStatus(result.Soul.Present, result.Soul.Active, result.Soul.Valid),
+		Valid:            result.Soul.Valid,
+		Active:           result.Soul.Active,
+		Reason:           firstSoulDiagnosticCode(result.Soul.Diagnostics),
+		ActorKind:        strings.TrimSpace(revision.ActorKind),
+		ActorID:          strings.TrimSpace(revision.ActorID),
+		OriginKind:       strings.TrimSpace(revision.OriginKind),
+		OriginRef:        strings.TrimSpace(revision.OriginRef),
+		RevisionID:       strings.TrimSpace(revision.ID),
+		Action:           string(revision.Action),
+		PreviousDigest:   strings.TrimSpace(revision.PreviousDigest),
+		NewDigest:        strings.TrimSpace(revision.NewDigest),
 	}
 	if _, err := s.hooks.DispatchAgentSoulMutationAfter(ctx, payload); err != nil {
 		logAuthoredContextDependencyError(s.hooks.logger, "daemon: dispatch soul mutation hook", err)

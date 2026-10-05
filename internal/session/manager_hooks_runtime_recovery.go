@@ -27,9 +27,9 @@ func (m *Manager) dispatchRuntimeRecoveryObservation(
 	}
 	ctx = hookDispatchContext(ctx, m, session)
 	payload := hookspkg.SessionRuntimeRecoveryPayload{
-		PayloadBase:    hookspkg.PayloadBase{Event: event, Timestamp: m.now()},
+		Event: event, Timestamp: m.now(),
 		SessionContext: hookSessionContext(session),
-		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(turnID)},
+		TurnID:         strings.TrimSpace(turnID),
 		RunID:          strings.TrimSpace(runID),
 		Attempt:        attempt,
 		MaxAttempts:    maxAttempts,

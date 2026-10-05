@@ -258,7 +258,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA"},
+				ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA",
 				WorkspaceID: "ws-stable",
 				Config: compozyconfig.Config{
 					Agents: compozyconfig.AgentsConfig{
@@ -382,10 +382,8 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						RootDir: workspaceRoot,
-						Name:    "Ad8 QA",
-					},
+					RootDir:     workspaceRoot,
+					Name:        "Ad8 QA",
 					WorkspaceID: "ws-stable",
 					Config: compozyconfig.Config{
 						Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -594,11 +592,9 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-registry",
-							RootDir: workspaceRoot,
-							Name:    "Deleted agent session",
-						},
+						ID:          "ws-registry",
+						RootDir:     workspaceRoot,
+						Name:        "Deleted agent session",
 						WorkspaceID: "ws-stable",
 						Config: compozyconfig.Config{
 							Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -692,7 +688,7 @@ func TestSessionStatusCarriesLineage(t *testing.T) {
 			workspaces := testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: t.TempDir()},
+						ID: "ws-registry", RootDir: t.TempDir(),
 						WorkspaceID: "ws-stable",
 					}, nil
 				},
@@ -751,7 +747,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 				testutil.StubWorkspaceService{
 					ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 						return workspacepkg.ResolvedWorkspace{
-							Workspace: workspacepkg.Workspace{ID: ref, RootDir: root},
+							ID: ref, RootDir: root,
 						}, nil
 					},
 				},
@@ -800,7 +796,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot, Name: workspaceID},
+				ID: workspaceID, RootDir: workspaceRoot, Name: workspaceID,
 				WorkspaceID: workspaceID,
 				Config: compozyconfig.Config{
 					Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -970,7 +966,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 							return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 						}
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+							ID: "ws-1", RootDir: workspaceRoot,
 							ProfileName: profile,
 							Config: compozyconfig.Config{
 								Agents: compozyconfig.AgentsConfig{
@@ -1237,7 +1233,7 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 		}
 		agents, err := compozyconfig.LoadWorkspaceAgentDefs(root, nil, home, profileName)
 		return workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: ref, RootDir: root}, WorkspaceID: ref,
+			ID: ref, RootDir: root, WorkspaceID: ref,
 			ProfileName: profileName, Config: cfg, Agents: agents,
 		}, err
 	}
@@ -1584,7 +1580,7 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 								t.Fatalf("workspace profile=%q, want marketing", profile)
 							}
 							return workspacepkg.ResolvedWorkspace{
-								Workspace: workspacepkg.Workspace{ID: ref, RootDir: root},
+								ID: ref, RootDir: root,
 								Config: compozyconfig.Config{
 									Agents: compozyconfig.AgentsConfig{
 										Heartbeat: compozyconfig.DefaultHeartbeatConfig(),

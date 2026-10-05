@@ -11,7 +11,7 @@ const server = setupServer(...handlers);
 const API = "http://localhost";
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
 });
 
 afterEach(() => {

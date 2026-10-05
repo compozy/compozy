@@ -42,10 +42,8 @@ func (s *Service) resolveWorkspace(
 		return nil, nil
 	}
 	return &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      strings.TrimSpace(workspaceID),
-			RootDir: strings.TrimSpace(rootDir),
-		},
+		ID:      strings.TrimSpace(workspaceID),
+		RootDir: strings.TrimSpace(rootDir),
 	}, nil
 }
 

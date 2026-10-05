@@ -35,13 +35,11 @@ func TestDoctorMCPFilterIncludesDurableDeadEntities(t *testing.T) {
 			DeadEntities: deadEntityDoctorSource{entities: map[string][]store.DeadEntity{
 				workspaceID: {
 					{
-						DeadEntityKey: store.DeadEntityKey{
-							WorkspaceID: workspaceID,
-							Kind:        store.DeadEntityKindMCPSidecar,
-							EntityID:    "github",
-						},
-						Reason:   "invalid configuration",
-						MarkedAt: time.Date(2026, 7, 15, 20, 0, 0, 0, time.UTC),
+						WorkspaceID: workspaceID,
+						Kind:        store.DeadEntityKindMCPSidecar,
+						EntityID:    "github",
+						Reason:      "invalid configuration",
+						MarkedAt:    time.Date(2026, 7, 15, 20, 0, 0, 0, time.UTC),
 					},
 				},
 			}},

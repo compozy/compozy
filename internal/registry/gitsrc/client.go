@@ -143,12 +143,10 @@ func (c *Client) Info(_ context.Context, slug string) (*registry.Detail, error) 
 	}
 	name := repositoryName(repository.raw)
 	return &registry.Detail{
-		Listing: registry.Listing{
-			Slug:   repository.raw,
-			Name:   name,
-			Source: sourceName,
-			Type:   registry.PackageTypeExtension,
-		},
+		Slug:       repository.raw,
+		Name:       name,
+		Source:     sourceName,
+		Type:       registry.PackageTypeExtension,
 		Repository: repository.raw,
 	}, nil
 }

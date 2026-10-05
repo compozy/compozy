@@ -488,7 +488,7 @@ func TestCoordinatorRuntimeObservesTaskRunEnqueuedButNotTaskCreation(t *testing.
 		t.Fatalf("Create count before enqueue = %d, want 0", got)
 	}
 	runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-		TaskRunContext: hookspkg.TaskRunContext{TaskID: "task-1", RunID: "run-1"},
+		TaskID: "task-1", RunID: "run-1",
 	})
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after enqueue = %d, want 1", got)
@@ -713,11 +713,9 @@ func TestHooksNotifierTaskRunEnqueuedObserversReceivePayload(t *testing.T) {
 	notifier.AddTaskRunEnqueuedObserver(observer)
 
 	_, err := notifier.DispatchTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:      "task-1",
-			RunID:       "run-1",
-			WorkspaceID: "ws-1",
-		},
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		WorkspaceID: "ws-1",
 	})
 	if err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)

@@ -132,12 +132,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		h := newHarness(t)
 		h.cfg.Defaults.Agent = ""
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: h.workspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
@@ -268,13 +266,11 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 	}
 
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:             h.workspaceID,
-			RootDir:        h.workspace,
-			AdditionalDirs: []string{additionalOne, additionalTwo},
-			Name:           h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:             h.workspaceID,
+		RootDir:        h.workspace,
+		AdditionalDirs: []string{additionalOne, additionalTwo},
+		Name:           h.workspaceName,
+		Config:         h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
@@ -317,13 +313,11 @@ func TestResumePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 	}
 
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:             h.workspaceID,
-			RootDir:        h.workspace,
-			AdditionalDirs: []string{additionalOne, additionalTwo},
-			Name:           h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:             h.workspaceID,
+		RootDir:        h.workspace,
+		AdditionalDirs: []string{additionalOne, additionalTwo},
+		Name:           h.workspaceName,
+		Config:         h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
@@ -691,12 +685,10 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 	now := time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC)
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	resolver := newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-options",
-			RootDir: "/tmp/workspace",
-			Name:    "workspace",
-		},
-		Config: cfg,
+		ID:      "ws-options",
+		RootDir: "/tmp/workspace",
+		Name:    "workspace",
+		Config:  cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     compozyconfig.DefaultAgentName,
 			Provider: "claude",

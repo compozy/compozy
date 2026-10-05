@@ -65,11 +65,9 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 			if ref == "ws-workspace" {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      ref,
-						RootDir: "/workspace",
-						Name:    "Workspace",
-					},
+					ID:          ref,
+					RootDir:     "/workspace",
+					Name:        "Workspace",
 					WorkspaceID: ref,
 				}, nil
 			}

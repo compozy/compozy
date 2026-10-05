@@ -41,7 +41,7 @@ concurrency:
 
 env:
   CGO_ENABLED: 0
-  GO_VERSION: "1.26.4"
+  GO_VERSION: "1.27.1"
   NODE_VERSION: "22"
   NPM_VERSION: "11.9.0"
   COSIGN_VERSION: "v3.1.3"

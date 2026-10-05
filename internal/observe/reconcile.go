@@ -159,7 +159,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		stopReason = *meta.StopReason
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
-	recovered := recoveredSession{SessionInfo: store.SessionInfo{
+	recovered := recoveredSession{
 		ID:                       meta.ID,
 		ProfileID:                meta.ProfileID,
 		Name:                     meta.Name,
@@ -192,8 +192,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		SoulDigest:       strings.TrimSpace(meta.SoulDigest),
 		ParentSoulDigest: strings.TrimSpace(meta.ParentSoulDigest),
 		CreatedAt:        meta.CreatedAt,
-		UpdatedAt:        meta.UpdatedAt,
-	}}
+		UpdatedAt:        meta.UpdatedAt}
 	recovered.SetACPOptions(meta.ACPOptionsValue())
 	recovered.SetRuntimeRecovery(meta.RuntimeRecoveryValue())
 	if meta.CreationProfile != nil {

@@ -148,7 +148,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 		workerRun := lifecycleWorkerRun(loopRun, "work", task.TaskRunStatusFailed, now)
 		failureRef := lifecycleFailureRef(t, string(toolsUnavailableCodeForTest), "provider unavailable")
 		firstScheduledAt := now.Add(-time.Second)
-		outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
+		outputs := &lifecycleCoordinatorStore{
 			outputs: map[int][]GenerationOutput{1: {{
 				Generation:       1,
 				NodeID:           "work",
@@ -159,7 +159,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 				FirstScheduledAt: &firstScheduledAt,
 				Epoch:            3,
 			}},
-			}}}
+			}}
 		runner := newCoordinatorRunnerForTestWithDefinition(
 			t,
 			loopRun,
@@ -573,9 +573,8 @@ func runLifecycleFailurePlanWithConfigAndControls(
 		}
 		outputRows = append(outputRows, output)
 	}
-	outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
-		outputs: map[int][]GenerationOutput{1: outputRows},
-	}}
+	outputs := &lifecycleCoordinatorStore{
+		outputs: map[int][]GenerationOutput{1: outputRows}}
 	options := []CoordinatorRunnerOption{WithCoordinatorNodeAttemptReader(outputs)}
 	if controls != nil {
 		options = append(
@@ -662,9 +661,8 @@ func runLifecyclePayloadFailurePlan(
 		}
 		outputRows = append(outputRows, output)
 	}
-	outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
-		outputs: map[int][]GenerationOutput{1: outputRows},
-	}}
+	outputs := &lifecycleCoordinatorStore{
+		outputs: map[int][]GenerationOutput{1: outputRows}}
 	runner := newCoordinatorRunnerForTestWithDefinition(
 		t,
 		loopRun,
@@ -979,10 +977,8 @@ func TestCoordinatorInvalidInputFailure(t *testing.T) {
 				),
 			}
 			outputs := &lifecycleCoordinatorStore{
-				coordinatorRunnerOutputs: coordinatorRunnerOutputs{
-					outputs: map[int][]GenerationOutput{
-						1: {output, {Generation: 1, NodeID: "next", Status: generationOutputPending, Attempt: 1}},
-					},
+				outputs: map[int][]GenerationOutput{
+					1: {output, {Generation: 1, NodeID: "next", Status: generationOutputPending, Attempt: 1}},
 				},
 			}
 			runner := newCoordinatorRunnerForLifecycleTest(

@@ -36,7 +36,7 @@ function multipartUpload(filename: string, mimeType: string, contents: string) {
 }
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
 });
 
 beforeEach(() => {

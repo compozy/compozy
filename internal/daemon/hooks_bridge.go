@@ -77,10 +77,8 @@ func hookSessionLifecyclePayload(
 	timestamp time.Time,
 ) hookspkg.SessionLifecyclePayload {
 	return hookspkg.SessionLifecyclePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     event,
-			Timestamp: timestamp,
-		},
+		Event:          event,
+		Timestamp:      timestamp,
 		SessionContext: hookSessionContext(sess),
 	}
 }

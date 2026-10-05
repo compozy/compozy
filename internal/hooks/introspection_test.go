@@ -411,7 +411,7 @@ func TestHookTelemetryHelpersExposeSessionIDAndSink(t *testing.T) {
 		}
 
 		payload := SessionPostCreatePayload{
-			SessionContext: SessionContext{SessionID: "sess-1"},
+			SessionID: "sess-1",
 		}
 		if got := sessionIDFromPayload(payload); got != "sess-1" {
 			t.Fatalf("sessionIDFromPayload() = %q, want sess-1", got)
@@ -428,13 +428,11 @@ func TestHooksCatalogAllowsNilExecutorInSnapshot(t *testing.T) {
 		hooks := &Hooks{
 			snapshot: map[HookEvent][]*ResolvedHook{
 				HookToolPreCall: {&ResolvedHook{
-					RegisteredHook: RegisteredHook{
-						Name:     "nil-executor",
-						Event:    HookToolPreCall,
-						Source:   HookSourceConfig,
-						Mode:     HookModeSync,
-						Priority: 500,
-					},
+					Name:     "nil-executor",
+					Event:    HookToolPreCall,
+					Source:   HookSourceConfig,
+					Mode:     HookModeSync,
+					Priority: 500,
 					Decl: HookDecl{
 						Name:  "nil-executor",
 						Event: HookToolPreCall,

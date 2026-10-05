@@ -19,10 +19,8 @@ func (m *Service) dispatchTaskRunEnqueued(
 	idempotencyKey string,
 ) {
 	payload := hookspkg.TaskRunEnqueuedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunEnqueued,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunEnqueued,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		IdempotencyKey: strings.TrimSpace(idempotencyKey),
 	}
@@ -39,10 +37,8 @@ func (m *Service) dispatchTaskRunPostClaim(
 	actor ActorContext,
 ) {
 	payload := hookspkg.TaskRunPostClaimPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunPostClaim,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunPostClaim,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		ClaimedAt:      run.ClaimedAt,
 	}
@@ -62,10 +58,8 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 	recovery RunBootRecovery,
 ) {
 	payload := hookspkg.TaskRunLeaseRecoveredPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunLeaseRecovered,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookTaskRunLeaseRecovered,
+		Timestamp:         m.now().UTC(),
 		TaskRunContext:    m.taskRunHookContext(run, taskRecord, actor),
 		PreviousRunStatus: previousStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(previousSessionID),

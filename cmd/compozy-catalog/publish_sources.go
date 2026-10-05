@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 type publicationSources struct {
@@ -127,6 +130,9 @@ func packagePublicationEntry(
 	if err := packageCatalogExtension(root, artifact); err != nil {
 		return publicationEntry{}, err
 	}
+	if err := preservePublishedArtifact(filepath.Join(sourceDir, "artifacts", filename), artifact); err != nil {
+		return publicationEntry{}, err
+	}
 	digest, err := marketplace.DigestFile(artifact)
 	if err != nil {
 		return publicationEntry{}, err
@@ -136,4 +142,53 @@ func packagePublicationEntry(
 	entry.DigestSHA256 = digest
 	entry.Inputs = manifest.Inputs
 	return entry, nil
+}
+
+// Compression output can change between Go releases; unchanged package contents retain their published bytes.
+func preservePublishedArtifact(existing, generated string) error {
+	// #nosec G703 -- existing is an artifact beneath the operator-selected catalog source.
+	raw, err := os.ReadFile(existing)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	oldDigest, err := uncompressedArtifactDigest(bytes.NewReader(raw))
+	if err != nil {
+		return fmt.Errorf("read published artifact: %w", err)
+	}
+	// #nosec G703 -- generated is an artifact in the fresh publication staging directory.
+	file, err := os.Open(generated)
+	if err != nil {
+		return err
+	}
+	newDigest, digestErr := uncompressedArtifactDigest(file)
+	if err := errors.Join(digestErr, file.Close()); err != nil {
+		return err
+	}
+	if oldDigest != newDigest {
+		return nil
+	}
+	// #nosec G306 G703 -- generated is a public artifact in the fresh publication staging directory.
+	return os.WriteFile(generated, raw, 0o644)
+}
+
+func uncompressedArtifactDigest(reader io.Reader) ([sha256.Size]byte, error) {
+	decompressed, err := gzip.NewReader(reader)
+	if err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	digest := sha256.New()
+	n, copyErr := io.CopyN(digest, decompressed, registry.DefaultMaxDecompressedSize+1)
+	if errors.Is(copyErr, io.EOF) {
+		copyErr = nil
+	}
+	if n > registry.DefaultMaxDecompressedSize {
+		copyErr = errors.New("catalog artifact exceeds the decompressed size limit")
+	}
+	if err := errors.Join(copyErr, decompressed.Close()); err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	return [sha256.Size]byte(digest.Sum(nil)), nil
 }

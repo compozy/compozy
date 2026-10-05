@@ -1076,7 +1076,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				switch ref {
 				case "registry-alpha", "stable-alpha":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "registry-alpha"},
+						ID:          "registry-alpha",
 						WorkspaceID: "stable-alpha",
 					}, nil
 				default:

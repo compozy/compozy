@@ -361,12 +361,12 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 			switch strings.TrimSpace(ref) {
 			case "workspace":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-workspace", Name: "workspace"},
+					ID: "registry-workspace", Name: "workspace",
 					WorkspaceID: "stable-workspace",
 				}, nil
 			case "other-workspace":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-other-workspace", Name: "other-workspace"},
+					ID: "registry-other-workspace", Name: "other-workspace",
 					WorkspaceID: "stable-other-workspace",
 				}, nil
 			default:

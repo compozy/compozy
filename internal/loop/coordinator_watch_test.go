@@ -589,9 +589,9 @@ func TestCoordinatorRunnerEventWaitAheadArrival(t *testing.T) {
 		now := time.Date(2026, time.August, 4, 16, 0, 0, 0, time.UTC)
 		definition := eventWaitDefinitionForTest(dsl.WaitAheadConsumeOnEntry)
 		definition.Graph.Nodes[0].NodeLifecycleState = &dsl.NodeLifecycleState{
-			TriggerEffects: dsl.TriggerEffects{OnPause: []dsl.EffectSpec{{
+			OnPause: []dsl.EffectSpec{{
 				Emit: &dsl.EmitSpec{Kind: "wait_paused"},
-			}}},
+			}},
 		}
 		resolved, err := NewCompiler().Compile(definition)
 		if err != nil {

@@ -407,7 +407,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: identity.WorkspaceID, RootDir: workspaceRoot},
+					ID: identity.WorkspaceID, RootDir: workspaceRoot,
 					WorkspaceID: identity.WorkspaceID,
 				}, nil
 			},
@@ -1169,11 +1169,9 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      identity.WorkspaceID,
-						Name:    "workspace",
-						RootDir: workspaceRoot,
-					},
+					ID:          identity.WorkspaceID,
+					Name:        "workspace",
+					RootDir:     workspaceRoot,
 					WorkspaceID: identity.WorkspaceID,
 				}, nil
 			},
@@ -1311,11 +1309,9 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      identity.WorkspaceID,
-						Name:    "workspace",
-						RootDir: workspaceRoot,
-					},
+					ID:          identity.WorkspaceID,
+					Name:        "workspace",
+					RootDir:     workspaceRoot,
 					WorkspaceID: identity.WorkspaceID,
 				}, nil
 			},

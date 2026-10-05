@@ -40,16 +40,14 @@ func TestLoopNativeHookObserverShouldProtectDurableNodeTerminalWake(t *testing.T
 		defer cancel()
 		workerKind := taskpkg.RunKindWorker.String()
 		err = observer.OnTaskRunTerminal(ctx, hookspkg.TaskRunLeasePayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:      "task-node",
-				RunID:       "run-node",
-				RunKind:     &workerKind,
-				LoopRunID:   "loop-run-1",
-				WorkspaceID: "ws-1",
-				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
-				TaskStatus:  string(taskpkg.TaskStatusCompleted),
-			},
+			Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow,
+			TaskID:      "task-node",
+			RunID:       "run-node",
+			RunKind:     &workerKind,
+			LoopRunID:   "loop-run-1",
+			WorkspaceID: "ws-1",
+			RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
+			TaskStatus:  string(taskpkg.TaskStatusCompleted),
 		})
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("OnTaskRunTerminal() error = %v, want context deadline exceeded", err)
@@ -87,18 +85,16 @@ func TestLoopNativeHookObserverShouldProtectDurableNodeTerminalWake(t *testing.T
 
 		workerKind := taskpkg.RunKindWorker.String()
 		if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:      "task-writer",
-				RunID:       "run-writer",
-				RunKind:     &workerKind,
-				LoopRunID:   "loop-run-1",
-				WorkspaceID: "ws-1",
-				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
-				TaskStatus:  string(taskpkg.TaskStatusCompleted),
-				Attempt:     3,
-				AgentName:   "writer",
-			},
+			Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow,
+			TaskID:      "task-writer",
+			RunID:       "run-writer",
+			RunKind:     &workerKind,
+			LoopRunID:   "loop-run-1",
+			WorkspaceID: "ws-1",
+			RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
+			TaskStatus:  string(taskpkg.TaskStatusCompleted),
+			Attempt:     3,
+			AgentName:   "writer",
 		}); err != nil {
 			t.Fatalf("OnTaskRunTerminal() error = %v", err)
 		}
@@ -138,15 +134,13 @@ func TestLoopNativeHookObserverShouldSuppressIntermediateGoalTerminal(t *testing
 
 			workerKind := taskpkg.RunKindWorker.String()
 			if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
-				PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
-				TaskRunContext: hookspkg.TaskRunContext{
-					TaskID:      "task-goal",
-					RunID:       "run-goal",
-					RunKind:     &workerKind,
-					LoopRunID:   "loop-goal",
-					WorkspaceID: "ws-goal",
-					RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
-				},
+				Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow,
+				TaskID:      "task-goal",
+				RunID:       "run-goal",
+				RunKind:     &workerKind,
+				LoopRunID:   "loop-goal",
+				WorkspaceID: "ws-goal",
+				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
 			}); err != nil {
 				t.Fatalf("OnTaskRunTerminal() error = %v", err)
 			}
@@ -217,13 +211,11 @@ func TestLoopNativeHookObserverShouldEmitGoalTerminalAfterSettlement(t *testing.
 		}
 
 		if err := observer.OnLoopTerminal(t.Context(), hookspkg.LoopTerminalPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
-			LoopContext: hookspkg.LoopContext{
-				LoopRunID:   "loop-goal-blocked",
-				WorkspaceID: "ws-goal",
-				Generation:  4,
-			},
-			Status: string(looppkg.StatusBlocked),
+			Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow,
+			LoopRunID:   "loop-goal-blocked",
+			WorkspaceID: "ws-goal",
+			Generation:  4,
+			Status:      string(looppkg.StatusBlocked),
 		}); err != nil {
 			t.Fatalf("OnLoopTerminal() error = %v", err)
 		}
@@ -291,13 +283,11 @@ func TestLoopNativeHookObserverShouldSnapshotGoalSuppressionBeforeBackstop(t *te
 		backstop := callbackLoopBackstopRunner{run: func(ctx context.Context) error {
 			loopStore.outputStatuses["loop-goal-sync/run-goal-sync"] = "failed"
 			return observer.OnLoopTerminal(ctx, hookspkg.LoopTerminalPayload{
-				PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
-				LoopContext: hookspkg.LoopContext{
-					LoopRunID:   "loop-goal-sync",
-					WorkspaceID: "ws-goal-sync",
-					Generation:  3,
-				},
-				Status: string(looppkg.StatusBlocked),
+				Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow,
+				LoopRunID:   "loop-goal-sync",
+				WorkspaceID: "ws-goal-sync",
+				Generation:  3,
+				Status:      string(looppkg.StatusBlocked),
 			})
 		}}
 		observer, err = newLoopNativeHookObserver(loopStore, dispatcher, backstop, func() time.Time {
@@ -309,15 +299,13 @@ func TestLoopNativeHookObserverShouldSnapshotGoalSuppressionBeforeBackstop(t *te
 
 		workerKind := taskpkg.RunKindWorker.String()
 		if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:      "task-goal-sync",
-				RunID:       "run-goal-sync",
-				RunKind:     &workerKind,
-				LoopRunID:   "loop-goal-sync",
-				WorkspaceID: "ws-goal-sync",
-				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
-			},
+			Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow,
+			TaskID:      "task-goal-sync",
+			RunID:       "run-goal-sync",
+			RunKind:     &workerKind,
+			LoopRunID:   "loop-goal-sync",
+			WorkspaceID: "ws-goal-sync",
+			RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
 		}); err != nil {
 			t.Fatalf("OnTaskRunTerminal() error = %v", err)
 		}

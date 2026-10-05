@@ -33,9 +33,7 @@ func TestNativeAgentCreate(t *testing.T) {
 			switch ref {
 			case "target-alias", "ws-target", "identity-target":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID: "ws-target", RootDir: targetRoot, Name: "target",
-					},
+					ID: "ws-target", RootDir: targetRoot, Name: "target",
 					ProfileID: store.DefaultProfileID, ProfileName: daemonDefaultProfileName,
 					WorkspaceID: "identity-target", Config: cfg,
 				}, nil
@@ -371,11 +369,9 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceID)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      workspaceID,
-							RootDir: t.TempDir(),
-							Name:    "native",
-						},
+						ID:          workspaceID,
+						RootDir:     t.TempDir(),
+						Name:        "native",
 						WorkspaceID: workspaceID,
 						Agents: []compozyconfig.AgentDef{
 							{Name: compozyconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},

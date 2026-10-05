@@ -52,19 +52,13 @@ func (g *providerNativeToolGateway) Intercept(
 
 	dispatchCtx := hookDispatchContext(ctx, g.manager, g.session)
 	payload, err := g.manager.hooks.tools().DispatchToolPreCall(dispatchCtx, hookspkg.ToolPreCallPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookToolPreCall,
-			Timestamp: g.manager.now(),
-		},
+		Event:          hookspkg.HookToolPreCall,
+		Timestamp:      g.manager.now(),
 		SessionContext: hookSessionContext(g.session),
-		TurnContext: hookspkg.TurnContext{
-			TurnID: strings.TrimSpace(g.session.CurrentTurnID()),
-		},
-		ToolCallRef: hookspkg.ToolCallRef{
-			ToolID:   strings.TrimSpace(req.ToolID),
-			ReadOnly: req.ReadOnly,
-		},
-		ToolInput: acp.CloneRawMessage(req.Input),
+		TurnID:         strings.TrimSpace(g.session.CurrentTurnID()),
+		ToolID:         strings.TrimSpace(req.ToolID),
+		ReadOnly:       req.ReadOnly,
+		ToolInput:      acp.CloneRawMessage(req.Input),
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

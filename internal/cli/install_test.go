@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
@@ -360,12 +360,12 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		if model.Init() == nil {
 			t.Fatal("Init() = nil, want blink command")
 		}
-		if !strings.Contains(model.View(), "Select the default provider") {
-			t.Fatalf("provider view = %q, want provider prompt", model.View())
+		if !strings.Contains(model.View().Content, "Select the default provider") {
+			t.Fatalf("provider view = %q, want provider prompt", model.View().Content)
 		}
 
 		var cmd tea.Cmd
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyDown})
 		if cmd != nil {
 			t.Fatalf("provider navigation cmd = %v, want nil", cmd)
 		}
@@ -373,7 +373,7 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 			t.Fatalf("selected = %d, want 1", model.selected)
 		}
 
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd == nil {
 			t.Fatal("provider enter cmd = nil, want blink command")
 		}
@@ -383,12 +383,12 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		if model.modelInput.Value() != "gpt-5.4" {
 			t.Fatalf("modelInput.Value() = %q, want %q", model.modelInput.Value(), "gpt-5.4")
 		}
-		if !strings.Contains(model.View(), "Selected provider: codex") {
-			t.Fatalf("model view = %q, want selected provider", model.View())
+		if !strings.Contains(model.View().Content, "Selected provider: codex") {
+			t.Fatalf("model view = %q, want selected provider", model.View().Content)
 		}
 
 		model.modelInput.SetValue("")
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd != nil {
 			t.Fatalf("blank model enter cmd = %v, want nil", cmd)
 		}
@@ -397,18 +397,18 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		}
 
 		model.modelInput.SetValue("gpt-5.4")
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd != nil {
 			t.Fatalf("model enter cmd = %v, want nil", cmd)
 		}
 		if model.step != installWizardStepConfirm {
 			t.Fatalf("step = %v, want confirm", model.step)
 		}
-		if !strings.Contains(model.View(), "Review the bootstrap configuration.") {
-			t.Fatalf("confirm view = %q, want review prompt", model.View())
+		if !strings.Contains(model.View().Content, "Review the bootstrap configuration.") {
+			t.Fatalf("confirm view = %q, want review prompt", model.View().Content)
 		}
 
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEsc})
 		if cmd == nil {
 			t.Fatal("confirm esc cmd = nil, want blink command")
 		}
@@ -416,11 +416,11 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 			t.Fatalf("step after esc = %v, want model", model.step)
 		}
 
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd != nil {
 			t.Fatalf("model enter after esc cmd = %v, want nil", cmd)
 		}
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd == nil {
 			t.Fatal("confirm enter cmd = nil, want quit command")
 		}
@@ -440,15 +440,15 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		})
 
 		var cmd tea.Cmd
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd == nil {
 			t.Fatal("provider enter cmd = nil, want blink command")
 		}
-		if !strings.Contains(model.View(), "provider-managed default") {
-			t.Fatalf("model view = %q, want provider-managed guidance", model.View())
+		if !strings.Contains(model.View().Content, "provider-managed default") {
+			t.Fatalf("model view = %q, want provider-managed guidance", model.View().Content)
 		}
 
-		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
 		if cmd != nil {
 			t.Fatalf("blank optional model enter cmd = %v, want nil", cmd)
 		}
@@ -458,8 +458,8 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		if model.step != installWizardStepConfirm {
 			t.Fatalf("step = %v, want confirm", model.step)
 		}
-		if !strings.Contains(model.View(), "Model:       -") {
-			t.Fatalf("confirm view = %q, want model dash", model.View())
+		if !strings.Contains(model.View().Content, "Model:       -") {
+			t.Fatalf("confirm view = %q, want model dash", model.View().Content)
 		}
 	})
 }

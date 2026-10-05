@@ -106,7 +106,7 @@ func (s *nativeCmdPaletteWorkspaceStub) Resolve(
 	if !ok {
 		return workspacepkg.ResolvedWorkspace{}, errors.New("workspace not found")
 	}
-	return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: id}, WorkspaceID: id}, nil
+	return workspacepkg.ResolvedWorkspace{ID: id, WorkspaceID: id}, nil
 }
 
 type nativeCmdPaletteSessionStub struct {
@@ -125,15 +125,12 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 		t.Parallel()
 		registry := &nativeCmdPaletteRegistryStub{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
 			{
-				Descriptor: cmdpalette.Descriptor{
-					ID:     "core.sessions.new",
-					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-				},
+				ID:     "core.sessions.new",
+				Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
 			},
-			{Descriptor: cmdpalette.Descriptor{
+			{
 				ID:     "ext.notes.capture",
-				Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: "notes"},
-			}},
+				Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: "notes"}},
 		}}}
 		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 			CmdPalette: func() cmdpalette.Registry { return registry },
@@ -168,9 +165,8 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 		registry := &nativeCmdPaletteRegistryStub{}
 		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 			CmdPalette: func() cmdpalette.Registry { return registry },
-			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{Profile: profilepkg.Profile{
-				ID: profileID, Name: "marketing", State: profilepkg.StateActive,
-			}}}},
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{
+				ID: profileID, Name: "marketing", State: profilepkg.StateActive}}},
 			Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"acme": "workspace-1"}},
 		}}
 		if _, err := tools.cmdPaletteList(t.Context(), toolspkg.Scope{ProfileID: profileID}, toolspkg.CallRequest{

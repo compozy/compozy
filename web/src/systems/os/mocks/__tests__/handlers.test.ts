@@ -14,7 +14,7 @@ const server = setupServer(windowManagerStreamHandler, ...handlers);
 const API = "http://localhost/api/workspaces/workspace-custom/window-manager";
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
 });
 
 beforeEach(() => {

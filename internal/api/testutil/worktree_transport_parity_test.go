@@ -193,7 +193,7 @@ func parityWorkspaceService() testutil.StubWorkspaceService {
 		string,
 	) (workspace.ResolvedWorkspace, error) {
 		return workspace.ResolvedWorkspace{
-			Workspace:   workspace.Workspace{ID: "ws-registry", Name: "Parity", RootDir: "/repo"},
+			ID: "ws-registry", Name: "Parity", RootDir: "/repo",
 			WorkspaceID: "ws-public",
 		}, nil
 	}}

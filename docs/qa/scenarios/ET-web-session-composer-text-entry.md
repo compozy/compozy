@@ -47,3 +47,13 @@ runtime selector and a full reload; a clean-browser deep link rendered the edito
 second exact draft without console errors.
 
 QA re-walk 2026-09-06: selecting the runtime, closing with Escape, entering the composer and submitting now preserves composer focus through the popup exit. The provider/model-override browser journey asserts focus after the popup closes and passed with the combined repaired build. Existing model/effort persistence and ordinary Escape restoration also pass. See BUG-20260906-runtime-selector-closing-focus and `.cache/sessions-selector-root-integrated-green.log`.
+
+QA impact 2026-10-05 (dependency upgrades): assistant-ui now commits hydrated text asynchronously.
+Re-walk a nonempty draft through composer remount and project switching; wait for hydration to
+complete, edit the draft again, and confirm neither stale text nor another project replaces it.
+The existing session-thread and empty-desktop suites own the hydration and isolation regressions.
+
+QA verdict 2026-10-05 (dependency upgrades): passed on the production build in an isolated
+daemon/Web lab. Repeated spaces and Unicode survived project remount, subsequent editing and
+full reload. Evidence: `docs/qa/evidence/2026-10-05-dependency-upgrades/draft-reload.json`
+and `draft-reload.png`.

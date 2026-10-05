@@ -248,13 +248,11 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			}
 		})
 		state := &bootState{
-			windowManagerBootState: windowManagerBootState{
-				windowManagerStoreResolver: fixture.storeResolver,
-				windowManagerStore:         fixture.engine,
-				windowManagers:             fixture.registry,
-			},
-			workspaceResolver: fixture.resolver,
-			terminals:         terminals,
+			windowManagerStoreResolver: fixture.storeResolver,
+			windowManagerStore:         fixture.engine,
+			windowManagers:             fixture.registry,
+			workspaceResolver:          fixture.resolver,
+			terminals:                  terminals,
 		}
 		cleanup := &bootCleanup{}
 		if err := configureWorkspaceDeletionLifecycle(ctx, state, sessions, cleanup); err != nil {
@@ -375,15 +373,13 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			t.Fatalf("terminal OpenPipe() error = %v", err)
 		}
 		state := &bootState{
-			windowManagerBootState: windowManagerBootState{
-				windowManagerStoreResolver: fixture.storeResolver,
-				windowManagerStore:         fixture.engine,
-				windowManagers:             fixture.registry,
-			},
-			workspaceResolver: fixture.resolver,
-			deadEntities:      deadEntities,
-			mcpToolProvider:   mcpRetirer,
-			terminals:         terminals,
+			windowManagerStoreResolver: fixture.storeResolver,
+			windowManagerStore:         fixture.engine,
+			windowManagers:             fixture.registry,
+			workspaceResolver:          fixture.resolver,
+			deadEntities:               deadEntities,
+			mcpToolProvider:            mcpRetirer,
+			terminals:                  terminals,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)

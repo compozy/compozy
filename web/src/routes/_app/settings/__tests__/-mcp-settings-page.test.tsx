@@ -43,7 +43,7 @@ const server = setupServer(
   ...statusHandlers
 );
 const clients: QueryClient[] = [];
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
 beforeEach(() => {
   definitions = structuredClone(mcpExtensionServerFixtures.slice(0, 2));

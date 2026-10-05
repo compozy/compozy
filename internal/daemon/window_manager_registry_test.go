@@ -304,8 +304,8 @@ func TestWindowManagerRegistry(t *testing.T) {
 		executeDaemonDesktopCreate(t, manager, workspaceID, "desktop-second", "Second")
 
 		state := &bootState{
-			windowManagerBootState: windowManagerBootState{windowManagers: fixture.registry},
-			profiles:               newDaemonTestProfileManager(t, &fixture),
+			windowManagers: fixture.registry,
+			profiles:       newDaemonTestProfileManager(t, &fixture),
 		}
 		seedInterruptedProfileDelete(ctx, t, &fixture, doomed)
 

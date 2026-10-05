@@ -44,15 +44,13 @@ func (r *spawnReaper) spawnLifecyclePayload(
 		lineage = store.NormalizeSessionLineage(child.ID, child.Lineage)
 	}
 	payload := hookspkg.SpawnLifecyclePayload{
-		PayloadBase: hookspkg.PayloadBase{Timestamp: r.now().UTC()},
-		SpawnContext: hookspkg.SpawnContext{
-			ParentSessionID:  lineage.ParentSessionID,
-			RootSessionID:    lineage.RootSessionID,
-			SpawnDepth:       lineage.SpawnDepth,
-			SpawnRole:        lineage.SpawnRole,
-			TTLSeconds:       lineage.SpawnBudget.TTLSeconds,
-			AutoStopOnParent: lineage.AutoStopOnParent,
-		},
+		Timestamp:        r.now().UTC(),
+		ParentSessionID:  lineage.ParentSessionID,
+		RootSessionID:    lineage.RootSessionID,
+		SpawnDepth:       lineage.SpawnDepth,
+		SpawnRole:        lineage.SpawnRole,
+		TTLSeconds:       lineage.SpawnBudget.TTLSeconds,
+		AutoStopOnParent: lineage.AutoStopOnParent,
 		ChildPermissions: spawnReaperPermissionSet(lineage.PermissionPolicy),
 		StopReason:       candidate.reason,
 		ReapReason:       candidate.reason,

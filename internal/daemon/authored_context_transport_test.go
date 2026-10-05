@@ -354,7 +354,7 @@ func newAuthoredContextFixture(t *testing.T) *authoredContextFixture {
 	cfg.Agents.Soul = compozyconfig.DefaultSoulConfig()
 	cfg.Agents.Heartbeat = compozyconfig.DefaultHeartbeatConfig()
 	workspace := workspacepkg.ResolvedWorkspace{
-		Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root, Name: "workspace"},
+		ID: "ws-1", RootDir: root, Name: "workspace",
 		WorkspaceID: "ws-1",
 		Config:      cfg,
 		Agents:      []compozyconfig.AgentDef{{Name: "coder", Provider: "test", SourcePath: agentPath}},

@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## Dependency upgrades — 2026-10-05
+
+Owner: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+Go/CEL/Bubble Tea/ULID and Bun library upgrades retain CLI, HTTP/UDS, native-tool IDs,
+hooks, extensions and config contracts. Native TypeScript 7 remains the checker while the
+OpenAPI generator uses its supported JavaScript compiler API. Profile input/storage decoders
+translate six renamed Lucide slugs losslessly; no profile ID, ownership, workspace isolation,
+database shape or stored payload is discarded. The same canonical slug reaches Web and native
+profile reads. The compatibility decoder is scheduled for removal in v0.5.0 after persisted
+names have been migrated. Official `skills/compozy/` instructions remain accurate.
+Web composer hydration waits for the assistant-ui commit before persisting observations,
+preserving per-session/project drafts. Catalog publication preserves existing compressed bytes
+when decompressed package content is identical across Go toolchain changes. The profile identity
+and composer text-entry scenarios plus existing CLI/profile/catalog suites own these journeys.
+
 ## Untested QA sweep — 2026-10-02
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.

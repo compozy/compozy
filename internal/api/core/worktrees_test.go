@@ -91,7 +91,7 @@ func TestProfileAwareWorktreeHandlers(t *testing.T) {
 			t.Fatalf("Resolve() ref = %q, want alpha", ref)
 		}
 		return workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "registry-alpha", Name: "alpha"},
+			ID: "registry-alpha", Name: "alpha",
 			WorkspaceID: "workspace-alpha",
 		}, nil
 	}}
@@ -266,10 +266,9 @@ func (s worktreeProfileServiceStub) Resolve(
 
 func (s worktreeProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts, error) {
 	return []profilepkg.WithCounts{
-		{Profile: profilepkg.Profile{
+		{
 			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone", Emoji: "📣",
-			State: s.profileState(),
-		}},
+			State: s.profileState()},
 	}, nil
 }
 
@@ -635,16 +634,14 @@ func TestForkSessionToWorktree(t *testing.T) {
 			}
 		}
 		manager := &promptingSessionManager{
-			sessionManagerStub: sessionManagerStub{
-				status: func(_ context.Context, id string) (*session.Info, error) {
-					if id != "sess-origin" {
-						t.Fatalf("Status() id = %q, want sess-origin", id)
-					}
-					return &session.Info{
-						ID: "sess-origin", AgentName: "coder", WorkspaceID: "registry-a",
-						State: session.StateActive,
-					}, nil
-				},
+			status: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-origin" {
+					t.Fatalf("Status() id = %q, want sess-origin", id)
+				}
+				return &session.Info{
+					ID: "sess-origin", AgentName: "coder", WorkspaceID: "registry-a",
+					State: session.StateActive,
+				}, nil
 			},
 			createAccepted: accept,
 			isPrompting:    prompting,
@@ -660,7 +657,7 @@ func TestForkSessionToWorktree(t *testing.T) {
 					t.Fatalf("Resolve() ref = %q, want workspace-a", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-a"},
+					ID:          "registry-a",
 					WorkspaceID: "workspace-a",
 				}, nil
 			}},
@@ -913,7 +910,7 @@ func TestWorktreeExitHandlers(t *testing.T) {
 				t.Fatalf("Resolve() ref = %q, want workspace-a", ref)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: "registry-a"}, WorkspaceID: "workspace-a",
+				ID: "registry-a", WorkspaceID: "workspace-a",
 			}, nil
 		}},
 		Worktrees: worktreeServiceStub{
@@ -1114,7 +1111,7 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 					Workspaces: workspaceServiceStub{
 						resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 							return workspacepkg.ResolvedWorkspace{
-								Workspace:   workspacepkg.Workspace{ID: "registry-alpha", Name: ref},
+								ID: "registry-alpha", Name: ref,
 								WorkspaceID: "registry-alpha",
 							}, nil
 						},
@@ -1170,7 +1167,7 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 						Workspaces: workspaceServiceStub{
 							resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 								return workspacepkg.ResolvedWorkspace{
-									Workspace:   workspacepkg.Workspace{ID: "registry-alpha", Name: ref},
+									ID: "registry-alpha", Name: ref,
 									WorkspaceID: "registry-alpha",
 								}, nil
 							},
@@ -1232,7 +1229,7 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 				ref string,
 			) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-a", Name: ref},
+					ID: "registry-a", Name: ref,
 					WorkspaceID: "workspace-a",
 				}, nil
 			}},
@@ -1376,7 +1373,7 @@ func TestWorktreeStreams(t *testing.T) {
 					ref string,
 				) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "registry-a", Name: ref},
+						ID: "registry-a", Name: ref,
 						WorkspaceID: "workspace-a",
 					}, nil
 				}},
@@ -1488,7 +1485,7 @@ func TestWorktreeManagedDeliveryCallerIdentity(t *testing.T) {
 				Workspaces: workspaceServiceStub{
 					resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "registry-a"},
+							ID:          "registry-a",
 							WorkspaceID: "workspace-a",
 						}, nil
 					},

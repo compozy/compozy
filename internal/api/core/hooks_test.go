@@ -231,10 +231,8 @@ func TestHookHandlers(t *testing.T) {
 				t.Fatalf("Resolve() ref = %q, want alpha", ref)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-alpha",
-					RootDir: "/workspace/alpha",
-				},
+				ID:          "ws-alpha",
+				RootDir:     "/workspace/alpha",
 				WorkspaceID: "01M26N9AVTCXB8NYSTT4PTWKCJ",
 			}, nil
 		},

@@ -13,7 +13,7 @@ concurrency:
 
 env:
   CGO_ENABLED: 0
-  GO_VERSION: "1.26.4"
+  GO_VERSION: "1.27.1"
   # Turborepo remote cache (Vercel): jobs exchange the GitHub OIDC token for a
   # short-lived Turborepo token (revoked at job end). Pull requests read the
   # shared cache; push and workflow_dispatch lanes upload. Fork PRs skip the

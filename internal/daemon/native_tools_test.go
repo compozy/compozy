@@ -1227,11 +1227,9 @@ func nativeTestWorkspaceServiceWithRootAndIdentity(
 			resolvedIdentityID = workspaceID
 		}
 		return workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      workspaceID,
-				RootDir: root,
-				Name:    workspaceID,
-			},
+			ID:          workspaceID,
+			RootDir:     root,
+			Name:        workspaceID,
 			WorkspaceID: resolvedIdentityID,
 		}, nil
 	}
@@ -1288,14 +1286,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
 				{
-					Profile: profilepkg.Profile{
-						ID:    store.DefaultProfileID,
-						Name:  "default",
-						State: profilepkg.StateActive,
-					},
+					ID:    store.DefaultProfileID,
+					Name:  "default",
+					State: profilepkg.StateActive,
 				},
 				{
-					Profile:   profilepkg.Profile{ID: marketingID, Name: "marketing", State: profilepkg.StateActive},
+					ID: marketingID, Name: "marketing", State: profilepkg.StateActive,
 					WorkItems: 3, NeedsSetup: true,
 					CredentialRequirements: []profilepkg.CredentialRequirement{{
 						Provider: "openai", Slot: "api_key", SourceExtension: "marketing-kit", Missing: true,
@@ -3748,12 +3744,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			switch ref {
 			case "ws-home", "home-alias":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-home"},
+					ID:          "registry-home",
 					WorkspaceID: "ws-home",
 				}, nil
 			case "target-alias":
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "registry-target"},
+					ID:          "registry-target",
 					WorkspaceID: "ws-target",
 				}, nil
 			default:
@@ -4671,12 +4667,12 @@ func TestDaemonNativeTools(t *testing.T) {
 					switch ref {
 					case "ws-config", loopInputWorkspace:
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "ws-config", RootDir: loopInputWorkspace},
+							ID: "ws-config", RootDir: loopInputWorkspace,
 							WorkspaceID: "ws-config",
 						}, nil
 					case "ws-guarded", guardedWorkspaceRoot:
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "ws-guarded", RootDir: guardedWorkspaceRoot},
+							ID: "ws-guarded", RootDir: guardedWorkspaceRoot,
 							WorkspaceID: "ws-guarded",
 						}, nil
 					default:
@@ -5246,10 +5242,8 @@ func TestDaemonNativeTools(t *testing.T) {
 						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-bound",
-							RootDir: workspaceRoot,
-						},
+						ID:          "ws-bound",
+						RootDir:     workspaceRoot,
 						WorkspaceID: "ws-bound",
 					}, nil
 				},
@@ -5322,11 +5316,9 @@ func TestDaemonNativeTools(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      registryWorkspaceID,
-						RootDir: workspaceRoot,
-						Name:    "hooks",
-					},
+					ID:          registryWorkspaceID,
+					RootDir:     workspaceRoot,
+					Name:        "hooks",
 					WorkspaceID: stableWorkspaceID,
 				}, nil
 			},
@@ -5508,11 +5500,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				switch ref {
 				case "ws-a", "stable-a":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-a", RootDir: workspaceARoot},
+						ID: "ws-a", RootDir: workspaceARoot,
 					}, nil
 				case "ws-b", workspaceBRoot:
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-b", RootDir: workspaceBRoot},
+						ID: "ws-b", RootDir: workspaceBRoot,
 					}, nil
 				default:
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
@@ -6707,12 +6699,12 @@ func TestDaemonNativeTools(t *testing.T) {
 					switch ref {
 					case "ws-home", "stable-home":
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "ws-home"},
+							ID:          "ws-home",
 							WorkspaceID: "stable-home",
 						}, nil
 					case "ws-target", "stable-target", "archive", "/archive":
 						return workspacepkg.ResolvedWorkspace{
-							Workspace:   workspacepkg.Workspace{ID: "ws-target"},
+							ID:          "ws-target",
 							WorkspaceID: "stable-target",
 						}, nil
 					default:
@@ -7444,12 +7436,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				switch ref {
 				case stableWorkspaceID, registryWorkspaceID:
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: registryWorkspaceID},
+						ID:          registryWorkspaceID,
 						WorkspaceID: stableWorkspaceID,
 					}, nil
 				case foreignStableWorkspaceID, "ws-other":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-other"},
+						ID:          "ws-other",
 						WorkspaceID: foreignStableWorkspaceID,
 					}, nil
 				default:
@@ -7458,313 +7450,311 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		manager := &nativeSessionPageHealthManager{
-			StubSessionManager: apitest.StubSessionManager{
-				CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
-					acceptedCreate = opts
-					return &session.Info{
-						ID:          "sess-created",
-						AgentName:   opts.Session.AgentName,
-						WorkspaceID: opts.Session.Workspace,
-						WorktreeID:  opts.Session.Worktree,
-						State:       session.StateActive,
-					}, nil
-				},
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{info}, nil
-				},
-				ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
-					seenListQuery = query
-					return session.ListPage{
-						Sessions:   []*session.Info{info},
-						NextCursor: "cursor-next",
-						HasMore:    true,
-						Total:      3,
-						Limit:      2,
-					}, nil
-				},
-				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-					if id != "sess-1" {
-						return nil, session.ErrSessionNotFound
-					}
-					return info, nil
-				},
-				ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
-					archiveTarget = workspaceID + "/" + id
-					archived := *info
-					archived.State = session.StateStopped
-					archivedAt := now.Add(time.Minute)
-					archived.ArchivedAt = &archivedAt
-					return &archived, nil
-				},
-				UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
-					unarchiveTarget = workspaceID + "/" + id
-					restored := *info
-					restored.State = session.StateStopped
-					return &restored, nil
-				},
-				RenameFn: func(_ context.Context, workspaceID string, id string, name string) (*session.Info, error) {
-					renameCalls++
-					renamedTarget = workspaceID + "/" + id
-					renamedName = name
-					renamed := *info
-					renamed.Name = name
-					return &renamed, nil
-				},
-				SetRuntimeSelectionFn: func(
-					_ context.Context,
-					id string,
-					selection session.RuntimeSelection,
-					expectedRevision int64,
-				) (*session.Info, error) {
-					if id != info.ID {
-						return nil, session.ErrSessionNotFound
-					}
-					selectedRuntime = selection
-					selectedRuntimeRevision = expectedRevision
-					info.SelectedRuntime = &selection
-					info.RuntimeSelectionRevision = expectedRevision + 1
-					return info, nil
-				},
-				ClearRuntimeSelectionFn: func(
-					_ context.Context,
-					id string,
-					expectedRevision int64,
-				) (*session.Info, error) {
-					if id != info.ID {
-						return nil, session.ErrSessionNotFound
-					}
-					clearedRuntimeRevision = expectedRevision
-					info.SelectedRuntime = nil
-					info.RuntimeSelectionRevision = expectedRevision + 1
-					return info, nil
-				},
-				SendPromptFn: func(
-					_ context.Context,
-					id string,
-					opts session.SendPromptOpts,
-				) (session.SendPromptResult, error) {
-					if id != "sess-1" {
-						return session.SendPromptResult{}, session.ErrSessionNotFound
-					}
-					promptSubmitCalls++
-					submittedPrompt = opts
-					close(promptAccepted)
-					return session.SendPromptResult{
-						Status:    "accepted",
-						Delivery:  store.SessionInputDeliveryDirect,
-						NewTurnID: "turn-native",
-						Events:    promptEvents,
-					}, nil
-				},
-				ContinueFn: func(
-					_ context.Context,
-					opts session.ContinueSessionOpts,
-				) (session.DeriveResult, error) {
-					// The manager owns source ownership: a foreign workspace finds no source.
-					if opts.WorkspaceID != info.WorkspaceID {
-						return session.DeriveResult{}, session.ErrSessionNotFound
-					}
-					continueSubmitCalls++
-					submittedContinue = opts
-					switch opts.IdempotencyKey {
-					case "idem-native-postcommit":
-						return session.DeriveResult{
-							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
-							SourceSessionID: opts.SourceSessionID,
-						}, &acp.FailureError{Kind: store.FailureProviderAuth, Summary: "not authenticated"}
-					case "idem-native-model":
-						modelErr := diagnostics.NewStructuredError(
-							diagnostics.NewItem(diagnostics.ItemSpec{
-								ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
-								Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
-								Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
-								DataFreshness: contract.FreshnessLive,
-							}),
-							&acp.NegotiationError{
-								Code:      contract.CodeModelUnavailable,
-								Stage:     "model",
-								Requested: "gone",
-							},
-						)
-						// The first message's runtime start refused the model after the commit; the
-						// chain carries the agent's stderr, which only the daemon log may show.
-						startErr := &acp.AcceptedStartError{
-							Cause: fmt.Errorf("%w: stderr=2026/09/29 INFO connection closed", modelErr),
-						}
-						return session.DeriveResult{
-							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
-							SourceSessionID: opts.SourceSessionID,
-						}, fmt.Errorf("session: admit first message of derived session %q: %w", "sess-committed", startErr)
-					case "idem-native-activation":
-						// Registration committed, then the child's activation failed.
-						return session.DeriveResult{
-							ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
-							SourceSessionID: opts.SourceSessionID,
-						}, errors.New("session: activate: acp: subprocess exited: exit status 1: stderr=panic: boom")
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				acceptedCreate = opts
+				return &session.Info{
+					ID:          "sess-created",
+					AgentName:   opts.Session.AgentName,
+					WorkspaceID: opts.Session.Workspace,
+					WorktreeID:  opts.Session.Worktree,
+					State:       session.StateActive,
+				}, nil
+			},
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{info}, nil
+			},
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				seenListQuery = query
+				return session.ListPage{
+					Sessions:   []*session.Info{info},
+					NextCursor: "cursor-next",
+					HasMore:    true,
+					Total:      3,
+					Limit:      2,
+				}, nil
+			},
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-1" {
+					return nil, session.ErrSessionNotFound
+				}
+				return info, nil
+			},
+			ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				archiveTarget = workspaceID + "/" + id
+				archived := *info
+				archived.State = session.StateStopped
+				archivedAt := now.Add(time.Minute)
+				archived.ArchivedAt = &archivedAt
+				return &archived, nil
+			},
+			UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				unarchiveTarget = workspaceID + "/" + id
+				restored := *info
+				restored.State = session.StateStopped
+				return &restored, nil
+			},
+			RenameFn: func(_ context.Context, workspaceID string, id string, name string) (*session.Info, error) {
+				renameCalls++
+				renamedTarget = workspaceID + "/" + id
+				renamedName = name
+				renamed := *info
+				renamed.Name = name
+				return &renamed, nil
+			},
+			SetRuntimeSelectionFn: func(
+				_ context.Context,
+				id string,
+				selection session.RuntimeSelection,
+				expectedRevision int64,
+			) (*session.Info, error) {
+				if id != info.ID {
+					return nil, session.ErrSessionNotFound
+				}
+				selectedRuntime = selection
+				selectedRuntimeRevision = expectedRevision
+				info.SelectedRuntime = &selection
+				info.RuntimeSelectionRevision = expectedRevision + 1
+				return info, nil
+			},
+			ClearRuntimeSelectionFn: func(
+				_ context.Context,
+				id string,
+				expectedRevision int64,
+			) (*session.Info, error) {
+				if id != info.ID {
+					return nil, session.ErrSessionNotFound
+				}
+				clearedRuntimeRevision = expectedRevision
+				info.SelectedRuntime = nil
+				info.RuntimeSelectionRevision = expectedRevision + 1
+				return info, nil
+			},
+			SendPromptFn: func(
+				_ context.Context,
+				id string,
+				opts session.SendPromptOpts,
+			) (session.SendPromptResult, error) {
+				if id != "sess-1" {
+					return session.SendPromptResult{}, session.ErrSessionNotFound
+				}
+				promptSubmitCalls++
+				submittedPrompt = opts
+				close(promptAccepted)
+				return session.SendPromptResult{
+					Status:    "accepted",
+					Delivery:  store.SessionInputDeliveryDirect,
+					NewTurnID: "turn-native",
+					Events:    promptEvents,
+				}, nil
+			},
+			ContinueFn: func(
+				_ context.Context,
+				opts session.ContinueSessionOpts,
+			) (session.DeriveResult, error) {
+				// The manager owns source ownership: a foreign workspace finds no source.
+				if opts.WorkspaceID != info.WorkspaceID {
+					return session.DeriveResult{}, session.ErrSessionNotFound
+				}
+				continueSubmitCalls++
+				submittedContinue = opts
+				switch opts.IdempotencyKey {
+				case "idem-native-postcommit":
+					return session.DeriveResult{
+						ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+						SourceSessionID: opts.SourceSessionID,
+					}, &acp.FailureError{Kind: store.FailureProviderAuth, Summary: "not authenticated"}
+				case "idem-native-model":
+					modelErr := diagnostics.NewStructuredError(
+						diagnostics.NewItem(diagnostics.ItemSpec{
+							ID: "provider.negotiation.model_unavailable", Code: contract.CodeModelUnavailable,
+							Category: contract.CategoryProvider, Title: "Provider configuration is unavailable",
+							Message: `acp: model "gone" is unavailable`, Severity: contract.SeverityError,
+							DataFreshness: contract.FreshnessLive,
+						}),
+						&acp.NegotiationError{
+							Code:      contract.CodeModelUnavailable,
+							Stage:     "model",
+							Requested: "gone",
+						},
+					)
+					// The first message's runtime start refused the model after the commit; the
+					// chain carries the agent's stderr, which only the daemon log may show.
+					startErr := &acp.AcceptedStartError{
+						Cause: fmt.Errorf("%w: stderr=2026/09/29 INFO connection closed", modelErr),
 					}
 					return session.DeriveResult{
-						Child: &session.Info{
-							ID: "sess-continued", AgentName: "codex", WorkspaceID: info.WorkspaceID,
-							State: session.StateActive, CreatedAt: info.CreatedAt, UpdatedAt: info.UpdatedAt,
-						},
-						ChildSessionID: "sess-continued", Kind: store.LineageKindContinue,
-						SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
-						Seed: session.DeriveSeedReplay, ReplayMessageCount: 4, ReplayBytes: 512,
-						FirstPrompt: store.SessionDerivationFirstPromptAdmitted,
-					}, nil
-				},
-				ForkFn: func(_ context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error) {
-					if opts.WorkspaceID != info.WorkspaceID {
-						return session.DeriveResult{}, session.ErrSessionNotFound
-					}
-					submittedFork = opts
+						ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+						SourceSessionID: opts.SourceSessionID,
+					}, fmt.Errorf("session: admit first message of derived session %q: %w", "sess-committed", startErr)
+				case "idem-native-activation":
+					// Registration committed, then the child's activation failed.
 					return session.DeriveResult{
-						ChildSessionID: "sess-forked", Kind: store.LineageKindFork,
-						SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
-						OriginMessageID: opts.MessageID, ThroughTurnID: "turn-3",
-						Seed: session.DeriveSeedReplay, FirstPrompt: store.SessionDerivationFirstPromptStaged,
-					}, nil
-				},
-				RewindFn: func(
-					_ context.Context,
-					id string,
-					opts session.ConversationRewindOptions,
-				) (session.ConversationRewindResult, error) {
-					if id != info.ID {
-						return session.ConversationRewindResult{}, session.ErrSessionNotFound
-					}
-					rewindSubmitCalls++
-					submittedRewind = opts
-					return session.ConversationRewindResult{
-						Session: &session.Session{
-							ID: info.ID, AgentName: info.AgentName, WorkspaceID: info.WorkspaceID,
-							State: info.State, CreatedAt: info.CreatedAt, UpdatedAt: info.UpdatedAt,
-						},
-						TranscriptEpoch: 4,
-						TargetMessageID: "msg-native-rewind",
-						ArchivedFrom:    18,
-						ArchivedThrough: 26,
-						ArchivedEvents:  9,
-						Generation:      7,
-						MaxSequence:     17,
-						DraftText:       "try another path",
-					}, nil
-				},
-				ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
-					if id != "sess-1" || caller.Kind != "human" || caller.ID != "operator" {
-						t.Fatalf("native clear target/actor = %q, %#v", id, caller)
-					}
-					clearInputCalls++
-					return session.ClearPendingInputsResult{
-						ClearedCount: 1, QueueGeneration: 5,
-						Inputs: []session.PendingInput{{ID: "input-queued", Status: "canceled"}},
-					}, nil
-				},
-				ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
-					listedInputSessionID = id
-					return []session.PendingInput{{
-						ID:              "input-queued",
-						SessionID:       id,
-						MessageID:       "msg-queued",
-						IdempotencyKey:  "idem-queued",
-						TargetTurnID:    "turn-active",
-						Status:          "queued",
-						Mode:            session.BusyInputModeQueue,
-						Delivery:        store.SessionInputDeliveryAfterTurn,
-						Text:            "queued review",
-						QueueGeneration: 4,
-						EnqueuedAt:      now,
-					}}, nil
-				},
-				ReplacePendingInputFn: func(
-					_ context.Context,
-					id string,
-					entryID string,
-					opts session.ReplacePendingInputOpts,
-				) (session.PendingInput, error) {
-					replacedInput.sessionID = id
-					replacedInput.entryID = entryID
-					replacedInput.opts = opts
-					return session.PendingInput{
-						ID:              entryID,
-						SessionID:       id,
-						MessageID:       opts.MessageID,
-						IdempotencyKey:  opts.IdempotencyKey,
-						Status:          "queued",
-						Mode:            session.BusyInputModeQueue,
-						Delivery:        store.SessionInputDeliveryAfterTurn,
-						Text:            opts.Text,
-						QueueGeneration: 4,
-						EnqueuedAt:      now,
-					}, nil
-				},
-				CancelQueuedFn: func(
-					_ context.Context,
-					id string,
-					entryID string,
-				) (session.SendPromptResult, error) {
-					canceledInput.sessionID = id
-					canceledInput.entryID = entryID
-					return session.SendPromptResult{
-						Status:          "canceled",
-						Mode:            session.BusyInputModeQueue,
-						Delivery:        store.SessionInputDeliveryNone,
-						QueueEntryID:    entryID,
-						QueueGeneration: 4,
-					}, nil
-				},
-				PromotePendingInputFn: func(
-					_ context.Context,
-					id string,
-					entryID string,
-					opts session.PromotePendingInputOpts,
-				) (session.SendPromptResult, error) {
-					promotedInput.sessionID = id
-					promotedInput.entryID = entryID
-					promotedInput.opts = opts
-					return session.SendPromptResult{
-						Status:          "steering",
-						Mode:            session.BusyInputModeSteer,
-						Delivery:        store.SessionInputDeliveryInterruptThenPrompt,
-						MessageID:       opts.MessageID,
-						IdempotencyKey:  opts.IdempotencyKey,
-						QueueEntryID:    entryID,
-						QueueGeneration: 4,
-					}, nil
-				},
-				EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
-					if id != "sess-1" || query.Limit != 1 {
-						t.Fatalf("Events query = %q %#v", id, query)
-					}
-					return []store.SessionEvent{{
+						ChildSessionID: "sess-committed", Kind: store.LineageKindContinue,
+						SourceSessionID: opts.SourceSessionID,
+					}, errors.New("session: activate: acp: subprocess exited: exit status 1: stderr=panic: boom")
+				}
+				return session.DeriveResult{
+					Child: &session.Info{
+						ID: "sess-continued", AgentName: "codex", WorkspaceID: info.WorkspaceID,
+						State: session.StateActive, CreatedAt: info.CreatedAt, UpdatedAt: info.UpdatedAt,
+					},
+					ChildSessionID: "sess-continued", Kind: store.LineageKindContinue,
+					SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
+					Seed: session.DeriveSeedReplay, ReplayMessageCount: 4, ReplayBytes: 512,
+					FirstPrompt: store.SessionDerivationFirstPromptAdmitted,
+				}, nil
+			},
+			ForkFn: func(_ context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error) {
+				if opts.WorkspaceID != info.WorkspaceID {
+					return session.DeriveResult{}, session.ErrSessionNotFound
+				}
+				submittedFork = opts
+				return session.DeriveResult{
+					ChildSessionID: "sess-forked", Kind: store.LineageKindFork,
+					SourceSessionID: opts.SourceSessionID, OriginAgentName: info.AgentName,
+					OriginMessageID: opts.MessageID, ThroughTurnID: "turn-3",
+					Seed: session.DeriveSeedReplay, FirstPrompt: store.SessionDerivationFirstPromptStaged,
+				}, nil
+			},
+			RewindFn: func(
+				_ context.Context,
+				id string,
+				opts session.ConversationRewindOptions,
+			) (session.ConversationRewindResult, error) {
+				if id != info.ID {
+					return session.ConversationRewindResult{}, session.ErrSessionNotFound
+				}
+				rewindSubmitCalls++
+				submittedRewind = opts
+				return session.ConversationRewindResult{
+					Session: &session.Session{
+						ID: info.ID, AgentName: info.AgentName, WorkspaceID: info.WorkspaceID,
+						State: info.State, CreatedAt: info.CreatedAt, UpdatedAt: info.UpdatedAt,
+					},
+					TranscriptEpoch: 4,
+					TargetMessageID: "msg-native-rewind",
+					ArchivedFrom:    18,
+					ArchivedThrough: 26,
+					ArchivedEvents:  9,
+					Generation:      7,
+					MaxSequence:     17,
+					DraftText:       "try another path",
+				}, nil
+			},
+			ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
+				if id != "sess-1" || caller.Kind != "human" || caller.ID != "operator" {
+					t.Fatalf("native clear target/actor = %q, %#v", id, caller)
+				}
+				clearInputCalls++
+				return session.ClearPendingInputsResult{
+					ClearedCount: 1, QueueGeneration: 5,
+					Inputs: []session.PendingInput{{ID: "input-queued", Status: "canceled"}},
+				}, nil
+			},
+			ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
+				listedInputSessionID = id
+				return []session.PendingInput{{
+					ID:              "input-queued",
+					SessionID:       id,
+					MessageID:       "msg-queued",
+					IdempotencyKey:  "idem-queued",
+					TargetTurnID:    "turn-active",
+					Status:          "queued",
+					Mode:            session.BusyInputModeQueue,
+					Delivery:        store.SessionInputDeliveryAfterTurn,
+					Text:            "queued review",
+					QueueGeneration: 4,
+					EnqueuedAt:      now,
+				}}, nil
+			},
+			ReplacePendingInputFn: func(
+				_ context.Context,
+				id string,
+				entryID string,
+				opts session.ReplacePendingInputOpts,
+			) (session.PendingInput, error) {
+				replacedInput.sessionID = id
+				replacedInput.entryID = entryID
+				replacedInput.opts = opts
+				return session.PendingInput{
+					ID:              entryID,
+					SessionID:       id,
+					MessageID:       opts.MessageID,
+					IdempotencyKey:  opts.IdempotencyKey,
+					Status:          "queued",
+					Mode:            session.BusyInputModeQueue,
+					Delivery:        store.SessionInputDeliveryAfterTurn,
+					Text:            opts.Text,
+					QueueGeneration: 4,
+					EnqueuedAt:      now,
+				}, nil
+			},
+			CancelQueuedFn: func(
+				_ context.Context,
+				id string,
+				entryID string,
+			) (session.SendPromptResult, error) {
+				canceledInput.sessionID = id
+				canceledInput.entryID = entryID
+				return session.SendPromptResult{
+					Status:          "canceled",
+					Mode:            session.BusyInputModeQueue,
+					Delivery:        store.SessionInputDeliveryNone,
+					QueueEntryID:    entryID,
+					QueueGeneration: 4,
+				}, nil
+			},
+			PromotePendingInputFn: func(
+				_ context.Context,
+				id string,
+				entryID string,
+				opts session.PromotePendingInputOpts,
+			) (session.SendPromptResult, error) {
+				promotedInput.sessionID = id
+				promotedInput.entryID = entryID
+				promotedInput.opts = opts
+				return session.SendPromptResult{
+					Status:          "steering",
+					Mode:            session.BusyInputModeSteer,
+					Delivery:        store.SessionInputDeliveryInterruptThenPrompt,
+					MessageID:       opts.MessageID,
+					IdempotencyKey:  opts.IdempotencyKey,
+					QueueEntryID:    entryID,
+					QueueGeneration: 4,
+				}, nil
+			},
+			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-1" || query.Limit != 1 {
+					t.Fatalf("Events query = %q %#v", id, query)
+				}
+				return []store.SessionEvent{{
+					ID:        "event-1",
+					SessionID: id,
+					Sequence:  1,
+					TurnID:    "turn-1",
+					Type:      acp.EventTypeRuntimeRecoveryStarted,
+					AgentName: "coder",
+					Content:   `{"raw":{"attempt":2,"max_attempts":3,"generation":3}}`,
+					Timestamp: now,
+				}}, nil
+			},
+			HistoryFn: func(_ context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
+				if id != "sess-1" || query.Limit != 1 {
+					t.Fatalf("History query = %q %#v", id, query)
+				}
+				return []store.TurnHistory{{
+					TurnID: "turn-1",
+					Events: []store.SessionEvent{{
 						ID:        "event-1",
 						SessionID: id,
 						Sequence:  1,
 						TurnID:    "turn-1",
-						Type:      acp.EventTypeRuntimeRecoveryStarted,
+						Type:      "agent_message",
 						AgentName: "coder",
-						Content:   `{"raw":{"attempt":2,"max_attempts":3,"generation":3}}`,
+						Content:   `{"text":"hello"}`,
 						Timestamp: now,
-					}}, nil
-				},
-				HistoryFn: func(_ context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
-					if id != "sess-1" || query.Limit != 1 {
-						t.Fatalf("History query = %q %#v", id, query)
-					}
-					return []store.TurnHistory{{
-						TurnID: "turn-1",
-						Events: []store.SessionEvent{{
-							ID:        "event-1",
-							SessionID: id,
-							Sequence:  1,
-							TurnID:    "turn-1",
-							Type:      "agent_message",
-							AgentName: "coder",
-							Content:   `{"text":"hello"}`,
-							Timestamp: now,
-						}},
-					}}, nil
-				},
+					}},
+				}}, nil
 			},
 			healthByID: map[string]heartbeat.SessionHealth{
 				"sess-1": {
@@ -8566,11 +8556,9 @@ func TestDaemonNativeTools(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      "ws-1",
-						RootDir: "/workspace/compozy",
-						Name:    "compozy",
-					},
+					ID:          "ws-1",
+					RootDir:     "/workspace/compozy",
+					Name:        "compozy",
 					WorkspaceID: "ws-1",
 					Config: compozyconfig.Config{
 						Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
@@ -8836,12 +8824,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				switch ref {
 				case "ws-a", "stable-a":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-a", RootDir: "/workspace/a", Name: "a"},
+						ID: "ws-a", RootDir: "/workspace/a", Name: "a",
 						WorkspaceID: "stable-a",
 					}, nil
 				case "ws-b", "stable-b":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-b", RootDir: "/workspace/b", Name: "b"},
+						ID: "ws-b", RootDir: "/workspace/b", Name: "b",
 						WorkspaceID: "stable-b",
 					}, nil
 				default:
@@ -8974,12 +8962,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				switch ref {
 				case "ws-a", "stable-a":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-a", RootDir: workspaceARoot},
+						ID: "ws-a", RootDir: workspaceARoot,
 						WorkspaceID: "stable-a",
 					}, nil
 				case "ws-b", "stable-b":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "ws-b", RootDir: workspaceBRoot},
+						ID: "ws-b", RootDir: workspaceBRoot,
 						WorkspaceID: "stable-b",
 					}, nil
 				default:
@@ -9086,13 +9074,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			HomePaths:   homePaths,
 			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
 				{
-					Profile: profilepkg.Profile{
-						ID:    store.DefaultProfileID,
-						Name:  "default",
-						State: profilepkg.StateActive,
-					},
+					ID:    store.DefaultProfileID,
+					Name:  "default",
+					State: profilepkg.StateActive,
 				},
-				{Profile: profilepkg.Profile{ID: marketingID, Name: "marketing", State: profilepkg.StateActive}},
+				{ID: marketingID, Name: "marketing", State: profilepkg.StateActive},
 			}},
 		}, nativeApproveAllPolicyInputs())
 
@@ -9176,7 +9162,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					ID: "ws-1", RootDir: workspaceRoot,
 					WorkspaceID: stableWorkspaceID,
 				}, nil
 			},
@@ -9511,7 +9497,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		workspaces := apitest.StubWorkspaceService{
 			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: identity.WorkspaceID, RootDir: workspaceRoot},
+					ID: identity.WorkspaceID, RootDir: workspaceRoot,
 					WorkspaceID: identity.WorkspaceID,
 				}, nil
 			},
@@ -10937,7 +10923,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				return workspacepkg.ResolvedAgentConfig{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedAgentConfig{
-				Workspace:   workspacepkg.Workspace{ID: "ws-effect", RootDir: t.TempDir()},
+				ID: "ws-effect", RootDir: t.TempDir(),
 				WorkspaceID: "ws-effect",
 				Config:      workspaceConfig,
 			}, nil
@@ -11038,7 +11024,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				return workspacepkg.ResolvedAgentConfig{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedAgentConfig{
-				Workspace:   workspacepkg.Workspace{ID: workspaceRegistration, RootDir: workspaceRoot},
+				ID: workspaceRegistration, RootDir: workspaceRoot,
 				WorkspaceID: workspaceIdentity,
 			}, nil
 		})
@@ -11361,11 +11347,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      workspaceID,
-							RootDir: root,
-							Name:    workspaceID,
-						},
+						ID:          workspaceID,
+						RootDir:     root,
+						Name:        workspaceID,
 						WorkspaceID: workspaceID,
 						Config:      cfg,
 					}, nil
@@ -11726,8 +11710,8 @@ func TestNativeMemoryDreamAdminShouldRespectProfileStores(t *testing.T) {
 			HomePaths:   homePaths,
 			MemoryStore: memoryStore,
 			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
-				{Profile: profilepkg.Profile{ID: profileA, Name: "alpha", State: profilepkg.StateActive}},
-				{Profile: profilepkg.Profile{ID: profileB, Name: "beta", State: profilepkg.StateActive}},
+				{ID: profileA, Name: "alpha", State: profilepkg.StateActive},
+				{ID: profileB, Name: "beta", State: profilepkg.StateActive},
 			}},
 		}, nativeApproveAllPolicyInputs())
 		listDreams := func(scopeID string) []byte {
@@ -14302,7 +14286,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 			resolve := func(_ context.Context, ref, name string) (workspacepkg.ResolvedWorkspace, error) {
 				agents, err := compozyconfig.LoadWorkspaceAgentDefs(root, nil, home, name)
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: ref, RootDir: root},
+					ID: ref, RootDir: root,
 					WorkspaceID: ref,
 					ProfileName: name,
 					Config:      cfg,
@@ -14325,7 +14309,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				WorkspaceResolver: workspace,
 				Profiles: nativeProfileReaderStub{
 					profiles: []profilepkg.WithCounts{
-						{Profile: profilepkg.Profile{ID: "profile-" + profileName, Name: profileName}},
+						{ID: "profile-" + profileName, Name: profileName},
 					},
 				},
 				HeartbeatStatus: status,

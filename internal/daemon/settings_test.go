@@ -1480,19 +1480,15 @@ func daemonSettingsOperationRequest(
 	}
 	if slices.Contains(targets, compozyupdate.TargetRuntime) {
 		request.Runtime = &compozyupdate.RuntimeOperationState{
-			ArtifactIdentity: compozyupdate.ArtifactIdentity{
-				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-				Asset: "runtime.tar.gz", Digest: "sha256:runtime",
-			},
+			FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+			Asset: "runtime.tar.gz", Digest: "sha256:runtime",
 			InstallMethod: compozyupdate.InstallMethodDirectBinary, Phase: compozyupdate.PhasePending,
 		}
 	}
 	if slices.Contains(targets, compozyupdate.TargetApp) {
 		request.App = &compozyupdate.AppOperationState{
-			ArtifactIdentity: compozyupdate.ArtifactIdentity{
-				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-				Asset: "desktop-app.zip", Digest: "sha256:app",
-			},
+			FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+			Asset: "desktop-app.zip", Digest: "sha256:app",
 			AttemptID: "attempt-1", Phase: compozyupdate.PhasePending,
 		}
 	}

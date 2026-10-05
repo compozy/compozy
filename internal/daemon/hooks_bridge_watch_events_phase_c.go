@@ -259,22 +259,20 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 		}
 	}
 	return writer.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
-		ProfileID:   profileID,
-		SessionID:   strings.TrimSpace(payload.CoordinatorSessionID),
-		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
-		Type:        string(event),
-		AgentName:   strings.TrimSpace(payload.AgentName),
-		Provider:    strings.TrimSpace(payload.Provider),
-		Outcome:     coordinatorWatchEventOutcome(event),
-		EventCorrelation: store.EventCorrelation{
-			TaskID:               strings.TrimSpace(payload.TaskID),
-			RunID:                strings.TrimSpace(payload.RunID),
-			WorkflowID:           strings.TrimSpace(payload.WorkflowID),
-			CoordinatorSessionID: strings.TrimSpace(payload.CoordinatorSessionID),
-			HookEvent:            string(event),
-		},
-		Summary:   coordinatorWatchEventSummary(event, payload),
-		Timestamp: payload.Timestamp.UTC(),
+		ProfileID:            profileID,
+		SessionID:            strings.TrimSpace(payload.CoordinatorSessionID),
+		WorkspaceID:          strings.TrimSpace(payload.WorkspaceID),
+		Type:                 string(event),
+		AgentName:            strings.TrimSpace(payload.AgentName),
+		Provider:             strings.TrimSpace(payload.Provider),
+		Outcome:              coordinatorWatchEventOutcome(event),
+		TaskID:               strings.TrimSpace(payload.TaskID),
+		RunID:                strings.TrimSpace(payload.RunID),
+		WorkflowID:           strings.TrimSpace(payload.WorkflowID),
+		CoordinatorSessionID: strings.TrimSpace(payload.CoordinatorSessionID),
+		HookEvent:            string(event),
+		Summary:              coordinatorWatchEventSummary(event, payload),
+		Timestamp:            payload.Timestamp.UTC(),
 	}, content))
 }
 

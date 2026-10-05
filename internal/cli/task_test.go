@@ -2910,23 +2910,21 @@ func sampleTaskExecutionProfileRecord() TaskExecutionProfileRecord {
 
 func sampleTaskRunReviewRecord(status taskpkg.RunReviewStatus) TaskRunReviewRecord {
 	return TaskRunReviewRecord{
-		RunReview: taskpkg.RunReview{
-			ReviewID:          "review-1",
-			TaskID:            "task-1",
-			RunID:             "run-1",
-			Policy:            taskpkg.ReviewPolicyAlways,
-			ReviewRound:       1,
-			Attempt:           1,
-			Status:            status,
-			Reason:            "ready for review",
-			MissingWork:       json.RawMessage(`[]`),
-			ReviewerSessionID: "sess-review",
-			RequestedAt:       fixedTestNow,
-			CreatedAt:         fixedTestNow,
-			UpdatedAt:         fixedTestNow,
-		},
-		ProfileID:   store.DefaultProfileID,
-		ProfileName: "default",
+		ReviewID:          "review-1",
+		TaskID:            "task-1",
+		RunID:             "run-1",
+		Policy:            taskpkg.ReviewPolicyAlways,
+		ReviewRound:       1,
+		Attempt:           1,
+		Status:            status,
+		Reason:            "ready for review",
+		MissingWork:       json.RawMessage(`[]`),
+		ReviewerSessionID: "sess-review",
+		RequestedAt:       fixedTestNow,
+		CreatedAt:         fixedTestNow,
+		UpdatedAt:         fixedTestNow,
+		ProfileID:         store.DefaultProfileID,
+		ProfileName:       "default",
 	}
 }
 

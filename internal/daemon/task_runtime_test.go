@@ -159,7 +159,7 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 	runtime.claimRetryInterval = time.Millisecond
 
 	runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-		TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		TaskID: taskRecord.ID, RunID: run.ID,
 	})
 
 	select {

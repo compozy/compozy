@@ -159,16 +159,14 @@ func TestManagerTranscriptPageLogsCleanupErrorsWithoutFailingSuccessfulRead(t *t
 	t.Parallel()
 
 	recorder := &transcriptRecorderStub{
-		queryRecorderStub: queryRecorderStub{
-			events: []store.SessionEvent{{
-				Sequence:  1,
-				TurnID:    "turn-synth",
-				Type:      acp.EventTypeSyntheticReentry,
-				AgentName: "coder",
-				Content:   `{"schema":"compozy.session.event.v1","type":"synthetic_reentry","text":"daemon wake-up"}`,
-				Timestamp: time.Date(2026, 4, 18, 13, 30, 0, 0, time.UTC),
-			}},
-		},
+		events: []store.SessionEvent{{
+			Sequence:  1,
+			TurnID:    "turn-synth",
+			Type:      acp.EventTypeSyntheticReentry,
+			AgentName: "coder",
+			Content:   `{"schema":"compozy.session.event.v1","type":"synthetic_reentry","text":"daemon wake-up"}`,
+			Timestamp: time.Date(2026, 4, 18, 13, 30, 0, 0, time.UTC),
+		}},
 		closeErr: errors.New("close failed"),
 	}
 	h := newHarness(t, WithStore(func(_ context.Context, _ store.SessionDBOwner, _ string) (EventRecorder, error) {

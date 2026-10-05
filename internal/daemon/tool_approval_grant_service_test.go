@@ -21,14 +21,12 @@ func TestToolApprovalGrantServiceEmitsCanonicalTransitions(t *testing.T) {
 
 	t.Run("Should emit one put event after durable storage", func(t *testing.T) {
 		stored, err := service.PutApprovalGrant(t.Context(), toolspkg.ApprovalGrant{
-			ApprovalGrantKey: toolspkg.ApprovalGrantKey{
-				ProfileID:   store.DefaultProfileID,
-				WorkspaceID: "ws-1",
-				AgentName:   "codex",
-				ToolID:      "compozy__approval_probe",
-				InputDigest: "sha256:abc",
-			},
-			Decision: toolspkg.ApprovalGrantAllow,
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: "ws-1",
+			AgentName:   "codex",
+			ToolID:      "compozy__approval_probe",
+			InputDigest: "sha256:abc",
+			Decision:    toolspkg.ApprovalGrantAllow,
 		})
 		if err != nil {
 			t.Fatalf("PutApprovalGrant() error = %v", err)

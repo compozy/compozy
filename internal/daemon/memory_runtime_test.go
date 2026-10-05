@@ -36,9 +36,7 @@ func TestDaemonMemoryExtractorSkipsSubagentWorkspaceRootCache(t *testing.T) {
 			workspaceRoots: workspaceRoots,
 		}
 		payload := hookspkg.SessionMessagePersistedPayload{
-			SessionContext: hookspkg.SessionContext{
-				SessionID: "sess-auto-title", Workspace: t.TempDir(), WorkspaceID: "ws-1",
-			},
+			SessionID: "sess-auto-title", Workspace: t.TempDir(), WorkspaceID: "ws-1",
 			ParentSessionID: "sess-parent",
 			ActorKind:       "agent_subagent",
 		}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"cel.dev/cel-go/cel"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/google/cel-go/cel"
 )
 
 const (

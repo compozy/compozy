@@ -27,6 +27,42 @@ import (
 func TestManagerProfileLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve renamed Lucide icons when reading and editing stored profiles", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		for oldIcon, newIcon := range map[string]string{
+			"album":             "square-bookmark",
+			"book-marked":       "book-bookmark",
+			"building-2":        "building-complex",
+			"flip-horizontal-2": "triangles-centerline-dashed-horizontal",
+			"flip-vertical-2":   "triangles-centerline-dashed-vertical",
+			"trash-2":           "trash",
+		} {
+			created, err := manager.Create(ctx, CreateInput{Name: oldIcon, Icon: oldIcon})
+			if err != nil {
+				t.Fatalf("Create(%s): %v", oldIcon, err)
+			}
+			if created.Icon != newIcon {
+				t.Fatalf("Create(%s).Icon = %q, want %q", oldIcon, created.Icon, newIcon)
+			}
+			if _, err := database.DB().
+				ExecContext(ctx, "UPDATE profiles SET icon = ? WHERE id = ?", oldIcon, created.ID); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := manager.GetByName(ctx, created.Name)
+			if err != nil || loaded.Icon != newIcon || loaded.ID != created.ID {
+				t.Fatalf("GetByName(%s) = %#v, %v", oldIcon, loaded, err)
+			}
+			color := "#123abc"
+			updated, err := manager.UpdateIdentity(ctx, created.Name, IdentityPatch{Color: &color})
+			if err != nil || updated.Icon != newIcon || updated.Color != color || updated.ID != created.ID {
+				t.Fatalf("UpdateIdentity(%s) = %#v, %v", oldIcon, updated, err)
+			}
+		}
+	})
+
 	t.Run("Should read one profile with its ownership and credential summary", func(t *testing.T) {
 		t.Parallel()
 

@@ -33,10 +33,8 @@ func TestCmdPalettePayloadJSONShape(t *testing.T) {
 
 		payload := contract.CmdPaletteCommandsFromDomain(cmdpalette.Catalog{
 			Commands: []cmdpalette.ResolvedCommand{{
-				Descriptor: cmdpalette.Descriptor{
-					ID:     "core.test",
-					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-				},
+				ID:     "core.test",
+				Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
 			}},
 		})
 		var got map[string]any
@@ -623,10 +621,8 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 				DefinitionOfDone: "The release is healthy",
 				ContractLifecycleState: &dsl.ContractLifecycleState{
 					TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalCanceled},
-					TerminalEffects: dsl.TerminalEffects{
-						OnDone:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "release_done"}}},
-						OnCanceled: []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "canceled"}}},
-					},
+					OnDone:         []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "release_done"}}},
+					OnCanceled:     []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "canceled"}}},
 				},
 			},
 			Graph: dsl.Graph{Nodes: []dsl.Node{{
@@ -645,14 +641,12 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 						Route:   "recover",
 						Effects: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_failed"}}},
 					},
-					TriggerEffects: dsl.TriggerEffects{
-						OnRetry:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_retrying"}}},
-						OnSuccess:    []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "done"}}},
-						OnPause:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_paused"}}},
-						OnTimeout:    []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_timed_out"}}},
-						OnCancel:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_canceled"}}},
-						OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_quarantined"}}},
-					},
+					OnRetry:       []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_retrying"}}},
+					OnSuccess:     []dsl.EffectSpec{{Tool: "notify", With: map[string]any{"status": "done"}}},
+					OnPause:       []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_paused"}}},
+					OnTimeout:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_timed_out"}}},
+					OnCancel:      []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_canceled"}}},
+					OnQuarantine:  []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_quarantined"}}},
 					OnParentClose: dsl.ParentCloseTerminate,
 				},
 			}, {

@@ -26,14 +26,12 @@ const normalizedRectSchema = z
     width: z.number().finite().positive(),
     height: z.number().finite().positive(),
   })
-  .transform(
-    (rect): WindowManagerNormalizedRect => ({
-      x: rect.x,
-      y: rect.y,
-      w: rect.width,
-      h: rect.height,
-    })
-  );
+  .transform((rect): WindowManagerNormalizedRect => ({
+    x: rect.x,
+    y: rect.y,
+    w: rect.width,
+    h: rect.height,
+  }));
 
 const routeSchema = z.strictObject({
   pathname: z.string().trim().startsWith("/"),
@@ -146,22 +144,20 @@ const layoutWindowSchema = z
     zoomed: z.boolean(),
     return_anchor: z.unknown().optional(),
   })
-  .transform(
-    (window): WindowManagerLayoutWindow => ({
-      id: window.id,
-      app: window.app,
-      instanceKey: window.instance_key ?? null,
-      route: window.route,
-      navStack: window.nav_stack,
-      pinned: window.pinned,
-      placement: window.placement,
-      desktopId: window.desktop_id,
-      floatingRect: window.floating_rect,
-      minimized: window.minimized,
-      zoomed: window.zoomed,
-      returnAnchor: window.return_anchor ?? null,
-    })
-  );
+  .transform((window): WindowManagerLayoutWindow => ({
+    id: window.id,
+    app: window.app,
+    instanceKey: window.instance_key ?? null,
+    route: window.route,
+    navStack: window.nav_stack,
+    pinned: window.pinned,
+    placement: window.placement,
+    desktopId: window.desktop_id,
+    floatingRect: window.floating_rect,
+    minimized: window.minimized,
+    zoomed: window.zoomed,
+    returnAnchor: window.return_anchor ?? null,
+  }));
 
 export const windowManagerLayoutDocumentSchema = z
   .strictObject({
@@ -171,15 +167,13 @@ export const windowManagerLayoutDocumentSchema = z
     windows: z.record(z.string(), layoutWindowSchema),
     overrides: z.record(z.string(), z.unknown()),
   })
-  .transform(
-    (document): WindowManagerLayoutDocument => ({
-      version: document.version,
-      workspaceId: document.workspace_id,
-      desktops: document.desktops,
-      windows: document.windows,
-      overrides: document.overrides,
-    })
-  );
+  .transform((document): WindowManagerLayoutDocument => ({
+    version: document.version,
+    workspaceId: document.workspace_id,
+    desktops: document.desktops,
+    windows: document.windows,
+    overrides: document.overrides,
+  }));
 
 const diagnosticSchema = z
   .strictObject({
@@ -187,13 +181,11 @@ const diagnosticSchema = z
     path: z.string().optional(),
     message: z.string(),
   })
-  .transform(
-    (diagnostic): WindowManagerLayoutDiagnostic => ({
-      code: diagnostic.code,
-      path: diagnostic.path ?? null,
-      message: diagnostic.message,
-    })
-  );
+  .transform((diagnostic): WindowManagerLayoutDiagnostic => ({
+    code: diagnostic.code,
+    path: diagnostic.path ?? null,
+    message: diagnostic.message,
+  }));
 
 const changesSchema = z
   .object({
@@ -205,17 +197,15 @@ const changesSchema = z
     stack_grouped: z.array(identifierSchema).optional(),
     stack_ungrouped: z.array(identifierSchema).optional(),
   })
-  .transform(
-    (changes): WindowManagerLayoutChanges => ({
-      desktopIds: changes.desktop_ids ?? [],
-      windowIds: changes.window_ids ?? [],
-      groupIds: changes.group_ids ?? [],
-      nodeIds: changes.node_ids ?? [],
-      clientIds: changes.client_ids ?? [],
-      stackGrouped: changes.stack_grouped ?? [],
-      stackUngrouped: changes.stack_ungrouped ?? [],
-    })
-  );
+  .transform((changes): WindowManagerLayoutChanges => ({
+    desktopIds: changes.desktop_ids ?? [],
+    windowIds: changes.window_ids ?? [],
+    groupIds: changes.group_ids ?? [],
+    nodeIds: changes.node_ids ?? [],
+    clientIds: changes.client_ids ?? [],
+    stackGrouped: changes.stack_grouped ?? [],
+    stackUngrouped: changes.stack_ungrouped ?? [],
+  }));
 
 const profileSchema = z
   .strictObject({
@@ -227,17 +217,15 @@ const profileSchema = z
     overflow_policy: z.enum(["stack", "reject"]),
     document: windowManagerLayoutDocumentSchema,
   })
-  .transform(
-    (profile): WindowManagerLayoutProfile => ({
-      version: profile.version,
-      id: profile.id,
-      displayName: profile.display_name,
-      aspectVariant: profile.aspect_variant,
-      participantSlots: profile.participant_slots ?? [],
-      overflowPolicy: profile.overflow_policy,
-      document: profile.document,
-    })
-  );
+  .transform((profile): WindowManagerLayoutProfile => ({
+    version: profile.version,
+    id: profile.id,
+    displayName: profile.display_name,
+    aspectVariant: profile.aspect_variant,
+    participantSlots: profile.participant_slots ?? [],
+    overflowPolicy: profile.overflow_policy,
+    document: profile.document,
+  }));
 
 const resourceRecordSchema = z
   .strictObject({
@@ -254,17 +242,15 @@ const resourceRecordSchema = z
     created_at: z.string(),
     updated_at: z.string(),
   })
-  .transform(
-    (record): WindowManagerLayoutResourceRecord => ({
-      kind: record.kind,
-      id: record.id,
-      version: record.version,
-      scope: { kind: record.scope.kind, id: record.scope.id ?? "" },
-      spec: record.spec,
-      createdAt: record.created_at,
-      updatedAt: record.updated_at,
-    })
-  );
+  .transform((record): WindowManagerLayoutResourceRecord => ({
+    kind: record.kind,
+    id: record.id,
+    version: record.version,
+    scope: { kind: record.scope.kind, id: record.scope.id ?? "" },
+    spec: record.spec,
+    createdAt: record.created_at,
+    updatedAt: record.updated_at,
+  }));
 
 export function parseWindowManagerLayoutDocument(value: unknown): WindowManagerLayoutDocument {
   return windowManagerLayoutDocumentSchema.parse(value);

@@ -357,8 +357,8 @@ func (s roleWorkspaceResolverStub) Resolve(
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 	}
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: idOrPath},
-		Config:    cfg,
+		ID:     idOrPath,
+		Config: cfg,
 	}, nil
 }
 

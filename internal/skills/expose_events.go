@@ -57,10 +57,8 @@ func (m *ExposeManager) emitExposureEvent(
 		WorkspaceID: strings.TrimSpace(record.WorkspaceID),
 		Type:        eventType,
 		Summary:     fmt.Sprintf("skill %s exposure %s for %s", record.SkillName, eventType, record.TargetSlug),
-		EventCorrelation: store.EventCorrelation{
-			ActorKind: correlation.ActorKind,
-			ActorID:   correlation.ActorID,
-		},
+		ActorKind:   correlation.ActorKind,
+		ActorID:     correlation.ActorID,
 	}
 	summary.SetContent(content)
 	if writeErr := m.events.WriteEventSummary(ctx, summary); writeErr != nil {

@@ -22,7 +22,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.26.4"
+          go-version: "1.27.1"
 
       - name: Test herdr bridge runtime
         run: python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v

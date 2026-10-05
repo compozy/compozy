@@ -670,7 +670,7 @@ func (s *Store) dirForScopeMust(t *testing.T, scope memcontract.Scope) string {
 
 func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: root},
+		ID: "ws-alpha", RootDir: root,
 	}
 }
 

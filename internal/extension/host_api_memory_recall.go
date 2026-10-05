@@ -61,11 +61,9 @@ func (h *HostAPIHandler) recallMemoryFromProvider(
 		return memcontract.Packaged{}, true, err
 	}
 	recalled, err := registration.Provider.Recall(ctx, memcontract.RecallRequest{
-		Query: memcontract.Query{
-			WorkspaceID: workspaceID,
-			QueryText:   query,
-		},
-		Options: memcontract.RecallOptions{TopK: limit},
+		WorkspaceID: workspaceID,
+		QueryText:   query,
+		Options:     memcontract.RecallOptions{TopK: limit},
 	})
 	if err != nil {
 		if errors.Is(err, memcontract.ErrNotImplemented) {

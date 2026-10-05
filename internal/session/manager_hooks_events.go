@@ -27,12 +27,10 @@ func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, 
 	ctx = hookDispatchContext(ctx, m, session)
 
 	_, err := m.hooks.events().DispatchEventPreRecord(ctx, hookspkg.EventPreRecordPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookEventPreRecord,
-			Timestamp: hookTimestamp(m.now(), event.Timestamp),
-		},
+		Event:          hookspkg.HookEventPreRecord,
+		Timestamp:      hookTimestamp(m.now(), event.Timestamp),
 		SessionContext: hookSessionContext(session),
-		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(event.TurnID)},
+		TurnID:         strings.TrimSpace(event.TurnID),
 		RecordType:     strings.TrimSpace(event.Type),
 		Content:        json.RawMessage(content),
 	})
@@ -62,12 +60,10 @@ func (m *Manager) runContextCompaction(
 	ctx = hookDispatchContext(ctx, m, session)
 
 	prePayload := hookspkg.ContextPreCompactPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookContextPreCompact,
-			Timestamp: now(),
-		},
+		Event:          hookspkg.HookContextPreCompact,
+		Timestamp:      now(),
 		SessionContext: hookSessionContext(session),
-		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(turnID)},
+		TurnID:         strings.TrimSpace(turnID),
 		Reason:         strings.TrimSpace(reason),
 		Strategy:       strings.TrimSpace(strategy),
 		Summary:        strings.TrimSpace(summary),
@@ -129,12 +125,10 @@ func (m *Manager) dispatchEventPostRecord(
 	ctx = hookDispatchContext(ctx, m, session)
 
 	_, err := m.hooks.events().DispatchEventPostRecord(ctx, hookspkg.EventPostRecordPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookEventPostRecord,
-			Timestamp: hookTimestamp(m.now(), event.Timestamp),
-		},
+		Event:          hookspkg.HookEventPostRecord,
+		Timestamp:      hookTimestamp(m.now(), event.Timestamp),
 		SessionContext: hookSessionContext(session),
-		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(event.TurnID)},
+		TurnID:         strings.TrimSpace(event.TurnID),
 		RecordType:     strings.TrimSpace(event.Type),
 		Sequence:       sequence,
 		Content:        json.RawMessage(content),
@@ -157,12 +151,10 @@ func (m *Manager) dispatchSessionMessagePersisted(
 	ctx = hookDispatchContext(ctx, m, session)
 	rootSessionID, parentSessionID, actorKind, actorID := messagePersistedLineage(session)
 	_, err := m.hooks.conversation().DispatchSessionMessagePersisted(ctx, hookspkg.SessionMessagePersistedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionMessagePersisted,
-			Timestamp: hookTimestamp(m.now(), event.Timestamp),
-		},
+		Event:           hookspkg.HookSessionMessagePersisted,
+		Timestamp:       hookTimestamp(m.now(), event.Timestamp),
 		SessionContext:  hookSessionContext(session),
-		TurnContext:     hookspkg.TurnContext{TurnID: strings.TrimSpace(event.TurnID)},
+		TurnID:          strings.TrimSpace(event.TurnID),
 		MessageID:       strings.TrimSpace(persisted.ID),
 		MessageSeq:      persisted.Sequence,
 		Role:            hookMessageRoleAssistant,
