@@ -1,3 +1,4 @@
+import { createSessionCatalogStreamResponse } from "./catalog-stream-handler";
 import { sessionContextHandlers } from "./context-handlers";
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -6,9 +7,6 @@ import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scen
 import {
   primarySessionFixture,
   sessionApprovalFixture,
-  operatorNotificationFixture,
-  sessionAttentionChangedFixture,
-  sessionCatalogChangedFixture,
   sessionEventsFixture,
   sessionFixtures,
   sessionHistoryFixture,
@@ -25,7 +23,6 @@ const storyWorkspaceNameById = new Map(
     storyWorkspaceNames[key as keyof typeof storyWorkspaceNames],
   ])
 );
-const sessionCatalogStreamEncoder = new TextEncoder();
 const attachmentBytes = new Map<string, { bytes: Uint8Array; attachment: SessionAttachment }>();
 const presenceLeases = new Map<string, string>();
 
@@ -74,40 +71,6 @@ function mockAttachmentClassification(mimeType: string): {
     default:
       return null;
   }
-}
-
-function createSessionCatalogStreamResponse(): Response {
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(
-        sessionCatalogStreamEncoder.encode(
-          [
-            ": storybook session catalog stream",
-            "",
-            "event: session_catalog_changed",
-            `data: ${JSON.stringify(sessionCatalogChangedFixture)}`,
-            "",
-            "event: session_attention_changed",
-            `data: ${JSON.stringify(sessionAttentionChangedFixture)}`,
-            "",
-            "event: operator_notification",
-            `data: ${JSON.stringify(operatorNotificationFixture)}`,
-            "",
-            "",
-          ].join("\n")
-        )
-      );
-    },
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "Content-Type": "text/event-stream",
-    },
-  });
 }
 
 export const handlers: HttpHandler[] = [

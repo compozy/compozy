@@ -1,3 +1,4 @@
+export { sessionCatalogStreamHandler } from "./catalog-stream-handler";
 export { handlers, resetSessionAttentionMock } from "./handlers";
 export {
   assistantMessageFixture,

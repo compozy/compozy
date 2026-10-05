@@ -31,7 +31,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -1176,10 +1175,6 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveWorkspace(target) error = %v", err)
 	}
-	targetIdentity, err := workspacepkg.EnsureIdentity(ctx, target.RootDir)
-	if err != nil {
-		t.Fatalf("EnsureIdentity(target) error = %v", err)
-	}
 	harness.WorkspaceID = sourceWorkspaceID
 	var (
 		onceSession       compozycontract.SessionPayload
@@ -1204,7 +1199,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 				ctx,
 				harness,
 				denySession.ID,
-				targetIdentity.WorkspaceID,
+				target.ID,
 				workspaceaccess.SeamTool,
 				workspaceaccess.SourceDenied,
 				"workspace.access_denied",
@@ -1249,7 +1244,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 				ctx,
 				harness,
 				onceSession.ID,
-				targetIdentity.WorkspaceID,
+				target.ID,
 				workspaceaccess.SeamTool,
 				workspaceaccess.SourceDenied,
 				"workspace.access_denied",

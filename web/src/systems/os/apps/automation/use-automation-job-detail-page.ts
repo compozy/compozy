@@ -28,14 +28,11 @@ export function useAutomationJobDetailPage(jobId: string) {
   const jobDetailQuery = useAutomationJob(jobId, {
     enabled: liveDataEnabled && Boolean(jobId),
   });
-  const loadedJob = jobDetailQuery.data;
-  const accessError = automationWorkspaceAccessError(
-    "job",
-    loadedJob,
+  const { job, error, isLoading } = projectJobDetail(
+    jobDetailQuery,
     activeWorkspaceId,
     workspaceLoading
   );
-  const job = workspaceLoading || accessError ? undefined : loadedJob;
   const jobRunsQuery = useAutomationJobRuns(
     jobId,
     { limit: 10 },
@@ -97,7 +94,7 @@ export function useAutomationJobDetailPage(jobId: string) {
 
   return {
     editorDialogProps: editor.editorDialogProps,
-    error: job ? null : (accessError ?? jobDetailQuery.error),
+    error,
     handleBack: () => void navigate({ to: "/jobs" }),
     handleDelete,
     handleEdit: () => {
@@ -110,7 +107,7 @@ export function useAutomationJobDetailPage(jobId: string) {
       void handleTriggerNow();
     },
     isDeleting: deleteMutation.isPending,
-    isLoading: (jobDetailQuery.isLoading || workspaceLoading) && !job && !accessError,
+    isLoading,
     isTogglePending: updateMutation.isPending,
     isTriggerPending: triggerMutation.isPending,
     isTriggerDisabled: runtimeUnavailableMessage !== null,
@@ -118,5 +115,26 @@ export function useAutomationJobDetailPage(jobId: string) {
     runs,
     runsError: job ? jobRunsQuery.error : null,
     runsLoading: job ? jobRunsQuery.isLoading : false,
+  };
+}
+
+function projectJobDetail(
+  jobDetailQuery: ReturnType<typeof useAutomationJob>,
+  activeWorkspaceId: string | null | undefined,
+  workspaceLoading: boolean
+) {
+  const loadedJob = jobDetailQuery.data;
+  const accessError = automationWorkspaceAccessError(
+    "job",
+    loadedJob,
+    activeWorkspaceId,
+    workspaceLoading
+  );
+  const job = workspaceLoading || accessError ? undefined : loadedJob;
+
+  return {
+    job,
+    error: job ? null : (accessError ?? jobDetailQuery.error),
+    isLoading: (jobDetailQuery.isLoading || workspaceLoading) && !job && !accessError,
   };
 }

@@ -164,7 +164,7 @@ func (s *Service) resolveAttachedViewClient(
 		}
 		return request.Client, nil
 	}
-	clients, err := s.clients.Clients(ctx, request.Workspace)
+	clients, err := s.clients.AttachedClients(ctx, request.Workspace)
 	if err != nil {
 		return "", fmt.Errorf("cmd palette view: list attached clients: %w", err)
 	}

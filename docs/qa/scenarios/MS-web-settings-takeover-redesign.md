@@ -104,3 +104,10 @@ settings-offline-guidance-dora-ended.json and related receipts in the report evi
 (693 Web files / 6,982 tests). All named page, navigation, visual, draft/save/error and typed
 restart legs have current-cycle proof. Set the complete scenario to pass/fixed; all five
 linked defects are verified. The separate Notifications delivery charter retains its own gaps.
+
+CI follow-up 2026-10-05: The focused real-daemon browser recovery scenario creates
+two live sessions before injecting restart failure and confirms the warning,
+failure reason, and retry control. The non-loopback transport scenario verifies
+the fixed safe refusal remains visible through the root error boundary while
+HTTP is denied and UDS/CLI config access still works. Both re-walks passed. See
+[PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md).

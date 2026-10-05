@@ -138,3 +138,10 @@ The 125-frame profile-dormant-sol recording is stopped; no product source was re
 All lifecycle behavior in this scenario is now verified on b915570a8, reusing the earlier repair
 replays. The charter's remaining spoken VoiceOver requirement belongs to the explicitly blocked
 ET-profile-switcher-restore row; keyboard and accessibility-tree evidence do not establish speech.
+
+CI follow-up 2026-10-05: A failed managed extension removal must restore each
+Profile marker's nullable creation attribution together with identity and creation
+time. The existing managed data lifecycle suite verifies created, pre-existing,
+and legacy-unknown markers using real SQLite and the race detector. See
+[PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md); this does not expand the
+deferred visual scenario scope.

@@ -33,6 +33,24 @@ func (d *cmdPaletteClientDirectory) Clients(
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: list window-manager clients: %w", err)
 	}
+	return paletteClients(views, workspaceID), nil
+}
+
+func (d *cmdPaletteClientDirectory) AttachedClients(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+) ([]cmdpalette.Client, error) {
+	if d == nil || d.windowManagers == nil {
+		return []cmdpalette.Client{}, nil
+	}
+	views, err := d.windowManagers.ClientsInWorkspace(ctx, windowmanager.WorkspaceID(workspaceID))
+	if err != nil {
+		return nil, fmt.Errorf("cmd palette: list attached clients: %w", err)
+	}
+	return paletteClients(views, workspaceID), nil
+}
+
+func paletteClients(views []windowmanager.ClientView, workspaceID cmdpalette.WorkspaceID) []cmdpalette.Client {
 	clients := make([]cmdpalette.Client, 0, len(views))
 	for _, view := range views {
 		clients = append(clients, cmdpalette.Client{
@@ -40,7 +58,7 @@ func (d *cmdPaletteClientDirectory) Clients(
 			AttachedAt: view.ConnectedAt, ContextRevision: strconv.FormatUint(view.ContextRevision, 10),
 		})
 	}
-	return clients, nil
+	return clients
 }
 
 func (d *cmdPaletteClientDirectory) Context(

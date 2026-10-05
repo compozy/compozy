@@ -62,3 +62,9 @@ QA 2026-09-10: Release integration now builds the TypeScript/React SDK dependenc
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+CI follow-up 2026-10-05: The existing programmable-view runtime E2E passes with
+registered client tokens even before a command channel opens. It still rejects a
+foreign client and isolates view sessions across extension restarts. This is
+backend ownership evidence, not a new visual keyboard walkthrough. See
+[PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md).

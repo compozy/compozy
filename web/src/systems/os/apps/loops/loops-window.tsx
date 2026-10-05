@@ -57,6 +57,16 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
     if (focused && canAdoptRouteWorkspace) adoptRouteWorkspace(routeWorkspaceId);
   }, [canAdoptRouteWorkspace, focused, routeWorkspaceId]);
 
+  return <LoopLocation location={location} routeWorkspaceId={routeWorkspaceId} />;
+}
+
+function LoopLocation({
+  location,
+  routeWorkspaceId,
+}: {
+  location: OsWindowRoute;
+  routeWorkspaceId: string | undefined;
+}) {
   const runDiff = /^\/loop-runs\/([^/]+)\/diff$/.exec(location.pathname);
   if (runDiff) {
     return (
@@ -70,18 +80,11 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
 
   const runDetail = /^\/loop-runs\/([^/]+)$/.exec(location.pathname);
   if (runDetail) {
-    const requestNode =
-      typeof location.search.request_node === "string" ? location.search.request_node.trim() : "";
-    const requestItem = Number(location.search.request_item);
     return (
       <LoopRunDetailLocation
         routeWorkspaceId={routeWorkspaceId}
         runId={decodePathSegment(runDetail[1])}
-        requestFocus={
-          requestNode !== "" && Number.isInteger(requestItem) && requestItem >= 0
-            ? { nodeId: requestNode, itemIndex: requestItem }
-            : undefined
-        }
+        requestFocus={loopRequestFocus(location.search)}
       />
     );
   }
@@ -104,4 +107,12 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
     );
   }
   return <LoopsCatalogLocation search={validateLoopsSearch(location.search)} />;
+}
+
+function loopRequestFocus(search: OsWindowRoute["search"]) {
+  const nodeId = typeof search.request_node === "string" ? search.request_node.trim() : "";
+  const itemIndex = Number(search.request_item);
+  return nodeId !== "" && Number.isInteger(itemIndex) && itemIndex >= 0
+    ? { nodeId, itemIndex }
+    : undefined;
 }

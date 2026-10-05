@@ -23,14 +23,11 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
   const triggerDetailQuery = useAutomationTrigger(triggerId, {
     enabled: liveDataEnabled && Boolean(triggerId),
   });
-  const loadedTrigger = triggerDetailQuery.data;
-  const accessError = automationWorkspaceAccessError(
-    "trigger",
-    loadedTrigger,
+  const { trigger, error, isLoading } = projectTriggerDetail(
+    triggerDetailQuery,
     activeWorkspaceId,
     workspaceLoading
   );
-  const trigger = workspaceLoading || accessError ? undefined : loadedTrigger;
   const triggerRunsQuery = useAutomationTriggerRuns(
     triggerId,
     { limit: 10 },
@@ -75,7 +72,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
 
   return {
     editorDialogProps: editor.editorDialogProps,
-    error: trigger ? null : (accessError ?? triggerDetailQuery.error),
+    error,
     handleBack: () => void navigate({ to: "/triggers" }),
     handleDelete,
     handleEdit: () => {
@@ -88,7 +85,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
       void handleToggleEnabled(enabled);
     },
     isDeleting: deleteMutation.isPending,
-    isLoading: (triggerDetailQuery.isLoading || workspaceLoading) && !trigger && !accessError,
+    isLoading,
     isTogglePending: updateMutation.isPending,
     loopWorkspaceName:
       loopTarget?.kind === "loop" ? workspaceNameById(loopTarget.workspaceId) : null,
@@ -97,5 +94,26 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     runsLoading: trigger ? triggerRunsQuery.isLoading : false,
     trigger,
     workspaceName: workspaceNameById(trigger?.workspace_id),
+  };
+}
+
+function projectTriggerDetail(
+  triggerDetailQuery: ReturnType<typeof useAutomationTrigger>,
+  activeWorkspaceId: string | null | undefined,
+  workspaceLoading: boolean
+) {
+  const loadedTrigger = triggerDetailQuery.data;
+  const accessError = automationWorkspaceAccessError(
+    "trigger",
+    loadedTrigger,
+    activeWorkspaceId,
+    workspaceLoading
+  );
+  const trigger = workspaceLoading || accessError ? undefined : loadedTrigger;
+
+  return {
+    trigger,
+    error: trigger ? null : (accessError ?? triggerDetailQuery.error),
+    isLoading: (triggerDetailQuery.isLoading || workspaceLoading) && !trigger && !accessError,
   };
 }

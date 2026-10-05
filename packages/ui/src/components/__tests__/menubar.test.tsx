@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -76,7 +76,9 @@ describe("Menubar", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Keyboard shortcuts…" })
     ).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "New session" })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("menuitem", { name: "New session" })).not.toBeInTheDocument();
+    });
   });
 
   it("Should open a submenu from its trigger with the right arrow key", async () => {

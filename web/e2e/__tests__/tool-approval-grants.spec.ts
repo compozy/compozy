@@ -167,8 +167,8 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     const stopResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
-        (response.url().endsWith(`${sessionBase}/prompt/cancel`) ||
-          response.url().endsWith(`${sessionBase}/stop`))
+        (new URL(response.url()).pathname === `${sessionBase}/prompt/cancel` ||
+          new URL(response.url()).pathname === `${sessionBase}/stop`)
     );
     await expect(sessionUI.stopButton).toBeVisible();
     await sessionUI.stopButton.click();

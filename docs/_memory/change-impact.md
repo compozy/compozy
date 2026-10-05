@@ -4,6 +4,17 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **PR 691 CI remediation:** Failed extension removal preserves nullable Profile creation
+  attribution with the rest of its rollback snapshot. Token-only programmable view opening
+  resolves registered attachments independently of command-channel readiness, retaining
+  foreign-client rejection. Web shows the fixed safe non-loopback refusal while keeping
+  arbitrary runtime errors hidden; Storybook co-ships catalog WebSocket fixtures.
+  No public DTO, route, native-tool ID, hook/config key, migration, SDK or workspace/Profile
+  ownership changes. Site and official skills/compozy contracts remain accurate.
+  [CI remediation evidence](../qa/reports/2026-10-05-pr-691-ci.md) records owning suites;
+  broad deferred QA remains deferred.
+
+
 - **Durable wait example:** not applicable — editorial only. The site's DSL example
   replaces an unknown event with catalog-backed task.run.completed and links the hook
   catalog. The exact YAML validates through the public CLI. Native tools, CLI/HTTP/UDS,

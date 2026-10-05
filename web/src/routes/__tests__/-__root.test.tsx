@@ -108,6 +108,14 @@ describe("RootComponent", () => {
     expect(screen.queryByText("route failed")).not.toBeInTheDocument();
   });
 
+  it("Should explain a known transport refusal without exposing arbitrary runtime errors", () => {
+    const message =
+      "remote HTTP API access is disabled unless the daemon is bound to a loopback host";
+    renderRoot(<RootErrorBoundary error={new Error(message)} reset={mockReset} />);
+    expect(screen.getByText(message)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+  });
+
   it("Should keep revoked access ahead of root route fallbacks", async () => {
     renderRoot(<RootNotFoundBoundary isNotFound routeId="__root__" />);
     await act(async () => {

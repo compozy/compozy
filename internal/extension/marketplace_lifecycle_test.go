@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -426,13 +427,22 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := env.registry.SetEnabledForProfile(manifest.Name, financeID, false); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := env.db.ExecContext(
-			t.Context(),
-			`INSERT INTO extension_profile_markers(extension_name, profile_name, created_profile_id, created_at) VALUES (?, 'finance', ?, '2026-09-12T00:00:00Z')`,
-			manifest.Name,
-			financeID,
-		); err != nil {
-			t.Fatal(err)
+		markers := []struct {
+			name, profileID string
+			created         sql.NullBool
+		}{
+			{"finance", financeID, sql.NullBool{Bool: true, Valid: true}},
+			{"marketing", marketingID, sql.NullBool{Valid: true}},
+			{"legacy", insertActiveRegistryProfile(t, env, "legacy"), sql.NullBool{}},
+		}
+		for _, marker := range markers {
+			if _, err := env.db.ExecContext(
+				t.Context(),
+				`INSERT INTO extension_profile_markers(extension_name, profile_name, created_profile_id, created_at, created_by_extension) VALUES (?, ?, ?, '2026-09-12T00:00:00Z', ?)`,
+				manifest.Name, marker.name, marker.profileID, marker.created,
+			); err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "", "")
@@ -459,12 +469,15 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 						t.Fatalf("profile %s changed before rollback publication: enabled=%t err=%v", id, enabled, err)
 					}
 				}
-				var profileID, createdAt string
-				if err := env.db.QueryRowContext(ctx, `SELECT created_profile_id, created_at FROM extension_profile_markers WHERE extension_name = ? AND profile_name = 'finance'`, manifest.Name).
-					Scan(&profileID, &createdAt); err != nil ||
-					profileID != financeID ||
-					createdAt != "2026-09-12T00:00:00Z" {
-					t.Fatalf("profile provenance changed: %q %q %v", profileID, createdAt, err)
+				for _, marker := range markers {
+					var profileID, createdAt string
+					var created sql.NullBool
+					if err := env.db.QueryRowContext(ctx, `SELECT created_profile_id, created_at, created_by_extension FROM extension_profile_markers WHERE extension_name = ? AND profile_name = ?`, manifest.Name, marker.name).
+						Scan(&profileID, &createdAt, &created); err != nil ||
+						profileID != marker.profileID || created != marker.created ||
+						createdAt != "2026-09-12T00:00:00Z" {
+						t.Fatalf("profile %s provenance changed: %q %q %+v %v", marker.name, profileID, createdAt, created, err)
+					}
 				}
 			}
 

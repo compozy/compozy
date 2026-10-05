@@ -3,7 +3,6 @@ import { useState, type SetStateAction } from "react";
 import { useSettingsPage } from "./use-settings-page";
 
 import {
-  SettingsApiError,
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
   type SettingsUpdateTargetSet,
@@ -130,12 +129,7 @@ export function useSettingsGeneralPage() {
     });
   };
 
-  const saveError =
-    mutation.error instanceof SettingsApiError
-      ? mutation.error.message
-      : mutation.error instanceof Error
-        ? mutation.error.message
-        : null;
+  const saveError = updateActionError(mutation.error);
 
   const handleRetry = () => {
     void query.refetch();
@@ -172,12 +166,7 @@ export function useSettingsGeneralPage() {
     applyRecords,
     handleReload,
     isReloading: reload.isPending,
-    reloadError:
-      reload.error instanceof SettingsApiError
-        ? reload.error.message
-        : reload.error instanceof Error
-          ? reload.error.message
-          : null,
+    reloadError: updateActionError(reload.error),
     reloadResult: reload.data ?? null,
   };
 }
