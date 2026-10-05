@@ -7,10 +7,10 @@ journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (the host's Close Settings action closes the window; search with `/` shortcut filters sections; Basics/Personal/Agents/Advanced groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
 entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
 qa_status: fail
-bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display
+bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display; BUG-20261004-settings-startup-false-offline
 fix_status: pending
 retest_status:
-fix_commits: b4166a6c2
+fix_commits: b4166a6c2; baec8d019; 3268b7477
 evidence: docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-reload-observed.json; docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-save.json; docs/qa/reports/2026-10-02-untested.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-026; MS-037; ET-012; ET-044; ET-045
@@ -75,3 +75,9 @@ reload still displays four hours with the typed restart notice. Restoring Never 
 returns the complete baseline and current runtime state; invalid-duration public PATCH returns
 400 without changing it. All five screenshots are inspected; the 20-frame recording is closed.
 The existing 48 focused tests and Web typecheck/build pass; fix SHA and gate remain pending.
+
+2026-10-04 delivery and startup finding: the idle-duration repair is verified at 3268b7477
+after the exact-tree gate passes. Fresh entry also reveals an enabled Settings button before its
+command is available; clicking it reports a reachable CompozyOS as unreachable and requires a
+later click. BUG-20261004-settings-startup-false-offline owns that defect. The broad row remains
+Fail until this repair and the remaining page/error legs are completed.

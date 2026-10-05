@@ -1,6 +1,6 @@
 # BUG-20261004-settings-idle-timeout-display: Saved idle timeout looks unsaved and reloads as Never
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -61,7 +61,7 @@ save channel, so its historical evidence is not reused as proof of this General 
   canonical refetch, release only the exact submitted General draft; preserve newer edits and
   drafts owned by another workspace context. Do not change serialization, restart semantics,
   timeout enforcement or the server contract.
-- **Fix commit:** pending.
+- **Fix commit:** 3268b74772d374e193871761d158b7c9bb3fb9b7.
 - **Regression test:** existing General route suite owns canonical-duration display; existing
   use-settings-general-page suite owns save-baseline adoption and in-flight draft preservation.
 
@@ -104,3 +104,11 @@ files plus the now-scanned General hook. A separate untouched source extracted w
 from 9108465d9 produces the same General 18/18 complexity and depth 2 as the final hook.
 No rule is suppressed and no unrelated workflow refactor is introduced.
 Fix commit and the required final-tree gate remain pending.
+
+### Delivery closure — 2026-10-04
+
+The required gate passes on tree 3357913069cd4d2941f645b6c8aae473493b1cb2: Go, UI and
+Web lanes succeed; the Web suite passes 693 files / 6,962 tests. Commit 3268b7477 matches that
+exact tree. settings-idle-timeout-delivery-gate.json and settings-idle-timeout-commit-identity.json
+retain the receipts. The original-persona replay above confirms the correction, so this defect
+is verified. Settings startup availability is a separate finding and does not reopen this repair.

@@ -1823,3 +1823,15 @@ remain unchanged.
   BUG-20261004-settings-idle-timeout-display. The existing General route suite owns display;
   the existing General page-model suite owns save reconciliation and pending-edit preservation.
   A fresh real-browser save/reload/restore walk confirms the production bundle.
+
+## Settings launcher availability (2026-10-04 QA)
+
+- The shared Web rail foot reads settings.general through the existing palette projection,
+  so floating and compact Settings controls reflect the same availability as their dispatch.
+  Local theme changes remain independent. No timer, command bypass or second readiness owner.
+- Native tools, CLI/HTTP/UDS contracts, hooks, extensibility, config, workspace/profile data,
+  persisted layouts and official skills/compozy/ behavior are unchanged; no migration is needed.
+- QA/docs owner: MS-web-settings-takeover-redesign and
+  BUG-20261004-settings-startup-false-offline. The canonical os-dock component suite owns
+  missing/unavailable/available command transitions; fresh Chrome entry verifies the actual
+  startup ordering and neighboring theme/launcher behavior.
