@@ -1,6 +1,6 @@
 # BUG-20261005-loop-catalog-ignores-profile: The Loop catalog shows a package disabled in the selected profile
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -52,3 +52,13 @@ assertions now pass, with 184 affected/adjacent tests green. Bruno's fresh brows
 confirms 6 enabled / 4 disabled / 6 in studio / 4 on return / 6 restored after reload,
 matching independent UDS reads. See loops-lifecycle-fixed-profile-return-web.json and
 loops-lifecycle-fixed-restored-web.json. Required gate and fix commit are pending.
+
+## Verified closure
+
+- Fix commit: 1f497b4fe751696d687960c84b0f8cb5defa2be0
+- Final gate: loops-lifecycle-final-delivery-gate-v2.json (all affected lanes green).
+- Exact committed hashes: loops-lifecycle-committed-head.json; hook left every checked file unchanged.
+- ET-052's profile leave/return walk passed, including fresh browser and independent UDS reads.
+- Final compiler-compatible build: index-Cl3pDXHF.js; real-daemon E2E and manual Runs canary pass.
+
+The pending notes above describe intermediate checkpoints; repair and retest are complete.
